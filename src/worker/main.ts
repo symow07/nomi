@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createDb, lockConversation, withTenantTx } from '../db/client.js';
+import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
 import { anthropicAnalyzer, anthropicReplyWriter } from '../llm/anthropic.js';
@@ -44,7 +45,11 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
         text: job.data.text,
       };
       const result = await computeTurn(ports, req);
-      return commitTurn(ports, req, result, started);
+      const fx = await commitTurn(ports, req, result, started);
+      // Budget dataset (P5) — atomic per-turn usage increment, same tx.
+      await sql`select record_usage(${businessId.value}::uuid,
+        ${result.usage.llmCalls}, ${result.usage.inputTokens}, ${result.usage.outputTokens})`.execute(tx);
+      return fx;
     });
 
     // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers

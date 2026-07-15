@@ -67,11 +67,17 @@ export type TurnResult = {
   stateBefore: ConversationState;
   provenance: { promptVersion: string | null; modelId: string | null };
   guardViolations: number;
+  /** Stage timings (ms) + token usage — the P1 measurement surface. */
+  timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
+  usage: { llmCalls: number; inputTokens: number; outputTokens: number };
   fingerprint: DecisionFingerprint;
 };
 
 export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<TurnResult> {
   const { tenant, retriever, analyzer, replyWriter } = ports;
+  const t0 = Date.now();
+  const timings = { retrievalMs: 0, analyzerMs: 0, replyMs: 0, totalMs: 0 };
+  const usage = { llmCalls: 0, inputTokens: 0, outputTokens: 0 };
 
   const state = await tenant.conversations.loadState(req.conversationId);
   if (!state) throw new Error(`conversation not found: ${req.conversationId}`);
@@ -100,13 +106,20 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let modelId: string | null = null;
 
   if (!gated) {
+    const tr = Date.now();
     retrieved = await retriever.byText(req.text, 20);
+    timings.retrievalMs = Date.now() - tr;
+    const ta = Date.now();
     const a = await analyzer.analyze({
       text: req.text,
       state,
       candidates: retrieved,
       recentMessages: [], // history injection lands with the worker's message loader
     });
+    timings.analyzerMs = Date.now() - ta;
+    usage.llmCalls++;
+    usage.inputTokens += a.usage.inputTokens;
+    usage.outputTokens += a.usage.outputTokens;
     analysis = a.analysis;
     promptVersion = a.promptVersion;
     modelId = a.modelId;
@@ -241,6 +254,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const nextQuestion =
         analysis?.intent.nextLogicalQuestion ?? refusalCtx?.note ?? null;
 
+      const tw = Date.now();
       for (let attempt = 0; attempt < 2 && reply === null; attempt++) {
         const w = await replyWriter.write({
           state: newState,
@@ -250,6 +264,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           nextQuestion,
           retryAfterViolation: attempt > 0,
         });
+        usage.llmCalls++;
+        usage.inputTokens += w.usage.inputTokens;
+        usage.outputTokens += w.usage.outputTokens;
         promptVersion = promptVersion ?? w.promptVersion;
         const guarded = guardNumerals({
           reply: w.reply,
@@ -272,6 +289,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         reply = guardFallbackReply(quote, nextQuestion);
         replyDeterministic = true;
       }
+      timings.replyMs = Date.now() - tw;
       break;
     }
   }
@@ -297,12 +315,14 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     },
   };
 
+  timings.totalMs = Date.now() - t0;
   return {
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
     reply, replyDeterministic, newState, signals,
     stateBefore: state,
     provenance: { promptVersion, modelId },
     guardViolations,
+    timings, usage,
     fingerprint,
   };
 }

@@ -136,10 +136,10 @@ export class FakeRetriever implements Retriever {
 export class FakeAnalyzer implements Analyzer {
   calls = 0;
   next: Analysis | null = null;
-  async analyze(): Promise<{ analysis: Analysis; promptVersion: string; modelId: string }> {
+  async analyze(): Promise<{ analysis: Analysis; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
     this.calls++;
     if (!this.next) throw new Error('FakeAnalyzer.next not set');
-    return { analysis: this.next, promptVersion: 'test@1', modelId: 'fake-model' };
+    return { analysis: this.next, promptVersion: 'test@1', modelId: 'fake-model', usage: { inputTokens: 500, outputTokens: 120 } };
   }
 }
 
@@ -147,9 +147,9 @@ export class FakeReplyWriter implements ReplyWriter {
   calls = 0;
   /** queue of replies; last one repeats */
   replies: string[] = ['Happy to help with that.'];
-  async write(): Promise<{ reply: string; promptVersion: string; modelId: string }> {
+  async write(): Promise<{ reply: string; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
     const reply = this.replies[Math.min(this.calls, this.replies.length - 1)] ?? '';
     this.calls++;
-    return { reply, promptVersion: 'resp@1', modelId: 'fake-model' };
+    return { reply, promptVersion: 'resp@1', modelId: 'fake-model', usage: { inputTokens: 300, outputTokens: 80 } };
   }
 }

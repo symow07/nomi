@@ -76,13 +76,15 @@ export async function buildServer(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
           on conflict (message_id) do nothing
         `.execute(tx);
 
-        return r.fingerprint;
+        return { fingerprint: r.fingerprint, timings: r.timings, usage: r.usage,
+                 guardViolations: r.guardViolations };
       });
 
+      // P1 measurement surface: stage latency + token usage per shadow turn.
       return reply.code(200).send({
         ok: true,
         latency_ms: Date.now() - started,
-        fingerprint: result,
+        ...result,
       });
     } catch (e: unknown) {
       // Shadow failures are logged, counted, and NEVER propagated to n8n.

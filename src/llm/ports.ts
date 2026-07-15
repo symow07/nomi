@@ -19,6 +19,7 @@ export interface Analyzer {
     analysis: Analysis;
     promptVersion: string;   // provenance for the turns table (ADR-0010 Q1)
     modelId: string;
+    usage: { inputTokens: number; outputTokens: number };
   }>;
 }
 
@@ -37,5 +38,6 @@ export interface ReplyWriter {
     nextQuestion: string | null;
     /** second attempt after a numeral violation — be stricter */
     retryAfterViolation: boolean;
-  }): Promise<{ reply: string; promptVersion: string; modelId: string }>;
+  }): Promise<{ reply: string; promptVersion: string; modelId: string;
+    usage: { inputTokens: number; outputTokens: number } }>;
 }

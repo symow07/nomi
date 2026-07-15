@@ -75,7 +75,8 @@ export function anthropicAnalyzer(client: Anthropic): Analyzer {
           recommendedPhase: state.phase,
         };
       }
-      return { analysis, promptVersion: prompt.version, modelId: MODEL };
+      return { analysis, promptVersion: prompt.version, modelId: MODEL,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
 }
@@ -176,7 +177,8 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
       } catch {
         reply = raw || 'Thanks for your message — let me get back to you shortly.';
       }
-      return { reply, promptVersion: prompt.version, modelId: MODEL };
+      return { reply, promptVersion: prompt.version, modelId: MODEL,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
 }
