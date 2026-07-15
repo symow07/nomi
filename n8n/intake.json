@@ -1,0 +1,953 @@
+{
+  "name": "YiwuFlow - Intake",
+  "nodes": [
+    {
+      "id": "yf-0001",
+      "position": [
+        260,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Webhook - Simulated Intake",
+      "type": "n8n-nodes-base.webhook",
+      "webhookId": "yiwuflow-simulate",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "simulate",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "notes": "Create a Header Auth credential: name=x-webhook-secret, value=test_secret_xyz"
+    },
+    {
+      "id": "yf-0002",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $json.body ?? $json;\nif (!b.message_id) b.message_id = `msg_${Date.now()}_sim`;\nif (!b.business_id) b.business_id = $env.BUSINESS_ID;\nreturn [{ json: b }];"
+      }
+    },
+    {
+      "id": "yf-0003",
+      "position": [
+        700,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Dedup Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/messages?external_id=eq.{{ $json.external_id }}&select=id&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-0004",
+      "position": [
+        920,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Dedup Result",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst original = $('Normalize Payload').first().json;\nreturn [{ json: { ...original, is_duplicate: rows($json).length > 0 } }];"
+      }
+    },
+    {
+      "id": "yf-0006",
+      "position": [
+        1140,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-0005",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-0007",
+      "position": [
+        1360,
+        110
+      ],
+      "typeVersion": 1,
+      "name": "Drop Duplicate",
+      "type": "n8n-nodes-base.noOp",
+      "parameters": {}
+    },
+    {
+      "id": "yf-0008",
+      "position": [
+        1580,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Client Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/client_channels?channel=eq.{{ $json.channel }}&channel_user_id=eq.{{ $json.client_channel_id }}&select=client_id&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-0009",
+      "position": [
+        1800,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Client Lookup Result",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst original = $('Dedup Result').first().json;\nconst hit = rows($json)[0];\nreturn [{ json: { ...original, existing_client_id: hit?.client_id ?? null } }];"
+      }
+    },
+    {
+      "id": "yf-000b",
+      "position": [
+        2020,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "New Client?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-000a",
+              "leftValue": "={{ $json.existing_client_id === null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-000c",
+      "position": [
+        2240,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Client Body",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json, _body: {\n  business_id:  $json.business_id,\n  display_name: $json.metadata?.wa_profile_name || 'Unknown',\n  last_seen_at: $json.timestamp || new Date().toISOString()\n} } }];"
+      }
+    },
+    {
+      "id": "yf-000d",
+      "position": [
+        2460,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Create Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/clients",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-000e",
+      "position": [
+        2680,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Channel Body",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst original = $('Build Client Body').first().json;\nconst client_id = rows($json)[0]?.id;\nif (!client_id) throw new Error('Create Client returned no row — check SUPABASE_SERVICE_KEY and RLS policies.');\nreturn [{ json: { ...original, client_id, _body: {\n  client_id,\n  channel:         original.channel,\n  channel_user_id: original.client_channel_id\n} } }];"
+      }
+    },
+    {
+      "id": "yf-000f",
+      "position": [
+        2900,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Create Client Channel",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/client_channels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-000g",
+      "position": [
+        3120,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Resolve New Client",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = { ...$('Build Channel Body').first().json };\ndelete o._body;\nreturn [{ json: o }];"
+      }
+    },
+    {
+      "id": "yf-000h",
+      "position": [
+        3340,
+        870
+      ],
+      "typeVersion": 2,
+      "name": "Resolve Returning Client",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Known client, but no active conversation — their previous one was closed.\n// Start a new conversation rather than throwing.\nconst o = $('Client Lookup Result').first().json;\nreturn [{ json: { ...o, client_id: o.existing_client_id, is_returning_client: true } }];"
+      }
+    },
+    {
+      "id": "yf-000i",
+      "position": [
+        3560,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Conversation Body",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $json;\nif (!o.client_id) throw new Error('Build Conversation Body reached with no client_id.');\nreturn [{ json: { ...o, _body: {\n  business_id: o.business_id,\n  client_id:   o.client_id,\n  channel:     o.channel,\n  phase:       'warm_intake'\n} } }];"
+      }
+    },
+    {
+      "id": "yf-000j",
+      "position": [
+        3780,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Create Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-000k",
+      "position": [
+        4000,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Conv State Body",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst original = $('Build Conversation Body').first().json;\nconst conversation_id = rows($json)[0]?.id;\nif (!conversation_id) throw new Error('Create Conversation returned no row.');\nreturn [{ json: { ...original, conversation_id, _body: {\n  conversation_id, phase: 'warm_intake', turn_count: 0\n} } }];"
+      }
+    },
+    {
+      "id": "yf-000l",
+      "position": [
+        4220,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Create Conv State",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversation_state",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-000m",
+      "position": [
+        4440,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "New Conversation Context",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Conv State Body').first().json;\nreturn [{ json: {\n  ...o,\n  is_new_client: !o.is_returning_client,\n  phase: 'warm_intake',\n  conversation_state: {\n    conversation_id: o.conversation_id,\n    client_id:       o.client_id,\n    business_id:     o.business_id,\n    channel:         o.channel,\n    phase:           'warm_intake',\n    client_name:     o.metadata?.wa_profile_name || null,\n    client_email:    null,\n    preferred_language: null,\n    identified_product_id: null,\n    product_confidence: 0,\n    product_confirmed_by_client: false,\n    inquiry_quantity: null,\n    inquiry_unit: null,\n    client_email_collected: false,\n    escalation_score: 0,\n    pending_question: null,\n    turn_count: 0\n  }\n} }];"
+      }
+    },
+    {
+      "id": "yf-000n",
+      "position": [
+        2020,
+        680
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Load Active Conv",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/active_conversations_summary?client_id=eq.{{ $json.existing_client_id }}&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-000o",
+      "position": [
+        2240,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Active Conv Result",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst o = $('Client Lookup Result').first().json;\nconst state = rows($json)[0] || null;\nreturn [{ json: { ...o, active_conv: state, has_active_conv: state !== null } }];"
+      }
+    },
+    {
+      "id": "yf-000q",
+      "position": [
+        2460,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Has Active Conversation?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-000p",
+              "leftValue": "={{ $json.has_active_conv === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-000r",
+      "position": [
+        2680,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Existing Client Context",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $json;\nconst state = o.active_conv;\nreturn [{ json: {\n  ...o,\n  is_new_client: false,\n  client_id: state.client_id,\n  conversation_id: state.conversation_id,\n  phase: state.phase || 'warm_intake',\n  conversation_state: state\n} }];"
+      }
+    },
+    {
+      "id": "yf-000s",
+      "position": [
+        3780,
+        490
+      ],
+      "typeVersion": 3,
+      "name": "Merge Client Branches",
+      "type": "n8n-nodes-base.merge",
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      }
+    },
+    {
+      "id": "yf-000t",
+      "position": [
+        4000,
+        490
+      ],
+      "typeVersion": 1.2,
+      "name": "→ Multimodal Analysis",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "YiwuFlow - Multimodal Analysis"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Set this to the \"YiwuFlow - Multimodal Analysis\" workflow after import."
+    },
+    {
+      "id": "yf-000u",
+      "position": [
+        4000,
+        680
+      ],
+      "typeVersion": 4.2,
+      "name": "Shadow Mirror",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SHADOW_SERVICE_URL }}/shadow/turn",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message_id: $json.external_id || $json.message_id, business_id: $json.business_id, conversation_id: $json.conversation_id, text: $json.text || \"\" }) }}",
+        "options": {
+          "timeout": 4000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "notes": "Requires env var SHADOW_SERVICE_URL. Safe to leave failing — the live path ignores it."
+    }
+  ],
+  "connections": {
+    "Webhook - Simulated Intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Dedup Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Dedup Check": {
+      "main": [
+        [
+          {
+            "node": "Dedup Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup Result": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Drop Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase - Client Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Client Lookup": {
+      "main": [
+        [
+          {
+            "node": "Client Lookup Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client Lookup Result": {
+      "main": [
+        [
+          {
+            "node": "New Client?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Client?": {
+      "main": [
+        [
+          {
+            "node": "Build Client Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase - Load Active Conv",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Client Body": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Create Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Create Client": {
+      "main": [
+        [
+          {
+            "node": "Build Channel Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Channel Body": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Create Client Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Create Client Channel": {
+      "main": [
+        [
+          {
+            "node": "Resolve New Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve New Client": {
+      "main": [
+        [
+          {
+            "node": "Build Conversation Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Load Active Conv": {
+      "main": [
+        [
+          {
+            "node": "Active Conv Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Active Conv Result": {
+      "main": [
+        [
+          {
+            "node": "Has Active Conversation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Active Conversation?": {
+      "main": [
+        [
+          {
+            "node": "Existing Client Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve Returning Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Returning Client": {
+      "main": [
+        [
+          {
+            "node": "Build Conversation Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Conversation Body": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Create Conversation": {
+      "main": [
+        [
+          {
+            "node": "Build Conv State Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Conv State Body": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Create Conv State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Create Conv State": {
+      "main": [
+        [
+          {
+            "node": "New Conversation Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Conversation Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Client Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Client Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Client Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Client Branches": {
+      "main": [
+        [
+          {
+            "node": "→ Multimodal Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Shadow Mirror",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

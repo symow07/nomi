@@ -1,0 +1,410 @@
+import type { Tenant } from '../db/ports.js';
+import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
+import type { Analyzer, ReplyWriter } from '../llm/ports.js';
+import type { ConversationId, Email } from '../core/types/ids.js';
+import { extractEmail } from '../core/types/ids.js';
+import type { ConversationState } from '../core/types/conversation.js';
+import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
+import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
+import { detectFastPath } from '../core/conversation/fastpath.js';
+import { detectInjection } from '../core/safety/injection.js';
+import { guardNumerals } from '../core/safety/numerals.js';
+import { detectSignals } from '../core/scoring/detect.js';
+import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
+import { computeQuote, selectTier } from '../core/commerce/quote.js';
+import { toConfirmableOrder } from '../core/commerce/confirmable.js';
+import {
+  guardFallbackReply,
+  HANDOFF_REPLY,
+  orderBlockedReply,
+  orderConfirmedReply,
+  quoteRefusalContext,
+} from '../core/conversation/templates.js';
+import type { DecisionFingerprint } from '../shadow/compare.js';
+
+/**
+ * The turn pipeline.
+ *
+ * SPLIT ON PURPOSE:
+ *   computeTurn — reads + decisions. NO writes, NO sends. The shadow endpoint
+ *                 calls ONLY this, so "shadow cannot touch a customer" is a
+ *                 property of the structure, not a promise in a comment.
+ *   commitTurn  — every write, in the caller's tenant transaction.
+ *
+ * When a human owns the conversation, assignedTo is non-null — including the
+ * 'unclaimed' sentinel set at handoff, so the AI is silent from the very
+ * moment of escalation, not from when a human gets around to claiming it.
+ */
+
+export const UNCLAIMED_AGENT = 'unclaimed';
+
+export type TurnPorts = {
+  tenant: Tenant;
+  retriever: Retriever;
+  analyzer: Analyzer;
+  replyWriter: ReplyWriter;
+  now: () => Date;
+};
+
+export type TurnRequest = {
+  conversationId: ConversationId;
+  messageId: string;
+  text: string;
+};
+
+export type TurnResult = {
+  decision: TurnDecision;
+  analysis: Analysis | null;
+  retrieved: readonly RetrievedProduct[];
+  quote: Quote | null;
+  quoteInputs: unknown;           // snapshot for the quotes table (reproducibility)
+  quoteRefusal: QuoteRefusal | null;
+  reply: string | null;           // null = silent (handed off)
+  replyDeterministic: boolean;    // true when the reply came from a template
+  newState: ConversationState;
+  signals: readonly Signal[];
+  stateBefore: ConversationState;
+  provenance: { promptVersion: string | null; modelId: string | null };
+  guardViolations: number;
+  fingerprint: DecisionFingerprint;
+};
+
+export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<TurnResult> {
+  const { tenant, retriever, analyzer, replyWriter } = ports;
+
+  const state = await tenant.conversations.loadState(req.conversationId);
+  if (!state) throw new Error(`conversation not found: ${req.conversationId}`);
+
+  const email = extractEmail(req.text);
+
+  // ── Cheap gates first: don't pay for analysis we won't use. ────────────────
+  // Text-only signal detection runs BEFORE the analyzer: "I want to speak to a
+  // human" must trigger the handoff without first paying for (and waiting on)
+  // an LLM analysis of a message whose outcome is already determined.
+  const textOnlySignals = detectSignals({
+    text: req.text, state, analysis: null, unitPriceUsd: null,
+  });
+  const historicEarly = await tenant.signals.unresolved(req.conversationId);
+  const preScore = computeScores([...historicEarly, ...textOnlySignals]);
+
+  const gated =
+    state.assignedTo !== null ||
+    preScore.problem >= PROBLEM_HANDOFF_THRESHOLD ||
+    detectInjection(req.text).detected ||
+    detectFastPath(req.text, state).matched;
+
+  let retrieved: readonly RetrievedProduct[] = [];
+  let analysis: Analysis | null = null;
+  let promptVersion: string | null = null;
+  let modelId: string | null = null;
+
+  if (!gated) {
+    retrieved = await retriever.byText(req.text, 20);
+    const a = await analyzer.analyze({
+      text: req.text,
+      state,
+      candidates: retrieved,
+      recentMessages: [], // history injection lands with the worker's message loader
+    });
+    analysis = a.analysis;
+    promptVersion = a.promptVersion;
+    modelId = a.modelId;
+
+    // The model may hallucinate a product id. A candidate is only real if WE
+    // retrieved it for this tenant, or it is already the conversation's product.
+    const c = analysis.intent.productCandidate;
+    if (
+      c &&
+      !retrieved.some((r) => r.productId === c.productId) &&
+      state.product?.productId !== c.productId
+    ) {
+      analysis = {
+        ...analysis,
+        intent: { ...analysis.intent, productCandidate: null },
+      };
+    }
+  }
+
+  // ── Signals: unresolved history + what this turn adds. Dedup by kind. ──────
+  const productIdForPrice =
+    analysis?.intent.productCandidate?.productId ?? state.product?.productId ?? null;
+  const qtyForPrice =
+    analysis?.intent.quantityMentioned?.value ?? state.quantity?.value ?? 0;
+
+  let indicativePrice: number | null = null;
+  if (productIdForPrice && qtyForPrice > 0) {
+    const tiers = await tenant.catalog.priceTiers(productIdForPrice);
+    indicativePrice = selectTier(tiers, qtyForPrice)?.unitPriceUsd ?? null;
+  }
+
+  const fresh = detectSignals({ text: req.text, state, analysis, unitPriceUsd: indicativePrice });
+  const historic = historicEarly;
+  const byKind = new Map<Signal['kind'], Signal>();
+  for (const s of historic) byKind.set(s.kind, s);
+  for (const s of fresh) byKind.set(s.kind, s); // fresh wins
+  const signals = [...byKind.values()];
+
+  // ── Decide. Pure. ───────────────────────────────────────────────────────────
+  const decision = decideTurn({
+    state,
+    text: req.text,
+    analysis,
+    extractedEmail: email,
+    signals,
+    quote: null, // negotiation logic consults it in Week 3; gates ignore it
+  });
+
+  // ── Quote: deterministic, snapshotted, Postgres-owned. ─────────────────────
+  let quote: Quote | null = null;
+  let quoteRefusal: QuoteRefusal | null = null;
+  let quoteInputs: unknown = null;
+  let product: Product | null = null;
+
+  if (decision.product && decision.quantity) {
+    product = await tenant.catalog.product(decision.product.productId);
+    if (product) {
+      const [tiers, policy, rules] = await Promise.all([
+        tenant.catalog.priceTiers(product.id),
+        tenant.catalog.pricingPolicy(product.id),
+        tenant.catalog.negotiationRules(),
+      ]);
+      quoteInputs = { tiers, policy, rules, quantity: decision.quantity.value };
+      const q = computeQuote({ product, tiers, policy, rules, quantity: decision.quantity.value });
+      if (q.ok) quote = q.value;
+      else quoteRefusal = q.error;
+    }
+  }
+
+  // ── New state (what commitTurn will persist). ──────────────────────────────
+  const newState: ConversationState = {
+    ...state,
+    phase: decision.nextPhase,
+    turnCount: state.turnCount + 1,
+    scores: decision.scores,
+    product: decision.product,
+    quantity: decision.quantity,
+    contact: { email: decision.email },
+    pendingQuestion: decision.pendingQuestion,
+    assignedTo:
+      decision.action.kind === 'handoff' && !decision.action.notifyOnly
+        ? (UNCLAIMED_AGENT as ConversationState['assignedTo'])
+        : state.assignedTo,
+  };
+
+  // ── The reply. Commitments are templates; prose is the model, guarded. ─────
+  let reply: string | null = null;
+  let replyDeterministic = false;
+  let guardViolations = 0;
+  let confirmBlockedReasons: readonly string[] = [];
+
+  switch (decision.action.kind) {
+    case 'silent':
+      reply = null;
+      replyDeterministic = true;
+      break;
+
+    case 'canned_reply':
+      reply = decision.action.reply;
+      replyDeterministic = true;
+      break;
+
+    case 'handoff':
+      reply = HANDOFF_REPLY;
+      replyDeterministic = true;
+      break;
+
+    case 'confirm_order': {
+      const confirmable = toConfirmableOrder({
+        state: newState,
+        product,
+        quote,
+        paymentTerms: '30% deposit, 70% before shipment',
+      });
+      if (confirmable.ok) {
+        // Reply text is finalized in commitTurn once the order reference exists.
+        reply = null;
+        replyDeterministic = true;
+      } else {
+        confirmBlockedReasons = confirmable.error;
+        reply = orderBlockedReply(confirmable.error, quote);
+        replyDeterministic = true;
+      }
+      break;
+    }
+
+    case 'generate_reply': {
+      const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
+      const replyLanguage =
+        analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';
+      const nextQuestion =
+        analysis?.intent.nextLogicalQuestion ?? refusalCtx?.note ?? null;
+
+      for (let attempt = 0; attempt < 2 && reply === null; attempt++) {
+        const w = await replyWriter.write({
+          state: newState,
+          text: req.text,
+          quote,
+          replyLanguage,
+          nextQuestion,
+          retryAfterViolation: attempt > 0,
+        });
+        promptVersion = promptVersion ?? w.promptVersion;
+        const guarded = guardNumerals({
+          reply: w.reply,
+          quote,
+          state: newState,
+          clientText: req.text,
+          allow: refusalCtx?.allow ?? [],
+        });
+        if (guarded.ok) reply = guarded.value;
+        else guardViolations++;
+      }
+      if (reply === null) {
+        // Two violations: the model does not get a third chance to invent a
+        // number. Deterministic fallback, sourced figures only.
+        reply = guardFallbackReply(quote, nextQuestion);
+        replyDeterministic = true;
+      }
+      break;
+    }
+  }
+
+  const fingerprint: DecisionFingerprint = {
+    phase: decision.nextPhase,
+    productId: decision.product?.productId ?? null,
+    productConfirmed: decision.product?.confirmedByClient ?? false,
+    quantity: decision.quantity?.value ?? null,
+    problemScore: decision.scores.problem,
+    leadScore: decision.scores.lead,
+    pendingQuestion: decision.pendingQuestion,
+    phaseAction:
+      decision.action.kind === 'confirm_order' && confirmBlockedReasons.length > 0
+        ? 'maintain'
+        : decision.action.kind === 'canned_reply' || decision.action.kind === 'generate_reply'
+          ? decision.nextPhase !== state.phase ? 'advance' : 'maintain'
+          : decision.action.kind,
+    quote: quote && {
+      unitPriceUsd: quote.unitPriceUsd,
+      discountPct: quote.discountPct,
+      totalUsd: quote.totalUsd,
+    },
+  };
+
+  return {
+    decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
+    reply, replyDeterministic, newState, signals,
+    stateBefore: state,
+    provenance: { promptVersion, modelId },
+    guardViolations,
+    fingerprint,
+  };
+}
+
+/** Everything commitTurn causes beyond the database, for the caller to enqueue. */
+export type TurnEffects = {
+  outbound: { conversationId: ConversationId; reply: string } | null;
+  hotLeadAlert: boolean;
+  handoffAlert: boolean;
+  orderCreated: { orderId: string; orderReference: string } | null;
+};
+
+export async function commitTurn(
+  ports: TurnPorts,
+  req: TurnRequest,
+  r: TurnResult,
+  startedAt: number,
+): Promise<TurnEffects> {
+  const { tenant } = ports;
+  let orderCreated: TurnEffects['orderCreated'] = null;
+  let reply = r.reply;
+
+  // Order creation — only through the branded ConfirmableOrder, idempotent at
+  // the database (ADR-0004).
+  if (r.decision.action.kind === 'confirm_order' && r.reply === null) {
+    const product = r.decision.product
+      ? await tenant.catalog.product(r.decision.product.productId)
+      : null;
+    const confirmable = toConfirmableOrder({
+      state: r.newState, product, quote: r.quote,
+      paymentTerms: '30% deposit, 70% before shipment',
+    });
+    if (confirmable.ok && product) {
+      const created = await tenant.orders.create(req.conversationId, confirmable.value);
+      orderCreated = created;
+      reply = orderConfirmedReply({
+        orderReference: created.orderReference,
+        productName: product.name,
+        quantity: confirmable.value.quantity.value,
+        unit: confirmable.value.quantity.unit,
+        email: confirmable.value.email,
+      });
+      await tenant.events.append(req.conversationId, 'order_created', {
+        orderId: created.orderId, alreadyExisted: created.alreadyExisted,
+      });
+      if (!created.alreadyExisted) {
+        await tenant.conversations.close(req.conversationId);
+      }
+    }
+  }
+
+  // Quote audit record (reproducibility).
+  let quoteId: string | null = null;
+  if (r.quote && r.quoteInputs && r.decision.product) {
+    const rec = await tenant.audit.recordQuote({
+      conversationId: req.conversationId,
+      productId: r.decision.product.productId,
+      quantity: r.quote.quantity.value,
+      inputs: r.quoteInputs,
+      unitPriceUsd: r.quote.unitPriceUsd,
+      discountPct: r.quote.discountPct,
+      totalUsd: r.quote.totalUsd,
+      requiresHuman: r.quote.requiresHuman,
+      appliedRules: r.quote.appliedRules,
+    });
+    quoteId = rec.quoteId;
+    await tenant.events.append(req.conversationId, 'quote_computed', { quoteId });
+  }
+
+  // Signals: persist fresh ones (idempotent per kind in the repo).
+  for (const s of r.signals) {
+    await tenant.signals.record(req.conversationId, s);
+  }
+
+  // State + contact.
+  await tenant.conversations.saveState(r.newState);
+  if (r.decision.email && r.decision.email !== r.stateBefore.contact.email) {
+    await tenant.clients.saveEmail(r.newState.clientId, r.decision.email);
+    await tenant.events.append(req.conversationId, 'email_captured', {});
+  }
+
+  // Replay record (the debugger for last Tuesday's conversation).
+  await tenant.audit.recordTurn({
+    messageId: req.messageId,
+    conversationId: req.conversationId,
+    stateBefore: r.stateBefore,
+    input: { text: req.text, signalKinds: r.signals.map((s) => s.kind) },
+    analysis: r.analysis,
+    retrieved: r.retrieved,
+    decision: r.decision,
+    quoteId,
+    promptVersion: r.provenance.promptVersion,
+    modelId: r.provenance.modelId,
+    latencyMs: Date.now() - startedAt,
+  });
+
+  // Funnel events.
+  if (r.decision.hotLead) await tenant.events.append(req.conversationId, 'lead_hot', {});
+  if (r.decision.action.kind === 'handoff') {
+    await tenant.events.append(req.conversationId, 'handoff', {});
+  }
+  if (r.decision.injectionDetected) {
+    await tenant.events.append(req.conversationId, 'injection_blocked', {});
+  }
+
+  return {
+    outbound: reply ? { conversationId: req.conversationId, reply } : null,
+    hotLeadAlert: r.decision.hotLead,
+    handoffAlert: r.decision.action.kind === 'handoff',
+    orderCreated,
+  };
+}

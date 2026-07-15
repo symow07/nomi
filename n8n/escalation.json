@@ -1,0 +1,370 @@
+{
+  "name": "YiwuFlow - Escalation",
+  "nodes": [
+    {
+      "id": "yf-003c",
+      "position": [
+        260,
+        300
+      ],
+      "typeVersion": 1,
+      "name": "When Called by Parent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "parameters": {}
+    },
+    {
+      "id": "yf-003d",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Escalation Event",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const flags = $json.escalation_flags || [];\n// trigger_reason must match the CHECK constraint in supabase/schema.sql\nconst VALID = ['high_value','unclear_product','customization','complex_negotiation',\n  'repeated_ambiguity','client_request','logistics_payment','manual','low_confidence_image'];\nconst reason = VALID.includes(flags[0]) ? flags[0] : 'manual';\n\nreturn [{ json: { ...$json, _body: {\n  conversation_id:  $json.conversation_id,\n  business_id:      $json.business_id,\n  trigger_reason:   reason,\n  trigger_details:  `Score: ${$json.escalation_score}. Flags: ${flags.join(', ') || 'none'}`,\n  escalation_score: $json.escalation_score,\n  notified_via:     'telegram',\n  notified_at:      new Date().toISOString()\n} } }];"
+      }
+    },
+    {
+      "id": "yf-003e",
+      "position": [
+        700,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Insert Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/escalation_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-003f",
+      "position": [
+        920,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Prepare Escalate Phase",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Escalation Event').first().json;\nreturn [{ json: { ...o, _body: { phase: 'escalated' } } }];"
+      }
+    },
+    {
+      "id": "yf-003g",
+      "position": [
+        1140,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Set Phase Escalated",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversations?id=eq.{{ $json.conversation_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-003h",
+      "position": [
+        1360,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Telegram Alert",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Escalation Event').first().json;\nconst s = o.conversation_state || {};\nconst esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst text = [\n  '🔔 <b>ESCALATION — YiwuFlow</b>', '',\n  `Client: ${esc(s.client_name || 'Unknown')}`,\n  `Channel: ${esc(o.channel)}`,\n  `Contact: ${esc(o.client_channel_id)}`, '',\n  `Reason: ${esc((o.escalation_flags || []).join(', ') || 'manual')}`,\n  `Score: ${esc(o.escalation_score)}`,\n  `Product: ${esc(s.product_name || 'Unknown')}`,\n  `Qty: ${esc(s.inquiry_quantity || 'Not stated')}`, '',\n  `Action: Reply to client directly on ${esc(o.channel)}`,\n  `Conv ID: ${esc(o.conversation_id)}`\n].join('\\n');\n\nreturn [{ json: { ...o, _body: {\n  chat_id: $env.TELEGRAM_ESCALATION_CHAT_ID,\n  parse_mode: 'HTML',\n  text\n} } }];"
+      }
+    },
+    {
+      "id": "yf-003i",
+      "position": [
+        1580,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Telegram - Notify Operator",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-003j",
+      "position": [
+        1800,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Escalation Reply Request",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Telegram Alert').first().json;\nconst s = o.conversation_state || {};\nconst a = o.analysis || {};\n\nconst context = {\n  phase: 'escalated',\n  client_name: s.client_name || 'there',\n  reply_language: a.language?.reply_in || s.preferred_language || 'en',\n  product_name: s.product_name || null,\n  escalation_score: o.escalation_score\n};\nconst user = `CONTEXT:\\n${JSON.stringify(context, null, 2)}\\n\\nCLIENT MESSAGE:\\n${o.text || '[media]'}`;\n\nreturn [{ json: { ...o, recommended_phase: 'escalated', _anthropic: {\n  model: \"claude-sonnet-4-6\",\n  max_tokens: 600,\n  temperature: 0.3,\n  system: \"You are a business representative for a Yiwu, China export trading company. You communicate with international buyers over WhatsApp, WeChat, Instagram, and other channels.\\n\\nYour communication style:\\n- Calm, professional, and warm\\n- Not robotic. Not scripted. Not generic.\\n- Never say \\\"as an AI\\\", \\\"I am a virtual assistant\\\", \\\"I am here to help you today\\\", or any variant\\n- Never use corporate filler phrases (\\\"Certainly!\\\", \\\"Absolutely!\\\", \\\"Of course!\\\", \\\"Great question!\\\")\\n- Ask only ONE question per message unless there is a clear reason to ask two\\n- Do not interrogate the client — ask naturally, like a helpful colleague\\n- Match the client's energy level and formality\\n- Be direct and efficient without being cold\\n- If the client writes informally, respond informally. If formally, respond formally.\\n- Short messages get short replies. Complex questions get complete answers.\\n\\nYou will be given a CONTEXT object and the client's latest message.\\n\\nCONTEXT fields:\\n- phase: current conversation phase\\n- client_name: client's name if known, \\\"there\\\" if not\\n- reply_language: the language to reply in (ISO code — YOU MUST reply in this language)\\n- product_name: identified product if known\\n- product_moq: minimum order quantity\\n- product_price_usd: unit price in USD\\n- product_lead_time: lead time in days\\n- product_customizable: whether custom orders are accepted\\n- inquiry_quantity: quantity the client mentioned\\n- product_confirmed: whether client confirmed the product match\\n- next_question: suggested next question from analysis (use as guidance, rephrase naturally)\\n- attach_image: true if a product image is being sent\\n- missing_fields: what information is still needed\\n- escalation_score: current escalation score (you do not mention this)\\n\\nPHASE BEHAVIOR:\\n\\nwarm_intake:\\n- Greet if first message, otherwise acknowledge naturally\\n- Do NOT mention price, MOQ, quantity targets, or payment\\n- Goal: understand what the client is looking for at a high level\\n- If product is unclear: ask what they're looking for\\n- Tone: welcoming, curious, unhurried\\n\\nclarification:\\n- Focus on identifying the exact product\\n- Ask about materials, size, color, or any distinguishing specs if needed\\n- If attaching a product image: phrase it naturally — \\\"Here's what I think you might be looking for — does this look right?\\\"\\n- Do NOT discuss price or MOQ yet\\n- Goal: confirm the product\\n\\nqualification:\\n- Product is known. Now understand the scale.\\n- Ask about rough quantity range (not exact — \\\"roughly how many\\\", \\\"what kind of quantities are you thinking?\\\")\\n- May ask about destination / port if natural\\n- Do NOT mention price, figures, or ranges under any circumstances — not even \\\"pricing depends on quantity\\\"\\n- If the client asks about price, redirect: \\\"Let me get a feel for the quantity first — roughly how many pieces are you looking at?\\\"\\n- Goal: understand order size and seriousness\\n\\ncommercial_discussion:\\n- Now discuss price, MOQ, lead time, payment terms\\n- Be clear and specific, not vague\\n- If client asks for discount: acknowledge and give a range, do not commit immediately\\n- Example format: \\\"For 5,000 pcs, price is around USD 0.38/pc FOB Yiwu. MOQ is 2,000 pcs. Lead time around 18–22 days after artwork sign-off.\\\"\\n- Ask for email to send formal quotation if not yet collected\\n\\nconfirmation:\\n- Summarize the order clearly\\n- Confirm: product, quantity, price, email\\n- Ask for explicit yes/no confirmation before triggering anything\\n- Example: \\\"Just to confirm — 5,000 custom printed shopping bags at USD 0.38/pc FOB Yiwu. I'll send a summary to ahmed@example.com. Shall I go ahead?\\\"\\n- Do NOT confirm an order without explicit client agreement\\n\\nescalated:\\n- Tell the client a specialist will follow up\\n- Do not give new commercial information\\n- Example: \\\"I've passed your details to our export team — they'll be in touch shortly to go over the specifics with you.\\\"\\n\\n---\\n\\nReturn ONLY a valid JSON object. No explanation. No markdown. No code fences.\\n\\nOUTPUT SCHEMA:\\n\\n{\\n  \\\"reply_text\\\": \\\"The full message to send. Must be in the language specified by reply_language. Must follow all style rules above.\\\",\\n  \\\"attach_product_image\\\": true or false,\\n  \\\"tone\\\": \\\"warm / professional / direct\\\",\\n  \\\"phase_action\\\": \\\"maintain / advance / confirm_order\\\"\\n}\\n\\nphase_action rules:\\n- maintain: stay in current phase\\n- advance: ready to move to next phase\\n- confirm_order: all conditions met, safe to trigger order confirmation\\n- Do NOT return \\\"escalate\\\" — escalation is handled automatically by the system based on scoring rules\\n\\nconfirm_order may only be returned if:\\n- product is confirmed by client\\n- quantity is known and >= MOQ\\n- price has been acknowledged\\n- email address is present or client just provided it\\n- client gave explicit confirmation in this message (e.g., \\\"yes\\\", \\\"let's go\\\", \\\"confirmed\\\")\\n\\nIf any condition is not met, return \\\"maintain\\\" or \\\"advance\\\" instead.\",\n  messages: [{ role: 'user', content: user }]\n} } }];"
+      }
+    },
+    {
+      "id": "yf-003k",
+      "position": [
+        2020,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Claude - Escalation Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._anthropic) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "yf-003l",
+      "position": [
+        2240,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Parse Escalation Reply",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Escalation Reply Request').first().json;\nlet raw = $json.content?.[0]?.text || '';\nraw = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nlet reply;\ntry { reply = JSON.parse(raw).reply_text; } catch (e) { reply = null; }\n\nreturn [{ json: { ...o,\n  reply_text: reply || 'Thanks — one of our specialists will follow up with you shortly.',\n  final_attach_image: false,\n  product_image_url: null,\n  recommended_phase: 'escalated'\n} }];"
+      }
+    },
+    {
+      "id": "yf-003m",
+      "position": [
+        2460,
+        300
+      ],
+      "typeVersion": 1.2,
+      "name": "→ Dispatch",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "YiwuFlow - Dispatch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Set this to the \"YiwuFlow - Dispatch\" workflow after import."
+    }
+  ],
+  "connections": {
+    "When Called by Parent": {
+      "main": [
+        [
+          {
+            "node": "Build Escalation Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Escalation Event": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Insert Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Insert Escalation": {
+      "main": [
+        [
+          {
+            "node": "Prepare Escalate Phase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Escalate Phase": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Set Phase Escalated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Set Phase Escalated": {
+      "main": [
+        [
+          {
+            "node": "Build Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Telegram Alert": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Notify Operator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Notify Operator": {
+      "main": [
+        [
+          {
+            "node": "Build Escalation Reply Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Escalation Reply Request": {
+      "main": [
+        [
+          {
+            "node": "Claude - Escalation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Escalation Reply": {
+      "main": [
+        [
+          {
+            "node": "Parse Escalation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Escalation Reply": {
+      "main": [
+        [
+          {
+            "node": "→ Dispatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

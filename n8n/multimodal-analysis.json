@@ -1,0 +1,972 @@
+{
+  "name": "YiwuFlow - Multimodal Analysis",
+  "nodes": [
+    {
+      "id": "yf-000v",
+      "position": [
+        260,
+        300
+      ],
+      "typeVersion": 1,
+      "name": "When Called by Parent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "parameters": {}
+    },
+    {
+      "id": "yf-000w",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Injection Check",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const text = ($json.text || '').toLowerCase();\n// NOTE: the qualifier group is *repeating* (`*`), not optional-single (`?`).\n// The original spec used /ignore (all |previous |your |the )?instructions/, which\n// does NOT match \"ignore all previous instructions\" — two qualifiers, not one —\n// i.e. the single most common injection string bypassed the filter entirely.\nconst QUAL = '(?:all\\\\s+|previous\\\\s+|prior\\\\s+|the\\\\s+|your\\\\s+|above\\\\s+|earlier\\\\s+)*';\nconst patterns = [\n  new RegExp('ignore\\\\s+' + QUAL + '(?:instructions|prompts?|rules|context)'),\n  new RegExp('disregard\\\\s+' + QUAL + '(?:instructions|prompts?|rules|everything|context)'),\n  new RegExp('forget\\\\s+' + QUAL + '(?:instructions|prompts?|rules|everything)'),\n  /you are now/,\n  /act as (?:a |an )?(?:different|new|unrestricted)/,\n  /pretend (?:you are|to be)/,\n  /jailbreak/,\n  /system prompt/,\n  /reveal your (?:instructions|prompt|rules)/\n];\nif (patterns.some(p => p.test(text))) {\n  return [{ json: { ...$json,\n    skip_ai: true,\n    injection_detected: true,\n    safe_fallback_reply: \"Thanks for your message — what products are you looking to source today?\"\n  } }];\n}\nreturn [{ json: { ...$json, skip_ai: false } }];"
+      }
+    },
+    {
+      "id": "yf-000y",
+      "position": [
+        700,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Skip AI?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-000x",
+              "leftValue": "={{ $json.skip_ai === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-0013",
+      "position": [
+        920,
+        490
+      ],
+      "typeVersion": 3,
+      "name": "Route by Input Type",
+      "type": "n8n-nodes-base.switch",
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "yf-000z",
+                    "leftValue": "={{ $json.input_type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "yf-0010",
+                    "leftValue": "={{ $json.input_type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "yf-0011",
+                    "leftValue": "={{ $json.input_type }}",
+                    "rightValue": "image_text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "image_text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "yf-0012",
+                    "leftValue": "={{ $json.input_type }}",
+                    "rightValue": "voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "voice"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0,
+          "renameFallbackOutput": "text"
+        }
+      }
+    },
+    {
+      "id": "yf-0014",
+      "position": [
+        1140,
+        110
+      ],
+      "typeVersion": 2,
+      "name": "Voice - Deferred Placeholder",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json,\n  skip_ai: true,\n  voice_deferred: true,\n  safe_fallback_reply: $json.conversation_state?.preferred_language === 'ar'\n    ? 'شكراً لرسالتك الصوتية. هل يمكنك كتابة رسالتك؟ سيساعدني ذلك على مساعدتك بشكل أفضل.'\n    : 'Thanks for your voice message. Could you type out your question? That will help me assist you better.'\n} }];"
+      }
+    },
+    {
+      "id": "yf-0015",
+      "position": [
+        1360,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Fast Path - Yes/No Detection",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const text = ($json.text || '').toLowerCase().trim();\nconst pending = $json.conversation_state?.pending_question;\nconst YES = ['yes','yeah','yep','correct','right','exactly','sure','ok','okay','confirm','confirmed','agreed','نعم','صح','是','对','好','sí','oui','да'];\nconst NO  = ['no','nope','not','wrong','incorrect','different','other','لا','不是','non','нет'];\n\nif (pending === 'product_confirmation') {\n  if (YES.includes(text)) return [{ json: { ...$json, fast_path: true, fast_path_type: 'product_confirmed_yes' } }];\n  if (NO.includes(text))  return [{ json: { ...$json, fast_path: true, fast_path_type: 'product_confirmed_no' } }];\n}\nif (pending === 'order_confirmation' && YES.includes(text)) {\n  return [{ json: { ...$json, fast_path: true, fast_path_type: 'order_confirm_yes' } }];\n}\nreturn [{ json: { ...$json, fast_path: false } }];"
+      }
+    },
+    {
+      "id": "yf-0017",
+      "position": [
+        1580,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Is Fast Path?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-0016",
+              "leftValue": "={{ $json.fast_path === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-0018",
+      "position": [
+        1800,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Handle Fast Path Response",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const type = $json.fast_path_type;\nconst state = $json.conversation_state || {};\nconst lang = state.preferred_language || 'en';\n\nconst replies = {\n  product_confirmed_yes: {\n    en: \"Great — glad we're on the same page. Now, roughly how many pieces are you looking at?\",\n    ar: 'ممتاز، نعم هذا هو المنتج. كم قطعة تقريباً تحتاج؟',\n    zh: '好的，就是这个产品。您大概需要多少件？',\n    es: 'Perfecto. ¿Aproximadamente cuántas piezas necesitas?'\n  },\n  product_confirmed_no: {\n    en: \"No problem — could you describe what you're looking for in more detail, or send another photo?\",\n    ar: 'لا مشكلة، هل يمكنك وصف المنتج بشكل أدق أو إرسال صورة أخرى؟',\n    zh: '没关系，能再描述一下您需要的产品，或者发一张其他的图片吗？',\n    es: 'Sin problema — ¿puedes describir lo que buscas con más detalle o enviar otra foto?'\n  },\n  order_confirm_yes: {\n    en: \"Perfect — I'll get your confirmation sent right away.\",\n    ar: 'ممتاز، سأرسل لك تأكيد الطلب فوراً.',\n    zh: '好的，我马上发送确认信息给您。',\n    es: 'Perfecto — te envío la confirmación ahora mismo.'\n  }\n};\nconst map = replies[type] || {};\nconst reply = map[lang] || map.en || 'Got it — thank you.';\n\n// The question we asked has now been answered — clear it, or the fast path would\n// keep re-firing on the next message.\nconst state_updates = { pending_question: null };\nif (type === 'product_confirmed_yes') { state_updates.product_confirmed_by_client = true; state_updates.phase = 'qualification'; }\nif (type === 'product_confirmed_no')  { state_updates.product_confirmed_by_client = false; state_updates.identified_product_id = null; }\nif (type === 'order_confirm_yes')     { state_updates.phase = 'confirmation'; }\n\nreturn [{ json: { ...$json,\n  analysis_complete: true,\n  reply_text: reply,\n  attach_product_image: false,\n  state_updates,\n  phase_action: type === 'order_confirm_yes' ? 'confirm_order' : 'advance',\n  skip_response_generation: true\n} }];"
+      }
+    },
+    {
+      "id": "yf-0019",
+      "position": [
+        2020,
+        680
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Load Product Catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/products?business_id=eq.{{ $json.business_id }}&is_active=eq.true&select=id,sku,name,name_zh,category,moq,price_usd_per_unit,customizable",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-001a",
+      "position": [
+        2240,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Attach Catalog",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst original = $('Route by Input Type').first().json;\nreturn [{ json: { ...original, ...$('Fast Path - Yes/No Detection').first().json, product_catalog: rows($json) } }];"
+      }
+    },
+    {
+      "id": "yf-001b",
+      "position": [
+        2460,
+        680
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Load Recent Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/messages?conversation_id=eq.{{ $json.conversation_id }}&order=sent_at.desc&limit=6&select=direction,text_content,input_type,sent_at",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-001c",
+      "position": [
+        2680,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Build Analysis Prompt",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst o = $('Attach Catalog').first().json;\nconst recent = rows($json);\n\nconst catalog = (o.product_catalog || []).map(p =>\n  `${p.id}|${p.sku}|${p.name}|${p.category}|MOQ:${p.moq}|USD:${p.price_usd_per_unit}`\n).join('\\n');\n\nconst history = recent.slice().reverse().map(m =>\n  `[${m.direction === 'inbound' ? 'CLIENT' : 'US'}] ${m.text_content || '[media]'}`\n).join('\\n');\n\nconst user = `PRODUCT CATALOG:\\n${catalog}\\n\\nCONVERSATION HISTORY:\\n${history}\\n\\nCLIENT MESSAGE:\\n${o.text || '[no text]'}\\n\\nCURRENT PHASE: ${o.phase}\\nCURRENT STATE: ${JSON.stringify(o.conversation_state)}`;\n\nreturn [{ json: { ...o, recent_messages: recent, _anthropic: {\n  model: \"claude-sonnet-4-6\",\n  max_tokens: 1200,\n  temperature: 0.2,\n  system: \"You are an analysis engine for a B2B export business in Yiwu, China. You process inbound buyer inquiries.\\n\\nYour job is to analyze the client's message and return a structured JSON object covering:\\n- language detection\\n- intent and product identification\\n- conversation phase recommendation\\n\\nYou will be given:\\n- A product catalog (pipe-delimited: id|sku|name|category|moq|price)\\n- Conversation history (last 6 turns)\\n- The client's latest message\\n- The current conversation phase\\n- The current conversation state\\n\\nReturn ONLY a single valid JSON object. No explanation. No markdown. No code fences.\\n\\n---\\n\\nOUTPUT SCHEMA:\\n\\n{\\n  \\\"language\\\": {\\n    \\\"detected\\\": \\\"ISO-639-1 code: en / ar / zh / es / fr / ru / tr / pt / hi / id / ms / vi / unknown\\\",\\n    \\\"confidence\\\": 0.0 to 1.0,\\n    \\\"script\\\": \\\"latin / arabic / chinese / cyrillic / mixed / unknown\\\",\\n    \\\"formality\\\": \\\"formal / informal / mixed\\\",\\n    \\\"reply_in\\\": \\\"same as detected unless confidence < 0.70, then use preferred_language from CURRENT STATE or 'en'\\\"\\n  },\\n  \\\"signals\\\": {\\n    \\\"is_greeting\\\": true or false,\\n    \\\"is_question\\\": true or false,\\n    \\\"has_product_mention\\\": true or false,\\n    \\\"has_quantity_mention\\\": true or false,\\n    \\\"has_price_question\\\": true or false,\\n    \\\"urgency\\\": \\\"none / low / medium / high\\\",\\n    \\\"sentiment\\\": \\\"positive / neutral / negative / frustrated\\\"\\n  },\\n  \\\"intent\\\": {\\n    \\\"primary_intent\\\": \\\"inquiry / price_request / product_search / order_intent / complaint / out_of_scope / unclear\\\",\\n    \\\"product_mention_raw\\\": \\\"exact words used for the product, or null\\\",\\n    \\\"product_candidates\\\": [\\n      {\\n        \\\"product_id\\\": \\\"uuid from catalog, or null if no match\\\",\\n        \\\"product_name\\\": \\\"matched name or best guess\\\",\\n        \\\"confidence\\\": 0.0 to 1.0,\\n        \\\"match_method\\\": \\\"exact / partial / inferred / none\\\"\\n      }\\n    ],\\n    \\\"quantity_mentioned\\\": integer or null,\\n    \\\"quantity_unit\\\": \\\"pcs / sets / boxes / kg / cartons / null\\\",\\n    \\\"customization_requested\\\": true or false,\\n    \\\"customization_details\\\": \\\"description or null\\\",\\n    \\\"destination_country\\\": \\\"country name or null\\\",\\n    \\\"timeline_mentioned\\\": \\\"brief description or null\\\",\\n    \\\"missing_fields\\\": [\\\"product\\\", \\\"quantity\\\", \\\"specs\\\", \\\"destination\\\", \\\"email\\\"],\\n    \\\"next_logical_question\\\": \\\"one natural follow-up question in the SAME LANGUAGE as the client, or null if no question is needed\\\"\\n  },\\n  \\\"phase\\\": {\\n    \\\"current_phase_valid\\\": true or false,\\n    \\\"recommended_phase\\\": \\\"warm_intake / clarification / qualification / commercial_discussion / confirmation\\\",\\n    \\\"phase_change_reason\\\": \\\"brief reason or null\\\",\\n    \\\"can_advance\\\": true or false,\\n    \\\"advance_blocked_by\\\": [\\\"missing_product_confirmation\\\", \\\"missing_quantity\\\", \\\"missing_email\\\", \\\"price_not_discussed\\\"]\\n  }\\n}\\n\\n---\\n\\nRULES:\\n\\nproduct_candidates: Rank by confidence descending. Include at most 3. If no match from catalog, return empty array. Do not invent products not in the catalog.\\n\\nnext_logical_question:\\n- Must be in the SAME LANGUAGE as the client\\n- Must ask ONLY ONE question\\n- Must NOT mention price, MOQ, or payment unless current_phase is commercial_discussion or confirmation\\n- Must sound natural and conversational, not like a form field\\n- Return null if no question is needed (e.g., the client just said \\\"yes\\\" or the phase is already advanced enough)\\n\\nphase rules:\\n- warm_intake: client reached out, product not yet identified\\n- clarification: product partially identified, need to confirm or get specs\\n- qualification: product known, need quantity + destination\\n- commercial_discussion: quantity known, proceed to price/MOQ/terms\\n- confirmation: all key fields known, collecting final confirmation + email\\n- Phase can only advance forward, never backward\\n- Do NOT include escalated or closed in recommended_phase — these are set by the system, not by analysis\\n\\nmissing_fields: only include fields actually missing. Do not list email unless phase is confirmation.\\n\\nIf the message is empty, too short to interpret, or just an emoji/sticker, return:\\n- primary_intent: \\\"unclear\\\"\\n- all boolean signals: false\\n- product_candidates: []\\n- next_logical_question: a light prompt to ask what they're looking for (in English or client language)\\n\\nIf the message is completely off-topic (spam, unrelated personal message), return:\\n- primary_intent: \\\"out_of_scope\\\"\\n- next_logical_question: null\",\n  messages: [{ role: 'user', content: user }]\n} } }];"
+      }
+    },
+    {
+      "id": "yf-001d",
+      "position": [
+        2900,
+        680
+      ],
+      "typeVersion": 4.2,
+      "name": "Claude - Full Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._anthropic) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "yf-001e",
+      "position": [
+        3120,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Parse Analysis JSON",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Analysis Prompt').first().json;\nlet raw = $json.content?.[0]?.text || '';\nraw = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\ntry {\n  return [{ json: { ...o, analysis: JSON.parse(raw), analysis_complete: true } }];\n} catch (e) {\n  return [{ json: { ...o, analysis_complete: true, analysis_parse_error: true, analysis: {\n    language: { detected: 'en', confidence: 0.5, reply_in: 'en' },\n    intent: { primary_intent: 'inquiry', product_candidates: [], missing_fields: ['product'] },\n    phase: { recommended_phase: o.phase, can_advance: false, escalation_recommended: false }\n  } } }];\n}"
+      }
+    },
+    {
+      "id": "yf-001f",
+      "position": [
+        3340,
+        1060
+      ],
+      "typeVersion": 2,
+      "name": "Build Vision Request",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json, _anthropic: {\n  model: \"claude-sonnet-4-6\",\n  max_tokens: 600,\n  temperature: 0.2,\n  system: \"You are a product identification specialist for a Yiwu, China export trading company. Your job is to analyze a product image sent by a buyer and identify what they are asking about.\\n\\nThe image may show:\\n- A product the buyer wants to order\\n- A product they already have and want to find similar\\n- A reference image from another supplier\\n- A handmade sketch or screenshot\\n\\nYou will also be given a list of product catalog categories.\\n\\nReturn ONLY a valid JSON object. No explanation. No markdown. No code fences.\\n\\n---\\n\\nOUTPUT SCHEMA:\\n\\n{\\n  \\\"product_candidates\\\": [\\n    {\\n      \\\"description\\\": \\\"Clear, specific natural language description of the product in the image\\\",\\n      \\\"category_match\\\": \\\"closest category from the provided list, or null\\\",\\n      \\\"confidence\\\": 0.0 to 1.0,\\n      \\\"visual_attributes\\\": {\\n        \\\"material\\\": \\\"plastic / metal / fabric / paper / glass / ceramic / silicone / mixed / unknown\\\",\\n        \\\"color_dominant\\\": \\\"brief description (e.g. white, clear, multi-color)\\\",\\n        \\\"size_estimate\\\": \\\"small / medium / large / unknown\\\",\\n        \\\"packaging_visible\\\": true or false,\\n        \\\"has_branding\\\": true or false,\\n        \\\"is_custom_product\\\": true or false,\\n        \\\"is_set_or_bundle\\\": true or false\\n      }\\n    }\\n  ],\\n  \\\"image_quality\\\": \\\"good / poor / unusable\\\",\\n  \\\"needs_more_info\\\": true or false,\\n  \\\"clarification_suggestion\\\": \\\"what to ask the client if the image is unclear or the product is unidentifiable, or null if clear\\\"\\n}\\n\\n---\\n\\nRULES:\\n\\n- Return a maximum of 3 candidates, ranked by confidence descending\\n- Description must be specific and useful for catalog text matching — not vague (\\\"some product\\\") and not overly technical\\n- Good description examples:\\n  \\\"LED flameless tea light candles in frosted plastic cups\\\"\\n  \\\"Non-woven polypropylene shopping bags with printed pattern\\\"\\n  \\\"Stainless steel double-wall vacuum insulated water bottle, 500ml\\\"\\n  \\\"Custom kraft paper gift bag with twisted rope handle\\\"\\n- If the image shows multiple different products: describe the most prominent one first\\n- If the image is a selfie, screenshot of text, meme, document, or anything clearly not a product: return image_quality \\\"unusable\\\", needs_more_info true, and an appropriate clarification_suggestion\\n- If the image is low resolution but product is identifiable: set image_quality \\\"poor\\\" but still attempt identification\\n- If the product is identifiable but unusual or not obviously in catalog: still describe it accurately — catalog matching happens downstream\\n- Do NOT guess at brand names or model numbers\\n- Do NOT include prices or claims about product quality\\n- needs_more_info should be true if confidence of top candidate is below 0.55\\n- clarification_suggestion must be a complete, natural-sounding question for the buyer, in English (translation happens downstream)\",\n  messages: [{ role: 'user', content: [\n    { type: 'image', source: { type: 'url', url: $json.image_url } },\n    { type: 'text', text: 'PRODUCT CATALOG CATEGORIES: packaging, lighting, storage, drinkware, kitchenware, stationery, accessories, electronics, textiles\\n\\nAnalyze this image and return the JSON.' }\n  ] }]\n} } }];"
+      }
+    },
+    {
+      "id": "yf-001g",
+      "position": [
+        3560,
+        1060
+      ],
+      "typeVersion": 4.2,
+      "name": "Claude - Image Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._anthropic) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "yf-001h",
+      "position": [
+        3780,
+        1060
+      ],
+      "typeVersion": 2,
+      "name": "Extract Vision Response",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Vision Request').first().json;\nlet raw = $json.content?.[0]?.text || '{}';\nraw = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n\nlet vision;\ntry { vision = JSON.parse(raw); }\ncatch (e) { vision = { product_candidates: [], image_quality: 'unusable', needs_more_info: true }; }\n\nconst top = vision.product_candidates?.[0];\nif (!top || vision.image_quality === 'unusable') {\n  return [{ json: { ...o, image_analysis: vision, image_confidence: 0, needs_clarification: true, has_vision_candidate: false } }];\n}\nreturn [{ json: { ...o,\n  image_analysis: vision,\n  vision_search_query: top.description,\n  image_confidence: top.confidence,\n  has_vision_candidate: true\n} }];"
+      }
+    },
+    {
+      "id": "yf-001j",
+      "position": [
+        4000,
+        1060
+      ],
+      "typeVersion": 2,
+      "name": "Has Vision Candidate?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-001i",
+              "leftValue": "={{ $json.has_vision_candidate === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-001k",
+      "position": [
+        4220,
+        870
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Vision Alias Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/search_product_by_text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_business_id: $json.business_id, p_query: $json.vision_search_query }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-001l",
+      "position": [
+        4440,
+        870
+      ],
+      "typeVersion": 2,
+      "name": "Attach Vision Matches",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst o = $('Extract Vision Response').first().json;\nreturn [{ json: { ...o, catalog_search_result: rows($json) } }];"
+      }
+    },
+    {
+      "id": "yf-001m",
+      "position": [
+        4660,
+        1250
+      ],
+      "typeVersion": 2,
+      "name": "No Vision Matches",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json, catalog_search_result: [] } }];"
+      }
+    },
+    {
+      "id": "yf-001n",
+      "position": [
+        4880,
+        1060
+      ],
+      "typeVersion": 2,
+      "name": "Build Image Analysis",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const vision = $json.image_analysis || {};\nconst match  = $json.catalog_search_result?.[0];\nconst visionConf  = $json.image_confidence || 0;\nconst catalogConf = match?.similarity || 0;\nconst combined = (visionConf * 0.6) + (catalogConf * 0.4);\n\nreturn [{ json: { ...$json,\n  image_combined_confidence: combined,\n  analysis_complete: true,\n  analysis: {\n    language: {\n      detected: 'unknown',\n      confidence: 0.5,\n      reply_in: $json.conversation_state?.preferred_language || 'en'\n    },\n    intent: {\n      primary_intent: 'product_search',\n      product_candidates: match ? [{\n        product_id:   match.product_id,\n        product_name: match.product_name,\n        confidence:   combined,\n        match_method: 'image_vision'\n      }] : [],\n      quantity_mentioned: null,\n      customization_requested: false,\n      missing_fields: combined < 0.70 ? ['product'] : [],\n      next_logical_question: vision.clarification_suggestion || null\n    },\n    phase: {\n      recommended_phase: combined >= 0.70 ? 'clarification' : 'warm_intake',\n      can_advance: combined >= 0.70,\n      escalation_recommended: false\n    }\n  }\n} }];"
+      }
+    },
+    {
+      "id": "yf-001p",
+      "position": [
+        5100,
+        1060
+      ],
+      "typeVersion": 2,
+      "name": "Also Has Text?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-001o",
+              "leftValue": "={{ $json.input_type === 'image_text' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-001q",
+      "position": [
+        5320,
+        680
+      ],
+      "typeVersion": 2,
+      "name": "Merge Image + Text Analysis",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $json;\n// Only image_text reaches here with image_analysis present.\nif (!o.image_analysis) return [{ json: o }];\n\nconst imageCand = $('Build Image Analysis').first().json;\nconst imgConf  = imageCand.image_combined_confidence || 0;\nconst textConf = o.analysis?.intent?.product_candidates?.[0]?.confidence || 0;\n\nreturn [{ json: { ...o, analysis: {\n  language: o.analysis.language,\n  intent: {\n    ...o.analysis.intent,\n    product_candidates: imgConf > textConf\n      ? imageCand.analysis.intent.product_candidates\n      : o.analysis.intent.product_candidates\n  },\n  phase: o.analysis.phase\n} } }];"
+      }
+    },
+    {
+      "id": "yf-001r",
+      "position": [
+        5540,
+        490
+      ],
+      "typeVersion": 1.2,
+      "name": "→ Conversation + Decision",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "YiwuFlow - Conversation + Decision"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Set this to the \"YiwuFlow - Conversation + Decision\" workflow after import."
+    }
+  ],
+  "connections": {
+    "When Called by Parent": {
+      "main": [
+        [
+          {
+            "node": "Injection Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Injection Check": {
+      "main": [
+        [
+          {
+            "node": "Skip AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip AI?": {
+      "main": [
+        [
+          {
+            "node": "→ Conversation + Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route by Input Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Input Type": {
+      "main": [
+        [
+          {
+            "node": "Fast Path - Yes/No Detection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Vision Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Vision Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Voice - Deferred Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice - Deferred Placeholder": {
+      "main": [
+        [
+          {
+            "node": "→ Conversation + Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fast Path - Yes/No Detection": {
+      "main": [
+        [
+          {
+            "node": "Is Fast Path?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Fast Path?": {
+      "main": [
+        [
+          {
+            "node": "Handle Fast Path Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supabase - Load Product Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Fast Path Response": {
+      "main": [
+        [
+          {
+            "node": "→ Conversation + Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Load Product Catalog": {
+      "main": [
+        [
+          {
+            "node": "Attach Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Catalog": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Load Recent Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Load Recent Messages": {
+      "main": [
+        [
+          {
+            "node": "Build Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude - Full Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Full Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Image + Text Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Image + Text Analysis": {
+      "main": [
+        [
+          {
+            "node": "→ Conversation + Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Vision Request": {
+      "main": [
+        [
+          {
+            "node": "Claude - Image Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Image Analysis": {
+      "main": [
+        [
+          {
+            "node": "Extract Vision Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Vision Response": {
+      "main": [
+        [
+          {
+            "node": "Has Vision Candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Vision Candidate?": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Vision Alias Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Vision Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Vision Alias Search": {
+      "main": [
+        [
+          {
+            "node": "Attach Vision Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Vision Matches": {
+      "main": [
+        [
+          {
+            "node": "Build Image Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Vision Matches": {
+      "main": [
+        [
+          {
+            "node": "Build Image Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Image Analysis": {
+      "main": [
+        [
+          {
+            "node": "Also Has Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Also Has Text?": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Load Product Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "→ Conversation + Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

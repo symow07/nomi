@@ -1,0 +1,36 @@
+{
+  "name": "yiwuflow",
+  "version": "1.0.0",
+  "description": "Multi-channel B2B sales automation for Yiwu export businesses. Handles WhatsApp (real) + WeChat / Instagram / RedNote (simulated via webhook). Supports text and image input in any language.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "boundaries": "node tools/check-boundaries.mjs",
+    "test": "vitest run",
+    "test:parity": "vitest run tests/parity",
+    "check": "npm run typecheck && npm run boundaries && npm run test",
+    "workflows:build": "node tools/build-workflows.mjs",
+    "workflows:check": "node tools/validate-workflows.mjs && node tools/test-logic.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "fastify": "^5.10.0",
+    "kysely": "^0.29.3",
+    "pg": "^8.22.0",
+    "pg-boss": "^12.26.0",
+    "zod": "^4.4.3"
+  }
+}

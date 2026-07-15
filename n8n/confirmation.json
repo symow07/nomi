@@ -1,0 +1,752 @@
+{
+  "name": "YiwuFlow - Confirmation",
+  "nodes": [
+    {
+      "id": "yf-002p",
+      "position": [
+        260,
+        300
+      ],
+      "typeVersion": 1,
+      "name": "When Called by Parent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "parameters": {}
+    },
+    {
+      "id": "yf-002q",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Generate Order Reference",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/generate_order_reference",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-002r",
+      "position": [
+        700,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Order Draft",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('When Called by Parent').first().json;\nconst state = o.conversation_state || {};\n// rpc returns the string directly as the response body\nconst ref = typeof $json.body === 'string' ? $json.body : ($json.body ?? $json);\nif (!ref) throw new Error('generate_order_reference returned nothing.');\n\nconst qty   = state.inquiry_quantity || 0;\nconst price = state.product_price_usd || 0;\n\nreturn [{ json: { ...o, order_reference: ref, order_draft: {\n  order_reference:       ref,\n  business_id:           o.business_id,\n  client_id:             o.client_id,\n  conversation_id:       o.conversation_id,\n  product_id:            state.identified_product_id,\n  product_name:          state.product_name,\n  quantity:              qty,\n  unit:                  state.inquiry_unit || 'pcs',\n  agreed_unit_price_usd: price,\n  total_value_usd:       qty * price,\n  // o.client_email is this turn's freshly-extracted address; the view-backed\n  // state.client_email is one turn stale and would be null on the very turn the\n  // client supplies it — which is exactly the turn the order gets confirmed.\n  client_email:          o.client_email || state.client_email || null,\n  payment_terms:         '30% deposit, 70% before shipment',\n  shipping_address:      null,\n  notes:                 null,\n  status:                'confirmed'\n} } }];"
+      }
+    },
+    {
+      "id": "yf-002s",
+      "position": [
+        920,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Build Validation Request",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $json;\nconst state = { ...(o.conversation_state || {}),\n  escalation_score: o.escalation_score ?? o.conversation_state?.escalation_score };\nconst user = `${JSON.stringify(o.order_draft)}\\n\\nCONVERSATION STATE:\\n${JSON.stringify(state)}`;\n\nreturn [{ json: { ...o, _anthropic: {\n  model: \"claude-sonnet-4-6\",\n  max_tokens: 400,\n  temperature: 0,\n  system: \"You are an order validation assistant for a B2B export business. Your job is to verify that all required information is present and internally consistent before an order confirmation is triggered and a confirmation email is sent.\\n\\nThis check is a safety gate. False confirmations waste time, create client confusion, and damage trust. Be strict.\\n\\nYou will be given:\\n- An order_draft object\\n- A conversation_state object\\n\\nReturn ONLY a valid JSON object. No explanation. No markdown. No code fences.\\n\\n---\\n\\nOUTPUT SCHEMA:\\n\\n{\\n  \\\"order_valid\\\": true or false,\\n  \\\"validation_failures\\\": [\\n    \\\"missing_product_id\\\",\\n    \\\"missing_product_confirmation\\\",\\n    \\\"quantity_missing\\\",\\n    \\\"quantity_below_moq\\\",\\n    \\\"price_missing\\\",\\n    \\\"email_missing\\\",\\n    \\\"email_invalid_format\\\",\\n    \\\"total_value_zero\\\",\\n    \\\"pending_question_unresolved\\\",\\n    \\\"escalation_flag_active\\\"\\n  ],\\n  \\\"safe_to_confirm\\\": true or false,\\n  \\\"blocking_issue\\\": \\\"The single most important issue to resolve first, phrased as a short instruction for the conversation engine. Or null if order is valid.\\\",\\n  \\\"estimated_risk\\\": \\\"low / medium / high\\\"\\n}\\n\\n---\\n\\nVALIDATION RULES:\\n\\n1. product_id must be a non-null UUID string\\n2. product_confirmed_by_client must be true in conversation_state\\n3. quantity must be a positive integer\\n4. quantity must be >= moq from conversation_state (if moq is available)\\n5. agreed_unit_price_usd must be a positive number\\n6. total_value_usd must equal quantity * agreed_unit_price_usd (within 1% rounding tolerance)\\n7. client_email must be present and match basic email format: contains \\\"@\\\" and \\\".\\\"\\n8. pending_question in conversation_state must be null or empty — no unresolved question\\n9. escalation_score in conversation_state must be below 70\\n\\nsafe_to_confirm = true only if order_valid = true AND all 9 rules pass.\\n\\nblocking_issue: return the single highest-priority fix needed, worded so the conversation engine can turn it into a natural client-facing question. Examples:\\n- \\\"Ask the client to confirm their email address before proceeding.\\\"\\n- \\\"The quantity (50 pcs) is below the minimum order of 2,000 pcs — ask if they can adjust.\\\"\\n- \\\"Product has not been explicitly confirmed by the client — ask for confirmation.\\\"\\n\\nestimated_risk:\\n- low: total_value_usd < 1000\\n- medium: 1000 <= total_value_usd < 5000\\n- high: total_value_usd >= 5000\",\n  messages: [{ role: 'user', content: user }]\n} } }];"
+      }
+    },
+    {
+      "id": "yf-002t",
+      "position": [
+        1140,
+        300
+      ],
+      "typeVersion": 4.2,
+      "name": "Claude - Order Validation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._anthropic) }}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "yf-002u",
+      "position": [
+        1360,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Parse Validation Response",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Order Draft').first().json;\nlet raw = $json.content?.[0]?.text || '{}';\nraw = raw.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n\nlet validation_result;\ntry { validation_result = JSON.parse(raw); }\ncatch (e) {\n  validation_result = {\n    order_valid: false,\n    safe_to_confirm: false,\n    validation_failures: ['parse_error'],\n    blocking_issue: 'Unable to validate order — please review manually.',\n    estimated_risk: 'high'\n  };\n}\nreturn [{ json: { ...o, validation_result } }];"
+      }
+    },
+    {
+      "id": "yf-002w",
+      "position": [
+        1580,
+        300
+      ],
+      "typeVersion": 2,
+      "name": "Order Safe to Confirm?",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "yf-002v",
+              "leftValue": "={{ $json.validation_result.safe_to_confirm === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "yf-002x",
+      "position": [
+        1800,
+        110
+      ],
+      "typeVersion": 2,
+      "name": "Blocked - Build Reply",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json,\n  reply_text: $json.validation_result.blocking_issue || 'I need a little more information before I can confirm this order.',\n  recommended_phase: $json.phase || 'confirmation',\n  final_attach_image: false,\n  product_image_url: null,\n  order_blocked: true\n} }];"
+      }
+    },
+    {
+      "id": "yf-002y",
+      "position": [
+        2020,
+        110
+      ],
+      "typeVersion": 1.2,
+      "name": "→ Dispatch (Blocked)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "YiwuFlow - Dispatch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Set this to the \"YiwuFlow - Dispatch\" workflow after import."
+    },
+    {
+      "id": "yf-002z",
+      "position": [
+        2240,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Prepare Order Insert",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json, _body: $json.order_draft } }];"
+      }
+    },
+    {
+      "id": "yf-0030",
+      "position": [
+        2460,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Insert Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-0031",
+      "position": [
+        2680,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Extract Order ID",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = (x) => Array.isArray(x?.body) ? x.body : (Array.isArray(x) ? x : []);\nconst o = $('Build Order Draft').first().json;\nconst order_id = rows($json)[0]?.id;\nif (!order_id) throw new Error('Insert Order returned no row.');\nreturn [{ json: { ...o, order_id } }];"
+      }
+    },
+    {
+      "id": "yf-0032",
+      "position": [
+        2900,
+        490
+      ],
+      "typeVersion": 4.5,
+      "name": "Sheets - Append Confirmed Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Confirmed Orders"
+        },
+        "dataMode": "autoMapInputData",
+        "options": {}
+      },
+      "notes": "Needs a Google Sheets credential. Requires env var GOOGLE_SHEET_ID."
+    },
+    {
+      "id": "yf-0033",
+      "position": [
+        3120,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Build Sheet Row",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $json;\nconst d = o.order_draft;\nconst s = o.conversation_state || {};\nreturn [{ json: {\n  ...o,\n  _sheet: {\n    'Order Ref':      d.order_reference,\n    'Date':           new Date().toISOString().slice(0, 10),\n    'Client':         s.client_name || '',\n    'Email':          d.client_email || '',\n    'Channel':        o.channel || '',\n    'Contact':        o.client_channel_id || '',\n    'Country':        s.country || '',\n    'Product':        d.product_name || '',\n    'SKU':            s.product_sku || '',\n    'Qty':            d.quantity,\n    'Unit':           d.unit,\n    'Unit Price USD': d.agreed_unit_price_usd,\n    'Total USD':      d.total_value_usd,\n    'Payment Terms':  d.payment_terms,\n    'Ship To':        d.shipping_address || '',\n    'Lead Time':      s.lead_time_days || '',\n    'Notes':          d.notes || '',\n    'Status':         'Confirmed',\n    'DB Order ID':    o.order_id,\n    'Conv ID':        o.conversation_id\n  }\n} }];"
+      }
+    },
+    {
+      "id": "yf-0034",
+      "position": [
+        3340,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Build Confirmation Email",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Sheet Row').first().json;\nconst d = o.order_draft;\nconst s = o.conversation_state || {};\nconst money = (n) => Number(n || 0).toFixed(2);\n\nconst html = `\n<h2>Order Confirmation</h2>\n<p>Hi ${s.client_name || 'there'},</p>\n<p>Thank you — your order is confirmed. Here are the details:</p>\n<table cellpadding=\"6\" style=\"border-collapse:collapse\">\n  <tr><td><b>Order Reference</b></td><td>${d.order_reference}</td></tr>\n  <tr><td><b>Product</b></td><td>${d.product_name || ''} (${s.product_sku || ''})</td></tr>\n  <tr><td><b>Quantity</b></td><td>${d.quantity} ${d.unit}</td></tr>\n  <tr><td><b>Unit Price</b></td><td>USD ${money(d.agreed_unit_price_usd)}</td></tr>\n  <tr><td><b>Total</b></td><td>USD ${money(d.total_value_usd)}</td></tr>\n  <tr><td><b>Payment Terms</b></td><td>${d.payment_terms}</td></tr>\n  <tr><td><b>Lead Time</b></td><td>${s.lead_time_days ? s.lead_time_days + ' days' : 'To be confirmed'}</td></tr>\n</table>\n<p>We'll follow up shortly with payment and shipping details.</p>`;\n\nreturn [{ json: { ...o, _body: {\n  personalizations: [{ to: [{ email: d.client_email }] }],\n  from: { email: $env.SENDGRID_FROM_EMAIL },\n  subject: `Order Confirmation – ${d.product_name} – ${d.order_reference}`,\n  content: [{ type: 'text/html', value: html }]\n} } }];"
+      }
+    },
+    {
+      "id": "yf-0035",
+      "position": [
+        3560,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "SendGrid - Send Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sendgrid.com/v3/mail/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SENDGRID_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "notes": "SendGrid returns 202 with an empty body on success."
+    },
+    {
+      "id": "yf-0036",
+      "position": [
+        3780,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Prepare Order Flags",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Confirmation Email').first().json;\nreturn [{ json: { ...o, _body: {\n  google_sheet_logged: true,\n  confirmation_email_sent: true,\n  confirmed_at: new Date().toISOString()\n} } }];"
+      }
+    },
+    {
+      "id": "yf-0037",
+      "position": [
+        4000,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Mark Order Logged",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/orders?id=eq.{{ $json.order_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-0038",
+      "position": [
+        4220,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Prepare Close Conversation",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Confirmation Email').first().json;\nreturn [{ json: { ...o, _body: {\n  phase: 'closed',\n  is_active: false,\n  closed_at: new Date().toISOString()\n} } }];"
+      }
+    },
+    {
+      "id": "yf-0039",
+      "position": [
+        4440,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "Supabase - Close Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversations?id=eq.{{ $json.conversation_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "yf-003a",
+      "position": [
+        4660,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Build Confirmation Reply",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const o = $('Build Confirmation Email').first().json;\nconst d = o.order_draft;\nreturn [{ json: { ...o,\n  reply_text: `Your order is confirmed. Reference ${d.order_reference} — ${d.quantity} ${d.unit} of ${d.product_name}. A confirmation email is on its way to ${d.client_email}.`,\n  recommended_phase: 'closed',\n  final_attach_image: false,\n  product_image_url: null\n} }];"
+      }
+    },
+    {
+      "id": "yf-003b",
+      "position": [
+        4880,
+        490
+      ],
+      "typeVersion": 1.2,
+      "name": "→ Dispatch (Confirmed)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "",
+          "cachedResultName": "YiwuFlow - Dispatch"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "Set this to the \"YiwuFlow - Dispatch\" workflow after import."
+    }
+  ],
+  "connections": {
+    "When Called by Parent": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Generate Order Reference",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Generate Order Reference": {
+      "main": [
+        [
+          {
+            "node": "Build Order Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Order Draft": {
+      "main": [
+        [
+          {
+            "node": "Build Validation Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Validation Request": {
+      "main": [
+        [
+          {
+            "node": "Claude - Order Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Order Validation": {
+      "main": [
+        [
+          {
+            "node": "Parse Validation Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Validation Response": {
+      "main": [
+        [
+          {
+            "node": "Order Safe to Confirm?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Safe to Confirm?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Order Insert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Blocked - Build Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blocked - Build Reply": {
+      "main": [
+        [
+          {
+            "node": "→ Dispatch (Blocked)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Order Insert": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Insert Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Insert Order": {
+      "main": [
+        [
+          {
+            "node": "Extract Order ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Order ID": {
+      "main": [
+        [
+          {
+            "node": "Build Sheet Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Sheet Row": {
+      "main": [
+        [
+          {
+            "node": "Sheets - Append Confirmed Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets - Append Confirmed Order": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "SendGrid - Send Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SendGrid - Send Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Prepare Order Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Order Flags": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Mark Order Logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Mark Order Logged": {
+      "main": [
+        [
+          {
+            "node": "Prepare Close Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Close Conversation": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Close Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Close Conversation": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation Reply": {
+      "main": [
+        [
+          {
+            "node": "→ Dispatch (Confirmed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

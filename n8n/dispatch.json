@@ -1,0 +1,209 @@
+{
+  "name": "YiwuFlow - Dispatch",
+  "nodes": [
+    {
+      "id": "yf-003n",
+      "position": [
+        260,
+        300
+      ],
+      "typeVersion": 1,
+      "name": "When Called by Parent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "parameters": {}
+    },
+    {
+      "id": "yf-003p",
+      "position": [
+        480,
+        300
+      ],
+      "typeVersion": 3,
+      "name": "Route by Channel",
+      "type": "n8n-nodes-base.switch",
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "yf-003o",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "whatsapp"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "simulated"
+        }
+      }
+    },
+    {
+      "id": "yf-003q",
+      "position": [
+        700,
+        110
+      ],
+      "typeVersion": 2,
+      "name": "Build WhatsApp Payload",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const to = String($json.client_channel_id || '').replace('whatsapp:', '');\nconst sendImage = $json.final_attach_image === true && !!$json.product_image_url;\n\nconst body = sendImage\n  ? { messaging_product: 'whatsapp', to, type: 'image',\n      image: { link: $json.product_image_url, caption: $json.reply_text } }\n  : { messaging_product: 'whatsapp', to, type: 'text',\n      text: { body: $json.reply_text } };\n\nreturn [{ json: { ...$json, _body: body } }];"
+      }
+    },
+    {
+      "id": "yf-003r",
+      "position": [
+        920,
+        110
+      ],
+      "typeVersion": 4.2,
+      "name": "360dialog - Send Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "https://waba.360dialog.io/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "D360-API-KEY",
+              "value": "={{ $env.DIALOG360_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {}
+      },
+      "notes": "Deferred for v1 — only fires when channel = whatsapp."
+    },
+    {
+      "id": "yf-003s",
+      "position": [
+        1140,
+        490
+      ],
+      "typeVersion": 2,
+      "name": "Build Echo Payload",
+      "type": "n8n-nodes-base.code",
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json, _body: {\n  channel:         $json.channel,\n  to:              $json.client_channel_id,\n  reply_text:      $json.reply_text,\n  attach_image:    $json.final_attach_image === true,\n  product_image:   $json.product_image_url || null,\n  conversation_id: $json.conversation_id,\n  phase:           $json.recommended_phase || $json.phase || null\n} } }];"
+      }
+    },
+    {
+      "id": "yf-003t",
+      "position": [
+        1360,
+        490
+      ],
+      "typeVersion": 4.2,
+      "name": "Echo to MOCK_CALLBACK_URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MOCK_CALLBACK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Called by Parent": {
+      "main": [
+        [
+          {
+            "node": "Route by Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Channel": {
+      "main": [
+        [
+          {
+            "node": "Build WhatsApp Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Echo Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build WhatsApp Payload": {
+      "main": [
+        [
+          {
+            "node": "360dialog - Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Echo Payload": {
+      "main": [
+        [
+          {
+            "node": "Echo to MOCK_CALLBACK_URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
