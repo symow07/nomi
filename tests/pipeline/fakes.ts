@@ -10,6 +10,7 @@ import type {
   NegotiationRule, PriceTier, PricingPolicy, Product,
 } from '../../src/core/types/commerce.js';
 import type { Signal } from '../../src/core/scoring/signals.js';
+import type { AllowedClaim } from '../../src/core/safety/claims.js';
 import type { ConversationId } from '../../src/core/types/ids.js';
 import { BUSINESS, product as mkProduct, tiers as mkTiers, policy as mkPolicy } from '../parity/fixtures.js';
 
@@ -36,6 +37,9 @@ export class FakeTenant implements Tenant {
   tiers = new Map<string, PriceTier[]>([[mkProduct().id, mkTiers()]]);
   policies = new Map<string, PricingPolicy>([[mkProduct().id, mkPolicy()]]);
   rules: NegotiationRule[] = [];
+  allowedClaims: AllowedClaim[] = [
+    { kind: 'payment_terms', claimKey: 'deposit_30_70', allowed: true },
+  ];
 
   private orderSeq = 0;
 
@@ -64,6 +68,7 @@ export class FakeTenant implements Tenant {
     priceTiers: async (id) => this.tiers.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
+    claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],
   };

@@ -23,6 +23,7 @@ import type {
   RuleCondition,
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
+import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -224,6 +225,14 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         priority: r.priority,
         condition: r.condition as RuleCondition,
         action: r.action as RuleAction,
+      }));
+    },
+
+    async claimsPolicy() {
+      const rows = await sql<{ kind: string; claim_key: string; allowed: boolean }>`
+        select kind, claim_key, allowed from claims_policy`.execute(tx);
+      return rows.rows.map((r): AllowedClaim => ({
+        kind: r.kind as ClaimKind, claimKey: r.claim_key, allowed: r.allowed,
       }));
     },
 

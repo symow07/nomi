@@ -10,6 +10,7 @@ import type {
   SubstitutionRule,
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
+import type { AllowedClaim } from '../core/safety/claims.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -98,6 +99,8 @@ export interface CatalogRepo {
   priceTiers(productId: string): Promise<PriceTier[]>;
   pricingPolicy(productId: string | null): Promise<PricingPolicy | null>;
   negotiationRules(): Promise<NegotiationRule[]>;
+  /** claims_policy rows — the claims guard's allowlist (default-deny). */
+  claimsPolicy(): Promise<AllowedClaim[]>;
   bundleRules(): Promise<BundleRule[]>;
   substitutions(productId: string): Promise<SubstitutionRule[]>;
 }

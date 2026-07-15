@@ -9,6 +9,7 @@ import { decideTurn, type Analysis, type TurnDecision } from '../core/conversati
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals } from '../core/safety/numerals.js';
+import { guardClaims } from '../core/safety/claims.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
@@ -233,6 +234,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     }
 
     case 'generate_reply': {
+      const claimsPolicy = await tenant.catalog.claimsPolicy();
       const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
       const replyLanguage =
         analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';
@@ -256,8 +258,13 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           clientText: req.text,
           allow: refusalCtx?.allow ?? [],
         });
-        if (guarded.ok) reply = guarded.value;
-        else guardViolations++;
+        if (!guarded.ok) { guardViolations++; continue; }
+        // The claims guard runs beside the numeral guard: numeral-free
+        // commitments ("CE certified", "we ship DDP") are exactly as binding
+        // as prices, and default-deny against claims_policy. (Priority 4)
+        const claimed = guardClaims({ reply: guarded.value, policy: claimsPolicy });
+        if (!claimed.ok) { guardViolations++; continue; }
+        reply = claimed.value;
       }
       if (reply === null) {
         // Two violations: the model does not get a third chance to invent a
