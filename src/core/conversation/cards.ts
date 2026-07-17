@@ -1,6 +1,10 @@
 import type { Quote } from '../types/commerce.js';
 import { unitZh } from '../owner/vocabulary.js';
 import { formatQtyZh } from '../owner/format.js';
+import { MARK } from '../owner/tokens.js';
+import {
+  actionBar, box, buyerHeader, joinLines, joinSections, labeled,
+} from '../owner/components.js';
 
 /**
  * Owner-facing cards, rendered in Chinese. Pure text (WhatsApp/WeChat native).
@@ -15,20 +19,17 @@ const money = (n: number): string =>
 
 /** 报价卡 — the invoice-style quote card. */
 export function renderQuoteCard(q: Quote, productName: string): string {
-  const lines = [
-    '┌ 报价卡 ─────────────',
-    `│ 产品：${productName}`,
-    `│ 数量：${formatQtyZh(q.quantity.value)} ${unitZh(q.quantity.unit)}`,
-    `│ 单价：$${money(q.unitPriceUsd)} USD`,
-    q.discountPct > 0 ? `│ 折扣：${q.discountPct}%（按你的规则）` : null,
-    `│ 总价：$${money(q.totalUsd)} USD`,
-    q.leadTimeDays !== null ? `│ 交期：${q.leadTimeDays} 天` : null,
-    `│ 最低起订：${formatQtyZh(q.moq)} ${unitZh(q.quantity.unit)}`,
-    '│ 地板价检查：✓ 通过',
-    q.requiresHuman ? '│ ⚠️ 折扣超出授权，需要你批准' : null,
-    '└──────────────────',
-  ];
-  return lines.filter((l): l is string => l !== null).join('\n');
+  return box('报价卡', [
+    labeled('产品', productName),
+    labeled('数量', `${formatQtyZh(q.quantity.value)} ${unitZh(q.quantity.unit)}`),
+    labeled('单价', `$${money(q.unitPriceUsd)} USD`),
+    q.discountPct > 0 ? labeled('折扣', `${q.discountPct}%（按你的规则）`) : null,
+    labeled('总价', `$${money(q.totalUsd)} USD`),
+    q.leadTimeDays !== null ? labeled('交期', `${q.leadTimeDays} 天`) : null,
+    labeled('最低起订', `${formatQtyZh(q.moq)} ${unitZh(q.quantity.unit)}`),
+    `地板价检查：${MARK.ok} 通过`,
+    q.requiresHuman ? `${MARK.warn} 折扣超出授权，需要你批准` : null,
+  ]);
 }
 
 export type ApprovalCardInput = {
@@ -45,30 +46,28 @@ export type ApprovalCardInput = {
 
 /**
  * The approval card. Everything the owner needs to decide in ≤10 seconds,
- * in the language he reads. Replies: 发送 / 改：<内容或语音> / 不回
+ * in the language he reads. Section order is CARD_ORDER (tokens.ts):
+ * who → what → proposal → computed → why → actions.
  */
 export function renderApprovalCard(c: ApprovalCardInput): string {
-  const who = [
-    `👤 ${c.buyerName ?? '未知买家'}`,
-    c.buyerCountryHint,
-    c.isReturning ? '老询盘' : '新询盘',
-  ].filter(Boolean).join(' · ');
-
-  const parts = [
-    who,
-    '',
-    `买家说：${c.buyerMessage}`,
-    `〔翻译〕${c.buyerMessageZh}`,
-    '',
-    `我想回：${c.draft}`,
-    `〔意思是〕${c.draftZh}`,
-    c.quoteCard ? `\n${c.quoteCard}` : null,
-    '',
-    `为什么：${c.whyLineZh}`,
-    '',
-    '回复「发送」照发 ｜「改 + 内容」按你的改 ｜「不回」跳过',
-  ];
-  return parts.filter((p): p is string => p !== null).join('\n');
+  return joinSections([
+    buyerHeader({
+      name: c.buyerName,
+      countryZh: c.buyerCountryHint,
+      tag: c.isReturning ? '老询盘' : '新询盘',
+    }),
+    joinLines([
+      labeled('买家说', c.buyerMessage),
+      `${MARK.translation}${c.buyerMessageZh}`,
+    ]),
+    joinLines([
+      labeled('我想回', c.draft),
+      `${MARK.meaning}${c.draftZh}`,
+    ]),
+    c.quoteCard,
+    labeled('为什么', c.whyLineZh),
+    actionBar(),
+  ]);
 }
 
 /** Owner reply → command. Deterministic; voice notes are transcribed upstream. */

@@ -1,5 +1,7 @@
 import { STATUS, TERM } from './vocabulary.js';
-import { formatDateZh, formatQtyZh, formatUsdCompact, formatWhenZh } from './format.js';
+import { formatDateZh, formatUsdCompact, formatWhenZh } from './format.js';
+import { INDENT, MARK } from './tokens.js';
+import { joinLines, numberedList } from './components.js';
 
 /**
  * M1 — 今日总结 (the evening digest). One of the three daily actions.
@@ -53,15 +55,16 @@ export function renderDailyDigest(d: DigestInput): string {
   // Two lines on purpose: who+when, then what. One long line wraps ugly
   // mid-word on a phone; we control the break instead.
   const highlight = d.highlight
-    ? `⭐ ${formatWhenZh(d.highlight.at, d.now)} ${d.highlight.buyerName}` +
-      `${d.highlight.countryZh ? `（${d.highlight.countryZh}）` : ''}\n　${d.highlight.what}`
+    ? `${MARK.star} ${formatWhenZh(d.highlight.at, d.now)} ${d.highlight.buyerName}` +
+      `${d.highlight.countryZh ? `（${d.highlight.countryZh}）` : ''}\n${INDENT}${d.highlight.what}`
     : null;
 
-  const pendingLines = d.pending.slice(0, 3)
-    .map((p, i) => `${i + 1}. ${p.buyerName}：${p.what}`);
-  if (pendingCount > 3) pendingLines.push(`……还有 ${formatQtyZh(pendingCount - 3)} 件`);
+  const pendingLines = numberedList(
+    d.pending.map((p) => `${p.buyerName}：${p.what}`),
+    3,
+  );
 
-  return [
+  return joinLines([
     `【${d.employeeName} · ${TERM.dailySummary}】${formatDateZh(d.date)}`,
     headline,
     '',
@@ -73,5 +76,5 @@ export function renderDailyDigest(d: DigestInput): string {
     ...pendingLines,
     d.onDutyTonightZh ? '' : null,
     d.onDutyTonightZh ? `今晚${TERM.nightShift}：${d.onDutyTonightZh}` : null,
-  ].filter((l): l is string => l !== null).join('\n');
+  ]);
 }

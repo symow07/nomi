@@ -1,4 +1,6 @@
 import { formatWhenZh } from './format.js';
+import { BUDGET } from './tokens.js';
+import { buyerHeader, hiddenEarlier, joinLines, meaningLine } from './components.js';
 
 /**
  * M1 — 对话回看: read a conversation. The second of the three daily actions.
@@ -25,26 +27,31 @@ export function renderConversation(input: {
   /** keep it one screen: show the last N, summarize the rest */
   limit?: number;
 }): string {
-  const limit = input.limit ?? 8;
+  const limit = input.limit ?? BUDGET.conversationTail;
   const shown = input.messages.slice(-limit);
   const hidden = input.messages.length - shown.length;
 
-  const lines: string[] = [
-    `👤 ${input.buyerName}${input.countryZh ? `（${input.countryZh}）` : ''} 的对话`,
-  ];
-  if (hidden > 0) lines.push(`（更早的 ${hidden} 条略过）`);
-  lines.push('');
+  const header = `${buyerHeader({
+    name: input.buyerName,
+    countryZh: null,
+  })}${input.countryZh ? `（${input.countryZh}）` : ''} 的对话`;
 
-  for (const m of shown) {
+  const body = shown.flatMap((m) => {
     const when = formatWhenZh(m.at, input.now);
-    if (m.direction === 'inbound') {
-      lines.push(`${when} 买家：${m.text}`);
-      if (m.textZh) lines.push(`　〔意思〕${m.textZh}`);
-    } else {
-      const who = m.sentBy === 'owner' ? '你' : input.employeeName;
-      lines.push(`${when} ${who}：${m.text}`);
-      if (m.textZh) lines.push(`　〔意思〕${m.textZh}`);
-    }
-  }
-  return lines.join('\n');
+    const who =
+      m.direction === 'inbound' ? '买家'
+      : m.sentBy === 'owner' ? '你'
+      : input.employeeName;
+    return [
+      `${when} ${who}：${m.text}`,
+      m.textZh ? meaningLine(m.textZh, true) : null,
+    ];
+  });
+
+  return joinLines([
+    header,
+    hidden > 0 ? hiddenEarlier(hidden) : null,
+    '',
+    ...body,
+  ]);
 }
