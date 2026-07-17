@@ -1,4 +1,6 @@
 import type { Quote } from '../types/commerce.js';
+import { unitZh } from '../owner/vocabulary.js';
+import { formatQtyZh } from '../owner/format.js';
 
 /**
  * Owner-facing cards, rendered in Chinese. Pure text (WhatsApp/WeChat native).
@@ -16,12 +18,12 @@ export function renderQuoteCard(q: Quote, productName: string): string {
   const lines = [
     '┌ 报价卡 ─────────────',
     `│ 产品：${productName}`,
-    `│ 数量：${q.quantity.value.toLocaleString('en-US')} ${q.quantity.unit}`,
+    `│ 数量：${formatQtyZh(q.quantity.value)} ${unitZh(q.quantity.unit)}`,
     `│ 单价：$${money(q.unitPriceUsd)} USD`,
     q.discountPct > 0 ? `│ 折扣：${q.discountPct}%（按你的规则）` : null,
     `│ 总价：$${money(q.totalUsd)} USD`,
     q.leadTimeDays !== null ? `│ 交期：${q.leadTimeDays} 天` : null,
-    `│ 最低起订：${q.moq.toLocaleString('en-US')}`,
+    `│ 最低起订：${formatQtyZh(q.moq)} ${unitZh(q.quantity.unit)}`,
     '│ 地板价检查：✓ 通过',
     q.requiresHuman ? '│ ⚠️ 折扣超出授权，需要你批准' : null,
     '└──────────────────',

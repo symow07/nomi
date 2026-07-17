@@ -67,9 +67,10 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
         businessId: job.data.businessId,
         kind: effects.handoffAlert ? 'handoff' : 'hot_lead',
         conversationId: job.data.conversationId,
+        // M1: owner-facing copy is Chinese, employee language, never technical.
         summary: effects.handoffAlert
-          ? 'Client needs a human — conversation paused and waiting to be claimed.'
-          : 'Hot lead: strong buying signals. AI is continuing the close.',
+          ? '买家想找真人谈，已暂停回复，等你接手'
+          : '有大买家信号，正在继续跟进（今晚总结里有详情）',
       };
       await boss.send(QUEUES.notify, notify, {});
     }
