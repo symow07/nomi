@@ -11,10 +11,15 @@ export type WhatsAppSendResult =
   | { readonly ok: true; readonly providerMessageId: string }
   | { readonly ok: false; readonly retryable: boolean; readonly error: string };
 
+/** Bounded provider timeout (audit M1): a hung socket must not stall a
+ * worker slot — abort → retryable network failure → normal backoff. */
+export const PROVIDER_TIMEOUT_MS = 15_000;
+
 export type FetchLike = (url: string, init: {
   method: string;
   headers: Record<string, string>;
   body: string;
+  signal?: AbortSignal;
 }) => Promise<{ status: number; text(): Promise<string> }>;
 
 export function whatsappClient(cfg: {
@@ -30,6 +35,7 @@ export function whatsappClient(cfg: {
         method: 'POST',
         headers: { 'D360-API-KEY': cfg.apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
       const text = await res.text();
       if (res.status >= 200 && res.status < 300) {

@@ -35,6 +35,12 @@ export async function startBoss(connectionString: string): Promise<PgBoss> {
   boss.on('error', (err: Error) => console.error('[pg-boss]', err));
   await boss.start();
 
+  // Dead queues FIRST: pg-boss v12 validates the deadLetter target exists at
+  // createQueue time (found by the production boot-and-probe — this function
+  // had never run against a real database before).
+  for (const name of Object.values(QUEUES)) {
+    await boss.createQueue(`${name}.dead`, {});
+  }
   for (const name of Object.values(QUEUES)) {
     await boss.createQueue(name, {
       retryLimit: 5,
@@ -42,7 +48,6 @@ export async function startBoss(connectionString: string): Promise<PgBoss> {
       retryDelay: 10,               // seconds, doubled per attempt
       deadLetter: `${name}.dead`,   // exhausted jobs land here and alert
     });
-    await boss.createQueue(`${name}.dead`, {});
   }
   return boss;
 }

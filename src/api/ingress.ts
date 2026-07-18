@@ -23,10 +23,12 @@ export type IngressDeps = {
   /** Enqueue follow-on work (inbound job / status reconciliation). */
   onNewEvent(e: ChannelEvent): Promise<void>;
   readonly now?: () => Date;
+  /** Structured request logging (production on; tests quiet). */
+  readonly logger?: boolean;
 };
 
 export function buildIngressApp(deps: IngressDeps): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: deps.logger ?? false });
   const now = deps.now ?? (() => new Date());
 
   // Keep the RAW body: signatures are computed over bytes, not parsed JSON.

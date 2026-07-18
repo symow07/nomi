@@ -1,4 +1,4 @@
-import type { FetchLike } from './client.js';
+import { PROVIDER_TIMEOUT_MS, type FetchLike } from './client.js';
 
 /**
  * M4 — WhatsApp media download (buyer photos). Cloud API via 360dialog:
@@ -14,7 +14,7 @@ export type MediaResult =
 
 export type MediaFetcher = (mediaId: string) => Promise<MediaResult>;
 
-type BinaryFetchLike = (url: string, init: { method: string; headers: Record<string, string> }) =>
+type BinaryFetchLike = (url: string, init: { method: string; headers: Record<string, string>; signal?: AbortSignal }) =>
   Promise<{ status: number; text(): Promise<string>; arrayBuffer?(): Promise<ArrayBuffer> }>;
 
 const SUPPORTED = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -30,6 +30,7 @@ export function whatsappMediaFetcher(cfg: {
     try {
       const meta = await doFetch(`${cfg.baseUrl}/${mediaId}`, {
         method: 'GET', headers: { 'D360-API-KEY': cfg.apiKey },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
       if (meta.status >= 400) {
         return { ok: false, retryable: meta.status === 429 || meta.status >= 500,
@@ -44,6 +45,7 @@ export function whatsappMediaFetcher(cfg: {
 
       const bin = await doFetch(parsed.url, {
         method: 'GET', headers: { 'D360-API-KEY': cfg.apiKey },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
       if (bin.status >= 400 || !bin.arrayBuffer) {
         return { ok: false, retryable: bin.status === 429 || bin.status >= 500,

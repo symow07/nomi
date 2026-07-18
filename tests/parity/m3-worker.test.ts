@@ -304,3 +304,57 @@ describe('M3 · credential security', () => {
     expect(blob).not.toContain(SIMULATOR_SECRET);
   });
 });
+
+/* ── Audit M1: bounded provider timeouts ─────────────────────────────────── */
+import { whatsappClient, PROVIDER_TIMEOUT_MS } from '../../src/channels/whatsapp/client.js';
+import { whatsappMediaFetcher } from '../../src/channels/whatsapp/media.js';
+
+describe('M1 · provider HTTP timeouts', () => {
+  it('every send carries an abort signal; abort classifies as retryable', async () => {
+    let sawSignal: AbortSignal | undefined;
+    const client = whatsappClient({
+      baseUrl: 'https://x', apiKey: 'k',
+      fetchImpl: async (_url, init) => {
+        sawSignal = init.signal;
+        throw new DOMException('The operation timed out.', 'TimeoutError');
+      },
+    });
+    const r = await client.sendText('1', 'x');
+    expect(sawSignal).toBeInstanceOf(AbortSignal);
+    expect(r).toMatchObject({ ok: false, retryable: true });
+    expect(PROVIDER_TIMEOUT_MS).toBe(15_000);
+  });
+
+  it('aborted media request is a retryable failure with a signal attached', async () => {
+    let sawSignal: AbortSignal | undefined;
+    const fetcher = whatsappMediaFetcher({
+      baseUrl: 'https://x', apiKey: 'k',
+      fetchImpl: async (_url: string, init: { signal?: AbortSignal }) => {
+        sawSignal = init.signal;
+        throw new DOMException('The operation timed out.', 'TimeoutError');
+      },
+    });
+    const r = await fetcher('media1');
+    expect(sawSignal).toBeInstanceOf(AbortSignal);
+    expect(r).toMatchObject({ ok: false, retryable: true });
+  });
+});
+
+/* ── Audit M3: provider error text is redacted before every sink ─────────── */
+describe('M3 · error-sink redaction', () => {
+  it('secret-shaped provider errors are redacted in transitions and retry storage', async () => {
+    const m = memStore([{ id: 'a' }]);
+    const leakyAdapter = {
+      kind: 'whatsapp' as const, provider: 'test',
+      verifyWebhook: () => true, parseWebhook: () => [],
+      sendText: async () => ({ ok: false as const, retryable: true,
+        error: '500: {"api_key": "sk-live-supersecret-123", "msg": "boom"}' }),
+    };
+    const effects = await driveConversationOutbound(
+      { store: m.store, adapter: leakyAdapter, now: () => NOW }, 'conv1');
+    expect(effects[0]).toMatchObject({ kind: 'retry_scheduled' });
+    const everything = m.transitions.join('\n');
+    expect(everything).not.toContain('sk-live-supersecret-123');
+    expect(everything).toContain('[redacted]');
+  });
+});

@@ -1,0 +1,257 @@
+import { readFileSync, existsSync } from 'node:fs';
+import type { FastifyInstance } from 'fastify';
+import { sql } from 'kysely';
+import { startWorker } from './worker/main.js';
+import { buildIngressApp } from './api/ingress.js';
+import { whatsappAdapter } from './channels/whatsapp/adapter.js';
+import { withTenantTx, lockConversation, type Db } from './db/client.js';
+import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
+import { driveConversationOutbound } from './outbound/worker.js';
+import { QUEUES, enqueueInbound } from './queue/boss.js';
+import { parseBusinessId, type BusinessId } from './core/types/ids.js';
+import type { ChannelAdapter } from './channels/contract.js';
+import type { PgBoss } from 'pg-boss';
+
+/**
+ * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
+ * ingress, channel store, outbound drive — into the one process `npm start`
+ * runs. No business logic lives here; only wiring.
+ *
+ * Routes mounted: GET/POST /webhook/whatsapp + GET /health. The legacy
+ * /shadow/turn server (src/api/server.ts) is deliberately NOT mounted (H1):
+ * it trusts a caller-supplied business_id, which is acceptable only for the
+ * trusted n8n shadow caller, never for a public host. Tenant identity here
+ * comes exclusively from the channel credential (phone_number_id).
+ */
+
+/** ── Env: validate names and shapes; never print values ─────────────────── */
+
+export type ProdConfig = {
+  DATABASE_URL: string;
+  ANTHROPIC_API_KEY: string;
+  D360_API_KEY: string;
+  D360_BASE_URL: string;
+  WEBHOOK_SECRET: string;
+  WEBHOOK_VERIFY_TOKEN: string;
+  CREDENTIAL_KEY: string;
+  PORT: number;
+};
+
+const SHAPES: Record<string, (v: string) => boolean> = {
+  DATABASE_URL: (v) => v.startsWith('postgres'),
+  ANTHROPIC_API_KEY: (v) => v.length >= 20,
+  D360_API_KEY: (v) => v.length >= 8,
+  D360_BASE_URL: (v) => v.startsWith('https://'),
+  WEBHOOK_SECRET: (v) => v.length >= 32,
+  WEBHOOK_VERIFY_TOKEN: (v) => v.length >= 16,
+  CREDENTIAL_KEY: (v) => /^[0-9a-f]{64}$/i.test(v),
+};
+
+export function validateEnv(env: Record<string, string | undefined>):
+  | { ok: true; cfg: ProdConfig }
+  | { ok: false; problems: string[] } {
+  const problems: string[] = [];
+  for (const [name, shape] of Object.entries(SHAPES)) {
+    const v = env[name];
+    if (!v) problems.push(`${name}: missing`);
+    else if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
+    else if (!shape(v)) problems.push(`${name}: invalid shape`);
+  }
+  if (problems.length) return { ok: false, problems };
+  return {
+    ok: true,
+    cfg: {
+      DATABASE_URL: env['DATABASE_URL']!,
+      ANTHROPIC_API_KEY: env['ANTHROPIC_API_KEY']!,
+      D360_API_KEY: env['D360_API_KEY']!,
+      D360_BASE_URL: env['D360_BASE_URL']!,
+      WEBHOOK_SECRET: env['WEBHOOK_SECRET']!,
+      WEBHOOK_VERIFY_TOKEN: env['WEBHOOK_VERIFY_TOKEN']!,
+      CREDENTIAL_KEY: env['CREDENTIAL_KEY']!,
+      PORT: Number(env['PORT']) || 8787,
+    },
+  };
+}
+
+/** Minimal .env loader (no dependency; Railway injects env directly). */
+export function loadDotEnv(path = '.env'): void {
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m && m[1] && process.env[m[1]] === undefined) process.env[m[1]] = m[2] ?? '';
+  }
+}
+
+/** ── Composition ────────────────────────────────────────────────────────── */
+
+export type Production = {
+  readonly app: FastifyInstance;
+  readonly db: Db;
+  readonly boss: PgBoss;
+  close(): Promise<void>;
+};
+
+export async function buildProduction(
+  cfg: ProdConfig,
+  overrides?: { adapter?: ChannelAdapter; logger?: boolean },
+): Promise<Production> {
+  // Worker first: it owns the pool and pg-boss; ingress reuses both.
+  const { db, boss } = await startWorker({
+    DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
+  });
+
+  const adapter = overrides?.adapter ?? whatsappAdapter({
+    baseUrl: cfg.D360_BASE_URL, apiKey: cfg.D360_API_KEY, webhookSecret: cfg.WEBHOOK_SECRET,
+  });
+
+  /** Tenant from the channel credential — NEVER from the payload. */
+  async function resolveTenant(phoneNumberId: string): Promise<BusinessId | null> {
+    const r = await sql<{ business_id: string }>`
+      select business_id from resolve_tenant('whatsapp', ${phoneNumberId})
+    `.execute(db);
+    const raw = r.rows[0]?.business_id;
+    if (!raw) return null;
+    const parsed = parseBusinessId(raw);
+    return parsed.ok ? parsed.value : null;
+  }
+
+  // Outbound drive: consumes both reply jobs (from turn effects) and bare
+  // re-drive ticks (from status webhooks / wait-recheck).
+  type DriveJob = { businessId: string; conversationId: string; reply?: string };
+  await boss.work<DriveJob>(QUEUES.outbound, async ([job]: { data: DriveJob }[]) => {
+    if (!job) return;
+    const businessId = parseBusinessId(job.data.businessId);
+    if (!businessId.ok || !job.data.conversationId) return;   // poison: drop
+
+    const effects = await withTenantTx(db, businessId.value, async (tx) => {
+      await lockConversation(tx, job.data.conversationId);
+      if (job.data.reply) {
+        await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply);
+      }
+      const store = channelStore(tx, businessId.value);
+      return driveConversationOutbound(
+        { store, adapter, now: () => new Date() }, job.data.conversationId,
+      );
+    });
+
+    const waiting = effects.find((e) => e.kind === 'waiting');
+    const progressed = effects.some((e) => e.kind === 'sent' || e.kind === 'reclaimed');
+    if (waiting && waiting.kind === 'waiting') {
+      await boss.send(QUEUES.outbound,
+        { businessId: job.data.businessId, conversationId: job.data.conversationId },
+        { startAfter: Math.max(1, Math.ceil(waiting.recheckInMs / 1000)), singletonKey: job.data.conversationId });
+    } else if (progressed) {
+      await boss.send(QUEUES.outbound,
+        { businessId: job.data.businessId, conversationId: job.data.conversationId },
+        { startAfter: 1, singletonKey: job.data.conversationId });
+    }
+  });
+
+  const app = buildIngressApp({
+    adapter,
+    verifyToken: cfg.WEBHOOK_VERIFY_TOKEN,
+    logger: overrides?.logger ?? true,
+
+    persistEvent: async (e, rawPayload) => {
+      const bid = await resolveTenant(e.phoneNumberId);
+      if (!bid) return 'duplicate';   // unknown credential: ack, never process
+      return withTenantTx(db, bid, async (tx) => {
+        const r = await sql<{ id: string }>`
+          insert into channel_events
+            (id, business_id, channel, provider, event_type, conversation_external_id, payload, occurred_at)
+          values
+            (${e.dedupKey}, ${bid}, 'whatsapp', ${adapter.provider},
+             ${e.kind === 'message' ? 'message.inbound' : 'status'},
+             ${e.kind === 'message' ? `whatsapp:${e.waId}:${e.phoneNumberId}` : null},
+             ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
+          on conflict (id) do nothing
+          returning id
+        `.execute(tx);
+        return r.rows.length > 0 ? 'new' : 'duplicate';
+      });
+    },
+
+    onNewEvent: async (e) => {
+      const bid = await resolveTenant(e.phoneNumberId);
+      if (!bid) return;
+
+      if (e.kind === 'message') {
+        const { conversationId } = await withTenantTx(db, bid, async (tx) => {
+          const conv = await ensureConversation(tx, bid, e.waId, e.profileName);
+          // 24h window + health signals live on the channel row.
+          await sql`
+            update channels
+               set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
+             where business_id = ${bid} and kind = 'whatsapp'
+          `.execute(tx);
+          return conv;
+        });
+        await enqueueInbound(boss, {
+          businessId: bid, conversationId,
+          messageId: e.eventId, text: e.text ?? '',
+        });
+      } else {
+        const r = await withTenantTx(db, bid, (tx) =>
+          channelStore(tx, bid).reconcileStatus(e.eventId, e.status, e.errorDetail));
+        if (r.conversationId) {
+          await boss.send(QUEUES.outbound,
+            { businessId: bid, conversationId: r.conversationId },
+            { singletonKey: r.conversationId });
+        }
+      }
+    },
+  });
+
+  app.get('/health', async (_req, reply) => {
+    let dbOk = false;
+    try {
+      await sql`select 1`.execute(db);
+      dbOk = true;
+    } catch { /* reported below, never thrown to the caller */ }
+    return reply.code(dbOk ? 200 : 503).send({ ok: dbOk, db: dbOk, worker: true });
+  });
+
+  let closing = false;
+  return {
+    app, db, boss,
+    async close() {
+      if (closing) return;
+      closing = true;
+      await app.close();                       // 1. stop accepting requests
+      await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
+      await db.destroy().catch(() => {});      // 5. release the pool
+    },
+  };
+}
+
+/** ── CLI ────────────────────────────────────────────────────────────────── */
+
+const isMain = process.argv[1] !== undefined &&
+  import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  loadDotEnv();
+  const v = validateEnv(process.env);
+  if (!v.ok) {
+    console.error('environment invalid:\n  ' + v.problems.join('\n  '));
+    process.exit(1);
+  }
+
+  const prod = await buildProduction(v.cfg);
+  await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
+  prod.app.log.info({ port: v.cfg.PORT }, 'yiwuflow production up (webhook + worker)');
+
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;                 // idempotent: second signal is a no-op
+    shuttingDown = true;
+    prod.app.log.info({ signal }, 'shutdown started');
+    const force = setTimeout(() => process.exit(1), 10_000);
+    force.unref();                            // bounded: never hang a deploy
+    void prod.close().then(() => {
+      prod.app.log.info('shutdown complete');
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}

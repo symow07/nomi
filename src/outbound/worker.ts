@@ -5,6 +5,7 @@ import {
 import { gateOutbound } from '../core/channel/sendGate.js';
 import { sendPlan, windowState, type TemplateState } from '../core/channel/window.js';
 import type { ChannelAdapter } from '../channels/contract.js';
+import { redactSecrets } from '../security/credentials.js';
 
 /**
  * M3 — The outbound drive loop for ONE conversation. Ports in, effects out;
@@ -129,14 +130,17 @@ export async function driveConversationOutbound(
 
   const attempts = candidate.attempts + 1;
   const failure = onSendFailure({ retryable: result.retryable, error: result.error }, attempts);
+  // Provider error text passes through redaction BEFORE any sink — persistence
+  // (last_error) and logs must never carry secret-shaped content (audit M3).
+  const safeError = redactSecrets(result.error);
   if (failure.kind === 'retry') {
-    await deps.store.transition(candidate.id, 'queued', `retry ${attempts}: ${result.error}`);
-    await deps.store.scheduleRetry(candidate.id, failure.delayMs, result.error);
+    await deps.store.transition(candidate.id, 'queued', `retry ${attempts}: ${safeError}`);
+    await deps.store.scheduleRetry(candidate.id, failure.delayMs, safeError);
     return [...effects, { kind: 'retry_scheduled', id: candidate.id, delayMs: failure.delayMs }];
   }
-  await deps.store.transition(candidate.id, 'failed', result.error);
+  await deps.store.transition(candidate.id, 'failed', safeError);
   if (failure.kind === 'dead_letter') {
-    await deps.store.deadLetter(candidate.id, result.error);
+    await deps.store.deadLetter(candidate.id, safeError);
     return [...effects, { kind: 'dead_lettered', id: candidate.id }];
   }
   return [...effects, { kind: 'failed_permanent', id: candidate.id }];

@@ -2,7 +2,6 @@
   "name": "yiwuflow",
   "version": "1.0.0",
   "description": "Multi-channel B2B sales automation for Yiwu export businesses. Handles WhatsApp (real) + WeChat / Instagram / RedNote (simulated via webhook). Supports text and image input in any language.",
-  "main": "index.js",
   "directories": {
     "doc": "docs"
   },
@@ -13,7 +12,11 @@
     "test:parity": "vitest run tests/parity",
     "check": "npm run typecheck && npm run boundaries && npm run test",
     "workflows:build": "node tools/build-workflows.mjs",
-    "workflows:check": "node tools/validate-workflows.mjs && node tools/test-logic.mjs"
+    "workflows:check": "node tools/validate-workflows.mjs && node tools/test-logic.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "migrate": "node tools/migrate.mjs",
+    "seed:demo": "node tools/seed-demo.mjs"
   },
   "keywords": [],
   "author": "",

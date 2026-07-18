@@ -29,7 +29,7 @@ ingest and queue under every switch — nothing is dropped.
 
 ### 3. Database down
 - Total outage: ingress returns 5xx → provider retries up to 7 days; dedup on wamid makes replay safe. Nothing to do but restore.
-- Restore: Supabase PITR (see OPS-RUNBOOK drill). After restore: reconcile `sending` rows (auto-reclaim), re-run parity spot checks.
+- Restore: from the standalone PostgreSQL host's backups (PITR availability depends on the selected provider and MUST be verified there — see the OPS-RUNBOOK drill; off-host `pg_dump` cron is the floor). After restore: reconcile `sending` rows (auto-reclaim), re-run parity spot checks.
 
 ### 4. Bad deploy
 - Rollback = redeploy previous tag. Engine rollback = `update businesses set engine='n8n'` (ADR-0009) — no deploy.

@@ -7,6 +7,7 @@ import { anthropicAnalyzer, anthropicReplyWriter } from '../llm/anthropic.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
+import { redactSecrets } from '../security/credentials.js';
 
 /**
  * Entrypoint 2: the worker. Becomes the LIVE engine at cutover — until then it
@@ -87,7 +88,7 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
   for (const name of Object.values(QUEUES)) {
     await boss.work(`${name}.dead`, async ([job]: { data: unknown }[]) => {
       if (!job) return;
-      console.error(`[DEAD LETTER] ${name}`, JSON.stringify(job.data).slice(0, 500));
+      console.error(`[DEAD LETTER] ${name}`, redactSecrets(JSON.stringify(job.data)).slice(0, 500));
       await boss.send(QUEUES.notify, {
         businessId: (job.data as { businessId?: string }).businessId ?? 'unknown',
         kind: 'dead_letter',
@@ -100,7 +101,10 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
   return { db, boss };
 }
 
-const isMain = process.argv[1]?.endsWith('main.ts') || process.argv[1]?.endsWith('main.js');
+// Exact-file check: a suffix match ('main.js') also fires when this module is
+// IMPORTED by dist/main.js — found by the production start smoke test.
+const isMain = process.argv[1] !== undefined &&
+  import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const { DATABASE_URL, ANTHROPIC_API_KEY } = process.env;
   if (!DATABASE_URL || !ANTHROPIC_API_KEY) {

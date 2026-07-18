@@ -14,7 +14,10 @@ import type { ConnectionAction } from '../channels/contract.js';
  */
 
 export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
-  reconcileStatus(providerMessageId: string, incoming: ProviderStatus, detail: string | null): Promise<'applied' | 'ignored' | 'unknown_message'>;
+  reconcileStatus(providerMessageId: string, incoming: ProviderStatus, detail: string | null): Promise<{
+    outcome: 'applied' | 'ignored' | 'unknown_message';
+    conversationId: string | null;
+  }>;
   recordAudit(action: ConnectionAction, actor: string, detail: Record<string, unknown>): Promise<void>;
 } {
   async function logTransition(outboundId: string, from: string, to: string, detail: string | null) {
@@ -113,19 +116,21 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
       `.execute(tx);
     },
 
-    /** Status webhook → monotonic reconciliation; ignored events still audited. */
+    /** Status webhook → monotonic reconciliation; ignored events still audited.
+     * Returns the conversation so the caller can re-drive its outbound queue
+     * (a 'delivered' may unblock the next ordered message). */
     async reconcileStatus(providerMessageId, incoming, detail) {
-      const res = await sql<{ id: string; status: OutboundStatus }>`
-        select id, status from outbound_messages
+      const res = await sql<{ id: string; status: OutboundStatus; conversation_id: string }>`
+        select id, status, conversation_id from outbound_messages
          where provider_message_id = ${providerMessageId} for update
       `.execute(tx);
       const row = res.rows[0];
-      if (!row) return 'unknown_message';
+      if (!row) return { outcome: 'unknown_message', conversationId: null };
 
       const verdict = applyStatus(row.status, incoming);
       if (!verdict.apply) {
         await logTransition(row.id, row.status, row.status, `ignored ${incoming}: ${verdict.reason}`);
-        return 'ignored';
+        return { outcome: 'ignored', conversationId: row.conversation_id };
       }
       await this.transition(row.id, verdict.next, detail);
       if (verdict.next === 'delivered' || verdict.next === 'read') {
@@ -135,7 +140,7 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
            where business_id = ${businessId} and kind = 'whatsapp'
         `.execute(tx);
       }
-      return 'applied';
+      return { outcome: 'applied', conversationId: row.conversation_id };
     },
 
     async recordAudit(action, actor, detail) {
@@ -146,4 +151,97 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
       `.execute(tx);
     },
   };
+}
+
+/**
+ * Find-or-create the client + active conversation for an inbound WhatsApp
+ * identity. Tenant comes from the channel credential (caller resolved it) —
+ * NEVER from the payload. Runs inside the caller's tenant transaction.
+ */
+export async function ensureConversation(
+  tx: Tx,
+  businessId: BusinessId,
+  waId: string,
+  profileName: string | null,
+): Promise<{ conversationId: string; clientId: string }> {
+  const existing = await sql<{ client_id: string }>`
+    select client_id from client_channels
+     where channel = 'whatsapp' and channel_user_id = ${waId}
+  `.execute(tx);
+  let clientId = existing.rows[0]?.client_id;
+
+  if (!clientId) {
+    const client = await sql<{ id: string }>`
+      insert into clients (business_id, display_name, phone)
+      values (${businessId}, ${profileName}, ${waId})
+      returning id
+    `.execute(tx);
+    clientId = client.rows[0]!.id;
+    await sql`
+      insert into client_channels (client_id, channel, channel_user_id)
+      values (${clientId}, 'whatsapp', ${waId})
+      on conflict (channel, channel_user_id) do nothing
+    `.execute(tx);
+  }
+
+  const active = await sql<{ id: string }>`
+    select id from conversations
+     where client_id = ${clientId} and is_active order by created_at desc limit 1
+  `.execute(tx);
+  let conversationId = active.rows[0]?.id;
+
+  if (!conversationId) {
+    const conv = await sql<{ id: string }>`
+      insert into conversations (business_id, client_id, channel)
+      values (${businessId}, ${clientId}, 'whatsapp')
+      returning id
+    `.execute(tx);
+    conversationId = conv.rows[0]!.id;
+    await sql`
+      insert into conversation_state (conversation_id)
+      values (${conversationId}) on conflict (conversation_id) do nothing
+    `.execute(tx);
+  }
+  return { conversationId, clientId };
+}
+
+/**
+ * Queue a reply as an outbound row (the drive loop sends it). Seq is
+ * per-conversation under the caller's advisory lock; recipient wa_id comes
+ * from the conversation's own channel identity.
+ */
+export async function enqueueOutboundRow(
+  tx: Tx,
+  businessId: BusinessId,
+  conversationId: string,
+  body: string,
+  origin: 'employee' | 'owner' = 'employee',
+): Promise<string | null> {
+  const to = await sql<{ channel_user_id: string }>`
+    select cc.channel_user_id
+      from conversations c
+      join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
+     where c.id = ${conversationId}
+     limit 1
+  `.execute(tx);
+  const waId = to.rows[0]?.channel_user_id;
+  if (!waId) return null;   // no channel identity — nothing to send to
+
+  // At-least-once jobs: a retry after commit must not queue the reply twice.
+  // Employee replies dedupe on identical recent body; owner text never does
+  // (repeating yourself on purpose is a human right).
+  const row = await sql<{ id: string }>`
+    insert into outbound_messages
+      (business_id, conversation_id, seq, body, origin, to_wa_id)
+    select ${businessId}, ${conversationId},
+           coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${waId}
+      from outbound_messages where conversation_id = ${conversationId}
+    having ${origin} = 'owner' or not exists (
+      select 1 from outbound_messages
+       where conversation_id = ${conversationId} and body = ${body}
+         and origin = 'employee' and status not in ('failed','canceled')
+         and created_at > now() - interval '10 minutes')
+    returning id
+  `.execute(tx);
+  return row.rows[0]?.id ?? null;
 }

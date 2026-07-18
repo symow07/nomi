@@ -22,10 +22,14 @@ import { sql } from 'kysely';
  * invisible to the live path.
  */
 
-const ShadowTurnBody = z.object({
+// Permissive at the schema layer on purpose: zod's .uuid() enforces RFC-4122
+// version bits and rejects the real legacy pilot tenant (a0000000-… has
+// version nibble 0). Shape validation happens right after via parseBusinessId/
+// parseConversationId — the same fix as ids.ts, second location (audit H2).
+export const ShadowTurnBody = z.object({
   message_id: z.string().min(1),
-  business_id: z.string().uuid(),
-  conversation_id: z.string().uuid(),
+  business_id: z.string().min(1),
+  conversation_id: z.string().min(1),
   text: z.string().default(''),
 });
 
@@ -96,8 +100,9 @@ export async function buildServer(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
   return app;
 }
 
-// Direct execution: node --experimental-strip-types src/api/server.ts (or via tsx/dist)
-const isMain = process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js');
+// Direct execution only — exact-file check (suffix matching misfires on import).
+const isMain = process.argv[1] !== undefined &&
+  import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const { DATABASE_URL, ANTHROPIC_API_KEY } = process.env;
   if (!DATABASE_URL || !ANTHROPIC_API_KEY) {

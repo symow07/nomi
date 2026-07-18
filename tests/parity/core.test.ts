@@ -367,3 +367,19 @@ describe('id parsing accepts real tenant ids', () => {
     expect(parseBusinessId('').ok).toBe(false);
   });
 });
+
+/* ── Audit H2: schema layer must not reject the legacy pilot tenant ─────── */
+import { ShadowTurnBody } from '../../src/api/server.js';
+
+describe('shadow schema accepts the real pilot tenant (audit H2)', () => {
+  it('legacy id passes the schema and reaches parseBusinessId', () => {
+    const r = ShadowTurnBody.safeParse({
+      message_id: 'm1',
+      business_id: 'a0000000-0000-0000-0000-000000000001',
+      conversation_id: 'a0000000-0000-0000-0000-000000000002',
+      text: 'hi',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(parseBusinessId(r.data.business_id).ok).toBe(true);
+  });
+});
