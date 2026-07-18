@@ -36,6 +36,8 @@ export type ApprovalCardInput = {
   readonly buyerName: string | null;
   readonly buyerCountryHint: string | null;   // from phone prefix, e.g. '阿联酋'
   readonly isReturning: boolean;
+  /** M6 buyer memory, in context: 这是Ahmed，3月询过保温杯（ZX-200）… */
+  readonly recallZh?: string | null;
   readonly buyerMessage: string;
   readonly buyerMessageZh: string;            // back-translation of buyer text
   readonly draft: string;                     // what we propose to send
@@ -51,11 +53,14 @@ export type ApprovalCardInput = {
  */
 export function renderApprovalCard(c: ApprovalCardInput): string {
   return joinSections([
-    buyerHeader({
-      name: c.buyerName,
-      countryZh: c.buyerCountryHint,
-      tag: c.isReturning ? '老询盘' : '新询盘',
-    }),
+    joinLines([
+      buyerHeader({
+        name: c.buyerName,
+        countryZh: c.buyerCountryHint,
+        tag: c.isReturning ? '老询盘' : '新询盘',
+      }),
+      c.recallZh ?? null,
+    ]),
     joinLines([
       labeled('买家说', c.buyerMessage),
       `${MARK.translation}${c.buyerMessageZh}`,
