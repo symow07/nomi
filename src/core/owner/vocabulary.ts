@@ -27,8 +27,10 @@ export const TERM = {
   vip: '老客户',
   probation: '试用期',
   jobSheet: '工作职责表',
+  personnelFile: '员工档案',
   dailySummary: '今日总结',
   weeklyReport: '员工周报',
+  monthlyReview: '员工月报',
   handled: '已处理',
 } as const;
 

@@ -34,6 +34,9 @@ export type DigestInput = {
   readonly pending: readonly { readonly buyerName: string; readonly what: string }[];
   /** Tonight's duty line, e.g. 夜班：接待问候、报价（新买家） */
   readonly onDutyTonightZh: string | null;
+  /** M5 daily trust loop: learning visible, authority changes visible. */
+  readonly learnedTodayZh?: string | null;      // e.g. 学会了：报价先报FOB
+  readonly authorityChangeZh?: string | null;   // e.g. 「接待问候」已晋升
 };
 
 export function renderDailyDigest(d: DigestInput): string {
@@ -74,7 +77,11 @@ export function renderDailyDigest(d: DigestInput): string {
     pendingLines.length ? '' : null,
     pendingLines.length ? `${STATUS.waitingForYou}：` : null,
     ...pendingLines,
-    d.onDutyTonightZh ? '' : null,
+    // Footer group: learning + authority + night shift, contiguous — one
+    // blank line before the group keeps the 16-line budget at worst case.
+    (d.learnedTodayZh || d.authorityChangeZh || d.onDutyTonightZh) ? '' : null,
+    d.learnedTodayZh ? `学会了：${d.learnedTodayZh}` : null,
+    d.authorityChangeZh ?? null,
     d.onDutyTonightZh ? `今晚${TERM.nightShift}：${d.onDutyTonightZh}` : null,
   ]);
 }

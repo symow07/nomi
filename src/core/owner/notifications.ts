@@ -9,10 +9,13 @@ export type OwnerEvent =
   | { kind: 'draft_waiting'; buyerName: string; whatZh: string }   // needs review
   | { kind: 'handoff'; buyerName: string }                          // needs a human NOW
   | { kind: 'quote_approval'; buyerName: string }                   // discount over authority
+  | { kind: 'repair_waiting'; buyerName: string }                   // buyer-facing mistake — urgent
   | { kind: 'message_handled' }
   | { kind: 'night_activity' }
   | { kind: 'hot_lead' }        // informational — the draft itself already pushes
   | { kind: 'learning_note' }
+  | { kind: 'capability_changed' }  // visible, but never an interruption
+  | { kind: 'spot_check_ready' }    // the ritual waits for the evening
   | { kind: 'order_created' };  // owner tapped the confirmation — he already knows
 
 export type NotifyRoute = 'push_now' | 'evening_digest';
@@ -23,6 +26,7 @@ export function notifyRoute(e: OwnerEvent): NotifyRoute {
     case 'draft_waiting':
     case 'handoff':
     case 'quote_approval':
+    case 'repair_waiting':      // an important mistake surfaces immediately
       return 'push_now';
     default:
       return 'evening_digest';
@@ -38,6 +42,8 @@ export function renderPush(e: OwnerEvent, employeeName: string): string | null {
       return `${e.buyerName} 的${TERM.quote}折扣超了你定的权限，${STATUS.waitingForYou}`;
     case 'handoff':
       return `${e.buyerName} 想找真人谈，${employeeName}已暂停回复，等你接手`;
+    case 'repair_waiting':
+      return `给 ${e.buyerName} 的消息有个错处，更正稿${STATUS.waitingForYou}`;
     default:
       return null; // digest-only events never render a push
   }
