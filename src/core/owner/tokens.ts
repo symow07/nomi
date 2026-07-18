@@ -72,6 +72,18 @@ export const PWA_TOKENS = {
     surfaceAlt: '#F6F5F2',
     border: '#E4E2DD',
   },
+  /** M7 dark mode — same semantic keys as `color`, tuned for OLED nights. */
+  colorDark: {
+    ok: '#4ADE80',
+    waiting: '#FBBF24',
+    warn: '#F87171',
+    highlight: '#FACC15',
+    ink: '#F2F1EE',
+    inkSecondary: '#A3A29E',
+    surface: '#161514',
+    surfaceAlt: '#211F1D',
+    border: '#33312E',
+  },
   spacingPx: [4, 8, 12, 16, 24, 32] as const,
   radiusPx: { card: 12, chip: 999 },
   shadow: { card: '0 1px 3px rgba(0,0,0,0.08)', raised: '0 4px 12px rgba(0,0,0,0.10)' },
@@ -84,4 +96,30 @@ export const PWA_TOKENS = {
     已晋升: 'ok',
     夜班中: 'highlight',
   },
+} as const;
+
+/**
+ * M7 — Micro-interaction specs, as data the PWA executes. Every moment is
+ * ≤ motionMs.max, skippable, and collapses to instant under reduced-motion.
+ * The chat surface has no animation — these exist so the shell inherits the
+ * interaction language instead of inventing one.
+ */
+export const MOTION_SPECS = {
+  approveTap:    { durationMs: 200, easing: 'ease-out', skippable: true, description: '发送 button confirms with a settle, card slides away' },
+  quoteReveal:   { durationMs: 300, easing: 'ease-out', skippable: true, description: '报价卡 lines appear top-down — the calculator moment' },
+  sendFlight:    { durationMs: 250, easing: 'ease-in',  skippable: true, description: 'message lifts toward the thread' },
+  statusChange:  { durationMs: 150, easing: 'linear',   skippable: true, description: 'status chip crossfade (学习中→已晋升 etc.)' },
+} as const;
+
+/** Reduced-motion: every spec collapses to an instant state change. */
+export const REDUCED_MOTION_RULE = 'all MOTION_SPECS durations become 0ms; no element may rely on animation to convey state' as const;
+
+/** M7 desktop keyboard shortcuts — approval flow first, vim-adjacent. */
+export const KEYBOARD_SHORTCUTS = {
+  approve: 'Enter',
+  edit: 'e',
+  skip: 'x',
+  nextCard: 'j',
+  prevCard: 'k',
+  search: '/',
 } as const;

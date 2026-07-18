@@ -14,6 +14,9 @@ export function renderMonthlyReview(input: {
   readonly monthZh: string;                  // e.g. 7月
   readonly stats: ReviewStats;
   readonly computed: ComputedReview;
+  /** M7 knowledge counter — accumulation visible (knowledgeLineZh/DeltaZh). */
+  readonly knowledgeZh?: string | null;
+  readonly knowledgeDeltaZh?: string | null;
 }): string {
   const s = input.stats;
   const c = input.computed;
@@ -53,9 +56,13 @@ export function renderMonthlyReview(input: {
     `· 还要你看的：${c.supervisionFocusZh}`,
   ]);
 
+  const knowledge = (input.knowledgeZh || input.knowledgeDeltaZh)
+    ? joinLines([input.knowledgeZh ?? null, input.knowledgeDeltaZh ?? null])
+    : null;
+
   return joinSections([
     `【${input.employeeName} · ${input.monthZh}${TERM.monthlyReview}】`,
-    numbers, quality, authority, value, nextMonth,
+    numbers, quality, knowledge, authority, value, nextMonth,
     `结论：${c.outcome}`,
   ]);
 }
