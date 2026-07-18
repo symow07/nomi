@@ -23,6 +23,26 @@ export interface Analyzer {
   }>;
 }
 
+export interface VisionDescriber {
+  /**
+   * Image → short retrieval text. The model DESCRIBES; it never names a
+   * catalog product — matching happens in retrieval, so the containment rule
+   * (candidates only from the tenant's own catalog) holds for photos exactly
+   * as it does for text.
+   */
+  describe(input: {
+    imageBase64: string;
+    mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+    caption: string | null;
+  }): Promise<{
+    searchText: string;                 // e.g. "canvas tote bag cotton shopping bag"
+    attributes: readonly string[];      // e.g. ['canvas', 'tote', 'natural color']
+    promptVersion: string;
+    modelId: string;
+    usage: { inputTokens: number; outputTokens: number };
+  }>;
+}
+
 export interface ReplyWriter {
   /**
    * Prose only. Every commercially meaningful figure available to the model is

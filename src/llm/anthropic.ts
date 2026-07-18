@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber } from './ports.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { Phase, ProductMatch } from '../core/types/conversation.js';
 import { parseProductId } from '../core/types/ids.js';
@@ -178,6 +178,50 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
         reply = raw || 'Thanks for your message — let me get back to you shortly.';
       }
       return { reply, promptVersion: prompt.version, modelId: MODEL,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+    },
+  };
+}
+
+export function anthropicVision(client: Anthropic): VisionDescriber {
+  const prompt = loadPrompt('image_analysis.txt');
+
+  return {
+    async describe({ imageBase64, mediaType, caption }) {
+      const res = await client.messages.create({
+        model: MODEL,
+        max_tokens: 500,
+        temperature: 0,
+        system: prompt.text,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: caption ? `Buyer caption: ${caption}` : 'No caption.' },
+          ],
+        }],
+      });
+
+      const block = res.content[0];
+      const raw = block?.type === 'text' ? stripFences(block.text) : '{}';
+      let searchText = '';
+      let attributes: string[] = [];
+      try {
+        const parsed = JSON.parse(raw) as {
+          product_candidates?: { description?: string; visual_attributes?: Record<string, unknown> }[];
+          image_quality?: string;
+        };
+        if (parsed.image_quality !== 'unusable') {
+          const top = parsed.product_candidates?.[0];
+          searchText = String(top?.description ?? '');
+          const va = top?.visual_attributes ?? {};
+          attributes = ['material', 'color_dominant', 'size_estimate']
+            .map((k) => String(va[k] ?? ''))
+            .filter((v) => v && v !== 'unknown');
+        }
+      } catch { /* unparseable vision output = no description; caller falls back */ }
+
+      return { searchText, attributes, promptVersion: prompt.version, modelId: MODEL,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
