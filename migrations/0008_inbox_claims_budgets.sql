@@ -73,12 +73,17 @@ create table if not exists claims_policy (
 );
 create index if not exists idx_claims_business on claims_policy (business_id, kind);
 
--- Seed the demo business with the claims its seed catalog implies.
-insert into claims_policy (business_id, kind, claim_key, allowed) values
-  ('a0000000-0000-0000-0000-000000000001','payment_terms','deposit_30_70',true),
-  ('a0000000-0000-0000-0000-000000000001','incoterm','FOB',true),
-  ('a0000000-0000-0000-0000-000000000001','incoterm','EXW',true),
-  ('a0000000-0000-0000-0000-000000000001','certification','food_grade',true) -- zip-lock bags are food-safe per catalog
+-- Seed the n8n-era demo business with the claims its seed catalog implies —
+-- ONLY where that business exists (clean standalone databases don't have it;
+-- found by the clean-PostgreSQL bootstrap test).
+insert into claims_policy (business_id, kind, claim_key, allowed)
+select b.id, v.kind, v.claim_key, v.allowed
+  from businesses b,
+       (values ('payment_terms','deposit_30_70',true),
+               ('incoterm','FOB',true),
+               ('incoterm','EXW',true),
+               ('certification','food_grade',true)) v(kind, claim_key, allowed)
+ where b.id = 'a0000000-0000-0000-0000-000000000001'
 on conflict (business_id, kind, claim_key) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -102,7 +107,8 @@ create table if not exists tenant_budgets (
   soft_warn_pct      integer not null default 80,
   on_exceeded        text not null default 'throttle' check (on_exceeded in ('throttle','pause'))
 );
-insert into tenant_budgets (business_id) values ('a0000000-0000-0000-0000-000000000001')
+insert into tenant_budgets (business_id)
+select id from businesses where id = 'a0000000-0000-0000-0000-000000000001'
 on conflict (business_id) do nothing;
 
 -- atomic increment, called once per turn from the worker

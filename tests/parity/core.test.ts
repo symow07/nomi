@@ -352,3 +352,18 @@ describe('numeral guard: commercial positions are never safe-small', () => {
     expect(r.ok).toBe(true);
   });
 });
+
+/* ── Id parsing: shape-safety, not RFC version policing (Supabase-exit find) ── */
+import { parseBusinessId } from '../../src/core/types/ids.js';
+
+describe('id parsing accepts real tenant ids', () => {
+  it('legacy pilot id (version nibble 0) and demo ids both parse', () => {
+    expect(parseBusinessId('a0000000-0000-0000-0000-000000000001').ok).toBe(true);
+    expect(parseBusinessId('de300000-0000-4000-8000-0000000000b1').ok).toBe(true);
+  });
+  it('injection-shaped input still rejected', () => {
+    expect(parseBusinessId("a0000000-0000-0000-0000-00000000000'; drop table businesses;--").ok).toBe(false);
+    expect(parseBusinessId('not-a-uuid').ok).toBe(false);
+    expect(parseBusinessId('').ok).toBe(false);
+  });
+});

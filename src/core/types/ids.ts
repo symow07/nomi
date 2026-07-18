@@ -13,7 +13,12 @@ export type AgentId = Brand<string, 'AgentId'>;
 /** A validated email. The ONLY way to obtain one is parseEmail(). */
 export type Email = Brand<string, 'Email'>;
 
-const uuid = z.string().uuid();
+// Shape-check, NOT RFC-4122 version enforcement: ids come from the database
+// (gen_random_uuid → v4) and from legacy fixed rows like the n8n-era pilot
+// business a0000000-…-01, whose version nibble is 0. zod's .uuid() rejects
+// that — which 400'd the REAL tenant at the API boundary (found the first
+// time the integration suite ran against a live DATABASE_URL).
+const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 
 const uuidParser =
   <T>(label: string) =>

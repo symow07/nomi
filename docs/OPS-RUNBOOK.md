@@ -15,13 +15,20 @@
 Alert channel: Telegram (existing `notify.team` queue). Status page: static
 page updated by hand at first — honesty over automation.
 
-## Backup / restore drill (run once with credentials, record here)
-1. Supabase: confirm PITR enabled + daily backups on the project.
-2. Restore latest backup to a NEW project (never in place).
-3. Run against restored copy: `npm test` integration suite with its DATABASE_URL;
-   verify counts: businesses, products, conversations, outbound_messages.
-4. Time it. Target < 30 min end-to-end. Record: date, duration, row counts, issues.
-- [ ] DRILL PERFORMED: ____ (date, duration, by)
+## Backup / restore drill (run once per hosting provider, record here)
+Database is provider-independent PostgreSQL (see SUPABASE-EXIT-AUDIT.md);
+migration between hosts: POSTGRES-MIGRATION-RUNBOOK.md.
+1. Confirm the host's automated backup schedule and whether PITR exists —
+   do NOT claim either until seen in the provider console (Railway: daily
+   backups on volumes; PITR varies by plan).
+2. Manual logical backup any time: `pg_dump "$URL" -Fc -f backup.dump`
+   (cron this daily to off-host storage regardless of provider promises).
+3. Restore to a FRESH database (never in place):
+   `pg_restore -d "$NEW_URL" --no-owner backup.dump`
+4. Against the restored copy: `DATABASE_URL=... npm run check` (394, 0 skips)
+   + the retrieve_products ZX-100 check; compare row counts.
+5. Time it. Target < 30 min. Record: date, duration, row counts, issues.
+- [ ] DRILL PERFORMED: ____ (date, duration, provider, by)
 
 ## Reliability sweep — network call inventory (all covered)
 | Call site | Retry story |

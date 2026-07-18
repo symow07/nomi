@@ -17,10 +17,23 @@ import type { BusinessId } from '../core/types/ids.js';
 export type Db = Kysely<Database>;
 export type Tx = Transaction<Database>;
 
+/** Pool knobs — provider-independent, env-tunable, safe defaults. */
+const intEnv = (name: string, fallback: number): number => {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+};
+
 export function createDb(connectionString: string): Db {
   return new Kysely<Database>({
     dialect: new PostgresDialect({
-      pool: new pg.Pool({ connectionString, max: 10 }),
+      pool: new pg.Pool({
+        connectionString,
+        max: intEnv('DATABASE_POOL_MAX', 10),
+        connectionTimeoutMillis: intEnv('DATABASE_CONNECT_TIMEOUT_MS', 10_000),
+        // Server-side ceiling on any single statement — a hung query returns
+        // an error instead of holding a pool slot forever.
+        options: `-c statement_timeout=${intEnv('DATABASE_QUERY_TIMEOUT_MS', 30_000)}`,
+      }),
     }),
   });
 }
