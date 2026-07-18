@@ -12,7 +12,9 @@
 
 export type InboundMessageEvent = {
   readonly kind: 'message';
-  readonly eventId: string;              // wamid — dedup key
+  readonly eventId: string;              // wamid
+  /** Idempotency key for channel_events. Messages: the wamid itself. */
+  readonly dedupKey: string;
   readonly waId: string;                 // buyer phone id
   readonly profileName: string | null;
   readonly phoneNumberId: string;        // merchant number id → resolves tenant
@@ -25,6 +27,13 @@ export type InboundMessageEvent = {
 export type StatusEvent = {
   readonly kind: 'status';
   readonly eventId: string;              // wamid the status refers to
+  /**
+   * Statuses share the message's wamid, so 'delivered' and 'read' for the
+   * same message would collide under wamid-only dedup (the 'read' would be
+   * dropped as a replay — found by the local end-to-end run). Key is
+   * wamid#status: distinct statuses process, true retries still dedup.
+   */
+  readonly dedupKey: string;
   readonly status: 'sent' | 'delivered' | 'read' | 'failed';
   readonly occurredAt: Date;
   readonly phoneNumberId: string;
@@ -70,6 +79,7 @@ export function parseWebhook(payload: unknown): ChannelEvent[] {
         out.push({
           kind: 'message',
           eventId: id,
+          dedupKey: id,
           waId: from,
           profileName: names.get(from) ?? null,
           phoneNumberId,
@@ -95,6 +105,7 @@ export function parseWebhook(payload: unknown): ChannelEvent[] {
         out.push({
           kind: 'status',
           eventId: id,
+          dedupKey: `${id}#${status}`,
           status: status as StatusEvent['status'],
           occurredAt: ts(s['timestamp']),
           phoneNumberId,

@@ -151,7 +151,7 @@ describe('M3 · webhook ingress', () => {
     const app = buildIngressApp({
       adapter: sim.adapter,
       verifyToken: 'vt-123',
-      persistEvent: async (e) => (seen.has(e.eventId) ? 'duplicate' : (seen.add(e.eventId), 'new')),
+      persistEvent: async (e) => (seen.has(e.dedupKey) ? 'duplicate' : (seen.add(e.dedupKey), 'new')),
       onNewEvent: async (e) => { delivered.push(e); },
       now: () => NOW,
     });
@@ -217,6 +217,15 @@ describe('M3 · webhook ingress', () => {
     const { sim, app, delivered } = harness();
     await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));
     expect(delivered[0]).toMatchObject({ kind: 'status', status: 'delivered' });
+  });
+
+  it('delivered then read BOTH process (statuses share a wamid — compound dedup key), retries still dedup', async () => {
+    const { sim, app, delivered } = harness();
+    await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));
+    await post(app, sim.status('wamid.SIM_OUT_1', 'read'));           // must NOT be dropped
+    const retry = await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));  // true replay
+    expect(delivered.map((e) => e.kind === 'status' && e.status)).toEqual(['delivered', 'read']);
+    expect(retry.json()).toEqual({ ok: true, received: 0 });
   });
 });
 

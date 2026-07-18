@@ -17,7 +17,8 @@ export type IngressDeps = {
   readonly adapter: ChannelAdapter;
   /** Meta subscription-verification token (GET handshake). */
   readonly verifyToken: string;
-  /** Insert into channel_events; 'duplicate' = PK hit = already seen. */
+  /** Insert into channel_events keyed on e.dedupKey (NOT eventId — statuses
+   * share their message's wamid); 'duplicate' = key hit = already seen. */
   persistEvent(e: ChannelEvent, rawPayload: unknown): Promise<'new' | 'duplicate'>;
   /** Enqueue follow-on work (inbound job / status reconciliation). */
   onNewEvent(e: ChannelEvent): Promise<void>;
