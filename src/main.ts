@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
@@ -28,7 +28,10 @@ import type { PgBoss } from 'pg-boss';
 
 /** ── Env: validate names and shapes; never print values ─────────────────── */
 
-export type WhatsAppProvider = 'meta' | '360dialog';
+/** 'disabled' = deployment mode: full stack up, no messaging surface —
+ * for hosting the service before provider onboarding completes. Unset
+ * WHATSAPP_PROVIDER means 'disabled'; an unknown value is still an error. */
+export type WhatsAppProvider = 'meta' | '360dialog' | 'disabled';
 
 export type ProdConfig = {
   provider: WhatsAppProvider;
@@ -73,10 +76,10 @@ export function validateEnv(env: Record<string, string | undefined>):
   | { ok: false; problems: string[] } {
   const problems: string[] = [];
 
-  // Explicit provider choice — no silent fallback (spec §3).
-  const provider = env['WHATSAPP_PROVIDER'];
-  if (provider !== 'meta' && provider !== '360dialog') {
-    problems.push(`WHATSAPP_PROVIDER: must be 'meta' or '360dialog'`);
+  // Explicit provider choice; unset = deployment mode (no messaging).
+  const provider = env['WHATSAPP_PROVIDER'] ?? 'disabled';
+  if (provider !== 'meta' && provider !== '360dialog' && provider !== 'disabled') {
+    problems.push(`WHATSAPP_PROVIDER: must be 'meta', '360dialog', or 'disabled'`);
   }
   const shapes: Record<string, Shape> = {
     ...BASE_SHAPES,
@@ -172,6 +175,40 @@ export async function buildProduction(
   const { db, boss } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
   });
+
+  // /health is the one route both modes share. providerStatus reports the
+  // messaging surface; db is probed live; the worker infra is up in both modes.
+  const mountHealth = (a: FastifyInstance, providerStatus: 'active' | 'disabled') => {
+    a.get('/health', async (_req, reply) => {
+      let dbOk = false;
+      try { await sql`select 1`.execute(db); dbOk = true; } catch { /* → 503 */ }
+      return reply.code(dbOk ? 200 : 503)
+        .send({ ok: dbOk, db: dbOk, worker: true, provider: providerStatus });
+    });
+  };
+
+  let closing = false;
+  const finalize = (a: FastifyInstance): Production => ({
+    app: a, db, boss,
+    async close() {
+      if (closing) return;
+      closing = true;
+      await a.close();                         // 1. stop accepting requests
+      await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
+      await db.destroy().catch(() => {});      // 5. release the pool
+    },
+  });
+
+  // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
+  // webhook routes, no outbound worker — for hosting before provider
+  // onboarding completes. An override adapter (tests) always takes the
+  // provider path so composition stays covered.
+  if (cfg.provider === 'disabled' && !overrides?.adapter) {
+    const app = Fastify({ logger: overrides?.logger ?? true });
+    mountHealth(app, 'disabled');
+    app.log.warn('No messaging provider configured. Running in deployment mode.');
+    return finalize(app);
+  }
 
   const adapter = overrides?.adapter ?? (cfg.provider === 'meta'
     ? metaAdapter({
@@ -282,26 +319,8 @@ export async function buildProduction(
     },
   });
 
-  app.get('/health', async (_req, reply) => {
-    let dbOk = false;
-    try {
-      await sql`select 1`.execute(db);
-      dbOk = true;
-    } catch { /* reported below, never thrown to the caller */ }
-    return reply.code(dbOk ? 200 : 503).send({ ok: dbOk, db: dbOk, worker: true });
-  });
-
-  let closing = false;
-  return {
-    app, db, boss,
-    async close() {
-      if (closing) return;
-      closing = true;
-      await app.close();                       // 1. stop accepting requests
-      await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
-      await db.destroy().catch(() => {});      // 5. release the pool
-    },
-  };
+  mountHealth(app, 'active');
+  return finalize(app);
 }
 
 /** ── CLI ────────────────────────────────────────────────────────────────── */
@@ -322,7 +341,12 @@ if (isMain) {
 
   const prod = await buildProduction(v.cfg);
   await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
-  prod.app.log.info({ port: v.cfg.PORT }, 'yiwuflow production up (webhook + worker)');
+  prod.app.log.info(
+    { port: v.cfg.PORT, provider: v.cfg.provider },
+    v.cfg.provider === 'disabled'
+      ? 'yiwuflow up in deployment mode (health + worker infra, no messaging)'
+      : 'yiwuflow production up (webhook + worker)',
+  );
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {

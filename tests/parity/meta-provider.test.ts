@@ -200,12 +200,30 @@ describe('provider selection (validateEnv)', () => {
     }
   });
 
-  it('no provider or an unknown provider is a hard failure — no silent fallback', () => {
-    for (const p of [undefined, 'twilio', '']) {
-      const v = validateEnv({ ...(p !== undefined ? { WHATSAPP_PROVIDER: p } : {}), ...base, ...metaVars, ...d360Vars });
+  it('an unknown provider is a hard failure — no silent fallback', () => {
+    for (const p of ['twilio', 'META', 'sms']) {
+      const v = validateEnv({ WHATSAPP_PROVIDER: p, ...base, ...metaVars, ...d360Vars });
       expect(v.ok).toBe(false);
       if (!v.ok) expect(v.problems.join()).toContain('WHATSAPP_PROVIDER');
     }
+  });
+
+  it('deployment mode: WHATSAPP_PROVIDER=disabled (or unset) requires no provider creds', () => {
+    const disabled = validateEnv({ WHATSAPP_PROVIDER: 'disabled', ...base });
+    expect(disabled.ok).toBe(true);
+    if (disabled.ok) expect(disabled.cfg.provider).toBe('disabled');
+
+    const unset = validateEnv({ ...base });   // no WHATSAPP_PROVIDER at all
+    expect(unset.ok).toBe(true);
+    if (unset.ok) expect(unset.cfg.provider).toBe('disabled');
+
+    // Anthropic + DATABASE_URL stay required even in deployment mode.
+    const noDb = validateEnv({ WHATSAPP_PROVIDER: 'disabled', ...base, DATABASE_URL: undefined });
+    expect(noDb.ok).toBe(false);
+    if (!noDb.ok) expect(noDb.problems.join()).toContain('DATABASE_URL');
+    const noLlm = validateEnv({ WHATSAPP_PROVIDER: 'disabled', ...base, ANTHROPIC_API_KEY: undefined });
+    expect(noLlm.ok).toBe(false);
+    if (!noLlm.ok) expect(noLlm.problems.join()).toContain('ANTHROPIC_API_KEY');
   });
 
   it('360dialog compatibility: default adapter still sends the D360 header', async () => {

@@ -54,10 +54,10 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
 
   afterAll(async () => { await prod?.close(); });
 
-  it('health reports process + database', async () => {
+  it('health reports process + database + active provider', async () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, db: true, worker: true });
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active' });
   });
 
   it('verification handshake is mounted', async () => {
@@ -95,5 +95,60 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
   it('shuts down cleanly and idempotently', async () => {
     await prod.close();
     await prod.close();   // second call must be a no-op
+  });
+});
+
+/**
+ * Deployment mode — full stack boots with WHATSAPP_PROVIDER=disabled, but
+ * NO messaging surface: no webhook routes, no outbound worker. For hosting on
+ * Railway before Meta onboarding finishes.
+ */
+d('production deployment mode (requires DATABASE_URL)', () => {
+  let prod: import('../../src/main.js').Production;
+
+  beforeAll(async () => {
+    const { buildProduction } = await import('../../src/main.js');
+    prod = await buildProduction({
+      provider: 'disabled',
+      DATABASE_URL: DATABASE_URL!,
+      ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_GRAPH_API_VERSION: 'v23.0',
+      WEBHOOK_VERIFY_TOKEN: 'deploy-verify-token',
+      CREDENTIAL_KEY: 'a'.repeat(64),
+      PORT: 0,
+    }, { logger: false });   // no adapter override → real disabled path
+  }, 30_000);
+
+  afterAll(async () => { await prod?.close(); });
+
+  it('boots and health reports database + worker healthy, provider disabled', async () => {
+    const res = await prod.app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
+  });
+
+  it('mounts NO webhook routes (GET verification absent)', async () => {
+    const res = await prod.app.inject({ method: 'GET',
+      url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('mounts NO webhook routes (POST absent)', async () => {
+    const res = await prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: {} });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('registers NO outbound worker (queue has no consumer)', async () => {
+    // With no registered worker the job stays available — we can fetch it
+    // ourselves. In active mode a worker would race to consume it first.
+    await prod.boss.send('message.outbound', { businessId: DEMO_BIZ, conversationId: DEMO_BIZ });
+    await new Promise((r) => setTimeout(r, 400));
+    const jobs = await prod.boss.fetch('message.outbound');
+    expect(jobs.length).toBeGreaterThanOrEqual(1);   // nobody consumed it
+  });
+
+  it('shuts down cleanly', async () => {
+    await prod.close();
+    await prod.close();
   });
 });
