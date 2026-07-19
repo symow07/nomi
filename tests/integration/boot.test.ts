@@ -127,6 +127,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
   });
 
+  it('serves the operator dashboard at / (live counts + quote card from seeded DB)', async () => {
+    const res = await prod.app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('YiwuFlow');
+    expect(res.body).toContain('报价卡');          // real quote card from the seeded demo pricing
+    expect(res.body).toContain('deployment mode'); // provider reflected
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });

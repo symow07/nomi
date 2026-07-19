@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
+import { loadDashboardData, renderDashboardHtml } from './api/dashboard.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -187,6 +188,16 @@ export async function buildProduction(
     });
   };
 
+  // Operator status page at / — a human-readable window into the running
+  // system (health, live DB counts, a real quote card from live pricing).
+  // Not the owner product; no buyer PII (sample card uses the demo catalog).
+  const mountDashboard = (a: FastifyInstance) => {
+    a.get('/', async (_req, reply) => {
+      const data = await loadDashboardData(db, cfg.provider);
+      return reply.code(200).type('text/html; charset=utf-8').send(renderDashboardHtml(data));
+    });
+  };
+
   let closing = false;
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss,
@@ -206,6 +217,7 @@ export async function buildProduction(
   if (cfg.provider === 'disabled' && !overrides?.adapter) {
     const app = Fastify({ logger: overrides?.logger ?? true });
     mountHealth(app, 'disabled');
+    mountDashboard(app);
     app.log.warn('No messaging provider configured. Running in deployment mode.');
     return finalize(app);
   }
@@ -320,6 +332,7 @@ export async function buildProduction(
   });
 
   mountHealth(app, 'active');
+  mountDashboard(app);
   return finalize(app);
 }
 
