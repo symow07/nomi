@@ -1,9 +1,11 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, appendFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
+import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
 import { driveConversationOutbound } from './outbound/worker.js';
@@ -26,51 +28,122 @@ import type { PgBoss } from 'pg-boss';
 
 /** ── Env: validate names and shapes; never print values ─────────────────── */
 
+export type WhatsAppProvider = 'meta' | '360dialog';
+
 export type ProdConfig = {
+  provider: WhatsAppProvider;
   DATABASE_URL: string;
   ANTHROPIC_API_KEY: string;
-  D360_API_KEY: string;
-  D360_BASE_URL: string;
-  WEBHOOK_SECRET: string;
   WEBHOOK_VERIFY_TOKEN: string;
   CREDENTIAL_KEY: string;
   PORT: number;
+  // 360dialog (present iff provider === '360dialog')
+  D360_API_KEY?: string;
+  D360_BASE_URL?: string;
+  WEBHOOK_SECRET?: string;
+  // Meta Cloud API (present iff provider === 'meta')
+  META_WHATSAPP_ACCESS_TOKEN?: string;
+  META_WHATSAPP_PHONE_NUMBER_ID?: string;
+  META_WHATSAPP_BUSINESS_ACCOUNT_ID?: string;
+  META_APP_SECRET?: string;
+  META_GRAPH_API_VERSION: string;
 };
 
-const SHAPES: Record<string, (v: string) => boolean> = {
+type Shape = (v: string) => boolean;
+const BASE_SHAPES: Record<string, Shape> = {
   DATABASE_URL: (v) => v.startsWith('postgres'),
   ANTHROPIC_API_KEY: (v) => v.length >= 20,
+  WEBHOOK_VERIFY_TOKEN: (v) => v.length >= 16,
+  CREDENTIAL_KEY: (v) => /^[0-9a-f]{64}$/i.test(v),
+};
+const D360_SHAPES: Record<string, Shape> = {
   D360_API_KEY: (v) => v.length >= 8,
   D360_BASE_URL: (v) => v.startsWith('https://'),
   WEBHOOK_SECRET: (v) => v.length >= 32,
-  WEBHOOK_VERIFY_TOKEN: (v) => v.length >= 16,
-  CREDENTIAL_KEY: (v) => /^[0-9a-f]{64}$/i.test(v),
+};
+const META_SHAPES: Record<string, Shape> = {
+  META_WHATSAPP_ACCESS_TOKEN: (v) => v.length >= 20,
+  META_WHATSAPP_PHONE_NUMBER_ID: (v) => /^\d{5,}$/.test(v),
+  META_WHATSAPP_BUSINESS_ACCOUNT_ID: (v) => /^\d{5,}$/.test(v),
+  META_APP_SECRET: (v) => v.length >= 16,
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
   | { ok: true; cfg: ProdConfig }
   | { ok: false; problems: string[] } {
   const problems: string[] = [];
-  for (const [name, shape] of Object.entries(SHAPES)) {
+
+  // Explicit provider choice — no silent fallback (spec §3).
+  const provider = env['WHATSAPP_PROVIDER'];
+  if (provider !== 'meta' && provider !== '360dialog') {
+    problems.push(`WHATSAPP_PROVIDER: must be 'meta' or '360dialog'`);
+  }
+  const shapes: Record<string, Shape> = {
+    ...BASE_SHAPES,
+    ...(provider === '360dialog' ? D360_SHAPES : {}),
+    ...(provider === 'meta' ? META_SHAPES : {}),
+  };
+  for (const [name, shape] of Object.entries(shapes)) {
     const v = env[name];
     if (!v) problems.push(`${name}: missing`);
     else if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
     else if (!shape(v)) problems.push(`${name}: invalid shape`);
   }
+  const graphVersion = env['META_GRAPH_API_VERSION'] ?? 'v23.0';
+  if (provider === 'meta' && !/^v\d+\.\d+$/.test(graphVersion)) {
+    problems.push('META_GRAPH_API_VERSION: invalid shape');
+  }
   if (problems.length) return { ok: false, problems };
+
+  const pick = (name: string): { [k: string]: string } | Record<string, never> =>
+    env[name] !== undefined ? { [name]: env[name] } : {};
   return {
     ok: true,
     cfg: {
+      provider: provider as WhatsAppProvider,
       DATABASE_URL: env['DATABASE_URL']!,
       ANTHROPIC_API_KEY: env['ANTHROPIC_API_KEY']!,
-      D360_API_KEY: env['D360_API_KEY']!,
-      D360_BASE_URL: env['D360_BASE_URL']!,
-      WEBHOOK_SECRET: env['WEBHOOK_SECRET']!,
       WEBHOOK_VERIFY_TOKEN: env['WEBHOOK_VERIFY_TOKEN']!,
       CREDENTIAL_KEY: env['CREDENTIAL_KEY']!,
       PORT: Number(env['PORT']) || 8787,
+      META_GRAPH_API_VERSION: graphVersion,
+      ...pick('D360_API_KEY'), ...pick('D360_BASE_URL'), ...pick('WEBHOOK_SECRET'),
+      ...pick('META_WHATSAPP_ACCESS_TOKEN'), ...pick('META_WHATSAPP_PHONE_NUMBER_ID'),
+      ...pick('META_WHATSAPP_BUSINESS_ACCOUNT_ID'), ...pick('META_APP_SECRET'),
     },
   };
+}
+
+/** ── Internal application secrets: generated, never a stop condition ────── */
+
+const GENERATED_SECRETS: readonly { name: string; bytes: number }[] = [
+  { name: 'WEBHOOK_SECRET', bytes: 32 },
+  { name: 'WEBHOOK_VERIFY_TOKEN', bytes: 16 },
+  { name: 'CREDENTIAL_KEY', bytes: 32 },
+];
+
+/**
+ * Generate any missing internal secret with crypto.randomBytes, persist it to
+ * .env (append-only — an existing value is NEVER overwritten), and export it
+ * to the current process. Values are never logged; callers get names only.
+ * On ephemeral hosts (Railway), run locally once and paste the .env values
+ * into the host's environment — a per-boot regeneration would invalidate the
+ * webhook verify token registered with the provider.
+ */
+export function ensureGeneratedSecrets(envPath = '.env'): string[] {
+  const generated: string[] = [];
+  let toAppend = '';
+  for (const { name, bytes } of GENERATED_SECRETS) {
+    if (process.env[name]) continue;
+    const value = randomBytes(bytes).toString('hex');
+    process.env[name] = value;
+    toAppend += `${name}=${value}\n`;
+    generated.push(name);
+  }
+  if (toAppend) {
+    appendFileSync(envPath, (existsSync(envPath) ? '' : '# generated secrets\n') + toAppend, { mode: 0o600 });
+  }
+  return generated;
 }
 
 /** Minimal .env loader (no dependency; Railway injects env directly). */
@@ -100,9 +173,16 @@ export async function buildProduction(
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
   });
 
-  const adapter = overrides?.adapter ?? whatsappAdapter({
-    baseUrl: cfg.D360_BASE_URL, apiKey: cfg.D360_API_KEY, webhookSecret: cfg.WEBHOOK_SECRET,
-  });
+  const adapter = overrides?.adapter ?? (cfg.provider === 'meta'
+    ? metaAdapter({
+        accessToken: cfg.META_WHATSAPP_ACCESS_TOKEN!,
+        phoneNumberId: cfg.META_WHATSAPP_PHONE_NUMBER_ID!,
+        appSecret: cfg.META_APP_SECRET!,
+        graphVersion: cfg.META_GRAPH_API_VERSION,
+      })
+    : whatsappAdapter({
+        baseUrl: cfg.D360_BASE_URL!, apiKey: cfg.D360_API_KEY!, webhookSecret: cfg.WEBHOOK_SECRET!,
+      }));
 
   /** Tenant from the channel credential — NEVER from the payload. */
   async function resolveTenant(phoneNumberId: string): Promise<BusinessId | null> {
@@ -230,6 +310,10 @@ const isMain = process.argv[1] !== undefined &&
   import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href;
 if (isMain) {
   loadDotEnv();
+  const generated = ensureGeneratedSecrets();
+  if (generated.length) {
+    console.error(`generated internal secrets (values in .env, never logged): ${generated.join(', ')}`);
+  }
   const v = validateEnv(process.env);
   if (!v.ok) {
     console.error('environment invalid:\n  ' + v.problems.join('\n  '));

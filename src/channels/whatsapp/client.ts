@@ -26,14 +26,18 @@ export function whatsappClient(cfg: {
   baseUrl: string;         // sandbox or production
   apiKey: string;
   fetchImpl?: FetchLike;
+  /** Auth header override — default is 360dialog's D360-API-KEY; the Meta
+   * adapter passes `Authorization: Bearer …`. Same wire behavior otherwise. */
+  authHeaders?: Record<string, string>;
 }) {
   const doFetch: FetchLike = cfg.fetchImpl ?? (fetch as unknown as FetchLike);
+  const auth = cfg.authHeaders ?? { 'D360-API-KEY': cfg.apiKey };
 
   async function post(payload: unknown): Promise<WhatsAppSendResult> {
     try {
       const res = await doFetch(`${cfg.baseUrl}/messages`, {
         method: 'POST',
-        headers: { 'D360-API-KEY': cfg.apiKey, 'Content-Type': 'application/json' },
+        headers: { ...auth, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });

@@ -38,11 +38,14 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
 
     sim = whatsappSimulator();
     prod = await buildProduction({
+      provider: 'meta',
       DATABASE_URL: DATABASE_URL!,
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
-      D360_API_KEY: 'sim-not-real',
-      D360_BASE_URL: 'https://simulator.invalid',
-      WEBHOOK_SECRET: 'sim-webhook-secret-32-chars-min-xx',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok',
+      META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765',
+      META_APP_SECRET: 'meta-app-secret-not-real',
+      META_GRAPH_API_VERSION: 'v23.0',
       WEBHOOK_VERIFY_TOKEN: 'boot-verify-token',
       CREDENTIAL_KEY: 'a'.repeat(64),
       PORT: 0,
