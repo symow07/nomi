@@ -397,5 +397,32 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
-  return { businessId, conversations, clients, catalog, orders, signals, events, audit };
+  // autonomy_policy + drafts (migration 0009) — raw SQL, like db/channels.ts,
+  // since they sit outside the typed core schema. Both are existing tables.
+  const autonomy: import('./ports.js').AutonomyRepo = {
+    async grants() {
+      const r = await sql<{ capability: string; mode: string; time_window: string | null }>`
+        select capability, mode, time_window from autonomy_policy where business_id = ${businessId}
+      `.execute(tx);
+      return r.rows.map((row) => ({
+        capability: row.capability as import('../core/conversation/autonomy.js').Capability,
+        mode: row.mode as 'draft' | 'auto',
+        timeWindow: row.time_window,
+      }));
+    },
+  };
+
+  const drafts: import('./ports.js').DraftRepo = {
+    async create(input) {
+      const r = await sql<{ id: string }>`
+        insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+        values (${businessId}, ${input.conversationId}, ${input.capability},
+                ${input.draftText}, ${input.turnMessageId}, 'pending')
+        returning id
+      `.execute(tx);
+      return { draftId: r.rows[0]!.id };
+    },
+  };
+
+  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, drafts };
 }

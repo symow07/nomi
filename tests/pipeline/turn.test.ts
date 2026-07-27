@@ -48,6 +48,34 @@ describe('computeTurn — cost gates', () => {
     expect(r.reply).toBeNull();
     const fx = await commitTurn(p, req('hello? anyone there?'), r, Date.now());
     expect(fx.outbound).toBeNull(); // nothing goes to the customer
+    expect(fx.draftCreated).toBeNull();
+  });
+
+  it('trust loop: a reply in draft mode becomes a pending draft, not a send', async () => {
+    const p = ports();               // FakeTenant.grantRows defaults to [] → draft
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis({}, 'clarification');
+    p.replyWriter.replies = ['Sure, what quantity are you looking at?'];
+    const r = await computeTurn(p, req('do you have canvas bags?'));
+    const fx = await commitTurn(p, req('do you have canvas bags?'), r, Date.now());
+    expect(fx.outbound).toBeNull();                 // NOT auto-sent
+    expect(fx.draftCreated).not.toBeNull();         // waits for the owner
+    expect(p.tenant.draftsCreated).toHaveLength(1);
+    expect(p.tenant.draftsCreated[0]!.draftText).toBe('Sure, what quantity are you looking at?');
+    expect(p.tenant.eventRows.some((e) => e.type === 'draft_pending')).toBe(true);
+  });
+
+  it('promoted capability in auto mode auto-sends (no draft)', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.tenant.grantRows = [{ capability: 'qualify', mode: 'auto', timeWindow: null }];
+    p.analyzer.next = analysis({}, 'clarification');
+    p.replyWriter.replies = ['Sure, what quantity are you looking at?'];
+    const r = await computeTurn(p, req('do you have canvas bags?'));
+    const fx = await commitTurn(p, req('do you have canvas bags?'), r, Date.now());
+    expect(fx.outbound).not.toBeNull();
+    expect(fx.draftCreated).toBeNull();
+    expect(p.tenant.draftsCreated).toHaveLength(0);
   });
 
   it('fast path: zero analyzer calls on a bare "yes"', async () => {
@@ -157,7 +185,10 @@ describe('the close, end to end, with idempotency', () => {
     const r = await computeTurn(p, req('yes'));
     const fx = await commitTurn(p, req('yes'), r, Date.now());
     expect(fx.orderCreated).toBeNull();
-    expect(fx.outbound?.reply).toContain('email');
+    // confirm_order is always draft — the blocking question waits for the owner.
+    expect(fx.outbound).toBeNull();
+    expect(fx.draftCreated).not.toBeNull();
+    expect(p.tenant.draftsCreated[0]!.draftText).toContain('email');
     expect(r.replyDeterministic).toBe(true);
   });
 });
@@ -185,13 +216,15 @@ describe('handoff and hot leads', () => {
     }));
     p.analyzer.next = analysis({ quantityMentioned: { value: 20000, unit: 'pcs' } }, 'commercial_discussion');
     p.replyWriter.replies = ['Let me put together the details for that volume.'];
+    // Quoting is promoted (auto) → the reply auto-sends rather than drafting.
+    p.tenant.grantRows = [{ capability: 'quote', mode: 'auto', timeWindow: null }];
 
     const r = await computeTurn(p, req('we can do FCL freight for 20000 units'));
     const fx = await commitTurn(p, req('we can do FCL freight for 20000 units'), r, Date.now());
 
     expect(fx.hotLeadAlert).toBe(true);
     expect(fx.handoffAlert).toBe(false);
-    expect(fx.outbound).not.toBeNull();     // still selling
+    expect(fx.outbound).not.toBeNull();     // still selling (auto capability)
     expect(r.newState.assignedTo).toBeNull(); // NOT paused
   });
 });

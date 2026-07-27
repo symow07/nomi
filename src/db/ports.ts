@@ -11,6 +11,7 @@ import type {
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim } from '../core/safety/claims.js';
+import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -37,6 +38,27 @@ export interface Tenant {
   readonly signals: SignalRepo;
   readonly events: EventLog;
   readonly audit: AuditRepo;
+  readonly autonomy: AutonomyRepo;
+  readonly drafts: DraftRepo;
+}
+
+/** autonomy_policy rows for this business — the draft/auto routing (migration 0009). */
+export interface AutonomyRepo {
+  grants(): Promise<readonly AutonomyGrant[]>;
+}
+
+/**
+ * drafts (migration 0009): a reply awaiting the owner. create() is the only
+ * write the turn pipeline makes here; resolution lives in the applyOwnerCommand
+ * service (src/pipeline/approve.ts) — the single approval path.
+ */
+export interface DraftRepo {
+  create(input: {
+    conversationId: ConversationId;
+    capability: Capability;
+    draftText: string;
+    turnMessageId: string;
+  }): Promise<{ draftId: string }>;
 }
 
 export interface ClientRepo {

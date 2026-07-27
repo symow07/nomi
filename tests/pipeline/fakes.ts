@@ -1,7 +1,8 @@
 import type {
-  AuditRepo, CatalogRepo, ClientRepo, ConversationRepo, EventLog, OrderRepo,
-  SignalRepo, Tenant,
+  AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
+  EventLog, OrderRepo, SignalRepo, Tenant,
 } from '../../src/db/ports.js';
+import type { AutonomyGrant } from '../../src/core/conversation/autonomy.js';
 import type { Retriever, RetrievedProduct } from '../../src/retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../../src/llm/ports.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
@@ -110,6 +111,27 @@ export class FakeTenant implements Tenant {
       return { quoteId: `quote-${this.quotesRecorded.length}` };
     },
     recordTurn: async (t) => { this.turnsRecorded.push(t); },
+  };
+
+  // Autonomy defaults to empty → every capability resolves to draft (the safe
+  // default). Tests set grants to exercise the auto-send path.
+  grantRows: AutonomyGrant[] = [];
+  draftsCreated: Array<{ draftId: string; conversationId: string; capability: string; draftText: string }> = [];
+  private draftSeq = 0;
+
+  autonomy: AutonomyRepo = {
+    grants: async () => this.grantRows,
+  };
+
+  drafts: DraftRepo = {
+    create: async (input) => {
+      const draftId = `draft-${++this.draftSeq}`;
+      this.draftsCreated.push({
+        draftId, conversationId: input.conversationId as string,
+        capability: input.capability, draftText: input.draftText,
+      });
+      return { draftId };
+    },
   };
 
   seed(id: ConversationId, state: ConversationState): void {

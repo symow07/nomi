@@ -6,6 +6,7 @@ import { extractEmail } from '../core/types/ids.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
 import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
+import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals } from '../core/safety/numerals.js';
@@ -329,11 +330,18 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
 
 /** Everything commitTurn causes beyond the database, for the caller to enqueue. */
 export type TurnEffects = {
+  /** Present only when the reply may auto-send (capability in auto mode). */
   outbound: { conversationId: ConversationId; reply: string } | null;
+  /** Present when the reply needs owner approval (capability in draft mode):
+   * a pending draft was persisted; the owner resolves it via applyOwnerCommand. */
+  draftCreated: { conversationId: ConversationId; draftId: string } | null;
   hotLeadAlert: boolean;
   handoffAlert: boolean;
   orderCreated: { orderId: string; orderReference: string } | null;
 };
+
+/** The product's single timezone (M1). Night-shift windows resolve against it. */
+const BUSINESS_TZ = 'Asia/Shanghai';
 
 export async function commitTurn(
   ports: TurnPorts,
@@ -428,8 +436,38 @@ export async function commitTurn(
     await tenant.events.append(req.conversationId, 'injection_blocked', {});
   }
 
+  // ── The trust loop: auto-send vs. pending draft ─────────────────────────
+  // A reply auto-sends only when its capability is in auto mode right now
+  // (resolveMode: confirm_order is always draft, night windows honoured). In
+  // draft mode we persist a pending draft instead — the owner resolves it via
+  // applyOwnerCommand. Order confirmations always send (the owner already
+  // tapped confirm by creating the order).
+  let outbound: TurnEffects['outbound'] = null;
+  let draftCreated: TurnEffects['draftCreated'] = null;
+  if (reply) {
+    const isOrderConfirmation = orderCreated !== null;
+    if (isOrderConfirmation) {
+      outbound = { conversationId: req.conversationId, reply };
+    } else {
+      const capability = capabilityOf(r.decision, r.quote !== null);
+      const grants = await tenant.autonomy.grants();
+      const mode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
+      if (mode === 'auto') {
+        outbound = { conversationId: req.conversationId, reply };
+      } else {
+        const d = await tenant.drafts.create({
+          conversationId: req.conversationId, capability,
+          draftText: reply, turnMessageId: req.messageId,
+        });
+        draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
+        await tenant.events.append(req.conversationId, 'draft_pending', { draftId: d.draftId, capability });
+      }
+    }
+  }
+
   return {
-    outbound: reply ? { conversationId: req.conversationId, reply } : null,
+    outbound,
+    draftCreated,
     hotLeadAlert: r.decision.hotLead,
     handoffAlert: r.decision.action.kind === 'handoff',
     orderCreated,
