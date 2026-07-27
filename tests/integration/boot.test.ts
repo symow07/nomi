@@ -232,6 +232,61 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
+  it('M9.4 channels: page renders; coming-soon honest; no secret/provider leak', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('销售渠道');
+    expect(res.body).toContain('WhatsApp');
+    expect(res.body).toContain('即将支持');
+    expect(res.body).toContain('Instagram');
+    for (const secret of ['DEMO_PNID', 'SIM_PNID', 'demo-no-secret', 'access_token', '360dialog']) {
+      expect(res.body).not.toContain(secret);
+    }
+  });
+
+  it('M9.4 channels: disconnect toggles the credential + audits; reconnect restores', async () => {
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const cookie = await login();
+    const active = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ a: boolean }>`select bool_or(is_active) as a from channel_credentials where channel='whatsapp'`.execute(tx).then((r) => r.rows[0]!.a));
+    const auditCount = (action: string) => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ n: number }>`select count(*)::int as n from channel_audit where action=${action}`.execute(tx).then((r) => r.rows[0]!.n));
+
+    const before = await auditCount('disconnect');
+    const disc = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(disc.statusCode).toBe(302);
+    expect(disc.headers['location']).toContain('/app/channels?flash=');
+    expect(await active()).toBe(false);                 // real effect: inbound resolution stops
+    expect(await auditCount('disconnect')).toBe(before + 1);
+
+    const rec = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/reconnect',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(rec.statusCode).toBe(302);
+    expect(await active()).toBe(true);                  // restored
+  });
+
+  it('M9.4 channels: test action records an audit and redirects with a result', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/test',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toContain('/app/channels?flash=');
+  });
+
+  it('M9.4 channels: mutation requires auth', async () => {
+    const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

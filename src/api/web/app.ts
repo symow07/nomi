@@ -5,6 +5,10 @@ import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
   defaultFilter, type InboxFilter,
 } from './inbox.js';
+import {
+  loadChannels, renderChannels, renderConnectGuide,
+  disconnectChannel, reconnectChannel, testChannel,
+} from './channels.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage, underConstruction } from './layout.js';
@@ -146,11 +150,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(r.messageZh)}`);
   });
 
+  // ── M9.4 Channel Center: connection state over the existing channel layer ──
+  const messagingEnabled = deps.provider !== 'disabled';
+  app.get('/app/channels/whatsapp/connect', authed('channels', () => renderConnectGuide()));
+
+  const channelAction = (path: string, run: (businessId: string) => Promise<{ messageZh: string }>) =>
+    app.post(path, async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const r = await run(s.businessId);
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(r.messageZh)}`);
+    });
+  channelAction('/app/channels/whatsapp/disconnect', (b) => disconnectChannel(deps.db, b, 'owner'));
+  channelAction('/app/channels/whatsapp/reconnect', (b) => reconnectChannel(deps.db, b, 'owner'));
+  channelAction('/app/channels/whatsapp/test', (b) => testChannel(deps.db, b, 'owner', messagingEnabled));
+
+  // Re-render the channels page with a flash after a redirect (?flash=).
+  app.get('/app/channels', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const data = await loadChannels(deps.db, s.businessId, deps.employeeName, messagingEnabled);
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: '销售渠道', active: 'channels', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderChannels(data, flash),
+    }));
+  });
+
   // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
   const stub = (path: string, active: string, zh: string) =>
     app.get(path, authed(active, () => underConstruction(zh)));
   stub('/app/conversations', 'conversations', '对话记录');
-  stub('/app/channels', 'channels', '对话渠道');
   stub('/app/products', 'products', '产品目录');
   stub('/app/employee', 'employee', '员工档案');
   stub('/app/analytics', 'analytics', '经营数据');
