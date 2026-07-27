@@ -98,8 +98,11 @@ export function whatsappSimulator(script: readonly SendBehavior[] = []): Simulat
     const rawBody = JSON.stringify(payload);
     return { rawBody, payload, headers: { 'x-hub-signature-256': signBody(rawBody, SIMULATOR_SECRET) } };
   };
+  // Default to NOW — a real provider timestamps events in near-real-time, and
+  // a fixed past date silently trips the 7-day staleness guard once the
+  // calendar moves past it (tests inject their own clock when they need one).
   const unixSeconds = (d: Date | undefined): string =>
-    String(Math.floor((d ?? new Date('2026-07-18T02:00:00Z')).getTime() / 1000));
+    String(Math.floor((d ?? new Date()).getTime() / 1000));
 
   const envelope = (value: Record<string, unknown>) => ({
     object: 'whatsapp_business_account',

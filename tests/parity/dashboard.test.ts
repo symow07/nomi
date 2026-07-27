@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderDashboardHtml, type DashboardData } from '../../src/api/dashboard.js';
+import { renderDashboardHtml, renderHomeBody, type DashboardData } from '../../src/api/dashboard.js';
 
 const base: DashboardData = {
   provider: 'disabled', dbOk: true, migrations: 15,
@@ -13,35 +13,35 @@ describe('operator dashboard (pure renderer)', () => {
     const html = renderDashboardHtml(base);
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('YiwuFlow');
-    expect(html).toContain('>12<');           // products stat
-    expect(html).toContain('15 migrations');
-    expect(html).toContain('Database connected');
+    expect(html).toContain('>12<');            // products stat
+    expect(html).toContain('数据结构：15 项');
+    expect(html).toContain('数据已连接');
   });
 
-  it('shows the live quote card as real product output', () => {
-    const html = renderDashboardHtml(base);
-    expect(html).toContain('报价卡');
-    expect(html).toContain('price came from the SQL');
+  it('home body shows the live quote card as real product output', () => {
+    const body = renderHomeBody(base);
+    expect(body).toContain('报价卡');
+    expect(body).toContain('价格来自你的价格表');
   });
 
   it('reflects provider mode', () => {
-    expect(renderDashboardHtml(base)).toContain('deployment mode');
-    expect(renderDashboardHtml({ ...base, provider: 'meta' })).toContain('Messaging: meta');
+    expect(renderHomeBody(base)).toContain('暂未连接接待渠道');
+    expect(renderHomeBody({ ...base, provider: 'meta' })).toContain('接待渠道：meta');
   });
 
   it('degrades honestly: no db, no schema, no sample card', () => {
-    const html = renderDashboardHtml({
+    const body = renderHomeBody({
       ...base, dbOk: false, migrations: 0, sampleCard: null,
       counts: { businesses: 0, products: 0, conversations: 0, orders: 0 },
     });
-    expect(html).toContain('Database unreachable');
-    expect(html).toContain('seed:demo');       // sample-card fallback
-    expect(html).toContain('starting or database not yet migrated');
+    expect(body).toContain('数据连接异常');
+    expect(body).toContain('还没有产品目录');
+    expect(body).toContain('系统正在启动');
   });
 
   it('escapes html to prevent injection from data values', () => {
-    const html = renderDashboardHtml({ ...base, sampleCard: '<script>alert(1)</script>' });
-    expect(html).not.toContain('<script>alert(1)</script>');
-    expect(html).toContain('&lt;script&gt;');
+    const body = renderHomeBody({ ...base, sampleCard: '<script>alert(1)</script>' });
+    expect(body).not.toContain('<script>alert(1)</script>');
+    expect(body).toContain('&lt;script&gt;');
   });
 });

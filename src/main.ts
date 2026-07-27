@@ -1,10 +1,10 @@
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
-import { loadDashboardData, renderDashboardHtml } from './api/dashboard.js';
+import { registerWebApp } from './api/web/app.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -165,6 +165,8 @@ export type Production = {
   readonly app: FastifyInstance;
   readonly db: Db;
   readonly boss: PgBoss;
+  readonly ownerAccessCode: string;
+  readonly ownerAccessCodeGenerated: boolean;
   close(): Promise<void>;
 };
 
@@ -188,19 +190,29 @@ export async function buildProduction(
     });
   };
 
-  // Operator status page at / — a human-readable window into the running
-  // system (health, live DB counts, a real quote card from live pricing).
-  // Not the owner product; no buyer PII (sample card uses the demo catalog).
-  const mountDashboard = (a: FastifyInstance) => {
-    a.get('/', async (_req, reply) => {
-      const data = await loadDashboardData(db, cfg.provider);
-      return reply.code(200).type('text/html; charset=utf-8').send(renderDashboardHtml(data));
+  // M9 Command Center: owner-facing web control surface over the existing
+  // engine, behind owner login. Mounted in both modes so the owner can manage
+  // products/employee/etc. even before messaging is live.
+  // Owner login: explicit OWNER_ACCESS_CODE, else generated (logged once by
+  // the CLI so the founder can grab it; set it in the host for stability).
+  const ownerAccessCode = process.env['OWNER_ACCESS_CODE'] || randomBytes(4).toString('hex');
+  const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? 'de300000-0000-4000-8000-0000000000b1';
+  const mountCommandCenter = (a: FastifyInstance) => {
+    registerWebApp(a, {
+      db,
+      sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
+      accessCode: ownerAccessCode,
+      businessId: PILOT_BUSINESS_ID,
+      employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
+      avatar: process.env['EMPLOYEE_AVATAR'] ?? '👩‍💼',
+      provider: cfg.provider,
+      secureCookie: process.env['NODE_ENV'] === 'production',
     });
   };
 
   let closing = false;
   const finalize = (a: FastifyInstance): Production => ({
-    app: a, db, boss,
+    app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'],
     async close() {
       if (closing) return;
       closing = true;
@@ -217,7 +229,7 @@ export async function buildProduction(
   if (cfg.provider === 'disabled' && !overrides?.adapter) {
     const app = Fastify({ logger: overrides?.logger ?? true });
     mountHealth(app, 'disabled');
-    mountDashboard(app);
+    mountCommandCenter(app);
     app.log.warn('No messaging provider configured. Running in deployment mode.');
     return finalize(app);
   }
@@ -332,7 +344,7 @@ export async function buildProduction(
   });
 
   mountHealth(app, 'active');
-  mountDashboard(app);
+  mountCommandCenter(app);
   return finalize(app);
 }
 
@@ -354,6 +366,11 @@ if (isMain) {
 
   const prod = await buildProduction(v.cfg);
   await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
+  if (prod.ownerAccessCodeGenerated) {
+    // The owner needs this to log into the command center. Set OWNER_ACCESS_CODE
+    // in the host to make it stable across deploys.
+    prod.app.log.warn(`command center login code (set OWNER_ACCESS_CODE to fix): ${prod.ownerAccessCode}`);
+  }
   prod.app.log.info(
     { port: v.cfg.PORT, provider: v.cfg.provider },
     v.cfg.provider === 'disabled'

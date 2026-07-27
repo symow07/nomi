@@ -119,88 +119,62 @@ const pill = (ok: boolean, label: string): string =>
 const stat = (label: string, value: string | number): string =>
   `<div class="stat"><div class="v">${esc(String(value))}</div><div class="l">${esc(label)}</div></div>`;
 
-export function renderDashboardHtml(d: DashboardData): string {
-  const providerLabel = d.provider === 'disabled'
-    ? 'No messaging provider (deployment mode)'
-    : `Messaging: ${d.provider}`;
+/** Inner HTML (no <html> wrapper) — embedded in the M9 shell or the standalone page. */
+export function renderHomeBody(d: DashboardData): string {
+  const providerLabel = d.provider === 'disabled' ? '暂未连接接待渠道' : `接待渠道：${d.provider}`;
   const healthy = d.dbOk && (d.migrations ?? 0) > 0;
+  return `
+  <h1 class="page">主页</h1>
+  <div class="card">
+    <h2>系统状态</h2>
+    ${pill(true, '服务运行中')}
+    ${pill(d.dbOk, d.dbOk ? '数据已连接' : '数据连接异常')}
+    ${pill((d.migrations ?? 0) > 0, `数据结构：${d.migrations ?? 0} 项`)}
+    ${pill(true, '后台在岗')}
+    ${d.provider !== 'disabled' ? pill(true, providerLabel) : `<span class="pill warn">● ${esc(providerLabel)}</span>`}
+  </div>
+  <div class="card">
+    <h2>目前的数据</h2>
+    <div class="stats">
+      ${stat('公司', d.counts.businesses)}
+      ${stat('产品', d.counts.products)}
+      ${stat('对话', d.counts.conversations)}
+      ${stat('订单', d.counts.orders)}
+    </div>
+  </div>
+  <div class="card">
+    <h2>报价示例 — 按你的价格表实时算出</h2>
+    ${d.sampleCard
+      ? `<pre>${esc(d.sampleCard)}</pre>
+         <p class="muted">价格来自你的价格表，不是猜的。买家问到 5000 个这个产品时，员工就是这样报价的。</p>`
+      : `<p class="muted">还没有产品目录。</p>`}
+  </div>
+  <p class="muted" style="font-size:12px">${healthy ? '一切正常运转。' : '系统正在启动。'}</p>`;
+}
 
+/** Standalone full page (kept for non-shell contexts / tests). */
+export function renderDashboardHtml(d: DashboardData): string {
   return `<!doctype html>
-<html lang="en"><head>
+<html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YiwuFlow · status</title>
+<title>YiwuFlow · 状态</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #0b0d10; color: #e6e8eb;
-    font: 15px/1.5 -apple-system, "Segoe UI", "Noto Sans SC", system-ui, sans-serif; }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
-  h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: .3px; }
-  .sub { color: #8b929c; font-size: 13px; margin-bottom: 24px; }
-  .pill { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 13px;
-    font-weight: 600; margin: 0 8px 8px 0; }
-  .pill.ok { background: #0f2e1c; color: #4ade80; }
-  .pill.bad { background: #2e1414; color: #f87171; }
-  .card { background: #14171c; border: 1px solid #23272e; border-radius: 14px;
-    padding: 20px; margin: 16px 0; }
-  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px;
-    color: #8b929c; margin: 0 0 14px; font-weight: 600; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-  .stat { background: #0f1216; border: 1px solid #23272e; border-radius: 10px;
-    padding: 16px; text-align: center; }
-  .stat .v { font-size: 28px; font-weight: 700; color: #fff; }
-  .stat .l { font-size: 12px; color: #8b929c; margin-top: 4px; }
-  pre { background: #0f1216; border: 1px solid #23272e; border-radius: 10px;
-    padding: 18px; overflow-x: auto; font: 14px/1.55 "SF Mono", ui-monospace, Menlo, monospace;
-    color: #d6dae0; white-space: pre; margin: 0; }
-  .muted { color: #6b7280; font-size: 13px; }
-  .foot { margin-top: 28px; color: #6b7280; font-size: 12px; }
-  a { color: #60a5fa; text-decoration: none; }
-  .banner { border-radius: 12px; padding: 12px 16px; font-size: 13px; margin-bottom: 20px;
-    background: ${healthy ? '#0f2e1c' : '#2e2413'}; color: ${healthy ? '#4ade80' : '#fbbf24'}; }
+  body { margin:0; background:#0b0d10; color:#e6e8eb;
+    font:15px/1.5 -apple-system,"Segoe UI","Noto Sans SC",system-ui,sans-serif; padding:24px; }
+  h1.page { font-size:20px; margin:0 0 16px; }
+  .pill { display:inline-block; padding:5px 12px; border-radius:999px; font-size:13px; font-weight:600; margin:0 8px 8px 0; }
+  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.bad { background:#2e1414; color:#f87171; } .pill.warn { background:#2e2413; color:#fbbf24; }
+  .card { background:#14171c; border:1px solid #23272e; border-radius:14px; padding:20px; margin:16px 0; max-width:920px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:#8b929c; margin:0 0 14px; font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:560px){ .stats{ grid-template-columns:repeat(2,1fr); } }
+  .stat { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:16px; text-align:center; }
+  .stat .v { font-size:28px; font-weight:700; color:#fff; } .stat .l { font-size:12px; color:#8b929c; margin-top:4px; }
+  pre { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:18px; overflow-x:auto;
+    font:14px/1.55 "SF Mono",ui-monospace,Menlo,monospace; color:#d6dae0; white-space:pre; margin:0; }
+  .muted { color:#6b7280; font-size:13px; }
 </style></head>
-<body><div class="wrap">
-  <h1>YiwuFlow</h1>
-  <div class="sub">AI sales employee · operator status page</div>
-
-  <div class="banner">${healthy
-    ? 'System operational — database migrated, workers running, waiting for messaging provider.'
-    : 'System starting or database not yet migrated.'}</div>
-
-  <div class="card">
-    <h2>System</h2>
-    ${pill(true, 'Service running')}
-    ${pill(d.dbOk, d.dbOk ? 'Database connected' : 'Database unreachable')}
-    ${pill((d.migrations ?? 0) > 0, `Schema: ${d.migrations ?? 0} migrations`)}
-    ${pill(true, 'Workers initialized')}
-    ${pill(d.provider !== 'disabled', providerLabel)}
-  </div>
-
-  <div class="card">
-    <h2>Data in the database</h2>
-    <div class="stats">
-      ${stat('Businesses', d.counts.businesses)}
-      ${stat('Products', d.counts.products)}
-      ${stat('Conversations', d.counts.conversations)}
-      ${stat('Orders', d.counts.orders)}
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Live quote card — computed from the database price list</h2>
-    ${d.sampleCard
-      ? `<pre>${esc(d.sampleCard)}</pre>
-         <p class="muted">This is real product output: the price came from the SQL
-         price tiers, not from the language model. It is what the owner sees in
-         WhatsApp when a buyer asks for 5,000 pcs of this product.</p>`
-      : `<p class="muted">No demo catalog found — run <code>npm run seed:demo</code>.</p>`}
-  </div>
-
-  <div class="foot">
-    The owner's real experience is WhatsApp approval cards, not this page — this
-    is an operator view. Machine health: <a href="/health">/health</a>.<br>
-    Generated ${esc(d.generatedAt.toISOString())}.
-  </div>
-</div></body></html>`;
+<body>${renderHomeBody(d)}</body></html>`;
 }

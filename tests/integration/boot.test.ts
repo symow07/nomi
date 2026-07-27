@@ -127,13 +127,39 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
   });
 
-  it('serves the operator dashboard at / (live counts + quote card from seeded DB)', async () => {
-    const res = await prod.app.inject({ method: 'GET', url: '/' });
-    expect(res.statusCode).toBe(200);
-    expect(res.headers['content-type']).toContain('text/html');
-    expect(res.body).toContain('YiwuFlow');
-    expect(res.body).toContain('报价卡');          // real quote card from the seeded demo pricing
-    expect(res.body).toContain('deployment mode'); // provider reflected
+  it('M9 command center: / and /app require login; /login serves the form', async () => {
+    const root = await prod.app.inject({ method: 'GET', url: '/' });
+    expect(root.statusCode).toBe(302);
+    expect(root.headers['location']).toBe('/login');
+
+    const appUnauthed = await prod.app.inject({ method: 'GET', url: '/app' });
+    expect(appUnauthed.statusCode).toBe(302);
+    expect(appUnauthed.headers['location']).toBe('/login');
+
+    const login = await prod.app.inject({ method: 'GET', url: '/login' });
+    expect(login.statusCode).toBe(200);
+    expect(login.body).toContain('name="code"');
+  });
+
+  it('M9: wrong code rejected; correct code opens the shell with the dashboard', async () => {
+    const bad = await prod.app.inject({ method: 'POST', url: '/login',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'code=wrong' });
+    expect(bad.statusCode).toBe(401);
+
+    const ok = await prod.app.inject({ method: 'POST', url: '/login',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
+    expect(ok.statusCode).toBe(302);
+    expect(ok.headers['location']).toBe('/app');
+    const cookie = String(ok.headers['set-cookie']).split(';')[0];
+
+    // Authenticated: the shell renders with the reused dashboard body.
+    const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
+    expect(home.statusCode).toBe(200);
+    expect(home.body).toContain('的工作台');           // shell
+    expect(home.body).toContain('报价卡');             // reused live quote card
+    const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
+    expect(inbox.statusCode).toBe(200);               // stub renders in-shell, no 404
   });
 
   it('mounts NO webhook routes (GET verification absent)', async () => {
