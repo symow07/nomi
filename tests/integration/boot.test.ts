@@ -161,8 +161,83 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.body).toContain('工作状态');           // employee status card
     expect(home.body).toMatch(/询盘/);                 // today summary
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
-    expect(inbox.statusCode).toBe(200);               // stub renders in-shell, no 404
+    expect(inbox.statusCode).toBe(200);
+    expect(inbox.body).toContain('收件箱');
   });
+
+  it('M9.3 inbox: opens a real conversation; unknown/foreign id → 404, no leak', async () => {
+    const cookie = await login();
+    // Demo conversation 302 (Sara / canvas bags) exists for the demo business.
+    const detail = await prod.app.inject({ method: 'GET',
+      url: '/app/inbox/de300000-0000-4000-8000-000000000302', headers: { cookie } });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.body).toContain('对话记录');
+
+    const unknown = await prod.app.inject({ method: 'GET',
+      url: '/app/inbox/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.body).toContain('找不到这个对话');
+    // Never reveals whether the id exists in another tenant.
+    expect(unknown.body).not.toContain('bb000000');
+  });
+
+  it('M9.3: pending draft renders and the action loop resolves it via applyOwnerCommand', async () => {
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const CONV = 'de300000-0000-4000-8000-000000000302';
+    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+
+    // Seed a pending draft (turn_message_id null; the real pipeline FKs it).
+    const draftId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+      values (${bidv}, ${CONV}, 'quote', 'Draft reply from 小雅', null, 'pending')
+      returning id`.execute(tx).then((r) => r.rows[0]!.id));
+
+    const cookie = await login();
+    const before = await prod.app.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie } });
+    expect(before.body).toContain('小雅等你确认');
+    expect(before.body).toContain('Draft reply from 小雅');
+
+    // A GET must never send: the draft is still pending after viewing.
+    expect(await draftStatus(draftId)).toBe('pending');
+
+    // POST the send action → PRG redirect, draft resolved through the one service.
+    const act = await prod.app.inject({ method: 'POST', url: `/app/inbox/${CONV}/act`,
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `draftId=${draftId}&command=${encodeURIComponent('发送')}` });
+    expect(act.statusCode).toBe(302);
+    expect(act.headers['location']).toContain(`/app/inbox/${CONV}?flash=`);
+    expect(await draftStatus(draftId)).toBe('approved');
+
+    // Double submit is safe — already resolved, nothing changes.
+    const again = await prod.app.inject({ method: 'POST', url: `/app/inbox/${CONV}/act`,
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `draftId=${draftId}&command=${encodeURIComponent('发送')}` });
+    expect(again.statusCode).toBe(302);
+    expect(await draftStatus(draftId)).toBe('approved');
+
+    async function draftStatus(id: string): Promise<string> {
+      return withTenantTx(prod.db, bidv, (tx) =>
+        sql<{ status: string }>`select status from drafts where id=${id}`.execute(tx).then((r) => r.rows[0]!.status));
+    }
+  });
+
+  it('inbox mutation requires auth; unauthenticated POST redirects to login', async () => {
+    const res = await prod.app.inject({ method: 'POST', url: '/app/inbox/x/act',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'draftId=d&command=%E5%8F%91%E9%80%81' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+  });
+
+  async function login(): Promise<string> {
+    const ok = await prod.app.inject({ method: 'POST', url: '/login',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
+    return String(ok.headers['set-cookie']).split(';')[0] ?? '';
+  }
 
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',

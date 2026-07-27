@@ -44,7 +44,7 @@ describe('M9.2 · owner home dashboard (pure renderer)', () => {
     expect(html).toContain('保温杯');
     expect(html).toContain('5000个');
     expect(html).toContain('$0.92');
-    expect(html).toContain('href="/app/inbox"');   // reuses inbox/approval, no 2nd mechanism
+    expect(html).toContain('href="/app/inbox/c1"');   // deep-links to the exact conversation
     // Sara has no product/qty/quote — those bits are simply omitted, not faked.
     expect(html).toContain('Sara');
   });

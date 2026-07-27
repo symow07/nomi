@@ -96,8 +96,9 @@ export async function loadHomeData(db: Db, businessIdRaw: string, now: Date): Pr
           where o.status in ('sent','delivered','read') and o.sent_at is not null and ${sql.raw(cst('o.sent_at'))}
       ) x`.execute(tx)).rows[0]?.n), 0);
 
+    // Per-conversation, to agree with the inbox's "等你处理" count (M9.3 §12).
     const waiting = await safe(async () => num((await sql<{ n: number }>`
-      select count(*)::int as n from drafts where status = 'pending'`.execute(tx)).rows[0]?.n), 0);
+      select count(distinct conversation_id)::int as n from drafts where status = 'pending'`.execute(tx)).rows[0]?.n), 0);
 
     const closed = await safe(async () => num((await sql<{ n: number }>`
       select count(*)::int as n from orders where ${sql.raw(cst('created_at'))}`.execute(tx)).rows[0]?.n), 0);
@@ -210,7 +211,7 @@ export function renderHome(d: HomeData): string {
               ${p.quantity !== null ? `数量：${esc(formatQtyZh(p.quantity))}个　` : ''}
               ${p.unitPriceUsd !== null ? `报价：${esc(formatUsd(p.unitPriceUsd))}` : ''}
             </div>
-            <a class="btn" href="/app/inbox">查看</a>
+            <a class="btn" href="/app/inbox/${esc(p.conversationId)}">查看</a>
           </div>`).join('')}
        </div>`
     : `<div class="card ok-card"><div class="ok">✓ 一切正常，不用管</div>

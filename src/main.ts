@@ -207,6 +207,12 @@ export async function buildProduction(
       avatar: process.env['EMPLOYEE_AVATAR'] ?? '👩‍💼',
       provider: cfg.provider,
       secureCookie: process.env['NODE_ENV'] === 'production',
+      // The EXISTING outbound path — the same QUEUES.outbound worker the turn
+      // pipeline uses. applyOwnerCommand (inbox actions) sends through this.
+      kickOutbound: async (businessId, conversationId, reply) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId, reply },
+          { singletonKey: conversationId });
+      },
     });
   };
 

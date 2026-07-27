@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../../db/client.js';
 import { loadHomeData, renderHome } from './home.js';
+import {
+  loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
+  defaultFilter, type InboxFilter,
+} from './inbox.js';
+import { applyOwnerCommand } from '../../pipeline/approve.js';
+import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage, underConstruction } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 
@@ -24,6 +30,8 @@ export type WebDeps = {
   readonly avatar: string;
   readonly provider: string;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
+  /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
 };
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -87,10 +95,60 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return renderHome(data);
   }));
 
-  // ── Section stubs (built out M9.2+) — present so nav never 404s ───────────
+  // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
+  app.get('/app/inbox', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const requested = (req.query as { filter?: string } | undefined)?.filter;
+    const list0 = await loadInboxList(deps.db, s.businessId, '全部');
+    const filter: InboxFilter = requested === '等你处理' || requested === '全部'
+      ? requested : defaultFilter(list0.waitingCount);
+    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter);
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: '收件箱', active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderInboxList(data, new Date()),
+    }));
+  });
+
+  app.get('/app/inbox/:conversationId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId);
+    if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(shell({
+      title: '收件箱', active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: `<h1 class="page">找不到这个对话</h1><div class="card"><a href="/app/inbox">← 回收件箱</a></div>`,
+    }));
+    const flash = typeof (req.query as { flash?: string }).flash === 'string'
+      ? (req.query as { flash: string }).flash : null;
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: detail.buyer, active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderConversationDetail(detail, new Date(), flash),
+    }));
+  });
+
+  // The ONLY mutation: resolve a pending draft through applyOwnerCommand.
+  // POST only; Post/Redirect/Get so a refresh never re-submits.
+  app.post('/app/inbox/:conversationId/act', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const body = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !body.draftId) return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}`);
+
+    // 改 carries the owner's text; other commands map straight to the parser.
+    const rawReply = body.command === '改' ? `改：${body.edit ?? ''}` : (body.command ?? '');
+    const r = await applyOwnerCommand(
+      { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
+      { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: 'owner' },
+    );
+    return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(r.messageZh)}`);
+  });
+
+  // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
   const stub = (path: string, active: string, zh: string) =>
     app.get(path, authed(active, () => underConstruction(zh)));
-  stub('/app/inbox', 'inbox', '收件箱');
   stub('/app/conversations', 'conversations', '对话记录');
   stub('/app/channels', 'channels', '对话渠道');
   stub('/app/products', 'products', '产品目录');
