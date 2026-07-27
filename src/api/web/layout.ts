@@ -9,7 +9,7 @@ export const NAV: readonly { readonly href: string; readonly id: string; readonl
   { href: '/app',               id: 'home',          label: '主页',     icon: '🏠' },
   { href: '/app/inbox',         id: 'inbox',         label: '收件箱',   icon: '📥' },
   { href: '/app/conversations', id: 'conversations', label: '对话记录', icon: '💬' },
-  { href: '/app/channels',      id: 'channels',      label: '对话渠道', icon: '🔗' },
+  { href: '/app/channels',      id: 'channels',      label: '销售渠道', icon: '🔗' },
   { href: '/app/products',      id: 'products',      label: '产品目录', icon: '📦' },
   { href: '/app/employee',      id: 'employee',      label: '员工档案', icon: '🧑‍💼' },
   { href: '/app/analytics',     id: 'analytics',     label: '经营数据', icon: '📊' },
