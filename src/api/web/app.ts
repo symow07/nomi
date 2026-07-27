@@ -13,6 +13,8 @@ import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
   renderAddForm, renderReview, reviewImport, confirmImport,
 } from './products.js';
+import { loadEmployee, renderEmployee } from './employee.js';
+import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage, underConstruction } from './layout.js';
@@ -208,10 +210,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/products?flash=${encodeURIComponent(msg)}`);
   });
 
+  // ── M9.6 Employee Profile: personnel file over the existing trust data ────
+  app.get('/app/employee', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const e = await loadEmployee(deps.db, s.businessId, deps.employeeName);
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: '员工档案', active: 'employee', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderEmployee(e, flash),
+    }));
+  });
+  const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ messageZh: string }>) =>
+    app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const cap = (req.params as { capability: string }).capability;
+      const r = await run(s.businessId, cap);
+      return reply.redirect(`/app/employee?flash=${encodeURIComponent(r.messageZh)}`);
+    });
+  capAction('promote', (b, c) => promoteCapability(deps.db, b, c, 'owner'));
+  capAction('revoke', (b, c) => revokeCapability(deps.db, b, c, 'owner'));
+
   // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
   const stub = (path: string, active: string, zh: string) =>
     app.get(path, authed(active, () => underConstruction(zh)));
   stub('/app/conversations', 'conversations', '对话记录');
-  stub('/app/employee', 'employee', '员工档案');
   stub('/app/analytics', 'analytics', '经营数据');
 }

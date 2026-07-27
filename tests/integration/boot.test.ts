@@ -337,6 +337,68 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(hits).not.toContain('神秘无价样品');            // cannot affect a quote
   });
 
+  it('M9.6 employee: profile renders real trust data (duties, growth, promotion)', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('员工档案');
+    expect(res.body).toContain('工作职责');
+    expect(res.body).toContain('现在可以');
+    expect(res.body).toContain('成长记录');
+    expect(res.body).toContain('晋升状态');
+    // demo: greet is promoted (auto) → appears under 现在可以 as 接待问候
+    expect(res.body).toContain('接待问候');
+    // no confidence score / percentage leaks
+    expect(res.body).not.toContain('置信度');
+  });
+
+  it('M9.6 capability action: revoke flips autonomy + writes a capability event', async () => {
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const cookie = await login();
+    // Ensure greet is auto to start.
+    await withTenantTx(prod.db, bidv, (tx) => sql`update autonomy_policy set mode='auto' where capability='greet'`.execute(tx));
+    const modeOf = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ m: string }>`select mode as m from autonomy_policy where capability='greet'`.execute(tx).then((r) => r.rows[0]!.m));
+    const evCount = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ n: number }>`select count(*)::int as n from capability_events where capability='greet' and reasons @> array['owner_revoked']`.execute(tx).then((r) => r.rows[0]!.n));
+
+    const before = await evCount();
+    const res = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/greet/revoke',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toContain('/app/employee?flash=');
+    expect(await modeOf()).toBe('draft');                  // authority pulled back
+    expect(await evCount()).toBe(before + 1);              // recorded in capability_events
+    // restore
+    await withTenantTx(prod.db, bidv, (tx) => sql`update autonomy_policy set mode='auto' where capability='greet'`.execute(tx));
+  });
+
+  it('M9.6 capability action requires auth; confirm_order can never be promoted', async () => {
+    const noAuth = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/greet/revoke',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(noAuth.statusCode).toBe(302);
+    expect(noAuth.headers['location']).toBe('/login');
+
+    const cookie = await login();
+    const confirm = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/confirm_order/promote',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+    expect(confirm.statusCode).toBe(302);
+    // confirm_order stays draft — the flash says so, and autonomy is unchanged
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    if (!parsed.ok) throw new Error('fixture');
+    const mode = await withTenantTx(prod.db, parsed.value, (tx) =>
+      sql<{ m: string }>`select mode as m from autonomy_policy where capability='confirm_order'`.execute(tx).then((r) => r.rows[0]?.m));
+    expect(mode).toBe('draft');
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
