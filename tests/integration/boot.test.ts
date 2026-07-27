@@ -153,11 +153,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(ok.headers['location']).toBe('/app');
     const cookie = String(ok.headers['set-cookie']).split(';')[0];
 
-    // Authenticated: the shell renders with the reused dashboard body.
+    // Authenticated: the shell renders with the M9.2 home briefing (real data).
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
     expect(home.body).toContain('的工作台');           // shell
-    expect(home.body).toContain('报价卡');             // reused live quote card
+    expect(home.body).toContain('今日总结');           // greeting line
+    expect(home.body).toContain('工作状态');           // employee status card
+    expect(home.body).toMatch(/询盘/);                 // today summary
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);               // stub renders in-shell, no 404
   });

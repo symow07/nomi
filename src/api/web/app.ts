@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../../db/client.js';
-import { loadDashboardData, renderHomeBody } from '../dashboard.js';
+import { loadHomeData, renderHome } from './home.js';
 import { shell, loginPage, underConstruction } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 
@@ -81,10 +81,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect('/login');
   });
 
-  // ── Home (M9.1: reuse the existing dashboard data inside the shell) ───────
+  // ── Home (M9.2: owner briefing — a view over existing data) ──────────────
   app.get('/app', authed('home', async () => {
-    const data = await loadDashboardData(deps.db, deps.provider);
-    return renderHomeBody(data);
+    const data = await loadHomeData(deps.db, deps.businessId, new Date());
+    return renderHome(data);
   }));
 
   // ── Section stubs (built out M9.2+) — present so nav never 404s ───────────
