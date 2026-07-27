@@ -287,6 +287,56 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
+  it('M9.5 products: list + detail render the real catalog', async () => {
+    const cookie = await login();
+    const list = await prod.app.inject({ method: 'GET', url: '/app/products', headers: { cookie } });
+    expect(list.statusCode).toBe(200);
+    expect(list.body).toContain('产品目录');
+    expect(list.body).toContain('帆布袋');       // demo ZX-100
+    expect(list.body).toContain('已学习');
+
+    const detail = await prod.app.inject({ method: 'GET',
+      url: '/app/products/de300000-0000-4000-8000-000000000101', headers: { cookie } });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.body).toContain('价格');
+    expect(detail.body).toContain('买家怎么称呼它');   // aliases
+    expect(detail.body).toContain('canvas bag');
+
+    const missing = await prod.app.inject({ method: 'GET',
+      url: '/app/products/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+    expect(missing.body).toContain('找不到这个产品');
+  });
+
+  it('M9.5 TRUST RULE: an unconfirmed (price-less) product is inactive and excluded from quotes', async () => {
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const cookie = await login();
+
+    // Teach one priced product and one without a price.
+    const text = '独家测试杯 $5.00 MOQ 500\n神秘无价样品';
+    const conf = await prod.app.inject({ method: 'POST', url: '/app/products/add/confirm',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `text=${encodeURIComponent(text)}` });
+    expect(conf.statusCode).toBe(302);
+    expect(conf.headers['location']).toContain('flash=');
+
+    const activeOf = (name: string) => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ a: boolean }>`select is_active as a from products where name=${name} order by created_at desc limit 1`
+        .execute(tx).then((r) => r.rows[0]?.a));
+    expect(await activeOf('独家测试杯')).toBe(true);     // priced → learned/active
+    expect(await activeOf('神秘无价样品')).toBe(false);   // no price → NOT activated
+
+    // Retrieval (what feeds quotes) excludes the inactive product entirely.
+    const hits = await withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ names: string | null }>`select string_agg(name, ',') as names
+        from retrieve_products(${bidv}::uuid, '神秘无价样品'::text, null, 5)`.execute(tx).then((r) => r.rows[0]?.names ?? ''));
+    expect(hits).not.toContain('神秘无价样品');            // cannot affect a quote
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

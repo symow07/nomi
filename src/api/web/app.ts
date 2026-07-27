@@ -9,6 +9,10 @@ import {
   loadChannels, renderChannels, renderConnectGuide,
   disconnectChannel, reconnectChannel, testChannel,
 } from './channels.js';
+import {
+  loadProductList, loadProductDetail, renderProductList, renderProductDetail,
+  renderAddForm, renderReview, reviewImport, confirmImport,
+} from './products.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage, underConstruction } from './layout.js';
@@ -58,11 +62,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
 
   /** Wrap an authed page: verify session or redirect to /login. */
-  const authed = (active: string, render: (s: OwnerSession) => Promise<string> | string) =>
+  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest) => Promise<string> | string) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
-      const body = await render(s);
+      const body = await render(s, req);
       return reply.type('text/html; charset=utf-8').send(
         shell({ title: active, active, employeeName: deps.employeeName, avatar: deps.avatar, bodyHtml: body }),
       );
@@ -177,11 +181,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
 
+  // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
+  app.get('/app/products', authed('products', async (s) =>
+    renderProductList(await loadProductList(deps.db, s.businessId))));
+  app.get('/app/products/add', authed('products', () => renderAddForm()));
+  app.get('/app/products/:id', authed('products', async (s, req) => {
+    const id = (req.params as { id: string }).id;
+    const d = await loadProductDetail(deps.db, s.businessId, id);
+    return d ? renderProductDetail(d) : `<h1 class="page">找不到这个产品</h1><div class="card"><a href="/app/products">← 产品目录</a></div>`;
+  }));
+  app.post('/app/products/add/review', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const text = String((req.body as { text?: string } | undefined)?.text ?? '');
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: '确认产品', active: 'products', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderReview(reviewImport(text), text),
+    }));
+  });
+  app.post('/app/products/add/confirm', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const text = String((req.body as { text?: string } | undefined)?.text ?? '');
+    const r = await confirmImport(deps.db, s.businessId, text);
+    const msg = `已学习 ${r.learned} 个产品${r.needsConfirm > 0 ? `，${r.needsConfirm} 个缺价格待确认` : ''}。`;
+    return reply.redirect(`/app/products?flash=${encodeURIComponent(msg)}`);
+  });
+
   // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
   const stub = (path: string, active: string, zh: string) =>
     app.get(path, authed(active, () => underConstruction(zh)));
   stub('/app/conversations', 'conversations', '对话记录');
-  stub('/app/products', 'products', '产品目录');
   stub('/app/employee', 'employee', '员工档案');
   stub('/app/analytics', 'analytics', '经营数据');
 }
