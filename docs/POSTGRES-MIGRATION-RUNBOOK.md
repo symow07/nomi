@@ -80,7 +80,7 @@ select sku from retrieve_products('de300000-0000-4000-8000-0000000000b1'::uuid,
 ```
 ```bash
 # app-level: integration suite as the app role + full check
-DATABASE_URL="postgresql://yiwuflow_app:...@target/db" npm run check   # 394 passed, 0 skipped
+DATABASE_URL="postgresql://yiwuflow_app:...@target/db" npm run check   # full suite green, 0 skipped (529 as of 2026-07-28)
 ```
 Representative-data validation: spot-check Ahmed's conversation (messages
 count, thermos quote at $2.10 in message text), one closed repair record,

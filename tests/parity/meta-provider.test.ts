@@ -226,6 +226,27 @@ describe('provider selection (validateEnv)', () => {
     if (!noLlm.ok) expect(noLlm.problems.join()).toContain('ANTHROPIC_API_KEY');
   });
 
+  it('M10.1 fail-closed output names the variable but never echoes a secret VALUE', () => {
+    // validateEnv's problems are console.error'd on boot — they must never leak a
+    // value. Feed distinctive but invalid secrets and confirm only names surface.
+    const v = validateEnv({
+      ...base,
+      DATABASE_URL: 'mysql://LEAKDB', // wrong shape (not postgres)
+      ANTHROPIC_API_KEY: 'sk-LEAKKEY', // too short → invalid shape
+      CREDENTIAL_KEY: 'LEAKCREDNOTHEX', // not 64-hex → invalid shape
+      WEBHOOK_VERIFY_TOKEN: 'LEAKTOKEN', // <16 → invalid shape
+    });
+    expect(v.ok).toBe(false);
+    if (!v.ok) {
+      const out = v.problems.join('\n');
+      expect(out).toContain('DATABASE_URL');
+      expect(out).toContain('CREDENTIAL_KEY');
+      for (const secret of ['LEAKDB', 'LEAKKEY', 'LEAKCRED', 'LEAKTOKEN', 'sk-']) {
+        expect(out, secret).not.toContain(secret);
+      }
+    }
+  });
+
   it('360dialog compatibility: default adapter still sends the D360 header', async () => {
     let headers: Record<string, string> = {};
     const a = whatsappAdapter({ baseUrl: 'https://x', apiKey: 'd360-key', webhookSecret: 's'.repeat(32),

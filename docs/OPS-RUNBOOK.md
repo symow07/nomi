@@ -25,7 +25,7 @@ migration between hosts: POSTGRES-MIGRATION-RUNBOOK.md.
    (cron this daily to off-host storage regardless of provider promises).
 3. Restore to a FRESH database (never in place):
    `pg_restore -d "$NEW_URL" --no-owner backup.dump`
-4. Against the restored copy: `DATABASE_URL=... npm run check` (394, 0 skips)
+4. Against the restored copy: `DATABASE_URL=... npm run check` (full suite green, 0 skips — 529 as of 2026-07-28)
    + the retrieve_products ZX-100 check; compare row counts.
 5. Time it. Target < 30 min. Record: date, duration, row counts, issues.
 - [ ] DRILL PERFORMED: ____ (date, duration, provider, by)
