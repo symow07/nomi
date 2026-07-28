@@ -399,6 +399,51 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(mode).toBe('draft');
   });
 
+  it('M9.7 conversations: requires auth', async () => {
+    const res = await prod.app.inject({ method: 'GET', url: '/app/conversations' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+  });
+
+  it('M9.7 conversations: list renders demo customers (memory, not a chat log)', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/conversations', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('客户');
+    expect(res.body).toContain('Ahmed Al-Rashid');
+    expect(res.body).toContain('Ivan Petrov');
+    expect(res.body).toContain('WhatsApp');
+    expect(res.body).not.toContain('置信度');   // no invented score
+    expect(res.body).not.toContain('<table');   // mobile: no wide tables
+  });
+
+  it('M9.7 conversations: simple search filters by buyer name', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/conversations?q=Ivan', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Ivan Petrov');
+    expect(res.body).not.toContain('Ahmed Al-Rashid');
+  });
+
+  it('M9.7 conversations: customer file renders profile + timeline', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET',
+      url: '/app/conversations/de300000-0000-4000-8000-000000000301', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Ahmed Al-Rashid');
+    expect(res.body).toContain('客户档案');
+    expect(res.body).toContain('首次联系');
+    expect(res.body).toContain('沟通记录');
+  });
+
+  it('M9.7 conversations: unknown id 404s without revealing existence', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET',
+      url: '/app/conversations/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toContain('找不到这位客户');
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

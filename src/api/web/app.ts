@@ -14,6 +14,9 @@ import {
   renderAddForm, renderReview, reviewImport, confirmImport,
 } from './products.js';
 import { loadEmployee, renderEmployee } from './employee.js';
+import {
+  loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
+} from './conversations.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -232,9 +235,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   capAction('promote', (b, c) => promoteCapability(deps.db, b, c, 'owner'));
   capAction('revoke', (b, c) => revokeCapability(deps.db, b, c, 'owner'));
 
+  // ── M9.7 Conversations: customer memory over existing activity ────────────
+  app.get('/app/conversations', authed('conversations', async (s, req) => {
+    const q = typeof (req.query as { q?: string }).q === 'string' ? (req.query as { q: string }).q : '';
+    return renderCustomerList(await loadCustomerList(deps.db, s.businessId, q), new Date());
+  }));
+  app.get('/app/conversations/:conversationId', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
+    if (!file) return reply.code(404).type('text/html; charset=utf-8').send(shell({
+      title: '客户', active: 'conversations', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: `<h1 class="page">找不到这位客户</h1><div class="card"><a href="/app/conversations">← 回客户列表</a></div>`,
+    }));
+    return reply.type('text/html; charset=utf-8').send(shell({
+      title: file.buyer, active: 'conversations', employeeName: deps.employeeName, avatar: deps.avatar,
+      bodyHtml: renderCustomerFile(file, new Date()),
+    }));
+  });
+
   // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
   const stub = (path: string, active: string, zh: string) =>
     app.get(path, authed(active, () => underConstruction(zh)));
-  stub('/app/conversations', 'conversations', '对话记录');
   stub('/app/analytics', 'analytics', '经营数据');
 }
