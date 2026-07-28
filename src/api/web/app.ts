@@ -17,10 +17,11 @@ import { loadEmployee, renderEmployee } from './employee.js';
 import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
+import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { shell, loginPage, underConstruction } from './layout.js';
+import { shell, loginPage } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 
 /**
@@ -255,8 +256,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
 
-  // ── Remaining sections: stubs so nav never 404s (built in later steps) ────
-  const stub = (path: string, active: string, zh: string) =>
-    app.get(path, authed(active, () => underConstruction(zh)));
-  stub('/app/analytics', 'analytics', '经营数据');
+  // ── M9.8 Business Performance: plain counts over existing business rows ────
+  app.get('/app/analytics', authed('analytics', async (s, req) => {
+    const range = parseRange((req.query as { range?: string }).range);
+    return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range));
+  }));
 }

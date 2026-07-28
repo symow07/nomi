@@ -444,6 +444,64 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('找不到这位客户');
   });
 
+  it('M9.8 analytics: requires auth', async () => {
+    const res = await prod.app.inject({ method: 'GET', url: '/app/analytics' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+  });
+
+  it('M9.8 analytics: renders the business review (real counts, no fake charts)', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/analytics?range=month', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('经营数据');
+    expect(res.body).toContain('本月概况');
+    expect(res.body).toContain('新增客户');
+    expect(res.body).toContain('沟通趋势');
+    expect(res.body).toContain('小雅工作总结');
+    expect(res.body).not.toContain('<svg');    // no fabricated chart
+    expect(res.body).not.toContain('<table');  // mobile: no wide tables
+    // Visible content (styles stripped) carries no rate/score vocabulary.
+    const visible = res.body.replace(/<style[\s\S]*?<\/style>/g, '');
+    expect(visible).not.toContain('%');
+    expect(visible).not.toContain('置信度');
+  });
+
+  it('M9.8 analytics: numbers equal independent counts (nothing invented)', async () => {
+    const { loadAnalytics } = await import('../../src/api/web/analytics.js');
+    const { sql } = await import('kysely');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId(DEMO_BIZ);
+    if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+
+    const d = await loadAnalytics(prod.db, DEMO_BIZ, 'month');
+    const truth = await withTenantTx(prod.db, bidv, (tx) => sql<{ clients: number; inbound: number; quotes: number }>`
+      select (select count(*)::int from clients where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as clients,
+             (select count(*)::int from messages where direction='inbound' and sent_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as inbound,
+             (select count(*)::int from quotes where created_at >= (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')) as quotes
+    `.execute(tx).then((r) => r.rows[0]!));
+    expect(d.summary.newClients).toBe(truth.clients);
+    expect(d.activity.inbound).toBe(truth.inbound);
+    expect(d.commerce.quotes).toBe(truth.quotes);
+    // demo has real activity this month
+    expect(d.hasActivity).toBe(true);
+  });
+
+  it('M9.8 analytics: a business with no data shows the honest empty state (tenant isolation)', async () => {
+    const { loadAnalytics } = await import('../../src/api/web/analytics.js');
+    // A well-formed but data-less business sees ZERO — never the demo's rows.
+    const other = await loadAnalytics(prod.db, 'de300000-0000-4000-8000-0000000000c9', 'month');
+    expect(other.hasActivity).toBe(false);
+    expect(other.summary.newClients).toBe(0);
+    expect(other.summary.activeConvos).toBe(0);
+    expect(other.activity.inbound).toBe(0);
+    // same range on the demo DOES have data → the two tenants are isolated
+    const demo = await loadAnalytics(prod.db, DEMO_BIZ, 'month');
+    expect(demo.summary.newClients).toBeGreaterThan(0);
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
