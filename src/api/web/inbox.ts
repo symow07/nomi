@@ -14,14 +14,16 @@ import { esc } from './layout.js';
  */
 
 const TZ = 'Asia/Shanghai';
-const COUNTRY_ZH: Record<string, string> = {
+// Shared owner-language maps — also imported by M9.7 conversations (one source).
+export const COUNTRY_ZH: Record<string, string> = {
   AE: '阿联酋', SA: '沙特', RU: '俄罗斯', EG: '埃及', MA: '摩洛哥',
   NG: '尼日利亚', CN: '中国', US: '美国', TR: '土耳其', IN: '印度',
 };
-const FLAG: Record<string, string> = {
+export const FLAG: Record<string, string> = {
   AE: '🇦🇪', SA: '🇸🇦', RU: '🇷🇺', EG: '🇪🇬', MA: '🇲🇦', NG: '🇳🇬', CN: '🇨🇳', US: '🇺🇸', TR: '🇹🇷', IN: '🇮🇳',
 };
-const countryZh = (c: string | null): string | null => (c ? (COUNTRY_ZH[c] ?? null) : null);
+export const countryZh = (c: string | null): string | null => (c ? (COUNTRY_ZH[c] ?? null) : null);
+export const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 
 export type InboxFilter = '等你处理' | '全部';
 
@@ -125,7 +127,7 @@ export type ConversationDetail = {
   readonly pendingDraft: { draftId: string; draftText: string } | null;
 };
 
-const ORDER_STATUS_ZH: Record<string, string> = {
+export const ORDER_STATUS_ZH: Record<string, string> = {
   pending_confirmation: '待确认', confirmed: '已成交', in_production: '生产中',
   shipped: '已发货', cancelled: '已取消',
 };
@@ -188,7 +190,6 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
 
 /** ── Renderers (pure, mobile-first, owner language, escaped) ─────────────── */
 
-const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 const statusPill = (zh: string, needs: boolean): string =>
   `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(zh)}</span>`;
 
