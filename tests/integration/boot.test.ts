@@ -156,13 +156,39 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Authenticated: the shell renders with the M9.2 home briefing (real data).
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
-    expect(home.body).toContain('的工作台');           // shell
-    expect(home.body).toContain('今日总结');           // greeting line
-    expect(home.body).toContain('工作状态');           // employee status card
-    expect(home.body).toMatch(/询盘/);                 // today summary
+    expect(home.body).toContain("Lily's workspace");   // shell tagline (English default)
+    expect(home.body).toContain("Lily's summary today"); // greeting line
+    expect(home.body).toContain("Lily's status");      // employee status card
+    expect(home.body).toMatch(/Inquiries/);            // today summary
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
-    expect(inbox.body).toContain('收件箱');
+    expect(inbox.body).toContain('收件箱');            // inbox body not yet migrated (P2)
+  });
+
+  it('ADR-0008 i18n: login/home localize by cookie & Accept-Language, /locale switches', async () => {
+    // default English
+    const en = await prod.app.inject({ method: 'GET', url: '/login' });
+    expect(en.body).toContain('<html lang="en" dir="ltr">');
+    expect(en.body).toContain('Access code');
+    // Accept-Language Arabic → RTL
+    const ar = await prod.app.inject({ method: 'GET', url: '/login', headers: { 'accept-language': 'ar-SA,ar;q=0.9' } });
+    expect(ar.body).toContain('<html lang="ar" dir="rtl">');
+    expect(ar.body).toContain('رمز الدخول');
+    // yf_locale cookie → Chinese
+    const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
+    expect(zh.body).toContain('<html lang="zh"');
+    expect(zh.body).toContain('进入密码');
+    // /locale sets the cookie and honors next; open-redirect is rejected
+    const set = await prod.app.inject({ method: 'GET', url: '/locale?set=zh&next=/login' });
+    expect(set.statusCode).toBe(302);
+    expect(set.headers['location']).toBe('/login');
+    expect(String(set.headers['set-cookie'])).toContain('yf_locale=zh');
+    const evil = await prod.app.inject({ method: 'GET', url: '/locale?set=en&next=//evil.com' });
+    expect(evil.headers['location']).toBe('/app');
+    // authenticated home follows the cookie
+    const cookie = await login();
+    const zhHome = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie: `${cookie}; yf_locale=zh` } });
+    expect(zhHome.body).toContain('小雅的今日总结');
   });
 
   it('M9.3 inbox: opens a real conversation; unknown/foreign id → 404, no leak', async () => {
@@ -461,9 +487,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('小雅工作总结');
     expect(res.body).not.toContain('<svg');    // no fabricated chart
     expect(res.body).not.toContain('<table');  // mobile: no wide tables
-    // Visible content (styles stripped) carries no rate/score vocabulary.
-    const visible = res.body.replace(/<style[\s\S]*?<\/style>/g, '');
-    expect(visible).not.toContain('%');
+    // Visible content (styles + hrefs stripped) carries no rate/score vocabulary.
+    // A percentage rate reads as <digit>% — URL-encoded %2F in the locale switcher
+    // is not that.
+    const visible = res.body.replace(/<style[\s\S]*?<\/style>/g, '').replace(/href="[^"]*"/g, '');
+    expect(visible).not.toMatch(/\d\s*%/);
     expect(visible).not.toContain('置信度');
   });
 

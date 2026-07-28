@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS } from '../../src/api/web/session.js';
 import { shell, loginPage, NAV } from '../../src/api/web/layout.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 /* ── Session codec: signed, expiring, tamper-proof ───────────────────────── */
 describe('M9 · owner session codec', () => {
@@ -42,35 +44,61 @@ describe('M9 · owner session codec', () => {
   });
 });
 
-/* ── Shell layout: owner language, nav, escaping ─────────────────────────── */
-describe('M9 · command-center shell', () => {
-  it('renders the shell with nav and the active item highlighted', () => {
-    const html = shell({ title: 'x', active: 'inbox', employeeName: '小雅', avatar: '👩‍💼', bodyHtml: '<p>hi</p>' });
+/* ── Shell layout: localized nav, RTL, switcher, escaping ─────────────────── */
+describe('M9 + ADR-0008 · command-center shell', () => {
+  it('en shell: localized nav, active highlight, switcher, ltr, Lily workspace', () => {
+    const html = shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '<p>hi</p>' });
     expect(html.startsWith('<!doctype html>')).toBe(true);
-    expect(html).toContain('小雅 的工作台');
-    for (const n of NAV) expect(html).toContain(n.label);   // all sections present
-    expect(html).toContain('class="active"');
+    expect(html).toContain('<html lang="en" dir="ltr">');
+    expect(html).toContain("Lily's workspace");
+    for (const n of NAV) expect(html).toContain(t('en', `nav.${n.id}` as MessageKey));
+    expect(html).toContain('class="navlink active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
     expect(html).toContain('/logout');
+    expect(html).toContain('class="langsw"');            // switcher present
+    expect(html).toContain('href="/locale?set=zh');       // switch links exist
+    expect(html).toContain('YiwuFlow');                   // brand NOT renamed yet
   });
 
-  it('nav uses owner language — no technical or AI vocabulary', () => {
-    const labels = NAV.map((n) => n.label).join(' ');
-    for (const banned of ['AI', 'model', 'LLM', 'token', 'dashboard', 'API', '模型', '人工智能']) {
-      expect(labels).not.toContain(banned);
+  it('zh shell: Chinese nav + tagline; ar shell: RTL', () => {
+    const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
+    expect(zh).toContain('<html lang="zh" dir="ltr">');
+    expect(zh).toContain('小雅的工作台');
+    expect(zh).toContain('主页'); expect(zh).toContain('收件箱');
+
+    const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
+    expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
+    expect(ar).toContain('مساحة عمل ياسمين');
+    expect(ar).toContain('الرئيسية');                     // "home"
+  });
+
+  it('nav uses owner language — no technical/AI vocabulary in any locale', () => {
+    for (const l of LOCALES) {
+      const labels = NAV.map((n) => t(l, `nav.${n.id}` as MessageKey)).join(' ').toLowerCase();
+      for (const banned of ['ai', 'model', 'llm', 'token', 'dashboard', 'api', '模型', '人工智能']) {
+        const hit = /^[a-z ]+$/.test(banned) ? new RegExp(`\\b${banned}\\b`).test(labels) : labels.includes(banned);
+        expect(hit, `${l}:${banned}`).toBe(false);
+      }
     }
   });
 
-  it('login page has a password form and no data leakage', () => {
-    const html = loginPage({ error: '密码不对' });
-    expect(html).toContain('name="code"');
-    expect(html).toContain('method="post"');
-    expect(html).toContain('密码不对');
+  it('login page: localized form + error, switcher, RTL for ar', () => {
+    const en = loginPage({ locale: 'en', path: '/login', error: true });
+    expect(en).toContain('name="code"'); expect(en).toContain('method="post"');
+    expect(en).toContain('Wrong code, please try again.');
+    expect(en).toContain('Access code'); expect(en).toContain('class="langsw"');
+
+    const zh = loginPage({ locale: 'zh', path: '/login', error: true });
+    expect(zh).toContain('密码不对，再试一次。');
+
+    const ar = loginPage({ locale: 'ar', path: '/login' });
+    expect(ar).toContain('<html lang="ar" dir="rtl">');
+    expect(ar).not.toContain('Wrong code');   // no error when not set
   });
 
-  it('escapes employee name to prevent injection', () => {
-    const html = shell({ title: 't', active: 'home', employeeName: '<img src=x>', avatar: '👩‍💼', bodyHtml: '' });
-    expect(html).not.toContain('<img src=x>');
-    expect(html).toContain('&lt;img src=x&gt;');
+  it('escapes body html boundary but employee name is a safe constant', () => {
+    const html = shell({ title: 't', active: 'home', locale: 'en', path: '/app', avatar: '👩‍💼', bodyHtml: '<p>ok</p>' });
+    expect(html).toContain('<p>ok</p>');       // body inserted as authored (caller escapes)
+    expect(html).toContain('Lily');            // name is a product constant, not injectable
   });
 });

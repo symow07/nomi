@@ -23,6 +23,8 @@ import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
+import { type Locale, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
+import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -34,6 +36,7 @@ import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type Owner
  */
 
 const COOKIE = 'yf_session';
+const LOCALE_COOKIE = 'yf_locale';
 
 export type WebDeps = {
   readonly db: Db;
@@ -67,14 +70,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.header('set-cookie', `${COOKIE}=${token}; ${flags.join('; ')}`);
   };
 
+  // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
+  const localeOf = (req: FastifyRequest): Locale =>
+    resolveLocale(parseCookies(req.headers.cookie)[LOCALE_COOKIE], req.headers['accept-language'] ?? null);
+
+  /** Render a full page: fills locale + path + avatar from the request/deps. */
+  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string }): string =>
+    shell({ ...o, locale: localeOf(req), path: req.url, avatar: deps.avatar });
+
   /** Wrap an authed page: verify session or redirect to /login. */
-  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest) => Promise<string> | string) =>
+  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale) => Promise<string> | string) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
-      const body = await render(s, req);
+      const locale = localeOf(req);
+      const body = await render(s, req, locale);
       return reply.type('text/html; charset=utf-8').send(
-        shell({ title: active, active, employeeName: deps.employeeName, avatar: deps.avatar, bodyHtml: body }),
+        page(req, { title: t(locale, `nav.${active}` as MessageKey), active, bodyHtml: body }),
       );
     };
 
@@ -85,13 +97,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/login', async (req, reply) =>
     sessionOf(req)
       ? reply.redirect('/app')
-      : reply.type('text/html; charset=utf-8').send(loginPage({})));
+      : reply.type('text/html; charset=utf-8').send(loginPage({ locale: localeOf(req), path: req.url })));
 
   app.post('/login', async (req, reply) => {
     const code = String((req.body as { code?: string } | undefined)?.code ?? '');
     if (!codeMatches(code, deps.accessCode)) {
       return reply.code(401).type('text/html; charset=utf-8')
-        .send(loginPage({ error: '密码不对，再试一次。' }));
+        .send(loginPage({ locale: localeOf(req), path: '/login', error: true }));
     }
     const token = codec.sign({ businessId: deps.businessId, exp: Date.now() + SESSION_TTL_MS });
     setCookie(reply, token, Math.floor(SESSION_TTL_MS / 1000));
@@ -103,10 +115,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect('/login');
   });
 
+  // ADR-0008: public language switch. Sets the yf_locale cookie, returns to `next`.
+  app.get('/locale', async (req, reply) => {
+    const q = req.query as { set?: string; next?: string };
+    const set = parseLocale(q.set);
+    const nextRaw = typeof q.next === 'string' ? q.next : '/app';
+    const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/app';
+    if (set) {
+      const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
+      if (deps.secureCookie) flags.push('Secure');
+      reply.header('set-cookie', `${LOCALE_COOKIE}=${set}; ${flags.join('; ')}`);
+    }
+    return reply.redirect(next);
+  });
+
   // ── Home (M9.2: owner briefing — a view over existing data) ──────────────
-  app.get('/app', authed('home', async () => {
+  app.get('/app', authed('home', async (_s, _req, locale) => {
     const data = await loadHomeData(deps.db, deps.businessId, new Date());
-    return renderHome(data);
+    return renderHome(data, locale);
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
@@ -118,8 +144,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const filter: InboxFilter = requested === '等你处理' || requested === '全部'
       ? requested : defaultFilter(list0.waitingCount);
     const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter);
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: '收件箱', active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: '收件箱', active: 'inbox',
       bodyHtml: renderInboxList(data, new Date()),
     }));
   });
@@ -129,14 +155,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const detail = await loadConversationDetail(deps.db, s.businessId, conversationId);
-    if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(shell({
-      title: '收件箱', active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+    if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: '收件箱', active: 'inbox',
       bodyHtml: `<h1 class="page">找不到这个对话</h1><div class="card"><a href="/app/inbox">← 回收件箱</a></div>`,
     }));
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: detail.buyer, active: 'inbox', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: detail.buyer, active: 'inbox',
       bodyHtml: renderConversationDetail(detail, new Date(), flash),
     }));
   });
@@ -181,8 +207,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
     const data = await loadChannels(deps.db, s.businessId, deps.employeeName, messagingEnabled);
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: '销售渠道', active: 'channels', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: '销售渠道', active: 'channels',
       bodyHtml: renderChannels(data, flash),
     }));
   });
@@ -200,8 +226,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: '确认产品', active: 'products', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: '确认产品', active: 'products',
       bodyHtml: renderReview(reviewImport(text), text),
     }));
   });
@@ -220,8 +246,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
     const e = await loadEmployee(deps.db, s.businessId, deps.employeeName);
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: '员工档案', active: 'employee', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: '员工档案', active: 'employee',
       bodyHtml: renderEmployee(e, flash),
     }));
   });
@@ -246,12 +272,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
-    if (!file) return reply.code(404).type('text/html; charset=utf-8').send(shell({
-      title: '客户', active: 'conversations', employeeName: deps.employeeName, avatar: deps.avatar,
+    if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: '客户', active: 'conversations',
       bodyHtml: `<h1 class="page">找不到这位客户</h1><div class="card"><a href="/app/conversations">← 回客户列表</a></div>`,
     }));
-    return reply.type('text/html; charset=utf-8').send(shell({
-      title: file.buyer, active: 'conversations', employeeName: deps.employeeName, avatar: deps.avatar,
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: file.buyer, active: 'conversations',
       bodyHtml: renderCustomerFile(file, new Date()),
     }));
   });
