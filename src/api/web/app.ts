@@ -19,12 +19,13 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
+import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { shell, loginPage, esc } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
-import { type Locale, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
+import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 
 /**
@@ -314,4 +315,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const range = parseRange((req.query as { range?: string }).range);
     return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
   }));
+
+  // ── M11.1 Business Profile & Owner Settings (owner-authenticated only) ─────
+  app.get('/app/settings', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const profile = await loadBusinessProfile(deps.db, s.businessId);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settings.profile.title'), active: 'settings',
+      bodyHtml: renderSettings(profile, locale, flash),
+    }));
+  });
+  app.post('/app/settings', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const input = {
+      name: String(b['name'] ?? ''), description: String(b['description'] ?? ''),
+      location: String(b['location'] ?? ''), workingHours: String(b['working_hours'] ?? ''),
+      contactEmail: String(b['contact_email'] ?? ''), contactPhone: String(b['contact_phone'] ?? ''),
+      languagesServed: LOCALES.filter((l) => b[`lang_${l}`] !== undefined),
+    };
+    const r = await saveBusinessProfile(deps.db, s.businessId, input, 'owner');
+    const flash = t(locale, r.code === 'saved' ? 'settings.flash.profileSaved' : 'settings.flash.profileInvalid');
+    return reply.redirect(`/app/settings?flash=${encodeURIComponent(flash)}`);
+  });
 }

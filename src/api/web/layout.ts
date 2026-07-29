@@ -15,6 +15,7 @@ export const NAV: readonly { readonly href: string; readonly id: string; readonl
   { href: '/app/products',      id: 'products',      icon: '📦' },
   { href: '/app/employee',      id: 'employee',      icon: '🧑‍💼' },
   { href: '/app/analytics',     id: 'analytics',     icon: '📊' },
+  { href: '/app/settings',      id: 'settings',      icon: '⚙️' },
 ];
 
 export const esc = (s: string): string =>

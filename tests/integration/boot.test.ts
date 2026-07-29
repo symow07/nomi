@@ -659,6 +659,66 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
+  it('M11.1 settings: profile renders reused fields + derived categories (owner-auth)', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    await withTenantTx(prod.db, parsed.value, (tx) =>
+      sql`update businesses set name='Yiwu Demo Factory', location='Yiwu, Zhejiang' where id=${parsed.value}`.execute(tx));
+
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/settings', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Business profile');          // English default
+    expect(res.body).toContain('Profile checklist');
+    expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
+    expect(res.body).toContain('Company name');
+    expect(res.body).toContain('Product categories');
+    // derived from the demo catalog (products.category): bags/drinkware/home/lighting
+    expect(res.body).toMatch(/bags|drinkware|lighting/);
+    // (checklist-is-not-a-percentage is asserted deterministically in the pure test)
+  });
+
+  it('M11.1 settings: unauthenticated cannot view or save', async () => {
+    expect((await prod.app.inject({ method: 'GET', url: '/app/settings' })).headers['location']).toBe('/login');
+    const post = await prod.app.inject({ method: 'POST', url: '/app/settings',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'name=Hacker' });
+    expect(post.statusCode).toBe(302);
+    expect(post.headers['location']).toBe('/login');
+  });
+
+  it('M11.1 settings: save persists + audits; invalid (empty name) rejected unchanged', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const nameOf = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ n: string }>`select name as n from businesses where id=${bidv}`.execute(tx).then((r) => r.rows[0]!.n));
+    const auditCount = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ c: number }>`select count(*)::int c from channel_audit where business_id=${bidv} and action='update_profile'`.execute(tx).then((r) => r.rows[0]!.c));
+
+    const cookie = await login();
+    const before = await auditCount();
+    const ok = await prod.app.inject({ method: 'POST', url: '/app/settings',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'name=Acme%20Exports&location=Ningbo&contact_email=sales%40acme.co&lang_en=on&lang_zh=on' });
+    expect(ok.statusCode).toBe(302);
+    expect(ok.headers['location']).toContain('/app/settings?flash=');
+    expect(await nameOf()).toBe('Acme Exports');            // persisted
+    expect(await auditCount()).toBe(before + 1);            // audited (update_profile)
+
+    // invalid: empty name is rejected — the saved name is unchanged.
+    const bad = await prod.app.inject({ method: 'POST', url: '/app/settings',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'name=' });
+    expect(bad.headers['location']).toContain('flash=');
+    expect(await nameOf()).toBe('Acme Exports');            // unchanged
+
+    // restore the demo name
+    await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set name='义乌宏发日用品厂' where id=${bidv}`.execute(tx));
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
