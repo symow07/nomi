@@ -719,6 +719,58 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set name='义乌宏发日用品厂' where id=${bidv}`.execute(tx));
   });
 
+  it('M11.2 onboarding: completion is derived LIVE from real data (no fake completion)', async () => {
+    const { loadOnboarding } = await import('../../src/api/web/onboarding.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const CONV = 'de300000-0000-4000-8000-000000000302';
+    const stepDone = (d: Awaited<ReturnType<typeof loadOnboarding>>, s: string) => d.steps.find((x) => x.step === s)!.done;
+    const stateStep = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ s: string | null }>`select step as s from onboarding_state where business_id=${bidv}`.execute(tx).then((r) => r.rows[0]?.s ?? null));
+
+    // Baseline: clear the profile identity so Step 1 is honestly not done.
+    await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description=null, location=null, contact_email=null, contact_phone=null where id=${bidv}`.execute(tx));
+    const onbStateBefore = await stateStep();
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'profile')).toBe(false);
+
+    // Fill the profile → Step 1 flips to done (live).
+    await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description='Household goods', location='Yiwu', contact_email='a@b.co' where id=${bidv}`.execute(tx));
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'profile')).toBe(true);
+
+    // Step 4 guard: an approved draft on a REAL conversation counts. Neutralize any
+    // existing approved/edited drafts first (app role has no DELETE — archive, not
+    // erase — so status→rejected; demo drafts are all test-created).
+    await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where business_id=${bidv} and status in ('approved','edited')`.execute(tx));
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(false);
+    const draftId = await withTenantTx(prod.db, bidv, (tx) => sql<{ id: string }>`
+      insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status, decided_at)
+      values (${bidv}, ${CONV}, 'quote', 'first reply', null, 'approved', now()) returning id`.execute(tx).then((r) => r.rows[0]!.id));
+    expect(stepDone(await loadOnboarding(prod.db, DEMO_BIZ), 'first_success')).toBe(true);
+
+    // onboarding_state is NEVER touched by completion logic.
+    expect(await stateStep()).toBe(onbStateBefore);
+
+    // cleanup (archive the test draft, restore profile)
+    await withTenantTx(prod.db, bidv, (tx) => sql`update drafts set status='rejected' where id=${draftId}`.execute(tx));
+    await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description=null, location=null, contact_email=null, contact_phone=null where id=${bidv}`.execute(tx));
+  });
+
+  it('M11.2 onboarding: page renders the checklist with deep links; unauth → /login', async () => {
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Get set up');                  // English default
+    expect(res.body).toContain('href="/app/settings"');
+    expect(res.body).toContain('href="/app/products"');
+    expect(res.body).toContain('href="/app/inbox"');
+    const noauth = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
+    expect(noauth.statusCode).toBe(302);
+    expect(noauth.headers['location']).toBe('/login');
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

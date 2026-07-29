@@ -20,6 +20,7 @@ import {
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
+import { loadOnboarding, renderOnboarding } from './onboarding.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -315,6 +316,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const range = parseRange((req.query as { range?: string }).range);
     return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
   }));
+
+  // ── M11.2 Guided Owner Onboarding: a live checklist that deep-links out ───
+  app.get('/app/onboarding', authed('onboarding', async (s, _req, locale) =>
+    renderOnboarding(await loadOnboarding(deps.db, s.businessId), locale)));
 
   // ── M11.1 Business Profile & Owner Settings (owner-authenticated only) ─────
   app.get('/app/settings', async (req, reply) => {

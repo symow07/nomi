@@ -8,6 +8,7 @@ import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/message
  */
 
 export const NAV: readonly { readonly href: string; readonly id: string; readonly icon: string }[] = [
+  { href: '/app/onboarding',    id: 'onboarding',    icon: '🚀' },
   { href: '/app',               id: 'home',          icon: '🏠' },
   { href: '/app/inbox',         id: 'inbox',         icon: '📥' },
   { href: '/app/conversations', id: 'conversations', icon: '💬' },
