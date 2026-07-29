@@ -6,12 +6,12 @@ import {
   defaultFilter, type InboxFilter,
 } from './inbox.js';
 import {
-  loadChannels, renderChannels, renderConnectGuide,
+  loadChannels, renderChannels, renderConnectGuide, channelFlash,
   disconnectChannel, reconnectChannel, testChannel,
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
-  renderAddForm, renderReview, reviewImport, confirmImport,
+  renderAddForm, renderReview, reviewImport, confirmImport, importFlash,
 } from './products.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
@@ -21,7 +21,7 @@ import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { shell, loginPage } from './layout.js';
+import { shell, loginPage, esc } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -139,31 +139,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/inbox', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const requested = (req.query as { filter?: string } | undefined)?.filter;
-    const list0 = await loadInboxList(deps.db, s.businessId, '全部');
-    const filter: InboxFilter = requested === '等你处理' || requested === '全部'
+    const list0 = await loadInboxList(deps.db, s.businessId, 'all');
+    const filter: InboxFilter = requested === 'pending' || requested === 'all'
       ? requested : defaultFilter(list0.waitingCount);
     const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: '收件箱', active: 'inbox',
-      bodyHtml: renderInboxList(data, new Date()),
+      title: t(locale, 'nav.inbox'), active: 'inbox',
+      bodyHtml: renderInboxList(data, locale, new Date()),
     }));
   });
 
   app.get('/app/inbox/:conversationId', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const detail = await loadConversationDetail(deps.db, s.businessId, conversationId);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-      title: '收件箱', active: 'inbox',
-      bodyHtml: `<h1 class="page">找不到这个对话</h1><div class="card"><a href="/app/inbox">← 回收件箱</a></div>`,
+      title: t(locale, 'nav.inbox'), active: 'inbox',
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="card"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
     }));
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: detail.buyer, active: 'inbox',
-      bodyHtml: renderConversationDetail(detail, new Date(), flash),
+      title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
+      bodyHtml: renderConversationDetail(detail, locale, new Date(), flash),
     }));
   });
 
@@ -183,19 +185,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
       { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: 'owner' },
     );
-    return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(r.messageZh)}`);
+    const flash = t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
+    return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(flash)}`);
   });
 
   // ── M9.4 Channel Center: connection state over the existing channel layer ──
   const messagingEnabled = deps.provider !== 'disabled';
-  app.get('/app/channels/whatsapp/connect', authed('channels', () => renderConnectGuide()));
+  app.get('/app/channels/whatsapp/connect', authed('channels', (_s, _req, locale) => renderConnectGuide(locale)));
 
-  const channelAction = (path: string, run: (businessId: string) => Promise<{ messageZh: string }>) =>
+  const channelAction = (path: string, run: (businessId: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const r = await run(s.businessId);
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(r.messageZh)}`);
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(channelFlash(localeOf(req), r.code))}`);
     });
   channelAction('/app/channels/whatsapp/disconnect', (b) => disconnectChannel(deps.db, b, 'owner'));
   channelAction('/app/channels/whatsapp/reconnect', (b) => reconnectChannel(deps.db, b, 'owner'));
@@ -205,30 +208,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/channels', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const data = await loadChannels(deps.db, s.businessId, deps.employeeName, messagingEnabled);
+    const data = await loadChannels(deps.db, s.businessId, messagingEnabled);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: '销售渠道', active: 'channels',
-      bodyHtml: renderChannels(data, flash),
+      title: t(locale, 'nav.channels'), active: 'channels',
+      bodyHtml: renderChannels(data, locale, flash),
     }));
   });
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
-  app.get('/app/products', authed('products', async (s) =>
-    renderProductList(await loadProductList(deps.db, s.businessId))));
-  app.get('/app/products/add', authed('products', () => renderAddForm()));
-  app.get('/app/products/:id', authed('products', async (s, req) => {
+  app.get('/app/products', authed('products', async (s, _req, locale) =>
+    renderProductList(await loadProductList(deps.db, s.businessId), locale)));
+  app.get('/app/products/add', authed('products', (_s, _req, locale) => renderAddForm(locale)));
+  app.get('/app/products/:id', authed('products', async (s, req, locale) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d) : `<h1 class="page">找不到这个产品</h1><div class="card"><a href="/app/products">← 产品目录</a></div>`;
+    return d ? renderProductDetail(d, locale)
+      : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="card"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
   }));
   app.post('/app/products/add/review', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: '确认产品', active: 'products',
-      bodyHtml: renderReview(reviewImport(text), text),
+      title: t(locale, 'product.review.title'), active: 'products',
+      bodyHtml: renderReview(reviewImport(text), text, locale),
     }));
   });
   app.post('/app/products/add/confirm', async (req, reply) => {
@@ -236,55 +242,57 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
     const r = await confirmImport(deps.db, s.businessId, text);
-    const msg = `已学习 ${r.learned} 个产品${r.needsConfirm > 0 ? `，${r.needsConfirm} 个缺价格待确认` : ''}。`;
-    return reply.redirect(`/app/products?flash=${encodeURIComponent(msg)}`);
+    return reply.redirect(`/app/products?flash=${encodeURIComponent(importFlash(localeOf(req), r))}`);
   });
 
   // ── M9.6 Employee Profile: personnel file over the existing trust data ────
   app.get('/app/employee', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const e = await loadEmployee(deps.db, s.businessId, deps.employeeName);
+    const e = await loadEmployee(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: '员工档案', active: 'employee',
-      bodyHtml: renderEmployee(e, flash),
+      title: t(locale, 'employee.title'), active: 'employee',
+      bodyHtml: renderEmployee(e, locale, flash),
     }));
   });
-  const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ messageZh: string }>) =>
+  const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
       const r = await run(s.businessId, cap);
-      return reply.redirect(`/app/employee?flash=${encodeURIComponent(r.messageZh)}`);
+      return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, `employee.flash.${r.code}` as MessageKey))}`);
     });
   capAction('promote', (b, c) => promoteCapability(deps.db, b, c, 'owner'));
   capAction('revoke', (b, c) => revokeCapability(deps.db, b, c, 'owner'));
 
   // ── M9.7 Conversations: customer memory over existing activity ────────────
-  app.get('/app/conversations', authed('conversations', async (s, req) => {
+  app.get('/app/conversations', authed('conversations', async (s, req, locale) => {
     const q = typeof (req.query as { q?: string }).q === 'string' ? (req.query as { q: string }).q : '';
-    return renderCustomerList(await loadCustomerList(deps.db, s.businessId, q), new Date());
+    return renderCustomerList(await loadCustomerList(deps.db, s.businessId, q), locale, new Date());
   }));
   app.get('/app/conversations/:conversationId', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
     if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-      title: '客户', active: 'conversations',
-      bodyHtml: `<h1 class="page">找不到这位客户</h1><div class="card"><a href="/app/conversations">← 回客户列表</a></div>`,
+      title: t(locale, 'conv.title'), active: 'conversations',
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="card"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
     }));
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: file.buyer, active: 'conversations',
-      bodyHtml: renderCustomerFile(file, new Date()),
+      title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
+      bodyHtml: renderCustomerFile(file, locale, new Date()),
     }));
   });
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
-  app.get('/app/analytics', authed('analytics', async (s, req) => {
+  app.get('/app/analytics', authed('analytics', async (s, req, locale) => {
     const range = parseRange((req.query as { range?: string }).range);
-    return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range));
+    return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
   }));
 }

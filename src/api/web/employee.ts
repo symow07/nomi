@@ -1,57 +1,55 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { CAPABILITY_ZH } from '../../core/owner/vocabulary.js';
-import { NEVER_ALLOWED_ZH } from '../../core/owner/jobSheet.js';
-import { formatDateZh } from '../../core/owner/format.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
+import { type Locale } from '../../core/owner/i18n/locale.js';
+import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { formatDate } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 
 /**
- * M9.6 — Employee Profile / 工作档案. A personnel file, not a settings page.
- * A VIEW over the EXISTING trust data (autonomy_policy, capability_events,
- * spot_checks, drafts-as-training) + the M5 promotion logic. No new trust
- * system, no invented metrics — anything with no data shows an empty state.
+ * M9.6 + ADR-0008 — Employee Profile. A VIEW over the existing trust data
+ * (autonomy_policy, capability_events, spot_checks, drafts-as-training) + the M5
+ * promotion logic. The read model is language-NEUTRAL — capability codes, event
+ * kinds, condition codes, a raw hire date; renderEmployee localizes. The employee
+ * name is a per-locale product constant. No invented metrics.
  */
 
-const CAP_NAME = (c: string): string => CAPABILITY_ZH[c] ?? c;
+type Stage = 'probation' | 'partial';
+type GrowthKind = 'promote' | 'revoke' | 'spotcheck_pass' | 'spotcheck_improve' | 'spotcheck_issue' | 'learned_edit';
+type ConditionCode = 'passed_spotcheck' | 'learned_correction';
 
-export type CapabilityRow = { readonly capability: string; readonly nameZh: string; readonly mode: 'auto' | 'draft'; readonly promotable: boolean };
-export type GrowthEvent = { readonly icon: string; readonly textZh: string; readonly at: Date };
+const NEVER_ALLOWED: readonly MessageKey[] = ['neverAllowed.promise_stock', 'neverAllowed.change_payment', 'neverAllowed.promise_leadtime'];
+
+export type CapabilityRow = { readonly capability: string; readonly mode: 'auto' | 'draft'; readonly promotable: boolean };
+export type GrowthEvent = { readonly kind: GrowthKind; readonly capability: string | null; readonly at: Date };
 
 export type EmployeeProfile = {
-  readonly name: string;
   readonly hireDate: Date | null;
-  readonly stageZh: string;              // 试用期 / 正式接待
-  readonly roleZh: string;
-  readonly canDo: readonly string[];     // auto capabilities
-  readonly needConfirm: readonly string[]; // draft capabilities (excl. confirm_order)
-  readonly cannotDo: readonly string[];  // confirm_order + hard limits
-  readonly capabilities: readonly CapabilityRow[]; // for the action controls
+  readonly stage: Stage;
+  readonly canDo: readonly string[];       // auto capability codes
+  readonly needConfirm: readonly string[]; // draft capability codes (excl. confirm_order)
+  readonly capabilities: readonly CapabilityRow[];
   readonly growth: readonly GrowthEvent[];
   readonly promoted: boolean;
-  readonly nextStepZh: string | null;
-  readonly conditions: readonly { readonly label: string; readonly met: boolean }[];
+  readonly conditions: readonly { readonly cond: ConditionCode; readonly met: boolean }[];
 };
 
-export async function loadEmployee(db: Db, businessIdRaw: string, fallbackName: string): Promise<EmployeeProfile> {
+export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
   const bid = parseBusinessId(businessIdRaw);
   const empty: EmployeeProfile = {
-    name: fallbackName, hireDate: null, stageZh: '试用期', roleZh: '客户接待',
-    canDo: [], needConfirm: [], cannotDo: ['确认订单', ...NEVER_ALLOWED_ZH.slice(0, 3)],
-    capabilities: [], growth: [], promoted: false, nextStepZh: '正式接待', conditions: [],
+    hireDate: null, stage: 'probation', canDo: [], needConfirm: [], capabilities: [],
+    growth: [], promoted: false, conditions: [],
   };
   if (!bid.ok) return empty;
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const onboard = (await sql<{ employee_name: string | null; signup_at: Date | null }>`
-      select employee_name, signup_at from onboarding_state where business_id = ${bid.value}`.execute(tx)).rows[0];
-    const name = onboard?.employee_name ?? fallbackName;
+    const onboard = (await sql<{ signup_at: Date | null }>`
+      select signup_at from onboarding_state where business_id = ${bid.value}`.execute(tx)).rows[0];
 
     const caps = (await sql<{ capability: string; mode: string }>`
-      select capability, mode from autonomy_policy where business_id = ${bid.value}
-       order by capability`.execute(tx)).rows;
+      select capability, mode from autonomy_policy where business_id = ${bid.value} order by capability`.execute(tx)).rows;
 
     const capabilities: CapabilityRow[] = [];
     for (const c of caps) {
@@ -60,103 +58,104 @@ export async function loadEmployee(db: Db, businessIdRaw: string, fallbackName: 
       if (mode === 'draft' && !NON_PROMOTABLE.includes(c.capability)) {
         promotable = promotionDecision(await loadCapabilityEvidence(tx, c.capability)).eligible;
       }
-      capabilities.push({ capability: c.capability, nameZh: CAP_NAME(c.capability), mode, promotable });
+      capabilities.push({ capability: c.capability, mode, promotable });
     }
 
-    const canDo = capabilities.filter((c) => c.mode === 'auto').map((c) => c.nameZh);
-    const needConfirm = capabilities.filter((c) => c.mode === 'draft' && c.capability !== 'confirm_order').map((c) => c.nameZh);
-    const cannotDo = ['确认订单', ...NEVER_ALLOWED_ZH.slice(0, 3)];
+    const canDo = capabilities.filter((c) => c.mode === 'auto').map((c) => c.capability);
+    const needConfirm = capabilities.filter((c) => c.mode === 'draft' && c.capability !== 'confirm_order').map((c) => c.capability);
 
-    // Growth timeline — merge existing signals, owner language, most recent 8.
-    const events = (await sql<{ icon: string; text_zh: string; at: Date }>`
-      (select case when action = 'promote' then '⭐' else '⚠️' end as icon,
-              case when action = 'promote' then '「' || capability || '」晋升'
-                   else '「' || capability || '」收回' end as text_zh, at
+    // Growth timeline — neutral event kinds; the renderer localizes. Most recent 8.
+    const growth = (await sql<{ kind: string; capability: string | null; at: Date }>`
+      (select case when action = 'promote' then 'promote' else 'revoke' end as kind, capability, at
          from capability_events where business_id = ${bid.value})
       union all
-      (select case when verdict = 'correct' then '✓' else '⚠️' end,
-              case when verdict = 'correct' then '抽查通过'
-                   when verdict = 'needs_improvement' then '抽查后有修改'
-                   else '抽查发现问题' end, answered_at
+      (select case when verdict = 'correct' then 'spotcheck_pass'
+                   when verdict = 'needs_improvement' then 'spotcheck_improve'
+                   else 'spotcheck_issue' end, null::text, answered_at
          from spot_checks where business_id = ${bid.value} and answered_at is not null)
       union all
-      (select '⭐', '学会一次修正（' || capability || '）', decided_at
+      (select 'learned_edit', capability, decided_at
          from drafts where business_id = ${bid.value} and status = 'edited' and decided_at is not null)
       order by at desc limit 8
-    `.execute(tx)).rows.map((r) => ({
-      // Translate capability codes inside the text to owner names.
-      icon: r.icon,
-      textZh: r.text_zh.replace(/「([a-z_]+)」/g, (_m, c: string) => `「${CAP_NAME(c)}」`)
-                       .replace(/（([a-z_]+)）/g, (_m, c: string) => `（${CAP_NAME(c)}）`),
-      at: r.at,
-    }));
+    `.execute(tx)).rows.map((r): GrowthEvent => ({ kind: r.kind as GrowthKind, capability: r.capability, at: r.at }));
 
-    // Promotion / stage from real counts (no invented score).
     const passed = (await sql<{ n: number }>`select count(*)::int as n from spot_checks where verdict='correct'`.execute(tx)).rows[0]!.n;
     const learned = (await sql<{ n: number }>`select count(*)::int as n from drafts where status='edited'`.execute(tx)).rows[0]!.n;
     const promoted = canDo.length > 0;
 
     return {
-      name, hireDate: onboard?.signup_at ?? null,
-      stageZh: promoted ? '正式接待（部分）' : '试用期', roleZh: '客户接待',
-      canDo, needConfirm, cannotDo, capabilities, growth: events, promoted,
-      nextStepZh: promoted ? null : '正式接待',
+      hireDate: onboard?.signup_at ?? null,
+      stage: promoted ? 'partial' : 'probation',
+      canDo, needConfirm, capabilities, growth, promoted,
       conditions: promoted ? [] : [
-        { label: '通过一次抽查', met: passed > 0 },
-        { label: '学会一次修正', met: learned > 0 },
+        { cond: 'passed_spotcheck', met: passed > 0 },
+        { cond: 'learned_correction', met: learned > 0 },
       ],
     };
   });
 }
 
-/** ── Renderer (pure, mobile-first, owner language) ──────────────────────── */
+/** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
-const list = (title: string, mark: string, items: readonly string[], cls: string): string =>
+const GROWTH_ICON: Record<GrowthKind, string> = {
+  promote: '⭐', revoke: '⚠️', spotcheck_pass: '✓', spotcheck_improve: '⚠️', spotcheck_issue: '⚠️', learned_edit: '⭐',
+};
+
+const list = (title: string, mark: string, items: readonly string[], cls: string, emptyLabel: string): string =>
   items.length
     ? `<div class="dgroup"><div class="dtitle">${esc(title)}</div>${items.map((i) => `<div class="ditem ${cls}">${mark} ${esc(i)}</div>`).join('')}</div>`
-    : `<div class="dgroup"><div class="dtitle">${esc(title)}</div><div class="ditem muted">暂无</div></div>`;
+    : `<div class="dgroup"><div class="dtitle">${esc(title)}</div><div class="ditem muted">${esc(emptyLabel)}</div></div>`;
 
-export function renderEmployee(e: EmployeeProfile, flash: string | null): string {
+export function renderEmployee(e: EmployeeProfile, locale: Locale, flash: string | null): string {
+  const name = EMPLOYEE_NAME[locale];
+  const capName = (c: string) => capabilityName(locale, c);
+  const stageLabel = t(locale, `employee.stage.${e.stage}` as MessageKey);
+
   const card = `<div class="card emp">
     <div class="emp-h"><span class="ava">👩‍💼</span>
-      <div><div class="emp-name">${esc(e.name)}</div>
-        <div class="muted">${esc(e.stageZh)} · ${esc(e.roleZh)}</div></div></div>
-    ${e.hireDate ? `<div class="muted" style="margin-top:8px">入职：${esc(formatDateZh(e.hireDate))}</div>` : ''}
+      <div><div class="emp-name">${esc(name)}</div>
+        <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
+    ${e.hireDate ? `<div class="muted" style="margin-top:8px">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
   </div>`;
 
-  const duties = `<div class="card"><h2>工作职责</h2>
-    ${list('现在可以', '✓', e.canDo, 'ok')}
-    ${list('需要确认', '⚠️', e.needConfirm, 'warn')}
-    ${list('暂不能', '✗', e.cannotDo, 'no')}
+  const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
+  const duties = `<div class="card"><h2>${esc(t(locale, 'employee.duties.title'))}</h2>
+    ${list(t(locale, 'employee.duties.canDo'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'employee.duties.needConfirm'), '⚠️', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'employee.duties.cannotDo'), '✗', cannotDo, 'no', t(locale, 'employee.duties.none'))}
   </div>`;
 
-  const growth = `<div class="card"><h2>成长记录</h2>
+  const growth = `<div class="card"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
     ${e.growth.length
-      ? `<ul class="growth">${e.growth.map((g) => `<li>${g.icon} ${esc(g.textZh)}<span class="muted"> · ${esc(formatDateZh(g.at))}</span></li>`).join('')}</ul>`
-      : `<div class="muted empty">还在起步，改她的稿、抽查她的活，都会记在这里。</div>`}
+      ? `<ul class="growth">${e.growth.map((g) => {
+          const text = t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
+          return `<li>${GROWTH_ICON[g.kind]} ${esc(text)}<span class="muted"> · ${esc(formatDate(locale, g.at))}</span></li>`;
+        }).join('')}</ul>`
+      : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
   </div>`;
 
-  const promo = `<div class="card"><h2>晋升状态</h2>
-    <div class="pstage"><span class="muted">当前</span> <b>${esc(e.stageZh)}</b></div>
-    ${e.nextStepZh ? `<div class="pstage"><span class="muted">下一步</span> <b>${esc(e.nextStepZh)}</b></div>` : `<div class="muted">已经在正式接待客户了。</div>`}
+  const promo = `<div class="card"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
+    <div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.current'))}</span> <b>${esc(stageLabel)}</b></div>
+    ${e.promoted
+      ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
+      : `<div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.next'))}</span> <b>${esc(t(locale, 'employee.stage.partial'))}</b></div>`}
     ${e.conditions.length ? `<div class="conds">${e.conditions.map((c) =>
-      `<div class="cond ${c.met ? 'met' : ''}">${c.met ? '✓' : '○'} ${esc(c.label)}</div>`).join('')}</div>` : ''}
+      `<div class="cond ${c.met ? 'met' : ''}">${c.met ? '✓' : '○'} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey))}</div>`).join('')}</div>` : ''}
   </div>`;
 
-  // Owner actions — reuse the capability service (promote where eligible, revoke on granted).
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
   const revocable = e.capabilities.filter((c) => c.mode === 'auto');
   const actions = (grantable.length || revocable.length)
-    ? `<div class="card"><h2>放权与收回</h2>
+    ? `<div class="card"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
         ${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
-            <span>「${esc(c.nameZh)}」已放权</span><button class="btn danger">收回</button></form>`).join('')}
+            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
         ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
-            <span>「${esc(c.nameZh)}」达到放权标准 ⭐</span><button class="btn send">放权</button></form>`).join('')}
-        <p class="muted" style="font-size:12px">放权后这类事她自己做，随时可以收回。确认订单永远等你。</p>
+            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
+        <p class="muted" style="font-size:12px">${esc(t(locale, 'employee.actions.note'))}</p>
       </div>`
-    : `<div class="card"><h2>放权与收回</h2><div class="muted empty">还没有可以放权或收回的职责。她做得多、抽查过了，这里会出现「放权」。</div></div>`;
+    : `<div class="card"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
-  return `<h1 class="page">员工档案</h1>
+  return `<h1 class="page">${esc(t(locale, 'employee.title'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${card}${duties}${growth}${promo}${actions}${EMP_STYLE}`;
 }

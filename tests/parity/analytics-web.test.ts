@@ -1,89 +1,97 @@
 import { describe, it, expect } from 'vitest';
 import { renderAnalytics, parseRange, type AnalyticsData } from '../../src/api/web/analytics.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const active: AnalyticsData = {
-  range: 'week', rangeZh: '本周', hasActivity: true,
+  range: 'week', hasActivity: true,
   summary: { newClients: 6, activeConvos: 5, quotes: 2, orders: 1 },
   activity: { inbound: 6, replied: 3, waiting: 4 },
-  commerce: { quotes: 2, orders: 1, deals: [{ statusZh: '已成交', n: 1 }], totalValueUsd: 4600 },
+  commerce: { quotes: 2, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValueUsd: 4600 },
   employee: { handled: 8, waiting: 4, edits: 2 },
 };
 
 const empty: AnalyticsData = {
-  range: 'today', rangeZh: '今天', hasActivity: false,
+  range: 'today', hasActivity: false,
   summary: { newClients: 0, activeConvos: 0, quotes: 0, orders: 0 },
   activity: { inbound: 0, replied: 0, waiting: 0 },
   commerce: { quotes: 0, orders: 0, deals: [], totalValueUsd: null },
   employee: { handled: 0, waiting: 0, edits: 0 },
 };
 
-describe('M9.8 · business performance (pure)', () => {
+describe('M9.8 · business review (localized)', () => {
   it('parseRange whitelists today/week/month; defaults to week', () => {
     expect(parseRange('today')).toBe('today');
     expect(parseRange('month')).toBe('month');
-    expect(parseRange('week')).toBe('week');
     expect(parseRange(undefined)).toBe('week');
-    expect(parseRange('../etc')).toBe('week'); // no injection, safe default
+    expect(parseRange('../etc')).toBe('week');
   });
 
-  it('renders the four business sections with the real numbers', () => {
-    const html = renderAnalytics(active);
+  it('zh: four sections with real numbers', () => {
+    const html = renderAnalytics(active, 'zh');
     expect(html).toContain('经营数据');
-    expect(html).toContain('本周概况');
-    expect(html).toContain('新增客户');
-    expect(html).toContain('客户沟通');
-    expect(html).toContain('沟通趋势');
-    expect(html).toContain('买家咨询');
-    expect(html).toContain('报价与订单');
-    expect(html).toContain('小雅工作总结');
-    expect(html).toContain('已处理询盘');
-    // the actual counts appear
-    expect(html).toContain('>6<'); // newClients / inbound
-    expect(html).toContain('>8<'); // handled
+    expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
+    expect(html).toContain('沟通趋势'); expect(html).toContain('买家咨询');
+    expect(html).toContain('报价与订单'); expect(html).toContain('小雅工作总结');
+    expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
 
-  it('shows real order value only when orders exist — never invented', () => {
-    const html = renderAnalytics(active);
-    expect(html).toContain('已成交 1');
-    expect(html).toContain('成交金额 $4,600');
-    // when there are no orders, no value line, honest note instead
-    const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totalValueUsd: null } });
-    expect(noOrders).not.toContain('成交金额');
-    expect(noOrders).toContain('暂无成交记录');
+  it('en: four sections with real numbers', () => {
+    const html = renderAnalytics(active, 'en');
+    expect(html).toContain('Business review');
+    expect(html).toContain('New customers'); expect(html).toContain('Activity');
+    expect(html).toContain('Buyer inquiries'); expect(html).toContain("Lily's work");
+    expect(html).toContain('Inquiries handled');
+    expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
 
-  it('empty range shows an honest data-collecting state, never a fake chart', () => {
-    const html = renderAnalytics(empty);
-    expect(html).toContain('数据积累中');
-    expect(html).not.toContain('概况');   // no number cards when there is nothing
-    expect(html).not.toContain('<svg');   // no fabricated chart
-    expect(html).not.toContain('<canvas');
-    // range tabs still present so the owner can switch
-    expect(html).toContain('href="/app/analytics?range=week"');
+  it('ar: renders Arabic + employee name', () => {
+    const html = renderAnalytics(active, 'ar');
+    expect(html).toContain('الأداء');
+    expect(html).toContain('عملاء جدد');
+    expect(html).toContain('عمل ياسمين');
+  });
+
+  it('real order value only when orders exist — localized status + note', () => {
+    expect(renderAnalytics(active, 'en')).toContain('Confirmed 1');
+    expect(renderAnalytics(active, 'en')).toContain('Deal value $4,600');
+    expect(renderAnalytics(active, 'zh')).toContain('已成交 1');
+    const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totalValueUsd: null } }, 'en');
+    expect(noOrders).not.toContain('Deal value');
+    expect(noOrders).toContain('No deals yet.');
+  });
+
+  it('empty range: honest data-collecting state per locale, no fake chart', () => {
+    expect(renderAnalytics(empty, 'zh')).toContain('数据积累中');
+    expect(renderAnalytics(empty, 'en')).toContain('Gathering data');
+    expect(renderAnalytics(empty, 'ar')).toContain('جارٍ جمع البيانات');
+    const en = renderAnalytics(empty, 'en');
+    expect(en).not.toContain('Overview');   // no number cards
+    expect(en).not.toContain('<svg'); expect(en).not.toContain('<canvas');
+    expect(en).toContain('href="/app/analytics?range=week"');
   });
 
   it('range tabs reflect the active range', () => {
-    const html = renderAnalytics(active);
+    const html = renderAnalytics(active, 'en');
     expect(html).toContain('class="tab on" href="/app/analytics?range=week"');
     expect(html).toContain('href="/app/analytics?range=today"');
-    expect(html).toContain('href="/app/analytics?range=month"');
   });
 
-  it('no percentages, rates, scores, or technical vocabulary', () => {
-    // Scan the visible content only — %/units inside <style> are layout, not owner text.
+  it('no percentages, rates, scores, or technical vocabulary — every locale', () => {
     const strip = (s: string) => s.replace(/<style[\s\S]*?<\/style>/g, '');
-    const html = (strip(renderAnalytics(active)) + strip(renderAnalytics(empty))).toLowerCase();
-    expect(html).not.toContain('%');
-    for (const w of ['\\bai\\b', '\\bllm\\b', '\\bmodel\\b', '\\btoken\\b', '\\bapi\\b',
-      '\\bconversion\\b', '\\bengagement\\b', '\\bconfidence\\b', '\\bperformance\\b']) {
-      expect(new RegExp(w).test(html), w).toBe(false);
-    }
-    for (const zh of ['转化率', '置信度', '模型', '人工智能', '准确率']) {
-      expect(html.includes(zh), zh).toBe(false);
+    for (const l of LOCALES) {
+      const html = (strip(renderAnalytics(active, l)) + strip(renderAnalytics(empty, l))).toLowerCase();
+      expect(html, l).not.toContain('%');
+      for (const w of ['\\bai\\b', '\\bllm\\b', '\\bmodel\\b', '\\btoken\\b', '\\bapi\\b',
+        '\\bconversion\\b', '\\bengagement\\b', '\\bconfidence\\b', '\\bperformance\\b']) {
+        expect(new RegExp(w).test(html), `${l}:${w}`).toBe(false);
+      }
+      for (const zh of ['转化率', '置信度', '模型', '人工智能', '准确率']) {
+        expect(html.includes(zh), `${l}:${zh}`).toBe(false);
+      }
     }
   });
 
-  it('mobile: numbers in cards, no tables', () => {
-    expect(renderAnalytics(active)).not.toContain('<table');
+  it('mobile: no tables', () => {
+    expect(renderAnalytics(active, 'en')).not.toContain('<table');
   });
 });

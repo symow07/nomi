@@ -2,32 +2,38 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, validateExtracted, type ValidatedImport } from '../../core/onboard/catalogImport.js';
-import { formatUsd, formatQtyZh } from '../../core/owner/format.js';
+import { type Locale } from '../../core/owner/i18n/locale.js';
+import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { formatQty, formatUsd } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 
 /**
- * M9.5 — Product Knowledge Center. The employee's product memory, not an
- * inventory system. A VIEW over the EXISTING catalog (products / price_tiers /
- * product_aliases / product_images) plus a teach flow that reuses the M6
- * parser (parsePriceLines + validateExtracted).
+ * M9.5 + ADR-0008 — Product Knowledge Center. A VIEW over the EXISTING catalog
+ * plus a teach flow that reuses the M6 parser. The read model is language-NEUTRAL
+ * (raw name + name_zh, unit codes, reject codes); the renderer localizes. Product
+ * NAMES are data, not chrome: zh prefers name_zh, en/ar use the neutral latin name
+ * (there is no Arabic product name — never invented).
  *
- * Trust rule, enforced by the engine (not a UI promise): retrieve_products
- * and search_product_by_text both filter is_active. So a product without a
- * confirmed price is inserted is_active=false — it shows 需要确认 and CANNOT
- * affect a quote until the owner completes it. Nothing unconfirmed is ever
- * silently used.
+ * Trust rule (engine-enforced): a product without a confirmed price is inserted
+ * is_active=false — it shows "Needs a price" and CANNOT affect a quote.
  */
+
+const displayName = (locale: Locale, name: string, nameZh: string | null): string =>
+  locale === 'zh' ? (nameZh ?? name) : name;
+const unitLabel = (locale: Locale, unit: string): string =>
+  unit === 'pcs' ? t(locale, 'product.unit.pcs') : unit;
 
 export type ProductListItem = {
   readonly id: string;
-  readonly nameZh: string;
+  readonly name: string;
+  readonly nameZh: string | null;
   readonly sku: string;
   readonly moq: number;
   readonly unit: string;
   readonly entryQty: number | null;
   readonly entryPriceUsd: number | null;
-  readonly learned: boolean;          // is_active AND has a price
-  readonly imageMatchable: boolean;   // active + has an alias/image → retrievable by photo
+  readonly learned: boolean;
+  readonly imageMatchable: boolean;
 };
 
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
@@ -50,7 +56,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
   `.execute(tx)).rows.map((r): ProductListItem => {
     const entryPrice = r.entry_price !== null ? Number(r.entry_price) : (r.price !== null ? Number(r.price) : null);
     return {
-      id: r.id, nameZh: r.name_zh ?? r.name, sku: r.sku, moq: r.moq, unit: r.unit,
+      id: r.id, name: r.name, nameZh: r.name_zh, sku: r.sku, moq: r.moq, unit: r.unit,
       entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq : null),
       entryPriceUsd: entryPrice,
       learned: r.is_active && entryPrice !== null,
@@ -61,10 +67,10 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
 
 export type ProductDetail = {
   readonly id: string;
-  readonly nameZh: string;
-  readonly nameEn: string | null;
+  readonly name: string;
+  readonly nameZh: string | null;
   readonly sku: string;
-  readonly categoryZh: string | null;
+  readonly category: string | null;
   readonly unit: string;
   readonly moq: number;
   readonly leadTimeDays: number | null;
@@ -72,7 +78,7 @@ export type ProductDetail = {
   readonly learned: boolean;
   readonly imageMatchable: boolean;
   readonly tiers: readonly { minQty: number; maxQty: number | null; unitPriceUsd: number }[];
-  readonly aliases: readonly string[];       // buyer-facing names
+  readonly aliases: readonly string[];
   readonly images: readonly string[];
   readonly recentQuotes: readonly { quantity: number; unitPriceUsd: number; totalUsd: number }[];
 };
@@ -91,7 +97,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
 
     const tiers = (await sql<{ min_qty: number; max_qty: number | null; unit_price_usd: string }>`
       select min_qty, max_qty, unit_price_usd from price_tiers where product_id = ${productId} order by min_qty asc`
-      .execute(tx)).rows.map((t) => ({ minQty: t.min_qty, maxQty: t.max_qty, unitPriceUsd: Number(t.unit_price_usd) }));
+      .execute(tx)).rows.map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPriceUsd: Number(tr.unit_price_usd) }));
     const aliases = (await sql<{ alias: string }>`
       select distinct alias from product_aliases where product_id = ${productId} order by alias limit 40`
       .execute(tx)).rows.map((a) => a.alias);
@@ -104,8 +110,8 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
 
     const learned = p.is_active && (tiers.length > 0 || p.price !== null);
     return {
-      id: p.id, nameZh: p.name_zh ?? p.name, nameEn: p.name_zh ? p.name : null, sku: p.sku,
-      categoryZh: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
+      id: p.id, name: p.name, nameZh: p.name_zh, sku: p.sku,
+      category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
       customizable: p.customizable, learned, imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
     };
@@ -121,7 +127,7 @@ export function reviewImport(rawText: string): ValidatedImport {
 export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<{ learned: number; needsConfirm: number }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { learned: 0, needsConfirm: 0 };
-  const { accepted } = reviewImport(rawText);   // re-parse deterministically on confirm
+  const { accepted } = reviewImport(rawText);
   let learned = 0, needsConfirm = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
@@ -136,110 +142,123 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
       if (id && p.priceUsd !== null) {
-        // A tier + a conservative floor make it immediately quotable at its price.
         await sql`insert into price_tiers (product_id, min_qty, unit_price_usd) values (${id}, 1, ${p.priceUsd}) on conflict do nothing`.execute(tx);
         await sql`insert into pricing_policy (business_id, product_id, floor_price_usd, max_discount_pct, human_required_above_pct)
                   values (${bid.value}, ${id}, ${p.priceUsd}, 0, 0) on conflict (business_id, product_id) do nothing`.execute(tx);
         learned++;
       } else if (id) {
-        needsConfirm++;   // inserted is_active=false — excluded from retrieval/quotes
+        needsConfirm++;
       }
     }
   });
   return { learned, needsConfirm };
 }
 
-/** ── Renderers (pure, mobile-first, owner language, escaped) ─────────────── */
+/** Localized confirm flash — called by the route (has locale). */
+export const importFlash = (locale: Locale, r: { learned: number; needsConfirm: number }): string =>
+  r.needsConfirm > 0
+    ? t(locale, 'product.flash.learnedAndPending', { learned: r.learned, needsConfirm: r.needsConfirm })
+    : t(locale, 'product.flash.learnedOnly', { learned: r.learned });
 
-const statusPill = (learned: boolean): string =>
-  learned ? `<span class="pill ok">已学习 ✓</span>` : `<span class="pill warn">需要确认</span>`;
+/** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
-export function renderProductList(items: readonly ProductListItem[]): string {
+const statusPill = (locale: Locale, learned: boolean): string =>
+  learned
+    ? `<span class="pill ok">${esc(t(locale, 'product.status.learned'))} ✓</span>`
+    : `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>`;
+
+export function renderProductList(items: readonly ProductListItem[], locale: Locale): string {
+  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>`;
   if (items.length === 0) {
-    return `<div class="phead"><h1 class="page">产品目录</h1><a class="btn send" href="/app/products/add">教她认产品</a></div>
-      <div class="card"><div class="empty">还没有产品。<br><span class="muted">把你的价格表发过来，小雅就能开始按你的价格报价。</span>
-      <div style="margin-top:16px"><a class="btn send" href="/app/products/add">上传产品目录开始培训</a></div></div></div>${PRODUCT_STYLE}`;
+    return `${head}
+      <div class="card"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
+      <div style="margin-top:16px"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
   }
-  const cards = items.map((p) => `
+  const cards = items.map((p) => {
+    const u = unitLabel(locale, p.unit);
+    return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
-      <div class="prod-h"><b>${esc(p.nameZh)}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(p.learned)}</div>
+      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(locale, p.learned)}</div>
       <div class="prod-b muted">
-        ${p.entryPriceUsd !== null && p.entryQty !== null ? `${esc(formatQtyZh(p.entryQty))}${esc(p.unit === 'pcs' ? '个' : p.unit)}：${esc(formatUsd(p.entryPriceUsd))}　` : '价格待补　'}
-        最低起订：${esc(formatQtyZh(p.moq))}${esc(p.unit === 'pcs' ? '个' : p.unit)}
+        ${p.entryPriceUsd !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatUsd(p.entryPriceUsd))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
+        ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
       </div>
-      ${p.imageMatchable ? `<div class="tag">📷 可以被图片识别</div>` : ''}
-    </a>`).join('');
-  return `<div class="phead"><h1 class="page">产品目录</h1><a class="btn send" href="/app/products/add">教她认产品</a></div>
-    <div class="list">${cards}</div>${PRODUCT_STYLE}`;
+      ${p.imageMatchable ? `<div class="tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
+    </a>`;
+  }).join('');
+  return `${head}<div class="list">${cards}</div>${PRODUCT_STYLE}`;
 }
 
-export function renderProductDetail(d: ProductDetail): string {
+export function renderProductDetail(d: ProductDetail, locale: Locale): string {
+  const u = unitLabel(locale, d.unit);
+  const title = displayName(locale, d.name, d.nameZh);
+  const alt = locale === 'zh' ? (d.name !== title ? d.name : null) : (d.nameZh && d.nameZh !== title ? d.nameZh : null);
+
   const tiers = d.tiers.length
-    ? `<div class="card"><h2>价格</h2><div class="tiers">${d.tiers.map((t) =>
-        `<div class="tier"><span>${esc(formatQtyZh(t.minQty))}${t.maxQty ? `–${esc(formatQtyZh(t.maxQty))}` : '+'}${esc(d.unit === 'pcs' ? '个' : d.unit)}</span><b>${esc(formatUsd(t.unitPriceUsd))}</b></div>`).join('')}</div></div>`
-    : `<div class="card"><h2>价格</h2><p class="muted">还没有价格。<a href="/app/products/add">补上价格</a>后就能报价。</p></div>`;
+    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
+        `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatUsd(tr.unitPriceUsd))}</b></div>`).join('')}</div></div>`
+    : `<div class="card"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))} <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a></p></div>`;
 
   const aliases = d.aliases.length
-    ? `<div class="card"><h2>买家怎么称呼它</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
-        <p class="muted">买家用这些说法问，小雅都能认出来。</p></div>`
+    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
+        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: EMPLOYEE_NAME[locale] }))}</p></div>`
     : '';
 
   const images = d.images.length
-    ? `<div class="card"><h2>图片</h2><div class="imgs">${d.images.map((u) => `<img src="${esc(u)}" alt="${esc(d.nameZh)}" loading="lazy" />`).join('')}</div></div>`
+    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
     : '';
 
   const quotes = d.recentQuotes.length
-    ? `<div class="card"><h2>最近报过的价</h2>${d.recentQuotes.map((q) =>
-        `<div class="qrow muted">${esc(formatQtyZh(q.quantity))}${esc(d.unit === 'pcs' ? '个' : d.unit)} · ${esc(formatUsd(q.unitPriceUsd))}/个 · 共 ${esc(formatUsd(q.totalUsd))}</div>`).join('')}</div>`
+    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
+        `<div class="qrow muted">${esc(formatQty(locale, q.quantity))}${esc(u)} · ${esc(formatUsd(q.unitPriceUsd))}/${esc(u)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(q.totalUsd))}</div>`).join('')}</div>`
     : '';
 
   return `
-    <div class="dhead"><a class="back" href="/app/products">← 产品目录</a>
-      <div class="who"><b>${esc(d.nameZh)}</b> <span class="muted">${esc(d.sku)}</span></div>${statusPill(d.learned)}</div>
-    ${d.imageMatchable ? `<div class="tag big">📷 可以被图片识别 — 买家发照片，小雅能认出这个产品</div>` : ''}
-    <div class="card"><h2>产品信息</h2>
+    <div class="dhead"><a class="back" href="/app/products">${esc(t(locale, 'product.detail.back'))}</a>
+      <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.learned)}</div>
+    ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
+    <div class="card"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
-        ${d.nameEn ? `<div><span class="muted">英文名</span> ${esc(d.nameEn)}</div>` : ''}
-        ${d.categoryZh ? `<div><span class="muted">类别</span> ${esc(d.categoryZh)}</div>` : ''}
-        <div><span class="muted">最低起订</span> ${esc(formatQtyZh(d.moq))}${esc(d.unit === 'pcs' ? '个' : d.unit)}</div>
-        ${d.leadTimeDays !== null ? `<div><span class="muted">交期</span> ${d.leadTimeDays} 天</div>` : ''}
-        <div><span class="muted">可定制</span> ${d.customizable ? '可以' : '否'}</div>
+        ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
+        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(formatQty(locale, d.moq))}${esc(u)}</div>
+        ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
+        <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
     </div>
     ${tiers}${aliases}${images}${quotes}${PRODUCT_STYLE}`;
 }
 
-export function renderAddForm(): string {
-  return `<h1 class="page">教她认产品</h1>
+export function renderAddForm(locale: Locale): string {
+  return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="card">
-      <p>把你的价格表贴进来就行——一行一个产品，乱一点没关系。</p>
-      <p class="muted">例如：<br>帆布袋 1.05美元 500个起<br>保温杯 $2.60 MOQ 1000</p>
+      <p>${esc(t(locale, 'product.add.intro'))}</p>
+      <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${esc(t(locale, 'product.add.example1'))}<br>${esc(t(locale, 'product.add.example2'))}</p>
       <form method="post" action="/app/products/add/review">
-        <textarea name="text" rows="8" placeholder="把产品和价格贴到这里…" autofocus></textarea>
-        <button class="btn send" type="submit">看看认出了哪些</button>
+        <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}" autofocus></textarea>
+        <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
-      <p class="muted" style="font-size:12px">你确认之前，什么都不会启用；没有价格的产品会标「需要确认」，不会用来报价。</p>
+      <p class="muted" style="font-size:12px">${esc(t(locale, 'product.add.note'))}</p>
     </div>${PRODUCT_STYLE}`;
 }
 
-export function renderReview(v: ValidatedImport, rawText: string): string {
+export function renderReview(v: ValidatedImport, rawText: string, locale: Locale): string {
   const accepted = v.accepted.map((p) => `
     <div class="rev"><b>${esc(p.name)}</b>
-      <span class="muted">${p.priceUsd !== null ? esc(formatUsd(p.priceUsd)) : '价格待补'}${p.moq !== null ? ` · ${esc(formatQtyZh(p.moq))}起` : ''}</span>
-      ${p.priceUsd === null ? `<span class="pill warn">需要确认</span>` : `<span class="pill ok">可学习</span>`}
+      <span class="muted">${p.priceUsd !== null ? esc(formatUsd(p.priceUsd)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
+      ${p.priceUsd === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
     </div>`).join('');
   const rejected = v.rejected.length
-    ? `<div class="card"><h2>没认出来的</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || '（空行）')} —— ${esc(r.reasonZh)}</div>`).join('')}</div>`
+    ? `<div class="card"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}</div>`
     : '';
-  return `<h1 class="page">确认一下</h1>
+  return `<h1 class="page">${esc(t(locale, 'product.review.title'))}</h1>
     ${v.accepted.length
-      ? `<div class="card"><h2>认出了 ${v.accepted.length} 个产品</h2>${accepted}</div>`
-      : `<div class="card"><div class="empty muted">没认出产品。<a href="/app/products/add">换个写法再试</a></div></div>`}
+      ? `<div class="card"><h2>${esc(t(locale, 'product.review.recognized', { count: v.accepted.length }))}</h2>${accepted}</div>`
+      : `<div class="card"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`}
     ${rejected}
     ${v.accepted.length ? `<form method="post" action="/app/products/add/confirm">
       <input type="hidden" name="text" value="${esc(rawText)}" />
-      <button class="btn send" type="submit">确认入册</button>
-      <a class="btn" href="/app/products/add">重新贴</a>
+      <button class="btn send" type="submit">${esc(t(locale, 'product.review.confirm'))}</button>
+      <a class="btn" href="/app/products/add">${esc(t(locale, 'product.review.repaste'))}</a>
     </form>` : ''}
     ${PRODUCT_STYLE}`;
 }
@@ -251,7 +270,7 @@ const PRODUCT_STYLE = `<style>
   .prod:hover { border-color:#3a4250; }
   .prod-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .prod-b { font-size:13px; margin-top:6px; }
   .tag { color:#4ade80; font-size:12px; margin-top:8px; } .tag.big { color:#4ade80; font-size:14px; margin-bottom:12px; }
-  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; margin-left:auto; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; margin-inline-start:auto; }
   .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; }
   .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; } .back { color:#60a5fa; }
   .info, .tiers { display:flex; flex-direction:column; gap:8px; font-size:14px; }

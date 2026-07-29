@@ -1,107 +1,102 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderCustomerList, renderCustomerFile, type CustomerList, type CustomerFile,
+  renderCustomerList, renderCustomerFile, type CustomerList, type CustomerFile, type Milestone,
 } from '../../src/api/web/conversations.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const NOW = new Date('2026-07-27T02:30:00Z'); // 10:30 Beijing
+const m = (o: Partial<Milestone> & Pick<Milestone, 'kind' | 'at'>): Milestone =>
+  ({ text: null, qty: null, unitUsd: null, orderStatus: null, ...o });
 
 const list: CustomerList = {
   query: '',
   customers: [
-    { conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channelZh: 'WhatsApp',
-      statusZh: '等待确认', statusTone: 'warn', needsOwner: true, productsZh: ['保温杯'],
-      lastActivity: new Date('2026-07-27T02:30:00Z') },
-    { conversationId: 'c2', buyer: 'Ivan', country: 'RU', channelZh: 'WhatsApp',
-      statusZh: '已报价', statusTone: 'ok', needsOwner: false, productsZh: ['帆布袋'],
-      lastActivity: new Date('2026-07-20T02:30:00Z') },
+    { conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channel: 'whatsapp',
+      status: { t: 'awaiting' }, statusTone: 'warn', needsOwner: true,
+      product: { name: 'Vacuum cup', nameZh: '保温杯' }, lastActivity: NOW },
+    { conversationId: 'c2', buyer: 'Ivan', country: 'RU', channel: 'whatsapp',
+      status: { t: 'quoted' }, statusTone: 'ok', needsOwner: false,
+      product: { name: 'Canvas bag', nameZh: '帆布袋' }, lastActivity: new Date('2026-07-20T02:30:00Z') },
   ],
 };
 
 const file: CustomerFile = {
-  conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channelZh: 'WhatsApp',
-  statusZh: '等待确认', statusTone: 'warn', needsOwner: true,
-  profile: { firstContact: new Date('2026-07-01T00:00:00Z'), productsZh: ['保温杯'], quoteCount: 3, orderCount: 1 },
+  conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channel: 'whatsapp',
+  status: { t: 'awaiting' }, statusTone: 'warn', needsOwner: true,
+  profile: { firstContact: new Date('2026-07-01T00:00:00Z'), products: [{ name: 'Vacuum cup', nameZh: '保温杯' }], quoteCount: 3, orderCount: 1 },
   timeline: [
-    { icon: '💬', kind: 'buyer', textZh: '买家发来产品图片', at: new Date('2026-07-10T02:00:00Z') },
-    { icon: '💰', kind: 'quote', textZh: '小雅报价：5000个 · $0.92/个', at: new Date('2026-07-10T03:00:00Z') },
-    { icon: '👤', kind: 'owner', textZh: '老板确认发送', at: new Date('2026-07-10T04:00:00Z') },
+    m({ kind: 'buyer_image', at: new Date('2026-07-10T02:00:00Z') }),
+    m({ kind: 'quote', at: new Date('2026-07-10T03:00:00Z'), qty: 5000, unitUsd: 0.92 }),
+    m({ kind: 'owner_approved', at: new Date('2026-07-10T04:00:00Z') }),
   ],
   context: {
-    products: [{ sku: 'ZX-100', nameZh: '帆布袋' }],
+    products: [{ sku: 'ZX-100', name: 'Canvas bag', nameZh: '帆布袋' }],
     latestQuote: { qty: 5000, unitUsd: 0.92, totalUsd: 4600 },
-    order: { statusZh: '已成交', reference: 'ORD-1', qty: 5000, totalUsd: 4600 },
-    corrections: ['交期'],
+    order: { status: 'confirmed', reference: 'ORD-1', qty: 5000, totalUsd: 4600 },
+    corrections: ['quote'],   // capability code
   },
 };
 
-describe('M9.7 · conversations / customer memory (pure)', () => {
-  it('list renders each customer: buyer, channel, status, product, last activity', () => {
-    const html = renderCustomerList(list, NOW);
-    expect(html).toContain('客户');
-    expect(html).toContain('Ahmed');
-    expect(html).toContain('🇦🇪');
-    expect(html).toContain('阿联酋');
-    expect(html).toContain('WhatsApp');
-    expect(html).toContain('等待确认');
-    expect(html).toContain('保温杯');
-    expect(html).toContain('最后联系：今天');
+describe('M9.7 · conversations / customer memory (localized)', () => {
+  it('zh list: buyer, country, channel, status, product, last activity', () => {
+    const html = renderCustomerList(list, 'zh', NOW);
+    expect(html).toContain('客户'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
+    expect(html).toContain('阿联酋'); expect(html).toContain('WhatsApp'); expect(html).toContain('等待确认');
+    expect(html).toContain('保温杯'); expect(html).toContain('最后联系：今天');
     expect(html).toContain('href="/app/conversations/c1"');
   });
 
-  it('list has a simple search box that keeps the query', () => {
-    const q = renderCustomerList({ ...list, query: 'Ahmed' }, NOW);
-    expect(q).toContain('name="q"');
-    expect(q).toContain('value="Ahmed"');
-    expect(q).toContain('清除'); // clear link appears when a query is active
+  it('en list: latin product name + localized chrome', () => {
+    const html = renderCustomerList(list, 'en', NOW);
+    expect(html).toContain('Customers'); expect(html).toContain('Vacuum cup');
+    expect(html).toContain('Awaiting confirmation'); expect(html).toContain('Last contact');
+    expect(html).not.toContain('保温杯');
   });
 
-  it('empty states are honest — never "no data"', () => {
-    const none = renderCustomerList({ query: '', customers: [] }, NOW);
-    expect(none).toContain('暂无客户记录');
-    expect(none).not.toContain('no data');
-    const noHit = renderCustomerList({ query: '张三', customers: [] }, NOW);
-    expect(noHit).toContain('没找到「张三」');
+  it('search box keeps the query (per locale)', () => {
+    const q = renderCustomerList({ ...list, query: 'Ahmed' }, 'en', NOW);
+    expect(q).toContain('name="q"'); expect(q).toContain('value="Ahmed"'); expect(q).toContain('Clear');
+  });
+
+  it('empty states are honest, never "no data"', () => {
+    expect(renderCustomerList({ query: '', customers: [] }, 'zh', NOW)).toContain('暂无客户记录');
+    const en = renderCustomerList({ query: '', customers: [] }, 'en', NOW);
+    expect(en).toContain('No customers yet'); expect(en.toLowerCase()).not.toContain('no data');
+    expect(renderCustomerList({ query: '张三', customers: [] }, 'zh', NOW)).toContain('没找到「张三」');
+    const bob = renderCustomerList({ query: 'Bob', customers: [] }, 'en', NOW);
+    expect(bob).toContain('No customers match'); expect(bob).toContain('Bob');
   });
 
   it('buyer profile shows only data that exists', () => {
-    const html = renderCustomerFile(file, NOW);
-    expect(html).toContain('客户档案');
-    expect(html).toContain('首次联系');
-    expect(html).toContain('关注产品');
-    expect(html).toContain('报价次数');
-    expect(html).toContain('订单');
-    // when quotes/orders are zero, those rows disappear
-    const bare = renderCustomerFile({ ...file, profile: { ...file.profile, quoteCount: 0, orderCount: 0 } }, NOW);
-    expect(bare).toContain('首次联系');
-    expect(bare).not.toContain('报价次数');
+    const en = renderCustomerFile(file, 'en', NOW);
+    expect(en).toContain('Customer file'); expect(en).toContain('First contact');
+    expect(en).toContain('Products of interest'); expect(en).toContain('Quotes'); expect(en).toContain('Orders');
+    const bare = renderCustomerFile({ ...file, profile: { ...file.profile, quoteCount: 0, orderCount: 0 } }, 'en', NOW);
+    expect(bare).toContain('First contact'); expect(bare).not.toContain('>Quotes<');
   });
 
-  it('relationship timeline renders milestones; empty state is honest', () => {
-    const html = renderCustomerFile(file, NOW);
-    expect(html).toContain('沟通记录');
-    expect(html).toContain('买家发来产品图片');
-    expect(html).toContain('小雅报价：5000个');
-    expect(html).toContain('老板确认发送');
-    const empty = renderCustomerFile({ ...file, timeline: [] }, NOW);
-    expect(empty).toContain('还没有沟通记录');
+  it('timeline milestones localize from neutral kinds; empty state honest', () => {
+    const zh = renderCustomerFile(file, 'zh', NOW);
+    expect(zh).toContain('沟通记录'); expect(zh).toContain('买家发来产品图片');
+    expect(zh).toContain('小雅报价：5000个 · $0.92/个'); expect(zh).toContain('老板确认发送');
+    const en = renderCustomerFile(file, 'en', NOW);
+    expect(en).toContain('Buyer sent a photo'); expect(en).toContain('Lily quoted: 5,000pcs · $0.92/pcs');
+    expect(en).toContain('You approved sending');
+    expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });
 
-  it('business context shows products, quote, order, and owner corrections', () => {
-    const html = renderCustomerFile(file, NOW);
-    expect(html).toContain('业务往来');
-    expect(html).toContain('ZX-100');
-    expect(html).toContain('$0.92/个');
-    expect(html).toContain('ORD-1');
-    expect(html).toContain('已成交');
-    expect(html).toContain('老板曾修改');
-    expect(html).toContain('交期');
-    // context section vanishes entirely when nothing exists
-    const empty = renderCustomerFile({ ...file, context: { products: [], latestQuote: null, order: null, corrections: [] } }, NOW);
-    expect(empty).not.toContain('业务往来');
+  it('business context: products, quote, order, corrections (capability names)', () => {
+    const en = renderCustomerFile(file, 'en', NOW);
+    expect(en).toContain('Business'); expect(en).toContain('ZX-100'); expect(en).toContain('$0.92/pcs');
+    expect(en).toContain('ORD-1'); expect(en).toContain('Confirmed');
+    expect(en).toContain('You corrected'); expect(en).toContain('Quoting');   // capability 'quote' localized
+    expect(renderCustomerFile(file, 'zh', NOW)).toContain('报价');
+    const empty = renderCustomerFile({ ...file, context: { products: [], latestQuote: null, order: null, corrections: [] } }, 'en', NOW);
+    expect(empty).not.toContain('>Business<');
   });
 
-  it('needsOwner links to the inbox (the one action path) — no approval form here', () => {
-    const html = renderCustomerFile(file, NOW);
+  it('needsOwner links to the inbox — no approval form here', () => {
+    const html = renderCustomerFile(file, 'en', NOW);
     expect(html).toContain('href="/app/inbox/c1"');
     expect(html).not.toContain('<form method="post"');
   });
@@ -109,27 +104,24 @@ describe('M9.7 · conversations / customer memory (pure)', () => {
   it('escapes buyer text and messages (no XSS)', () => {
     const evil = renderCustomerFile({
       ...file, buyer: '<script>x</script>',
-      timeline: [{ icon: '💬', kind: 'buyer', textZh: '买家：<img src=x onerror=1>', at: NOW }],
-    }, NOW);
-    expect(evil).not.toContain('<script>x');
-    expect(evil).toContain('&lt;script&gt;');
-    expect(evil).not.toContain('<img src=x');
-    expect(evil).toContain('&lt;img');
+      timeline: [m({ kind: 'buyer_text', at: NOW, text: '<img src=x onerror=1>' })],
+    }, 'en', NOW);
+    expect(evil).not.toContain('<script>x'); expect(evil).toContain('&lt;script&gt;');
+    expect(evil).not.toContain('<img src=x'); expect(evil).toContain('&lt;img');
   });
 
-  it('no technical vocabulary anywhere', () => {
-    const html = (renderCustomerList(list, NOW) + renderCustomerFile(file, NOW)).toLowerCase();
-    for (const w of ['\\bai\\b', '\\bllm\\b', '\\bmodel\\b', '\\bapi\\b', '\\bwebhook\\b',
-      '\\bautomation\\b', '\\bconfidence\\b']) {
-      expect(new RegExp(w).test(html), w).toBe(false);
-    }
-    for (const zh of ['模型', '人工智能', '置信度', '准确率']) {
-      expect(html.includes(zh), zh).toBe(false);
+  it('no technical vocabulary — every locale', () => {
+    for (const l of LOCALES) {
+      const html = (renderCustomerList(list, l, NOW) + renderCustomerFile(file, l, NOW)).toLowerCase();
+      for (const w of ['ai', 'llm', 'model', 'api', 'webhook', 'automation', 'confidence']) {
+        expect(new RegExp(`\\b${w}\\b`).test(html), `${l}:${w}`).toBe(false);
+      }
+      for (const zh of ['模型', '人工智能', '置信度', '准确率']) expect(html.includes(zh), `${l}:${zh}`).toBe(false);
     }
   });
 
-  it('mobile: no tables anywhere', () => {
-    expect(renderCustomerList(list, NOW)).not.toContain('<table');
-    expect(renderCustomerFile(file, NOW)).not.toContain('<table');
+  it('mobile: no tables', () => {
+    expect(renderCustomerList(list, 'en', NOW)).not.toContain('<table');
+    expect(renderCustomerFile(file, 'en', NOW)).not.toContain('<table');
   });
 });

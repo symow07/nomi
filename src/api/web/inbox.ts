@@ -1,41 +1,40 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { formatUsd, formatQtyZh, formatWhenZh } from '../../core/owner/format.js';
+import { type Locale } from '../../core/owner/i18n/locale.js';
+import { t, countryName, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 
 /**
- * M9.3 — the owner's decision desk. A VIEW over existing data (conversations,
- * messages, drafts, quotes, orders); actions POST to applyOwnerCommand (the
- * one approval path). No second conversation model, no second send path.
- *
- * Priority ordering: waiting-for-approval first, then buyer-waiting, then
- * recent. Not "latest message".
+ * M9.3 + ADR-0008 — the owner's decision desk. A VIEW over existing data;
+ * actions POST to applyOwnerCommand (the one approval path). The read model is
+ * language-NEUTRAL (status codes, product names as data); the renderer localizes.
+ * The draft-action button VALUES stay the wire commands (发送/改/不回/收回) that
+ * parseOwnerReply expects — only the labels localize.
  */
 
-const TZ = 'Asia/Shanghai';
-// Shared owner-language maps — also imported by M9.7 conversations (one source).
-export const COUNTRY_ZH: Record<string, string> = {
-  AE: '阿联酋', SA: '沙特', RU: '俄罗斯', EG: '埃及', MA: '摩洛哥',
-  NG: '尼日利亚', CN: '中国', US: '美国', TR: '土耳其', IN: '印度',
-};
+// Flags are emoji, not localizable — shared with conversations.
 export const FLAG: Record<string, string> = {
   AE: '🇦🇪', SA: '🇸🇦', RU: '🇷🇺', EG: '🇪🇬', MA: '🇲🇦', NG: '🇳🇬', CN: '🇨🇳', US: '🇺🇸', TR: '🇹🇷', IN: '🇮🇳',
 };
-export const countryZh = (c: string | null): string | null => (c ? (COUNTRY_ZH[c] ?? null) : null);
 export const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 
-export type InboxFilter = '等你处理' | '全部';
+const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
+  locale === 'zh' ? (p.nameZh ?? p.name) : (p.name ?? p.nameZh);
+
+export type InboxFilter = 'pending' | 'all';
+type InboxStatus = 'awaiting' | 'paused' | 'done' | 'handled';
 
 export type ConversationSummary = {
   readonly conversationId: string;
-  readonly buyer: string;
+  readonly buyer: string | null;
   readonly country: string | null;
-  readonly statusZh: string;
+  readonly status: InboxStatus;
   readonly needsAction: boolean;
   readonly latestMessage: string | null;
   readonly latestAt: Date | null;
-  readonly productZh: string | null;
+  readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
   readonly unitPriceUsd: number | null;
 };
@@ -46,12 +45,11 @@ export type InboxList = {
   readonly conversations: readonly ConversationSummary[];
 };
 
-/** Owner-facing status from existing state — no implementation vocabulary. */
-function statusOf(row: { pending: number; assigned_to: string | null; closed_at: Date | null }): { zh: string; needs: boolean } {
-  if (row.pending > 0) return { zh: '等你确认', needs: true };
-  if (row.assigned_to !== null) return { zh: '已暂停', needs: false };
-  if (row.closed_at !== null) return { zh: '已完成', needs: false };
-  return { zh: '已处理', needs: false };
+function statusOf(row: { pending: number; assigned_to: string | null; closed_at: Date | null }): { status: InboxStatus; needs: boolean } {
+  if (row.pending > 0) return { status: 'awaiting', needs: true };
+  if (row.assigned_to !== null) return { status: 'paused', needs: false };
+  if (row.closed_at !== null) return { status: 'done', needs: false };
+  return { status: 'handled', needs: false };
 }
 
 export async function loadInboxList(db: Db, businessIdRaw: string, filter: InboxFilter): Promise<InboxList> {
@@ -59,7 +57,6 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
   if (!bid.ok) return { filter, waitingCount: 0, conversations: [] };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    // ONE query, laterals bound the per-row lookups — no N+1, no full history.
     const rows = (await sql<{
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -92,22 +89,22 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
     const all = rows.map((r): ConversationSummary => {
       const st = statusOf({ pending: r.pending, assigned_to: r.assigned_to, closed_at: r.closed_at });
       return {
-        conversationId: r.id, buyer: r.buyer ?? '买家', country: r.country,
-        statusZh: st.zh, needsAction: st.needs,
+        conversationId: r.id, buyer: r.buyer, country: r.country,
+        status: st.status, needsAction: st.needs,
         latestMessage: r.last_text, latestAt: r.last_at,
-        productZh: r.name_zh ?? r.name ?? null, quantity: r.qty ?? null,
+        product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         unitPriceUsd: r.unit_price !== null ? Number(r.unit_price) : null,
       };
     });
     const waitingCount = all.filter((c) => c.needsAction).length;
-    const conversations = filter === '等你处理' ? all.filter((c) => c.needsAction) : all;
+    const conversations = filter === 'pending' ? all.filter((c) => c.needsAction) : all;
     return { filter, waitingCount, conversations };
   });
 }
 
-/** Default filter: open on 等你处理 when there's pending work, else 全部. */
+/** Default filter: open on pending when there's work, else all. */
 export function defaultFilter(waitingCount: number): InboxFilter {
-  return waitingCount > 0 ? '等你处理' : '全部';
+  return waitingCount > 0 ? 'pending' : 'all';
 }
 
 /** ── Conversation detail ─────────────────────────────────────────────────── */
@@ -116,20 +113,15 @@ export type TimelineMessage = { direction: 'inbound' | 'outbound'; text: string;
 
 export type ConversationDetail = {
   readonly conversationId: string;
-  readonly buyer: string;
+  readonly buyer: string | null;
   readonly country: string | null;
-  readonly statusZh: string;
-  readonly productZh: string | null;
+  readonly status: InboxStatus;
+  readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
   readonly quote: { unitPriceUsd: number; totalUsd: number; quantity: number } | null;
-  readonly order: { statusZh: string; reference: string; totalUsd: number | null } | null;
+  readonly order: { status: string; reference: string; totalUsd: number | null } | null;
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string } | null;
-};
-
-export const ORDER_STATUS_ZH: Record<string, string> = {
-  pending_confirmation: '待确认', confirmed: '已成交', in_production: '生产中',
-  shipped: '已发货', cancelled: '已取消',
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -137,7 +129,6 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
   if (!bid.ok) return null;
 
   return withTenantTx(db, bid.value, async (tx) => {
-    // RLS scopes to the business; a foreign conversationId simply returns none.
     const head = (await sql<{
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -178,98 +169,110 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
 
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
-      conversationId: head.id, buyer: head.buyer ?? '买家', country: head.country, statusZh: st.zh,
-      productZh: head.name_zh ?? head.name ?? null, quantity: head.qty ?? null,
+      conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
+      product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
       quote: q ? { unitPriceUsd: Number(q.unit_price_usd), totalUsd: Number(q.total_usd), quantity: q.quantity } : null,
-      order: o ? { statusZh: ORDER_STATUS_ZH[o.status] ?? o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
+      order: o ? { status: o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
       messages,
       pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
     };
   });
 }
 
-/** ── Renderers (pure, mobile-first, owner language, escaped) ─────────────── */
+/** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
-const statusPill = (zh: string, needs: boolean): string =>
-  `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(zh)}</span>`;
+const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string =>
+  `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
-export function renderInboxList(data: InboxList, now: Date): string {
-  const tab = (f: InboxFilter, label: string) =>
-    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${encodeURIComponent(f)}">${esc(label)}${f === '等你处理' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}</a>`;
+const who = (locale: Locale, buyer: string | null, country: string | null): string => {
+  const name = buyer ?? t(locale, 'common.buyer');
+  const cn = countryName(locale, country);
+  return `${flag(country)} <b>${esc(name)}</b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
+};
+
+export function renderInboxList(data: InboxList, locale: Locale, now: Date): string {
+  const pcs = t(locale, 'product.unit.pcs');
+  const tab = (f: InboxFilter) =>
+    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}</a>`;
+  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}</div>`;
+  const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
 
   if (data.conversations.length === 0) {
-    const body = data.filter === '等你处理'
-      ? `<div class="ok-card"><div class="ok">✓ 一切正常，不用管</div>
-          <p class="muted">没有需要你处理的对话。<a href="/app/inbox?filter=全部">看全部对话</a></p></div>`
-      : `<div class="empty">还没有对话。<br><span class="muted">买家发来的消息会出现在这里。先把 WhatsApp 号发给买家。</span></div>`;
-    return `<h1 class="page">收件箱</h1><div class="tabs">${tab('等你处理', '等你处理')}${tab('全部', '全部')}</div><div class="card">${body}</div>${INBOX_STYLE}`;
+    const body = data.filter === 'pending'
+      ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'inbox.empty.allGood'))}</div>
+          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
+      : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span></div>`;
+    return `${title}${tabs}<div class="card">${body}</div>${INBOX_STYLE}`;
   }
 
-  const cards = data.conversations.map((c) => `
+  const cards = data.conversations.map((c) => {
+    const prod = productName(locale, c.product);
+    return `
     <a class="conv ${c.needsAction ? 'needs' : ''}" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
       <div class="conv-h">
-        <span class="who">${flag(c.country)} <b>${esc(c.buyer)}</b>${countryZh(c.country) ? `<span class="muted"> · ${esc(countryZh(c.country)!)}</span>` : ''}</span>
-        ${statusPill(c.statusZh, c.needsAction)}
+        <span class="who">${who(locale, c.buyer, c.country)}</span>
+        ${statusPill(locale, c.status, c.needsAction)}
       </div>
-      ${c.needsAction ? `<div class="need">需要你处理</div>` : ''}
+      ${c.needsAction ? `<div class="need">${esc(t(locale, 'inbox.needsAction'))}</div>` : ''}
       <div class="conv-b muted">
-        ${c.productZh ? `${esc(c.productZh)}　` : ''}${c.quantity !== null ? `${esc(formatQtyZh(c.quantity))}个　` : ''}${c.unitPriceUsd !== null ? esc(formatUsd(c.unitPriceUsd)) : ''}
+        ${prod ? `${esc(prod)}　` : ''}${c.quantity !== null ? `${esc(formatQty(locale, c.quantity))}${esc(pcs)}　` : ''}${c.unitPriceUsd !== null ? esc(formatUsd(c.unitPriceUsd)) : ''}
       </div>
       ${c.latestMessage ? `<div class="conv-m">${esc(c.latestMessage.slice(0, 80))}</div>` : ''}
-      <div class="conv-t muted">${c.latestAt ? esc(formatWhenZh(c.latestAt, now)) : ''}</div>
-    </a>`).join('');
+      <div class="conv-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
+    </a>`;
+  }).join('');
 
-  return `<h1 class="page">收件箱</h1>
-    <div class="tabs">${tab('等你处理', '等你处理')}${tab('全部', '全部')}</div>
-    <div class="list">${cards}</div>${INBOX_STYLE}`;
+  return `${title}${tabs}<div class="list">${cards}</div>${INBOX_STYLE}`;
 }
 
-export function renderConversationDetail(d: ConversationDetail, now: Date, flash: string | null): string {
+export function renderConversationDetail(d: ConversationDetail, locale: Locale, now: Date, flash: string | null): string {
+  const pcs = t(locale, 'product.unit.pcs');
+  const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
-      ${d.quote ? `<div><span class="muted">报价</span> ${esc(formatQtyZh(d.quote.quantity))}个 · ${esc(formatUsd(d.quote.unitPriceUsd))}/个 · 共 ${esc(formatUsd(d.quote.totalUsd))}</div>` : ''}
-      ${d.order ? `<div><span class="muted">订单</span> ${esc(d.order.reference)} · ${esc(d.order.statusZh)}${d.order.totalUsd !== null ? ` · ${esc(formatUsd(d.order.totalUsd))}` : ''}</div>` : ''}
+      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatUsd(d.quote.unitPriceUsd))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(d.quote.totalUsd))}</div>` : ''}
+      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.totalUsd !== null ? ` · ${esc(formatUsd(d.order.totalUsd))}` : ''}</div>` : ''}
     </div>` : '';
 
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m) => `
         <div class="msg ${m.direction}">
           <div class="bubble">${esc(m.text)}</div>
-          <div class="ts muted">${m.at ? esc(formatWhenZh(m.at, now)) : ''} · ${m.direction === 'inbound' ? '买家' : '小雅'}</div>
+          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(EMPLOYEE_NAME[locale])}</div>
         </div>`).join('')}</div>`
-    : `<div class="empty muted">还没有消息记录。</div>`;
+    : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
 
   const draftCard = d.pendingDraft
-    ? `<div class="card draft" role="region" aria-label="等你确认的回复">
-        <h2>⚠️ 小雅等你确认</h2>
+    ? `<div class="card draft" role="region">
+        <h2>⚠️ ${esc(t(locale, 'inbox.draft.title', { name: EMPLOYEE_NAME[locale] }))}</h2>
         <div class="proposed">${esc(d.pendingDraft.draftText)}</div>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
-          <button class="btn send" name="command" value="发送" aria-label="发送这条回复">发送</button>
-          <button class="btn" name="command" value="不回" aria-label="这条不回">不回</button>
-          <button class="btn danger" name="command" value="收回" aria-label="收回这项自动回复">收回</button>
+          <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
+          <button class="btn" name="command" value="不回">${esc(t(locale, 'inbox.action.skip'))}</button>
+          <button class="btn danger" name="command" value="收回">${esc(t(locale, 'inbox.action.revoke'))}</button>
         </form>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="editform">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
-          <label class="muted" for="edit">改一下再发（直接写你想说的）</label>
-          <textarea id="edit" name="edit" rows="2" placeholder="按你的意思改…"></textarea>
-          <button class="btn" name="command" value="改" aria-label="按你的修改发送">按我的改法发送</button>
+          <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
+          <textarea id="edit" name="edit" rows="2" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}"></textarea>
+          <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
         </form>
       </div>`
-    : `<div class="card"><div class="empty muted">这个对话目前没有需要你确认的回复。</div></div>`;
+    : `<div class="card"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
 
   return `
     <div class="dhead">
-      <a class="back" href="/app/inbox" aria-label="返回收件箱">← 收件箱</a>
-      <div class="who">${flag(d.country)} <b>${esc(d.buyer)}</b>${countryZh(d.country) ? `<span class="muted"> · ${esc(countryZh(d.country)!)}</span>` : ''}</div>
-      ${statusPill(d.statusZh, d.pendingDraft !== null)}
+      <a class="back" href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a>
+      <div class="who">${who(locale, d.buyer, d.country)}</div>
+      ${statusPill(locale, d.status, d.pendingDraft !== null)}
     </div>
-    ${d.productZh || d.quantity !== null ? `<div class="muted subline">${d.productZh ? esc(d.productZh) : ''}${d.quantity !== null ? ` · ${esc(formatQtyZh(d.quantity))}个` : ''}</div>` : ''}
+    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? esc(prod) : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${context}
     ${flashHtml}
     ${draftCard}
-    <div class="card"><h2>对话记录</h2>${timeline}</div>
+    <div class="card"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
     ${INBOX_STYLE}`;
 }
 

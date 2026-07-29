@@ -1,90 +1,97 @@
 import { describe, it, expect } from 'vitest';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const base: EmployeeProfile = {
-  name: '小雅', hireDate: new Date('2026-07-09T00:00:00Z'),
-  stageZh: '正式接待（部分）', roleZh: '客户接待',
-  canDo: ['接待问候'], needConfirm: ['报价', '谈价', '跟进客户'], cannotDo: ['确认订单', '承诺库存'],
+  hireDate: new Date('2026-07-09T00:00:00Z'),
+  stage: 'partial',
+  canDo: ['greet'], needConfirm: ['quote', 'negotiate', 'follow_up'],
   capabilities: [
-    { capability: 'greet', nameZh: '接待问候', mode: 'auto', promotable: false },
-    { capability: 'quote', nameZh: '报价', mode: 'draft', promotable: true },
-    { capability: 'negotiate', nameZh: '谈价', mode: 'draft', promotable: false },
+    { capability: 'greet', mode: 'auto', promotable: false },
+    { capability: 'quote', mode: 'draft', promotable: true },
+    { capability: 'negotiate', mode: 'draft', promotable: false },
   ],
   growth: [
-    { icon: '⭐', textZh: '「接待问候」晋升', at: new Date('2026-07-15T00:00:00Z') },
-    { icon: '✓', textZh: '抽查通过', at: new Date('2026-07-14T00:00:00Z') },
-    { icon: '⭐', textZh: '学会一次修正（报价）', at: new Date('2026-07-10T00:00:00Z') },
+    { kind: 'promote', capability: 'greet', at: new Date('2026-07-15T00:00:00Z') },
+    { kind: 'spotcheck_pass', capability: null, at: new Date('2026-07-14T00:00:00Z') },
+    { kind: 'learned_edit', capability: 'quote', at: new Date('2026-07-10T00:00:00Z') },
   ],
-  promoted: true, nextStepZh: null, conditions: [],
+  promoted: true, conditions: [],
 };
 
 const probation: EmployeeProfile = {
-  ...base, stageZh: '试用期', canDo: [], promoted: false, nextStepZh: '正式接待',
-  capabilities: [{ capability: 'greet', nameZh: '接待问候', mode: 'draft', promotable: false }],
-  growth: [], conditions: [{ label: '通过一次抽查', met: true }, { label: '学会一次修正', met: false }],
+  ...base, stage: 'probation', canDo: [], promoted: false,
+  capabilities: [{ capability: 'greet', mode: 'draft', promotable: false }],
+  growth: [], conditions: [{ cond: 'passed_spotcheck', met: true }, { cond: 'learned_correction', met: false }],
 };
 
-describe('M9.6 · employee profile (pure)', () => {
-  it('card shows name, stage, role, hire date — owner language', () => {
-    const html = renderEmployee(base, null);
-    expect(html).toContain('员工档案');
-    expect(html).toContain('小雅');
-    expect(html).toContain('正式接待');
-    expect(html).toContain('客户接待');
-    expect(html).toContain('入职');
+describe('M9.6 · employee profile (localized)', () => {
+  it('card: name is a per-locale constant; stage/role localized', () => {
+    const zh = renderEmployee(base, 'zh', null);
+    expect(zh).toContain('员工档案'); expect(zh).toContain('小雅');
+    expect(zh).toContain('正式接待'); expect(zh).toContain('客户接待'); expect(zh).toContain('入职');
+    const en = renderEmployee(base, 'en', null);
+    expect(en).toContain('Employee file'); expect(en).toContain('Lily');
+    expect(en).toContain('Customer reception');
+    expect(renderEmployee(base, 'ar', null)).toContain('ياسمين');
   });
 
-  it('工作职责: 现在可以 / 需要确认 / 暂不能 from capability data', () => {
-    const html = renderEmployee(base, null);
-    expect(html).toContain('现在可以');
-    expect(html).toContain('接待问候');
-    expect(html).toContain('需要确认');
-    expect(html).toContain('报价');
-    expect(html).toContain('暂不能');
-    expect(html).toContain('确认订单');
+  it('duties: canDo / needConfirm / cannotDo from capability codes', () => {
+    const zh = renderEmployee(base, 'zh', null);
+    expect(zh).toContain('现在可以'); expect(zh).toContain('接待问候');   // greet
+    expect(zh).toContain('需要确认'); expect(zh).toContain('报价');       // quote
+    expect(zh).toContain('暂不能'); expect(zh).toContain('确认订单');     // confirm_order
+    const en = renderEmployee(base, 'en', null);
+    expect(en).toContain('Can do now'); expect(en).toContain('Greeting');
+    expect(en).toContain('Needs your OK'); expect(en).toContain('Quoting');
+    expect(en).toContain('Cannot do'); expect(en).toContain('Confirming orders');
   });
 
-  it('成长记录 renders real trust events; empty state is honest', () => {
-    const html = renderEmployee(base, null);
-    expect(html).toContain('成长记录');
-    expect(html).toContain('「接待问候」晋升');
-    expect(html).toContain('抽查通过');
-    expect(html).toContain('学会一次修正（报价）');
-    const empty = renderEmployee({ ...base, growth: [] }, null);
-    expect(empty).toContain('还在起步');
+  it('growth: neutral event kinds render localized (with capability name)', () => {
+    const zh = renderEmployee(base, 'zh', null);
+    expect(zh).toContain('成长记录');
+    expect(zh).toContain('「接待问候」晋升');
+    expect(zh).toContain('抽查通过');
+    expect(zh).toContain('学会一次修正（报价）');
+    const en = renderEmployee(base, 'en', null);
+    expect(en).toContain('Promoted: Greeting');
+    expect(en).toContain('Spot-check passed');
+    expect(en).toContain('Learned a correction (Quoting)');
+    expect(renderEmployee({ ...base, growth: [] }, 'en', null)).toContain('Just getting started');
+    expect(renderEmployee({ ...base, growth: [] }, 'zh', null)).toContain('还在起步');
   });
 
-  it('晋升状态 shows stage, next step, and real conditions (no invented score)', () => {
-    const html = renderEmployee(probation, null);
-    expect(html).toContain('晋升状态');
-    expect(html).toContain('试用期');
-    expect(html).toContain('正式接待');
-    expect(html).toContain('通过一次抽查');
-    expect(html).toContain('学会一次修正');
-    // met vs unmet marks
-    expect(html).toContain('✓ 通过一次抽查');
-    expect(html).toContain('○ 学会一次修正');
+  it('promotion: stage, next step, real conditions — no invented score', () => {
+    const zh = renderEmployee(probation, 'zh', null);
+    expect(zh).toContain('晋升状态'); expect(zh).toContain('试用期'); expect(zh).toContain('正式接待');
+    expect(zh).toContain('✓ 通过一次抽查'); expect(zh).toContain('○ 学会一次修正');
+    const en = renderEmployee(probation, 'en', null);
+    expect(en).toContain('Promotion'); expect(en).toContain('Probation');
+    expect(en).toContain('Handling some on her own');
+    expect(en).toContain('✓ Pass one spot-check'); expect(en).toContain('○ Learn one correction');
   });
 
-  it('owner actions: revoke on granted, promote only where eligible', () => {
-    const html = renderEmployee(base, null);
-    expect(html).toContain('action="/app/employee/capability/greet/revoke"');   // greet is auto → revocable
-    expect(html).toContain('action="/app/employee/capability/quote/promote"');  // quote eligible → promotable
-    expect(html).not.toContain('capability/negotiate/promote');                 // not eligible → not offered
-    expect(html).toContain('确认订单永远等你');
+  it('actions: revoke on granted, promote only where eligible, confirm_order note', () => {
+    const en = renderEmployee(base, 'en', null);
+    expect(en).toContain('action="/app/employee/capability/greet/revoke"');
+    expect(en).toContain('action="/app/employee/capability/quote/promote"');
+    expect(en).not.toContain('capability/negotiate/promote');
+    expect(en).toContain('Confirming orders always waits for you');
+    expect(renderEmployee(base, 'zh', null)).toContain('确认订单永远等你');
   });
 
-  it('never shows a confidence score, accuracy, or technical vocabulary', () => {
-    const html = (renderEmployee(base, null) + renderEmployee(probation, null)).toLowerCase();
-    for (const banned of ['ai', 'llm', 'model', 'confidence', 'accuracy', 'automation', 'system', 'api',
-      '置信度', '准确率', '模型', '人工智能', '%']) {
-      const needle = banned.toLowerCase();
-      const hit = /^[a-z ]+$/.test(needle) ? new RegExp(`\\b${needle}\\b`).test(html) : html.includes(needle);
-      expect(hit, `"${banned}"`).toBe(false);
+  it('never shows a confidence score or technical vocabulary — every locale', () => {
+    for (const l of LOCALES) {
+      const html = (renderEmployee(base, l, null) + renderEmployee(probation, l, null)).toLowerCase();
+      for (const banned of ['ai', 'llm', 'model', 'confidence', 'accuracy', 'automation', 'api',
+        '置信度', '准确率', '模型', '人工智能', '%']) {
+        const hit = /^[a-z ]+$/.test(banned) ? new RegExp(`\\b${banned}\\b`).test(html) : html.includes(banned);
+        expect(hit, `${l}:"${banned}"`).toBe(false);
+      }
     }
   });
 
   it('mobile: no tables', () => {
-    expect(renderEmployee(base, null)).not.toContain('<table');
+    expect(renderEmployee(base, 'en', null)).not.toContain('<table');
   });
 });

@@ -162,7 +162,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.body).toMatch(/Inquiries/);            // today summary
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
-    expect(inbox.body).toContain('收件箱');            // inbox body not yet migrated (P2)
+    expect(inbox.body).toContain('Inbox');             // English default
   });
 
   it('ADR-0008 i18n: login/home localize by cookie & Accept-Language, /locale switches', async () => {
@@ -197,12 +197,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const detail = await prod.app.inject({ method: 'GET',
       url: '/app/inbox/de300000-0000-4000-8000-000000000302', headers: { cookie } });
     expect(detail.statusCode).toBe(200);
-    expect(detail.body).toContain('对话记录');
+    expect(detail.body).toContain('Conversation');   // English default
 
     const unknown = await prod.app.inject({ method: 'GET',
       url: '/app/inbox/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
     expect(unknown.statusCode).toBe(404);
-    expect(unknown.body).toContain('找不到这个对话');
+    expect(unknown.body).toContain('Conversation not found');
     // Never reveals whether the id exists in another tenant.
     expect(unknown.body).not.toContain('bb000000');
   });
@@ -224,8 +224,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     const cookie = await login();
     const before = await prod.app.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie } });
-    expect(before.body).toContain('小雅等你确认');
-    expect(before.body).toContain('Draft reply from 小雅');
+    expect(before.body).toContain('Lily is waiting for your OK');   // English default
+    expect(before.body).toContain('Draft reply from 小雅');          // draft text is data, verbatim
 
     // A GET must never send: the draft is still pending after viewing.
     expect(await draftStatus(draftId)).toBe('pending');
@@ -262,9 +262,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('销售渠道');
+    expect(res.body).toContain('Channels');        // English default
     expect(res.body).toContain('WhatsApp');
-    expect(res.body).toContain('即将支持');
+    expect(res.body).toContain('Coming soon');
     expect(res.body).toContain('Instagram');
     for (const secret of ['DEMO_PNID', 'SIM_PNID', 'demo-no-secret', 'access_token', '360dialog']) {
       expect(res.body).not.toContain(secret);
@@ -317,20 +317,20 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const list = await prod.app.inject({ method: 'GET', url: '/app/products', headers: { cookie } });
     expect(list.statusCode).toBe(200);
-    expect(list.body).toContain('产品目录');
-    expect(list.body).toContain('帆布袋');       // demo ZX-100
-    expect(list.body).toContain('已学习');
+    expect(list.body).toContain('Products');     // English default
+    expect(list.body).toContain('ZX-100');       // demo SKU (locale-stable)
+    expect(list.body).toContain('Learned');
 
     const detail = await prod.app.inject({ method: 'GET',
       url: '/app/products/de300000-0000-4000-8000-000000000101', headers: { cookie } });
     expect(detail.statusCode).toBe(200);
-    expect(detail.body).toContain('价格');
-    expect(detail.body).toContain('买家怎么称呼它');   // aliases
+    expect(detail.body).toContain('Pricing');
+    expect(detail.body).toContain('What buyers call it');   // aliases
     expect(detail.body).toContain('canvas bag');
 
     const missing = await prod.app.inject({ method: 'GET',
       url: '/app/products/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
-    expect(missing.body).toContain('找不到这个产品');
+    expect(missing.body).toContain('Product not found');
   });
 
   it('M9.5 TRUST RULE: an unconfirmed (price-less) product is inactive and excluded from quotes', async () => {
@@ -367,15 +367,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('员工档案');
-    expect(res.body).toContain('工作职责');
-    expect(res.body).toContain('现在可以');
-    expect(res.body).toContain('成长记录');
-    expect(res.body).toContain('晋升状态');
-    // demo: greet is promoted (auto) → appears under 现在可以 as 接待问候
-    expect(res.body).toContain('接待问候');
-    // no confidence score / percentage leaks
-    expect(res.body).not.toContain('置信度');
+    expect(res.body).toContain('Employee file');   // English default
+    expect(res.body).toContain('Responsibilities');
+    expect(res.body).toContain('Can do now');
+    expect(res.body).toContain('Growth');
+    expect(res.body).toContain('Promotion');
+    // demo: greet is promoted (auto) → appears under Can do now as Greeting
+    expect(res.body).toContain('Greeting');
+    expect(res.body).not.toContain('置信度');       // no invented score
   });
 
   it('M9.6 capability action: revoke flips autonomy + writes a capability event', async () => {
@@ -435,7 +434,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/conversations', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('客户');
+    expect(res.body).toContain('Customers');   // English default
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
     expect(res.body).toContain('WhatsApp');
@@ -457,9 +456,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       url: '/app/conversations/de300000-0000-4000-8000-000000000301', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
-    expect(res.body).toContain('客户档案');
-    expect(res.body).toContain('首次联系');
-    expect(res.body).toContain('沟通记录');
+    expect(res.body).toContain('Customer file');
+    expect(res.body).toContain('First contact');
+    expect(res.body).toContain('History');
   });
 
   it('M9.7 conversations: unknown id 404s without revealing existence', async () => {
@@ -467,7 +466,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/app/conversations/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
     expect(res.statusCode).toBe(404);
-    expect(res.body).toContain('找不到这位客户');
+    expect(res.body).toContain('Customer not found');
   });
 
   it('M9.8 analytics: requires auth', async () => {
@@ -480,11 +479,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/analytics?range=month', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('经营数据');
-    expect(res.body).toContain('本月概况');
-    expect(res.body).toContain('新增客户');
-    expect(res.body).toContain('沟通趋势');
-    expect(res.body).toContain('小雅工作总结');
+    expect(res.body).toContain('Business review');   // English default
+    expect(res.body).toContain('Overview');
+    expect(res.body).toContain('New customers');
+    expect(res.body).toContain('Activity');
+    expect(res.body).toContain("Lily's work");
     expect(res.body).not.toContain('<svg');    // no fabricated chart
     expect(res.body).not.toContain('<table');  // mobile: no wide tables
     // Visible content (styles + hrefs stripped) carries no rate/score vocabulary.
