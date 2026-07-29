@@ -10,7 +10,8 @@ import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
 import { driveConversationOutbound } from './outbound/worker.js';
-import { QUEUES, enqueueInbound } from './queue/boss.js';
+import { QUEUES, enqueueInbound, type NotifyJob } from './queue/boss.js';
+import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
@@ -292,6 +293,13 @@ export async function buildProduction(
         { businessId: job.data.businessId, conversationId: job.data.conversationId },
         { startAfter: 1, singletonKey: job.data.conversationId });
     }
+  });
+
+  // P3: owner alerts. QUEUES.notify → resolve owner locale/destination → send the
+  // localized alert through the SAME adapter. Registered only with messaging live.
+  await boss.work<NotifyJob>(QUEUES.notify, async ([job]: { data: NotifyJob }[]) => {
+    if (!job) return;
+    await deliverOwnerAlert({ db, adapter }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
   const app = buildIngressApp({

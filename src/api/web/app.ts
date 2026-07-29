@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Db } from '../../db/client.js';
+import { sql } from 'kysely';
+import { withTenantTx, type Db } from '../../db/client.js';
 import { loadHomeData, renderHome } from './home.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
@@ -125,6 +126,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const flags = ['Path=/', 'SameSite=Lax', 'Max-Age=31536000'];
       if (deps.secureCookie) flags.push('Secure');
       reply.header('set-cookie', `${LOCALE_COOKIE}=${set}; ${flags.join('; ')}`);
+      // Persist for the logged-in owner so WhatsApp alerts use the same language.
+      const s = sessionOf(req);
+      const bid = s ? parseBusinessId(s.businessId) : null;
+      if (bid?.ok) {
+        try {
+          await withTenantTx(deps.db, bid.value, (tx) =>
+            sql`update businesses set owner_locale = ${set} where id = ${bid.value}`.execute(tx));
+        } catch { /* best-effort: the cookie already applied the switch */ }
+      }
     }
     return reply.redirect(next);
   });

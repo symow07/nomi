@@ -92,6 +92,28 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  it('P3 runtime path: QUEUES.notify → consumer → adapter delivers the owner alert', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    await withTenantTx(prod.db, parsed.value, (tx) =>
+      sql`update businesses set owner_locale='en', owner_phone='+8613800000001' where id=${parsed.value}`.execute(tx));
+
+    const before = sim.sentIds.length;
+    // Enqueue a neutral alert; the consumer registered by buildProduction must
+    // resolve the destination and deliver through the SAME adapter (sim records the send).
+    await prod.boss.send('notify.team', { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null });
+    let delivered = false;
+    for (let i = 0; i < 50; i++) {
+      if (sim.sentIds.length > before) { delivered = true; break; }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(delivered).toBe(true);   // the notify consumer is wired and sent via the adapter
+
+    await withTenantTx(prod.db, parsed.value, (tx) =>
+      sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
+  }, 15_000);
+
   it('shuts down cleanly and idempotently', async () => {
     await prod.close();
     await prod.close();   // second call must be a no-op
@@ -527,6 +549,67 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // same range on the demo DOES have data → the two tenants are isolated
     const demo = await loadAnalytics(prod.db, DEMO_BIZ, 'month');
     expect(demo.summary.newClients).toBeGreaterThan(0);
+  });
+
+  it('P3 owner alert: consumer resolves persisted locale + destination, sends localized (en/zh/ar)', async () => {
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const setOwner = (loc: string, phone: string | null) => withTenantTx(prod.db, bidv, (tx) =>
+      sql`update businesses set owner_locale=${loc}, owner_phone=${phone} where id=${bidv}`.execute(tx));
+    const sent: { to: string; body: string }[] = [];
+    const rec = { sendText: async (to: string, body: string) => { sent.push({ to, body }); return { ok: true as const, providerMessageId: 'x' }; } };
+    const job = (kind: 'hot_lead' | 'handoff') => ({ businessId: DEMO_BIZ, kind, conversationId: null });
+
+    await setOwner('zh', '+8613800000000');
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'))).toBe('sent');
+    expect(sent).toHaveLength(1);                    // exactly one send — no duplicate
+    expect(sent[0]!.to).toBe('+8613800000000');      // persisted destination
+    expect(sent[0]!.body).toContain('小雅');          // zh
+
+    await setOwner('en', '+8613800000000');
+    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'));
+    expect(sent[1]!.body).toContain('Lily');          // locale switched to en
+
+    await setOwner('ar', '+8613800000000');
+    await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('handoff'));
+    expect(sent[2]!.body).toContain('ياسمين');        // ar
+
+    await setOwner('en', null);                        // restore
+  });
+
+  it('P3 owner alert: no destination → skipped, never a fake send', async () => {
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
+    const sent: unknown[] = [];
+    const rec = { sendText: async () => { sent.push(1); return { ok: true as const, providerMessageId: 'x' }; } };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('skipped_no_destination');
+    expect(sent).toHaveLength(0);
+  });
+
+  it('P3 owner alert: retryable failure throws (pg-boss retries); permanent does not', async () => {
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_locale='en', owner_phone='+8613800000009' where id=${parsed.value}`.execute(tx));
+    const j = { businessId: DEMO_BIZ, kind: 'hot_lead' as const, conversationId: null };
+
+    const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
+    await expect(deliverOwnerAlert({ db: prod.db, adapter: retry }, j)).rejects.toThrow();
+
+    const perm = { sendText: async () => ({ ok: false as const, retryable: false, error: 'invalid number' }) };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: perm }, j)).toBe('failed_permanent');
+
+    await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   });
 
   async function login(): Promise<string> {

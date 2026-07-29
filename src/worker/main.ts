@@ -7,6 +7,7 @@ import { anthropicAnalyzer, anthropicReplyWriter } from '../llm/anthropic.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
+import { alertKindFor } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
 
 /**
@@ -63,17 +64,13 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
         channel: 'auto',
       }, { singletonKey: job.data.messageId });
     }
-    if (effects.hotLeadAlert || effects.handoffAlert) {
-      const notify: NotifyJob = {
-        businessId: job.data.businessId,
-        kind: effects.handoffAlert ? 'handoff' : 'hot_lead',
-        conversationId: job.data.conversationId,
-        // M1: owner-facing copy is Chinese, employee language, never technical.
-        summary: effects.handoffAlert
-          ? '买家想找真人谈，已暂停回复，等你接手'
-          : '有大买家信号，正在继续跟进（今晚总结里有详情）',
-      };
-      await boss.send(QUEUES.notify, notify, {});
+    // P3: enqueue a language-NEUTRAL alert code; the notify consumer localizes.
+    // singletonKey dedups concurrent alerts for the same event.
+    const alertKind = alertKindFor(effects);
+    if (alertKind) {
+      await boss.send(QUEUES.notify, {
+        businessId: job.data.businessId, kind: alertKind, conversationId: job.data.conversationId,
+      } satisfies NotifyJob, { singletonKey: `${job.data.businessId}:${alertKind}:${job.data.conversationId}` });
     }
     if (effects.orderCreated) {
       await boss.send(QUEUES.orderEffects, {
@@ -89,12 +86,12 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
     await boss.work(`${name}.dead`, async ([job]: { data: unknown }[]) => {
       if (!job) return;
       console.error(`[DEAD LETTER] ${name}`, redactSecrets(JSON.stringify(job.data)).slice(0, 500));
+      // Never re-notify for a failed owner-notification — that would loop.
+      if (name === QUEUES.notify) return;
+      const businessId = (job.data as { businessId?: string }).businessId ?? 'unknown';
       await boss.send(QUEUES.notify, {
-        businessId: (job.data as { businessId?: string }).businessId ?? 'unknown',
-        kind: 'dead_letter',
-        conversationId: null,
-        summary: `Job exhausted retries on ${name}`,
-      } satisfies NotifyJob, {});
+        businessId, kind: 'dead_letter', conversationId: null,
+      } satisfies NotifyJob, { singletonKey: `${businessId}:dead_letter:${name}` });
     });
   }
 
