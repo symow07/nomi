@@ -7,6 +7,7 @@ const connected: ChannelsData = {
     kind: 'whatsapp', connected: true, status: 'connected', healthOk: true,
     displayId: '+86 579****0001', lastActivityAt: new Date(), problem: null,
   },
+  ownerPhone: '+8613800000000',
 };
 
 const notConnected: ChannelsData = {
@@ -14,6 +15,7 @@ const notConnected: ChannelsData = {
     kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   },
+  ownerPhone: null,
 };
 
 const needsAttention: ChannelsData = {
@@ -21,6 +23,7 @@ const needsAttention: ChannelsData = {
     kind: 'whatsapp', connected: false, status: 'needs_attention', healthOk: false,
     displayId: '+86 579****0001', lastActivityAt: null, problem: 'needs_relogin',
   },
+  ownerPhone: null,
 };
 
 describe('M9.4 · channel center (localized)', () => {
@@ -63,6 +66,17 @@ describe('M9.4 · channel center (localized)', () => {
     for (const c of ['Instagram', 'Messenger', 'Telegram', 'WeCom', 'RED']) expect(en).toContain(c);
     expect(en).not.toMatch(/Instagram[^<]*Connected/);
     expect(renderChannels(connected, 'zh', null)).toContain('企业微信'); // WeCom localized in zh
+  });
+
+  it('owner alert-number card: localized, shows current number, posts to the settings action', () => {
+    const en = renderChannels(connected, 'en', null);
+    expect(en).toContain('Alert number');
+    expect(en).toContain('action="/app/settings/owner-phone"');
+    expect(en).toContain('+8613800000000');                 // current value shown
+    const none = renderChannels(notConnected, 'en', null);
+    expect(none).toContain('Not set');                        // honest empty state
+    expect(renderChannels(connected, 'zh', null)).toContain('通知号码');
+    expect(renderChannels(connected, 'ar', null)).toContain('رقم التنبيهات');
   });
 
   it('flash renders after an action', () => {

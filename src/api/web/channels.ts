@@ -5,6 +5,7 @@ import { deriveHealth, type ChannelStatus } from '../../core/channel/health.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
+import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { esc } from './layout.js';
 
 /**
@@ -42,7 +43,7 @@ export type ChannelView = {
   readonly problem: ChannelProblem;
 };
 
-export type ChannelsData = { readonly whatsapp: ChannelView };
+export type ChannelsData = { readonly whatsapp: ChannelView; readonly ownerPhone: string | null };
 
 export async function loadChannels(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
@@ -52,9 +53,11 @@ export async function loadChannels(
     kind: KIND, connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
-  if (!bid.ok) return { whatsapp: notConnected };
+  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null };
 
   return withTenantTx(db, bid.value, async (tx) => {
+    const ownerPhone = (await sql<{ p: string | null }>`
+      select owner_phone as p from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.p ?? null;
     const row = (await sql<{
       status: string; display_phone: string | null;
       last_inbound_at: Date | null; last_delivered_at: Date | null; last_webhook_at: Date | null;
@@ -68,7 +71,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -80,6 +83,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: row.display_phone, lastActivityAt: null, problem: problemFor(health.status),
         },
+        ownerPhone,
       };
     }
 
@@ -101,8 +105,30 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
+      ownerPhone,
     };
   });
+}
+
+/** ── Owner alert-destination setting (minimal action; validated + audited) ── */
+
+export type OwnerPhoneResult = { readonly code: 'saved' | 'cleared' | 'invalid' };
+
+export async function saveOwnerPhone(db: Db, businessIdRaw: string, rawPhone: string, actor: string): Promise<OwnerPhoneResult> {
+  const v = validateOwnerPhone(rawPhone);
+  if (!v.ok) return { code: 'invalid' };
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'invalid' };
+  await withTenantTx(db, bid.value, async (tx) => {
+    await sql`update businesses set owner_phone = ${v.value} where id = ${bid.value}`.execute(tx);
+    // Audit: store only a last-4 (not the full number), never a secret.
+    const detail = JSON.stringify(v.value ? { last4: v.value.slice(-4) } : { cleared: true });
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, (select id from channels where business_id = ${bid.value} and kind = ${KIND} limit 1),
+              'set_owner_phone', ${actor}, ${detail}::jsonb)`.execute(tx);
+  });
+  return { code: v.value ? 'saved' : 'cleared' };
 }
 
 /** ── State actions — real effects on channel_credentials, audited ─────────── */
@@ -199,6 +225,17 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
       <div class="ch-acts">${actions}</div>
     </div>`;
 
+  const alertsCard = `<div class="card">
+    <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
+    <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <form method="post" action="/app/settings/owner-phone" class="ownerform">
+      <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
+      <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" />
+      <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
+    </form>
+    <p class="muted" style="font-size:12px">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
+  </div>`;
+
   const soon = `<div class="card">
     <h2>${esc(t(locale, 'channel.soon.title'))}</h2>
     <div class="soon">${COMING_SOON.map((c) => `<span class="soon-chip">${esc('literal' in c ? c.literal : t(locale, c.key))}</span>`).join('')}</div>
@@ -208,6 +245,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${whatsappCard}
+    ${alertsCard}
     ${soon}
     <p class="muted" style="font-size:12px">${esc(t(locale, 'channel.footer'))}</p>
     ${CHANNELS_STYLE}`;
@@ -239,6 +277,8 @@ const CHANNELS_STYLE = `<style>
   .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; } .btn.danger { background:#3a2020; color:#f8b4b4; }
   .pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap; }
   .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; }
+  .ownerform { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+  .ownerform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .soon-chip { background:#0f1216; border:1px solid #23272e; border-radius:999px; padding:6px 14px; color:#8b929c; font-size:13px; }
   .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }

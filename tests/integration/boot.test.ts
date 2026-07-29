@@ -612,6 +612,53 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_phone=null where id=${parsed.value}`.execute(tx));
   });
 
+  it('P3 settings: owner can save/clear the alert number; it audits; alerts then resolve', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const { sql } = await import('kysely');
+    const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
+    const bidv = parsed.value;
+    const phoneOf = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ p: string | null }>`select owner_phone as p from businesses where id=${bidv}`.execute(tx).then((r) => r.rows[0]!.p));
+    const auditCount = () => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ n: number }>`select count(*)::int n from channel_audit where business_id=${bidv} and action='set_owner_phone'`.execute(tx).then((r) => r.rows[0]!.n));
+    await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set owner_phone=null where id=${bidv}`.execute(tx));
+
+    const cookie = await login();
+    const before = await auditCount();
+    const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=%2B8613800000042' });
+    expect(save.statusCode).toBe(302);
+    expect(save.headers['location']).toContain('/app/channels?flash=');
+    expect(await phoneOf()).toBe('+8613800000042');       // saved
+    expect(await auditCount()).toBe(before + 1);          // audited
+
+    // A notification now resolves the destination.
+    const sent: { to: string }[] = [];
+    const rec = { sendText: async (to: string) => { sent.push({ to }); return { ok: true as const, providerMessageId: 'x' }; } };
+    expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('sent');
+    expect(sent[0]!.to).toBe('+8613800000042');
+
+    // invalid input is rejected — number unchanged.
+    const bad = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=not-a-number' });
+    expect(bad.headers['location']).toContain('flash=');
+    expect(await phoneOf()).toBe('+8613800000042');       // unchanged
+
+    // clear
+    await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=' });
+    expect(await phoneOf()).toBeNull();
+  });
+
+  it('P3 settings: unauthenticated cannot change the alert number', async () => {
+    const res = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=%2B8613800000099' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+  });
+
   async function login(): Promise<string> {
     const ok = await prod.app.inject({ method: 'POST', url: '/login',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

@@ -8,7 +8,7 @@ import {
 } from './inbox.js';
 import {
   loadChannels, renderChannels, renderConnectGuide, channelFlash,
-  disconnectChannel, reconnectChannel, testChannel,
+  disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone,
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
@@ -213,6 +213,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   channelAction('/app/channels/whatsapp/disconnect', (b) => disconnectChannel(deps.db, b, 'owner'));
   channelAction('/app/channels/whatsapp/reconnect', (b) => reconnectChannel(deps.db, b, 'owner'));
   channelAction('/app/channels/whatsapp/test', (b) => testChannel(deps.db, b, 'owner', messagingEnabled));
+
+  // P3 follow-up: owner alert destination (minimal action, validated + audited).
+  app.post('/app/settings/owner-phone', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
+    const r = await saveOwnerPhone(deps.db, s.businessId, phone, 'owner');
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(localeOf(req), `settings.flash.${r.code}` as MessageKey))}`);
+  });
 
   // Re-render the channels page with a flash after a redirect (?flash=).
   app.get('/app/channels', async (req, reply) => {

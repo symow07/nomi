@@ -29,6 +29,14 @@ export function renderOwnerAlert(locale: Locale, kind: AlertKind): string {
   return t(locale, `notify.${key}` as MessageKey, { name: EMPLOYEE_NAME[locale] });
 }
 
+/** Owner alert destination input: '' clears it; a valid E.164-ish number, else invalid. */
+export function validateOwnerPhone(raw: string): { ok: true; value: string | null } | { ok: false } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { ok: true, value: null };            // clear
+  const cleaned = trimmed.replace(/[\s().\-]/g, '');
+  return /^\+\d{8,15}$/.test(cleaned) ? { ok: true, value: cleaned } : { ok: false };
+}
+
 export type NotifyDeps = {
   readonly db: Db;
   readonly adapter: { sendText(to: string, body: string): Promise<SendResult> };

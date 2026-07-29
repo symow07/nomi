@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { alertKindFor, renderOwnerAlert, type AlertKind } from '../../src/pipeline/notify.js';
+import { alertKindFor, renderOwnerAlert, validateOwnerPhone, type AlertKind } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 describe('P3 · owner alerts (pure)', () => {
@@ -30,6 +30,17 @@ describe('P3 · owner alerts (pure)', () => {
     for (const l of LOCALES) {
       expect(renderOwnerAlert(l, 'delivery_failed')).toBe(renderOwnerAlert(l, 'dead_letter'));
     }
+  });
+
+  it('validateOwnerPhone: accepts E.164, normalizes spacing, clears on empty, rejects junk', () => {
+    expect(validateOwnerPhone('+8613800000000')).toEqual({ ok: true, value: '+8613800000000' });
+    expect(validateOwnerPhone(' +86 138 0000 0000 ')).toEqual({ ok: true, value: '+8613800000000' });
+    expect(validateOwnerPhone('')).toEqual({ ok: true, value: null });       // clear
+    expect(validateOwnerPhone('   ')).toEqual({ ok: true, value: null });
+    expect(validateOwnerPhone('13800000000')).toEqual({ ok: false });        // no +
+    expect(validateOwnerPhone('not-a-number')).toEqual({ ok: false });
+    expect(validateOwnerPhone('+12')).toEqual({ ok: false });                // too short
+    expect(validateOwnerPhone('+1234567890123456')).toEqual({ ok: false });  // too long
   });
 
   it('no technical vocabulary in any alert / locale', () => {
