@@ -68,9 +68,9 @@ export type OutboundJob = {
 
 export type NotifyJob = {
   businessId: string;
+  // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
   kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter';
   conversationId: string | null;
-  summary: string;
 };
 
 /**
