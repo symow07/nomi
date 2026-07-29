@@ -42,15 +42,18 @@ export async function loadCapabilityEvidence(tx: Tx, capability: string): Promis
 /** confirm_order is permanently the owner's — never promotable. */
 export const NON_PROMOTABLE: readonly string[] = ['confirm_order'];
 
+/** Neutral result code (ADR-0008); the route localizes the flash. */
+export type CapabilityFlash = 'promoted' | 'revoked' | 'confirm_order_blocked' | 'failed';
+
 async function changeMode(
   db: Db, businessIdRaw: string, capability: string,
   toMode: 'auto' | 'draft', action: string, reason: string, actor: string,
-): Promise<{ ok: boolean; messageZh: string }> {
+): Promise<{ ok: boolean; code: CapabilityFlash }> {
   if (NON_PROMOTABLE.includes(capability) && toMode === 'auto') {
-    return { ok: false, messageZh: '确认订单永远由你来，不能放权。' };
+    return { ok: false, code: 'confirm_order_blocked' };
   }
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { ok: false, messageZh: '操作失败。' };
+  if (!bid.ok) return { ok: false, code: 'failed' };
   await withTenantTx(db, bid.value, async (tx) => {
     const cur = (await sql<{ mode: string }>`
       select mode from autonomy_policy where business_id = ${bid.value} and capability = ${capability}`.execute(tx)).rows[0];
@@ -62,7 +65,7 @@ async function changeMode(
       insert into capability_events (business_id, capability, action, from_mode, to_mode, reasons, actor)
       values (${bid.value}, ${capability}, ${action}, ${fromMode}, ${toMode}, array[${reason}], ${actor})`.execute(tx);
   });
-  return { ok: true, messageZh: toMode === 'auto' ? '已放权，这类事她可以自己做了，随时可以收回。' : '已收回，这项以后先等你确认。' };
+  return { ok: true, code: toMode === 'auto' ? 'promoted' : 'revoked' };
 }
 
 export const promoteCapability = (db: Db, biz: string, cap: string, actor: string) =>

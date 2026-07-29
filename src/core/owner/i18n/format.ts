@@ -38,3 +38,16 @@ export function formatTime(locale: Locale, d: Date): string {
     timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(d);
 }
+
+const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم' };
+const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس' };
+const dayKey = (d: Date): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+/** "Today 09:15" / "昨天 23:40" / "Jul 17 09:15" — relative day words + time. */
+export function formatRelative(locale: Locale, d: Date, now: Date): string {
+  const time = formatTime(locale, d);
+  if (dayKey(d) === dayKey(now)) return `${TODAY[locale]} ${time}`;
+  if (dayKey(d) === dayKey(new Date(now.getTime() - 86_400_000))) return `${YESTERDAY[locale]} ${time}`;
+  return `${formatDate(locale, d)} ${time}`;
+}

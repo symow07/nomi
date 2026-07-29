@@ -72,10 +72,13 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
   return out;
 }
 
+/** Neutral reject code (ADR-0008); reasonZh is kept for the P3 onboarding flow. */
+export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq';
+
 export type ValidatedImport = {
   readonly accepted: readonly ExtractedProduct[];
-  /** Rejected with a reason the confirm card can show. */
-  readonly rejected: readonly { readonly product: ExtractedProduct; readonly reasonZh: string }[];
+  /** Rejected with a reason the confirm card can show — a code plus zh text. */
+  readonly rejected: readonly { readonly product: ExtractedProduct; readonly reason: RejectReason; readonly reasonZh: string }[];
 };
 
 export function validateExtracted(products: readonly ExtractedProduct[]): ValidatedImport {
@@ -85,13 +88,13 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
   for (const p of products) {
     const key = p.name.toLowerCase();
     if (p.name.length < 2 || p.name.length > 120) {
-      rejected.push({ product: p, reasonZh: '名字没认出来' });
+      rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
-      rejected.push({ product: p, reasonZh: '重复了' });
+      rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });
     } else if (p.priceUsd !== null && (p.priceUsd <= 0 || p.priceUsd > 100_000)) {
-      rejected.push({ product: p, reasonZh: '价格看着不对' });
+      rejected.push({ product: p, reason: 'bad_price', reasonZh: '价格看着不对' });
     } else if (p.moq !== null && (!Number.isInteger(p.moq) || p.moq <= 0)) {
-      rejected.push({ product: p, reasonZh: '起订量看着不对' });
+      rejected.push({ product: p, reason: 'bad_moq', reasonZh: '起订量看着不对' });
     } else {
       seen.add(key);
       accepted.push(p);
