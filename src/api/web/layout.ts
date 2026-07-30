@@ -14,6 +14,7 @@ export const NAV: readonly { readonly href: string; readonly id: string; readonl
   { href: '/app/conversations', id: 'conversations', icon: '💬' },
   { href: '/app/channels',      id: 'channels',      icon: '🔗' },
   { href: '/app/products',      id: 'products',      icon: '📦' },
+  { href: '/app/knowledge',     id: 'knowledge',     icon: '📚' },
   { href: '/app/employee',      id: 'employee',      icon: '🧑‍💼' },
   { href: '/app/analytics',     id: 'analytics',     icon: '📊' },
   { href: '/app/sandbox',       id: 'sandbox',       icon: '🧪' },

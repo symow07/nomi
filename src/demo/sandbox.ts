@@ -57,6 +57,12 @@ export function sandboxSeedSql(): string {
     `insert into autonomy_policy (business_id, capability)`,
     `  select '${B}', c from (values ('greet'),('qualify'),('recommend'),('quote'),('negotiate'),('confirm_order'),('follow_up')) v(c)`,
     `  on conflict do nothing;`,
+
+    // One taught fact so the sandbox shows factory-awareness on the first message.
+    // Idempotent by a NOT EXISTS guard (no natural key on product_knowledge).
+    `insert into product_knowledge (business_id, product_id, kind, label, content, source)`,
+    `  select '${B}', null, 'faq', '${esc('Can you print our logo?')}', '${esc('Yes, we can print your logo in up to 4 colors.')}', 'system_seed'`,
+    `  where not exists (select 1 from product_knowledge where business_id = '${B}' and label = '${esc('Can you print our logo?')}');`,
   ];
   return out.join('\n');
 }

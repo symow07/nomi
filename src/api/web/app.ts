@@ -22,6 +22,10 @@ import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { loadOnboarding, renderOnboarding } from './onboarding.js';
 import {
+  loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
+  teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
+} from './knowledge.js';
+import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
@@ -358,6 +362,59 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveBusinessProfile(deps.db, s.businessId, input, 'owner');
     const flash = t(locale, r.code === 'saved' ? 'settings.flash.profileSaved' : 'settings.flash.profileInvalid');
     return reply.redirect(`/app/settings?flash=${encodeURIComponent(flash)}`);
+  });
+
+  // ── M13 Factory Knowledge: teach/correct product + business knowledge ──────
+  app.get('/app/knowledge', authed('knowledge', async (s, _req, locale) =>
+    renderKnowledgeIndex(await loadKnowledgeIndex(deps.db, s.businessId), locale)));
+
+  app.get('/app/knowledge/:id', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const d = await loadProductKnowledge(deps.db, s.businessId, id);
+    if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.knowledge'), active: 'knowledge',
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="card"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
+    }));
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'nav.knowledge'), active: 'knowledge',
+      bodyHtml: renderProductKnowledge(d, locale, flash),
+    }));
+  });
+
+  // Teach/correct/archive/cert → redirect back to the product page (or the index
+  // for business-level rows) with a localized flash. All owner-authenticated.
+  const kBack = (reply: FastifyReply, req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') => {
+    const flash = encodeURIComponent(t(localeOf(req), `knowledge.flash.${code}` as MessageKey));
+    return reply.redirect(productId ? `/app/knowledge/${encodeURIComponent(productId)}?flash=${flash}` : '/app/knowledge');
+  };
+  app.post('/app/knowledge/teach', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };
+    const productId = b.productId ? String(b.productId) : null;
+    const r = await teachKnowledge(deps.db, s.businessId, { productId, kind: String(b.kind ?? ''), label: String(b.label ?? ''), content: String(b.content ?? '') });
+    return kBack(reply, req, productId ?? '', r.code);
+  });
+  app.post('/app/knowledge/correct', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as { id?: string; content?: string; productId?: string };
+    const r = await correctKnowledge(deps.db, s.businessId, String(b.id ?? ''), String(b.content ?? ''));
+    return kBack(reply, req, String(b.productId ?? ''), r.code);
+  });
+  app.post('/app/knowledge/archive', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as { id?: string; productId?: string };
+    const r = await archiveKnowledge(deps.db, s.businessId, String(b.id ?? ''));
+    return kBack(reply, req, String(b.productId ?? ''), r.code);
+  });
+  app.post('/app/knowledge/cert', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as { productId?: string; key?: string; allowed?: string };
+    const r = await setCertification(deps.db, s.businessId, String(b.key ?? ''), b.allowed === '1');
+    return kBack(reply, req, String(b.productId ?? ''), r.code);
   });
 
   // ── M12.2 Interactive pilot sandbox ───────────────────────────────────────
