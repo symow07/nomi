@@ -12,6 +12,7 @@ import type {
 import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim } from '../core/safety/claims.js';
 import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js';
+import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -40,6 +41,17 @@ export interface Tenant {
   readonly audit: AuditRepo;
   readonly autonomy: AutonomyRepo;
   readonly drafts: DraftRepo;
+  readonly knowledge: KnowledgeRepo;
+}
+
+/**
+ * product_knowledge (migration 0018): descriptive facts the employee answers
+ * from. The turn only READS — it retrieves the identified product's active
+ * rows + business-level, ranked by relevance then confidence tier. Teaching
+ * and correcting live in the owner UI (src/api/web/knowledge.ts), not here.
+ */
+export interface KnowledgeRepo {
+  retrieve(input: { query: string; productId: string | null; k: number }): Promise<KnowledgeSnippet[]>;
 }
 
 /** autonomy_policy rows for this business — the draft/auto routing (migration 0009). */

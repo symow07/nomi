@@ -9,8 +9,9 @@ import { decideTurn, type Analysis, type TurnDecision } from '../core/conversati
 import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
-import { guardNumerals } from '../core/safety/numerals.js';
+import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
+import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
@@ -40,6 +41,9 @@ import type { DecisionFingerprint } from '../shadow/compare.js';
 
 export const UNCLAIMED_AGENT = 'unclaimed';
 
+/** A buyer question this close to a taught FAQ/answer ships that answer verbatim. */
+export const FAQ_ANSWER_MIN_RELEVANCE = 0.3;
+
 export type TurnPorts = {
   tenant: Tenant;
   retriever: Retriever;
@@ -62,7 +66,11 @@ export type TurnResult = {
   quoteInputs: unknown;           // snapshot for the quotes table (reproducibility)
   quoteRefusal: QuoteRefusal | null;
   reply: string | null;           // null = silent (handed off)
-  replyDeterministic: boolean;    // true when the reply came from a template
+  replyDeterministic: boolean;    // true when the reply came from a template / taught answer
+  /** M13: taught facts provided to this reply (identified product + business-level). */
+  knowledge: readonly KnowledgeSnippet[];
+  /** M13: the knowledge row ids that SUPPORTED the reply (audit). */
+  knowledgeUsed: readonly string[];
   newState: ConversationState;
   signals: readonly Signal[];
   stateBefore: ConversationState;
@@ -211,6 +219,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let replyDeterministic = false;
   let guardViolations = 0;
   let confirmBlockedReasons: readonly string[] = [];
+  let knowledge: readonly KnowledgeSnippet[] = [];
+  let knowledgeUsed: readonly string[] = [];
 
   switch (decision.action.kind) {
     case 'silent':
@@ -255,6 +265,38 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const nextQuestion =
         analysis?.intent.nextLogicalQuestion ?? refusalCtx?.note ?? null;
 
+      // ── M13: enrich AFTER product identification, BEFORE reply generation.
+      // Retrieve taught facts for the identified product + business-level. The
+      // numeral guard's allow-set gains numbers ONLY from the identified
+      // product's rows (decision 1) — business-level facts inform prose, never
+      // license a number. Certifications are absent here (they gate via claims).
+      const identifiedProductId = decision.product?.productId ?? null;
+      knowledge = await tenant.knowledge.retrieve({ query: req.text, productId: identifiedProductId, k: 6 });
+      const knowledgeNumbers = identifiedProductId === null ? [] : knowledge
+        .filter((s) => s.productId === identifiedProductId)
+        .flatMap((s) => extractNumerals(`${s.label} ${s.content}`).map((n) => n.value));
+      const numeralAllow = [...(refusalCtx?.allow ?? []), ...knowledgeNumbers];
+
+      // Deterministic answer path: a strong FAQ / buyer_answer match ships the
+      // owner's authored answer (claims-guarded — an unauthorised cert in the
+      // answer still cannot pass), no LLM, no tokens. This is what makes the
+      // teach→answer→correct loop deterministic and provable in the sandbox.
+      const faq = knowledge.find((s) => ANSWER_KINDS.has(s.kind) && s.relevance >= FAQ_ANSWER_MIN_RELEVANCE);
+      if (faq) {
+        const answerAllow = [...numeralAllow, ...extractNumerals(faq.content).map((n) => n.value)];
+        const claimed = guardClaims({ reply: faq.content, policy: claimsPolicy });
+        const guarded = claimed.ok
+          ? guardNumerals({ reply: claimed.value, quote, state: newState, clientText: req.text, allow: answerAllow })
+          : null;
+        if (guarded?.ok) {
+          reply = guarded.value;
+          replyDeterministic = true;
+          knowledgeUsed = [faq.id];
+        }
+        // guards failed → fall through to the (also guarded) generative path;
+        // the raw answer never ships.
+      }
+
       const tw = Date.now();
       for (let attempt = 0; attempt < 2 && reply === null; attempt++) {
         const w = await replyWriter.write({
@@ -264,6 +306,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           replyLanguage,
           nextQuestion,
           retryAfterViolation: attempt > 0,
+          knowledge,
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
@@ -274,7 +317,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           quote,
           state: newState,
           clientText: req.text,
-          allow: refusalCtx?.allow ?? [],
+          // M13: the identified product's taught numbers are sourced, like the quote's.
+          allow: numeralAllow,
         });
         if (!guarded.ok) { guardViolations++; continue; }
         // The claims guard runs beside the numeral guard: numeral-free
@@ -283,6 +327,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         const claimed = guardClaims({ reply: guarded.value, policy: claimsPolicy });
         if (!claimed.ok) { guardViolations++; continue; }
         reply = claimed.value;
+        knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
       if (reply === null) {
         // Two violations: the model does not get a third chance to invent a
@@ -319,7 +364,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   timings.totalMs = Date.now() - t0;
   return {
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
-    reply, replyDeterministic, newState, signals,
+    reply, replyDeterministic, knowledge, knowledgeUsed, newState, signals,
     stateBefore: state,
     provenance: { promptVersion, modelId },
     guardViolations,
@@ -434,6 +479,11 @@ export async function commitTurn(
   }
   if (r.decision.injectionDetected) {
     await tenant.events.append(req.conversationId, 'injection_blocked', {});
+  }
+  // M13: which taught knowledge rows supported this reply (usage audit).
+  if (r.knowledgeUsed.length > 0) {
+    await tenant.events.append(req.conversationId, 'knowledge_used',
+      { ids: r.knowledgeUsed, messageId: req.messageId, deterministic: r.replyDeterministic });
   }
 
   // ── The trust loop: auto-send vs. pending draft ─────────────────────────

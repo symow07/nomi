@@ -1,7 +1,9 @@
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
-  EventLog, OrderRepo, SignalRepo, Tenant,
+  EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant,
 } from '../../src/db/ports.js';
+import type { KnowledgeSnippet } from '../../src/core/types/knowledge.js';
+import { SOURCE_RANK } from '../../src/core/types/knowledge.js';
 import type { AutonomyGrant } from '../../src/core/conversation/autonomy.js';
 import type { Retriever, RetrievedProduct } from '../../src/retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../../src/llm/ports.js';
@@ -134,10 +136,40 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  // Knowledge (M13). Seed rows via knowledgeRows; retrieve mirrors the real
+  // scope (identified product + business-level, active), token-overlap ranked.
+  knowledgeRows: Array<{
+    id: string; productId: string | null; kind: KnowledgeSnippet['kind'];
+    label: string; content: string; source: KnowledgeSnippet['source']; status: 'active' | 'archived';
+  }> = [];
+
+  knowledge: KnowledgeRepo = {
+    retrieve: async ({ query, productId, k }) => {
+      const q = tokens(query);
+      return this.knowledgeRows
+        .filter((r) => r.status === 'active' && (r.productId === productId || r.productId === null))
+        .map((r) => {
+          const hay = new Set(tokens(`${r.label} ${r.content}`));
+          const hit = q.filter((w) => hay.has(w)).length;
+          const relevance = q.length ? hit / q.length : 0;
+          return {
+            id: r.id, productId: r.productId, kind: r.kind, label: r.label,
+            content: r.content, source: r.source, relevance,
+          } satisfies KnowledgeSnippet;
+        })
+        .filter((s) => s.relevance > 0)
+        .sort((a, b) => b.relevance - a.relevance || SOURCE_RANK[b.source] - SOURCE_RANK[a.source])
+        .slice(0, k);
+    },
+  };
+
   seed(id: ConversationId, state: ConversationState): void {
     this.states.set(id, state);
   }
 }
+
+const tokens = (s: string): string[] =>
+  s.toLowerCase().split(/[^a-z0-9一-鿿]+/).filter((w) => w.length > 1);
 
 export class FakeRetriever implements Retriever {
   calls = 0;

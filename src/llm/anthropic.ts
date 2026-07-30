@@ -137,11 +137,12 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
-        // The ONLY numbers the model ever sees are the quote's. (ADR-0006)
+        // The ONLY numbers the model ever sees are the quote's + the identified
+        // product's taught facts. (ADR-0006 + M13; guardNumerals enforces it.)
         quote: quote && {
           unit_price_usd: quote.unitPriceUsd,
           discount_pct: quote.discountPct,
@@ -149,13 +150,16 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
           moq: quote.moq,
           lead_time_days: quote.leadTimeDays,
         },
+        // Taught knowledge to answer FROM (specs/materials/notes/answers).
+        // Certifications are NOT here — those stay in claims_policy.
+        knowledge: (knowledge ?? []).map((k) => ({ kind: k.kind, about: k.label, fact: k.content })),
         next_question: nextQuestion,
         product_confirmed: state.product?.confirmedByClient ?? false,
       };
 
       const guard = retryAfterViolation
         ? '\n\nSTRICT: your previous draft contained a number not present in ' +
-          'CONTEXT.quote. Use ONLY figures from CONTEXT.quote, or no figures at all.'
+          'CONTEXT.quote or CONTEXT.knowledge. Use ONLY figures from those, or no figures at all.'
         : '';
 
       const res = await client.messages.create({

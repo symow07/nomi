@@ -24,6 +24,7 @@ import type {
 } from '../core/types/commerce.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
+import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -424,5 +425,24 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
-  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, drafts };
+  // ── knowledge (M13) ──────────────────────────────────────────────────────
+  // Read-only in the turn: the identified product's active rows + business-level,
+  // ranked by relevance then confidence tier. retrieve_knowledge runs under RLS.
+  const knowledge: import('./ports.js').KnowledgeRepo = {
+    async retrieve({ query, productId, k }) {
+      const rows = await sql<{
+        id: string; product_id: string | null; kind: string;
+        label: string; content: string; source: string; relevance: number;
+      }>`
+        select * from retrieve_knowledge(${businessId}::uuid, ${query}, ${productId}::uuid, ${k})
+      `.execute(tx);
+      return rows.rows.map((r) => ({
+        id: r.id, productId: r.product_id, kind: r.kind as KnowledgeSnippet['kind'],
+        label: r.label, content: r.content, source: r.source as KnowledgeSnippet['source'],
+        relevance: Number(r.relevance),
+      }));
+    },
+  };
+
+  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, drafts, knowledge };
 }

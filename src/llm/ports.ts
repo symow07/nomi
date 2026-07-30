@@ -2,6 +2,7 @@ import type { Analysis } from '../core/conversation/decide.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { Quote } from '../core/types/commerce.js';
 import type { RetrievedProduct } from '../retrieval/ports.js';
+import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 
 /**
  * LLM ports. The pipeline depends on these, never on a vendor SDK — which is
@@ -58,6 +59,10 @@ export interface ReplyWriter {
     nextQuestion: string | null;
     /** second attempt after a numeral violation — be stricter */
     retryAfterViolation: boolean;
+    /** M13: the identified product's facts + business-level knowledge to answer
+     *  FROM. Prose only — numbers are still gated by guardNumerals (which now
+     *  sources the identified product's knowledge numbers). */
+    knowledge?: readonly KnowledgeSnippet[];
   }): Promise<{ reply: string; promptVersion: string; modelId: string;
     usage: { inputTokens: number; outputTokens: number } }>;
 }
