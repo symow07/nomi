@@ -3,7 +3,7 @@ import { capabilityOf, resolveMode } from '../../src/core/conversation/autonomy.
 import type { Retriever, RetrievedProduct } from '../../src/retrieval/ports.js';
 import { FakeTenant, FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import { BUSINESS, CONVERSATION, emptyState } from '../parity/fixtures.js';
-import { analysis, candidate, SCHEMA_VERSION, type Scenario } from '../../src/trust/scenarios.js';
+import { analysis, candidate, SCHEMA_VERSION, TRUST_PRODUCT_ID, type Scenario } from '../../src/trust/scenarios.js';
 import { runCheck, type CheckResult, type TurnOutcome } from '../../src/trust/invariants.js';
 
 /**
@@ -46,6 +46,13 @@ function buildPorts(s: Scenario): { ports: TurnPorts; tenant: FakeTenant; now: D
   }
   if (s.allowedClaims) tenant.allowedClaims = [...s.allowedClaims];
   if (s.grants) tenant.grantRows = [...s.grants];
+  if (s.knowledge) {
+    tenant.knowledgeRows = s.knowledge.map((k, i) => ({
+      id: `sk-${i}`, productId: k.productId ?? (TRUST_PRODUCT_ID as string),
+      kind: k.kind, label: k.label, content: k.content,
+      source: k.source ?? 'owner_confirmed', status: 'active' as const,
+    }));
+  }
   tenant.seed(CONVERSATION, emptyState(s.state));
 
   const candidates =

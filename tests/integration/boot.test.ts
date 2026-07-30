@@ -873,6 +873,77 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M13 factory knowledge: teach → answer → correct → new answer, live ──────
+  describe('M13 · factory knowledge in the sandbox', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    const TRUST_PRODUCT = 'b0000000-0000-0000-0000-000000000001';
+
+    const bid = async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(SANDBOX); if (!p.ok) throw new Error('fixture'); return p.value;
+    };
+    const q = async <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      return withTenantTx(prod.db, await bid(), fn as never);
+    };
+
+    beforeAll(async () => {
+      const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
+      await q(async (tx) => {
+        for (const stmt of sandboxSeedSql().split(';')) {
+          const s = stmt.trim();
+          if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
+          await sql.raw(s).execute(tx as never);
+        }
+      });
+    });
+
+    const ask = async (cookie: string) => {
+      await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+      await prod.app.inject({ method: 'POST', url: '/app/sandbox/message',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        payload: 'mode=scripted&text=' + encodeURIComponent('what is your minimum order?') });
+      return prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+    };
+
+    it('teach → answer, then correct → the NEW answer, old row archived (never deleted)', async () => {
+      const { teachKnowledge, correctKnowledge } = await import('../../src/api/web/knowledge.js');
+      const cookie = await login();
+
+      await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
+        label: 'What is your minimum order?', content: 'Our minimum order is 1000 pieces.' });
+      const first = await ask(cookie);
+      expect(first.body).toContain('Our minimum order is 1000 pieces.');   // answered from taught knowledge
+
+      const id = await q((tx) => sql<{ id: string }>`
+        select id from product_knowledge where business_id=${SANDBOX} and status='active' and kind='faq'
+        order by created_at desc limit 1`.execute(tx as never).then((r) => r.rows[0]!.id));
+      await correctKnowledge(prod.db, SANDBOX, id, 'Our minimum order is 2000 pieces.');
+
+      const second = await ask(cookie);
+      expect(second.body).toContain('Our minimum order is 2000 pieces.');  // the correction won
+      expect(second.body).not.toContain('1000 pieces');                    // fresh thread → only the new answer
+
+      const archived = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from product_knowledge where business_id=${SANDBOX} and status='archived'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(archived).toBeGreaterThanOrEqual(1);
+    });
+
+    it('a certification is authorised through claims_policy, not stored as knowledge', async () => {
+      const { setCertification, loadProductKnowledge } = await import('../../src/api/web/knowledge.js');
+      await setCertification(prod.db, SANDBOX, 'CE', true);
+      const d = await loadProductKnowledge(prod.db, SANDBOX, TRUST_PRODUCT);
+      expect(d?.certs).toContain('CE');
+      // and it is NOT a product_knowledge row
+      const knowledgeCerts = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from product_knowledge where business_id=${SANDBOX} and kind='certification'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(knowledgeCerts).toBe(0);
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
