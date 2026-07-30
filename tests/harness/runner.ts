@@ -3,8 +3,8 @@ import { capabilityOf, resolveMode } from '../../src/core/conversation/autonomy.
 import type { Retriever, RetrievedProduct } from '../../src/retrieval/ports.js';
 import { FakeTenant, FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import { BUSINESS, CONVERSATION, emptyState } from '../parity/fixtures.js';
-import { analysis, candidate, SCHEMA_VERSION, type Scenario } from './scenarios.js';
-import { runCheck, type CheckResult, type TurnOutcome } from './invariants.js';
+import { analysis, candidate, SCHEMA_VERSION, type Scenario } from '../../src/trust/scenarios.js';
+import { runCheck, type CheckResult, type TurnOutcome } from '../../src/trust/invariants.js';
 
 /**
  * M12.1 — Trust Harness runner.
@@ -93,8 +93,9 @@ export async function runScenario(s: Scenario): Promise<ScenarioReport> {
   const requestedMode = resolveMode({ capability, grants: tenant.grantRows, now, timeZone: BUSINESS_TZ });
   const appliedMode: TurnOutcome['appliedMode'] =
     effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
+  const floorOf = (productId: string): number | null => tenant.policies.get(productId)?.floorPriceUsd ?? null;
 
-  const ctx: TurnOutcome = { scenario: s, result, effects, tenant, capability, requestedMode, appliedMode };
+  const ctx: TurnOutcome = { scenario: s, result, effects, floorOf, capability, requestedMode, appliedMode };
   const checks = s.expect.map((e) => runCheck(e, ctx));
 
   return { id: s.id, title: s.title, category: s.category, checks, passed: checks.every((c) => c.pass) };

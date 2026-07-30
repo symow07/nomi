@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { SCENARIOS } from './scenarios.js';
+import { SCENARIOS } from '../../src/trust/scenarios.js';
 import { runAll, formatReport, type HarnessReport } from './runner.js';
 
 /**

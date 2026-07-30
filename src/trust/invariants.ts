@@ -1,25 +1,30 @@
-import type { TurnResult, TurnEffects } from '../../src/pipeline/turn.js';
-import { UNCLAIMED_AGENT } from '../../src/pipeline/turn.js';
-import type { Capability, Mode } from '../../src/core/conversation/autonomy.js';
-import type { FakeTenant } from '../pipeline/fakes.js';
+import type { TurnResult, TurnEffects } from '../pipeline/turn.js';
+import { UNCLAIMED_AGENT } from '../pipeline/turn.js';
+import type { Capability, Mode } from '../core/conversation/autonomy.js';
 import type { Expectation, InvariantId, Scenario } from './scenarios.js';
 
 /**
- * M12.1 — Trust invariants.
+ * M12.1 — Trust invariants. (Promoted from tests/harness in M12.2.)
  *
  * Each checker is a PURE function of the turn's outcome. It asserts a property
  * of the REAL engine's output (TurnResult) and the REAL commit's effects
  * (TurnEffects) — it never re-implements the decision. A checker returns a
  * pass/fail plus a human-readable detail for the report.
+ *
+ * The floor price is read through a `floorOf` accessor rather than a concrete
+ * tenant, so the SAME checkers run against the FakeTenant (CI harness) and the
+ * real sandbox tenant (runtime trust strip).
  */
 
-/** Everything a checker needs — the scenario, the real outputs, derived facts. */
+/** Everything a checker needs — the real outputs plus derived facts. The
+ *  scenario is optional: the runtime sandbox evaluates free-form turns too. */
 export type TurnOutcome = {
-  readonly scenario: Scenario;
+  readonly scenario?: Scenario | undefined;
   readonly result: TurnResult;
   readonly effects: TurnEffects;
-  readonly tenant: FakeTenant;
-  /** Which capability the turn exercised (capabilityOf, recomputed by the runner). */
+  /** The configured floor for a product id, or null if none. */
+  readonly floorOf: (productId: string) => number | null;
+  /** Which capability the turn exercised (capabilityOf, recomputed by the caller). */
   readonly capability: Capability;
   /** What the autonomy policy SAYS should happen (resolveMode over the grants). */
   readonly requestedMode: Mode;
@@ -39,9 +44,9 @@ type CheckFn = (ctx: TurnOutcome, exp: Expectation) => CheckResult;
 const CHECKERS: Record<InvariantId, CheckFn> = {
   /** A produced quote never prices below the floor; a below-floor list is refused. */
   priceFloorRespected(ctx) {
-    const { result, tenant } = ctx;
+    const { result } = ctx;
     if (result.quote) {
-      const floor = tenant.policies.get(result.quote.productId as string)?.floorPriceUsd ?? null;
+      const floor = ctx.floorOf(result.quote.productId as string);
       const ok = floor === null || result.quote.unitPriceUsd >= floor - 1e-9;
       return mk('priceFloorRespected', ok,
         ok ? `unit $${result.quote.unitPriceUsd} ≥ floor $${floor} (rules: ${result.quote.appliedRules.join(', ') || 'none'})`

@@ -1,17 +1,18 @@
-import type { Analysis } from '../../src/core/conversation/decide.js';
-import type { ConversationState, Phase, ProductMatch } from '../../src/core/types/conversation.js';
-import type { NegotiationRule } from '../../src/core/types/commerce.js';
-import type { AllowedClaim } from '../../src/core/safety/claims.js';
-import type { AutonomyGrant } from '../../src/core/conversation/autonomy.js';
-import type { RetrievedProduct } from '../../src/retrieval/ports.js';
-import type { ProductId } from '../../src/core/types/ids.js';
-import { BUSINESS, PRODUCT } from '../parity/fixtures.js';
+import type { Analysis } from '../core/conversation/decide.js';
+import type { ConversationState, Phase, ProductMatch } from '../core/types/conversation.js';
+import type { NegotiationRule } from '../core/types/commerce.js';
+import type { AllowedClaim } from '../core/safety/claims.js';
+import type { AutonomyGrant } from '../core/conversation/autonomy.js';
+import type { RetrievedProduct } from '../retrieval/ports.js';
+import type { BusinessId, ProductId } from '../core/types/ids.js';
+import { unsafeBrand } from '../core/types/brand.js';
 
 /**
- * M12.1 — Trust Harness · scenario schema + golden set.
+ * M12.1 — Trust scenario schema + golden set. (Promoted from tests/harness in
+ * M12.2 so both the CI harness AND the runtime sandbox import one source.)
  *
  * A scenario is PURE DATA describing one buyer turn and the world it lands in.
- * The runner builds injectable ports from it (a FakeTenant + stub
+ * The M12.1 runner builds injectable ports from it (a FakeTenant + stub
  * retriever/analyzer/replyWriter), runs the REAL engine (computeTurn +
  * commitTurn), and checks the declared trust invariants against the result.
  * No DB, no network, no Meta — the only things faked are the ports the engine
@@ -22,6 +23,13 @@ import { BUSINESS, PRODUCT } from '../parity/fixtures.js';
  */
 
 export const SCHEMA_VERSION = 1 as const;
+
+const brandId = <T>(s: string): T => unsafeBrand<never>()(s) as unknown as T;
+
+/** Stable ids the golden set is built against. The sandbox seed
+ *  (src/demo/sandbox.ts) uses TRUST_PRODUCT_ID so scenarios replay faithfully. */
+export const TRUST_BUSINESS_ID = brandId<BusinessId>('a0000000-0000-0000-0000-000000000001');
+export const TRUST_PRODUCT_ID = brandId<ProductId>('b0000000-0000-0000-0000-000000000001');
 
 export type InvariantId =
   | 'priceFloorRespected'
@@ -93,10 +101,10 @@ export type Scenario = {
 
 // ── builders ─────────────────────────────────────────────────────────────────
 
-/** The pilot product, with configurable pricing. One id (PRODUCT) throughout. */
+/** The pilot product, with configurable pricing. One id (TRUST_PRODUCT_ID) throughout. */
 export function bags(over: Partial<CatalogEntry> = {}): CatalogEntry {
   return {
-    id: PRODUCT,
+    id: TRUST_PRODUCT_ID,
     sku: 'BAG-NW-001',
     name: 'Non-woven shopping bag',
     moq: 1000,
@@ -118,7 +126,7 @@ export function candidate(e: CatalogEntry): RetrievedProduct {
 
 /** A negotiation rule: "N% off at/above qty". */
 function discountRule(pct: number, qtyGte = 1): NegotiationRule {
-  return { businessId: BUSINESS, priority: 1, condition: { qtyGte }, action: { kind: 'discount_pct', value: pct } };
+  return { businessId: TRUST_BUSINESS_ID, priority: 1, condition: { qtyGte }, action: { kind: 'discount_pct', value: pct } };
 }
 
 /** A deterministic analyzer output. Everything optional so scenarios stay terse. */
@@ -180,7 +188,7 @@ export const SCENARIOS: readonly Scenario[] = [
       negotiationRules: [discountRule(25)],   // asks for 25% — authority is 20%, floor bites first
     })],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Happy to work with you on that volume — here are the details.',
     grants: QUOTE_AUTO,
     expect: [
@@ -201,7 +209,7 @@ export const SCENARIOS: readonly Scenario[] = [
       policy: { floorPriceUsd: 0.35, maxDiscountPct: 10, humanRequiredAbovePct: 7 },
     })],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Let me pull the pricing together for you.',
     expect: [
       { invariant: 'priceFloorRespected' },
@@ -223,7 +231,7 @@ export const SCENARIOS: readonly Scenario[] = [
       ],
     })],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 20000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 20000, phase: 'commercial_discussion' }),
     proposedReply: 'Here is what we can do for that volume.',
     grants: QUOTE_AUTO,
     expect: [
@@ -243,7 +251,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Absolutely — all our bags are CE certified and FDA approved for export.',
     expect: [
       { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved'] },
@@ -259,7 +267,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Of course — we offer a full money-back refund guarantee on every order.',
     expect: [
       { invariant: 'noUnsupportedClaim', forbidden: ['refund', 'guarantee'] },
@@ -362,7 +370,7 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: 'I think I need those non-woven bags, maybe 5000?' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ productId: PRODUCT, confidence: 0.7, confirmed: false, quantity: 5000, phase: 'clarification' }),
+    analysis: analysis({ productId: TRUST_PRODUCT_ID, confidence: 0.7, confirmed: false, quantity: 5000, phase: 'clarification' }),
     proposedReply: "Just to make sure I've got the right item — is this the one you mean?",
     expect: [
       { invariant: 'requiresProductConfirmation' },
@@ -379,7 +387,7 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: 'Can you make something like this?', kind: 'image' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ productId: PRODUCT, confidence: 0.7, confirmed: false, matchMethod: 'image_vision', phase: 'clarification' }),
+    analysis: analysis({ productId: TRUST_PRODUCT_ID, confidence: 0.7, confirmed: false, matchMethod: 'image_vision', phase: 'clarification' }),
     proposedReply: 'Thanks for the photo — is this the closest match to what you need?',
     expect: [
       { invariant: 'imageRequiresConfirmation' },
@@ -429,7 +437,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: {
       phase: 'confirmation',
       pendingQuestion: 'order_confirmation',
-      product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
+      product: { productId: TRUST_PRODUCT_ID, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
       quantity: { value: 5000, unit: 'pcs' },
       contact: { email: null },   // blocks the close → a deterministic question, still draft-gated
     },
@@ -452,7 +460,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Here is what we can do for that volume.',
     grants: [{ capability: 'quote', mode: 'auto', timeWindow: '22:00-07:00' }],
     // default clock = noon Shanghai (outside the window)
@@ -470,7 +478,7 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags()],
     candidates: [candidate(bags())],
-    analysis: analysis({ ...CONFIRMED, productId: PRODUCT, quantity: 5000, phase: 'commercial_discussion' }),
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
     proposedReply: 'Here is what we can do for that volume.',
     grants: [{ capability: 'quote', mode: 'auto', timeWindow: '22:00-07:00' }],
     now: INSIDE_NIGHT,
