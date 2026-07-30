@@ -341,7 +341,7 @@ export type TurnEffects = {
 };
 
 /** The product's single timezone (M1). Night-shift windows resolve against it. */
-const BUSINESS_TZ = 'Asia/Shanghai';
+export const BUSINESS_TZ = 'Asia/Shanghai';
 
 export async function commitTurn(
   ports: TurnPorts,
