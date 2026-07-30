@@ -21,9 +21,14 @@ import {
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { loadOnboarding, renderOnboarding } from './onboarding.js';
+import {
+  loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
+  type SandboxDeps, type SandboxMode,
+} from './sandbox.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import type { Analyzer, ReplyWriter } from '../../llm/ports.js';
 import { shell, loginPage, esc } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
@@ -52,6 +57,12 @@ export type WebDeps = {
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
+  /** M12.2 pilot sandbox: a dedicated tenant, distinct from `businessId`.
+   *  Absent → the sandbox surface is not mounted. */
+  readonly sandboxBusinessId?: string;
+  /** Live-AI ports for the sandbox. Absent → scripted mode only. */
+  readonly analyzer?: Analyzer;
+  readonly replyWriter?: ReplyWriter;
 };
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -348,4 +359,67 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = t(locale, r.code === 'saved' ? 'settings.flash.profileSaved' : 'settings.flash.profileInvalid');
     return reply.redirect(`/app/settings?flash=${encodeURIComponent(flash)}`);
   });
+
+  // ── M12.2 Interactive pilot sandbox ───────────────────────────────────────
+  // A dedicated tenant, session-gated but NEVER the pilot business. No inbox
+  // changes: these routes bind to deps.sandboxBusinessId exclusively.
+  if (deps.sandboxBusinessId) {
+    const sbxDeps: SandboxDeps = {
+      db: deps.db, businessId: deps.sandboxBusinessId, now: () => new Date(),
+      analyzer: deps.analyzer, replyWriter: deps.replyWriter,
+    };
+    const liveAvailable = !!(deps.analyzer && deps.replyWriter);
+    const modeOf = (raw: unknown): SandboxMode => (raw === 'live' && liveAvailable ? 'live' : 'scripted');
+
+    app.get('/app/sandbox', async (req, reply) => {
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const q = req.query as { mode?: string; flash?: string };
+      const flash = typeof q.flash === 'string' ? q.flash : null;
+      const view = await loadSandboxView(sbxDeps);
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'nav.sandbox'), active: 'sandbox',
+        bodyHtml: renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash }),
+      }));
+    });
+
+    app.post('/app/sandbox/message', async (req, reply) => {
+      if (!sessionOf(req)) return reply.redirect('/login');
+      const b = (req.body ?? {}) as { text?: string; image?: string; mode?: string };
+      const mode = modeOf(b.mode);
+      await runSandboxTurn(sbxDeps, { mode, text: String(b.text ?? ''), kind: b.image === '1' ? 'image' : 'text' });
+      return reply.redirect(`/app/sandbox?mode=${mode}`);
+    });
+
+    app.post('/app/sandbox/scenario', async (req, reply) => {
+      if (!sessionOf(req)) return reply.redirect('/login');
+      const b = (req.body ?? {}) as { scenarioId?: string; mode?: string };
+      const mode = modeOf(b.mode);
+      if (b.scenarioId) await runSandboxTurn(sbxDeps, { mode, scenarioId: String(b.scenarioId) });
+      return reply.redirect(`/app/sandbox?mode=${mode}`);
+    });
+
+    // Approval reuses the ONE approval service; the sink records, never transmits.
+    app.post('/app/sandbox/act', async (req, reply) => {
+      if (!sessionOf(req)) return reply.redirect('/login');
+      const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string; mode?: string };
+      const mode = modeOf(b.mode);
+      const bid = parseBusinessId(deps.sandboxBusinessId!);
+      if (bid.ok && b.draftId) {
+        const rawReply = b.command === '改' ? `改：${b.edit ?? ''}` : (b.command ?? '');
+        await applyOwnerCommand(
+          { db: deps.db, now: () => new Date(), kickOutbound: sandboxOutboundSink(sbxDeps) },
+          { businessId: bid.value, draftId: b.draftId, rawReply, decidedBy: 'owner' },
+        );
+      }
+      return reply.redirect(`/app/sandbox?mode=${mode}`);
+    });
+
+    app.post('/app/sandbox/reset', async (req, reply) => {
+      if (!sessionOf(req)) return reply.redirect('/login');
+      await resetSandbox(sbxDeps);
+      return reply.redirect(`/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), 'sandbox.reset.done'))}`);
+    });
+  }
 }

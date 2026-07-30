@@ -2,9 +2,12 @@ import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
+import Anthropic from '@anthropic-ai/sdk';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
+import { anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
+import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -198,12 +201,19 @@ export async function buildProduction(
   // the CLI so the founder can grab it; set it in the host for stability).
   const ownerAccessCode = process.env['OWNER_ACCESS_CODE'] || randomBytes(4).toString('hex');
   const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? 'de300000-0000-4000-8000-0000000000b1';
+  const SANDBOX_ID = process.env['SANDBOX_BUSINESS_ID'] ?? SANDBOX_BUSINESS_ID;
+  // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
+  // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
+  const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
+    ? ((c) => ({ analyzer: anthropicAnalyzer(c), replyWriter: anthropicReplyWriter(c) }))(new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY }))
+    : {};
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,
       sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
+      sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       avatar: process.env['EMPLOYEE_AVATAR'] ?? '👩‍💼',
       provider: cfg.provider,
@@ -214,6 +224,7 @@ export async function buildProduction(
         await boss.send(QUEUES.outbound, { businessId, conversationId, reply },
           { singletonKey: conversationId });
       },
+      ...sandboxLive,
     });
   };
 

@@ -778,6 +778,101 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     return String(ok.headers['set-cookie']).split(';')[0] ?? '';
   }
 
+  // ── M12.2 Interactive pilot sandbox (dedicated tenant, real engine) ─────────
+  describe('M12.2 · interactive pilot sandbox', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+
+    const withSandbox = async <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const bid = parseBusinessId(SANDBOX); if (!bid.ok) throw new Error('fixture');
+      return withTenantTx(prod.db, bid.value, fn as never);
+    };
+
+    beforeAll(async () => {
+      const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
+      // App-role seed inside the sandbox tenant tx (businesses RLS with-check = id).
+      await withSandbox(async (tx) => {
+        for (const stmt of sandboxSeedSql().split(';')) {
+          const s = stmt.trim();
+          if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
+          await sql.raw(s).execute(tx as never);
+        }
+      });
+    });
+
+    it('requires owner auth', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox' });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toBe('/login');
+    });
+
+    it('ISOLATION: the sandbox tenant has NO channel credential (unroutable from any webhook)', async () => {
+      const n = await withSandbox((tx) =>
+        sql<{ n: number }>`select count(*)::int as n from channel_credentials where business_id=${SANDBOX}`
+          .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(n).toBe(0);
+    });
+
+    it('renders the simulation banner and starts empty', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('Simulation only. No customer messages are sent.');
+      expect(res.body).toContain('No messages yet');
+    });
+
+    it('a scripted scenario runs the REAL engine → transcript + a passing trust strip, draft-first', async () => {
+      const cookie = await login();
+      const post = await prod.app.inject({ method: 'POST', url: '/app/sandbox/scenario',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        payload: 'mode=scripted&scenarioId=price-floor-clamp-under-aggressive-discount' });
+      expect(post.statusCode).toBe(302);
+
+      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(page.body).toContain('We can commit to 5000 units');   // buyer message, in the transcript
+      expect(page.body).toContain('Trust check');
+      expect(page.body).toContain('All checks passed');             // floor respected, no silent escalation
+      expect(page.body).toContain('action="/app/sandbox/act"');     // draft-first → pending approval
+    });
+
+    it('approval records the reply via the ONE approval service; a GET never sent it', async () => {
+      const cookie = await login();
+      const draft = await withSandbox((tx) =>
+        sql<{ id: string }>`select id from drafts where status='pending' order by created_at desc limit 1`
+          .execute(tx as never).then((r) => r.rows[0]));
+      expect(draft).toBeTruthy();
+
+      const act = await prod.app.inject({ method: 'POST', url: '/app/sandbox/act',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        payload: `draftId=${draft!.id}&command=${encodeURIComponent('发送')}&mode=scripted` });
+      expect(act.statusCode).toBe(302);
+
+      const after = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(after.body).toContain('msg outbound');   // the approved reply is now a sent bubble
+    });
+
+    it('reset archives (never deletes) and leaves a sandbox_reset audit event', async () => {
+      const cookie = await login();
+      const total0 = await withSandbox((tx) =>
+        sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX}`
+          .execute(tx as never).then((r) => r.rows[0]!.n));
+
+      const reset = await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+      expect(reset.statusCode).toBe(302);
+
+      const { active, total, evt } = await withSandbox(async (tx) => ({
+        active: (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX} and is_active`.execute(tx as never)).rows[0]!.n,
+        total: (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX}`.execute(tx as never)).rows[0]!.n,
+        evt: (await sql<{ n: number }>`select count(*)::int as n from conversation_events where business_id=${SANDBOX} and type='sandbox_reset'`.execute(tx as never)).rows[0]!.n,
+      }));
+      expect(active).toBe(0);              // conversation archived
+      expect(total).toBe(total0);          // nothing deleted
+      expect(evt).toBeGreaterThanOrEqual(1); // audit trace left
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });

@@ -17,7 +17,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "migrate": "node tools/migrate.mjs",
-    "seed:demo": "node tools/seed-demo.mjs"
+    "seed:demo": "node tools/seed-demo.mjs",
+    "seed:sandbox": "node tools/seed-sandbox.mjs"
   },
   "keywords": [],
   "author": "",
