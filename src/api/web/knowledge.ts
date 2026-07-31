@@ -4,6 +4,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
+import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
 import { esc } from './layout.js';
 
 /**
@@ -136,7 +137,7 @@ export async function setCertification(db: Db, businessIdRaw: string, key: strin
   await withTenantTx(db, bid.value, (tx) => sql`
     insert into claims_policy (business_id, kind, claim_key, allowed)
     values (${bid.value}, ${kind}, ${key}, ${allowed})
-    on conflict (business_id, kind, claim_key) do update set allowed = ${allowed}
+    on conflict (business_id, kind, claim_key) do update set allowed = ${allowed}, updated_at = now()
   `.execute(tx));
   return { code: 'cert' };
 }
@@ -150,7 +151,7 @@ function kindSelect(l: Locale): string {
   return `<select name="kind">${KINDS.map((k) => `<option value="${k}">${esc(kindLabel(l, k))}</option>`).join('')}</select>`;
 }
 
-export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale): string {
+export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefill = ''): string {
   const products = data.products.length
     ? `<div class="klist">${data.products.map((p) => `
         <a class="krow" href="/app/knowledge/${encodeURIComponent(p.id)}">
@@ -165,17 +166,18 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale): stri
     <div class="card"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
     <div class="card"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
       ${biz || `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`}
-      ${teachForm(locale, '')}
+      ${teachForm(locale, '', prefill)}
     </div>
     ${KNOWLEDGE_STYLE}`;
 }
 
-function itemCard(i: KItem, locale: Locale, productId: string | null): string {
+function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml = ''): string {
   const pid = esc(productId ?? '');
   return `<div class="kitem">
     <div class="kh"><b>${esc(i.label)}</b> <span class="pill">${esc(kindLabel(locale, i.kind))}</span>
       <span class="muted src">${esc(sourceLabel(locale, i.source))}</span></div>
     <div class="kc">${esc(i.content)}</div>
+    ${usageHtml}
     <form method="post" action="/app/knowledge/correct" class="krow-actions">
       <input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
@@ -192,23 +194,27 @@ function itemCard(i: KItem, locale: Locale, productId: string | null): string {
   </div>`;
 }
 
-function teachForm(locale: Locale, productId: string): string {
+function teachForm(locale: Locale, productId: string, prefill = ''): string {
   return `<form method="post" action="/app/knowledge/teach" class="teach">
     <input type="hidden" name="productId" value="${esc(productId)}" />
     <h3>${esc(t(locale, 'knowledge.teach'))}</h3>
     <label class="muted">${esc(t(locale, 'knowledge.teach.kind'))}</label>${kindSelect(locale)}
     <label class="muted">${esc(t(locale, 'knowledge.teach.label'))}</label>
-    <input type="text" name="label" required maxlength="120" />
+    <input type="text" name="label" required maxlength="120" value="${esc(prefill)}" />
     <label class="muted">${esc(t(locale, 'knowledge.teach.content'))}</label>
     <textarea name="content" rows="3" required></textarea>
     <button class="btn send" type="submit">${esc(t(locale, 'knowledge.teach.add'))}</button>
   </form>`;
 }
 
-export function renderProductKnowledge(d: ProductKnowledge, locale: Locale, flash: string | null): string {
+export function renderProductKnowledge(
+  d: ProductKnowledge, locale: Locale, flash: string | null,
+  opts: { usage?: Map<string, UsageFact>; prefill?: string; now?: Date } = {},
+): string {
+  const now = opts.now ?? new Date();
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
   const items = d.items.length
-    ? d.items.map((i) => itemCard(i, locale, d.productId)).join('')
+    ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now))).join('')
     : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const certs = CERT_KEYS.map((k) => {
@@ -229,7 +235,7 @@ export function renderProductKnowledge(d: ProductKnowledge, locale: Locale, flas
       <p class="muted">${esc(t(locale, 'knowledge.cert.hint'))}</p>
       <div class="certs">${certs}</div>
     </div>
-    <div class="card">${items}${teachForm(locale, d.productId)}</div>
+    <div class="card">${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
     ${KNOWLEDGE_STYLE}`;
 }
 

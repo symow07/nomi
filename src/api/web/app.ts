@@ -25,6 +25,7 @@ import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
+import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
   type SandboxDeps, type SandboxMode,
@@ -364,9 +365,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/settings?flash=${encodeURIComponent(flash)}`);
   });
 
-  // ── M13 Factory Knowledge: teach/correct product + business knowledge ──────
-  app.get('/app/knowledge', authed('knowledge', async (s, _req, locale) =>
-    renderKnowledgeIndex(await loadKnowledgeIndex(deps.db, s.businessId), locale)));
+  // ── M13/M14 Factory Knowledge: ops overview + teach/correct ────────────────
+  // The Knowledge surface leads with a READ-ONLY operations view (M14) — the
+  // weekly report, questions to answer (derived gaps), recent changes — then
+  // the teach surface (M13). All numbers are real counts; no invented metrics.
+  app.get('/app/knowledge', authed('knowledge', async (s, req, locale) => {
+    const range = parseKnowledgeRange((req.query as { range?: string }).range);
+    const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
+    const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
+    const index = await loadKnowledgeIndex(deps.db, s.businessId);
+    return renderKnowledgeOps(ops, locale, new Date()) + renderKnowledgeIndex(index, locale, prefill);
+  }));
 
   app.get('/app/knowledge/:id', async (req, reply) => {
     const s = sessionOf(req);
@@ -378,10 +387,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="card"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
     }));
+    const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: renderProductKnowledge(d, locale, flash),
+      bodyHtml: renderProductKnowledge(d, locale, flash, { usage, prefill, now: new Date() }),
     }));
   });
 
@@ -432,12 +443,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const q = req.query as { mode?: string; flash?: string };
+      const q = req.query as { mode?: string; flash?: string; ask?: string };
       const flash = typeof q.flash === 'string' ? q.flash : null;
+      const prefill = typeof q.ask === 'string' ? q.ask : '';
       const view = await loadSandboxView(sbxDeps);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash }),
+        bodyHtml: renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill }),
       }));
     });
 

@@ -305,7 +305,7 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
   </div>`;
 }
 
-function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolean): string {
+function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolean, prefill = ''): string {
   const scenarioOpts = SCENARIOS.map((s) => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
   const modeRadio = (m: SandboxMode, labelKey: MessageKey, disabled = false) =>
     `<label class="radio ${disabled ? 'off' : ''}"><input type="radio" name="mode" value="${m}" ${m === mode && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(t(locale, labelKey))}</label>`;
@@ -328,7 +328,7 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
     <form method="post" action="/app/sandbox/message" class="msgbar">
       <input type="hidden" name="mode" value="${mode}" />
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
-      <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required></textarea>
+      <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
       <div class="msgacts">
         <label class="chkbox"><input type="checkbox" name="image" value="1" /> ${esc(t(locale, 'sandbox.composer.image'))}</label>
         <button class="btn send" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
@@ -337,7 +337,7 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null }): string {
+export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null; prefill?: string }): string {
   const name = EMPLOYEE_NAME[locale];
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
@@ -379,7 +379,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     ${banner}
     ${intro}
     ${flashHtml}
-    ${renderComposer(locale, opts.mode, opts.liveAvailable)}
+    ${renderComposer(locale, opts.mode, opts.liveAvailable, opts.prefill ?? '')}
     ${renderTrust(view.lastTurn, locale)}
     ${draftCard}
     <div class="card"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${timeline}</div>
