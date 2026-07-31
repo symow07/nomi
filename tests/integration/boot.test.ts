@@ -944,6 +944,82 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M14 knowledge operations: derived gaps + honest report over real turns ──
+  describe('M14 · knowledge operations read models', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    const q = async <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(SANDBOX); if (!p.ok) throw new Error('fixture');
+      return withTenantTx(prod.db, p.value, fn as never);
+    };
+    const askSandbox = async (cookie: string, text: string) => {
+      await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
+      await prod.app.inject({ method: 'POST', url: '/app/sandbox/message',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        payload: 'mode=scripted&text=' + encodeURIComponent(text) });
+    };
+
+    beforeAll(async () => {
+      const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
+      await q(async (tx) => {
+        for (const stmt of sandboxSeedSql().split(';')) {
+          const s = stmt.trim();
+          if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
+          await sql.raw(s).execute(tx as never);
+        }
+      });
+    });
+
+    it('a question answered WITHOUT taught knowledge surfaces as a derived gap, deterministically reasoned', async () => {
+      const { loadKnowledgeOps } = await import('../../src/api/web/knowledge-insights.js');
+      const cookie = await login();
+      // FDA is not authorised here → an unmatched claim question is a gap with that reason.
+      await askSandbox(cookie, 'is it FDA approved?');
+      const ops = await loadKnowledgeOps(prod.db, SANDBOX, 'month');
+      const gap = ops.gaps.find((g) => g.question.toLowerCase().includes('fda'));
+      expect(gap).toBeTruthy();
+      expect(gap!.reason).toBe('claim_requires_authorization');
+    });
+
+    it('teaching an answer feeds the report + recent changes; the next ask uses it (loop closes)', async () => {
+      const { loadKnowledgeOps } = await import('../../src/api/web/knowledge-insights.js');
+      const { teachKnowledge } = await import('../../src/api/web/knowledge.js');
+      const cookie = await login();
+
+      const usedBefore = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from conversation_events where business_id=${SANDBOX} and type='knowledge_used'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+
+      await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
+        label: 'Do you offer free samples?', content: 'Yes, free samples are available on request.' });
+      await askSandbox(cookie, 'do you offer free samples?');
+
+      const ops = await loadKnowledgeOps(prod.db, SANDBOX, 'month');
+      expect(ops.report.factsAdded).toBeGreaterThanOrEqual(1);
+      expect(ops.activity.some((a) => a.label === 'Do you offer free samples?' && a.change === 'taught')).toBe(true);
+
+      const usedAfter = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from conversation_events where business_id=${SANDBOX} and type='knowledge_used'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(usedAfter).toBeGreaterThan(usedBefore);   // the taught answer was used
+    });
+
+    it('HONESTY: report numbers equal independent counts (no invented metric)', async () => {
+      const { loadKnowledgeOps } = await import('../../src/api/web/knowledge-insights.js');
+      const ops = await loadKnowledgeOps(prod.db, SANDBOX, 'month');
+      const indep = await q((tx) => sql<{ facts: number; corrected: number }>`
+        with cut as (select (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c)
+        select
+          (select count(*)::int from product_knowledge, cut where business_id=${SANDBOX} and source='owner_confirmed' and status='active' and created_at>=cut.c) as facts,
+          (select count(*)::int from product_knowledge, cut where business_id=${SANDBOX} and source='owner_corrected' and created_at>=cut.c) as corrected
+      `.execute(tx as never).then((r) => r.rows[0]!));
+      expect(ops.report.factsAdded).toBe(indep.facts);
+      expect(ops.report.answersCorrected).toBe(indep.corrected);
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
