@@ -34,6 +34,8 @@ import {
 } from './sandbox.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
+import { takeOver, resumeAi } from '../../conversations/takeover.js';
+import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter } from '../../llm/ports.js';
 import { shell, loginPage, esc } from './layout.js';
@@ -64,6 +66,9 @@ export type WebDeps = {
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
+  /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
+   *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
+  readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
   /** M12.2 pilot sandbox: a dedicated tenant, distinct from `businessId`.
    *  Absent → the sandbox surface is not mounted. */
   readonly sandboxBusinessId?: string;
@@ -217,6 +222,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     );
     const flash = t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
     return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(flash)}`);
+  });
+
+  // ── M16.1 Human takeover: take over / owner reply / return to AI ───────────
+  // Ownership moves through src/core/conversation/ownership; the owner reply
+  // uses the ONE send path; nothing here is a second approval or send system.
+  const takeoverFlash = (req: FastifyRequest, cid: string, outcome: string) =>
+    `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(t(localeOf(req), `takeover.flash.${outcome}` as MessageKey))}`;
+
+  app.post('/app/inbox/:conversationId/takeover', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: 'owner' });
+    return reply.redirect(takeoverFlash(req, cid, r.outcome));
+  });
+
+  app.post('/app/inbox/:conversationId/reply', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const text = String((req.body as { text?: string } | undefined)?.text ?? '');
+    const r = await ownerReply(
+      { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
+      { businessId: bid.value, conversationId: cid, text, actor: 'owner' },
+    );
+    return reply.redirect(takeoverFlash(req, cid, r.outcome));
+  });
+
+  app.post('/app/inbox/:conversationId/resume', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const r = await resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: 'owner' });
+    return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
 
   // ── M9.4 Channel Center: connection state over the existing channel layer ──

@@ -224,6 +224,12 @@ export async function buildProduction(
         await boss.send(QUEUES.outbound, { businessId, conversationId, reply },
           { singletonKey: conversationId });
       },
+      // M16.1: bare re-drive tick — delivers an owner takeover reply through the
+      // SAME outbound worker (no second send path).
+      kickDrive: async (businessId, conversationId) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId },
+          { singletonKey: conversationId });
+      },
       ...sandboxLive,
     });
   };

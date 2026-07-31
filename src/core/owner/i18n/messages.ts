@@ -520,6 +520,29 @@ const EN = {
   'pilot.notReady': 'A few steps left before going live.',
   'pilot.flash.attested': 'Saved.',
   'pilot.flash.validated': 'Sandbox check complete: {pass}/{total} passed.',
+
+  // M16.1 — human takeover
+  'takeover.status.ai': 'Your employee is handling this',
+  'takeover.status.waiting': 'Waiting for you',
+  'takeover.status.owner': "You're handling this",
+  'takeover.action.take': 'Take over',
+  'takeover.action.reply': 'Send reply',
+  'takeover.action.resume': 'Hand back to your employee',
+  'takeover.why': 'Handed to you because',
+  'takeover.replyPlaceholder': 'Type your reply to the buyer…',
+  'takeover.reason.human_requested': 'the buyer asked for a person',
+  'takeover.reason.complaint': 'a complaint',
+  'takeover.reason.repeated_ambiguity': "the buyer's need stayed unclear",
+  'takeover.reason.low_confidence_image': 'an unclear photo',
+  'takeover.flash.taken_over': "You're handling this now — your employee has paused.",
+  'takeover.flash.resumed': 'Handed back to your employee.',
+  'takeover.flash.sent': 'Reply sent.',
+  'takeover.flash.empty': 'Nothing to send.',
+  'takeover.flash.not_found': 'Conversation not found.',
+  'takeover.flash.ai_owned': 'Your employee is handling this — take over first.',
+  'takeover.flash.must_take_over': 'Take over the conversation before replying.',
+  'takeover.flash.no_channel': 'No channel to send to yet.',
+  'takeover.flash.invalid_state': "That can't be done right now.",
 };
 
 export type MessageKey = keyof typeof EN;
@@ -1018,6 +1041,29 @@ const ZH: Record<MessageKey, string> = {
   'pilot.notReady': '上线前还差几步。',
   'pilot.flash.attested': '已保存。',
   'pilot.flash.validated': '沙盒检查完成：{pass}/{total} 项通过。',
+
+  // M16.1 — human takeover
+  'takeover.status.ai': '员工正在处理',
+  'takeover.status.waiting': '等你处理',
+  'takeover.status.owner': '你正在处理',
+  'takeover.action.take': '我来接手',
+  'takeover.action.reply': '发送回复',
+  'takeover.action.resume': '交回给员工',
+  'takeover.why': '转给你的原因',
+  'takeover.replyPlaceholder': '输入你要回复买家的话……',
+  'takeover.reason.human_requested': '买家要求真人',
+  'takeover.reason.complaint': '有投诉',
+  'takeover.reason.repeated_ambiguity': '一直没弄清买家的需求',
+  'takeover.reason.low_confidence_image': '图片不清楚',
+  'takeover.flash.taken_over': '现在由你处理，员工已暂停。',
+  'takeover.flash.resumed': '已交回给员工。',
+  'takeover.flash.sent': '已发送。',
+  'takeover.flash.empty': '没有内容可发。',
+  'takeover.flash.not_found': '找不到这条对话。',
+  'takeover.flash.ai_owned': '员工正在处理——请先接手。',
+  'takeover.flash.must_take_over': '回复前请先接手对话。',
+  'takeover.flash.no_channel': '暂时没有可发送的渠道。',
+  'takeover.flash.invalid_state': '当前状态无法这样操作。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -1514,6 +1560,29 @@ const AR: Record<MessageKey, string> = {
   'pilot.notReady': 'بقيت خطوات قليلة قبل الانطلاق.',
   'pilot.flash.attested': 'تم الحفظ.',
   'pilot.flash.validated': 'اكتمل فحص بيئة التجربة: اجتاز {pass}/{total}.',
+
+  // M16.1 — human takeover
+  'takeover.status.ai': 'موظفتك تتولّى هذه المحادثة',
+  'takeover.status.waiting': 'بانتظارك',
+  'takeover.status.owner': 'أنت تتولّى هذه المحادثة',
+  'takeover.action.take': 'أتولّى بنفسي',
+  'takeover.action.reply': 'إرسال الرد',
+  'takeover.action.resume': 'أعِدها إلى موظفتك',
+  'takeover.why': 'حُوّلت إليك بسبب',
+  'takeover.replyPlaceholder': 'اكتب ردّك للمشتري…',
+  'takeover.reason.human_requested': 'طلب المشتري شخصاً حقيقياً',
+  'takeover.reason.complaint': 'شكوى',
+  'takeover.reason.repeated_ambiguity': 'ظلّت حاجة المشتري غير واضحة',
+  'takeover.reason.low_confidence_image': 'صورة غير واضحة',
+  'takeover.flash.taken_over': 'أنت تتولّاها الآن — توقفت موظفتك.',
+  'takeover.flash.resumed': 'أُعيدت إلى موظفتك.',
+  'takeover.flash.sent': 'أُرسل الرد.',
+  'takeover.flash.empty': 'لا شيء لإرساله.',
+  'takeover.flash.not_found': 'المحادثة غير موجودة.',
+  'takeover.flash.ai_owned': 'موظفتك تتولّاها — تولَّ بنفسك أولاً.',
+  'takeover.flash.must_take_over': 'تولَّ المحادثة قبل الرد.',
+  'takeover.flash.no_channel': 'لا توجد قناة للإرسال بعد.',
+  'takeover.flash.invalid_state': 'لا يمكن ذلك الآن.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR };

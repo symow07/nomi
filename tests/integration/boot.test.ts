@@ -1068,6 +1068,101 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M16.1 human takeover lifecycle (real Postgres) ──────────────────────────
+  describe('M16.1 · human takeover lifecycle', () => {
+    const now = () => new Date();
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    let convId: string;
+
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const assignedTo = () => q((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id=${convId}`.execute(tx as never).then((r) => r.rows.length === 0 ? 'MISSING' : r.rows[0]!.a));
+    const eventCount = (type: string) => q((tx) => sql<{ n: number }>`select count(*)::int n from conversation_events where conversation_id=${convId} and type=${type}`.execute(tx as never).then((r) => r.rows[0]!.n));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      // A conversation WITH a channel identity so ownerReply can enqueue, then
+      // simulate the auto-handoff (unclaimed) it would arrive in.
+      convId = await withTenantTx(prod.db, bid, async (tx) => {
+        const { conversationId } = await ensureConversation(tx, bid, '971500009999', 'Takeover Buyer');
+        await tenantRepos(tx, bid).conversations.assign(conversationId as never, 'unclaimed');
+        return conversationId;
+      });
+    });
+
+    it('handoff → owner takes control: assigned to owner + takeover event', async () => {
+      const { takeOver } = await import('../../src/conversations/takeover.js');
+      const r = await takeOver({ db: prod.db, now }, { businessId: bid, conversationId: convId, actor: 'owner' });
+      expect(r.outcome).toBe('taken_over');
+      expect(await assignedTo()).toBe('owner');
+      expect(await eventCount('takeover')).toBeGreaterThanOrEqual(1);
+    });
+
+    it('owner reply: exactly ONE owner-origin outbound row via the one send path + audit', async () => {
+      const { ownerReply } = await import('../../src/outbound/ownerReply.js');
+      const before = await q((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${convId}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      const kicks: string[] = [];
+      const r = await ownerReply(
+        { db: prod.db, now, kickDrive: async (_b, c) => { kicks.push(c); } },
+        { businessId: bid, conversationId: convId, text: 'This is the owner — I can help you directly.', actor: 'owner' },
+      );
+      expect(r.outcome).toBe('sent');
+      const rows = await q((tx) => sql<{ origin: string; body: string }>`select origin, body from outbound_messages where conversation_id=${convId} order by seq desc limit 5`.execute(tx as never).then((x) => x.rows));
+      const after = rows.length;
+      expect(after - before).toBe(1);                 // exactly one message enqueued
+      expect(rows[0]!.origin).toBe('owner');          // via enqueueOutboundRow, origin owner
+      expect(kicks).toEqual([convId]);                // the ONE send path was kicked, once
+      expect(await eventCount('owner_reply')).toBeGreaterThanOrEqual(1);
+    });
+
+    it('resume: back to AI, history PRESERVED (signals soft-resolved, not deleted)', async () => {
+      const { resumeAi } = await import('../../src/conversations/takeover.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      await withTenantTx(prod.db, bid, (tx) => tenantRepos(tx, bid).signals.record(convId as never, { kind: 'human_requested' }));
+
+      const r = await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: convId, actor: 'owner' });
+      expect(r.outcome).toBe('resumed');
+      expect(await assignedTo()).toBeNull();
+      const sig = await q((tx) => sql<{ total: number; active: number }>`
+        select count(*)::int total, count(*) filter (where resolved_at is null)::int active
+          from conversation_signals where conversation_id=${convId} and kind='human_requested'`.execute(tx as never).then((x) => x.rows[0]!));
+      expect(sig.total).toBeGreaterThanOrEqual(1);    // the row is KEPT (history)
+      expect(sig.active).toBe(0);                      // soft-resolved → AI won't instantly re-hand-off
+      expect(await eventCount('resume_ai')).toBeGreaterThanOrEqual(1);
+    });
+
+    it('owner reply CANNOT bypass ownership: refused once the AI owns it again', async () => {
+      const { ownerReply } = await import('../../src/outbound/ownerReply.js');
+      const before = await q((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${convId}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      const r = await ownerReply({ db: prod.db, now, kickDrive: async () => {} }, { businessId: bid, conversationId: convId, text: 'should be refused', actor: 'owner' });
+      expect(r.outcome).toBe('ai_owned');
+      const after = await q((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${convId}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(after).toBe(before);   // nothing sent
+    });
+
+    it('TENANT ISOLATION: another business cannot control this conversation', async () => {
+      const { takeOver } = await import('../../src/conversations/takeover.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const other = parseBusinessId('5a4d0000-0000-4000-8000-0000000000b1'); if (!other.ok) throw new Error('fixture');
+      const r = await takeOver({ db: prod.db, now }, { businessId: other.value, conversationId: convId, actor: 'attacker' });
+      expect(r.outcome).toBe('not_found');    // scoped away — as if it does not exist
+      expect(await assignedTo()).toBeNull();  // and unchanged
+    });
+
+    it('SECURITY: takeover / reply / resume routes require auth', async () => {
+      for (const path of ['takeover', 'reply', 'resume']) {
+        const res = await prod.app.inject({ method: 'POST', url: `/app/inbox/${convId}/${path}`, payload: {} });
+        expect(res.statusCode).toBe(302);
+        expect(res.headers['location']).toBe('/login');
+      }
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });

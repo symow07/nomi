@@ -27,6 +27,7 @@ const detailWithDraft: ConversationDetail = {
     { direction: 'outbound', text: 'Checking for you.', at: new Date('2026-07-27T09:01:00Z') },
   ],
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.' },
+  ownership: 'AI', handoffReasons: [],
 };
 
 describe('M9.3 · inbox list (localized)', () => {

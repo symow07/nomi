@@ -4,7 +4,11 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
+import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { esc } from './layout.js';
+
+/** The stored problem-signal kinds shown as a takeover reason (no classifier). */
+const PROBLEM_KINDS = new Set(['human_requested', 'complaint', 'repeated_ambiguity', 'low_confidence_image']);
 
 /**
  * M9.3 + ADR-0008 — the owner's decision desk. A VIEW over existing data;
@@ -122,6 +126,8 @@ export type ConversationDetail = {
   readonly order: { status: string; reference: string; totalUsd: number | null } | null;
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string } | null;
+  readonly ownership: ConversationOwnership;
+  readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -167,6 +173,11 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
        order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
+    // Takeover reason (M16.1): unresolved PROBLEM signals — stored data, no classifier.
+    const handoffReasons = (await sql<{ kind: string }>`
+      select kind from conversation_signals where conversation_id = ${conversationId} and resolved_at is null
+    `.execute(tx)).rows.map((r) => r.kind).filter((k) => PROBLEM_KINDS.has(k));
+
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
@@ -175,6 +186,8 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       order: o ? { status: o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
       messages,
       pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
+      ownership: ownershipOf(head.assigned_to),
+      handoffReasons,
     };
   });
 }
@@ -225,6 +238,31 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
   return `${title}${tabs}<div class="list">${cards}</div>${INBOX_STYLE}`;
 }
 
+/** M16.1 — the human takeover controls, driven purely by ownership. */
+function takeoverCard(d: ConversationDetail, locale: Locale): string {
+  const cid = encodeURIComponent(d.conversationId);
+  const reasons = d.handoffReasons.length
+    ? `<div class="why muted">${esc(t(locale, 'takeover.why'))}: ${d.handoffReasons.map((k) => esc(t(locale, `takeover.reason.${k}` as MessageKey))).join('、')}</div>`
+    : '';
+  const takeBtn = `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+
+  switch (d.ownership) {
+    case 'AI':
+      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${takeBtn}</div>`;
+    case 'WAITING_HUMAN':
+      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${takeBtn}</div>`;
+    case 'OWNER_CONTROLLED':
+      return `<div class="card takeover owner">
+        <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
+        <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
+          <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
+          <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+        </form>
+        <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
+      </div>`;
+  }
+}
+
 export function renderConversationDetail(d: ConversationDetail, locale: Locale, now: Date, flash: string | null): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
@@ -271,7 +309,8 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? esc(prod) : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${context}
     ${flashHtml}
-    ${draftCard}
+    ${takeoverCard(d, locale)}
+    ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     <div class="card"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
     ${INBOX_STYLE}`;
 }
@@ -310,6 +349,11 @@ const INBOX_STYLE = `<style>
   .msg.inbound .bubble { background:#1b2027; border-top-left-radius:4px; }
   .msg.outbound .bubble { background:#1b3050; border-top-right-radius:4px; }
   .ts { font-size:11px; margin-top:4px; }
+  .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .takeover.warn { border-color:#5a4a1f; } .takeover.owner { border-color:#23424a; flex-direction:column; align-items:stretch; }
+  .pill.owner { background:#13233a; color:#93c5fd; }
+  .why { flex-basis:100%; font-size:13px; }
+  .replyform { display:flex; flex-direction:column; gap:8px; }
   button:focus-visible, a:focus-visible, textarea:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } .msg { max-width:92%; } }
 </style>`;
