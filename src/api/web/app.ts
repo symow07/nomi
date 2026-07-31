@@ -20,7 +20,9 @@ import {
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
-import { loadOnboarding, renderOnboarding } from './onboarding.js';
+import {
+  loadPilotReadiness, renderPilotReadiness, attest, runValidation, type AttestKey,
+} from './pilot.js';
 import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
@@ -333,9 +335,36 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
   }));
 
-  // ── M11.2 Guided Owner Onboarding: a live checklist that deep-links out ───
-  app.get('/app/onboarding', authed('onboarding', async (s, _req, locale) =>
-    renderOnboarding(await loadOnboarding(deps.db, s.businessId), locale)));
+  // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
+  app.get('/app/onboarding', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const data = await loadPilotReadiness(deps.db, s.businessId);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'pilot.title'), active: 'onboarding',
+      bodyHtml: renderPilotReadiness(data, locale, flash),
+    }));
+  });
+
+  app.post('/app/onboarding/attest', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const which = String((req.body as { which?: string } | undefined)?.which ?? '') as AttestKey;
+    if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
+      await attest(deps.db, s.businessId, which);
+    }
+    return reply.redirect(`/app/onboarding?flash=${encodeURIComponent(t(localeOf(req), 'pilot.flash.attested'))}`);
+  });
+
+  app.post('/app/onboarding/validate', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const r = await runValidation(deps.db, s.businessId);
+    const flash = t(localeOf(req), 'pilot.flash.validated', { pass: r.pass, total: r.total });
+    return reply.redirect(`/app/onboarding?flash=${encodeURIComponent(flash)}`);
+  });
 
   // ── M11.1 Business Profile & Owner Settings (owner-authenticated only) ─────
   app.get('/app/settings', async (req, reply) => {

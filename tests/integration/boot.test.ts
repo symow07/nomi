@@ -758,14 +758,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     await withTenantTx(prod.db, bidv, (tx) => sql`update businesses set description=null, location=null, contact_email=null, contact_phone=null where id=${bidv}`.execute(tx));
   });
 
-  it('M11.2 onboarding: page renders the checklist with deep links; unauth → /login', async () => {
+  it('M15.1 pilot readiness: hub renders detected checklist + attestations; unauth → /login', async () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Get set up');                  // English default
-    expect(res.body).toContain('href="/app/settings"');
-    expect(res.body).toContain('href="/app/products"');
-    expect(res.body).toContain('href="/app/inbox"');
+    expect(res.body).toContain('Pilot readiness');             // English default
+    expect(res.body).toContain('Verified by system');          // detected badge (demo has products/channel)
+    expect(res.body).toContain('action="/app/onboarding/validate"');   // sandbox check
+    expect(res.body).toContain('action="/app/onboarding/attest"');     // owner attestation form
     const noauth = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
     expect(noauth.statusCode).toBe(302);
     expect(noauth.headers['location']).toBe('/login');
@@ -1017,6 +1017,54 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       `.execute(tx as never).then((r) => r.rows[0]!));
       expect(ops.report.factsAdded).toBe(indep.facts);
       expect(ops.report.answersCorrected).toBe(indep.corrected);
+    });
+  });
+
+  // ── M15.1 pilot readiness: detected derivation + owner attestations + validate ─
+  describe('M15.1 · pilot readiness', () => {
+    it('detected readiness is derived from real data; the demo tenant has products', async () => {
+      const { loadPilotReadiness } = await import('../../src/api/web/pilot.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const bid = parseBusinessId(DEMO_BIZ); if (!bid.ok) throw new Error('fixture');
+
+      const r = await loadPilotReadiness(prod.db, DEMO_BIZ);
+      // HONESTY: each detected item equals an independent existence check.
+      const indep = await withTenantTx(prod.db, bid.value, (tx) => sql<{ prod: boolean; chan: boolean }>`
+        select
+          exists(select 1 from products where business_id=${DEMO_BIZ} and is_active and price_usd_per_unit is not null) as prod,
+          exists(select 1 from channels where business_id=${DEMO_BIZ} and kind='whatsapp' and status='connected') as chan
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      expect(r.detected.products).toBe(indep.prod);
+      expect(r.detected.channel).toBe(indep.chan);   // derived, whatever the real state is
+    });
+
+    it('an owner attestation stamps a timestamp (confirmed by owner, not detected)', async () => {
+      const { loadPilotReadiness, attest } = await import('../../src/api/web/pilot.js');
+      await attest(prod.db, DEMO_BIZ, 'backup_tested');
+      const after = (await loadPilotReadiness(prod.db, DEMO_BIZ)).attest.backupTestedAt;
+      expect(after).not.toBeNull();   // a real timestamp, owner-confirmed
+    });
+
+    it('sandbox validation replays the golden scenarios and records the summary; drives Sandbox ✓', async () => {
+      const { loadPilotReadiness, runValidation } = await import('../../src/api/web/pilot.js');
+      const r = await runValidation(prod.db, DEMO_BIZ);
+      expect(r.total).toBeGreaterThanOrEqual(15);
+      expect(r.pass).toBe(r.total);                 // all golden scenarios pass through the real engine
+      const rd = await loadPilotReadiness(prod.db, DEMO_BIZ);
+      expect(rd.validation.pass).toBe(r.pass);
+      expect(rd.validation.total).toBe(r.total);
+      expect(rd.detected.sandbox).toBe(true);       // pass===total → Sandbox ✓
+    });
+
+    it('the attest route requires auth and stamps via the one service', async () => {
+      const noauth = await prod.app.inject({ method: 'POST', url: '/app/onboarding/attest', payload: {} });
+      expect(noauth.statusCode).toBe(302);
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'POST', url: '/app/onboarding/attest',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'which=owner_ready' });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toContain('/app/onboarding?flash=');
     });
   });
 
