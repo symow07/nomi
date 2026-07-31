@@ -13,6 +13,7 @@ import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
+import { WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
@@ -39,7 +40,9 @@ import type { DecisionFingerprint } from '../shadow/compare.js';
  * moment of escalation, not from when a human gets around to claiming it.
  */
 
-export const UNCLAIMED_AGENT = 'unclaimed';
+// Single source of truth for the ownership sentinels (M16.1). Kept exported
+// under the original name so existing callers (invariants, tests) don't change.
+export const UNCLAIMED_AGENT = WAITING_HUMAN_AGENT;
 
 /** A buyer question this close to a taught FAQ/answer ships that answer verbatim. */
 export const FAQ_ANSWER_MIN_RELEVANCE = 0.3;
