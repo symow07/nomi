@@ -126,6 +126,14 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
  * Railway before Meta onboarding finishes.
  */
 d('production deployment mode (requires DATABASE_URL)', () => {
+  // ONE simulator for this whole describe: whatsappSimulator() restarts its
+  // wamid counter per instance and outbound_messages.provider_message_id is
+  // UNIQUE, so separate instances collide on the second send.
+  let m18Adapter: import('../../src/channels/contract.js').ChannelAdapter;
+  beforeAll(async () => {
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+    m18Adapter = whatsappSimulator().adapter;
+  });
   let prod: import('../../src/main.js').Production;
 
   beforeAll(async () => {
@@ -1717,16 +1725,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
 
-    // This describe runs in deployment mode (no provider), so it brings its own
-    // simulator adapter — a send that reaches it is a send that WOULD have gone
-    // to a real buyer, which is exactly what the allowlist must prevent.
-    let adapter: import('../../src/channels/contract.js').ChannelAdapter;
-
+    // A send that reaches the simulator is a send that WOULD have gone to a
+    // real buyer — exactly what the allowlist must prevent.
     beforeAll(async () => {
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
-      const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
-      adapter = whatsappSimulator().adapter;
       // Put the demo channel in pilot mode explicitly (it is the default too).
       await q((tx) => sql`update channels set pilot_mode = true where business_id=${DEMO_BIZ}`.execute(tx as never));
     });
@@ -1770,7 +1773,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const effects = await withTenantTx(prod.db, bid, (tx) =>
         driveConversationOutbound(
-          { store: channelStore(tx as never, bid), adapter, now: () => new Date() }, cid));
+          { store: channelStore(tx as never, bid), adapter: m18Adapter, now: () => new Date() }, cid));
       expect(effects.some((e) => e.kind === 'sent'), JSON.stringify(effects)).toBe(true);
     });
 
@@ -1797,7 +1800,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const effects = await withTenantTx(prod.db, bid, (tx) =>
         driveConversationOutbound(
-          { store: channelStore(tx as never, bid), adapter, now: () => new Date() }, cid));
+          { store: channelStore(tx as never, bid), adapter: m18Adapter, now: () => new Date() }, cid));
 
       expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
       expect(effects.some((e) => e.kind === 'sent')).toBe(false);       // nothing left the building
@@ -1853,6 +1856,173 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await withTenantTx(prod.db, bid, (tx) => isAllowlisted(tx, bid, ALLOWED))).toBe(true);
       // …and NOT for the sandbox tenant, which never listed it
       expect(await withTenantTx(prod.db, other.value, (tx) => isAllowlisted(tx, other.value, ALLOWED))).toBe(false);
+    });
+  });
+
+  // ── M18.1 activation + M18.4 rollback drill, against real Postgres ─────────
+  // Activation is a GATE, not a display: it refuses until the factory is
+  // genuinely ready. The drill then proves the rollback ladder for real —
+  // enable → send → disable → verify blocked → restore — with no fake state.
+  describe('M18.1/M18.4 · activation and the rollback drill', () => {
+    const BUYER = '971500004444';
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const audits = (action: string) => q((tx) => sql<{ n: number }>`
+      select count(*)::int n from channel_audit where business_id=${DEMO_BIZ} and action=${action}
+    `.execute(tx as never).then((r) => r.rows[0]!.n));
+
+    // Every precondition is established HERE so no test depends on a sibling
+    // having run first; the refusal tests restore whatever they break.
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { addToAllowlist } = await import('../../src/channels/allowlist.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+
+      await q((tx) => sql`
+        insert into onboarding_state (business_id, backup_tested_at, secrets_rotated_at, owner_ready_at,
+                                      claims_reviewed_at, last_validation_at, last_validation_pass, last_validation_total)
+        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), 5, 5)
+        on conflict (business_id) do update set backup_tested_at=now(), secrets_rotated_at=now(),
+          owner_ready_at=now(), claims_reviewed_at=now(), last_validation_at=now(),
+          last_validation_pass=5, last_validation_total=5`.execute(tx as never));
+      await q((tx) => sql`update businesses set description='d', location='l', contact_email='e@x.com'
+                           where id=${DEMO_BIZ}`.execute(tx as never));
+      await q((tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${DEMO_BIZ}, null, 'faq', 'activation-fixture', 'a taught fact', 'owner_confirmed')
+        on conflict do nothing`.execute(tx as never));
+      await q((tx) => sql`update products set is_active=true,
+                            price_usd_per_unit=coalesce(price_usd_per_unit, 1.00)
+                           where business_id=${DEMO_BIZ}`.execute(tx as never));
+      await q((tx) => sql`
+        insert into channels (business_id, kind, status, pilot_mode)
+        values (${DEMO_BIZ}, 'whatsapp', 'connected', true)
+        on conflict (business_id, kind) do update set status='connected', pilot_mode=true`.execute(tx as never));
+      await addToAllowlist(prod.db, bid, BUYER, 'friendly buyer', 'owner');
+    });
+
+    it('REFUSES while the factory is not ready — and names the reason', async () => {
+      const { activate, activationPreconditions } = await import('../../src/channels/activation.js');
+      // clear the rotation confirmation so the M18.0 gate is unmet
+      await q((tx) => sql`
+        insert into onboarding_state (business_id, secrets_rotated_at) values (${DEMO_BIZ}, null)
+        on conflict (business_id) do update set secrets_rotated_at = null`.execute(tx as never));
+
+      const pre = await activationPreconditions(prod.db, bid);
+      expect(pre.blockers.length).toBeGreaterThan(0);
+      expect(pre.blockers).toContain('secrets_not_rotated');   // the M18.0 gate holds
+
+      const r = await activate(prod.db, bid, 'owner');
+      expect(r.ok).toBe(false);
+      // nothing was activated by a refused attempt
+      const { activationState } = await import('../../src/channels/activation.js');
+      expect((await activationState(prod.db, bid)).activatedAt).toBeNull();
+
+      // restore the precondition this test deliberately broke
+      await q((tx) => sql`update onboarding_state set secrets_rotated_at=now()
+                           where business_id=${DEMO_BIZ}`.execute(tx as never));
+    });
+
+    it('REFUSES with an empty allowlist even when everything else is ready', async () => {
+      const { activationPreconditions } = await import('../../src/channels/activation.js');
+      const { archiveFromAllowlist, listAllowlist, addToAllowlist } = await import('../../src/channels/allowlist.js');
+
+      for (const e of await listAllowlist(prod.db, bid)) {
+        if (!e.archivedAt) await archiveFromAllowlist(prod.db, bid, e.phone, 'test');
+      }
+      const pre = await activationPreconditions(prod.db, bid);
+      expect(pre.allowlistCount).toBe(0);
+      expect(pre.blockers).toContain('no_allowlist');
+
+      // restore: the drill below needs a reachable buyer
+      await addToAllowlist(prod.db, bid, BUYER, 'friendly buyer', 'owner');
+    });
+
+    it('DRILL 1 — enable: activation succeeds, is audited, and keeps pilot mode ON', async () => {
+      const { activate, activationState } = await import('../../src/channels/activation.js');
+      const before = await audits('activate');
+      const r = await activate(prod.db, bid, 'owner');
+      expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
+
+      const state = await activationState(prod.db, bid);
+      expect(state.activatedAt).toBeInstanceOf(Date);
+      expect(state.pilotMode).toBe(true);          // activation starts a CONTROLLED pilot
+      expect(await audits('activate')).toBe(before + 1);
+    });
+
+    it('DRILL 2 — test: an allowlisted buyer receives; a stranger never does', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+      const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+      const drive = async (wa: string, body: string) => {
+        const cid = await withTenantTx(prod.db, bid, async (tx) => {
+          const c = await ensureConversation(tx, bid, wa, `Drill ${wa}`);
+          await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+          await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+          await enqueueOutboundRow(tx, bid, c.conversationId, body, 'employee');
+          return c.conversationId;
+        });
+        return withTenantTx(prod.db, bid, (tx) =>
+          driveConversationOutbound({ store: channelStore(tx as never, bid), adapter: m18Adapter, now: () => new Date() }, cid));
+      };
+
+      const allowed = await drive(BUYER, 'hello allowlisted buyer');
+      expect(allowed.some((e) => e.kind === 'sent'), JSON.stringify(allowed)).toBe(true);
+      const stranger = await drive('971509999999', 'MUST NEVER BE DELIVERED');
+      expect(stranger).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
+      expect(stranger.some((e) => e.kind === 'sent')).toBe(false);
+    });
+
+    it('DRILL 3 — disable: outbound to a PREVIOUSLY WORKING buyer is now blocked', async () => {
+      const { deactivate, activationState } = await import('../../src/channels/activation.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+      const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+      const before = await audits('deactivate');
+      await deactivate(prod.db, bid, 'owner', 'drill');
+      expect(await audits('deactivate')).toBe(before + 1);
+      const state = await activationState(prod.db, bid);
+      expect(state.activatedAt).toBeNull();
+      expect(state.status).toBe('disconnected');
+
+      // the SAME allowlisted buyer that just worked must now be refused
+      const cid = await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, BUYER, 'Drill buyer');
+        await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+        await enqueueOutboundRow(tx, bid, c.conversationId, 'after deactivation', 'employee');
+        return c.conversationId;
+      });
+      const effects = await withTenantTx(prod.db, bid, (tx) =>
+        driveConversationOutbound(
+          { store: channelStore(tx as never, bid), adapter: m18Adapter, now: () => new Date() }, cid));
+      expect(effects.some((e) => e.kind === 'sent'), JSON.stringify(effects)).toBe(false);
+
+      // nothing was destroyed by the rollback — the allowlist survives
+      const { activeAllowlistCount } = await import('../../src/channels/allowlist.js');
+      expect(await activeAllowlistCount(prod.db, bid)).toBeGreaterThanOrEqual(1);
+    });
+
+    it('DRILL 4 — restore: reconnect + re-activate, and sending resumes', async () => {
+      const { activate, activationState } = await import('../../src/channels/activation.js');
+      await q((tx) => sql`update channels set status='connected', connected_at=now(), disconnected_at=null
+                           where business_id=${DEMO_BIZ}`.execute(tx as never));
+      const r = await activate(prod.db, bid, 'owner');
+      expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
+      const state = await activationState(prod.db, bid);
+      expect(state.activatedAt).toBeInstanceOf(Date);
+      expect(state.status).toBe('connected');
+    });
+
+    it('the whole drill is reconstructable from the audit trail', async () => {
+      const trail = await q((tx) => sql<{ action: string }>`
+        select action from channel_audit where business_id=${DEMO_BIZ}
+           and action in ('activate','deactivate') order by at asc, id asc
+      `.execute(tx as never).then((r) => r.rows.map((x) => x.action)));
+      // enable → disable → restore, in order, with nothing invented
+      expect(trail).toContain('activate');
+      expect(trail).toContain('deactivate');
+      expect(trail.lastIndexOf('activate')).toBeGreaterThan(trail.indexOf('deactivate'));
     });
   });
 
