@@ -23,6 +23,7 @@ import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './sett
 import {
   loadPilotRunbook, renderPilotRunbook, attest, runValidation, type AttestKey,
 } from './pilot.js';
+import { readDeployment } from './deployment.js';
 import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
@@ -390,9 +391,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const data = await loadPilotRunbook(deps.db, s.businessId, {
       sandboxBusinessId: deps.sandboxBusinessId, provider: deps.provider,
     });
+    // M17.1: which build is running — owner-authenticated only, never on /health.
+    const deployment = readDeployment(process.env, new Date(), process.uptime());
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment),
     }));
   });
 

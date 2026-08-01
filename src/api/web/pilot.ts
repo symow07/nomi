@@ -7,6 +7,7 @@ import { formatDate } from '../../core/owner/i18n/format.js';
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
+import { type DeploymentInfo } from './deployment.js';
 import { esc } from './layout.js';
 
 /**
@@ -322,11 +323,36 @@ function afterSection(locale: Locale): string {
   </div>`;
 }
 
-export function renderPilotRunbook(rb: PilotRunbook, locale: Locale, flash: string | null): string {
+/**
+ * M17.1 — which build is running. Owner-authenticated only: the same facts are
+ * deliberately NOT on /health, so a public probe cannot advertise the commit.
+ * Anything the host does not report renders as "Not reported", never a guess.
+ */
+function deploymentSection(d: DeploymentInfo, locale: Locale): string {
+  const unknown = t(locale, 'runbook.deploy.unknown');
+  const row = (label: MessageKey, value: string) =>
+    `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n mono">${esc(value)}</b></div>`;
+  const version = d.commit ? (d.branch ? `${d.commit} · ${d.branch}` : d.commit) : unknown;
+  const messaging = d.provider === 'disabled'
+    ? t(locale, 'runbook.deploy.providerDisabled')
+    : d.provider;
+  return `<div class="card">
+    <h2>${esc(t(locale, 'runbook.deploy.title'))}</h2>
+    ${row('runbook.deploy.version', version)}
+    ${row('runbook.deploy.environment', d.environment)}
+    ${row('runbook.deploy.channelMode', messaging)}
+    ${row('runbook.deploy.since', formatDate(locale, d.startedAt))}
+  </div>`;
+}
+
+export function renderPilotRunbook(
+  rb: PilotRunbook, locale: Locale, flash: string | null, deployment?: DeploymentInfo,
+): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
+    + (deployment ? deploymentSection(deployment, locale) : '')
     + RUNBOOK_STYLE;
 }
 
@@ -338,6 +364,7 @@ const RUNBOOK_STYLE = `<style>
   .rblink { font-size:13px; }
   .rbsteps { margin:6px 0 14px; padding-inline-start:20px; color:#c8ccd2; font-size:14px; }
   .rbsteps li { padding:2px 0; }
+  .rbrow .mono { font:13px/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
 </style>`;
 
 const PILOT_STYLE = `<style>

@@ -580,6 +580,14 @@ const EN = {
   'runbook.after.promotion': 'Review what your employee may do on its own',
   'runbook.after.autonomy': 'Review working hours and limits',
   'runbook.after.gaps': 'Review questions still to answer',
+  // M17.1 · deployment facts (owner-authenticated only — never on /health)
+  'runbook.deploy.title': 'This installation',
+  'runbook.deploy.version': 'Running version',
+  'runbook.deploy.environment': 'Environment',
+  'runbook.deploy.channelMode': 'Messaging',
+  'runbook.deploy.since': 'Running since',
+  'runbook.deploy.unknown': 'Not reported',
+  'runbook.deploy.providerDisabled': 'Not active',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -1138,6 +1146,14 @@ const ZH: Record<MessageKey, string> = {
   'runbook.after.promotion': '检查员工可以自主做哪些事',
   'runbook.after.autonomy': '检查工作时间和权限',
   'runbook.after.gaps': '检查还没回答的问题',
+  // M17.1 · 部署信息（仅老板登录后可见）
+  'runbook.deploy.title': '本套系统',
+  'runbook.deploy.version': '当前版本',
+  'runbook.deploy.environment': '运行环境',
+  'runbook.deploy.channelMode': '消息通道',
+  'runbook.deploy.since': '已运行自',
+  'runbook.deploy.unknown': '未提供',
+  'runbook.deploy.providerDisabled': '未启用',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -1694,6 +1710,14 @@ const AR: Record<MessageKey, string> = {
   'runbook.after.promotion': 'راجِع ما يمكن لموظفتك فعله بمفردها',
   'runbook.after.autonomy': 'راجِع ساعات العمل والحدود',
   'runbook.after.gaps': 'راجِع الأسئلة التي لم تُجب بعد',
+  // M17.1 · معلومات النشر (تظهر بعد تسجيل دخول المالك فقط)
+  'runbook.deploy.title': 'هذه النسخة',
+  'runbook.deploy.version': 'الإصدار العامل',
+  'runbook.deploy.environment': 'البيئة',
+  'runbook.deploy.channelMode': 'الرسائل',
+  'runbook.deploy.since': 'تعمل منذ',
+  'runbook.deploy.unknown': 'غير متوفّر',
+  'runbook.deploy.providerDisabled': 'غير مُفعّلة',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR };

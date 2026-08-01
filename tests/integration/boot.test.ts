@@ -1555,6 +1555,35 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M17.1 deployment visibility: authenticated only, never on /health ───────
+  describe('M17.1 · deployment visibility', () => {
+    it('/health stays a minimal PUBLIC probe — no commit, branch, or version', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(200);
+      // exactly these keys — adding build info here would leak it publicly
+      expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'ok', 'provider', 'worker']);
+      const body = res.body.toLowerCase();
+      for (const leak of ['commit', 'sha', 'branch', 'version', 'railway']) {
+        expect(body.includes(leak), `/health leaks "${leak}"`).toBe(false);
+      }
+    });
+
+    it('the owner surface DOES show which build is running (behind login)', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('This installation');
+      expect(res.body).toContain('Running version');
+      expect(res.body).toContain('Environment');
+    });
+
+    it('and it is NOT reachable without a session', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toBe('/login');
+    });
+  });
+
   // ── M16.2d Pilot operations runbook (loadPilotRunbook read model) ───────────
   // Composes M15 readiness + M16.2a operations + a rehearsal derived from
   // existing events (sandbox conversation_events + a pilot owner-corrected fact +

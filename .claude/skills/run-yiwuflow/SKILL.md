@@ -18,6 +18,19 @@ leaving the server running:
 bash .claude/skills/run-yiwuflow/smoke.sh
 ```
 
+**To verify a DEPLOYED instance instead** (read-only — GETs plus one login POST;
+never posts an owner action, never sends a message, safe against production):
+
+```bash
+bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+```
+
+It checks `/health` (including that it leaks no build info), the auth gate on
+every owner surface, the `Secure`/`HttpOnly`/`SameSite` cookie flags over https,
+that no webhook is mounted while messaging is disabled, that the owner pages
+render, and reports the running version. Exit 0 = all passed. Without an access
+code it runs the public checks only. See `docs/DEPLOYMENT.md`.
+
 All paths below are relative to the repo root.
 
 ## Prerequisites

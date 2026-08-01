@@ -3,6 +3,7 @@ import {
   renderPilotReadiness, renderPilotRunbook, type PilotReadiness, type PilotRunbook,
 } from '../../src/api/web/pilot.js';
 import { type OperationsSnapshot } from '../../src/api/web/operations.js';
+import { readDeployment } from '../../src/api/web/deployment.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 
@@ -140,6 +141,32 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('no percentages anywhere', () => {
     for (const l of LOCALES) expect(renderPilotRunbook(rb(), l, null)).not.toMatch(/\d+\s*%/);
+  });
+
+  it('M17.1 deployment section: real facts when reported, honest blank when not', () => {
+    const info = readDeployment(
+      { RAILWAY_GIT_COMMIT_SHA: 'abcdef1234567890', RAILWAY_GIT_BRANCH: 'main',
+        RAILWAY_ENVIRONMENT_NAME: 'production', WHATSAPP_PROVIDER: 'disabled' } as NodeJS.ProcessEnv,
+      new Date('2026-08-01T10:00:00Z'), 3600,
+    );
+    expect(info.commit).toBe('abcdef1');                 // short, not the full sha
+    expect(info.startedAt.toISOString()).toBe('2026-08-01T09:00:00.000Z');
+
+    const html = renderPilotRunbook(rb(), 'en', null, info);
+    expect(html).toContain(t('en', 'runbook.deploy.title'));
+    expect(html).toContain('abcdef1 · main');
+    expect(html).toContain('production');
+    expect(html).toContain(t('en', 'runbook.deploy.providerDisabled'));   // honest: messaging off
+
+    // nothing reported by the host → "Not reported", never a guess
+    const bare = readDeployment({} as NodeJS.ProcessEnv, new Date(), 0);
+    expect(bare.commit).toBeNull();
+    expect(bare.environment).toBe('local');
+    expect(renderPilotRunbook(rb(), 'en', null, bare)).toContain(t('en', 'runbook.deploy.unknown'));
+  });
+
+  it('M17.1 deployment section is omitted entirely when not supplied', () => {
+    expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'runbook.deploy.title'));
   });
 
   it('no score / grade / technical vocabulary — any locale', () => {
