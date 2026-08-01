@@ -102,6 +102,20 @@ export type RehearsalStep = 'takeover' | 'ownerReply' | 'resume' | 'knowledgeCor
 export const REHEARSAL_STEPS: readonly RehearsalStep[] =
   ['takeover', 'ownerReply', 'resume', 'knowledgeCorrection', 'validationPassed'];
 
+/**
+ * M17.4 — the one operational health fact an owner can act on: messages that
+ * were accepted for sending but have not gone out. A plain COUNT of queued
+ * outbound rows older than STUCK_AFTER_MINUTES, plus how long the oldest has
+ * waited. Deliberately on the runbook, NOT the Operations Home — the Home
+ * answers "what needs my attention today?", not "how is the plumbing?".
+ */
+export const STUCK_AFTER_MINUTES = 15;
+
+export type Reliability = {
+  readonly stuckOutbound: number;
+  readonly oldestQueuedAt: Date | null;
+};
+
 export type PilotRunbook = {
   readonly readiness: PilotReadiness;       // before launch (M15)
   readonly operations: OperationsSnapshot;  // during pilot (M16.2a)
@@ -111,6 +125,7 @@ export type PilotRunbook = {
     readonly completed: number;
     readonly total: number;
   };
+  readonly reliability: Reliability;        // M17.4
 };
 
 export async function loadPilotRunbook(
@@ -149,12 +164,31 @@ export async function loadPilotRunbook(
       `.execute(tx)).rows[0]!)
     : { takeover: false, owner_reply: false, resume: false };
 
+  // M17.4: stuck outbound — accepted for sending but still queued. One honest
+  // COUNT over the existing table; no new storage, no threshold guessing beyond
+  // the documented STUCK_AFTER_MINUTES.
+  const reliability: Reliability = bid.ok
+    ? await withTenantTx(db, bid.value, async (tx) => {
+        const r = (await sql<{ n: number; oldest: Date | null }>`
+          select count(*)::int as n, min(created_at) as oldest
+            from outbound_messages
+           where business_id = ${bid.value} and status = 'queued'
+             and created_at < now() - (${STUCK_AFTER_MINUTES} || ' minutes')::interval
+        `.execute(tx)).rows[0]!;
+        return { stuckOutbound: r.n, oldestQueuedAt: r.oldest };
+      })
+    : { stuckOutbound: 0, oldestQueuedAt: null };
+
   const done: Record<RehearsalStep, boolean> = {
     takeover: sbx.takeover, ownerReply: sbx.owner_reply, resume: sbx.resume,
     knowledgeCorrection, validationPassed,
   };
   const completed = REHEARSAL_STEPS.filter((s) => done[s]).length;
-  return { readiness, operations, rehearsal: { available, done, completed, total: REHEARSAL_STEPS.length } };
+  return {
+    readiness, operations,
+    rehearsal: { available, done, completed, total: REHEARSAL_STEPS.length },
+    reliability,
+  };
 }
 
 /** Record an owner attestation (timestamp). Whitelisted column — never user input. */
@@ -371,12 +405,30 @@ function metaSection(m: MetaReadiness, locale: Locale): string {
   </div>`;
 }
 
+/**
+ * M17.4 — delivery health. A real count and a real timestamp, with the one
+ * action the owner can take. No score, no percentage, no infrastructure gauge.
+ */
+function healthSection(r: Reliability, locale: Locale): string {
+  if (r.stuckOutbound === 0) {
+    return `<div class="card"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
+      <div class="ok">✓ ${esc(t(locale, 'ops.health.ok'))}</div></div>`;
+  }
+  return `<div class="card"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
+    <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${r.stuckOutbound}</b>
+      <a class="rblink" href="/app/channels">${esc(t(locale, 'pilot.open'))}</a></div>
+    ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(formatDate(locale, r.oldestQueuedAt))}</b></div>` : ''}
+    <p class="muted">${esc(t(locale, 'ops.health.whatToDo'))}</p>
+  </div>`;
+}
+
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: string | null,
   deployment?: DeploymentInfo, meta?: MetaReadiness,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
+    + healthSection(rb.reliability, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
     + (meta ? metaSection(meta, locale) : '')

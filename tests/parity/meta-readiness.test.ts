@@ -42,6 +42,7 @@ const rb = (): PilotRunbook => ({
     done: { takeover: false, ownerReply: false, resume: false, knowledgeCorrection: false, validationPassed: false },
     completed: 0, total: 5,
   },
+  reliability: { stuckOutbound: 0, oldestQueuedAt: null },
 });
 
 describe('M17.2 · Meta credential validation (pure, offline)', () => {

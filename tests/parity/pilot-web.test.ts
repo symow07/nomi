@@ -87,6 +87,7 @@ const rb = (over: Partial<PilotRunbook> = {}): PilotRunbook => ({
     done: { takeover: true, ownerReply: false, resume: false, knowledgeCorrection: true, validationPassed: false },
     completed: 2, total: 5,
   },
+  reliability: { stuckOutbound: 0, oldestQueuedAt: null },
   ...over,
 });
 
@@ -167,6 +168,27 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('M17.1 deployment section is omitted entirely when not supplied', () => {
     expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'runbook.deploy.title'));
+  });
+
+  it('M17.4 delivery health: honest all-clear when nothing is stuck', () => {
+    for (const l of LOCALES) {
+      const html = renderPilotRunbook(rb(), l, null);
+      expect(html).toContain(t(l, 'ops.health.title'));
+      expect(html).toContain(t(l, 'ops.health.ok'));
+      expect(html).not.toContain(t(l, 'ops.health.stuck'));
+    }
+  });
+
+  it('M17.4 delivery health: a real count + timestamp + the one action to take', () => {
+    const stuck = rb({ reliability: { stuckOutbound: 3, oldestQueuedAt: NOW } });
+    const html = renderPilotRunbook(stuck, 'en', null);
+    expect(html).toContain(t('en', 'ops.health.stuck'));
+    expect(html).toContain('>3<');                              // a real count
+    expect(html).toContain(t('en', 'ops.health.oldest'));
+    expect(html).toContain('href="/app/channels"');             // where to act
+    expect(html).toContain(t('en', 'ops.health.whatToDo'));
+    expect(html).not.toContain(t('en', 'ops.health.ok'));
+    expect(html).not.toMatch(/\d+\s*%/);                        // never a percentage
   });
 
   it('no score / grade / technical vocabulary — any locale', () => {

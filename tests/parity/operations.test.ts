@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ATTENTION_PRIORITY, renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, OWNER_AGENT } from '../../src/core/conversation/ownership.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * M16.2a — the Operations snapshot is a neutral, honest shape. These pure tests
@@ -132,6 +133,20 @@ describe('M16.2b · operations home (render)', () => {
       const html = (renderOperationsHome(populated, l) + renderOperationsHome(emptyFactory, l)).toLowerCase();
       for (const banned of ['score', 'confidence', 'percent', '%', 'ranking', 'rating']) {
         expect(html.includes(banned), `${l}:${banned}`).toBe(false);
+      }
+    }
+  });
+
+  it('M17.4: infrastructure health stays OFF the Operations Home', () => {
+    // Delivery/queue health belongs on the runbook. The Home answers "what needs
+    // my attention today?" — it must not become a plumbing dashboard.
+    for (const l of LOCALES) {
+      const html = renderOperationsHome(populated, l);
+      expect(html).not.toContain(t(l, 'ops.health.title'));
+      expect(html).not.toContain(t(l, 'ops.health.stuck'));
+      const low = html.toLowerCase();
+      for (const infra of ['queue', 'worker', 'uptime', 'latency', 'memory', 'cpu']) {
+        expect(low.includes(infra), `${l}:"${infra}"`).toBe(false);
       }
     }
   });

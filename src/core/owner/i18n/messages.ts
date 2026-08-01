@@ -606,6 +606,12 @@ const EN = {
   'meta.blocker.channel_not_connected': 'The channel has not been connected yet.',
   'meta.notLive': 'Not live yet — no customer messages are sent or received.',
   'meta.live': 'Live — your employee is talking to real buyers.',
+  // M17.4 · operational health (runbook only — never the Operations Home)
+  'ops.health.title': 'Delivery health',
+  'ops.health.ok': 'Every reply your employee sent has gone out.',
+  'ops.health.stuck': 'Replies accepted but not yet delivered',
+  'ops.health.oldest': 'Oldest waiting since',
+  'ops.health.whatToDo': 'Check the connection on the Channels page; replies resume by themselves once it is healthy.',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -1190,6 +1196,12 @@ const ZH: Record<MessageKey, string> = {
   'meta.blocker.channel_not_connected': '渠道还没有连接。',
   'meta.notLive': '尚未上线——不会收发任何客户消息。',
   'meta.live': '已上线——员工正在接待真实买家。',
+  // M17.4 · 发送情况（只在手册里，不放到运营主页）
+  'ops.health.title': '发送情况',
+  'ops.health.ok': '员工发出的回复都已送达。',
+  'ops.health.stuck': '已接收但还没发出的回复',
+  'ops.health.oldest': '最早的一条等待自',
+  'ops.health.whatToDo': '到“销售渠道”页面看看连接是否正常；连接恢复后会自动继续发送。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -1772,6 +1784,12 @@ const AR: Record<MessageKey, string> = {
   'meta.blocker.channel_not_connected': 'لم يتم ربط القناة بعد.',
   'meta.notLive': 'ليست مباشرة بعد — لا تُرسل أو تُستقبل أي رسائل من العملاء.',
   'meta.live': 'مباشرة — موظفتك تتحدث مع مشترين حقيقيين.',
+  // M17.4 · حالة الإرسال (في الدليل فقط — لا تظهر في واجهة العمليات)
+  'ops.health.title': 'حالة الإرسال',
+  'ops.health.ok': 'كل ردّ أرسلته موظفتك قد وصل.',
+  'ops.health.stuck': 'ردود قُبلت ولم تُسلّم بعد',
+  'ops.health.oldest': 'أقدم واحد ينتظر منذ',
+  'ops.health.whatToDo': 'راجِع الاتصال في صفحة القنوات؛ يستأنف الإرسال تلقائياً بعد أن يعود سليماً.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR };
