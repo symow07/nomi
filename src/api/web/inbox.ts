@@ -115,6 +115,22 @@ export function defaultFilter(waitingCount: number): InboxFilter {
 
 export type TimelineMessage = { direction: 'inbound' | 'outbound'; text: string; at: Date | null };
 
+/** M16.2c — the human control-plane event kinds, in conversation_events. */
+export type HumanActionType = 'takeover' | 'owner_reply' | 'resume_ai' | 'draft_resolved';
+const HUMAN_ACTION_TYPES = ['takeover', 'owner_reply', 'resume_ai', 'draft_resolved'] as const;
+
+/**
+ * "What happened last?" — the latest human action on this conversation, from
+ * conversation_events. Read-only, and deliberately NARROW: actor + kind + time
+ * only. No message body, no buyer PII — just enough to answer "who touched this
+ * and when".
+ */
+export type LastHumanAction = {
+  readonly type: HumanActionType;
+  readonly actor: string | null;
+  readonly at: Date | null;
+};
+
 export type ConversationDetail = {
   readonly conversationId: string;
   readonly buyer: string | null;
@@ -128,6 +144,7 @@ export type ConversationDetail = {
   readonly pendingDraft: { draftId: string; draftText: string } | null;
   readonly ownership: ConversationOwnership;
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
+  readonly lastHumanAction: LastHumanAction | null;
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -178,6 +195,20 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       select kind from conversation_signals where conversation_id = ${conversationId} and resolved_at is null
     `.execute(tx)).rows.map((r) => r.kind).filter((k) => PROBLEM_KINDS.has(k));
 
+    // M16.2c "what happened last?": the latest human action — kind + actor + time
+    // only. payload->>'actor' is a human/agent id, never buyer data; no body read.
+    const lastAct = (await sql<{ type: string; actor: string | null; at: Date | null }>`
+      select type, payload->>'actor' as actor, created_at as at
+        from conversation_events
+       where conversation_id = ${conversationId}
+         and type in ('takeover', 'owner_reply', 'resume_ai', 'draft_resolved')
+       order by created_at desc, id desc limit 1
+    `.execute(tx)).rows[0];
+    const lastHumanAction: LastHumanAction | null =
+      lastAct && (HUMAN_ACTION_TYPES as readonly string[]).includes(lastAct.type)
+        ? { type: lastAct.type as HumanActionType, actor: lastAct.actor, at: lastAct.at }
+        : null;
+
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
@@ -188,6 +219,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
       ownership: ownershipOf(head.assigned_to),
       handoffReasons,
+      lastHumanAction,
     };
   });
 }
@@ -238,22 +270,32 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
   return `${title}${tabs}<div class="list">${cards}</div>${INBOX_STYLE}`;
 }
 
-/** M16.1 — the human takeover controls, driven purely by ownership. */
-function takeoverCard(d: ConversationDetail, locale: Locale): string {
+/** "What happened last?" — a localized one-liner: kind + who + when. No body. */
+function lastActionLine(a: LastHumanAction, locale: Locale, now: Date): string {
+  const who = a.actor && a.actor !== 'owner' ? a.actor : t(locale, 'takeover.actor.you');
+  const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: EMPLOYEE_NAME[locale] });
+  const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
+  return `<div class="lastact muted">${esc(t(locale, 'takeover.lastLabel'))}: ${esc(phrase + when)}</div>`;
+}
+
+/** M16.1/M16.2c — the human control surface, driven purely by ownership. */
+function takeoverCard(d: ConversationDetail, locale: Locale, now: Date): string {
   const cid = encodeURIComponent(d.conversationId);
   const reasons = d.handoffReasons.length
     ? `<div class="why muted">${esc(t(locale, 'takeover.why'))}: ${d.handoffReasons.map((k) => esc(t(locale, `takeover.reason.${k}` as MessageKey))).join('、')}</div>`
     : '';
+  const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now) : '';
   const takeBtn = `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
 
   switch (d.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${takeBtn}</div>`;
+      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}</div>`;
     case 'WAITING_HUMAN':
-      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${takeBtn}</div>`;
+      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}</div>`;
     case 'OWNER_CONTROLLED':
       return `<div class="card takeover owner">
         <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
+        ${last}
         <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
           <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
@@ -309,7 +351,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? esc(prod) : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${context}
     ${flashHtml}
-    ${takeoverCard(d, locale)}
+    ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     <div class="card"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
     ${INBOX_STYLE}`;
@@ -353,6 +395,7 @@ const INBOX_STYLE = `<style>
   .takeover.warn { border-color:#5a4a1f; } .takeover.owner { border-color:#23424a; flex-direction:column; align-items:stretch; }
   .pill.owner { background:#13233a; color:#93c5fd; }
   .why { flex-basis:100%; font-size:13px; }
+  .lastact { flex-basis:100%; font-size:12px; }
   .replyform { display:flex; flex-direction:column; gap:8px; }
   button:focus-visible, a:focus-visible, textarea:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } .msg { max-width:92%; } }

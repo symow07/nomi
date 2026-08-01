@@ -1350,6 +1350,95 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M16.2c Inbox human-operations detail (loadConversationDetail read model) ─
+  // Proves the NEW lastHumanAction read model + the state→controls render over
+  // real Postgres, reusing the M16.1 services exactly (takeOver/ownerReply/
+  // resumeAi). The lifecycle drives it; the assertions are on the read model.
+  describe('M16.2c · inbox human-operations detail (over real data)', () => {
+    const now = () => new Date();
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    let convId: string;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const detail = () => import('../../src/api/web/inbox.js')
+      .then(({ loadConversationDetail }) => loadConversationDetail(prod.db, DEMO_BIZ, convId));
+    const render = async (d: import('../../src/api/web/inbox.js').ConversationDetail) =>
+      import('../../src/api/web/inbox.js').then(({ renderConversationDetail }) => renderConversationDetail(d, 'en', new Date(), null));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      convId = await withTenantTx(prod.db, bid, async (tx) => {
+        const { conversationId } = await ensureConversation(tx, bid, '971500007777', 'Detail Buyer');
+        await tenantRepos(tx, bid).conversations.assign(conversationId as never, 'unclaimed');
+        await tenantRepos(tx, bid).signals.record(conversationId as never, { kind: 'human_requested' });
+        return conversationId;
+      });
+    });
+
+    it('WAITING_HUMAN: ownership + stored handoff reason; take-over available; no prior action', async () => {
+      const d = (await detail())!;
+      expect(d.ownership).toBe('WAITING_HUMAN');
+      expect(d.handoffReasons).toContain('human_requested');   // stored signal, not inferred
+      expect(d.lastHumanAction).toBeNull();
+      expect(await render(d)).toContain(`action="/app/inbox/${convId}/takeover"`);
+    });
+
+    it('after takeOver: OWNER_CONTROLLED + lastHumanAction=takeover; render shows reply + return', async () => {
+      const { takeOver } = await import('../../src/conversations/takeover.js');
+      expect((await takeOver({ db: prod.db, now }, { businessId: bid, conversationId: convId, actor: 'owner' })).outcome).toBe('taken_over');
+      const d = (await detail())!;
+      expect(d.ownership).toBe('OWNER_CONTROLLED');
+      expect(d.lastHumanAction).toMatchObject({ type: 'takeover', actor: 'owner' });
+      expect(d.lastHumanAction!.at).toBeInstanceOf(Date);
+      const html = await render(d);
+      expect(html).toContain(`action="/app/inbox/${convId}/reply"`);
+      expect(html).toContain(`action="/app/inbox/${convId}/resume"`);
+      expect(html).toContain('Taken over by you');
+    });
+
+    it('after ownerReply: lastHumanAction=owner_reply AND exactly one owner-origin outbound row', async () => {
+      const { ownerReply } = await import('../../src/outbound/ownerReply.js');
+      const before = await q((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${convId}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      const r = await ownerReply({ db: prod.db, now, kickDrive: async () => {} }, { businessId: bid, conversationId: convId, text: 'Owner here — happy to help directly.', actor: 'owner' });
+      expect(r.outcome).toBe('sent');
+      const rows = await q((tx) => sql<{ origin: string }>`select origin from outbound_messages where conversation_id=${convId} order by seq desc`.execute(tx as never).then((x) => x.rows));
+      expect(rows.length - before).toBe(1);          // the ONE send path — no second insert
+      expect(rows[0]!.origin).toBe('owner');
+      expect((await detail())!.lastHumanAction!.type).toBe('owner_reply');
+    });
+
+    it('after resumeAi: back to AI + lastHumanAction=resume_ai; render shows take-over again', async () => {
+      const { resumeAi } = await import('../../src/conversations/takeover.js');
+      expect((await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: convId, actor: 'owner' })).outcome).toBe('resumed');
+      const d = (await detail())!;
+      expect(d.ownership).toBe('AI');
+      expect(d.lastHumanAction!.type).toBe('resume_ai');
+      expect(await render(d)).toContain(`action="/app/inbox/${convId}/takeover"`);
+    });
+
+    it('latest wins: a later draft_resolved becomes the last action; shape carries no body/PII', async () => {
+      await q((tx) => sql`
+        insert into conversation_events (business_id, conversation_id, type, payload)
+        values (${DEMO_BIZ}, ${convId}, 'draft_resolved',
+                ${JSON.stringify({ draftId: 'x', status: 'approved', actor: 'owner', body: 'BODY-MUST-NOT-SURFACE' })}::jsonb)
+      `.execute(tx as never));
+      const a = (await detail())!.lastHumanAction!;
+      expect(a.type).toBe('draft_resolved');                       // newest by (created_at, id)
+      expect(Object.keys(a).sort()).toEqual(['actor', 'at', 'type']); // narrow shape only
+      expect(a.actor).toBe('owner');
+      expect(JSON.stringify(a)).not.toContain('BODY-MUST-NOT-SURFACE');
+    });
+
+    it('SECURITY: another tenant cannot read this conversation detail (RLS)', async () => {
+      const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
+      expect(await loadConversationDetail(prod.db, '5a4d0000-0000-4000-8000-0000000000b1', convId)).toBeNull();
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
