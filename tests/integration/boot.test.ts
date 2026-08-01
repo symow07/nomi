@@ -1439,6 +1439,122 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M16.3 Sandbox human-control rehearsal (the real routes, sandbox tenant) ─
+  // The sandbox exercises the SAME lifecycle as production: takeOver /
+  // ownerReply / resumeAi on the sandbox tenant, driven through the real HTTP
+  // routes. Nothing is delivered — the owner row is sunk into the transcript.
+  describe('M16.3 · sandbox human-control rehearsal', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    let sbid: import('../../src/core/types/ids.js').BusinessId;
+
+    const inSandbox = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, sbid, fn as never));
+    const post = async (path: string, payload = 'mode=scripted') => {
+      const cookie = await login();
+      return prod.app.inject({ method: 'POST', url: `/app/sandbox/${path}`,
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload });
+    };
+    // The SAME lookup the routes use: the sandbox buyer's active conversation.
+    // (Earlier describes archive theirs via /app/sandbox/reset, so this describe
+    // starts its own rather than inheriting ambient state.)
+    const convId = () => inSandbox((tx) => sql<{ id: string }>`
+      select c.id from conversations c
+        join client_channels cc on cc.client_id = c.client_id
+         and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
+       where c.business_id=${SANDBOX} and c.is_active order by c.created_at desc limit 1
+    `.execute(tx as never).then((r) => r.rows[0]?.id ?? null));
+    const assigned = async () => {
+      const cid = await convId();
+      return inSandbox((tx) => sql<{ a: string | null }>`
+        select assigned_to as a from conversations where id=${cid}
+      `.execute(tx as never).then((r) => r.rows.length === 0 ? 'MISSING' : r.rows[0]!.a));
+    };
+    const events = (type: string) => inSandbox((tx) => sql<{ n: number }>`
+      select count(*)::int n from conversation_events where business_id=${SANDBOX} and type=${type}
+    `.execute(tx as never).then((r) => r.rows[0]!.n));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(SANDBOX); if (!p.ok) throw new Error('fixture'); sbid = p.value;
+      // Start a fresh rehearsal conversation the way an owner does — one buyer
+      // message through the real route (the M12.2 tenant is already seeded).
+      const started = await post('message', 'mode=scripted&text=' + encodeURIComponent('Do you make canvas tote bags?'));
+      expect(started.statusCode).toBe(302);
+      expect(await convId()).not.toBeNull();
+    });
+
+    it('SECURITY: the rehearsal routes require owner auth', async () => {
+      for (const path of ['takeover', 'reply', 'resume']) {
+        const res = await prod.app.inject({ method: 'POST', url: `/app/sandbox/${path}`, payload: {} });
+        expect(res.statusCode).toBe(302);
+        expect(res.headers['location']).toBe('/login');
+      }
+    });
+
+    it('take over: assigned to owner + a takeover event; the page shows owner controls', async () => {
+      expect((await post('takeover')).statusCode).toBe(302);
+      expect(await assigned()).toBe('owner');
+      expect(await events('takeover')).toBeGreaterThanOrEqual(1);   // M16.2d can observe it
+
+      const cookie = await login();
+      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(page.body).toContain('action="/app/sandbox/reply"');
+      expect(page.body).toContain('action="/app/sandbox/resume"');
+    });
+
+    it('owner reply: ONE owner-origin row through the one send path, sunk into the transcript', async () => {
+      const cid = (await convId())!;
+      const before = await inSandbox((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${cid}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect((await post('reply', 'mode=scripted&text=' + encodeURIComponent('Owner here — I can do 4,800 pcs.'))).statusCode).toBe(302);
+
+      const rows = await inSandbox((tx) => sql<{ origin: string; status: string; provider_message_id: string | null }>`
+        select origin, status, provider_message_id from outbound_messages where conversation_id=${cid} order by seq desc
+      `.execute(tx as never).then((r) => r.rows));
+      expect(rows.length - before).toBe(1);            // exactly one — no second send path
+      expect(rows[0]!.origin).toBe('owner');           // via enqueueOutboundRow(origin='owner')
+      expect(rows[0]!.provider_message_id).toBeNull(); // NO real delivery — no provider ever saw it
+      expect(await events('owner_reply')).toBeGreaterThanOrEqual(1);
+
+      const cookie = await login();
+      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(page.body).toContain('Owner here — I can do 4,800 pcs.');   // sunk into the transcript
+    });
+
+    it('return to the employee: back to AI + a resume_ai event; take-over offered again', async () => {
+      expect((await post('resume')).statusCode).toBe(302);
+      expect(await assigned()).toBeNull();
+      expect(await events('resume_ai')).toBeGreaterThanOrEqual(1);
+
+      const cookie = await login();
+      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+      expect(page.body).toContain('action="/app/sandbox/takeover"');
+    });
+
+    it('NO real delivery: the sandbox tenant still has no channel credential', async () => {
+      const n = await inSandbox((tx) => sql<{ n: number }>`select count(*)::int n from channel_credentials where business_id=${SANDBOX}`.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(n).toBe(0);
+    });
+
+    it('TENANT ISOLATION: the rehearsal touched no pilot conversation', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+      const leaked = await withTenantTx(prod.db, p.value, (tx) => sql<{ n: number }>`
+        select count(*)::int n from outbound_messages
+         where business_id=${DEMO_BIZ} and body like 'Owner here — I can do 4,800%'
+      `.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(leaked).toBe(0);
+    });
+
+    it('the M16.2d runbook now observes all three rehearsals as practiced', async () => {
+      const { loadPilotRunbook } = await import('../../src/api/web/pilot.js');
+      const rb = await loadPilotRunbook(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      expect(rb.rehearsal.done.takeover).toBe(true);
+      expect(rb.rehearsal.done.ownerReply).toBe(true);
+      expect(rb.rehearsal.done.resume).toBe(true);
+    });
+  });
+
   // ── M16.2d Pilot operations runbook (loadPilotRunbook read model) ───────────
   // Composes M15 readiness + M16.2a operations + a rehearsal derived from
   // existing events (sandbox conversation_events + a pilot owner-corrected fact +
@@ -1490,7 +1606,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
       expect(rb.rehearsal.done.takeover).toBe(true);
       expect(rb.rehearsal.done.ownerReply).toBe(true);
-      expect(rb.rehearsal.done.resume).toBe(false);       // not practiced
+      // "not practiced stays ○" is proven against an empty sandbox in the
+      // isolation test below — asserting it here would depend on whether an
+      // earlier describe rehearsed a hand-back in this same sandbox tenant.
     });
 
     it('an owner-corrected knowledge fact → correction rehearsal ✓ (pilot tenant)', async () => {

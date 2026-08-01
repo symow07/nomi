@@ -10,6 +10,7 @@ import type { Analysis } from '../../core/conversation/decide.js';
 import type { Retriever, RetrievedProduct } from '../../retrieval/ports.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { parseBusinessId, parseConversationId } from '../../core/types/ids.js';
+import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd } from '../../core/owner/i18n/format.js';
@@ -244,13 +245,20 @@ export type SandboxView = {
   readonly messages: readonly SandboxMessage[];
   readonly pendingDraft: { readonly draftId: string; readonly draftText: string } | null;
   readonly lastTurn: SandboxTrust | null;
+  /** M16.3 — the SAME ownership model as the inbox (ownershipOf), so the owner
+   *  rehearses the real human-takeover lifecycle here. */
+  readonly ownership: ConversationOwnership;
 };
 
 export async function loadSandboxView(deps: SandboxDeps): Promise<SandboxView> {
   const businessId = bidOf(deps.businessId);
   return withTenantTx(deps.db, businessId, async (tx) => {
     const conversationId = await findActiveConversation(tx, businessId);
-    if (!conversationId) return { hasConversation: false, messages: [], pendingDraft: null, lastTurn: null };
+    if (!conversationId) return { hasConversation: false, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI' };
+
+    const assigned = (await sql<{ assigned_to: string | null }>`
+      select assigned_to from conversations where id = ${conversationId} limit 1
+    `.execute(tx)).rows[0]?.assigned_to ?? null;
 
     const messages = (await sql<{ direction: string; input_type: string; text_content: string | null }>`
       select direction, input_type, text_content from messages
@@ -275,7 +283,39 @@ export async function loadSandboxView(deps: SandboxDeps): Promise<SandboxView> {
       messages,
       pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
       lastTurn: evt ? evt.payload : null,
+      ownership: ownershipOf(assigned),
     };
+  });
+}
+
+/** The active sandbox conversation, for the takeover routes (M16.3). */
+export async function activeSandboxConversationId(deps: SandboxDeps): Promise<string | null> {
+  const businessId = bidOf(deps.businessId);
+  return withTenantTx(deps.db, businessId, (tx) => findActiveConversation(tx, businessId));
+}
+
+/**
+ * M16.3 — the sandbox "delivery" for an owner reply. ownerReply() has already
+ * gone through the ONE send path (enqueueOutboundRow, origin='owner') and
+ * written the owner_reply event; this is the kickDrive it fires afterwards. The
+ * sandbox has no worker and no channel credential, so instead of a real send we
+ * SINK the queued owner row into the transcript (the same recordMessage the AI
+ * reply and the approval sink use) and mark the row terminal. No real outbound
+ * delivery, and no second send path.
+ */
+export async function sandboxFlushOutbound(deps: SandboxDeps, conversationId: string): Promise<void> {
+  const businessId = bidOf(deps.businessId);
+  await withTenantTx(deps.db, businessId, async (tx) => {
+    await lockConversation(tx, conversationId);
+    const queued = (await sql<{ id: string; body: string }>`
+      select id, body from outbound_messages
+       where conversation_id = ${conversationId} and origin = 'owner' and status = 'queued'
+       order by seq asc
+    `.execute(tx)).rows;
+    for (const row of queued) {
+      await recordMessage(tx, conversationId, 'outbound', 'text', row.body);   // the sink
+      await sql`update outbound_messages set status = 'sent', sent_at = now() where id = ${row.id}`.execute(tx);
+    }
   });
 }
 
@@ -337,6 +377,31 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
   </div>`;
 }
 
+/** M16.3 — the human-control card, driven by ownership exactly like the inbox
+ *  (same ownershipOf, same takeover.* wording, same take-over/reply/return
+ *  services). Sandbox routes carry no conversation id — there is one active
+ *  conversation, resolved server-side. */
+function sandboxTakeoverCard(view: SandboxView, locale: Locale, mode: SandboxMode): string {
+  if (!view.hasConversation) return '';
+  const m = `<input type="hidden" name="mode" value="${mode}" />`;
+  const take = `<form method="post" action="/app/sandbox/takeover" class="inline">${m}<button class="btn ${view.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  switch (view.ownership) {
+    case 'AI':
+      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${take}</div>`;
+    case 'WAITING_HUMAN':
+      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${take}</div>`;
+    case 'OWNER_CONTROLLED':
+      return `<div class="card takeover owner">
+        <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
+        <form method="post" action="/app/sandbox/reply" class="replyform">${m}
+          <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
+          <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
+        </form>
+        <form method="post" action="/app/sandbox/resume" class="inline">${m}<button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
+      </div>`;
+  }
+}
+
 export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null; prefill?: string }): string {
   const name = EMPLOYEE_NAME[locale];
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
@@ -380,8 +445,9 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     ${intro}
     ${flashHtml}
     ${renderComposer(locale, opts.mode, opts.liveAvailable, opts.prefill ?? '')}
+    ${sandboxTakeoverCard(view, locale, opts.mode)}
     ${renderTrust(view.lastTurn, locale)}
-    ${draftCard}
+    ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     <div class="card"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${timeline}</div>
     ${SANDBOX_STYLE}`;
 }
@@ -428,6 +494,11 @@ const SANDBOX_STYLE = `<style>
   .msg.outbound .bubble { background:#1b3050; border-top-right-radius:4px; }
   .ts { font-size:11px; margin-top:4px; }
   .empty { text-align:center; padding:28px 16px; }
+  .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .takeover.owner { flex-direction:column; align-items:stretch; }
+  .pill.owner { background:#13233a; color:#93c5fd; }
+  .replyform { display:flex; flex-direction:column; gap:8px; }
+  .inline { display:inline; }
   button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .msg { max-width:92%; } }
 </style>`;

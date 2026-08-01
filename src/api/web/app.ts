@@ -30,6 +30,7 @@ import {
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
+  activeSandboxConversationId, sandboxFlushOutbound,
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
@@ -566,5 +567,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       await resetSandbox(sbxDeps);
       return reply.redirect(`/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), 'sandbox.reset.done'))}`);
     });
+
+    // ── M16.3 sandbox human-control rehearsal ─────────────────────────────────
+    // The SAME lifecycle as the inbox: takeOver / ownerReply / resumeAi on the
+    // sandbox tenant. The owner reply goes through ownerReply (the one send path)
+    // and is flushed to the transcript by the sandbox sink — never a real send.
+    const sbxFlash = (req: FastifyRequest, outcome: string) =>
+      `/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), `takeover.flash.${outcome}` as MessageKey))}`;
+    const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest) => Promise<{ outcome: string }>) =>
+      app.post(path, async (req, reply) => {
+        if (!sessionOf(req)) return reply.redirect('/login');
+        const bid = parseBusinessId(deps.sandboxBusinessId!);
+        const cid = await activeSandboxConversationId(sbxDeps);
+        if (!bid.ok || !cid) return reply.redirect('/app/sandbox');
+        const r = await run(bid.value, cid, req);
+        return reply.redirect(sbxFlash(req, r.outcome));
+      });
+    sbxAction('/app/sandbox/takeover', (bid, cid) =>
+      takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor: 'owner' }));
+    sbxAction('/app/sandbox/reply', (bid, cid, req) =>
+      ownerReply(
+        { db: deps.db, now: () => new Date(), kickDrive: (_b, c) => sandboxFlushOutbound(sbxDeps, c) },
+        { businessId: bid, conversationId: cid, text: String((req.body as { text?: string } | undefined)?.text ?? ''), actor: 'owner' },
+      ));
+    sbxAction('/app/sandbox/resume', (bid, cid) =>
+      resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor: 'owner' }));
   }
 }

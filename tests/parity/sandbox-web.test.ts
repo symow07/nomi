@@ -19,7 +19,7 @@ const passCheck = (invariant: SandboxTrust['checks'][number]['invariant']) =>
   ({ invariant, pass: true, detail: 'ok' } as const);
 
 const view = (over: Partial<SandboxView> = {}): SandboxView => ({
-  hasConversation: true, messages: [], pendingDraft: null, lastTurn: null, ...over,
+  hasConversation: true, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI', ...over,
 });
 
 const trust = (over: Partial<SandboxTrust> = {}): SandboxTrust => ({
@@ -206,5 +206,74 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
     });
     expect(out.guardViolations).toBeGreaterThan(0);
     expect(out.checks.every((c) => c.pass)).toBe(true);   // claim stripped, floor respected
+  });
+});
+
+/**
+ * M16.3 — the sandbox rehearses the SAME human-control lifecycle as the inbox:
+ * one ownership model (ownershipOf), one set of takeover.* words, one set of
+ * services. These pin the controls to ownership and prove no sandbox-specific
+ * vocabulary or second send path leaked in.
+ */
+describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => {
+  const at = (o: SandboxView['ownership']) =>
+    renderSandbox(view({ ownership: o }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+
+  it('AI: employee-handling status + Take over; no reply/return controls', () => {
+    const html = at('AI');
+    expect(html).toContain(t('en', 'takeover.status.ai'));
+    expect(html).toContain('action="/app/sandbox/takeover"');
+    expect(html).toContain(t('en', 'takeover.action.take'));
+    expect(html).not.toContain('action="/app/sandbox/reply"');
+    expect(html).not.toContain('action="/app/sandbox/resume"');
+  });
+
+  it('WAITING_HUMAN: waiting status + Take over (same words as the inbox)', () => {
+    const html = at('WAITING_HUMAN');
+    expect(html).toContain(t('en', 'takeover.status.waiting'));
+    expect(html).toContain('action="/app/sandbox/takeover"');
+    expect(html).not.toContain('action="/app/sandbox/reply"');
+  });
+
+  it('OWNER_CONTROLLED: reply box + return-to-employee; the draft card steps aside', () => {
+    const v = view({ ownership: 'OWNER_CONTROLLED', pendingDraft: { draftId: 'd-1', draftText: 'Our MOQ is 1,000 pcs.' } });
+    const html = renderSandbox(v, 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    expect(html).toContain(t('en', 'takeover.status.owner'));
+    expect(html).toContain('action="/app/sandbox/reply"');
+    expect(html).toContain('name="text"');
+    expect(html).toContain('action="/app/sandbox/resume"');
+    expect(html).toContain(t('en', 'takeover.action.resume'));
+    expect(html).not.toContain('action="/app/sandbox/act"');   // no draft approval while the owner holds it
+  });
+
+  it('controls carry the sandbox mode so a rehearsal never changes lane', () => {
+    for (const mode of ['scripted', 'live'] as const) {
+      const html = renderSandbox(view({ ownership: 'OWNER_CONTROLLED' }), 'en', { mode, liveAvailable: true, flash: null });
+      expect(html).toContain(`value="${mode}"`);
+    }
+  });
+
+  it('no controls at all before a conversation exists', () => {
+    const html = renderSandbox(view({ hasConversation: false }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    expect(html).not.toContain('action="/app/sandbox/takeover"');
+    expect(html).not.toContain('action="/app/sandbox/reply"');
+  });
+
+  it('every ownership state renders in en/zh/ar with no technical vocabulary', () => {
+    // Scoped to the control card: the rest of the page carries the M12.2
+    // scenario picker, whose titles are developer-authored test-case names.
+    const card = (html: string) => html.match(/<div class="card takeover[\s\S]*?<\/div>\s*<div class="card sbx-trust/)?.[0] ?? '';
+    for (const l of LOCALES) {
+      for (const o of ['AI', 'WAITING_HUMAN', 'OWNER_CONTROLLED'] as const) {
+        const html = renderSandbox(view({ ownership: o }), l, { mode: 'scripted', liveAvailable: false, flash: null });
+        expect(html).toContain(t(l, `takeover.status.${o === 'AI' ? 'ai' : o === 'WAITING_HUMAN' ? 'waiting' : 'owner'}`));
+        const low = card(html).toLowerCase();
+        expect(low.length, `${l}/${o}: control card found`).toBeGreaterThan(0);
+        for (const banned of ['llm', 'model', 'webhook', 'database', 'confidence', '模型', '人工智能', '数据库']) {
+          const hit = /^[a-z ]+$/.test(banned) ? new RegExp(`\\b${banned}\\b`).test(low) : low.includes(banned);
+          expect(hit, `${l}/${o}:"${banned}"`).toBe(false);
+        }
+      }
+    }
   });
 });
