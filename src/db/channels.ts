@@ -1,3 +1,5 @@
+import { isAllowlisted } from '../channels/allowlist.js';
+import { DAILY_OUTBOUND_CEILING } from '../core/channel/limits.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -44,16 +46,40 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
 
       const ctxRes = await sql<{
         assigned_to: string | null; paused: boolean; last_inbound_at: Date | null;
+        pilot_mode: boolean | null; buyer_wa_id: string | null; sent_today: number;
       }>`
         select c.assigned_to,
                coalesce(tb.paused, false) as paused,
-               ch.last_inbound_at
+               ch.last_inbound_at,
+               ch.pilot_mode,
+               cc.channel_user_id as buyer_wa_id,
+               (select count(*)::int from outbound_messages om
+                 where om.business_id = c.business_id and om.origin = 'employee'
+                   and om.status in ('sent','delivered','read')
+                   and om.sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai')
+                                       at time zone 'Asia/Shanghai')) as sent_today
           from conversations c
+          -- BUGFIX (found in M18.2): this compared a column named status,
+          -- which tenant_budgets does not have, so the query threw on EVERY
+          -- call and this whole load() path had never run against a real
+          -- database (the M3 worker tests use an in-memory store, and in
+          -- disabled mode no outbound ever drives). on_exceeded is the POLICY;
+          -- a tenant is actually paused only when today's usage has exceeded
+          -- its budget AND that policy is pause — the same rule that
+          -- core/budget.ts checkBudget applies.
           left join lateral (
-            select (status = 'pause') as paused
-              from tenant_budgets where business_id = c.business_id limit 1
+            select (b.on_exceeded = 'pause'
+                    and (coalesce(u.llm_calls, 0) >= b.daily_llm_calls
+                      or coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) >= b.daily_tokens)
+                   ) as paused
+              from tenant_budgets b
+              left join usage_ledger u
+                on u.business_id = b.business_id
+               and u.day = (now() at time zone 'Asia/Shanghai')::date
+             where b.business_id = c.business_id limit 1
           ) tb on true
           left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
+          left join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
          where c.id = ${conversationId}
       `.execute(tx);
       const c = ctxRes.rows[0];
@@ -63,13 +89,36 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
         attempts: r.attempts, sentAt: r.sent_at, to: r.to_wa_id ?? '', body: r.body,
         origin: r.origin, sendingSince: r.sending_since,
       }));
+      // M18.2 — pilot mode + allowlist resolved INSIDE this transaction, so the
+      // gate decides on current state. Both fail closed: a missing channel row
+      // counts as pilot mode ON, an unresolved buyer number as not allowed.
+      const pilotMode = c?.pilot_mode ?? true;
+      const recipientAllowed = pilotMode
+        ? await isAllowlisted(tx, businessId, c?.buyer_wa_id ?? null)
+        : true;
+
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
         paused: c?.paused ?? false,
         lastInboundAt: c?.last_inbound_at ?? null,
         template: 'none',   // template infra is post-M3; owner path applies
+        pilotMode,
+        recipientAllowed,
+        // M18.5 — counts EMPLOYEE messages actually sent today, so an owner
+        // reply is never blocked by the ceiling.
+        dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,
       };
       return { rows, ctx };
+    },
+
+    // M18.2 — a blocked send is recorded where the owner can see it. The status
+    // transition already makes it non-silent; this makes it visible.
+    async auditBlocked(outboundId, to, reason) {
+      await sql`
+        insert into channel_audit (business_id, action, actor, detail)
+        values (${businessId}, 'blocked_not_allowlisted', 'system',
+                ${JSON.stringify({ outboundId, to, reason })}::jsonb)
+      `.execute(tx);
     },
 
     async transition(id, to, detail) {

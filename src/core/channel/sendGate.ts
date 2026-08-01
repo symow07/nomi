@@ -19,17 +19,48 @@ export type GateInput = {
   readonly paused: boolean;
   /** Current 24h-window plan for this conversation (window.ts). */
   readonly windowPlan: SendPlan;
+  /** M18.2 — the channel is in pilot mode, so the allowlist is enforced.
+   *  Absent is treated as TRUE (fail-closed): a caller that forgets to pass
+   *  pilot state gets the safe behaviour, not the permissive one. */
+  readonly pilotMode?: boolean;
+  /** M18.2 — whether THIS recipient is on the tenant's active allowlist.
+   *  Resolved by the caller against pilot_allowlist. Absent = not allowed. */
+  readonly recipientAllowed?: boolean;
+  /** M18.5 — the tenant has already sent its daily maximum. */
+  readonly dailyCeilingReached?: boolean;
 };
+
+export type GateRefusal =
+  | 'handed_off' | 'paused' | 'window_closed'
+  | 'not_allowlisted'      // M18.2
+  | 'daily_ceiling';       // M18.5
 
 export type GateDecision =
   | { readonly allow: true; readonly viaTemplate: boolean }
-  | { readonly allow: false; readonly reason: 'handed_off' | 'paused' | 'window_closed' };
+  | { readonly allow: false; readonly reason: GateRefusal };
 
 export function gateOutbound(g: GateInput): GateDecision {
   if (g.origin === 'employee') {
     if (g.assignedTo !== null) return { allow: false, reason: 'handed_off' };
     if (g.paused) return { allow: false, reason: 'paused' };
   }
+
+  // M18.2 — the pilot allowlist binds EVERYONE, including the owner. During a
+  // controlled pilot the question is not "who is speaking?" but "is this buyer
+  // one we agreed to reach?". Fail-closed: pilot mode is assumed on unless the
+  // caller says otherwise, and an unresolved recipient is not allowed.
+  const pilotMode = g.pilotMode ?? true;
+  if (pilotMode && g.recipientAllowed !== true) {
+    return { allow: false, reason: 'not_allowlisted' };
+  }
+
+  // M18.5 — a runaway loop must not spend the day messaging a real buyer.
+  // Blocks rather than warns; owner-authored text is exempt, because a human
+  // deliberately typing is not the failure mode this protects against.
+  if (g.origin === 'employee' && g.dailyCeilingReached === true) {
+    return { allow: false, reason: 'daily_ceiling' };
+  }
+
   // The window binds everyone — the provider rejects violations regardless of
   // who typed the message.
   if (g.windowPlan.action === 'wait_for_buyer') {

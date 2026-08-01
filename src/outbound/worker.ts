@@ -2,7 +2,7 @@ import { nextToSend, type OutboundRow } from './sequencer.js';
 import {
   onSendFailure, shouldReclaim,
 } from '../core/channel/delivery.js';
-import { gateOutbound } from '../core/channel/sendGate.js';
+import { gateOutbound, type GateRefusal } from '../core/channel/sendGate.js';
 import { sendPlan, windowState, type TemplateState } from '../core/channel/window.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
@@ -26,6 +26,13 @@ export type ConversationSendContext = {
   readonly paused: boolean;
   readonly lastInboundAt: Date | null;
   readonly template: TemplateState;
+  /** M18.2 — the channel is in pilot mode (allowlist enforced). Absent is
+   *  treated as enforced by the gate: fail-closed. */
+  readonly pilotMode?: boolean;
+  /** M18.2 — is this conversation's buyer on the active allowlist? */
+  readonly recipientAllowed?: boolean;
+  /** M18.5 — the tenant already sent its daily maximum. */
+  readonly dailyCeilingReached?: boolean;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -39,11 +46,14 @@ export type OutboundStore = {
   recordProviderId(id: string, providerMessageId: string): Promise<void>;
   scheduleRetry(id: string, delayMs: number, error: string): Promise<void>;
   deadLetter(id: string, error: string): Promise<void>;
+  /** M18.2 — record a blocked send so the owner can see it. Optional so
+   *  in-memory test stores need not implement it. */
+  auditBlocked?(outboundId: string, to: string, reason: GateRefusal): Promise<void>;
 };
 
 export type DriveEffect =
   | { readonly kind: 'reclaimed'; readonly id: string }
-  | { readonly kind: 'canceled'; readonly id: string; readonly reason: 'handed_off' | 'paused' | 'window_closed' | 'window_needs_owner' }
+  | { readonly kind: 'canceled'; readonly id: string; readonly reason: GateRefusal | 'window_needs_owner' }
   | { readonly kind: 'sent'; readonly id: string; readonly providerMessageId: string }
   | { readonly kind: 'retry_scheduled'; readonly id: string; readonly delayMs: number }
   | { readonly kind: 'dead_lettered'; readonly id: string }
@@ -106,9 +116,20 @@ export async function driveConversationOutbound(
     assignedTo: ctx.assignedTo,
     paused: ctx.paused,
     windowPlan: plan,
+    // M18.2/M18.5 — pilot allowlist + daily ceiling. Both default to the SAFE
+    // interpretation inside the gate when a store does not supply them.
+    ...(ctx.pilotMode !== undefined ? { pilotMode: ctx.pilotMode } : {}),
+    ...(ctx.recipientAllowed !== undefined ? { recipientAllowed: ctx.recipientAllowed } : {}),
+    ...(ctx.dailyCeilingReached !== undefined ? { dailyCeilingReached: ctx.dailyCeilingReached } : {}),
   });
   if (!gate.allow) {
     await deps.store.transition(candidate.id, 'canceled', `canceled: ${gate.reason}`);
+    // M18.2 — a refusal to reach a non-allowlisted buyer is a safety event, not
+    // routine flow control: record it where the owner can see it. The status
+    // transition above already makes it non-silent; this makes it visible.
+    if (gate.reason === 'not_allowlisted' && deps.store.auditBlocked) {
+      await deps.store.auditBlocked(candidate.id, candidate.to, gate.reason);
+    }
     return [...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }];
   }
   if (gate.viaTemplate) {

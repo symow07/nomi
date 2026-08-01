@@ -1707,6 +1707,155 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M18.2 pilot allowlist, against real Postgres ────────────────────────────
+  // The rule that stands between a bug and a real buyer's phone. Every check
+  // here goes through the REAL send gate and the REAL store — no fakes.
+  describe('M18.2 · pilot allowlist', () => {
+    const ALLOWED = '971500001111';
+    const BLOCKED = '971500002222';
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+
+    // This describe runs in deployment mode (no provider), so it brings its own
+    // simulator adapter — a send that reaches it is a send that WOULD have gone
+    // to a real buyer, which is exactly what the allowlist must prevent.
+    let adapter: import('../../src/channels/contract.js').ChannelAdapter;
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      adapter = whatsappSimulator().adapter;
+      // Put the demo channel in pilot mode explicitly (it is the default too).
+      await q((tx) => sql`update channels set pilot_mode = true where business_id=${DEMO_BIZ}`.execute(tx as never));
+    });
+
+    it('owner adds a number: normalized on the way in, and audited', async () => {
+      const { addToAllowlist, listAllowlist } = await import('../../src/channels/allowlist.js');
+      const r = await addToAllowlist(prod.db, bid, '+971 50 000 1111', 'my phone', 'owner');
+      expect(r).toEqual({ ok: true, phone: ALLOWED });          // stored as digits
+
+      const list = await listAllowlist(prod.db, bid);
+      expect(list.find((e) => e.phone === ALLOWED)?.label).toBe('my phone');
+
+      const audits = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from channel_audit
+         where business_id=${DEMO_BIZ} and action='allowlist_add'`.execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(audits).toBeGreaterThanOrEqual(1);
+    });
+
+    it('rejects an unusable number instead of storing something unmatchable', async () => {
+      const { addToAllowlist } = await import('../../src/channels/allowlist.js');
+      expect(await addToAllowlist(prod.db, bid, 'not-a-phone', null, 'owner'))
+        .toEqual({ ok: false, code: 'invalid_phone' });
+    });
+
+    it('ALLOWED number: the gate lets it through and the message is sent', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+      const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+
+      const cid = await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, ALLOWED, 'Allowed Buyer');
+        await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+        await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
+                  values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
+        // the 24h window reads channels.last_inbound_at — open it, so this test
+        // isolates the ALLOWLIST decision rather than re-testing the window
+        await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+        await enqueueOutboundRow(tx, bid, c.conversationId, 'Reply to an allowlisted buyer', 'employee');
+        return c.conversationId;
+      });
+
+      const effects = await withTenantTx(prod.db, bid, (tx) =>
+        driveConversationOutbound(
+          { store: channelStore(tx as never, bid), adapter, now: () => new Date() }, cid));
+      expect(effects.some((e) => e.kind === 'sent'), JSON.stringify(effects)).toBe(true);
+    });
+
+    it('BLOCKED number: refused at send time, canceled, audited — never delivered', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+      const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+
+      const before = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from channel_audit
+         where business_id=${DEMO_BIZ} and action='blocked_not_allowlisted'`.execute(tx as never).then((x) => x.rows[0]!.n));
+
+      const cid = await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, BLOCKED, 'Not Allowlisted');
+        await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+        await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
+                  values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
+        // the 24h window reads channels.last_inbound_at — open it, so this test
+        // isolates the ALLOWLIST decision rather than re-testing the window
+        await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+        await enqueueOutboundRow(tx, bid, c.conversationId, 'This must never reach a real buyer', 'employee');
+        return c.conversationId;
+      });
+
+      const effects = await withTenantTx(prod.db, bid, (tx) =>
+        driveConversationOutbound(
+          { store: channelStore(tx as never, bid), adapter, now: () => new Date() }, cid));
+
+      expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
+      expect(effects.some((e) => e.kind === 'sent')).toBe(false);       // nothing left the building
+
+      // the row is canceled, not silently dropped or left queued
+      const row = await q((tx) => sql<{ status: string }>`
+        select status from outbound_messages where conversation_id=${cid} order by seq desc limit 1
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      expect(row.status).toBe('canceled');
+
+      // and the refusal is visible to the owner
+      const after = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from channel_audit
+         where business_id=${DEMO_BIZ} and action='blocked_not_allowlisted'`.execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(after).toBe(before + 1);
+
+      // the transition trail records WHY — no silent drop
+      const trail = await q((tx) => sql<{ detail: string | null }>`
+        select t.detail from outbound_transitions t
+          join outbound_messages o on o.id = t.outbound_id
+         where o.conversation_id=${cid} order by t.id desc limit 1
+      `.execute(tx as never).then((x) => x.rows[0]));
+      expect(trail?.detail ?? '').toContain('not_allowlisted');
+    });
+
+    it('archiving a number blocks it again — and never deletes the record', async () => {
+      const { addToAllowlist, archiveFromAllowlist, listAllowlist, activeAllowlistCount } =
+        await import('../../src/channels/allowlist.js');
+      const TEMP = '971500003333';
+      await addToAllowlist(prod.db, bid, TEMP, 'temporary', 'owner');
+      const activeBefore = await activeAllowlistCount(prod.db, bid);
+
+      expect(await archiveFromAllowlist(prod.db, bid, TEMP, 'owner')).toEqual({ ok: true, phone: TEMP });
+      expect(await activeAllowlistCount(prod.db, bid)).toBe(activeBefore - 1);
+
+      // archived, not gone — the history survives
+      const entry = (await listAllowlist(prod.db, bid)).find((e) => e.phone === TEMP);
+      expect(entry).toBeDefined();
+      expect(entry!.archivedAt).toBeInstanceOf(Date);
+
+      // archiving twice is honest about it
+      expect(await archiveFromAllowlist(prod.db, bid, TEMP, 'owner')).toEqual({ ok: false, code: 'not_found' });
+    });
+
+    it('TENANT ISOLATION: one factory\'s allowlist never authorises another\'s send', async () => {
+      const { isAllowlisted } = await import('../../src/channels/allowlist.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const other = parseBusinessId('5a4d0000-0000-4000-8000-0000000000b1');
+      if (!other.ok) throw new Error('fixture');
+
+      // allowed for DEMO…
+      expect(await withTenantTx(prod.db, bid, (tx) => isAllowlisted(tx, bid, ALLOWED))).toBe(true);
+      // …and NOT for the sandbox tenant, which never listed it
+      expect(await withTenantTx(prod.db, other.value, (tx) => isAllowlisted(tx, other.value, ALLOWED))).toBe(false);
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });

@@ -30,7 +30,12 @@ function memStore(initial: readonly Partial<Row>[], ctx: Partial<ConversationSen
   }));
   const transitions: string[] = [];
   const context: ConversationSendContext = {
-    assignedTo: null, paused: false, lastInboundAt: hoursAgo(1), template: 'none', ...ctx,
+    assignedTo: null, paused: false, lastInboundAt: hoursAgo(1), template: 'none',
+    // These M3 tests predate the pilot allowlist and exercise window/retry/
+    // ordering. The gate is fail-closed (M18.2), so a store supplying no pilot
+    // context blocks everything — state explicitly that pilot mode is off.
+    pilotMode: false,
+    ...ctx,
   };
   const byId = (id: string) => rows.find((r) => r.id === id)!;
   const store: OutboundStore = {
