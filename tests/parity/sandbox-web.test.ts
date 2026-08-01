@@ -6,7 +6,7 @@ import {
 import { sandboxSeedSql, SANDBOX_BUSINESS_ID } from '../../src/demo/sandbox.js';
 import { SCENARIOS, TRUST_PRODUCT_ID, analysis } from '../../src/trust/scenarios.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { computeTurn, commitTurn } from '../../src/pipeline/turn.js';
 import { FakeTenant, FakeAnalyzer, FakeReplyWriter, FakeRetriever } from '../pipeline/fakes.js';
 import { emptyState, CONVERSATION } from './fixtures.js';
@@ -23,7 +23,7 @@ const view = (over: Partial<SandboxView> = {}): SandboxView => ({
 });
 
 const trust = (over: Partial<SandboxTrust> = {}): SandboxTrust => ({
-  mode: 'scripted', scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
+  mode: 'scripted', scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
   guardViolations: 0, handoff: false, quote: null,
   checks: [passCheck('priceFloorRespected'), passCheck('noSilentCapabilityEscalation')],
   ...over,
@@ -68,10 +68,12 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
     }
   });
 
-  it('lists every golden scenario as a loadable test case', () => {
+  it('lists every golden scenario as a loadable test case (owner-facing name)', () => {
     const html = renderSandbox(view(), 'en', { mode: 'scripted', liveAvailable: true, flash: null });
     for (const s of SCENARIOS) expect(html).toContain(`value="${s.id}"`);
-    expect(html).toContain(SCENARIOS[0]!.title);
+    // M16.4b: the picker shows the owner label, never the engineering title.
+    expect(html).toContain(t('en', `sandbox.case.${SCENARIOS[0]!.id}` as MessageKey));
+    expect(html).not.toContain(SCENARIOS[0]!.title);
   });
 
   it('mode toggle: scripted is the default; live is offered only when available', () => {
@@ -122,11 +124,13 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
     expect(failing).toContain('✗');
   });
 
-  it('a scenario turn is badged with its title', () => {
-    const html = renderSandbox(view({ lastTurn: trust({ scenarioTitle: SCENARIOS[0]!.title }) }), 'en',
+  it('a scenario turn is badged with its owner-facing name', () => {
+    const s = SCENARIOS[0]!;
+    const html = renderSandbox(view({ lastTurn: trust({ scenarioId: s.id, scenarioTitle: s.title }) }), 'en',
       { mode: 'scripted', liveAvailable: false, flash: null });
     expect(html).toContain(t('en', 'sandbox.scenario.badge'));
-    expect(html).toContain(SCENARIOS[0]!.title);
+    expect(html).toContain(t('en', `sandbox.case.${s.id}` as MessageKey));
+    expect(html).not.toContain(s.title);   // the engineering title stays internal
   });
 });
 
@@ -275,5 +279,50 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
         }
       }
     }
+  });
+});
+
+/**
+ * M16.4b — the sandbox is an owner surface, so the practice cases must read as
+ * owner language. The engineering titles in src/trust/scenarios.ts are untouched
+ * (CI and the trust harness still use them); only the display layer changes.
+ */
+describe('M16.4b · owner-facing practice-case names', () => {
+  it('every scenario has a display key, present and non-empty in all locales', () => {
+    for (const s of SCENARIOS) {
+      const key = `sandbox.case.${s.id}` as MessageKey;
+      for (const l of LOCALES) {
+        const label = t(l, key);
+        expect(label, `${l}:${s.id}`).not.toBe(key);      // t() returns the key when missing
+        expect(label.trim().length, `${l}:${s.id}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('no engineering title reaches the rendered page, in any locale', () => {
+    for (const l of LOCALES) {
+      const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: true, flash: null });
+      for (const s of SCENARIOS) expect(html, `${l}:${s.id}`).not.toContain(s.title);
+    }
+  });
+
+  it('the picker carries no engineering vocabulary — in any locale', () => {
+    const picker = (html: string) => html.match(/<select[\s\S]*?<\/select>/)?.[0] ?? '';
+    for (const l of LOCALES) {
+      const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: true, flash: null });
+      const opts = picker(html);
+      expect(opts.length, `${l}: picker found`).toBeGreaterThan(0);
+      // option VALUES are scenario ids (the wire contract) — check the labels only.
+      const labels = [...opts.matchAll(/<option[^>]*>([^<]*)</g)].map((m) => m[1]!).join(' \n ').toLowerCase();
+      for (const banned of ['confidence', 'incoterm', 'ddp', 'policy row', 'grant', 'auto-grant', 'catalog', 'invariant', 'harness', '模型', '人工智能']) {
+        expect(labels.includes(banned), `${l}:"${banned}"`).toBe(false);
+      }
+      expect(/\bai\b/.test(labels), `${l}:"ai"`).toBe(false);
+    }
+  });
+
+  it('scenario ids remain the wire contract (values unchanged)', () => {
+    const html = renderSandbox(view(), 'zh', { mode: 'scripted', liveAvailable: true, flash: null });
+    for (const s of SCENARIOS) expect(html).toContain(`value="${s.id}"`);
   });
 });

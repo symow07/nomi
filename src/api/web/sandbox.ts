@@ -214,6 +214,7 @@ export function evaluateTrust(input: {
   const checks = input.expectations.map((e) => runCheck(e, ctx));
   return {
     mode: input.mode,
+    scenarioId: input.scenario?.id ?? null,
     scenarioTitle: input.scenario?.title ?? null,
     capability, appliedMode,
     guardViolations: result.guardViolations,
@@ -234,7 +235,11 @@ export function sandboxOutboundSink(deps: SandboxDeps): (businessId: string, con
 
 export type SandboxMessage = { readonly direction: 'inbound' | 'outbound'; readonly text: string; readonly isImage: boolean };
 export type SandboxTrust = {
-  readonly mode: SandboxMode; readonly scenarioTitle: string | null;
+  readonly mode: SandboxMode;
+  /** M16.4b: the id drives the owner-facing label; the title stays internal
+   *  (and is kept so payloads written before M16.4b still render). */
+  readonly scenarioId?: string | null;
+  readonly scenarioTitle: string | null;
   readonly capability: string; readonly appliedMode: 'auto' | 'draft' | 'none';
   readonly guardViolations: number; readonly handoff: boolean;
   readonly quote: { readonly unitPriceUsd: number; readonly totalUsd: number } | null;
@@ -323,6 +328,9 @@ export async function sandboxFlushOutbound(deps: SandboxDeps, conversationId: st
 
 const invLabel = (locale: Locale, id: string): string => t(locale, `sandbox.inv.${id}` as MessageKey);
 
+/** M16.4b — the owner-facing name of a practice case, by scenario id. */
+export const caseName = (locale: Locale, id: string): string => t(locale, `sandbox.case.${id}` as MessageKey);
+
 function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
   if (!trust) return `<div class="card sbx-trust"><h2>${esc(t(locale, 'sandbox.trust.title'))}</h2><div class="empty muted">${esc(t(locale, 'sandbox.trust.none'))}</div></div>`;
   const allPass = trust.checks.every((c) => c.pass);
@@ -336,7 +344,9 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(t(locale, 'sandbox.xray.delivery'))}: ${esc(t(locale, deliveryKey as MessageKey))}</span>`,
     trust.quote ? `<span class="chip">${esc(formatUsd(trust.quote.unitPriceUsd))}/pc</span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
-    trust.scenarioTitle ? `<span class="chip badge">${esc(t(locale, 'sandbox.scenario.badge'))}: ${esc(trust.scenarioTitle)}</span>` : '',
+    trust.scenarioId
+      ? `<span class="chip badge">${esc(t(locale, 'sandbox.scenario.badge'))}: ${esc(caseName(locale, trust.scenarioId))}</span>`
+      : '',
   ].join('');
   return `<div class="card sbx-trust ${allPass ? 'pass' : 'fail'}">
     <h2>${esc(t(locale, 'sandbox.trust.title'))} · <span class="verdict">${esc(t(locale, allPass ? 'sandbox.trust.allPass' : 'sandbox.trust.someFail'))}</span></h2>
@@ -346,7 +356,9 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
 }
 
 function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolean, prefill = ''): string {
-  const scenarioOpts = SCENARIOS.map((s) => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
+  // M16.4b: the owner reads an owner-facing name; the engineering title in
+  // src/trust/scenarios.ts is unchanged and stays internal (tests, CI).
+  const scenarioOpts = SCENARIOS.map((s) => `<option value="${esc(s.id)}">${esc(caseName(locale, s.id))}</option>`).join('');
   const modeRadio = (m: SandboxMode, labelKey: MessageKey, disabled = false) =>
     `<label class="radio ${disabled ? 'off' : ''}"><input type="radio" name="mode" value="${m}" ${m === mode && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(t(locale, labelKey))}</label>`;
   return `
