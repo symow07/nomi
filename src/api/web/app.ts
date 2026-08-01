@@ -21,7 +21,7 @@ import {
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import {
-  loadPilotRunbook, renderPilotRunbook, attest, runValidation, type AttestKey,
+  loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, runValidation, type AttestKey,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -396,6 +396,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const deployment = readDeployment(process.env, new Date(), process.uptime());
     // M17.2: go-live preparation status. Reads shapes only — never a value, and
     // never contacts Meta, so opening this page can switch nothing on.
+    // M17.6: what actually happened — counts and dates from stored signals/events.
+    const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     const meta = checkMetaReadiness({
       values: {
         accessToken: process.env['META_WHATSAPP_ACCESS_TOKEN'],
@@ -410,7 +412,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback),
     }));
   });
 

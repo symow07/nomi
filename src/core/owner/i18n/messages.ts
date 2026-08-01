@@ -612,6 +612,16 @@ const EN = {
   'ops.health.stuck': 'Replies accepted but not yet delivered',
   'ops.health.oldest': 'Oldest waiting since',
   'ops.health.whatToDo': 'Check the connection on the Channels page; replies resume by themselves once it is healthy.',
+  // M17.6 · what actually happened during the pilot (counts and dates only)
+  'feedback.title': 'What happened so far',
+  'feedback.none': 'Nothing yet — this fills in once buyers start talking to your employee.',
+  'feedback.reasons': 'Why you were needed',
+  'feedback.actions': 'What you did',
+  'feedback.lastAt': 'Most recent',
+  'feedback.action.takeover': 'Took over a conversation',
+  'feedback.action.owner_reply': 'Replied yourself',
+  'feedback.action.resume_ai': 'Handed back to your employee',
+  'feedback.action.draft_resolved': 'Reviewed a reply',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -1202,6 +1212,16 @@ const ZH: Record<MessageKey, string> = {
   'ops.health.stuck': '已接收但还没发出的回复',
   'ops.health.oldest': '最早的一条等待自',
   'ops.health.whatToDo': '到“销售渠道”页面看看连接是否正常；连接恢复后会自动继续发送。',
+  // M17.6 · 试点期间实际发生了什么（只有次数和日期）
+  'feedback.title': '到目前为止的情况',
+  'feedback.none': '还没有内容——等买家开始和员工聊天后就会出现。',
+  'feedback.reasons': '需要你出面的原因',
+  'feedback.actions': '你做过的处理',
+  'feedback.lastAt': '最近一次',
+  'feedback.action.takeover': '接手了对话',
+  'feedback.action.owner_reply': '你亲自回复',
+  'feedback.action.resume_ai': '交回给员工',
+  'feedback.action.draft_resolved': '处理了回复',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -1790,6 +1810,16 @@ const AR: Record<MessageKey, string> = {
   'ops.health.stuck': 'ردود قُبلت ولم تُسلّم بعد',
   'ops.health.oldest': 'أقدم واحد ينتظر منذ',
   'ops.health.whatToDo': 'راجِع الاتصال في صفحة القنوات؛ يستأنف الإرسال تلقائياً بعد أن يعود سليماً.',
+  // M17.6 · ما حدث فعلاً خلال التجربة (أعداد وتواريخ فقط)
+  'feedback.title': 'ما حدث حتى الآن',
+  'feedback.none': 'لا شيء بعد — سيظهر هنا حين يبدأ المشترون بالتحدث مع موظفتك.',
+  'feedback.reasons': 'لماذا احتاجوا إليك',
+  'feedback.actions': 'ما قمت به',
+  'feedback.lastAt': 'الأحدث',
+  'feedback.action.takeover': 'تولّيت محادثة',
+  'feedback.action.owner_reply': 'ردَدت بنفسك',
+  'feedback.action.resume_ai': 'أعدتها إلى موظفتك',
+  'feedback.action.draft_resolved': 'راجعت ردّاً',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR };

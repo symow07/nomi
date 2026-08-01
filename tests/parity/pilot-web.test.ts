@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderPilotReadiness, renderPilotRunbook, type PilotReadiness, type PilotRunbook,
+  renderPilotReadiness, renderPilotRunbook,
+  type PilotReadiness, type PilotRunbook, type PilotFeedback,
 } from '../../src/api/web/pilot.js';
 import { type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { readDeployment } from '../../src/api/web/deployment.js';
@@ -189,6 +190,49 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     expect(html).toContain(t('en', 'ops.health.whatToDo'));
     expect(html).not.toContain(t('en', 'ops.health.ok'));
     expect(html).not.toMatch(/\d+\s*%/);                        // never a percentage
+  });
+
+  it('M17.6 feedback: honest empty state before any buyer has talked', () => {
+    const none: PilotFeedback = {
+      range: 'month', handoffReasons: [], ownerActions: [], lastActivityAt: null, hasActivity: false,
+    };
+    for (const l of LOCALES) {
+      const html = renderPilotRunbook(rb(), l, null, undefined, undefined, none);
+      expect(html).toContain(t(l, 'feedback.title'));
+      expect(html).toContain(t(l, 'feedback.none'));
+    }
+  });
+
+  it('M17.6 feedback: recurring issues + owner actions as counts and dates only', () => {
+    const f: PilotFeedback = {
+      range: 'month',
+      handoffReasons: [
+        { kind: 'human_requested', count: 5, lastAt: NOW },
+        { kind: 'complaint', count: 2, lastAt: NOW },
+      ],
+      ownerActions: [
+        { kind: 'takeover', count: 7, lastAt: NOW },
+        { kind: 'owner_reply', count: 4, lastAt: NOW },
+      ],
+      lastActivityAt: NOW, hasActivity: true,
+    };
+    const html = renderPilotRunbook(rb(), 'en', null, undefined, undefined, f);
+    expect(html).toContain(t('en', 'feedback.reasons'));
+    expect(html).toContain(t('en', 'takeover.reason.human_requested'));  // M16.1 wording reused
+    expect(html).toContain('>5<'); expect(html).toContain('>2<');
+    expect(html).toContain(t('en', 'feedback.actions'));
+    expect(html).toContain(t('en', 'feedback.action.takeover'));
+    expect(html).toContain('>7<');
+    expect(html).not.toContain(t('en', 'feedback.none'));
+    // counts and dates ONLY — never a judgement of how well the employee did
+    expect(html).not.toMatch(/\d+\s*%/);
+    for (const banned of ['score', 'rating', 'quality', 'performance', 'grade']) {
+      expect(html.toLowerCase().includes(banned), banned).toBe(false);
+    }
+  });
+
+  it('M17.6 feedback section is omitted when not supplied', () => {
+    expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'feedback.title'));
   });
 
   it('no score / grade / technical vocabulary — any locale', () => {

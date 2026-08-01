@@ -191,6 +191,80 @@ export async function loadPilotRunbook(
   };
 }
 
+/**
+ * M17.6 — the pilot feedback loop: "what actually happened, and what keeps
+ * happening?" Derived entirely from data the system already stores —
+ * conversation_signals (why a human was needed) and conversation_events (what
+ * the owner did). Counts and timestamps ONLY: no score, no rating, no judgement
+ * of how well the employee performed. Recurring issues are simply the reasons
+ * that occurred most often, in plain descending count order.
+ */
+export type FeedbackItem = {
+  readonly kind: string;
+  readonly count: number;
+  readonly lastAt: Date | null;
+};
+
+export type PilotFeedback = {
+  readonly range: Range;
+  /** Why buyers needed a human, most frequent first — the recurring issues. */
+  readonly handoffReasons: readonly FeedbackItem[];
+  /** What the owner did: takeover / owner_reply / resume_ai / draft_resolved. */
+  readonly ownerActions: readonly FeedbackItem[];
+  readonly lastActivityAt: Date | null;
+  readonly hasActivity: boolean;
+};
+
+const FEEDBACK_ACTIONS = ['takeover', 'owner_reply', 'resume_ai', 'draft_resolved'] as const;
+
+export async function loadPilotFeedback(
+  db: Db, businessIdRaw: string, range: Range = 'month',
+): Promise<PilotFeedback> {
+  const empty: PilotFeedback = {
+    range, handoffReasons: [], ownerActions: [], lastActivityAt: null, hasActivity: false,
+  };
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return empty;
+  const B = bid.value;
+  const unit = range === 'today' ? 'day' : range;
+
+  return withTenantTx(db, B, async (tx) => {
+    const cutoff = (await sql<{ c: Date }>`
+      select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
+    `.execute(tx)).rows[0]!.c;
+
+    // Recurring issues: the stored PROBLEM signals, grouped. No classifier.
+    const reasons = (await sql<{ kind: string; n: number; last_at: Date }>`
+      select kind, count(*)::int as n, max(created_at) as last_at
+        from conversation_signals
+       where business_id = ${B} and created_at >= ${cutoff}
+         and kind in ('human_requested','complaint','repeated_ambiguity','low_confidence_image')
+       group by kind order by n desc, kind asc
+    `.execute(tx)).rows;
+
+    const actions = (await sql<{ type: string; n: number; last_at: Date }>`
+      select type, count(*)::int as n, max(created_at) as last_at
+        from conversation_events
+       where business_id = ${B} and created_at >= ${cutoff}
+         and type in ('takeover','owner_reply','resume_ai','draft_resolved')
+       group by type order by n desc, type asc
+    `.execute(tx)).rows;
+
+    const handoffReasons = reasons.map((r): FeedbackItem => ({ kind: r.kind, count: r.n, lastAt: r.last_at }));
+    const ownerActions = actions.map((r): FeedbackItem => ({ kind: r.type, count: r.n, lastAt: r.last_at }));
+    const stamps = [...handoffReasons, ...ownerActions]
+      .map((i) => i.lastAt).filter((d): d is Date => d !== null);
+    const lastActivityAt = stamps.length
+      ? stamps.reduce((a, b) => (a > b ? a : b))
+      : null;
+
+    return {
+      range, handoffReasons, ownerActions, lastActivityAt,
+      hasActivity: handoffReasons.length > 0 || ownerActions.length > 0,
+    };
+  });
+}
+
 /** Record an owner attestation (timestamp). Whitelisted column — never user input. */
 export async function attest(db: Db, businessIdRaw: string, which: AttestKey): Promise<{ ok: boolean }> {
   const bid = parseBusinessId(businessIdRaw);
@@ -359,6 +433,31 @@ function afterSection(locale: Locale): string {
 }
 
 /**
+ * M17.6 — what actually happened. Counts and dates from stored signals/events,
+ * ordered by how often each occurred. No score, no rating, no verdict on how
+ * well the employee did — the owner draws their own conclusion.
+ */
+function feedbackSection(f: PilotFeedback, locale: Locale): string {
+  if (!f.hasActivity) {
+    return `<div class="card"><h2>${esc(t(locale, 'feedback.title'))}</h2>
+      <div class="empty muted">${esc(t(locale, 'feedback.none'))}</div></div>`;
+  }
+  const row = (label: string, item: FeedbackItem) =>
+    `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>
+      ${item.lastAt ? `<span class="muted rblink">${esc(formatDate(locale, item.lastAt))}</span>` : ''}</div>`;
+  const reasons = f.handoffReasons.length
+    ? `<h3 class="rbsub">${esc(t(locale, 'feedback.reasons'))}</h3>` +
+      // reuse the M16.1 handoff wording — one vocabulary for one concept
+      f.handoffReasons.map((i) => row(t(locale, `takeover.reason.${i.kind}` as MessageKey), i)).join('')
+    : '';
+  const actions = f.ownerActions.length
+    ? `<h3 class="rbsub">${esc(t(locale, 'feedback.actions'))}</h3>` +
+      f.ownerActions.map((i) => row(t(locale, `feedback.action.${i.kind}` as MessageKey), i)).join('')
+    : '';
+  return `<div class="card"><h2>${esc(t(locale, 'feedback.title'))}</h2>${reasons}${actions}</div>`;
+}
+
+/**
  * M17.1 — which build is running. Owner-authenticated only: the same facts are
  * deliberately NOT on /health, so a public probe cannot advertise the commit.
  * Anything the host does not report renders as "Not reported", never a guess.
@@ -424,13 +523,14 @@ function healthSection(r: Reliability, locale: Locale): string {
 
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: string | null,
-  deployment?: DeploymentInfo, meta?: MetaReadiness,
+  deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
+    + (feedback ? feedbackSection(feedback, locale) : '')
     + (meta ? metaSection(meta, locale) : '')
     + (deployment ? deploymentSection(deployment, locale) : '')
     + RUNBOOK_STYLE;

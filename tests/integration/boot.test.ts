@@ -1658,6 +1658,47 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(rb.operations).toEqual(snap);
     });
 
+    it('M17.6 feedback: counts + timestamps from stored signals/events, no invented metric', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+
+      const before = await loadPilotFeedback(prod.db, DEMO_BIZ, 'month');
+      const beforeHuman = before.handoffReasons.find((r) => r.kind === 'human_requested')?.count ?? 0;
+
+      await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, '971500006666', 'Feedback Buyer');
+        await tenantRepos(tx, bid).signals.record(c.conversationId as never, { kind: 'human_requested' });
+      });
+
+      const after = await loadPilotFeedback(prod.db, DEMO_BIZ, 'month');
+      const item = after.handoffReasons.find((r) => r.kind === 'human_requested');
+      expect(item, 'human_requested surfaced').toBeDefined();
+      expect(item!.count).toBe(beforeHuman + 1);            // a real count, +1 for what we created
+      expect(item!.lastAt).toBeInstanceOf(Date);            // a real timestamp
+      expect(after.hasActivity).toBe(true);
+
+      // recurring issues are ordered by how often they occurred — not scored
+      const counts = after.handoffReasons.map((r) => r.count);
+      expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+
+      // the shape carries no judgement of quality
+      const blob = JSON.stringify(after).toLowerCase();
+      for (const banned of ['score', 'rating', 'quality', 'percent', 'confidence']) {
+        expect(blob.includes(banned), banned).toBe(false);
+      }
+    });
+
+    it('M17.6 feedback: an unknown factory is honestly empty, and it writes nothing', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const f = await loadPilotFeedback(prod.db, '00000000-0000-0000-0000-000000000000', 'month');
+      expect(f.hasActivity).toBe(false);
+      expect(f.handoffReasons).toEqual([]);
+      expect(f.ownerActions).toEqual([]);
+      expect(f.lastActivityAt).toBeNull();
+    });
+
     it('TENANT ISOLATION: a pilot pointed at a different sandbox sees none of that rehearsal', async () => {
       const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: ZERO });
       expect(rb.rehearsal.done.takeover).toBe(false);      // the SANDBOX events do not leak
