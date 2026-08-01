@@ -38,12 +38,15 @@ pg_ctl -D "$SK/pg" -o "-p $PGPORT -c listen_addresses=127.0.0.1 -c unix_socket_d
   -l "$SK/pg.log" -w start >/dev/null 2>&1 || fail "postgres start (see $SK/pg.log)"
 createdb -h 127.0.0.1 -p "$PGPORT" -U postgres yiwuflow || fail "createdb"
 
-echo "[2/6] migrate + grant app-role login + seed demo tenant"
+echo "[2/6] migrate + grant app-role login + seed demo & sandbox tenants"
 export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/yiwuflow"
 node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
 # migration 0005 creates yiwuflow_app NOLOGIN; local runs need it to log in.
 psql "$MIGRATE_DATABASE_URL" -tAc "alter role yiwuflow_app login;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
+# The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
+DATABASE_URL="postgresql://yiwuflow_app@127.0.0.1:$PGPORT/yiwuflow" \
+  node tools/seed-sandbox.mjs >/dev/null 2>&1 || fail "seed sandbox"
 
 echo "[3/6] build (tsc → dist)"
 npm run build >/dev/null 2>&1 || fail "build"
@@ -72,27 +75,73 @@ done
 HEALTH="$(curl -sS "$BASEURL/health" 2>/dev/null)" || fail "health never came up"
 echo "  health: $HEALTH"
 
-echo "[6/6] drive the Command Center (auth gate → login → home)"
-[ "$(curl -sS -o /dev/null -w '%{http_code}' "$BASEURL/app")" = "302" ] || fail "/app should redirect unauthenticated"
-curl -sS -c "$SK/cookies.txt" -o /dev/null -X POST "$BASEURL/login" \
-  -H 'content-type: application/x-www-form-urlencoded' -d "code=$CODE" || fail "login POST"
-curl -sS -b "$SK/cookies.txt" "$BASEURL/app" -o "$SK/app-home.html" || fail "GET /app"
-grep -q "Needs your attention" "$SK/app-home.html" || fail "Command Center home did not render (see $SK/app-home.html)"
+echo "[6/6] drive the owner walkthrough (auth → home → runbook → sandbox rehearsal)"
+J="$SK/cookies.txt"
+FORM='content-type: application/x-www-form-urlencoded'
+# authenticated GET → file, and assert a marker is present
+get() {  # get <path> <outfile> <marker> <what>
+  curl -sS -b "$J" "$BASEURL$1" -o "$2" || fail "GET $1"
+  grep -q "$3" "$2" || fail "$4 (see $2)"
+}
+# authenticated POST; every owner action is Post/Redirect/Get → expect 302
+post() {  # post <path> <data> <what>
+  local c; c="$(curl -sS -b "$J" -o /dev/null -w '%{http_code}' -X POST "$BASEURL$1" -H "$FORM" --data "$2")"
+  [ "$c" = "302" ] || fail "$3 (POST $1 returned $c, expected 302)"
+}
+
+#  auth gate — every owner surface must bounce when signed out
+for p in /app /app/onboarding /app/sandbox; do
+  [ "$(curl -sS -o /dev/null -w '%{http_code}' "$BASEURL$p")" = "302" ] || fail "$p should redirect unauthenticated"
+done
+[ "$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASEURL/app/sandbox/takeover")" = "302" ] \
+  || fail "POST /app/sandbox/takeover should redirect unauthenticated"
+
+#  login
+curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE" || fail "login POST"
+
+#  the three owner surfaces
+get /app            "$SK/app-home.html"   "Needs your attention"    "Operations Home did not render"
+get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
+get /app/sandbox    "$SK/app-sandbox.html" "Simulation only"        "Sandbox did not render"
+
+#  rehearsal: buyer turn → take over → owner reply → hand back
+post /app/sandbox/message  "mode=scripted&text=Do%20you%20make%20canvas%20tote%20bags%3F" "sandbox buyer turn"
+get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "take-over control missing"
+post /app/sandbox/takeover "mode=scripted" "sandbox takeover"
+get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/reply"'   "owner reply box missing after takeover"
+post /app/sandbox/reply    "mode=scripted&text=Owner%20here%20%E2%80%94%20yes%2C%20we%20can%20do%20that." "sandbox owner reply"
+get  /app/sandbox "$SK/app-sandbox.html" "Owner here" "owner reply never reached the transcript"
+post /app/sandbox/resume   "mode=scripted" "sandbox resume"
+get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
+
+#  the runbook must now observe the rehearsal it just practised
+get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not re-render"
+REHEARSED="$(grep -o 'Practice before launch · [0-9]*/[0-9]*' "$SK/app-onboard.html" | head -1)"
+case "$REHEARSED" in *"3/5"*|*"4/5"*|*"5/5"*) ;; *) fail "rehearsal not observed by the runbook (got '$REHEARSED')";; esac
+
+#  nothing was really delivered: the sandbox tenant has no channel credential
+CREDS="$(psql "$MIGRATE_DATABASE_URL" -tAc \
+  "select count(*) from channel_credentials where business_id='5a4d0000-0000-4000-8000-0000000000b1';" 2>/dev/null | tr -d ' ')"
+[ "$CREDS" = "0" ] || fail "sandbox tenant must have NO channel credentials (found $CREDS)"
 
 cat <<EOF
 
-PASS — YiwuFlow is running and was driven end-to-end.
+PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
+  walkthrough:  auth gate → login → Operations Home → Pilot runbook → Sandbox
+                → buyer turn → take over → owner reply → hand back
+                rehearsal observed by the runbook: $REHEARSED
+                sandbox channel credentials: $CREDS (must be 0 — nothing delivered)
   URL:          $BASEURL
   health:       $HEALTH
   login code:   $CODE          (POST /login  code=$CODE)
-  home HTML:    $SK/app-home.html   ($(wc -c < "$SK/app-home.html" | tr -d ' ') bytes, rendered with demo data)
+  pages:        $SK/app-home.html · app-onboard.html · app-sandbox.html
   cookie jar:   $SK/cookies.txt     (authenticated session)
   app log:      $SK/app.log
   server PID:   $APP_PID            (LEFT RUNNING)
 
 Drive more:
   curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'Factory knowledge'
-  curl -sb $SK/cookies.txt $BASEURL/app/onboarding | grep -o 'Pilot readiness'
+  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
 
 Stop everything:
   kill $APP_PID; pg_ctl -D $SK/pg stop

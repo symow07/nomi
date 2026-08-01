@@ -64,12 +64,12 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(zh).toContain('<html lang="zh" dir="ltr">');
     expect(zh).toContain('小雅的工作台');
-    expect(zh).toContain('主页'); expect(zh).toContain('收件箱');
+    expect(zh).toContain('运营'); expect(zh).toContain('收件箱');   // M16.4c: nav matches the page it opens
 
     const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
     expect(ar).toContain('مساحة عمل ياسمين');
-    expect(ar).toContain('الرئيسية');                     // "home"
+    expect(ar).toContain('العمليات');                     // M16.4c: "operations"
   });
 
   it('nav uses owner language — no technical/AI vocabulary in any locale', () => {

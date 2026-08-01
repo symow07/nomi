@@ -9,8 +9,10 @@ public `/health` probe and the owner **Command Center** (server-rendered HTML at
 credentials**. It is headless (no browser UI); you drive it with `curl`.
 
 **Drive it with the smoke script** — one command brings up an ephemeral Postgres,
-migrates + seeds the demo tenant, builds, launches the server, and drives
-`/health` + `/login` + `/app`, leaving the server running:
+migrates + seeds the demo **and sandbox** tenants, builds, launches the server,
+and drives the whole owner walkthrough (auth gate → login → Operations Home →
+Pilot runbook → Sandbox → buyer turn → take over → owner reply → hand back),
+leaving the server running:
 
 ```bash
 bash .claude/skills/run-yiwuflow/smoke.sh
@@ -62,14 +64,26 @@ bash .claude/skills/run-yiwuflow/smoke.sh
 On success it prints `PASS` and leaves the server running, e.g.:
 
 ```
-health: {"ok":true,"db":true,"worker":true,"provider":"disabled"}
-URL:    http://127.0.0.1:8787
-login code: smoke-code
-server PID: <pid>   (LEFT RUNNING)
+PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
+  walkthrough:  auth gate → login → Operations Home → Pilot runbook → Sandbox
+                → buyer turn → take over → owner reply → hand back
+                rehearsal observed by the runbook: Practice before launch · 3/5
+                sandbox channel credentials: 0 (must be 0 — nothing delivered)
+  health:       {"ok":true,"db":true,"worker":true,"provider":"disabled"}
+  URL:          http://127.0.0.1:8787
+  login code:   smoke-code
+  server PID:   <pid>   (LEFT RUNNING)
 ```
 
-Artifacts land in `/tmp/yf-run/`: `app.log` (server log), `app-home.html` (the
-rendered Command Center home, ~8 KB), `cookies.txt` (an authenticated session).
+Artifacts land in `/tmp/yf-run/`: `app.log` (server log), `app-home.html`,
+`app-onboard.html`, `app-sandbox.html` (the rendered pages), `cookies.txt` (an
+authenticated session).
+
+The walkthrough is the regression net for the owner path: it asserts each
+surface renders, that every owner action is a 302 (Post/Redirect/Get), that the
+runbook **observes** the rehearsal it just practised (`3/5` or better), and that
+the sandbox tenant still has **zero** channel credentials — i.e. nothing was
+really delivered. Any missing marker or wrong status code aborts with `FAIL`.
 
 Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE=... bash .claude/skills/run-yiwuflow/smoke.sh`.
 
@@ -125,7 +139,7 @@ migrations/seed run as the **admin** role, the app runs as **`yiwuflow_app`** (R
 ## Test
 
 ```bash
-npm run check        # tsc + src/core purity boundaries + vitest (589 pass; DB-backed tests skipped without DATABASE_URL)
+npm run check        # tsc + src/core purity boundaries + vitest (617 pass; DB-backed tests skipped without DATABASE_URL)
 ```
 
 The DB-backed integration tests run only when `DATABASE_URL` points at a migrated

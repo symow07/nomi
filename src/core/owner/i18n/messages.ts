@@ -11,7 +11,7 @@ import { type Locale, DEFAULT_LOCALE } from './locale.js';
 
 const EN = {
   // nav
-  'nav.home': 'Home',
+  'nav.home': 'Operations',
   'nav.inbox': 'Inbox',
   'nav.conversations': 'Conversations',
   'nav.channels': 'Channels',
@@ -19,7 +19,7 @@ const EN = {
   'nav.employee': 'Employee',
   'nav.analytics': 'Business',
   'nav.settings': 'Settings',
-  'nav.onboarding': 'Get started',
+  'nav.onboarding': 'Pilot readiness',
   // shell
   'app.tagline': "{name}'s workspace",
   'header.stage': "Probation · you're mentoring her",
@@ -585,7 +585,7 @@ const EN = {
 export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
-  'nav.home': '主页',
+  'nav.home': '运营',
   'nav.inbox': '收件箱',
   'nav.conversations': '对话记录',
   'nav.channels': '销售渠道',
@@ -593,7 +593,7 @@ const ZH: Record<MessageKey, string> = {
   'nav.employee': '员工档案',
   'nav.analytics': '经营数据',
   'nav.settings': '设置',
-  'nav.onboarding': '开始设置',
+  'nav.onboarding': '上线准备',
   'app.tagline': '{name}的工作台',
   'header.stage': '试用期 · 你在带她',
   'header.logout': '退出',
@@ -1141,7 +1141,7 @@ const ZH: Record<MessageKey, string> = {
 };
 
 const AR: Record<MessageKey, string> = {
-  'nav.home': 'الرئيسية',
+  'nav.home': 'العمليات',
   'nav.inbox': 'الوارد',
   'nav.conversations': 'المحادثات',
   'nav.channels': 'القنوات',
@@ -1149,7 +1149,7 @@ const AR: Record<MessageKey, string> = {
   'nav.employee': 'الموظفة',
   'nav.analytics': 'الأداء',
   'nav.settings': 'الإعدادات',
-  'nav.onboarding': 'البدء',
+  'nav.onboarding': 'جاهزية التجربة',
   'app.tagline': 'مساحة عمل {name}',
   'header.stage': 'فترة تجربة · أنت تدرّبها',
   'header.logout': 'تسجيل الخروج',
