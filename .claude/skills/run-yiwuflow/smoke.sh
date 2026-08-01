@@ -77,7 +77,7 @@ echo "[6/6] drive the Command Center (auth gate → login → home)"
 curl -sS -c "$SK/cookies.txt" -o /dev/null -X POST "$BASEURL/login" \
   -H 'content-type: application/x-www-form-urlencoded' -d "code=$CODE" || fail "login POST"
 curl -sS -b "$SK/cookies.txt" "$BASEURL/app" -o "$SK/app-home.html" || fail "GET /app"
-grep -q "Lily's summary today" "$SK/app-home.html" || fail "Command Center home did not render (see $SK/app-home.html)"
+grep -q "Needs your attention" "$SK/app-home.html" || fail "Command Center home did not render (see $SK/app-home.html)"
 
 cat <<EOF
 

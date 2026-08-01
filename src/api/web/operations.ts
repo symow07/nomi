@@ -4,6 +4,9 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { ownershipOf } from '../../core/conversation/ownership.js';
 import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
+import { type Locale } from '../../core/owner/i18n/locale.js';
+import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { esc } from './layout.js';
 
 /**
  * M16.2a — the Operations read model. A READ-ONLY composition layer that answers
@@ -118,4 +121,92 @@ export async function loadOperationsSnapshot(
     channel: { status: channels.whatsapp.status, provider },
     hasAttention: attention.pendingApprovals + attention.handoffs + attention.ownerHandling > 0,
   };
+}
+
+/** ── M16.2b — the Operations Home renderer ─────────────────────────────────
+ * Consumes ONLY an OperationsSnapshot (the read model is the boundary): it
+ * queries nothing and interprets nothing. Counts only — no urgency score, no
+ * percentage, no ranking. Each card deep-links into the surface that owns the
+ * work. Localized via t(); RTL and the shell are handled upstream.
+ */
+
+// Attention items, rendered in ATTENTION_PRIORITY order. Each maps to a real
+// count and a deep link into the surface that owns it. `openGaps` reuses M14's
+// wording ("Questions to answer") — no second label for the same concept.
+const ATTENTION_CARD: Record<AttentionKind, { readonly label: MessageKey; readonly href: string }> = {
+  handoffs:         { label: 'ops.card.waiting',   href: '/app/inbox' },
+  pendingApprovals: { label: 'ops.card.approvals', href: '/app/inbox?filter=pending' },
+  openGaps:         { label: 'knowledge.ops.gaps', href: '/app/knowledge' },
+};
+
+const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
+  k === 'openGaps' ? s.knowledge.openGaps : s.attention[k];
+
+const opsStat = (locale: Locale, value: number, label: MessageKey, href: string): string =>
+  `<a class="opsstat" href="${href}"><div class="v">${value}</div><div class="l">${esc(t(locale, label))}</div></a>`;
+
+export function renderOperationsHome(s: OperationsSnapshot, locale: Locale): string {
+  const name = EMPLOYEE_NAME[locale];
+
+  // 1 · Needs your attention — a card per non-zero concern, in priority order;
+  //     otherwise the honest all-caught-up state. Counts only.
+  const attnCards = ATTENTION_PRIORITY
+    .filter((k) => attentionCount(s, k) > 0)
+    .map((k) => opsStat(locale, attentionCount(s, k), ATTENTION_CARD[k].label, ATTENTION_CARD[k].href))
+    .join('');
+  const attention = `<div class="card">
+    <h2>${esc(t(locale, 'ops.attention.title'))}</h2>
+    ${attnCards
+      ? `<div class="opsgrid">${attnCards}</div>`
+      : `<div class="ok">✓ ${esc(t(locale, 'ops.attention.allClear'))}</div>`}
+  </div>`;
+
+  // 2 · What the employee did — plain facts, each linking to where it lives.
+  //     No interpretation: no "improved", no "performance".
+  const activity = `<div class="card">
+    <h2>${esc(t(locale, 'ops.activity.title', { name }))}</h2>
+    <div class="opsgrid">
+      ${opsStat(locale, s.activity.handled,       'ops.activity.handled',      '/app/analytics')}
+      ${opsStat(locale, s.activity.draftsCreated, 'ops.activity.drafts',       '/app/inbox')}
+      ${opsStat(locale, s.activity.corrections,   'ops.activity.corrections',  '/app/knowledge')}
+    </div>
+  </div>`;
+
+  // 3 · Knowledge improvement — straight from M14, its own wording. No
+  //     "intelligence", no "learning score", no "quality score".
+  const knowledge = `<div class="card">
+    <h2>${esc(t(locale, 'nav.knowledge'))}</h2>
+    <div class="opsgrid">
+      ${opsStat(locale, s.knowledge.openGaps,          'knowledge.ops.gaps',         '/app/knowledge')}
+      ${opsStat(locale, s.knowledge.recentCorrections, 'knowledge.report.corrected', '/app/knowledge')}
+      ${opsStat(locale, s.knowledge.recentlyTaught,    'knowledge.report.facts',     '/app/knowledge')}
+    </div>
+  </div>`;
+
+  // 4 · System status — honest; pre-Meta it never pretends messaging is live.
+  const ok = s.channel.status === 'connected';
+  const statusLabel = s.channel.status === 'not_connected'
+    ? t(locale, 'ops.system.waiting')
+    : t(locale, `channel.status.${s.channel.status}` as MessageKey);
+  const system = `<div class="card">
+    <h2>${esc(t(locale, 'ops.system.title'))}</h2>
+    <div class="sysline">WhatsApp <span class="pill ${ok ? 'ok' : 'warn'}">${esc(statusLabel)}</span></div>
+    ${s.channel.provider === 'disabled' ? `<p class="muted">${esc(t(locale, 'ops.system.notLive'))}</p>` : ''}
+  </div>`;
+
+  return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>
+  ${attention}
+  ${activity}
+  ${knowledge}
+  ${system}
+  <style>
+    .opsgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    a.opsstat { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:16px; text-align:center; display:block; }
+    a.opsstat:hover { border-color:#2b6b46; }
+    a.opsstat .v { font-size:28px; font-weight:700; color:#fff; }
+    a.opsstat .l { font-size:12px; color:#8b929c; margin-top:4px; }
+    .ok { color:#4ade80; font-size:16px; font-weight:600; }
+    .sysline { font-size:15px; }
+    @media (max-width:560px) { .opsgrid { grid-template-columns:1fr; } }
+  </style>`;
 }

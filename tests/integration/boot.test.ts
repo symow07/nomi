@@ -175,13 +175,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(ok.headers['location']).toBe('/app');
     const cookie = String(ok.headers['set-cookie']).split(';')[0];
 
-    // Authenticated: the shell renders with the M9.2 home briefing (real data).
+    // Authenticated: the shell renders with the M16.2b Operations Home (real data).
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
-    expect(home.body).toContain("Lily's workspace");   // shell tagline (English default)
-    expect(home.body).toContain("Lily's summary today"); // greeting line
-    expect(home.body).toContain("Lily's status");      // employee status card
-    expect(home.body).toMatch(/Inquiries/);            // today summary
+    expect(home.body).toContain("Lily's workspace");     // shell tagline (English default)
+    expect(home.body).toContain('Needs your attention'); // M16.2b attention section
+    expect(home.body).toContain('System status');        // M16.2b honest channel status
+    expect(home.body).toMatch(/Conversations handled/);  // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.body).toContain('Inbox');             // English default
@@ -210,7 +210,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // authenticated home follows the cookie
     const cookie = await login();
     const zhHome = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie: `${cookie}; yf_locale=zh` } });
-    expect(zhHome.body).toContain('小雅的今日总结');
+    expect(zhHome.body).toContain('需要你处理');   // M16.2b Operations Home, localized
   });
 
   it('M9.3 inbox: opens a real conversation; unknown/foreign id → 404, no leak', async () => {
@@ -1273,6 +1273,80 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const before = await rowcounts();
       await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'week', 'disabled');
       expect(await rowcounts()).toEqual(before);
+    });
+  });
+
+  // ── M16.2b Operations Home UI (rendered over the real snapshot) ─────────────
+  // The landing page IS the operations snapshot: loadOperationsSnapshot →
+  // renderOperationsHome. These prove the wiring end-to-end, that cards reflect
+  // real DB state, and that no buyer text / draft body ever reaches the page.
+  describe('M16.2b · operations home (rendered over real data)', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    });
+
+    it('GET /app renders the Operations Home end-to-end (authenticated)', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('Needs your attention');
+      expect(res.body).toContain('System status');
+      expect(res.body).toContain('Conversations handled');
+      expect(res.body).toContain('Waiting for connection'); // honest in disabled mode
+      expect(res.body).not.toContain('class="pill ok"');     // never "Connected" pre-Meta
+    });
+
+    it('seeded pending + handoff surface as their cards; buyer text & draft body never leak', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
+      const SECRET = 'ZZsecretdraftbodyDoNotLeak';
+      const BUYERTAG = '971500009999zzpii';
+      await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, BUYERTAG, 'Leak Probe');
+        await tenantRepos(tx, bid).conversations.assign(c.conversationId as never, 'unclaimed');
+        await sql`insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+                  values (${DEMO_BIZ}, ${c.conversationId}, 'quote', ${SECRET}, null, 'pending')`.execute(tx as never);
+      });
+      const snap = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'today', 'disabled');
+      const html = renderOperationsHome(snap, 'en');
+      expect(snap.attention.handoffs).toBeGreaterThanOrEqual(1);
+      expect(snap.attention.pendingApprovals).toBeGreaterThanOrEqual(1);
+      expect(html).toContain('Waiting for you');    // handoff card
+      expect(html).toContain('Approvals needed');   // approvals card
+      expect(html).not.toContain(SECRET);           // draft body is never rendered
+      expect(html).not.toContain(BUYERTAG);         // buyer identifier is never rendered
+    });
+
+    it('the knowledge-gaps card reflects the real M14 gap count', async () => {
+      const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
+      const { loadKnowledgeOps } = await import('../../src/api/web/knowledge-insights.js');
+      const [snap, ops] = await Promise.all([
+        loadOperationsSnapshot(prod.db, DEMO_BIZ, 'today', 'disabled'),
+        loadKnowledgeOps(prod.db, DEMO_BIZ, 'today'),
+      ]);
+      expect(snap.knowledge.openGaps).toBe(ops.gaps.length);      // honest, reused from M14
+      const html = renderOperationsHome(snap, 'en');
+      expect(html).toContain('Questions to answer');             // the gaps card/label
+      expect(html).toContain('href="/app/knowledge"');
+    });
+
+    it('empty factory renders the honest all-caught-up state', async () => {
+      const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
+      const snap = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'today', 'disabled');
+      const html = renderOperationsHome(snap, 'en');
+      expect(html).toContain("You're all caught up");
+      expect(html).not.toContain('Waiting for you');
+      expect(html).not.toContain('Approvals needed');
+    });
+
+    it('SECURITY: the Operations Home is owner-gated — unauthenticated /app redirects', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/app' });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toBe('/login');
     });
   });
 

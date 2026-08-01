@@ -89,7 +89,7 @@ Log in from scratch (the flow the script automates):
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8787/app                  # 302 (unauth → /login)
 curl -s -c /tmp/jar -X POST http://127.0.0.1:8787/login \
   -H 'content-type: application/x-www-form-urlencoded' -d 'code=smoke-code'          # 302 → /app + Set-Cookie
-curl -s -b /tmp/jar http://127.0.0.1:8787/app | grep -o "Lily's summary today"      # the home renders
+curl -s -b /tmp/jar http://127.0.0.1:8787/app | grep -o "Needs your attention"        # the home renders
 ```
 
 ### Stop

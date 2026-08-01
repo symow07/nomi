@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
-import { loadHomeData, renderHome } from './home.js';
+import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
   defaultFilter, type InboxFilter,
@@ -164,10 +164,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(next);
   });
 
-  // ── Home (M9.2: owner briefing — a view over existing data) ──────────────
+  // ── Operations Home (M16.2b) — "what needs my attention today?" ──────────
+  // The landing page now renders the M16.2a operations snapshot: the read model
+  // is the boundary, so this route composes loadOperationsSnapshot +
+  // renderOperationsHome and queries nothing else. Counts only; no new metrics.
   app.get('/app', authed('home', async (_s, _req, locale) => {
-    const data = await loadHomeData(deps.db, deps.businessId, new Date());
-    return renderHome(data, locale);
+    const snapshot = await loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider);
+    return renderOperationsHome(snapshot, locale);
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
