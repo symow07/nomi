@@ -78,9 +78,9 @@ describe('ADR-0008 · banned technical vocabulary in every locale', () => {
 
 describe('ADR-0008 · t() and countryName', () => {
   it('interpolates {params}', () => {
-    expect(t('en', 'home.summaryFor', { name: 'Lily' })).toBe("Lily's summary today");
-    expect(t('zh', 'home.summaryFor', { name: '小雅' })).toBe('小雅的今日总结');
-    expect(t('en', 'home.event.quoteSent', { buyer: 'Ahmed' })).toBe('Quote sent · Ahmed');
+    expect(t('en', 'app.tagline', { name: 'Lily' })).toBe("Lily's workspace");
+    expect(t('zh', 'app.tagline', { name: '小雅' })).toBe('小雅的工作台');
+    expect(t('en', 'ops.activity.title', { name: 'Lily' })).toBe('What Lily did');
   });
 
   it('falls back to English then to the raw key', () => {
