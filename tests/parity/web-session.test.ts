@@ -1,8 +1,98 @@
 import { describe, it, expect } from 'vitest';
+import Fastify from 'fastify';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS } from '../../src/api/web/session.js';
 import { shell, loginPage, NAV } from '../../src/api/web/layout.js';
+import { registerWebApp } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+
+/**
+ * M17.3 — the session cookie CONTRACT as it is actually emitted. The codec is
+ * unit-tested below; what was never checked is the header the browser receives,
+ * and specifically that `Secure` is set when the app runs in production. These
+ * routes (login/logout/locale) touch no database, so a stub `db` is enough.
+ */
+const appWith = (secureCookie: boolean) => {
+  const app = Fastify({ logger: false });
+  registerWebApp(app, {
+    db: {} as never,
+    sessionSecret: 'x'.repeat(64),
+    accessCode: 'let-me-in',
+    businessId: 'de300000-0000-4000-8000-0000000000b1',
+    employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
+    secureCookie,
+    kickOutbound: async () => {},
+  });
+  return app;
+};
+const login = (app: ReturnType<typeof appWith>, code = 'let-me-in') =>
+  app.inject({ method: 'POST', url: '/login', headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: `code=${code}` });
+
+describe('M17.3 · production session cookie contract', () => {
+  it('production: the session cookie is HttpOnly, Secure, SameSite=Lax, Path=/, and expiring', async () => {
+    const app = appWith(true);
+    const res = await login(app);
+    const c = String(res.headers['set-cookie']);
+    expect(res.statusCode).toBe(302);
+    expect(c).toContain('yf_session=');
+    expect(c).toContain('HttpOnly');                       // not readable from JS
+    expect(c).toContain('Secure');                         // never sent over plain http
+    expect(c).toContain('SameSite=Lax');                   // blocks cross-site POST (CSRF)
+    expect(c).toContain('Path=/');
+    expect(c).toContain(`Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
+    await app.close();
+  });
+
+  it('non-production drops ONLY Secure — every other protection stays on', async () => {
+    const app = appWith(false);
+    const c = String((await login(app)).headers['set-cookie']);
+    expect(c).not.toContain('Secure');                     // so local http login works
+    expect(c).toContain('HttpOnly');
+    expect(c).toContain('SameSite=Lax');
+    await app.close();
+  });
+
+  it('the cookie carries a signed token, never the access code or business data in clear', async () => {
+    const app = appWith(true);
+    const c = String((await login(app)).headers['set-cookie']);
+    const token = c.split(';')[0]!.split('=').slice(1).join('=');
+    expect(token).not.toContain('let-me-in');
+    expect(token.split('.')).toHaveLength(2);               // payload.signature
+    // the payload is signed: flipping one character invalidates it
+    const codec = makeSessionCodec('x'.repeat(64));
+    expect(codec.verify(token, Date.now())).not.toBeNull();
+    expect(codec.verify(token.slice(0, -1) + 'A', Date.now())).toBeNull();
+    await app.close();
+  });
+
+  it('a wrong access code sets NO cookie at all', async () => {
+    const app = appWith(true);
+    const res = await login(app, 'wrong');
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    await app.close();
+  });
+
+  it('logout expires the cookie immediately (Max-Age=0) and keeps the flags', async () => {
+    const app = appWith(true);
+    const res = await app.inject({ method: 'GET', url: '/logout' });
+    const c = String(res.headers['set-cookie']);
+    expect(c).toContain('Max-Age=0');
+    expect(c).toContain('HttpOnly');
+    expect(c).toContain('Secure');
+    await app.close();
+  });
+
+  it('the language cookie is also Secure in production (and is not HttpOnly by design)', async () => {
+    const app = appWith(true);
+    const res = await app.inject({ method: 'GET', url: '/locale?set=zh&next=/login' });
+    const c = String(res.headers['set-cookie']);
+    expect(c).toContain('yf_locale=zh');
+    expect(c).toContain('Secure');
+    expect(c).toContain('SameSite=Lax');
+    await app.close();
+  });
+});
 
 /* ── Session codec: signed, expiring, tamper-proof ───────────────────────── */
 describe('M9 · owner session codec', () => {

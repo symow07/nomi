@@ -41,3 +41,43 @@ If there are **no** live channel credentials yet (pilot pre-onboarding), rotatio
 The temporary `ANTHROPIC_API_KEY` and the Railway admin `DATABASE_URL` were pasted
 into a chat transcript during setup — treat both as **compromised** and rotate at
 source before real production traffic. See `M10-PRODUCTION-READINESS.md`.
+
+**Status: STILL OWED.** Rotation happens in the Anthropic console and Railway, so
+it cannot be done from the repo. Exact steps, in order:
+
+```bash
+# 1. Anthropic — console.anthropic.com → API keys → Create key, then Revoke the old one.
+#    Set the new value in Railway (Variables → ANTHROPIC_API_KEY) and redeploy.
+
+# 2. Postgres runtime role (the app; RLS-scoped, no superuser)
+psql "$MIGRATE_DATABASE_URL" -c "alter role yiwuflow_app with password '<new-strong-password>';"
+#    → update DATABASE_URL in Railway → redeploy.
+
+# 3. Postgres admin role (migrations only; not used by the running service)
+psql "$MIGRATE_DATABASE_URL" -c "alter role postgres with password '<new-strong-password>';"
+#    → update MIGRATE_DATABASE_URL wherever migrations are run.
+
+# 4. Confirm
+curl -s https://<prod-host>/health      # expect {"ok":true,"db":true,...}
+```
+
+`CREDENTIAL_KEY` rotation is still safe to do blind **only** while no channel
+credential rows exist — verify before rotating, do not assume:
+
+```bash
+psql "$MIGRATE_DATABASE_URL" -tAc "select count(*) from channel_credentials;"   # 0 ⇒ safe
+```
+
+## M17.3 verification — what was actually checked
+
+These claims are no longer taken on faith:
+
+| Claim | How it was verified | Result |
+|---|---|---|
+| `.env` never reached git | `git log --all -- .env`, `git ls-files`, history scan for `sk-ant-…` | **Clean** — never committed, no live key in any tracked blob |
+| Boot logs names, not values | read `main.ts` env validator | **Holds** — problems are `${name}: missing/placeholder/invalid shape` only |
+| Logs pass through `redactSecrets` | present and exercised in the outbound worker + its tests | **Holds** |
+| Secrets never rendered in the Command Center | grepped every `src/api/web` renderer | **Holds** — no secret value is referenced |
+| `CREDENTIAL_KEY` rotation is mechanically possible | packed format is `v1.<keyVersion>.…`, so a re-encrypt pass is detectable | **Holds** |
+| Tenant isolation on the post-M13 tables | new RLS denial tests (`tests/integration/db.test.ts`) | **Holds** — read *and* write denial proven |
+| Production cookie flags | new tests asserting the emitted `Set-Cookie` | **Holds** — `HttpOnly; Secure; SameSite=Lax; Path=/` |
