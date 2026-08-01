@@ -86,6 +86,72 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  // ── M18.3 · webhook verification: everything that must be REJECTED ─────────
+  // The webhook is the one publicly reachable door into the system. The happy
+  // paths are covered above; these are the forgeries, and they must all fail
+  // closed BEFORE any buyer traffic is switched on.
+  describe('M18.3 · webhook rejection (the public door)', () => {
+    const post = (payload: string, headers: Record<string, string> = {}) =>
+      prod.app.inject({ method: 'POST', url: '/webhook/whatsapp',
+        payload, headers: { 'content-type': 'application/json', ...headers } });
+
+    it('GET handshake: the RIGHT verify token echoes the challenge', async () => {
+      const res = await prod.app.inject({ method: 'GET',
+        url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=boot-verify-token&hub.challenge=echo-me' });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toBe('echo-me');
+    });
+
+    it('GET handshake: a WRONG or missing verify token is forbidden', async () => {
+      for (const qs of [
+        'hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=x',
+        'hub.mode=subscribe&hub.challenge=x',
+        'hub.mode=unsubscribe&hub.verify_token=boot-verify-token&hub.challenge=x',
+        'hub.verify_token=boot-verify-token&hub.challenge=x',
+      ]) {
+        const res = await prod.app.inject({ method: 'GET', url: `/webhook/whatsapp?${qs}` });
+        expect(res.statusCode, qs).toBe(403);
+        expect(res.body, qs).not.toBe('x');            // the challenge is never echoed
+      }
+    });
+
+    it('POST: an UNSIGNED payload is rejected', async () => {
+      const w = sim.status('wamid.M18_UNSIGNED', 'delivered');
+      expect((await post(w.rawBody)).statusCode).toBe(401);
+    });
+
+    it('POST: a payload signed with the WRONG secret is rejected', async () => {
+      const w = sim.status('wamid.M18_WRONGSIG', 'delivered');
+      expect((await post(w.rawBody, { 'x-hub-signature-256': 'sha256=' + '0'.repeat(64) })).statusCode).toBe(401);
+    });
+
+    it('POST: a malformed signature header is rejected, never crashed on', async () => {
+      const w = sim.status('wamid.M18_MALFORMED', 'delivered');
+      for (const sig of ['', 'garbage', 'sha256=', 'sha256=zz', 'sha1=' + '0'.repeat(40)]) {
+        const res = await post(w.rawBody, { 'x-hub-signature-256': sig });
+        expect(res.statusCode, sig).toBe(401);         // never a 500
+      }
+    });
+
+    it('POST: a body altered after signing is rejected (the signature covers bytes)', async () => {
+      const w = sim.status('wamid.M18_TAMPER2', 'delivered');
+      expect((await post(w.rawBody.replace('delivered', 'read'), w.headers)).statusCode).toBe(401);
+    });
+
+    it('a rejected webhook persists NOTHING', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+      const count = () => withTenantTx(prod.db, p.value, (tx) =>
+        sql<{ n: number }>`select count(*)::int n from channel_events`.execute(tx).then((r) => r.rows[0]!.n));
+
+      const before = await count();
+      const w = sim.status('wamid.M18_NOPERSIST', 'delivered');
+      expect((await post(w.rawBody, { 'x-hub-signature-256': 'sha256=' + 'a'.repeat(64) })).statusCode).toBe(401);
+      expect(await count()).toBe(before);              // a forged call leaves no trace
+    });
+  });
+
   it('/shadow/turn is NOT publicly mounted (audit H1)', async () => {
     const res = await prod.app.inject({ method: 'POST', url: '/shadow/turn',
       payload: { message_id: 'x', business_id: DEMO_BIZ, conversation_id: DEMO_BIZ, text: 'hi' } });

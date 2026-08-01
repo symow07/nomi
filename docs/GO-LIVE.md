@@ -49,6 +49,16 @@ in `META-CLOUD-API-SETUP.md`.
 
 ## The switch
 
+> **M18 changed the order.** Two things now happen before the provider flip:
+> the **security gate** (`M18-ACTIVATION-GATE.md` — rotate the compromised
+> setup credentials; `activate()` refuses without the confirmation) and the
+> **pilot allowlist** (`FIRST-FACTORY-WORKFLOW.md` §5 — add your own phone
+> first). While the channel is in pilot mode, outbound reaches only listed
+> numbers; everything else is refused at send time, canceled, and audited.
+> `pilot_mode` defaults to **true**, so this holds whether or not you set it.
+
+0. **Pass the security gate and add the allowlist** — your own number alone, to
+   begin with.
 1. **Set the credentials** (above) and redeploy. The provider is still
    `disabled`, so nothing changes yet — this only makes the readiness page ✓.
 2. **Verify the deployment is healthy** before turning messaging on:
@@ -62,9 +72,11 @@ in `META-CLOUD-API-SETUP.md`.
    `https://<host>/webhook/whatsapp`, verify token = `WEBHOOK_VERIFY_TOKEN`.
    Meta issues a `GET` handshake; the app echoes the challenge only when the
    token matches.
-5. **Connect the channel** in the Command Center: `/app/channels` → **Connect**.
-   Until this is done `channels.status` stays `not_connected` and the send gate
-   suppresses outbound.
+5. **Connect the channel** in the Command Center: `/app/channels` → **Connect**,
+   then **activate** the pilot. Activation refuses unless readiness is complete,
+   the allowlist is non-empty, and secrets are confirmed rotated — and it leaves
+   pilot mode ON, because activation starts a controlled pilot rather than
+   ending one.
 6. **First contact — with your own number, not a customer's.** Send a WhatsApp
    message *to* the business number from your own phone and confirm:
    - it appears in `/app/inbox`
@@ -88,7 +100,8 @@ adding one would mean live traffic, which is exactly what preparation must not d
 | Situation | Action | Effect |
 |---|---|---|
 | Replies are wrong / buyer is upset | `/app/inbox` → **Take over** on that conversation | The employee goes silent there immediately; you reply as yourself |
-| Something is broadly wrong | `/app/channels` → **Disconnect** | `channels.status='disconnected'`; queued employee messages are **canceled at send time**, not delivered |
+| Something is broadly wrong | `/app/channels` → **Disconnect**, or `deactivate()` | `channels.status='disconnected'`; queued employee messages are **canceled at send time**, not delivered. The allowlist and all history survive — reconnecting resumes |
+| A specific buyer must stop being reached | archive them from the allowlist | that number is refused at send time from the next message on |
 | Full stop | Set `WHATSAPP_PROVIDER=disabled`, redeploy | Webhook unmounts; inbound stops being accepted |
 | Bad build | Redeploy the previous commit (see `DEPLOYMENT.md`) | Schema is additive, so an older build runs against the newer schema |
 
