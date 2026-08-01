@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { loadPilotReadiness } from '../api/web/pilot.js';
 import { activeAllowlistCount } from './allowlist.js';
+import { readSchemaState } from '../db/schemaVersion.js';
 import type { BusinessId } from '../core/types/ids.js';
 
 /**
@@ -20,6 +21,7 @@ import type { BusinessId } from '../core/types/ids.js';
  */
 
 export type ActivationRefusal =
+  | 'schema_stale'          // M19.1 — the database is behind this build
   | 'not_ready'             // M15 readiness incomplete
   | 'no_allowlist'          // M18.2 requires at least one reachable number
   | 'secrets_not_rotated'   // M18.0 gate
@@ -35,13 +37,15 @@ export type ActivationPreconditions = {
   readonly allowlistCount: number;
   readonly secretsRotated: boolean;
   readonly hasChannel: boolean;
+  /** M19.1 — the applied migration version vs the one this build needs. */
+  readonly schema: { readonly required: number; readonly actual: number | null; readonly ok: boolean };
   readonly blockers: readonly ActivationRefusal[];
 };
 
 export async function activationPreconditions(
   db: Db, businessId: BusinessId,
 ): Promise<ActivationPreconditions> {
-  const [readiness, allowlistCount, channel] = await Promise.all([
+  const [readiness, allowlistCount, channel, schema] = await Promise.all([
     loadPilotReadiness(db, businessId),
     activeAllowlistCount(db, businessId),
     withTenantTx(db, businessId, (tx) =>
@@ -49,10 +53,15 @@ export async function activationPreconditions(
         select count(*)::int as n from channels
          where business_id = ${businessId} and kind = 'whatsapp'
       `.execute(tx).then((r) => r.rows[0]!.n)),
+    readSchemaState(db),
   ]);
 
   const secretsRotated = readiness.attest.secretsRotatedAt !== null;
   const blockers: ActivationRefusal[] = [];
+  // M19.1 FIRST: a stale schema means the send path is broken in a way that
+  // /health cannot see. Activating on top of it would fail at the first real
+  // buyer message — the one moment that cannot be undone.
+  if (!schema.ok) blockers.push('schema_stale');
   if (!readiness.readyToLaunch) blockers.push('not_ready');
   if (allowlistCount < 1) blockers.push('no_allowlist');
   if (!secretsRotated) blockers.push('secrets_not_rotated');
@@ -63,6 +72,7 @@ export async function activationPreconditions(
     allowlistCount,
     secretsRotated,
     hasChannel: channel > 0,
+    schema: { required: schema.required, actual: schema.actual, ok: schema.ok },
     blockers,
   };
 }

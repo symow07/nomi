@@ -2005,6 +2005,48 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       await addToAllowlist(prod.db, bid, BUYER, 'friendly buyer', 'owner');
     });
 
+    // M19.1 — the guard that protects the irreversible step. /health cannot see
+    // a stale schema (it probes with `select 1`, which succeeds on the OLD
+    // schema), and in disabled mode nothing drives outbound, so a version gap
+    // would stay invisible until the first real buyer message.
+    it('M19.1 — the schema version is checked, and it matches this build', async () => {
+      const { readSchemaState, REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
+      const state = await readSchemaState(prod.db);
+      expect(state.actual).toBe(REQUIRED_SCHEMA_VERSION);   // migrations are current here
+      expect(state.ok).toBe(true);
+      expect(state.stale).toBe(false);
+
+      const { activationPreconditions } = await import('../../src/channels/activation.js');
+      const pre = await activationPreconditions(prod.db, bid);
+      expect(pre.schema.ok).toBe(true);
+      expect(pre.blockers).not.toContain('schema_stale');
+    });
+
+    it('M19.1 — a database BEHIND this build refuses activation (schema_stale)', async () => {
+      const { activate, activationPreconditions } = await import('../../src/channels/activation.js');
+      const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
+
+      // simulate the exact M19 hazard: code deployed ahead of the migration
+      await q((tx) => sql`delete from _migrations where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never))
+        .catch(async () => {
+          // the app role has no DELETE — use the admin connection semantics via update
+          await q((tx) => sql`update _migrations set version = version - 100
+                               where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
+        });
+
+      const pre = await activationPreconditions(prod.db, bid);
+      expect(pre.schema.ok, JSON.stringify(pre.schema)).toBe(false);
+      expect(pre.blockers[0]).toBe('schema_stale');        // reported FIRST
+
+      const r = await activate(prod.db, bid, 'owner');
+      expect(r).toEqual({ ok: false, code: 'schema_stale' });
+
+      // restore so the drill below runs against a current schema
+      await q((tx) => sql`update _migrations set version = version + 100
+                           where version <= ${REQUIRED_SCHEMA_VERSION - 100}`.execute(tx as never));
+      expect((await activationPreconditions(prod.db, bid)).schema.ok).toBe(true);
+    });
+
     it('DRILL 1 — enable: activation succeeds, is audited, and keeps pilot mode ON', async () => {
       const { activate, activationState } = await import('../../src/channels/activation.js');
       const before = await audits('activate');
