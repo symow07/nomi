@@ -1163,6 +1163,119 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M16.2a operations snapshot read model (real Postgres) ───────────────────
+  describe('M16.2a · operations snapshot', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    });
+
+    it('HONESTY: every number equals an independent COUNT query', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const s = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled');
+      const indep = await q((tx) => sql<{
+        pending: number; handoffs: number; owner_handling: number;
+        handled: number; drafts_created: number; corrections: number;
+      }>`
+        with cut as (select (date_trunc('month', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c)
+        select
+          (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='pending') as pending,
+          (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to='unclaimed') as handoffs,
+          (select count(*)::int from conversations where business_id=${DEMO_BIZ} and is_active and assigned_to is not null and assigned_to<>'unclaimed') as owner_handling,
+          (select count(distinct conversation_id)::int from turns where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as handled,
+          (select count(*)::int from drafts where business_id=${DEMO_BIZ} and created_at>=(select c from cut)) as drafts_created,
+          (select count(*)::int from drafts where business_id=${DEMO_BIZ} and status='edited' and decided_at>=(select c from cut)) as corrections
+      `.execute(tx as never).then((r) => r.rows[0]!));
+      expect(s.attention.pendingApprovals).toBe(indep.pending);
+      expect(s.attention.handoffs).toBe(indep.handoffs);
+      expect(s.attention.ownerHandling).toBe(indep.owner_handling);
+      expect(s.activity.handled).toBe(indep.handled);
+      expect(s.activity.draftsCreated).toBe(indep.drafts_created);
+      expect(s.activity.corrections).toBe(indep.corrections);
+    });
+
+    it('knowledge sub-model is REUSED from M14 (not recomputed)', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const { loadKnowledgeOps } = await import('../../src/api/web/knowledge-insights.js');
+      const [s, ops] = await Promise.all([
+        loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled'),
+        loadKnowledgeOps(prod.db, DEMO_BIZ, 'month'),
+      ]);
+      expect(s.knowledge.openGaps).toBe(ops.gaps.length);
+      expect(s.knowledge.recentCorrections).toBe(ops.report.answersCorrected);
+      expect(s.knowledge.recentlyTaught).toBe(ops.report.factsAdded);
+    });
+
+    it('attention reflects exactly the states created (pending / unclaimed / owner)', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const before = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled');
+      await withTenantTx(prod.db, bid, async (tx) => {
+        const a = await ensureConversation(tx, bid, '971500008881', 'Ops A');
+        const b = await ensureConversation(tx, bid, '971500008882', 'Ops B');
+        await tenantRepos(tx, bid).conversations.assign(a.conversationId as never, 'unclaimed');
+        await tenantRepos(tx, bid).conversations.assign(b.conversationId as never, 'owner');
+        await sql`insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+                  values (${DEMO_BIZ}, ${a.conversationId}, 'quote', 'awaiting approval', null, 'pending')`.execute(tx as never);
+      });
+      const after = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled');
+      expect(after.attention.handoffs).toBe(before.attention.handoffs + 1);
+      expect(after.attention.ownerHandling).toBe(before.attention.ownerHandling + 1);
+      expect(after.attention.pendingApprovals).toBe(before.attention.pendingApprovals + 1);
+      expect(after.hasAttention).toBe(true);
+    });
+
+    it('TENANT ISOLATION: another business\'s pending draft never appears', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+      const sb = parseBusinessId(SANDBOX); if (!sb.ok) throw new Error('fixture');
+
+      const demoBefore = (await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled')).attention.pendingApprovals;
+      await withTenantTx(prod.db, sb.value, async (tx) => {
+        for (const stmt of sandboxSeedSql().split(';')) {
+          const s = stmt.trim(); if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
+          await sql.raw(s).execute(tx as never);
+        }
+        const c = await ensureConversation(tx, sb.value, 'ops-iso-buyer', 'Iso');
+        await sql`insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+                  values (${SANDBOX}, ${c.conversationId}, 'quote', 'other tenant', null, 'pending')`.execute(tx as never);
+      });
+      const demoAfter = (await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled')).attention.pendingApprovals;
+      expect(demoAfter).toBe(demoBefore);   // RLS-scoped: the sandbox draft is invisible to DEMO
+    });
+
+    it('empty / unknown factory → honest zeros', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const s = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'month', 'disabled');
+      expect(s.attention).toEqual({ pendingApprovals: 0, handoffs: 0, ownerHandling: 0 });
+      expect(s.activity).toEqual({ handled: 0, draftsCreated: 0, corrections: 0 });
+      expect(s.hasAttention).toBe(false);
+      expect(s.channel.status).toBe('not_connected');
+    });
+
+    it('READ-ONLY: computing the snapshot writes nothing', async () => {
+      const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
+      const rowcounts = () => q((tx) => sql<{ d: number; c: number; e: number }>`
+        select (select count(*)::int from drafts where business_id=${DEMO_BIZ}) as d,
+               (select count(*)::int from conversations where business_id=${DEMO_BIZ}) as c,
+               (select count(*)::int from conversation_events where business_id=${DEMO_BIZ}) as e
+      `.execute(tx as never).then((r) => r.rows[0]!));
+      const before = await rowcounts();
+      await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'week', 'disabled');
+      expect(await rowcounts()).toEqual(before);
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
