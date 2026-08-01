@@ -24,6 +24,7 @@ import {
   loadPilotRunbook, renderPilotRunbook, attest, runValidation, type AttestKey,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
+import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
 import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
   teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
@@ -393,9 +394,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     // M17.1: which build is running — owner-authenticated only, never on /health.
     const deployment = readDeployment(process.env, new Date(), process.uptime());
+    // M17.2: go-live preparation status. Reads shapes only — never a value, and
+    // never contacts Meta, so opening this page can switch nothing on.
+    const meta = checkMetaReadiness({
+      values: {
+        accessToken: process.env['META_WHATSAPP_ACCESS_TOKEN'],
+        phoneNumberId: process.env['META_WHATSAPP_PHONE_NUMBER_ID'],
+        businessAccountId: process.env['META_WHATSAPP_BUSINESS_ACCOUNT_ID'],
+        appSecret: process.env['META_APP_SECRET'],
+        verifyToken: process.env['WEBHOOK_VERIFY_TOKEN'],
+        graphVersion: process.env['META_GRAPH_API_VERSION'] ?? 'v23.0',
+      },
+      provider: deps.provider,
+      channelStatus: (await loadChannels(deps.db, s.businessId, messagingEnabled)).whatsapp.status,
+    });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta),
     }));
   });
 

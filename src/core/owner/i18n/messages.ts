@@ -588,6 +588,24 @@ const EN = {
   'runbook.deploy.since': 'Running since',
   'runbook.deploy.unknown': 'Not reported',
   'runbook.deploy.providerDisabled': 'Not active',
+  // M17.2 · WhatsApp go-live preparation (nothing is switched on here)
+  'meta.title': 'WhatsApp setup',
+  'meta.intro': 'What still has to be in place before your employee can talk to real buyers. Nothing here switches messaging on.',
+  'meta.cred.accessToken': 'Access key',
+  'meta.cred.phoneNumberId': 'WhatsApp number id',
+  'meta.cred.businessAccountId': 'Business account id',
+  'meta.cred.appSecret': 'App secret',
+  'meta.cred.verifyToken': 'Callback password',
+  'meta.cred.graphVersion': 'Connection version',
+  'meta.state.missing': 'Not set',
+  'meta.state.placeholder': 'Still a placeholder',
+  'meta.state.malformed': 'Wrong format',
+  'meta.state.ok': 'Set',
+  'meta.blocker.credentials_incomplete': 'Some details are still missing.',
+  'meta.blocker.provider_disabled': 'Messaging is switched off in this installation.',
+  'meta.blocker.channel_not_connected': 'The channel has not been connected yet.',
+  'meta.notLive': 'Not live yet — no customer messages are sent or received.',
+  'meta.live': 'Live — your employee is talking to real buyers.',
 };
 
 export type MessageKey = keyof typeof EN;
@@ -1154,6 +1172,24 @@ const ZH: Record<MessageKey, string> = {
   'runbook.deploy.since': '已运行自',
   'runbook.deploy.unknown': '未提供',
   'runbook.deploy.providerDisabled': '未启用',
+  // M17.2 · WhatsApp 上线准备（这里不会启用任何东西）
+  'meta.title': 'WhatsApp 设置',
+  'meta.intro': '正式接待真实买家前还差哪些东西。这个页面不会启用消息通道。',
+  'meta.cred.accessToken': '访问密钥',
+  'meta.cred.phoneNumberId': 'WhatsApp 号码编号',
+  'meta.cred.businessAccountId': '商业账户编号',
+  'meta.cred.appSecret': '应用密钥',
+  'meta.cred.verifyToken': '回调口令',
+  'meta.cred.graphVersion': '通道版本',
+  'meta.state.missing': '未填写',
+  'meta.state.placeholder': '还是占位内容',
+  'meta.state.malformed': '格式不对',
+  'meta.state.ok': '已填写',
+  'meta.blocker.credentials_incomplete': '还有信息没填完。',
+  'meta.blocker.provider_disabled': '本套系统的消息通道处于关闭状态。',
+  'meta.blocker.channel_not_connected': '渠道还没有连接。',
+  'meta.notLive': '尚未上线——不会收发任何客户消息。',
+  'meta.live': '已上线——员工正在接待真实买家。',
 };
 
 const AR: Record<MessageKey, string> = {
@@ -1718,6 +1754,24 @@ const AR: Record<MessageKey, string> = {
   'runbook.deploy.since': 'تعمل منذ',
   'runbook.deploy.unknown': 'غير متوفّر',
   'runbook.deploy.providerDisabled': 'غير مُفعّلة',
+  // M17.2 · التحضير لتشغيل واتساب (لا شيء يُفعَّل هنا)
+  'meta.title': 'إعداد واتساب',
+  'meta.intro': 'ما يجب توفّره قبل أن تتحدث موظفتك مع مشترين حقيقيين. هذه الصفحة لا تُفعّل الرسائل.',
+  'meta.cred.accessToken': 'مفتاح الوصول',
+  'meta.cred.phoneNumberId': 'معرّف رقم واتساب',
+  'meta.cred.businessAccountId': 'معرّف حساب الأعمال',
+  'meta.cred.appSecret': 'سرّ التطبيق',
+  'meta.cred.verifyToken': 'كلمة مرور الاستدعاء',
+  'meta.cred.graphVersion': 'إصدار الاتصال',
+  'meta.state.missing': 'غير مضبوط',
+  'meta.state.placeholder': 'ما زال نصاً مؤقتاً',
+  'meta.state.malformed': 'الصيغة غير صحيحة',
+  'meta.state.ok': 'مضبوط',
+  'meta.blocker.credentials_incomplete': 'ما زالت بعض البيانات ناقصة.',
+  'meta.blocker.provider_disabled': 'الرسائل مُطفأة في هذه النسخة.',
+  'meta.blocker.channel_not_connected': 'لم يتم ربط القناة بعد.',
+  'meta.notLive': 'ليست مباشرة بعد — لا تُرسل أو تُستقبل أي رسائل من العملاء.',
+  'meta.live': 'مباشرة — موظفتك تتحدث مع مشترين حقيقيين.',
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en: EN, zh: ZH, ar: AR };

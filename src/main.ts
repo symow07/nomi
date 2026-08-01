@@ -8,6 +8,7 @@ import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
+import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -69,11 +70,14 @@ const D360_SHAPES: Record<string, Shape> = {
   D360_BASE_URL: (v) => v.startsWith('https://'),
   WEBHOOK_SECRET: (v) => v.length >= 32,
 };
+// M17.2: the Meta shapes are defined ONCE in core, so this fail-closed boot
+// check and the owner-facing readiness page can never disagree about what
+// "correctly configured" means.
 const META_SHAPES: Record<string, Shape> = {
-  META_WHATSAPP_ACCESS_TOKEN: (v) => v.length >= 20,
-  META_WHATSAPP_PHONE_NUMBER_ID: (v) => /^\d{5,}$/.test(v),
-  META_WHATSAPP_BUSINESS_ACCOUNT_ID: (v) => /^\d{5,}$/.test(v),
-  META_APP_SECRET: (v) => v.length >= 16,
+  META_WHATSAPP_ACCESS_TOKEN: META_SHAPE.accessToken,
+  META_WHATSAPP_PHONE_NUMBER_ID: META_SHAPE.phoneNumberId,
+  META_WHATSAPP_BUSINESS_ACCOUNT_ID: META_SHAPE.businessAccountId,
+  META_APP_SECRET: META_SHAPE.appSecret,
 };
 
 export function validateEnv(env: Record<string, string | undefined>):

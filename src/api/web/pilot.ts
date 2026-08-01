@@ -8,6 +8,7 @@ import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { type DeploymentInfo } from './deployment.js';
+import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { esc } from './layout.js';
 
 /**
@@ -345,13 +346,40 @@ function deploymentSection(d: DeploymentInfo, locale: Locale): string {
   </div>`;
 }
 
+/**
+ * M17.2 — WhatsApp go-live preparation. READ-ONLY: it reports what is still
+ * missing and switches nothing on. Credential VALUES never appear here — only
+ * whether each one is set and correctly shaped.
+ */
+function metaSection(m: MetaReadiness, locale: Locale): string {
+  const rows = m.credentials.map((c) => {
+    const done = c.state === 'ok';
+    return `<div class="pr ${done ? 'done' : 'todo'}">
+      <span class="mk">${done ? '✓' : '○'}</span>
+      <span class="lbl">${esc(t(locale, `meta.cred.${c.key}` as MessageKey))}</span>
+      <div class="pr-b"><span class="muted">${esc(t(locale, `meta.state.${c.state}` as MessageKey))}</span></div>
+    </div>`;
+  }).join('');
+  const blockers = m.blockers.map((b) =>
+    `<li>${esc(t(locale, `meta.blocker.${b}` as MessageKey))}</li>`).join('');
+  return `<div class="card">
+    <h2>${esc(t(locale, 'meta.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'meta.intro'))}</p>
+    ${rows}
+    <div class="verdict ${m.live ? 'ok' : ''}">${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</div>
+    ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
+  </div>`;
+}
+
 export function renderPilotRunbook(
-  rb: PilotRunbook, locale: Locale, flash: string | null, deployment?: DeploymentInfo,
+  rb: PilotRunbook, locale: Locale, flash: string | null,
+  deployment?: DeploymentInfo, meta?: MetaReadiness,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
+    + (meta ? metaSection(meta, locale) : '')
     + (deployment ? deploymentSection(deployment, locale) : '')
     + RUNBOOK_STYLE;
 }
