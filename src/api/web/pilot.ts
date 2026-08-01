@@ -6,6 +6,7 @@ import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
+import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { esc } from './layout.js';
 
 /**
@@ -80,6 +81,78 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
       readyToLaunch,
     };
   });
+}
+
+/**
+ * M16.2d — the Pilot Operations Runbook. A READ-ONLY composition that answers
+ * the operator's whole-lifecycle questions (before / during / after) by reusing
+ * existing read models — it duplicates no SQL and writes nothing:
+ *   - before-launch readiness → loadPilotReadiness (M15)
+ *   - during-pilot operations → loadOperationsSnapshot (M16.2a, which itself
+ *     reuses loadKnowledgeOps + loadChannels)
+ *   - rehearsal progress      → DERIVED from existing events, no progress table:
+ *       takeover/ownerReply/resume ← the sandbox tenant's conversation_events
+ *       knowledgeCorrection        ← the pilot tenant has an owner-corrected fact
+ *       validationPassed           ← M15's stored validation, all scenarios pass
+ * Everything is ✓/○ + real counts + timestamps. No scores, no percentages.
+ */
+export type RehearsalStep = 'takeover' | 'ownerReply' | 'resume' | 'knowledgeCorrection' | 'validationPassed';
+export const REHEARSAL_STEPS: readonly RehearsalStep[] =
+  ['takeover', 'ownerReply', 'resume', 'knowledgeCorrection', 'validationPassed'];
+
+export type PilotRunbook = {
+  readonly readiness: PilotReadiness;       // before launch (M15)
+  readonly operations: OperationsSnapshot;  // during pilot (M16.2a)
+  readonly rehearsal: {
+    readonly available: boolean;                       // a sandbox tenant exists to practice in
+    readonly done: Record<RehearsalStep, boolean>;
+    readonly completed: number;
+    readonly total: number;
+  };
+};
+
+export async function loadPilotRunbook(
+  db: Db, businessIdRaw: string,
+  opts: { sandboxBusinessId?: string | undefined; provider?: string | undefined; range?: Range | undefined } = {},
+): Promise<PilotRunbook> {
+  const provider = opts.provider ?? 'disabled';
+  const range: Range = opts.range ?? 'week';
+
+  const [readiness, operations] = await Promise.all([
+    loadPilotReadiness(db, businessIdRaw),
+    loadOperationsSnapshot(db, businessIdRaw, range, provider),
+  ]);
+
+  const v = readiness.validation;
+  const validationPassed = v.pass !== null && v.total !== null && v.total > 0 && v.pass === v.total;
+
+  // Knowledge correction practiced — the pilot tenant has an owner-corrected
+  // fact (all-time). A single exists() — not a duplicate of M14's gap SQL.
+  const bid = parseBusinessId(businessIdRaw);
+  const knowledgeCorrection = bid.ok
+    ? await withTenantTx(db, bid.value, async (tx) => (await sql<{ e: boolean }>`
+        select exists(select 1 from product_knowledge where business_id = ${bid.value} and source = 'owner_corrected') as e
+      `.execute(tx)).rows[0]!.e)
+    : false;
+
+  // Sandbox rehearsal signals — the SANDBOX tenant's own events, read-only.
+  const sb = opts.sandboxBusinessId ? parseBusinessId(opts.sandboxBusinessId) : null;
+  const available = !!(sb && sb.ok);
+  const sbx = sb && sb.ok
+    ? await withTenantTx(db, sb.value, async (tx) => (await sql<{ takeover: boolean; owner_reply: boolean; resume: boolean }>`
+        select
+          exists(select 1 from conversation_events where business_id = ${sb.value} and type = 'takeover')   as takeover,
+          exists(select 1 from conversation_events where business_id = ${sb.value} and type = 'owner_reply') as owner_reply,
+          exists(select 1 from conversation_events where business_id = ${sb.value} and type = 'resume_ai')   as resume
+      `.execute(tx)).rows[0]!)
+    : { takeover: false, owner_reply: false, resume: false };
+
+  const done: Record<RehearsalStep, boolean> = {
+    takeover: sbx.takeover, ownerReply: sbx.owner_reply, resume: sbx.resume,
+    knowledgeCorrection, validationPassed,
+  };
+  const completed = REHEARSAL_STEPS.filter((s) => done[s]).length;
+  return { readiness, operations, rehearsal: { available, done, completed, total: REHEARSAL_STEPS.length } };
 }
 
 /** Record an owner attestation (timestamp). Whitelisted column — never user input. */
@@ -186,6 +259,86 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: s
     ${verdict}
     ${PILOT_STYLE}`;
 }
+
+// ── M16.2d runbook renderer — Before launch (M15) + During / Practice / After ─
+// Reuses renderPilotReadiness for "before launch", then appends the derived
+// sections. ✓ / ○ and real counts only — no scores, percentages, or grades.
+
+function rbCount(label: MessageKey, n: number, href: string | null, locale: Locale): string {
+  const link = href ? ` <a class="rblink" href="${href}">${esc(t(locale, 'pilot.open'))}</a>` : '';
+  return `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n">${n}</b>${link}</div>`;
+}
+
+function duringSection(ops: OperationsSnapshot, locale: Locale): string {
+  const quiet = !ops.hasAttention
+    && ops.activity.handled === 0 && ops.activity.draftsCreated === 0 && ops.activity.corrections === 0
+    && ops.knowledge.openGaps === 0 && ops.knowledge.recentCorrections === 0 && ops.knowledge.recentlyTaught === 0;
+  const body = quiet
+    ? `<div class="empty muted">${esc(t(locale, 'runbook.during.quiet'))}</div>`
+    : `<h3 class="rbsub">${esc(t(locale, 'ops.attention.title'))}</h3>
+      ${rbCount('ops.card.waiting', ops.attention.handoffs, '/app/inbox', locale)}
+      ${rbCount('ops.card.approvals', ops.attention.pendingApprovals, '/app/inbox?filter=pending', locale)}
+      ${rbCount('knowledge.ops.gaps', ops.knowledge.openGaps, '/app/knowledge', locale)}
+      <h3 class="rbsub">${esc(t(locale, 'runbook.during.activity'))}</h3>
+      ${rbCount('ops.activity.handled', ops.activity.handled, '/app/analytics', locale)}
+      ${rbCount('ops.activity.drafts', ops.activity.draftsCreated, '/app/inbox', locale)}
+      ${rbCount('ops.activity.corrections', ops.activity.corrections, '/app/knowledge', locale)}
+      <h3 class="rbsub">${esc(t(locale, 'nav.knowledge'))}</h3>
+      ${rbCount('knowledge.report.corrected', ops.knowledge.recentCorrections, null, locale)}
+      ${rbCount('knowledge.report.facts', ops.knowledge.recentlyTaught, '/app/knowledge', locale)}`;
+  return `<div class="card"><h2>${esc(t(locale, 'runbook.during.title'))}</h2>${body}</div>`;
+}
+
+function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
+  const steps = ['buyer', 'draft', 'approve', 'takeover', 'reply', 'resume', 'teach']
+    .map((s) => `<li>${esc(t(locale, `runbook.step.${s}` as MessageKey))}</li>`).join('');
+  const mark = (step: RehearsalStep, label: MessageKey) =>
+    `<div class="pr ${r.done[step] ? 'done' : 'todo'}"><span class="mk">${r.done[step] ? '✓' : '○'}</span> <span class="lbl">${esc(t(locale, label))}</span></div>`;
+  const progress = [
+    mark('takeover', 'runbook.rehearse.takeover'),
+    mark('ownerReply', 'runbook.rehearse.ownerReply'),
+    mark('resume', 'runbook.rehearse.resume'),
+    mark('knowledgeCorrection', 'runbook.rehearse.correction'),
+    mark('validationPassed', 'runbook.rehearse.validation'),
+  ].join('');
+  return `<div class="card">
+    <h2>${esc(t(locale, 'runbook.practice.title'))} · ${r.completed}/${r.total}</h2>
+    <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
+    <ol class="rbsteps">${steps}</ol>
+    ${progress}
+    <a class="btn" href="/app/sandbox">${esc(t(locale, 'runbook.practice.open'))}</a>
+  </div>`;
+}
+
+function afterSection(locale: Locale): string {
+  const link = (label: MessageKey, href: string) =>
+    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span><a class="btn ghost rblink" href="${href}">${esc(t(locale, 'pilot.open'))}</a></div>`;
+  return `<div class="card">
+    <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
+    ${link('runbook.after.promotion', '/app/employee')}
+    ${link('runbook.after.autonomy', '/app/employee')}
+    ${link('runbook.after.gaps', '/app/knowledge')}
+  </div>`;
+}
+
+export function renderPilotRunbook(rb: PilotRunbook, locale: Locale, flash: string | null): string {
+  return renderPilotReadiness(rb.readiness, locale, flash)
+    + duringSection(rb.operations, locale)
+    + practiceSection(rb.rehearsal, locale)
+    + afterSection(locale)
+    + RUNBOOK_STYLE;
+}
+
+const RUNBOOK_STYLE = `<style>
+  .rbsub { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:#8b929c; margin:16px 0 6px; }
+  .rbrow { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #1b1f25; }
+  .rbrow:last-child { border-bottom:0; }
+  .rbrow .lbl { font-size:14px; } .rbrow .n { margin-inline-start:auto; font-size:16px; font-weight:700; color:#fff; }
+  .rblink { font-size:13px; }
+  .rbsteps { margin:6px 0 14px; padding-inline-start:20px; color:#c8ccd2; font-size:14px; }
+  .rbsteps li { padding:2px 0; }
+</style>`;
 
 const PILOT_STYLE = `<style>
   .pr { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid #1b1f25; }

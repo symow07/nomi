@@ -21,7 +21,7 @@ import {
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import {
-  loadPilotReadiness, renderPilotReadiness, attest, runValidation, type AttestKey,
+  loadPilotRunbook, renderPilotRunbook, attest, runValidation, type AttestKey,
 } from './pilot.js';
 import {
   loadKnowledgeIndex, loadProductKnowledge, renderKnowledgeIndex, renderProductKnowledge,
@@ -386,10 +386,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const data = await loadPilotReadiness(deps.db, s.businessId);
+    const data = await loadPilotRunbook(deps.db, s.businessId, {
+      sandboxBusinessId: deps.sandboxBusinessId, provider: deps.provider,
+    });
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotReadiness(data, locale, flash),
+      bodyHtml: renderPilotRunbook(data, locale, flash),
     }));
   });
 

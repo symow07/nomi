@@ -1439,6 +1439,86 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M16.2d Pilot operations runbook (loadPilotRunbook read model) ───────────
+  // Composes M15 readiness + M16.2a operations + a rehearsal derived from
+  // existing events (sandbox conversation_events + a pilot owner-corrected fact +
+  // M15 validation). No new storage; the integration seeds the events and checks
+  // the runbook reflects them.
+  describe('M16.2d · pilot operations runbook (over real data)', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    const ZERO = '00000000-0000-0000-0000-000000000000';
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    let sbid: import('../../src/core/types/ids.js').BusinessId;
+    const load = () => import('../../src/api/web/pilot.js').then(({ loadPilotRunbook }) => loadPilotRunbook);
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      const s = parseBusinessId(SANDBOX); if (!s.ok) throw new Error('fixture'); sbid = s.value;
+    });
+
+    it('empty / unknown factory: nothing detected, no rehearsal complete, no sandbox', async () => {
+      const rb = await (await load())(prod.db, ZERO, {});
+      expect(Object.values(rb.readiness.detected).every((v) => v === false)).toBe(true);
+      expect(rb.rehearsal.completed).toBe(0);
+      expect(rb.rehearsal.available).toBe(false);        // no sandbox tenant passed
+      expect(rb.operations.hasAttention).toBe(false);
+      expect(rb.rehearsal.total).toBe(5);
+    });
+
+    it('M15 validation all-pass → validationPassed ✓ (and the readiness Sandbox item flips)', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      await withTenantTx(prod.db, bid, (tx) => sql`
+        insert into onboarding_state (business_id, last_validation_at, last_validation_pass, last_validation_total)
+        values (${DEMO_BIZ}, now(), 5, 5)
+        on conflict (business_id) do update set last_validation_at = now(),
+          last_validation_pass = 5, last_validation_total = 5, updated_at = now()
+      `.execute(tx as never));
+      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      expect(rb.rehearsal.done.validationPassed).toBe(true);
+      expect(rb.readiness.detected.sandbox).toBe(true);
+    });
+
+    it('sandbox takeover + owner_reply events → those rehearsals ✓ (read from the sandbox tenant)', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      await withTenantTx(prod.db, sbid, async (tx) => {
+        for (const type of ['takeover', 'owner_reply']) {
+          await sql`insert into conversation_events (business_id, conversation_id, type, payload)
+                    values (${SANDBOX}, gen_random_uuid(), ${type}, ${JSON.stringify({ actor: 'owner' })}::jsonb)`.execute(tx as never);
+        }
+      });
+      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      expect(rb.rehearsal.done.takeover).toBe(true);
+      expect(rb.rehearsal.done.ownerReply).toBe(true);
+      expect(rb.rehearsal.done.resume).toBe(false);       // not practiced
+    });
+
+    it('an owner-corrected knowledge fact → correction rehearsal ✓ (pilot tenant)', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      await withTenantTx(prod.db, bid, (tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${DEMO_BIZ}, null, 'faq', 'rehearsal', 'a corrected fact', 'owner_corrected')
+      `.execute(tx as never));
+      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      expect(rb.rehearsal.done.knowledgeCorrection).toBe(true);
+    });
+
+    it('during-pilot operations equal the real snapshot (composed, not recomputed)', async () => {
+      const [rb, snap] = await Promise.all([
+        (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX, range: 'week' }),
+        import('../../src/api/web/operations.js').then(({ loadOperationsSnapshot }) => loadOperationsSnapshot(prod.db, DEMO_BIZ, 'week', 'disabled')),
+      ]);
+      expect(rb.operations).toEqual(snap);
+    });
+
+    it('TENANT ISOLATION: a pilot pointed at a different sandbox sees none of that rehearsal', async () => {
+      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: ZERO });
+      expect(rb.rehearsal.done.takeover).toBe(false);      // the SANDBOX events do not leak
+      expect(rb.rehearsal.done.ownerReply).toBe(false);
+      expect(rb.rehearsal.available).toBe(true);           // a sandbox id was supplied, just an empty one
+    });
+  });
+
   it('mounts NO webhook routes (GET verification absent)', async () => {
     const res = await prod.app.inject({ method: 'GET',
       url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=deploy-verify-token&hub.challenge=x' });
