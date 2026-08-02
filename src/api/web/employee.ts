@@ -6,7 +6,7 @@ import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capabilit
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
 
 /**
  * M9.6 + ADR-0008 — Employee Profile. A VIEW over the existing trust data
@@ -150,7 +150,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
       ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
       ${c ? countRow(c.corrected, t(locale, 'her.knows.corrected')) : ''}
     </div>
-    <a class="more" href="/app/knowledge">${esc(t(locale, 'ops.open'))} ›</a></div>`;
+    ${deeper('/app/knowledge', t(locale, 'ops.open'))}</div>`;
 }
 
 /** 3 · What did she do recently? Real counts, no rate. */

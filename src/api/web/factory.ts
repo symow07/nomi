@@ -13,6 +13,7 @@
  * The deep surfaces (/app/settings, /app/products, /app/knowledge,
  * /app/channels) stay exactly as they are and are linked, not replaced.
  */
+import { sql } from 'kysely';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
@@ -39,16 +40,22 @@ export type FactoryStep = OnboardingStep;
 export type FactoryPromises = {
   /** Certification/compliance claims the owner authorised (claims_policy). */
   readonly certs: readonly string[];
-  /** The owner's own price rules, business-wide. Absent when none is set. */
-  readonly floorPriceUsd: number | null;
   /**
-   * Named for what the guard DOES, so the page cannot mix them up again:
-   * `quote.ts` settles alone up to `humanRequiredAbovePct` (ownAuthorityPct),
-   * escalates above it, and clamps at `maxDiscountPct` (ceilingPct). The
-   * ceiling is the HIGHER of the two.
+   * The price rules that ACTUALLY APPLY. `repos.pricingPolicy(productId)` lets a
+   * per-product row win over the business-wide one, and `turn.ts` always asks
+   * per product — so reading only the business-wide row (as this page first did)
+   * reported numbers no quote has ever used.
+   *
+   * Only what the guard enforces is stated: `quote.ts` clamps the price at the
+   * floor and the discount at the ceiling. `humanRequiredAbovePct` is NOT a gate
+   * — it lands in the quote audit and never decides draft-vs-send — so it is not
+   * presented to the owner as a rule.
    */
-  readonly ownAuthorityPct: number | null;
+  readonly floorLowUsd: number | null;
+  readonly floorHighUsd: number | null;
   readonly ceilingPct: number | null;
+  /** true when different products carry different ceilings. */
+  readonly ceilingVaries: boolean;
 };
 
 /** Getting ready to go live — a summary of the EXISTING pilot readiness model. */
@@ -85,22 +92,34 @@ export type FactoryView = {
  */
 async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromises> {
   const bid = parseBusinessId(businessIdRaw);
-  const none: FactoryPromises = { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null };
+  const none: FactoryPromises = {
+    certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false,
+  };
   if (!bid.ok) return none;
 
   return withTenantTx(db, bid.value, async (tx) => {
     const repos = tenantRepos(tx, bid.value);
-    const [claims, policy] = await Promise.all([
+    const [claims, rows] = await Promise.all([
       repos.catalog.claimsPolicy(),
-      repos.catalog.pricingPolicy(null),      // business-wide rule, if the owner has one
+      // Every rule the guard could reach, not just the fallback. A per-product
+      // row wins, so when any exists the business-wide row is never consulted.
+      sql<{ floor: string; ceiling: string; product_id: string | null }>`
+        select floor_price_usd as floor, max_discount_pct as ceiling, product_id
+          from pricing_policy where business_id = ${bid.value}
+      `.execute(tx).then((r) => r.rows),
     ]);
+    const perProduct = rows.filter((r) => r.product_id !== null);
+    const applies = perProduct.length > 0 ? perProduct : rows;
+    const floors = applies.map((r) => Number(r.floor));
+    const ceilings = [...new Set(applies.map((r) => Number(r.ceiling)))];
     return {
       certs: claims
         .filter((c) => c.allowed && (c.kind === 'certification' || c.kind === 'compliance'))
         .map((c) => c.claimKey),
-      floorPriceUsd: policy?.floorPriceUsd ?? null,
-      ownAuthorityPct: policy?.humanRequiredAbovePct ?? null,
-      ceilingPct: policy?.maxDiscountPct ?? null,
+      floorLowUsd: floors.length ? Math.min(...floors) : null,
+      floorHighUsd: floors.length ? Math.max(...floors) : null,
+      ceilingPct: ceilings.length ? Math.min(...ceilings) : null,
+      ceilingVaries: ceilings.length > 1,
     };
   });
 }
@@ -200,18 +219,21 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
 
   // 3 · What you promise buyers — the guard's allowlist in the owner's words.
   //     Everything not listed is refused; that rule is stated, never implied.
-  const own = f.promises.ownAuthorityPct;
+  // Only the two things the guard actually enforces, and only in the shape the
+  // owner's own data takes: one floor, or a range across her products.
+  const lo = f.promises.floorLowUsd;
+  const hi = f.promises.floorHighUsd;
   const ceil = f.promises.ceilingPct;
   const priceRules = [
-    f.promises.floorPriceUsd !== null
-      ? t(locale, 'factory.promise.floor', { price: formatUsd(f.promises.floorPriceUsd), name })
+    lo !== null && hi !== null
+      ? (lo === hi
+        ? t(locale, 'factory.promise.floor', { price: formatUsd(lo), name })
+        : t(locale, 'factory.promise.floorRange', { low: formatUsd(lo), high: formatUsd(hi), name }))
       : null,
-    own !== null ? t(locale, 'factory.promise.alone', { own, name }) : null,
-    // The band between her own authority and the ceiling: she still writes the
-    // reply, but it waits for the owner. Only real when there IS a band.
-    own !== null && ceil !== null && ceil > own
-      ? t(locale, 'factory.promise.waits', { own, ceil, name }) : null,
-    ceil !== null ? t(locale, 'factory.promise.ceiling', { ceil, name }) : null,
+    ceil !== null
+      ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
+        { ceil, name })
+      : null,
   ].filter((x): x is string => x !== null);
 
   const promiseBody = `

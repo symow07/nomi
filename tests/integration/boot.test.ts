@@ -2169,23 +2169,39 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await html()).not.toContain('ISO 9001 quality system');
     });
 
-    it('a price rule is shown only when the owner has one, and matches the stored rule', async () => {
+    it('price rules come from the rows the GUARD uses, not the business-wide fallback', async () => {
+      // repos.pricingPolicy(productId) lets a per-product row win, and turn.ts
+      // always asks per product — so a page that read only the `product_id is
+      // null` row reported numbers no quote has ever used.
+      const rows = await q((tx) => sql<{ floor: string; ceiling: string; pid: string | null }>`
+        select floor_price_usd floor, max_discount_pct ceiling, product_id pid
+          from pricing_policy where business_id = ${DEMO_BIZ}`
+        .execute(tx as never).then((r) => r.rows));
+      const perProduct = rows.filter((r) => r.pid !== null);
+      const applies = perProduct.length > 0 ? perProduct : rows;
       const f = await view();
-      const stored = await q((tx) => sql<{ floor: string; own: number; alone: number }>`
-        select floor_price_usd floor, max_discount_pct own, human_required_above_pct alone from pricing_policy
-         where business_id = ${DEMO_BIZ} and product_id is null limit 1`
-        .execute(tx as never).then((r) => r.rows[0] ?? null));
-      if (stored) {
-        expect(f.promises.floorPriceUsd).toBe(Number(stored.floor));
-        expect(f.promises.ceilingPct).toBe(stored.own);
-        expect(f.promises.ownAuthorityPct).toBe(stored.alone);
-        // the guard's own ordering: she settles alone BELOW the ceiling
-        expect(f.promises.ownAuthorityPct!).toBeLessThanOrEqual(f.promises.ceilingPct!);
-        expect(await html()).toContain('never quotes below');
-      } else {
-        expect(f.promises.floorPriceUsd).toBeNull();
+
+      if (applies.length === 0) {
+        expect(f.promises.floorLowUsd).toBeNull();
         expect(await html()).not.toContain('never quotes below');
+        return;
       }
+      const floors = applies.map((r) => Number(r.floor));
+      expect(f.promises.floorLowUsd).toBe(Math.min(...floors));
+      expect(f.promises.floorHighUsd).toBe(Math.max(...floors));
+      expect(f.promises.ceilingPct).toBe(Math.min(...applies.map((r) => Number(r.ceiling))));
+
+      // and it must NOT be the fallback row when per-product rules exist
+      const fallback = rows.find((r) => r.pid === null);
+      if (perProduct.length > 0 && fallback && Number(fallback.floor) !== f.promises.floorLowUsd)
+        expect(f.promises.floorLowUsd).not.toBe(Number(fallback.floor));
+
+      const page = await html();
+      expect(page).toContain('never discounts more than');
+      // the escalation threshold is not a gate (turn.ts asks resolveMode only),
+      // so it may never be promised to the owner as one
+      expect(page).not.toContain('waits for you');
+      expect(page).not.toContain('on her own');
     });
 
     it('connection reflects the real channel state and never leaks a secret', async () => {
@@ -2220,7 +2236,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.readiness.preparedTotal).toBe(Object.keys(pilot.detected).length);
       expect(f.readiness.prepared).toBe(Object.values(pilot.detected).filter(Boolean).length);
       expect(f.readiness.rehearsed).toBe(pilot.detected.sandbox);
-      const page = await html();
+      // The owner's OWN discount rule is a business number and may show a %;
+      // nothing else on the page may.
+      const page = (await html()).replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
       expect(page).toContain('Before she talks to real buyers');
       expect(page).not.toMatch(/\d+\s*%/);          // no rate, no score
       expect(page).toContain('href="/app/onboarding"');

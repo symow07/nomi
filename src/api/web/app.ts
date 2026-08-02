@@ -235,15 +235,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
       { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: 'owner' },
     );
-    const flash = t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
+    const flash = r.outcome === 'sent' && !messagingEnabled
+      ? t(localeOf(req), 'inbox.flash.sentNotLive')
+      : t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
     return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(flash)}`);
   });
 
   // ── M16.1 Human takeover: take over / owner reply / return to AI ───────────
   // Ownership moves through src/core/conversation/ownership; the owner reply
   // uses the ONE send path; nothing here is a second approval or send system.
-  const takeoverFlash = (req: FastifyRequest, cid: string, outcome: string) =>
-    `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(t(localeOf(req), `takeover.flash.${outcome}` as MessageKey))}`;
+  const takeoverFlash = (req: FastifyRequest, cid: string, outcome: string) => {
+    const msg = outcome === 'sent' && !messagingEnabled
+      ? t(localeOf(req), 'inbox.flash.sentNotLive')
+      : t(localeOf(req), `takeover.flash.${outcome}` as MessageKey);
+    return `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(msg)}`;
+  };
 
   app.post('/app/inbox/:conversationId/takeover', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');

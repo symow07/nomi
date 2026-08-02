@@ -17,7 +17,7 @@ const complete: FactoryView = {
     languagesServed: ['en', 'zh'], categories: ['drinkware'],
   },
   products: { total: 12, needPrice: 0, names: ['Vacuum cup', 'Lunch box', 'Thermos', 'Kettle'] },
-  promises: { certs: ['food_grade', 'BPA_free'], floorPriceUsd: 0.75, ownAuthorityPct: 7, ceilingPct: 10 },
+  promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
   readiness: { prepared: 6, preparedTotal: 6, confirmed: 3, confirmedTotal: 3, rehearsed: true, live: false },
@@ -30,7 +30,7 @@ const fresh: FactoryView = {
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
   },
   products: { total: 0, needPrice: 0, names: [] },
-  promises: { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null },
+  promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: channel(false), ownerPhone: null },
   nextStep: 'profile',
   readiness: { prepared: 0, preparedTotal: 6, confirmed: 0, confirmedTotal: 3, rehearsed: false, live: false },
@@ -84,32 +84,33 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(html.indexOf('may state these')).toBeLessThan(html.indexOf('Food-safe materials'));
   });
 
-  it('price rules match the guard: settles alone, waits in the band, never past the ceiling', () => {
-    // quote.ts settles alone up to humanRequiredAbovePct (7), escalates above
-    // it, and clamps at maxDiscountPct (10). The ceiling is the HIGHER number —
-    // a single "up to X% on her own, asks above Y%" sentence inverts it.
+  it('states only the two rules the guard actually enforces', () => {
+    // quote.ts clamps the price at the floor and the discount at the ceiling.
+    // humanRequiredAbovePct sets `requiresHuman`, which lands in the quote audit
+    // and NEVER decides draft-vs-send (turn.ts asks resolveMode only) — so the
+    // page must not promise the owner that a big discount waits for her.
     const html = renderFactory(complete, 'en');
     expect(html).toContain('never quotes below $0.75');
-    expect(html).toContain('settles up to 7% off on her own');
-    expect(html).toContain('Between 7% and 10% she writes the reply and waits for you');
-    expect(html).toContain('never goes past 10%');
-    // the thresholds must read in ascending order — the inversion guard
-    expect(html.indexOf('7% off on her own')).toBeLessThan(html.indexOf('never goes past 10%'));
-    expect(html).not.toContain('up to 10% off on her own');
+    expect(html).toContain('never discounts more than 8%');
+    expect(html).not.toContain('waits for you');
+    expect(html).not.toContain('on her own');
   });
 
-  it('no phantom band when the owner’s two thresholds are the same number', () => {
-    const html = renderFactory({ ...complete, promises: { ...complete.promises, ownAuthorityPct: 10, ceilingPct: 10 } }, 'en');
-    expect(html).toContain('settles up to 10% off on her own');
-    expect(html).toContain('never goes past 10%');
-    expect(html).not.toContain('waits for you');     // there is no band to wait in
+  it('a catalogue with different floors reports the range, never one product’s number', () => {
+    // The guard reads the PER-PRODUCT policy; quoting a single business-wide
+    // floor described numbers no quote had ever used.
+    const html = renderFactory({ ...complete, promises: {
+      ...complete.promises, floorLowUsd: 0.30, floorHighUsd: 2.40, ceilingVaries: true } }, 'en');
+    expect(html).toContain('$0.30');
+    expect(html).toContain('$2.40');
+    expect(html).toContain('less on some products');
+    expect(html).not.toMatch(/never quotes below \$0\.30\./);   // not stated as THE floor
   });
 
   it('price rules appear only when the owner actually has them', () => {
-    const none = renderFactory({ ...complete, promises: { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null } }, 'en');
+    const none = renderFactory({ ...complete, promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false } }, 'en');
     expect(none).not.toContain('never quotes below');
-    expect(none).not.toContain('off on her own');
-    expect(none).not.toContain('never goes past');
+    expect(none).not.toContain('never discounts more than');
     expect(none).toContain('You have not confirmed anything');
     expect(none).toContain('she will not say');       // the rule holds even with nothing allowed
   });
@@ -246,7 +247,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
       for (const banned of ['score', 'rating', 'ranking', 'accuracy', 'performance', '评分', '成功率'])
         expect(html.toLowerCase().includes(banned), `${l}:${banned}`).toBe(false);
       // the only percentages on the page are the owner's OWN discount rules
-      for (const m of html.match(/\d+%/g) ?? []) expect(['7%', '10%']).toContain(m);
+      for (const m of html.match(/\d+%/g) ?? []) expect(['8%']).toContain(m);
     }
   });
 });

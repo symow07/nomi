@@ -218,7 +218,7 @@ export function renderOperationsHome(
           ${countLine(k.recentCorrections, t(locale, 'knowledge.report.corrected'))}
           ${countLine(k.openGaps, t(locale, 'knowledge.ops.gaps'))}
          </div>
-         <a class="more" href="/app/knowledge">${esc(t(locale, 'ops.open'))} ›</a>`}
+         ${deeper('/app/knowledge', t(locale, 'ops.open'))}`}
   </section>`;
 
   // 4 · What she did — plain counts. No comparison, no ranking, no percentage.
