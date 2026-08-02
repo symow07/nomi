@@ -253,7 +253,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
     expect(home.body).toContain("Lily's workspace");     // shell tagline (English default)
-    expect(home.body).toContain('Needs your attention'); // M16.2b attention section
+    // Phase B: the attention section states either the real work or the calm truth.
+    expect(home.body).toMatch(/Needs your attention|Nothing needs you/);
     expect(home.body).toContain('What Lily did');        // Phase B activity section
     expect(home.body).toMatch(/Conversations handled/);  // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
@@ -320,7 +321,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     const cookie = await login();
     const before = await prod.app.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie } });
-    expect(before.body).toContain('Lily is waiting for your OK');   // English default
+    expect(before.body).toContain('Review her reply');              // Phase D: a colleague's work
     expect(before.body).toContain('Draft reply from 小雅');          // draft text is data, verbatim
 
     // A GET must never send: the draft is still pending after viewing.
@@ -1406,8 +1407,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       ]);
       expect(snap.knowledge.openGaps).toBe(ops.gaps.length);      // honest, reused from M14
       const html = renderOperationsHome(snap, 'en');
-      expect(html).toContain('Questions to answer');             // the gaps card/label
-      expect(html).toContain('href="/app/knowledge"');
+      const quiet = snap.knowledge.openGaps === 0 && snap.knowledge.recentlyTaught === 0
+                 && snap.knowledge.recentCorrections === 0;
+      // Phase B: on a quiet day the card is one honest line, not a row of zeros.
+      if (quiet) expect(html).not.toContain('Questions to answer');
+      else {
+        expect(html).toContain('Questions to answer');           // the gaps card/label
+        expect(html).toContain('href="/app/knowledge"');         // and a way through to it
+      }
     });
 
     it('empty factory renders the honest all-caught-up state', async () => {
@@ -1949,6 +1956,155 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         values (${SANDBOX}, null, 'faq', 'other-tenant', 'not yours', 'owner_confirmed')
       `.execute(tx as never));
       expect((await loadEmployee(prod.db, DEMO_BIZ)).knows).toBe(demoBefore);
+    });
+  });
+
+  // ── Phase D · Buyers, over real data ────────────────────────────────────────
+  // The list groups by the ONE ownership model and the detail explains what she
+  // leaned on. Nothing here introduces a second ownership rule, a second send
+  // path, or a stored metric — it reads what the pipeline already wrote.
+  describe('Phase D · buyers (over real data)', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    let waitingId = '';   // buyer asked for a person — no draft by design
+    let aiId = '';        // she is handling it, and used taught knowledge
+    let factId = '';
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const list = (f: 'pending' | 'all') => import('../../src/api/web/inbox.js')
+      .then(({ loadInboxList }) => loadInboxList(prod.db, DEMO_BIZ, f));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { tenantRepos } = await import('../../src/db/repos.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+
+      await q(async (tx) => {
+        const w = await ensureConversation(tx as never, bid, '971500008891', 'Waiting Buyer');
+        waitingId = w.conversationId;
+        await tenantRepos(tx as never, bid).conversations.assign(waitingId as never, 'unclaimed');
+
+        const a = await ensureConversation(tx as never, bid, '971500008892', 'Answered Buyer');
+        aiId = a.conversationId;
+
+        // a real taught fact, and the usage audit the pipeline writes for it
+        factId = (await sql<{ id: string }>`
+          insert into product_knowledge (business_id, product_id, kind, label, content, source)
+          values (${DEMO_BIZ}, null, 'faq', 'Minimum order is 500 pcs', 'MOQ 500', 'owner_confirmed')
+          returning id`.execute(tx as never)).rows[0]!.id;
+        await sql`
+          insert into conversation_events (business_id, conversation_id, type, payload)
+          values (${DEMO_BIZ}, ${aiId}, 'knowledge_used', ${JSON.stringify({ ids: [factId] })}::jsonb)
+        `.execute(tx as never);
+      });
+    });
+
+    it('a buyer who asked for a person is in "needs you" — even with no reply drafted', async () => {
+      const { renderInboxList } = await import('../../src/api/web/inbox.js');
+      const pending = await list('pending');
+      const row = pending.conversations.find((c) => c.conversationId === waitingId);
+      expect(row, 'a handoff must never be hidden from the needs-you view').toBeTruthy();
+      expect(row!.ownership).toBe('WAITING_HUMAN');
+      expect(row!.awaitingReview).toBe(false);            // she drafted nothing, by design
+      expect(pending.waitingCount).toBeGreaterThan(0);
+      expect(renderInboxList(pending, 'en', new Date())).toContain('Asked for a person');
+    });
+
+    it('every waiting handoff sorts above every conversation that is not waiting', async () => {
+      const all = await list('all');
+      const idx = all.conversations.map((c) => c.ownership === 'WAITING_HUMAN');
+      expect(idx.lastIndexOf(true)).toBeLessThan(idx.indexOf(false) === -1 ? Infinity : idx.indexOf(false));
+      expect(all.conversations.some((c) => c.conversationId === waitingId && c.ownership === 'WAITING_HUMAN')).toBe(true);
+      const html = (await import('../../src/api/web/inbox.js')).renderInboxList(all, 'en', new Date());
+      expect(html.indexOf('Needs you')).toBeLessThan(html.indexOf('Lily is handling'));
+      expect(html.indexOf(waitingId)).toBeLessThan(html.indexOf(aiId));
+    });
+
+    it('grouping is the ownership model, not a copy of it', async () => {
+      const { ownershipOf } = await import('../../src/core/conversation/ownership.js');
+      const all = await list('all');
+      const stored = await q((tx) => sql<{ id: string; assigned_to: string | null }>`
+        select id, assigned_to from conversations`.execute(tx as never).then((r) => r.rows));
+      const byId = new Map(stored.map((r) => [r.id, r.assigned_to]));
+      for (const c of all.conversations)
+        expect(c.ownership, c.conversationId).toBe(ownershipOf(byId.get(c.conversationId) ?? null));
+    });
+
+    it('detail names the taught facts behind her reply — from the stored audit', async () => {
+      const { loadConversationDetail, renderConversationDetail } = await import('../../src/api/web/inbox.js');
+      const d = (await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!;
+      expect(d.ownership).toBe('AI');
+      expect(d.knowledgeUsed).toContain('Minimum order is 500 pcs');
+      expect(renderConversationDetail(d, 'en', new Date(), null)).toContain('What she used to answer');
+    });
+
+    it('only the LATEST answer is explained, and archived facts still read back', async () => {
+      const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
+      const second = await q(async (tx) => {
+        const r = (await sql<{ id: string }>`
+          insert into product_knowledge (business_id, product_id, kind, label, content, source)
+          values (${DEMO_BIZ}, null, 'faq', 'Lead time is 20 days', '20 days', 'owner_confirmed')
+          returning id`.execute(tx as never)).rows[0]!.id;
+        await sql`
+          insert into conversation_events (business_id, conversation_id, type, payload)
+          values (${DEMO_BIZ}, ${aiId}, 'knowledge_used', ${JSON.stringify({ ids: [r] })}::jsonb)
+        `.execute(tx as never);
+        return r;
+      });
+      const d = (await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!;
+      expect(d.knowledgeUsed).toEqual(['Lead time is 20 days']);   // the newest event only
+      expect(d.knowledgeUsed).not.toContain('Minimum order is 500 pcs');
+      expect(second).toBeTruthy();
+    });
+
+    it('taking over hides the explanation and hands the pen to the owner — one lifecycle', async () => {
+      const { takeOver, resumeAi } = await import('../../src/conversations/takeover.js');
+      const { loadConversationDetail, renderConversationDetail } = await import('../../src/api/web/inbox.js');
+      const now = () => new Date();
+      await takeOver({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
+
+      const owned = (await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!;
+      expect(owned.ownership).toBe('OWNER_CONTROLLED');
+      const html = renderConversationDetail(owned, 'en', new Date(), null);
+      expect(html).not.toContain('What she used to answer');   // she is not the one speaking
+      expect(html).toContain(`action="/app/inbox/${aiId}/reply"`);
+
+      const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
+      expect(inList.ownership).toBe('OWNER_CONTROLLED');
+      expect((await import('../../src/api/web/inbox.js')).renderInboxList(await list('all'), 'en', new Date()))
+        .toContain('You are replying');
+
+      await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: aiId, actor: 'owner' });
+      expect((await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!.ownership).toBe('AI');
+    });
+
+    it('an owner reply still goes through the ONE send path — no second outbound row', async () => {
+      const { takeOver, resumeAi } = await import('../../src/conversations/takeover.js');
+      const { ownerReply } = await import('../../src/outbound/ownerReply.js');
+      const now = () => new Date();
+      const count = () => q((tx) => sql<{ n: number }>`
+        select count(*)::int n from outbound_messages where conversation_id=${waitingId}`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+
+      await takeOver({ db: prod.db, now }, { businessId: bid, conversationId: waitingId, actor: 'owner' });
+      const before = await count();
+      const r = await ownerReply({ db: prod.db, now, kickDrive: async () => {} },
+        { businessId: bid, conversationId: waitingId, text: 'I will handle this myself.', actor: 'owner' });
+      expect(r.outcome).toBe('sent');
+      expect(await count()).toBe(before + 1);
+      const origins = await q((tx) => sql<{ origin: string }>`
+        select origin from outbound_messages where conversation_id=${waitingId} order by seq desc limit 1`
+        .execute(tx as never).then((x) => x.rows));
+      expect(origins[0]!.origin).toBe('owner');
+      await resumeAi({ db: prod.db, now }, { businessId: bid, conversationId: waitingId, actor: 'owner' });
+    });
+
+    it('SECURITY: another tenant sees neither these buyers nor what she was taught', async () => {
+      const { loadInboxList, loadConversationDetail } = await import('../../src/api/web/inbox.js');
+      const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+      const theirs = await loadInboxList(prod.db, SANDBOX, 'all');
+      expect(theirs.conversations.some((c) => c.conversationId === aiId)).toBe(false);
+      expect(await loadConversationDetail(prod.db, SANDBOX, aiId)).toBeNull();
     });
   });
 

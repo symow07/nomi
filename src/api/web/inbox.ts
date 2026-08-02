@@ -4,7 +4,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
-import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
+import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { esc } from './layout.js';
 
 /** The stored problem-signal kinds shown as a takeover reason (no classifier). */
@@ -36,6 +36,12 @@ export type ConversationSummary = {
   readonly country: string | null;
   readonly status: InboxStatus;
   readonly needsAction: boolean;
+  /** Phase D — who is speaking, via the ONE ownership model (M16.1). assigned_to
+   *  was already selected; this stops the list collapsing "a human is waited on"
+   *  and "you are handling it" into one grey status. */
+  readonly ownership: ConversationOwnership;
+  /** Phase D — her reply is written and waiting for you to review it. */
+  readonly awaitingReview: boolean;
   readonly latestMessage: string | null;
   readonly latestAt: Date | null;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -83,9 +89,13 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
         left join lateral (select unit_price_usd from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
        order by
-         (case when (select count(*) from drafts d where d.conversation_id = c.id and d.status = 'pending') > 0 then 0
-               when lm.direction = 'inbound' and c.is_active then 1
-               else 2 end),
+         -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
+         -- fall out of the 50-row window. The sentinel comes from the ownership
+         -- module, never a literal — one source of truth for what it means.
+         (case when c.assigned_to = ${WAITING_HUMAN_AGENT} and c.is_active then 0
+               when (select count(*) from drafts d where d.conversation_id = c.id and d.status = 'pending') > 0 then 1
+               when lm.direction = 'inbound' and c.is_active then 2
+               else 3 end),
          lm.sent_at desc nulls last
        limit 50
     `.execute(tx)).rows;
@@ -95,13 +105,19 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
       return {
         conversationId: r.id, buyer: r.buyer, country: r.country,
         status: st.status, needsAction: st.needs,
+        ownership: ownershipOf(r.assigned_to),
+        awaitingReview: r.pending > 0,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         unitPriceUsd: r.unit_price !== null ? Number(r.unit_price) : null,
       };
     });
-    const waitingCount = all.filter((c) => c.needsAction).length;
-    const conversations = filter === 'pending' ? all.filter((c) => c.needsAction) : all;
+    // Phase D — "needs you" is an ownership question, not a drafts count. A buyer
+    // who asked for a person has no draft by design; excluding them hid the most
+    // urgent conversation in the business from the tab meant to surface it.
+    const needsOwner = (c: ConversationSummary) => c.needsAction || c.ownership === 'WAITING_HUMAN';
+    const waitingCount = all.filter(needsOwner).length;
+    const conversations = filter === 'pending' ? all.filter(needsOwner) : all;
     return { filter, waitingCount, conversations };
   });
 }
@@ -145,6 +161,13 @@ export type ConversationDetail = {
   readonly ownership: ConversationOwnership;
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
   readonly lastHumanAction: LastHumanAction | null;
+  /**
+   * Phase D — which taught facts supported her most recent reply, by LABEL.
+   * Answers "why did she say that?" from the M13 usage audit
+   * (conversation_events 'knowledge_used' → product_knowledge). Read-only, and
+   * empty when she answered without leaning on anything taught.
+   */
+  readonly knowledgeUsed: readonly string[];
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -209,6 +232,19 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
         ? { type: lastAct.type as HumanActionType, actor: lastAct.actor, at: lastAct.at }
         : null;
 
+    // Phase D: the taught facts behind her latest reply — the M13 usage audit,
+    // joined to its labels. No new storage; both tables already exist.
+    const knowledgeUsed = (await sql<{ label: string }>`
+      select k.label
+        from conversation_events e
+        join lateral jsonb_array_elements_text(e.payload->'ids') as kid(id) on true
+        join product_knowledge k on k.id = kid.id::uuid
+       where e.conversation_id = ${conversationId} and e.type = 'knowledge_used'
+         and e.id = (select max(id) from conversation_events
+                      where conversation_id = ${conversationId} and type = 'knowledge_used')
+       limit 6
+    `.execute(tx)).rows.map((r) => r.label);
+
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
@@ -220,12 +256,16 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       ownership: ownershipOf(head.assigned_to),
       handoffReasons,
       lastHumanAction,
+      knowledgeUsed,
     };
   });
 }
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
+// The conversation's own state — only meaningful while SHE holds it. Once a
+// human is involved, `statusOf` calls every assigned conversation 'paused',
+// which contradicts the ownership card right below it; the card is the truth.
 const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string =>
   `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
@@ -236,6 +276,7 @@ const who = (locale: Locale, buyer: string | null, country: string | null): stri
 };
 
 export function renderInboxList(data: InboxList, locale: Locale, now: Date): string {
+  const name = EMPLOYEE_NAME[locale];
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
     `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}</a>`;
@@ -244,30 +285,52 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
 
   if (data.conversations.length === 0) {
     const body = data.filter === 'pending'
-      ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'inbox.empty.allGood'))}</div>
+      ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span></div>`;
     return `${title}${tabs}<div class="card">${body}</div>${INBOX_STYLE}`;
   }
 
-  const cards = data.conversations.map((c) => {
-    const prod = productName(locale, c.product);
-    return `
-    <a class="conv ${c.needsAction ? 'needs' : ''}" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
-      <div class="conv-h">
-        <span class="who">${who(locale, c.buyer, c.country)}</span>
-        ${statusPill(locale, c.status, c.needsAction)}
-      </div>
-      ${c.needsAction ? `<div class="need">${esc(t(locale, 'inbox.needsAction'))}</div>` : ''}
-      <div class="conv-b muted">
-        ${prod ? `${esc(prod)}　` : ''}${c.quantity !== null ? `${esc(formatQty(locale, c.quantity))}${esc(pcs)}　` : ''}${c.unitPriceUsd !== null ? esc(formatUsd(c.unitPriceUsd)) : ''}
-      </div>
-      ${c.latestMessage ? `<div class="conv-m">${esc(c.latestMessage.slice(0, 80))}</div>` : ''}
-      <div class="conv-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
-    </a>`;
-  }).join('');
+  // Phase D — an owner thinks in people, and the question that orders them is
+  // "who is speaking now?". Grouped through the ONE ownership model, never by an
+  // internal status code.
+  const needsYou = data.conversations.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
+  const yours    = data.conversations.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
+  const hers     = data.conversations.filter((c) => !needsYou.includes(c) && !yours.includes(c));
 
-  return `${title}${tabs}<div class="list">${cards}</div>${INBOX_STYLE}`;
+  const badge = (c: ConversationSummary): string => {
+    if (c.ownership === 'WAITING_HUMAN') return `<span class="tag now">${esc(t(locale, 'buyers.badge.waiting'))}</span>`;
+    if (c.awaitingReview) return `<span class="tag now">${esc(t(locale, 'buyers.badge.review'))}</span>`;
+    if (c.ownership === 'OWNER_CONTROLLED') return `<span class="tag you">${esc(t(locale, 'buyers.badge.yours'))}</span>`;
+    return '';
+  };
+
+  const row = (c: ConversationSummary) => {
+    const prod = productName(locale, c.product);
+    const detail = [
+      prod ?? '',
+      c.quantity !== null ? `${formatQty(locale, c.quantity)}${pcs}` : '',
+      c.unitPriceUsd !== null ? formatUsd(c.unitPriceUsd) : '',
+    ].filter(Boolean).join(' · ');
+    return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
+      <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
+      ${detail ? `<div class="buyer-d muted">${esc(detail)}</div>` : ''}
+      ${c.latestMessage ? `<div class="buyer-m">${esc(c.latestMessage.slice(0, 90))}</div>` : ''}
+      <div class="buyer-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
+    </a>`;
+  };
+
+  const heads = data.filter === 'all';
+  const group = (label: string, items: readonly ConversationSummary[]) =>
+    items.length ? `<section class="bgroup">
+      ${heads ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
+      <div class="list">${items.map(row).join('')}</div></section>` : '';
+
+  return `${title}${tabs}
+    ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
+    ${group(t(locale, 'buyers.group.yours'), yours)}
+    ${group(t(locale, 'buyers.group.hers', { name }), hers)}
+    ${INBOX_STYLE}`;
 }
 
 /** "What happened last?" — a localized one-liner: kind + who + when. No body. */
@@ -323,7 +386,8 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
 
   const draftCard = d.pendingDraft
     ? `<div class="card draft" role="region">
-        <h2>⚠️ ${esc(t(locale, 'inbox.draft.title', { name: EMPLOYEE_NAME[locale] }))}</h2>
+        <h2>${esc(t(locale, 'buyers.review.title'))}</h2>
+        <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
         <div class="proposed">${esc(d.pendingDraft.draftText)}</div>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
@@ -340,24 +404,51 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
       </div>`
     : `<div class="card"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
+  // Phase D — "why did she say that?", from the stored usage audit. Shown only
+  // while SHE is speaking: once a human takes over it is no longer the question.
+  const knew = d.ownership === 'AI' && d.knowledgeUsed.length > 0
+    ? `<div class="card knew"><h2>${esc(t(locale, 'buyers.knew.title'))}</h2>
+        <ul class="knewlist">${d.knowledgeUsed.map((k) => `<li>${esc(k)}</li>`).join('')}</ul></div>`
+    : '';
+
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
 
   return `
     <div class="dhead">
       <a class="back" href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a>
       <div class="who">${who(locale, d.buyer, d.country)}</div>
-      ${statusPill(locale, d.status, d.pendingDraft !== null)}
+      ${d.ownership === 'AI' ? statusPill(locale, d.status, d.pendingDraft !== null) : ''}
     </div>
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? esc(prod) : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
-    ${context}
     ${flashHtml}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
+    ${knew}
+    ${context}
     <div class="card"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
     ${INBOX_STYLE}`;
 }
 
 const INBOX_STYLE = `<style>
+  /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
+  .bgroup { margin-bottom:26px; }
+  .bgroup-h { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:#8b929c;
+              margin:0 0 12px; font-weight:600; }
+  a.buyer { display:block; background:#14171c; border:1px solid #2b313a; border-radius:14px; padding:16px 18px; }
+  a.buyer:hover, a.buyer:focus-visible { border-color:#3d7a63; }
+  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .buyer-d { font-size:13px; margin-top:6px; }
+  .buyer-m { margin-top:8px; font-size:14px; color:#c8ccd2; }
+  .buyer-t { font-size:12px; margin-top:10px; }
+  .tag { font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
+  .tag.now { background:#2e2413; color:#fbbf24; }
+  .tag.you { background:#13233a; color:#93c5fd; }
+  .review-intro { margin:0 0 12px; }
+  .knew { border-color:#23424a; }
+  .knewlist { list-style:none; margin:0; padding:0; }
+  .knewlist li { padding:8px 0; border-bottom:1px solid #1c2026; font-size:14px; color:#c8ccd2; }
+  .knewlist li:last-child { border-bottom:0; }
+  @media (max-width:560px) { a.buyer { padding:15px 16px; } }
   .tabs { display:flex; gap:8px; margin-bottom:16px; }
   .tab { padding:8px 16px; border-radius:999px; background:#14171c; border:1px solid #23272e; color:#b9c0c9; font-size:14px; }
   .tab.on { background:#1b2430; color:#fff; }
