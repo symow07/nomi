@@ -158,7 +158,7 @@ function recentSection(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   const quiet = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
   return `<div class="card"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
-    ${quiet ? `<p class="muted empty-p">${esc(t(locale, 'her.recent.quiet'))}</p>`
+    ${quiet ? `<p class="muted empty-p">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</p>`
       : `<div class="hrows">
           ${countRow(c.handled, t(locale, 'ops.activity.handled'))}
           ${countRow(c.draftsPrepared, t(locale, 'ops.activity.drafts'))}
@@ -170,15 +170,20 @@ function recentSection(c: HerContext | undefined, locale: Locale): string {
 function teachSection(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   if (c.gaps.length === 0) {
+    // Phase F: "she answered everything you taught" is only TRUE once she has
+    // answered something. On a new account this rendered a green ✓ for work
+    // that never happened — a fabricated success on the trust surface itself.
+    const pristine = c.handled === 0;
     return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
-      <p class="muted empty-p">✓ ${esc(t(locale, 'her.teach.none'))}</p></div>`;
+      <p class="muted empty-p">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</p>
+      ${pristine ? `<a class="btn send" href="/app/knowledge">${esc(t(locale, 'her.teach.go'))}</a>` : ''}</div>`;
   }
   return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
     <div class="gaps">${c.gaps.map((g) => `
       <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
         <span class="gq">${esc(g.question)}</span>
         <span class="gmeta muted">${esc(t(locale, 'her.teach.asked', { count: g.count }))}</span>
-        <span class="gact">${esc(t(locale, 'her.teach.go'))} ›</span>
+        <span class="gact">${esc(t(locale, 'her.teach.go'))}<span class="go" aria-hidden="true">›</span></span>
       </a>`).join('')}</div></div>`;
 }
 
@@ -256,10 +261,9 @@ const EMP_STYLE = `<style>
   .hrows { display:flex; flex-direction:column; gap:2px; }
   .hrow { display:flex; align-items:baseline; gap:12px; padding:8px 0; border-bottom:1px solid #1c2026; }
   .hrow:last-child { border-bottom:0; }
-  .hnum { font-size:18px; font-weight:700; color:#fff; min-width:2.2em; font-variant-numeric:tabular-nums; }
+  .hnum { font-size:17px; font-weight:700; color:#fff; min-width:2.2em; font-variant-numeric:tabular-nums; }
   .hlabel { color:#b9c0c9; font-size:15px; }
   .empty-p { margin:0 0 12px; }
-  .more { display:inline-block; margin-top:12px; color:#60a5fa; font-size:14px; }
   .gaps { display:flex; flex-direction:column; gap:10px; }
   a.gap { display:grid; grid-template-columns:1fr auto; gap:4px 12px; background:#0f1216;
           border:1px solid #2b313a; border-radius:12px; padding:14px 16px; }
@@ -267,7 +271,6 @@ const EMP_STYLE = `<style>
   .gq { font-size:15px; color:#e6e8eb; }
   .gmeta { font-size:12px; grid-column:1; }
   .gact { grid-row:1 / span 2; align-self:center; color:#60a5fa; font-size:14px; white-space:nowrap; }
-  [dir="rtl"] .gact { transform:scaleX(-1); }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
   .emp-h { display:flex; align-items:center; gap:14px; }
   .ava { width:44px; height:44px; border-radius:999px; background:#1b2430; display:flex; align-items:center; justify-content:center; font-size:22px; }
@@ -281,10 +284,4 @@ const EMP_STYLE = `<style>
   .cond { font-size:14px; color:#8b929c; } .cond.met { color:#4ade80; }
   .actrow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #1c2026; font-size:14px; }
   .actrow:last-of-type { border-bottom:none; }
-  .btn { padding:8px 16px; border:0; border-radius:8px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  .btn.send { background:#2563eb; } .btn.danger { background:#3a2020; color:#f8b4b4; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }
-  .empty { padding:16px; text-align:center; }
-  button:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:#8b929c; }
 </style>`;

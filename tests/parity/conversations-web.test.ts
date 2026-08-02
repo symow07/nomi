@@ -78,7 +78,7 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   it('timeline milestones localize from neutral kinds; empty state honest', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
     expect(zh).toContain('沟通记录'); expect(zh).toContain('买家发来产品图片');
-    expect(zh).toContain('小雅报价：5000个 · $0.92/个'); expect(zh).toContain('老板确认发送');
+    expect(zh).toContain('小雅报价：5000个 · $0.92/个'); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
     expect(en).toContain('Buyer sent a photo'); expect(en).toContain('Lily quoted: 5,000pcs · $0.92/pcs');
     expect(en).toContain('You approved sending');

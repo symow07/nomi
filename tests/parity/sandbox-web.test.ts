@@ -59,7 +59,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
   it('always shows the simulation banner + the reset/composer, in en/zh/ar', () => {
     for (const l of LOCALES) {
       const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: false, flash: null });
-      expect(html).toContain(t(l, 'sandbox.banner'));           // "Simulation only…"
+      expect(html).toContain(t(l, 'sandbox.banner'));           // "This is practice only…"
       expect(html).toContain('action="/app/sandbox/message"');  // composer
       expect(html).toContain('action="/app/sandbox/scenario"'); // scenario loader
       expect(html).toContain('action="/app/sandbox/reset"');    // reset

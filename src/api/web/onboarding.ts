@@ -16,7 +16,7 @@ import { esc } from './layout.js';
 
 export type OnboardingStep = 'profile' | 'products' | 'channels' | 'first_success';
 const STEPS: readonly OnboardingStep[] = ['profile', 'products', 'channels', 'first_success'];
-const LINK: Record<OnboardingStep, string> = {
+export const STEP_LINK: Record<OnboardingStep, string> = {
   profile: '/app/settings', products: '/app/products', channels: '/app/channels', first_success: '/app/inbox',
 };
 
@@ -61,42 +61,7 @@ export async function loadOnboarding(db: Db, businessIdRaw: string): Promise<Onb
   });
 }
 
-/** ── Renderer (pure, mobile-first, localized, deep links only) ────────────── */
-
-export function renderOnboarding(d: OnboardingData, locale: Locale): string {
-  const items = d.steps.map((s) => {
-    const isNext = !d.allDone && d.nextStep === s.step;
-    return `<li class="ob ${s.done ? 'done' : ''} ${isNext ? 'next' : ''}">
-      <span class="mark">${s.done ? '✓' : '○'}</span>
-      <div class="ob-b">
-        <div class="ob-t">${esc(t(locale, `onboarding.step.${s.step}.title` as MessageKey))}${isNext ? ` <span class="here">${esc(t(locale, 'onboarding.startHere'))}</span>` : ''}</div>
-        <div class="muted ob-h">${esc(t(locale, `onboarding.step.${s.step}.hint` as MessageKey))}</div>
-      </div>
-      ${s.done ? '' : `<a class="btn send" href="${LINK[s.step]}">${esc(t(locale, `onboarding.step.${s.step}.cta` as MessageKey))}</a>`}
-    </li>`;
-  }).join('');
-
-  return `<h1 class="page">${esc(t(locale, 'onboarding.title'))}</h1>
-    ${d.allDone ? `<div class="card ok-card"><div class="ok">✓ ${esc(t(locale, 'onboarding.allSet', { name: EMPLOYEE_NAME[locale] }))}</div></div>` : ''}
-    <div class="card"><ul class="oblist">${items}</ul></div>
-    ${ONBOARDING_STYLE}`;
-}
-
-const ONBOARDING_STYLE = `<style>
-  .oblist { list-style:none; padding:0; margin:0; }
-  .ob { display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid #1c2026; }
-  .ob:last-child { border-bottom:none; }
-  .ob .mark { width:26px; height:26px; flex:0 0 26px; border-radius:999px; display:flex; align-items:center; justify-content:center;
-    background:#1b2027; color:#8b929c; font-size:14px; }
-  .ob.done .mark { background:#0f2e1c; color:#4ade80; }
-  .ob.next .mark { background:#1b2430; color:#60a5fa; }
-  .ob-b { flex:1; min-width:0; }
-  .ob-t { font-size:15px; font-weight:600; } .ob.done .ob-t { color:#8b929c; font-weight:500; }
-  .ob-h { font-size:13px; margin-top:3px; }
-  .here { display:inline-block; margin-inline-start:8px; font-size:11px; font-weight:600; color:#60a5fa; background:#111a26; border-radius:999px; padding:2px 8px; }
-  .ok-card { background:#0f2419; border-color:#1c4a33; text-align:center; } .ok { color:#4ade80; font-size:17px; font-weight:700; }
-  .btn { padding:8px 16px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; text-decoration:none; white-space:nowrap; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; }
-  a.btn:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
-  @media (max-width:560px) { .ob { flex-wrap:wrap; } .btn { margin-inline-start:40px; } }
-</style>`;
+// Phase F: this module no longer renders. It is the ONE derivation of "what is
+// still missing", consumed by My factory (src/api/web/factory.ts). The page it
+// used to draw was never mounted — the /app/onboarding route renders the pilot
+// runbook — so a fourth setup UI existed only in the test suite.

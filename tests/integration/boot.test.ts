@@ -259,7 +259,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.body).toMatch(/Conversations handled/);  // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
-    expect(inbox.body).toContain('Inbox');             // English default
+    expect(inbox.body).toContain('Buyers');            // English default
   });
 
   it('ADR-0008 i18n: login/home localize by cookie & Accept-Language, /locale switches', async () => {
@@ -746,13 +746,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/app/settings', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Business profile');          // English default
-    expect(res.body).toContain('Profile checklist');
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
     expect(res.body).toContain('Company name');
     expect(res.body).toContain('Product categories');
     // derived from the demo catalog (products.category): bags/drinkware/home/lighting
     expect(res.body).toMatch(/bags|drinkware|lighting/);
-    // (checklist-is-not-a-percentage is asserted deterministically in the pure test)
+    // Phase F: no second "what is missing" list here — My factory owns that.
+    expect(res.body).not.toContain('Profile checklist');
   });
 
   it('M11.1 settings: unauthenticated cannot view or save', async () => {
@@ -838,7 +838,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Getting ready');             // English default
-    expect(res.body).toContain('Verified by system');          // detected badge (demo has products/channel)
+    expect(res.body).toContain('Checked for you');          // detected badge (demo has products/channel)
     expect(res.body).toContain('action="/app/onboarding/validate"');   // sandbox check
     expect(res.body).toContain('action="/app/onboarding/attest"');     // owner attestation form
     const noauth = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
@@ -893,7 +893,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('Simulation only. No customer messages are sent.');
+      expect(res.body).toContain('This is practice only. Nothing reaches a real buyer.');
       expect(res.body).toContain('No messages yet');
     });
 
@@ -2204,13 +2204,26 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       for (const sec of secrets) expect(page, 'a secret reached the page').not.toContain(sec);
     });
 
-    it('the next step is derived live from that same real data', async () => {
-      const f = await view();
-      const introduced = f.profile.name.trim() !== '' && (f.profile.description !== null || f.profile.location !== null);
-      const expected = !introduced ? 'introduce'
-        : f.products.total === 0 ? 'products'
-          : !f.connection.channel.connected ? 'connect' : null;
-      expect(f.nextStep).toBe(expected);
+    it('the next step is the ONE setup derivation, not a second opinion', async () => {
+      // Phase F: My factory composes loadOnboarding rather than deciding for
+      // itself. Same business, same answer — always.
+      const { loadOnboarding } = await import('../../src/api/web/onboarding.js');
+      const [f, setup] = await Promise.all([view(), loadOnboarding(prod.db, DEMO_BIZ)]);
+      expect(f.nextStep).toBe(setup.nextStep);
+      const other = await loadOnboarding(prod.db, '00000000-0000-0000-0000-000000000000');
+      expect((await view('00000000-0000-0000-0000-000000000000')).nextStep).toBe(other.nextStep);
+    });
+
+    it('readiness summarises the EXISTING pilot model — counts, never a grade', async () => {
+      const { loadPilotReadiness } = await import('../../src/api/web/pilot.js');
+      const [f, pilot] = await Promise.all([view(), loadPilotReadiness(prod.db, DEMO_BIZ)]);
+      expect(f.readiness.preparedTotal).toBe(Object.keys(pilot.detected).length);
+      expect(f.readiness.prepared).toBe(Object.values(pilot.detected).filter(Boolean).length);
+      expect(f.readiness.rehearsed).toBe(pilot.detected.sandbox);
+      const page = await html();
+      expect(page).toContain('Before she talks to real buyers');
+      expect(page).not.toMatch(/\d+\s*%/);          // no rate, no score
+      expect(page).toContain('href="/app/onboarding"');
     });
 
     it('an unknown factory renders the honest empty state, never a crash', async () => {
@@ -2218,7 +2231,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.profile.name).toBe('');
       expect(f.products.total).toBe(0);
       expect(f.promises.certs).toEqual([]);
-      expect(f.nextStep).toBe('introduce');
+      expect(f.nextStep).toBe('profile');
       const page = await html('00000000-0000-0000-0000-000000000000');
       expect(page).toContain('nothing to tell buyers about you yet');
     });
@@ -2241,10 +2254,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('the surfaces My factory folded in are still routed and still reachable', async () => {
-      const { FACTORY_ROUTES } = await import('../../src/api/web/layout.js');
+      const { CONTEXTUAL_ROUTES } = await import('../../src/api/web/layout.js');
       const cookie = await login();
       const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
-      for (const route of FACTORY_ROUTES) {
+      // everything My factory now contains — including the go-live runbook and
+      // Practice, which used to hold nav slots of their own
+      for (const route of CONTEXTUAL_ROUTES.filter((r) => r !== '/app/conversations' && r !== '/app/analytics')) {
         expect(page.body, `${route} must stay linked from My factory`).toContain(`href="${route}"`);
         const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
         expect(r.statusCode, route).toBe(200);

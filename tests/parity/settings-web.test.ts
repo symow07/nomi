@@ -9,22 +9,15 @@ const baseInput: ProfileInput = {
   contactEmail: '', contactPhone: '', languagesServed: ['en', 'zh'],
 };
 
-const checklist = (over: Partial<Record<string, boolean>> = {}): BusinessProfile['checklist'] =>
-  ([
-    ['settings.field.name', true], ['settings.field.description', false], ['settings.field.location', false],
-    ['settings.field.workingHours', false], ['settings.field.contactEmail', false], ['settings.field.categories', false],
-  ] as const).map(([label, done]) => ({ label, done: over[label] ?? done }));
-
 const full: BusinessProfile = {
   name: 'Yiwu Sunshine Trading', description: 'Household goods exporter', location: 'Yiwu, Zhejiang',
   workingHours: '9:00-18:00 Mon-Sat', contactEmail: 'sales@example.com', contactPhone: '+8613800000000',
   languagesServed: ['en', 'zh'], categories: ['bags', 'drinkware'],
-  checklist: checklist({ 'settings.field.description': true, 'settings.field.location': true, 'settings.field.workingHours': true, 'settings.field.contactEmail': true, 'settings.field.categories': true }),
 };
 
 const bare: BusinessProfile = {
   name: 'New Factory', description: null, location: null, workingHours: null,
-  contactEmail: null, contactPhone: null, languagesServed: [], categories: [], checklist: checklist(),
+  contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
 };
 
 describe('M11.1 · profile validation (pure)', () => {
@@ -53,23 +46,26 @@ describe('M11.1 · profile validation (pure)', () => {
 });
 
 describe('M11.1 · settings renderer (localized)', () => {
-  it('en: title, checklist, fields, derived categories, save', () => {
+  it('en: title, fields, derived categories, save', () => {
     const html = renderSettings(full, 'en', null);
     expect(html).toContain('Business profile');
-    expect(html).toContain('Profile checklist');
     expect(html).toContain('Company name'); expect(html).toContain('Yiwu Sunshine Trading');
     expect(html).toContain('Working hours'); expect(html).toContain('Languages served');
     expect(html).toContain('Product categories');
     expect(html).toContain('bags'); expect(html).toContain('drinkware');   // derived
     expect(html).toContain('action="/app/settings"');
-    expect(html).toContain('✓ All set');                                    // complete → allSet
   });
 
-  it('checklist is honest ✓/○, never a percentage', () => {
-    const html = renderSettings(bare, 'en', null);
-    expect(html).toContain('○');                       // missing items
-    expect(html).not.toContain('%');
-    expect(html).not.toContain('All set');             // incomplete
+  it('Phase F: this page no longer keeps its own answer to “what is missing”', () => {
+    // My factory owns that question now, from ONE derivation (loadOnboarding).
+    // A blank field on this form already says the same thing where it matters.
+    for (const p of [full, bare]) {
+      const html = renderSettings(p, 'en', null);
+      expect(html).not.toContain('Profile checklist');
+      expect(html).not.toContain('All set');
+      expect(html).not.toContain('○');
+      expect(html).not.toContain('%');
+    }
   });
 
   it('derived categories empty state; language checkboxes reflect served set', () => {

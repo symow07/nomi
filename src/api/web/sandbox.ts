@@ -423,7 +423,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
   const timeline = view.messages.length
     ? `<div class="timeline">${view.messages.map((m) => `
         <div class="msg ${m.direction}">
-          <div class="bubble">${m.isImage ? '🖼️ ' : ''}${esc(m.text)}</div>
+          <div class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : esc(name)}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;
@@ -478,9 +478,6 @@ const SANDBOX_STYLE = `<style>
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
   .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#b9c0c9; }
   textarea { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px; font:inherit; resize:vertical; }
-  .btn { padding:10px 18px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; }
-  .btn.danger { background:#3a2020; color:#f8b4b4; } .btn.ghost { background:transparent; border:1px solid #2b313a; color:#b9c0c9; }
   .sbx-trust { border-color:#23424a; }
   .sbx-trust.pass { border-color:#1f5a3a; } .sbx-trust.fail { border-color:#5a1f1f; }
   .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
@@ -498,19 +495,14 @@ const SANDBOX_STYLE = `<style>
   .proposed { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:14px; margin-bottom:12px; font-size:15px; white-space:pre-wrap; }
   .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .editform { display:flex; flex-direction:column; gap:8px; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }
   .timeline { display:flex; flex-direction:column; gap:12px; }
   .msg { max-width:82%; } .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
   .bubble { padding:10px 14px; border-radius:14px; font-size:15px; white-space:pre-wrap; word-break:break-word; }
-  .msg.inbound .bubble { background:#1b2027; border-top-left-radius:4px; }
-  .msg.outbound .bubble { background:#1b3050; border-top-right-radius:4px; }
-  .ts { font-size:11px; margin-top:4px; }
-  .empty { text-align:center; padding:28px 16px; }
+  .msg.inbound .bubble { background:#1b2027; border-start-start-radius:4px; }
+  .msg.outbound .bubble { background:#1b3050; border-start-end-radius:4px; }
+  .ts { font-size:12px; margin-top:4px; }
   .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .takeover.owner { flex-direction:column; align-items:stretch; }
-  .pill.owner { background:#13233a; color:#93c5fd; }
   .replyform { display:flex; flex-direction:column; gap:8px; }
-  .inline { display:inline; }
-  button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .msg { max-width:92%; } }
 </style>`;

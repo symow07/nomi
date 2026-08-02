@@ -5,7 +5,7 @@ import { parsePriceLines, validateExtracted, type ValidatedImport } from '../../
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatQty, formatUsd } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { esc, back } from './layout.js';
 
 /**
  * M9.5 + ADR-0008 — Product Knowledge Center. A VIEW over the EXISTING catalog
@@ -217,7 +217,7 @@ export function renderProductDetail(d: ProductDetail, locale: Locale): string {
     : '';
 
   return `
-    <div class="dhead"><a class="back" href="/app/products">${esc(t(locale, 'product.detail.back'))}</a>
+    <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.learned)}</div>
     ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
     <div class="card"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
@@ -268,14 +268,11 @@ export function renderReview(v: ValidatedImport, rawText: string, locale: Locale
 
 const PRODUCT_STYLE = `<style>
   .phead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .list { display:flex; flex-direction:column; gap:10px; }
   .prod { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
   .prod:hover { border-color:#3a4250; }
   .prod-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .prod-b { font-size:13px; margin-top:6px; }
   .tag { color:#4ade80; font-size:12px; margin-top:8px; } .tag.big { color:#4ade80; font-size:14px; margin-bottom:12px; }
-  .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; margin-inline-start:auto; }
-  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; }
-  .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; } .back { color:#60a5fa; }
+  .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; } 
   .info, .tiers { display:flex; flex-direction:column; gap:8px; font-size:14px; }
   .tier { display:flex; justify-content:space-between; background:#0f1216; border:1px solid #23272e; border-radius:8px; padding:10px 12px; }
   .chips, .imgs { display:flex; flex-wrap:wrap; gap:8px; }
@@ -285,9 +282,5 @@ const PRODUCT_STYLE = `<style>
   .rev { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #1c2026; font-size:14px; flex-wrap:wrap; }
   .rev:last-child { border-bottom:none; }
   textarea { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:12px; font:inherit; resize:vertical; margin:10px 0; }
-  .btn { padding:10px 18px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; }
-  .empty { text-align:center; padding:28px 16px; }
-  button:focus-visible, a:focus-visible, textarea:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
 </style>`;

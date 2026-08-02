@@ -1,0 +1,99 @@
+import { describe, it, expect } from 'vitest';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { renderOperationsHome } from '../../src/api/web/operations.js';
+import { renderInboxList } from '../../src/api/web/inbox.js';
+import { renderEmployee } from '../../src/api/web/employee.js';
+import { renderFactory } from '../../src/api/web/factory.js';
+import { renderCustomerList } from '../../src/api/web/conversations.js';
+
+/**
+ * Phase F — every surface must answer "what happens next?" when it is empty.
+ * Never a dead end, never error-styled, never a success that did not happen.
+ */
+const NOW = new Date('2026-08-02T10:00:00Z');
+
+const emptyToday = renderOperationsHome({
+  range: 'today',
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, stuckOutbound: 0, unpricedProducts: 0 },
+  hasAttention: false,
+  activity: { handled: 0, draftsCreated: 0, corrections: 0 },
+  knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
+  channel: { provider: 'disabled', status: 'not_connected', deliveredToday: 0, failedToday: 0 },
+} as never, 'en');
+
+const emptyHer = renderEmployee(
+  { stage: 'probation', hireDate: null, knows: 0, canDo: [], needConfirm: [], capabilities: [],
+    growth: [], promoted: false, conditions: [] } as never,
+  'en', null,
+  { handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [] } as never);
+
+const emptyBuyers = (filter: 'pending' | 'all') =>
+  renderInboxList({ filter, waitingCount: 0, conversations: [] }, 'en', NOW);
+
+const emptyFactory = renderFactory({
+  profile: { name: '', description: null, location: null, workingHours: null,
+    contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
+  products: { total: 0, needPrice: 0, names: [] },
+  promises: { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null },
+  connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
+    displayId: null, lastActivityAt: null, problem: null }, ownerPhone: null },
+  nextStep: 'profile',
+  readiness: { prepared: 0, preparedTotal: 6, confirmed: 0, confirmedTotal: 3, rehearsed: false, live: false },
+} as never, 'en');
+
+const emptyCustomers = renderCustomerList({ query: '', customers: [] } as never, 'en', NOW);
+
+const SURFACES: readonly (readonly [string, string])[] = [
+  ['Today', emptyToday],
+  ['Buyers · needs you', emptyBuyers('pending')],
+  ['Buyers · all', emptyBuyers('all')],
+  ['小雅', emptyHer],
+  ['My factory', emptyFactory],
+  ['Customers', emptyCustomers],
+];
+
+describe('Phase F · every empty surface says what happens next', () => {
+  it('each offers at least one way forward', () => {
+    for (const [name, html] of SURFACES) {
+      const links = [...html.matchAll(/href="(\/app[^"]*)"/g)].map((m) => m[1]);
+      expect(links.length, `${name} is a dead end`).toBeGreaterThan(0);
+    }
+  });
+
+  it('none of them looks like an error or a failure', () => {
+    for (const [name, html] of SURFACES) {
+      for (const bad of ['error', 'failed', 'no data', 'null', 'undefined', 'N/A'])
+        expect(html.toLowerCase().includes(bad.toLowerCase()), `${name}: "${bad}"`).toBe(false);
+    }
+  });
+
+  it('none of them claims work that never happened', () => {
+    // The worst version of this shipped on 小雅: a green ✓ saying she had
+    // answered everything taught, on an account where she had answered nothing.
+    expect(emptyHer).not.toContain('answered everything');
+    expect(emptyHer).toContain('No buyer has asked her anything yet');
+    expect(emptyHer).toContain('href="/app/knowledge"');
+    // and a factory with no customers is not an achievement
+    expect(emptyCustomers).not.toContain('class="ok"');
+  });
+
+  it('the quiet branches still lead somewhere', () => {
+    expect(emptyToday).toContain('href="/app/knowledge"');   // nothing learned yet
+    expect(emptyBuyers('all')).toContain('href="/app/factory"');
+    expect(emptyCustomers).toContain('href="/app/factory"');
+  });
+
+  it('does not offer a door into another empty room', () => {
+    // "Everyone you have talked to" is pointless when nobody has talked to you.
+    expect(emptyBuyers('all')).not.toContain('/app/conversations');
+  });
+
+  it('reads the same way in every locale — nothing falls back to English', () => {
+    for (const l of LOCALES) {
+      const html = renderInboxList({ filter: 'all', waitingCount: 0, conversations: [] }, l, NOW);
+      expect(html.length).toBeGreaterThan(100);
+      expect(html).toContain('href="/app/factory"');           // the way forward, every locale
+      if (l !== 'en') expect(html).not.toContain('No conversations yet');
+    }
+  });
+});

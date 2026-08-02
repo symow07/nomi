@@ -53,8 +53,6 @@ export function validateProfile(input: ProfileInput): { ok: true; value: Profile
   };
 }
 
-export type ChecklistItem = { readonly label: MessageKey; readonly done: boolean };
-
 export type BusinessProfile = {
   readonly name: string;
   readonly description: string | null;
@@ -64,13 +62,12 @@ export type BusinessProfile = {
   readonly contactPhone: string | null;
   readonly languagesServed: readonly string[];
   readonly categories: readonly string[];        // derived from products.category
-  readonly checklist: readonly ChecklistItem[];
 };
 
 export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promise<BusinessProfile> {
   const empty: BusinessProfile = {
     name: '', description: null, location: null, workingHours: null, contactEmail: null,
-    contactPhone: null, languagesServed: [], categories: [], checklist: [],
+    contactPhone: null, languagesServed: [], categories: [],
   };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
@@ -87,19 +84,10 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
       select distinct category from products where category is not null order by category`.execute(tx))
       .rows.map((r) => r.category);
 
-    const checklist: ChecklistItem[] = [
-      { label: 'settings.field.name', done: b.name.trim() !== '' },
-      { label: 'settings.field.description', done: !!b.description },
-      { label: 'settings.field.location', done: !!b.location },
-      { label: 'settings.field.workingHours', done: !!b.working_hours },
-      { label: 'settings.field.contactEmail', done: !!(b.contact_email || b.contact_phone) },
-      { label: 'settings.field.categories', done: categories.length > 0 },
-    ];
-
     return {
       name: b.name, description: b.description, location: b.location, workingHours: b.working_hours,
       contactEmail: b.contact_email, contactPhone: b.contact_phone,
-      languagesServed: b.languages_served ?? [], categories, checklist,
+      languagesServed: b.languages_served ?? [], categories,
     };
   });
 }
@@ -147,13 +135,6 @@ export async function saveBusinessProfile(db: Db, businessIdRaw: string, input: 
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
 
 export function renderSettings(p: BusinessProfile, locale: Locale, flash: string | null): string {
-  const allDone = p.checklist.every((c) => c.done);
-  const checklist = `<div class="card"><h2>${esc(t(locale, 'settings.checklist.title'))}</h2>
-    ${allDone ? `<div class="ok-line">✓ ${esc(t(locale, 'settings.checklist.allSet'))}</div>` : ''}
-    <ul class="chk">${p.checklist.map((c) =>
-      `<li class="${c.done ? 'done' : ''}">${c.done ? '✓' : '○'} ${esc(t(locale, c.label))}</li>`).join('')}</ul>
-  </div>`;
-
   const field = (id: string, label: MessageKey, value: string | null, ph = '') =>
     `<label class="fld"><span class="muted">${esc(t(locale, label))}</span>
       <input name="${id}" value="${esc(value ?? '')}"${ph ? ` placeholder="${esc(ph)}"` : ''} /></label>`;
@@ -184,12 +165,10 @@ export function renderSettings(p: BusinessProfile, locale: Locale, flash: string
 
   return `<h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
-    ${checklist}${form}${categories}${SETTINGS_STYLE}`;
+    ${form}${categories}${SETTINGS_STYLE}`;
 }
 
 const SETTINGS_STYLE = `<style>
-  .chk { list-style:none; padding:0; margin:0; } .chk li { padding:8px 0; border-bottom:1px solid #1c2026; font-size:14px; color:#8b929c; }
-  .chk li:last-child { border-bottom:none; } .chk li.done { color:#4ade80; }
   .ok-line { color:#4ade80; font-weight:600; margin-bottom:10px; }
   .pform { display:flex; flex-direction:column; gap:14px; }
   .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }
@@ -198,9 +177,5 @@ const SETTINGS_STYLE = `<style>
   .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:14px; color:#e6e8eb; }
   .cats { display:flex; flex-wrap:wrap; gap:8px; }
   .cat { background:#0f1216; border:1px solid #23272e; border-radius:999px; padding:5px 12px; font-size:13px; color:#b9c0c9; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }
-  .empty { padding:10px 0; }
-  .btn { padding:10px 18px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; align-self:flex-start; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; }
-  input:focus-visible, textarea:focus-visible, button:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+  
 </style>`;

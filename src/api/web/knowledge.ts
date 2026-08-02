@@ -5,7 +5,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
-import { esc } from './layout.js';
+import { esc, back } from './layout.js';
 
 /**
  * M13 — the owner's teach/correct surface for factory knowledge.
@@ -228,7 +228,7 @@ export function renderProductKnowledge(
   }).join('');
 
   return `
-    <div class="dhead"><a class="back" href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a>
+    <div class="dhead">${back('/app/knowledge', t(locale, 'knowledge.back'))}
       <h1 class="page">${esc(d.productName ?? '—')}</h1></div>
     ${flashHtml}
     <div class="card"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
@@ -247,18 +247,12 @@ const KNOWLEDGE_STYLE = `<style>
   .kh { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .kh .src { margin-inline-start:auto; font-size:12px; }
   .kc { margin:8px 0; white-space:pre-wrap; }
-  .pill { background:#1b2430; color:#93c5fd; border-radius:999px; padding:3px 10px; font-size:12px; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
   .teach h3 { margin:0; font-size:14px; }
   input[type=text], textarea, select { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:8px; }
-  .btn { padding:9px 16px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  .btn.send { background:#2563eb; } .btn.ghost { background:transparent; border:1px solid #2b313a; color:#b9c0c9; }
-  .inline { display:inline; } .certs { display:flex; flex-wrap:wrap; gap:8px; }
+  .certs { display:flex; flex-wrap:wrap; gap:8px; }
   .cert { padding:8px 14px; border-radius:999px; border:1px solid #2b313a; background:#0f1216; color:#b9c0c9; cursor:pointer; font-size:13px; }
   .cert.on { background:#0f2e1c; color:#4ade80; border-color:#1f5a3a; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; }
-  .dhead { display:flex; align-items:center; gap:12px; } .back { color:#60a5fa; font-size:14px; }
-  .empty { text-align:center; padding:24px; }
-  button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+  .dhead { display:flex; align-items:center; gap:12px; } 
 </style>`;

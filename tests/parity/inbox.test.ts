@@ -40,7 +40,7 @@ const detailIn = (ownership: ConversationOwnership, over: Partial<ConversationDe
 describe('M9.3 · inbox list (localized)', () => {
   it('zh: buyer, country, status, product, deep link', () => {
     const html = renderInboxList(listWithWork, 'zh', NOW);
-    expect(html).toContain('收件箱'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
+    expect(html).toContain('买家'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
     expect(html).toContain('看看她的回复');
     expect(html).toContain('保温杯'); expect(html).toContain('5000个'); expect(html).toContain('$0.92');
     expect(html).toContain('href="/app/inbox/conv-1"');
@@ -48,7 +48,7 @@ describe('M9.3 · inbox list (localized)', () => {
 
   it('en: localized chrome, latin product name', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
-    expect(html).toContain('Inbox'); expect(html).toContain('Review her reply');
+    expect(html).toContain('Buyers'); expect(html).toContain('Review her reply');
     expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
     expect(html).toContain('5,000pcs');
     expect(html).not.toContain('保温杯');
@@ -145,7 +145,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
 
   it('AI state: employee-handling status + take-over control; no reply/return', () => {
     const html = renderConversationDetail(detailIn('AI'), 'en', NOW, null);
-    expect(html).toContain('Your employee is handling this');
+    expect(html).toContain('Lily is handling this');
     expect(html).toContain('action="/app/inbox/conv-1/takeover"');
     expect(html).toContain('Take over');
     expect(html).not.toContain('action="/app/inbox/conv-1/reply"');
@@ -169,7 +169,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     expect(html).toContain('action="/app/inbox/conv-1/reply"');
     expect(html).toContain('name="text"');                     // the owner reply textarea
     expect(html).toContain('action="/app/inbox/conv-1/resume"');
-    expect(html).toContain('Hand back to your employee');
+    expect(html).toContain('Hand back to Lily');
     expect(html).not.toContain('Review her reply');             // no draft card while owner-controlled
   });
 

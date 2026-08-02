@@ -268,20 +268,14 @@ export function renderConnectGuide(locale: Locale): string {
 
 const CHANNELS_STYLE = `<style>
   .ch-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .ch-name { font-size:16px; font-weight:700; }
+  .ch-name { font-size:15px; font-weight:700; }
   .ch-desc { font-size:13px; margin:6px 0 12px; }
   .ch-info { display:flex; flex-direction:column; gap:6px; background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:12px; font-size:14px; margin-bottom:12px; }
   .ch-acts { display:flex; gap:8px; flex-wrap:wrap; }
   .prob { background:#2e2413; color:#fbbf24; border-radius:10px; padding:12px; font-size:14px; margin-bottom:12px; line-height:1.6; }
-  .btn { padding:10px 18px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; } .btn.danger { background:#3a2020; color:#f8b4b4; }
-  .pill { display:inline-block; padding:4px 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap; }
-  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; }
   .ownerform { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
   .ownerform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .soon-chip { background:#0f1216; border:1px solid #23272e; border-radius:999px; padding:6px 14px; color:#8b929c; font-size:13px; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }
   .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:4px; }
-  button:focus-visible, a:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
 </style>`;

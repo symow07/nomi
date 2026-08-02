@@ -180,7 +180,7 @@ describe('Nomi Phase B · Today (render)', () => {
     const ar = renderOperationsHome(populated, 'ar', obs);
     expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain('كم مرة تدخّلت');
     // the chevron must not point the wrong way in RTL
-    expect(ar).toContain('[dir="rtl"] .need-go');
+    expect(ar).toContain('class="go need-go"');                     // the shell mirrors it
   });
 
   it('invents no metric — no score / percentage / ranking in any locale', () => {

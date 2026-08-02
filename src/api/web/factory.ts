@@ -20,13 +20,21 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
 import { loadProductList } from './products.js';
 import { loadChannels, type ChannelView } from './channels.js';
+import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
+import { loadPilotReadiness } from './pilot.js';
 
-/** What the factory still needs, derived live — never stored, never a wizard. */
-export type FactoryStep = 'introduce' | 'products' | 'connect';
+/**
+ * What the factory still needs. Phase F: there is now exactly ONE derivation of
+ * that in the product — `loadOnboarding`'s four live EXISTS checks. This page
+ * composes it; it does not re-decide it. `settings.ts` used to keep a third
+ * answer (a per-field checklist) and `onboarding.ts` had a fourth (an unrouted
+ * renderer); both are gone.
+ */
+export type FactoryStep = OnboardingStep;
 
 export type FactoryPromises = {
   /** Certification/compliance claims the owner authorised (claims_policy). */
@@ -43,6 +51,16 @@ export type FactoryPromises = {
   readonly ceilingPct: number | null;
 };
 
+/** Getting ready to go live — a summary of the EXISTING pilot readiness model. */
+export type FactoryReadiness = {
+  readonly prepared: number;      // real counts, never a grade
+  readonly preparedTotal: number;
+  readonly confirmed: number;
+  readonly confirmedTotal: number;
+  readonly rehearsed: boolean;
+  readonly live: boolean;
+};
+
 export type FactoryView = {
   readonly profile: BusinessProfile;
   readonly products: {
@@ -57,6 +75,7 @@ export type FactoryView = {
   };
   /** null = the factory is set up. A complete factory feels complete. */
   readonly nextStep: FactoryStep | null;
+  readonly readiness: FactoryReadiness;
 };
 
 /**
@@ -89,23 +108,16 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
 export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
 ): Promise<FactoryView> {
-  const [profile, products, promises, channels] = await Promise.all([
+  const [profile, products, promises, channels, setup, pilot] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
     loadChannels(db, businessIdRaw, messagingEnabled),
+    loadOnboarding(db, businessIdRaw),
+    loadPilotReadiness(db, businessIdRaw),
   ]);
-
-  // One next step, in the order an owner would actually do it. Introducing the
-  // factory comes first because everything she says leans on it.
   const sold = products.filter((p) => p.isActive);
-  const introduced = profile.name.trim() !== '' && (profile.description !== null || profile.location !== null);
-  const nextStep: FactoryStep | null =
-    !introduced ? 'introduce'
-      : sold.length === 0 ? 'products'
-        : !channels.whatsapp.connected ? 'connect'
-          : null;
-
+  const detected = Object.values(pilot.detected);
   return {
     profile,
     products: {
@@ -117,17 +129,21 @@ export async function loadFactory(
     },
     promises,
     connection: { channel: channels.whatsapp, ownerPhone: channels.ownerPhone },
-    nextStep,
+    // The ONE setup derivation — not this module's own opinion of "introduced".
+    nextStep: setup.nextStep,
+    readiness: {
+      prepared: detected.filter(Boolean).length,
+      preparedTotal: detected.length,
+      confirmed: [pilot.attest.backupTestedAt, pilot.attest.secretsRotatedAt, pilot.attest.ownerReadyAt]
+        .filter((x) => x !== null).length,
+      confirmedTotal: 3,
+      rehearsed: pilot.detected.sandbox,
+      live: channels.whatsapp.connected && messagingEnabled,
+    },
   };
 }
 
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
-
-const NEXT_HREF: Record<FactoryStep, string> = {
-  introduce: '/app/settings',
-  products: '/app/products',
-  connect: '/app/channels',
-};
 
 /** A fact the owner told her. Absent facts are simply not shown. */
 const fact = (label: string, value: string | null): string =>
@@ -137,7 +153,7 @@ const section = (title: string, question: string, body: string, href: string, mo
   `<section class="fblock">
     <div class="fhead"><h2>${esc(title)}</h2><p class="fq">${esc(question)}</p></div>
     ${body}
-    <a class="fmore" href="${href}">${esc(more)}<span class="fgo" aria-hidden="true">›</span></a>
+    ${deeper(href, more)}
   </section>`;
 
 export function renderFactory(f: FactoryView, locale: Locale): string {
@@ -147,9 +163,9 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
   // A new factory gets ONE next step. A finished one gets nothing at all —
   // setup disappears rather than turning into a permanent checklist.
   const next = f.nextStep
-    ? `<a class="fnext" href="${NEXT_HREF[f.nextStep]}">
+    ? `<a class="fnext" href="${STEP_LINK[f.nextStep]}">
         <span class="fnext-t">${esc(t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }))}</span>
-        <span class="fgo" aria-hidden="true">›</span>
+        <span class="go" aria-hidden="true">›</span>
       </a>`
     : '';
 
@@ -217,13 +233,28 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
   const reachBody = `
     ${c.connected
       ? `<div class="fconn on">${conn}</div>`
-      : `<a class="fconn off" href="/app/channels">${conn}<span class="fgo" aria-hidden="true">›</span></a>`}
+      : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
     ${c.connected && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
     <p class="fdesc">${esc(t(locale, c.connected ? 'factory.reach.nextConnected' : 'factory.reach.nextNot', { name }))}</p>
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
       : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;
 
+  // 5 · Getting ready to go live — a SUMMARY of the pilot readiness model that
+  //     already exists. Real counts only; the full runbook is one tap away.
+  const r = f.readiness;
+  const readyBody = r.live
+    ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`
+    : `<ul class="fsteps">
+        <li class="${r.prepared === r.preparedTotal ? 'done' : ''}">${r.prepared === r.preparedTotal ? '✓' : '○'}
+          ${esc(t(locale, 'factory.ready.prepared', { n: r.prepared, total: r.preparedTotal }))}</li>
+        <li class="${r.rehearsed ? 'done' : ''}">${r.rehearsed ? '✓' : '○'}
+          ${esc(t(locale, r.rehearsed ? 'factory.ready.rehearsed' : 'factory.ready.rehearse', { name }))}</li>
+        <li class="${r.confirmed === r.confirmedTotal ? 'done' : ''}">${r.confirmed === r.confirmedTotal ? '✓' : '○'}
+          ${esc(t(locale, 'factory.ready.confirmed', { n: r.confirmed, total: r.confirmedTotal }))}</li>
+      </ul>
+      <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
+      ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
     ${next}
@@ -231,6 +262,7 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
     ${section(t(locale, 'factory.sell.title'), t(locale, 'factory.sell.q'), sellBody, '/app/products', t(locale, 'factory.sell.more'))}
     ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
+    ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody, '/app/onboarding', t(locale, 'factory.ready.more'))}
     ${FACTORY_STYLE}`;
 }
 
@@ -275,7 +307,9 @@ const FACTORY_STYLE = `<style>
   /* The promise the whole product rests on — read it before the fine print. */
   .fnever { margin:16px 0 0; font-size:15px; line-height:1.6; color:#d8e3db; max-width:62ch;
             border-inline-start:2px solid #274434; padding-inline-start:14px; }
-
+  .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .fsteps li { font-size:14px; color:#a8afb8; }
+  .fsteps li.done { color:#d6dae0; }
   .fconn { display:flex; align-items:center; gap:13px; }
   .fconn-t { font-size:15px; color:#e7eaee; }
   .fconn-s { font-size:13px; color:#8b929c; }
@@ -285,16 +319,8 @@ const FACTORY_STYLE = `<style>
   .fconn.off { background:#181510; border:1px solid #8a7330; border-radius:14px; padding:14px 16px; }
   .fconn.off:hover, .fconn.off:focus-visible { border-color:#b39445; }
   .fconn.off .fconn-s { color:#e0b551; }
-  .fconn.off .fgo { margin-inline-start:auto; }
-
-  .fmore { display:inline-flex; align-items:center; gap:6px; margin-top:16px;
-           padding:10px 0; font-size:14px; color:#8fb6a4; }
-  .fmore:hover, .fmore:focus-visible { color:#b9d8c8; }
-  .fgo { font-size:18px; color:#6f8f7e; }
-  [dir="rtl"] .fgo { transform:scaleX(-1); display:inline-block; }
-
-  a:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
-
+  .fconn.off .go { margin-inline-start:auto; }
+  .fblock .deeper { margin-top:8px; }
   @media (max-width:560px) {
     .frow { flex-direction:column; align-items:flex-start; gap:2px; }
     .flabel { min-width:0; font-size:13px; }

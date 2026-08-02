@@ -230,28 +230,19 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
 }
 
 const OPS_STYLE = `<style>
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tab { padding:8px 16px; border-radius:999px; background:#14171c; border:1px solid #23272e; color:#b9c0c9; font-size:14px; }
-  .tab.on { background:#1b2430; color:#fff; }
-  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-  .stat { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:16px; text-align:center; }
-  .stat .v { font-size:28px; font-weight:700; color:#fff; } .stat .l { font-size:12px; color:#8b929c; margin-top:4px; }
+  .stat .v { font-size:26px; font-weight:700; color:#fff; } .stat .l { font-size:12px; color:#8b929c; margin-top:4px; }
   h3.sub { font-size:13px; color:#8b929c; margin:16px 0 8px; }
   .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
   .reqs .q { color:#d6dae0; }
   .gap { border:1px solid #23272e; border-radius:12px; padding:14px; margin-bottom:10px; }
   .gq { font-size:15px; margin-bottom:8px; } .gmeta { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
   .gacts { display:flex; gap:8px; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
   .pill.reason { background:#2e2413; color:#fbbf24; }
   .pill.taught { background:#0f2e1c; color:#4ade80; } .pill.corrected { background:#13233a; color:#93c5fd; } .pill.archived { background:#23272e; color:#8b929c; }
   .acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
   .acts li { display:flex; align-items:center; gap:8px; }
-  .btn { padding:8px 16px; border:0; border-radius:9px; background:#2563eb; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
-  .btn.ghost { background:transparent; border:1px solid #2b313a; color:#b9c0c9; }
   .usage { font-size:12px; margin-top:6px; }
-  .empty { text-align:center; padding:20px; }
-  @media (max-width:560px) { .stats { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:560px) { }
 </style>`;
 
 /** Usage facts keyed by knowledge row id, for a product's active rows. */

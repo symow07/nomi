@@ -146,15 +146,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 }
 
 const ANALYTICS_STYLE = `<style>
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tab { padding:8px 16px; border-radius:999px; background:#14171c; border:1px solid #23272e; color:#b9c0c9; font-size:14px; }
-  .tab.on { background:#1b2430; color:#fff; }
-  .stats.two { grid-template-columns:repeat(2,1fr); }
   .sub { margin:16px 0 10px; font-size:13px; color:#8b929c; }
   .deals { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-  .deals .pill { display:inline-block; padding:5px 12px; border-radius:999px; font-size:13px; font-weight:600; background:#0f2e1c; color:#4ade80; }
+  .deals 
   .deals .total { width:100%; font-size:14px; margin-top:6px; }
-  .empty { text-align:center; padding:28px 16px; } .big { font-size:19px; font-weight:700; margin-bottom:8px; }
+  .big { font-size:19px; font-weight:700; margin-bottom:8px; }
   .empty-line { padding:6px 0; } .foot { margin:14px 0 0; font-size:12px; }
-  a.tab:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
 </style>`;

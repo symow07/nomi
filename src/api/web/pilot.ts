@@ -9,7 +9,7 @@ import { SCENARIOS } from '../../trust/scenarios.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
 
 /**
  * M15.1 — Pilot Readiness Hub. Extends the M11.2 onboarding into a single
@@ -402,7 +402,8 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
     && ops.activity.handled === 0 && ops.activity.draftsCreated === 0 && ops.activity.corrections === 0
     && ops.knowledge.openGaps === 0 && ops.knowledge.recentCorrections === 0 && ops.knowledge.recentlyTaught === 0;
   const body = quiet
-    ? `<div class="empty muted">${esc(t(locale, 'runbook.during.quiet'))}</div>`
+    ? `<div class="empty muted">${esc(t(locale, 'runbook.during.quiet'))}
+        <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div>`
     : `<h3 class="rbsub">${esc(t(locale, 'ops.attention.title'))}</h3>
       ${rbCount('ops.card.waiting', ops.attention.handoffs, '/app/inbox', locale)}
       ${rbCount('ops.card.approvals', ops.attention.pendingApprovals, '/app/inbox?filter=pending', locale)}
@@ -458,7 +459,8 @@ function afterSection(locale: Locale): string {
 function feedbackSection(f: PilotFeedback, locale: Locale): string {
   if (!f.hasActivity) {
     return `<div class="card"><h2>${esc(t(locale, 'feedback.title'))}</h2>
-      <div class="empty muted">${esc(t(locale, 'feedback.none'))}</div></div>`;
+      <div class="empty muted">${esc(t(locale, 'feedback.none'))}
+        <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div></div>`;
   }
   const row = (label: string, item: FeedbackItem) =>
     `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>
@@ -555,10 +557,10 @@ export function renderPilotRunbook(
 }
 
 const RUNBOOK_STYLE = `<style>
-  .rbsub { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:#8b929c; margin:16px 0 6px; }
+  .rbsub { font-size:13px; letter-spacing:0; color:#8b929c; margin:16px 0 6px; }
   .rbrow { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #1b1f25; }
   .rbrow:last-child { border-bottom:0; }
-  .rbrow .lbl { font-size:14px; } .rbrow .n { margin-inline-start:auto; font-size:16px; font-weight:700; color:#fff; }
+  .rbrow .lbl { font-size:14px; } .rbrow .n { margin-inline-start:auto; font-size:15px; font-weight:700; color:#fff; }
   .rblink { font-size:13px; }
   .rbsteps { margin:6px 0 14px; padding-inline-start:20px; color:#c8ccd2; font-size:14px; }
   .rbsteps li { padding:2px 0; }
@@ -568,16 +570,11 @@ const RUNBOOK_STYLE = `<style>
 const PILOT_STYLE = `<style>
   .pr { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid #1b1f25; }
   .pr:last-child { border-bottom:0; }
-  .pr .mk { font-size:18px; font-weight:700; } .pr.done .mk { color:#4ade80; } .pr.todo .mk { color:#8b929c; }
+  .pr .mk { font-size:17px; font-weight:700; } .pr.done .mk { color:#4ade80; } .pr.todo .mk { color:#8b929c; }
   .pr .lbl { font-size:15px; }
   .pr-b { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-inline-start:auto; }
   .badge { font-size:12px; padding:3px 10px; border-radius:999px; }
   .badge.sys { background:#0f2e1c; color:#4ade80; } .badge.owner { background:#13233a; color:#93c5fd; }
-  .btn { padding:8px 16px; border:0; border-radius:9px; background:#2563eb; color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
-  .btn.ghost { background:transparent; border:1px solid #2b313a; color:#b9c0c9; }
-  .inline { display:inline; }
   .verdict { margin-top:16px; padding:14px; border-radius:12px; background:#14171c; border:1px solid #23272e; text-align:center; font-weight:600; }
   .verdict.ok { background:#0f2e1c; color:#4ade80; border-color:#1f5a3a; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; }
-  button:focus-visible, a:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
 </style>`;

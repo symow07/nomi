@@ -192,7 +192,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(zh).toContain('她还需要你教的');
     const ar = renderEmployee(base, 'ar', null, ctx);
     expect(ar).toContain('ما تعرفه'); expect(ar).toContain('ما تتولّاه بنفسها');
-    expect(ar).toContain('[dir="rtl"] .gact');
+    expect(ar).toContain('<span class="go" aria-hidden="true">');   // the shell mirrors it
   });
 
   it('no score, percentage or technical vocabulary — any locale', () => {

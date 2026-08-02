@@ -103,7 +103,7 @@ curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE
 get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
 get /app/factory    "$SK/app-factory.html" "What you promise buyers" "My factory did not render"
 get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
-get /app/sandbox    "$SK/app-sandbox.html" "Simulation only"        "Sandbox did not render"
+get /app/sandbox    "$SK/app-sandbox.html" "This is practice only"        "Sandbox did not render"
 
 #  My factory is the door to the four surfaces it contains — they must stay reachable
 for r in /app/settings /app/products /app/knowledge /app/channels; do
@@ -149,7 +149,7 @@ PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
 
 Drive more:
   curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What she knows'
-  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
+  curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Buyers'
 
 Stop everything:
   kill $APP_PID; pg_ctl -D $SK/pg stop

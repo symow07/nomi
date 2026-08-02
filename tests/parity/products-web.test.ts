@@ -27,7 +27,7 @@ describe('M9.5 · product list (localized)', () => {
     expect(html).toContain('最低起订: 1000个');
     expect(html).toContain('已学习 ✓'); expect(html).toContain('可以被图片识别');
     expect(html).toContain('href="/app/products/p1"');
-    expect(html).toContain('需要确认'); expect(html).toContain('价格待补');
+    expect(html).toContain('需要价格'); expect(html).toContain('价格待补');
   });
 
   it('en: uses the neutral latin name; localized chrome', () => {
@@ -86,7 +86,7 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
     const en = renderReview(v, '新款化妆包', 'en');
     expect(en).toContain('Needs a price'); expect(en).toContain('Price to add');
     expect(en).toContain('action="/app/products/add/confirm"'); expect(en).toContain('name="text"');
-    expect(renderReview(v, '新款化妆包', 'zh')).toContain('需要确认');
+    expect(renderReview(v, '新款化妆包', 'zh')).toContain('需要价格');
   });
 
   it('rejected reasons localize from the reason code', () => {

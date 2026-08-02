@@ -30,7 +30,7 @@ describe('M9.8 · business review (localized)', () => {
     const html = renderAnalytics(active, 'zh');
     expect(html).toContain('经营情况');
     expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
-    expect(html).toContain('沟通趋势'); expect(html).toContain('买家咨询');
+    expect(html).toContain('沟通情况'); expect(html).toContain('买家咨询');
     expect(html).toContain('报价与订单'); expect(html).toContain('小雅工作总结');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
@@ -61,9 +61,9 @@ describe('M9.8 · business review (localized)', () => {
   });
 
   it('empty range: honest data-collecting state per locale, no fake chart', () => {
-    expect(renderAnalytics(empty, 'zh')).toContain('数据积累中');
-    expect(renderAnalytics(empty, 'en')).toContain('Gathering data');
-    expect(renderAnalytics(empty, 'ar')).toContain('جارٍ جمع البيانات');
+    expect(renderAnalytics(empty, 'zh')).toContain('还没什么可看的');
+    expect(renderAnalytics(empty, 'en')).toContain('Nothing to show yet');
+    expect(renderAnalytics(empty, 'ar')).toContain('لا شيء لعرضه بعد');
     const en = renderAnalytics(empty, 'en');
     expect(en).not.toContain('Overview');   // no number cards
     expect(en).not.toContain('<svg'); expect(en).not.toContain('<canvas');

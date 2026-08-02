@@ -14,24 +14,26 @@ const complete: FactoryView = {
     name: 'Yiwu Sunrise Housewares', description: 'Vacuum cups and kitchen goods since 2011.',
     location: 'Yiwu, Zhejiang', workingHours: 'Mon–Sat 9:00–18:00',
     contactEmail: 'sales@sunrise.example', contactPhone: null,
-    languagesServed: ['en', 'zh'], categories: ['drinkware'], checklist: [],
+    languagesServed: ['en', 'zh'], categories: ['drinkware'],
   },
   products: { total: 12, needPrice: 0, names: ['Vacuum cup', 'Lunch box', 'Thermos', 'Kettle'] },
   promises: { certs: ['food_grade', 'BPA_free'], floorPriceUsd: 0.75, ownAuthorityPct: 7, ceilingPct: 10 },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
+  readiness: { prepared: 6, preparedTotal: 6, confirmed: 3, confirmedTotal: 3, rehearsed: true, live: false },
 };
 
 /** A factory on its first day. */
 const fresh: FactoryView = {
   profile: {
     name: '', description: null, location: null, workingHours: null,
-    contactEmail: null, contactPhone: null, languagesServed: [], categories: [], checklist: [],
+    contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
   },
   products: { total: 0, needPrice: 0, names: [] },
   promises: { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null },
   connection: { channel: channel(false), ownerPhone: null },
-  nextStep: 'introduce',
+  nextStep: 'profile',
+  readiness: { prepared: 0, preparedTotal: 6, confirmed: 0, confirmedTotal: 3, rehearsed: false, live: false },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
@@ -124,7 +126,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
     expect(renderFactory(complete, 'en')).not.toContain('class="fnext"');
-    for (const [step, href] of [['introduce', '/app/settings'], ['products', '/app/products'], ['connect', '/app/channels']] as const) {
+    for (const [step, href] of [['profile', '/app/settings'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
       const html = renderFactory({ ...fresh, nextStep: step }, 'en');
       expect(html.split('class="fnext"').length - 1, step).toBe(1);
       expect(html).toContain(`class="fnext" href="${href}"`);
@@ -141,7 +143,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('every section offers a way through to the surface that owns it', () => {
     const html = renderFactory(complete, 'en');
-    for (const href of ['/app/settings', '/app/products', '/app/knowledge', '/app/channels'])
+    for (const href of ['/app/settings', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
       expect(html, href).toContain(`href="${href}"`);
   });
 
@@ -174,15 +176,14 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     }
   });
 
-  it('keyboard focus is visible, matching the rest of the app', () => {
-    const style = renderFactory(complete, 'en').match(/<style>[\s\S]*<\/style>/)![0];
-    expect(style).toContain('a:focus-visible');
-    expect(style).toContain('outline:2px solid #60a5fa');
+  it('uses the shell’s one “go deeper” link rather than a page-local variant', () => {
+    const html = renderFactory(complete, 'en');
+    expect(html).toContain('<a class="deeper" href="/app/settings">');
+    expect(html).toContain('<span class="go" aria-hidden="true">›</span>');
+    expect(html).not.toContain('class="fmore"');
   });
 
-  it('forward affordances mirror in RTL, and Latin runs are isolated from Arabic', () => {
-    const style = renderFactory(complete, 'ar').match(/<style>[\s\S]*<\/style>/)![0];
-    expect(style).toContain('[dir="rtl"] .fgo { transform:scaleX(-1)');
+  it('Latin runs are isolated so an Arabic reader gets them in source order', () => {
     const ar = renderFactory(complete, 'ar');
     // product names and field values are Latin inside an Arabic paragraph
     expect(ar).toContain('<bdi>Vacuum cup</bdi>');

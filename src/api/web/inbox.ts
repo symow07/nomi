@@ -5,7 +5,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
-import { esc } from './layout.js';
+import { esc, deeper, back } from './layout.js';
 
 /** The stored problem-signal kinds shown as a takeover reason (no classifier). */
 const PROBLEM_KINDS = new Set(['human_requested', 'complaint', 'repeated_ambiguity', 'low_confidence_image']);
@@ -287,8 +287,10 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
     const body = data.filter === 'pending'
       ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
-      : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span></div>`;
-    return `${title}${tabs}<div class="card">${body}</div>${INBOX_STYLE}`;
+      : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
+          <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
+    return `${title}${tabs}<div class="card">${body}</div>
+      ${data.filter === 'pending' ? deeper('/app/conversations', t(locale, 'buyers.all.link')) : ''}${INBOX_STYLE}`;
   }
 
   // Phase D — an owner thinks in people, and the question that orders them is
@@ -314,8 +316,8 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
     ].filter(Boolean).join(' · ');
     return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
-      ${detail ? `<div class="buyer-d muted">${esc(detail)}</div>` : ''}
-      ${c.latestMessage ? `<div class="buyer-m">${esc(c.latestMessage.slice(0, 90))}</div>` : ''}
+      ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
+      ${c.latestMessage ? `<div class="buyer-m"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
       <div class="buyer-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
     </a>`;
   };
@@ -330,6 +332,7 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
     ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
     ${group(t(locale, 'buyers.group.yours'), yours)}
     ${group(t(locale, 'buyers.group.hers', { name }), hers)}
+    ${deeper('/app/conversations', t(locale, 'buyers.all.link'))}
     ${INBOX_STYLE}`;
 }
 
@@ -379,7 +382,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m) => `
         <div class="msg ${m.direction}">
-          <div class="bubble">${esc(m.text)}</div>
+          <div class="bubble"><bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(EMPLOYEE_NAME[locale])}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
@@ -388,7 +391,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ? `<div class="card draft" role="region">
         <h2>${esc(t(locale, 'buyers.review.title'))}</h2>
         <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
-        <div class="proposed">${esc(d.pendingDraft.draftText)}</div>
+        <div class="proposed"><bdi>${esc(d.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
@@ -415,11 +418,11 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
 
   return `
     <div class="dhead">
-      <a class="back" href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a>
+      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       <div class="who">${who(locale, d.buyer, d.country)}</div>
       ${d.ownership === 'AI' ? statusPill(locale, d.status, d.pendingDraft !== null) : ''}
     </div>
-    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? esc(prod) : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
+    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
@@ -432,7 +435,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
 const INBOX_STYLE = `<style>
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
   .bgroup { margin-bottom:26px; }
-  .bgroup-h { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:#8b929c;
+  .bgroup-h { font-size:13px; letter-spacing:0; color:#8b929c;
               margin:0 0 12px; font-weight:600; }
   a.buyer { display:block; background:#14171c; border:1px solid #2b313a; border-radius:14px; padding:16px 18px; }
   a.buyer:hover, a.buyer:focus-visible { border-color:#3d7a63; }
@@ -449,10 +452,6 @@ const INBOX_STYLE = `<style>
   .knewlist li { padding:8px 0; border-bottom:1px solid #1c2026; font-size:14px; color:#c8ccd2; }
   .knewlist li:last-child { border-bottom:0; }
   @media (max-width:560px) { a.buyer { padding:15px 16px; } }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tab { padding:8px 16px; border-radius:999px; background:#14171c; border:1px solid #23272e; color:#b9c0c9; font-size:14px; }
-  .tab.on { background:#1b2430; color:#fff; }
-  .list { display:flex; flex-direction:column; gap:10px; }
   .conv { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
   .conv.needs { border-color:#5a4a1f; background:#181510; }
   .conv:hover { border-color:#3a4250; }
@@ -460,34 +459,26 @@ const INBOX_STYLE = `<style>
   .need { color:#fbbf24; font-size:13px; font-weight:600; margin-top:6px; }
   .conv-b { font-size:13px; margin-top:6px; } .conv-m { margin-top:6px; font-size:14px; color:#c8ccd2; }
   .conv-t { font-size:12px; margin-top:8px; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
-  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; }
   .ok-card { text-align:center; padding:12px; } .ok { color:#4ade80; font-size:17px; font-weight:700; }
-  .empty { text-align:center; padding:32px 16px; }
   .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
-  .back { color:#60a5fa; font-size:14px; } .dhead .who { font-size:16px; }
+  .dhead .who { font-size:15px; }
   .subline { font-size:13px; margin-bottom:12px; }
   .ctx { background:#0f1216; border:1px solid #23272e; border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; display:flex; flex-direction:column; gap:6px; }
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:14px; }
   .card.draft { border-color:#5a4a1f; }
   .proposed { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:14px; margin-bottom:12px; font-size:15px; white-space:pre-wrap; }
   .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .btn { padding:10px 18px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  .btn.send { background:#2563eb; } .btn.send:hover { background:#1d4ed8; } .btn.danger { background:#3a2020; color:#f8b4b4; }
   .editform { display:flex; flex-direction:column; gap:8px; }
   textarea { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px; font:inherit; resize:vertical; }
   .timeline { display:flex; flex-direction:column; gap:12px; }
   .msg { max-width:82%; } .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
   .bubble { padding:10px 14px; border-radius:14px; font-size:15px; white-space:pre-wrap; word-break:break-word; }
-  .msg.inbound .bubble { background:#1b2027; border-top-left-radius:4px; }
-  .msg.outbound .bubble { background:#1b3050; border-top-right-radius:4px; }
-  .ts { font-size:11px; margin-top:4px; }
+  .msg.inbound .bubble { background:#1b2027; border-start-start-radius:4px; }
+  .msg.outbound .bubble { background:#1b3050; border-start-end-radius:4px; }
+  .ts { font-size:12px; margin-top:4px; }
   .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .takeover.warn { border-color:#5a4a1f; } .takeover.owner { border-color:#23424a; flex-direction:column; align-items:stretch; }
-  .pill.owner { background:#13233a; color:#93c5fd; }
   .why { flex-basis:100%; font-size:13px; }
   .lastact { flex-basis:100%; font-size:12px; }
   .replyform { display:flex; flex-direction:column; gap:8px; }
-  button:focus-visible, a:focus-visible, textarea:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } .msg { max-width:92%; } }
 </style>`;

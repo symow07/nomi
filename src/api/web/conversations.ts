@@ -5,7 +5,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
-import { esc } from './layout.js';
+import { esc, deeper, back } from './layout.js';
 
 /**
  * M9.7 + ADR-0008 — Conversations / customer memory. NOT a chat viewer and NOT a
@@ -301,7 +301,11 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
   if (list.customers.length === 0) {
     const body = list.query
       ? `<div class="empty">${esc(t(locale, 'conv.empty.noMatch', { q: list.query }))}<br><span class="muted">${esc(t(locale, 'conv.empty.noMatchBody'))}</span></div>`
-      : `<div class="empty"><div class="ok">✓ ${esc(t(locale, 'conv.empty.noneTitle'))}</div><p class="muted">${esc(t(locale, 'conv.empty.noneBody'))}</p></div>`;
+      // Phase F: no ✓ here — zero customers is not an achievement. State it
+      //          plainly and offer the one thing that changes it.
+      : `<div class="empty"><div class="big">${esc(t(locale, 'conv.empty.noneTitle'))}</div>
+         <p class="muted">${esc(t(locale, 'conv.empty.noneBody'))}</p>
+         ${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div>`;
     return `${title}${search}<div class="card">${body}</div>${CONV_STYLE}`;
   }
 
@@ -367,7 +371,7 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
 
   return `
     <div class="dhead">
-      <a class="back" href="/app/conversations">${esc(t(locale, 'conv.back'))}</a>
+      ${back('/app/conversations', t(locale, 'conv.back'))}
       <div class="who">${who(locale, f.buyer, f.country)}</div>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
@@ -383,17 +387,15 @@ const CONV_STYLE = `<style>
   .search { display:flex; gap:8px; align-items:center; margin-bottom:16px; }
   .search input { flex:1; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; }
   .search .clear { font-size:13px; }
-  .list { display:flex; flex-direction:column; gap:10px; }
   .cust { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
   .cust.needs { border-color:#5a4a1f; background:#181510; }
   .cust:hover { border-color:#3a4250; }
   .cust-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .cust-b { font-size:13px; margin-top:6px; } .cust-t { font-size:12px; margin-top:8px; }
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
-  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.warn { background:#2e2413; color:#fbbf24; } .pill.muted { background:#1b2027; color:#8b929c; }
-  .empty { text-align:center; padding:28px 16px; } .ok { color:#4ade80; font-size:17px; font-weight:700; margin-bottom:6px; }
+  .pill.muted { background:#1b2027; color:#8b929c; }
+  .ok { color:#4ade80; font-size:17px; font-weight:700; margin-bottom:6px; }
   .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
-  .back { color:#60a5fa; font-size:14px; } .dhead .who { font-size:16px; }
+  .dhead .who { font-size:15px; }
   .subline { font-size:13px; margin-bottom:12px; }
   .prow { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid #1c2026; font-size:14px; }
   .prow:last-child { border-bottom:none; }
@@ -405,8 +407,5 @@ const CONV_STYLE = `<style>
   .cx { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid #1c2026; font-size:14px; }
   .cx:last-child { border-bottom:none; } .cx-l { color:#8b929c; min-width:72px; }
   .need-card { display:flex; align-items:center; justify-content:space-between; gap:12px; border-color:#5a4a1f; font-size:14px; }
-  .btn { padding:8px 16px; border:0; border-radius:9px; background:#2a313c; color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  .btn.send { background:#2563eb; }
-  a:focus-visible, button:focus-visible, input:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
   @media (max-width:560px) { .cust, .card { border-radius:12px; } }
 </style>`;

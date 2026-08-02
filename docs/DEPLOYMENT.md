@@ -11,7 +11,7 @@ deploy without changing anything.
 | Repo | `git@github.com:symow07/Flower.git`, branch `main` |
 | Deploy trigger | push to `main` |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
-| Database | Postgres (Railway), schema at migration **0020** |
+| Database | Postgres (Railway), schema at migration **0021** |
 | Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
@@ -65,11 +65,11 @@ Only GETs plus one login POST — it never posts an owner action, never touches
 the sandbox, and never sends a message. Safe against production. It checks:
 
 - `/health` is `ok` **and** `db:true`, and leaks no build information
-- every owner surface (`/app`, `/app/onboarding`, `/app/inbox`, `/app/sandbox`) redirects when signed out
+- every owner surface (`/app`, `/app/inbox`, `/app/factory`, `/app/onboarding`, `/app/sandbox`) redirects when signed out
 - an owner **action** rejects anonymous callers
 - while messaging is disabled, `/webhook/whatsapp` is **404** (not mounted)
 - the session cookie is `Secure` + `HttpOnly` + `SameSite=Lax` (over https)
-- Operations Home, Pilot runbook, Inbox and Knowledge all render for a logged-in owner
+- Today, My factory, Buyers, the go-live runbook and Knowledge all render for a logged-in owner
 - reports the running version
 
 It refuses to log in over plain `http` to a non-local host, so the access code

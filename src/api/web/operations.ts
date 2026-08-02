@@ -6,7 +6,7 @@ import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
 
 /**
  * M16.2a — the Operations read model. A READ-ONLY composition layer that answers
@@ -170,7 +170,7 @@ export function renderOperationsHome(
       return `<a class="need" href="${href}">
         <span class="need-n">${attentionCount(s, k)}</span>
         <span class="need-l">${esc(t(locale, label))}</span>
-        <span class="need-go" aria-hidden="true">›</span>
+        <span class="go need-go" aria-hidden="true">›</span>
       </a>`;
     }).join('');
 
@@ -211,7 +211,8 @@ export function renderOperationsHome(
   const learning = `<section class="block">
     <h2>${esc(t(locale, 'today.learning.title', { name }))}</h2>
     ${learningQuiet
-      ? `<p class="quiet">${esc(t(locale, 'today.learning.quiet'))}</p>`
+      ? `<p class="quiet">${esc(t(locale, 'today.learning.quiet'))}</p>
+         ${deeper('/app/knowledge', t(locale, 'her.teach.go'))}`
       : `<div class="counts">
           ${countLine(k.recentlyTaught, t(locale, 'knowledge.report.facts'))}
           ${countLine(k.recentCorrections, t(locale, 'knowledge.report.corrected'))}
@@ -229,6 +230,7 @@ export function renderOperationsHome(
       ${countLine(a.draftsCreated, t(locale, 'ops.activity.drafts'))}
       ${countLine(a.corrections, t(locale, 'ops.activity.corrections'))}
     </div>
+    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
   </section>`;
 
   // Messaging state is only worth an owner's attention when it is NOT live.
@@ -244,8 +246,6 @@ export function renderOperationsHome(
   <style>
     .block { padding:22px 0; border-top:1px solid #23272e; }
     .block:first-of-type { border-top:0; padding-top:6px; }
-    .block h2 { font-size:13px; text-transform:uppercase; letter-spacing:.8px;
-                color:#8b929c; margin:0 0 14px; font-weight:600; }
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
     .needs { display:flex; flex-direction:column; gap:10px; }
     a.need { display:flex; align-items:center; gap:14px; background:#14171c;
@@ -253,9 +253,8 @@ export function renderOperationsHome(
     a.need:hover, a.need:focus-visible { border-color:#3d7a63; }
     .need-n { font-size:26px; font-weight:700; color:#fff; min-width:1.6em;
               font-variant-numeric:tabular-nums; }
-    .need-l { flex:1; font-size:16px; color:#e6e8eb; }
-    .need-go { color:#6b7280; font-size:20px; }
-    [dir="rtl"] .need-go { transform:scaleX(-1); }
+    .need-l { flex:1; font-size:15px; color:#e6e8eb; }
+    .need-go { color:#8b929c; font-size:17px; }
     /* Calm state: a destination, not a void. */
     .calm { display:flex; gap:16px; align-items:flex-start; }
     .calm-mark { color:#4ade80; font-size:26px; line-height:1.2; }
@@ -270,15 +269,13 @@ export function renderOperationsHome(
             font-variant-numeric:tabular-nums; }
     .tlabel { color:#b9c0c9; font-size:15px; }
     .stepline { font-size:17px; color:#e6e8eb; margin:0 0 6px; }
-    .sub { font-size:12px; text-transform:uppercase; letter-spacing:.7px;
+    .sub { font-size:13px; letter-spacing:0;
            color:#8b929c; margin:16px 0 8px; font-weight:600; }
     .quiet { color:#8b929c; margin:0; }
-    .more { display:inline-block; margin-top:12px; color:#60a5fa; font-size:14px; }
     .notlive { color:#8b929c; font-size:13px; margin:22px 0 0;
                padding-top:16px; border-top:1px solid #23272e; }
-    a:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
     @media (max-width:560px) {
-      .need-n { font-size:23px; }
+      .need-n { font-size:22px; }
       a.need { padding:15px 16px; }
     }
   </style>`;
