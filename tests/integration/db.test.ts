@@ -137,6 +137,38 @@ d('M17.3 · RLS denial — knowledge, claims, pilot state (requires DATABASE_URL
   });
 });
 
+/**
+ * M19 (B0) — the runtime connection this suite uses must itself be subject to
+ * RLS. If it were a superuser, every isolation test above would pass while
+ * proving nothing, because superusers bypass row security entirely.
+ */
+d('M19 · runtime role is subject to RLS (requires DATABASE_URL)', () => {
+  it('the runtime connection is not a superuser and does not bypass RLS', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { readRuntimeIdentity, checkRuntimeRole } = await import('../../src/db/runtimeIdentity.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const identity = await readRuntimeIdentity(db);
+      expect(identity.isSuperuser, `connected as ${identity.currentUser}`).toBe(false);
+      expect(identity.bypassesRls, `connected as ${identity.currentUser}`).toBe(false);
+      expect(checkRuntimeRole(identity, { expectRole: false }).safe).toBe(true);
+    } finally { await db.destroy(); }
+  });
+
+  it('assertSafeRuntimeRole accepts this connection under production rules', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { assertSafeRuntimeRole, RUNTIME_ROLE, readRuntimeIdentity } =
+      await import('../../src/db/runtimeIdentity.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const identity = await readRuntimeIdentity(db);
+      if (identity.currentUser !== RUNTIME_ROLE) return;   // a differently-named local role is fine
+      const v = await assertSafeRuntimeRole(db, { production: true });
+      expect(v.safe).toBe(true);
+    } finally { await db.destroy(); }
+  });
+});
+
 d('order idempotency invariant (requires DATABASE_URL)', () => {
   it('a second open order for the same conversation violates the unique index', async () => {
     const { createDb } = await import('../../src/db/client.js');

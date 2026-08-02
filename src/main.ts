@@ -9,6 +9,7 @@ import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
+import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -186,6 +187,13 @@ export async function buildProduction(
   const { db, boss } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
   });
+
+  // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
+  // tenant isolation. Every RLS policy targets yiwuflow_app; a superuser or
+  // BYPASSRLS connection ignores row security while /health still reports
+  // green. In production this throws; elsewhere it warns, so migrations, seeds
+  // and tests (which connect as the admin role on purpose) are unaffected.
+  await assertSafeRuntimeRole(db, { production: process.env['NODE_ENV'] === 'production' });
 
   // /health is the one route both modes share. providerStatus reports the
   // messaging surface; db is probed live; the worker infra is up in both modes.
