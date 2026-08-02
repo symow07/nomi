@@ -4,6 +4,7 @@ import {
   type InboxList, type ConversationDetail, type HumanActionType,
 } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import type { ConversationOwnership } from '../../src/core/conversation/ownership.js';
 
 const NOW = new Date('2026-07-27T10:00:00Z');
@@ -12,7 +13,7 @@ const listWithWork: InboxList = {
   filter: 'pending', waitingCount: 1,
   conversations: [{
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE',
-    status: 'awaiting', needsAction: true, ownership: 'AI', awaitingReview: true,
+    status: 'awaiting', needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you do 5000 pcs?', latestAt: NOW,
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPriceUsd: 0.92,
   }],
@@ -27,7 +28,7 @@ const detailWithDraft: ConversationDetail = {
     { direction: 'inbound', text: 'Price for 5000?', at: new Date('2026-07-27T09:00:00Z') },
     { direction: 'outbound', text: 'Checking for you.', at: new Date('2026-07-27T09:01:00Z') },
   ],
-  pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.' },
+  pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },
   ownership: 'AI', handoffReasons: [], lastHumanAction: null, knowledgeUsed: [],
 };
 
@@ -129,7 +130,7 @@ describe('M9.3 · owner language + security (every locale)', () => {
     const evil = renderConversationDetail({
       ...detailWithDraft, buyer: '<script>alert(1)</script>',
       messages: [{ direction: 'inbound', text: '<img src=x onerror=alert(1)>', at: NOW }],
-      pendingDraft: { draftId: 'd', draftText: '</textarea><script>bad()</script>' },
+      pendingDraft: { draftId: 'd', draftText: '</textarea><script>bad()</script>', capability: 'quote' },
     }, 'en', NOW, null);
     expect(evil).not.toContain('<script>alert(1)</script>');
     expect(evil).not.toContain('<img src=x onerror');
@@ -221,7 +222,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
   const conv = (id: string, over: Partial<InboxList['conversations'][number]> = {}) => ({
     conversationId: id, buyer: `B-${id}`, country: 'AE' as string | null,
     status: 'awaiting' as const, needsAction: false, ownership: 'AI' as ConversationOwnership,
-    awaitingReview: false, latestMessage: 'hi', latestAt: NOW,
+    awaitingReview: false, handoffReason: null as string | null, latestMessage: 'hi', latestAt: NOW,
     product: { name: null, nameZh: null }, quantity: null, unitPriceUsd: null, ...over,
   });
   const list = (cs: InboxList['conversations']): InboxList =>
@@ -229,7 +230,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 
   const mixed = list([
     conv('c-ai'),
-    conv('c-wait', { ownership: 'WAITING_HUMAN' }),
+    conv('c-wait', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' }),
     conv('c-owner', { ownership: 'OWNER_CONTROLLED' }),
     conv('c-review', { awaitingReview: true }),
   ]);
@@ -252,7 +253,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 
   it('badges name the human action, never an internal state', () => {
     const html = renderInboxList(mixed, 'en', NOW);
-    expect(html).toContain('Asked for a person');   // WAITING_HUMAN
+    expect(html).toContain('the buyer asked for a person');   // the STORED reason
     expect(html).toContain('Review her reply');     // awaiting the owner's OK
     expect(html).toContain('You are replying');     // OWNER_CONTROLLED
     expect(html).not.toContain('unclaimed');
@@ -360,5 +361,106 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
       for (const banned of ['knowledge base', 'retrieval', 'context', 'prompt', 'embedding', '知识库'])
         expect(all.includes(banned), `${l}:${banned}`).toBe(false);
     }
+  });
+});
+
+// ── Release hardening · a message is "sent" only when it has been sent ───────
+describe('Release hardening · the product never claims a delivery it has not made', () => {
+  it('approving queues a reply — the owner is told it is waiting, not that it went', () => {
+    for (const l of LOCALES) {
+      const queued = t(l, 'inbox.flash.sent') + t(l, 'inbox.flash.edited_sent') + t(l, 'takeover.flash.sent');
+      // approving enqueues a row; the outbound worker and then the provider are
+      // what actually deliver, so past-tense delivery here is a false promise
+      for (const claim of ['Sent.', 'Reply sent', '已发送', 'أُرسل الرد', 'تم الإرسال'])
+        expect(queued.includes(claim), `${l}: "${claim}"`).toBe(false);
+    }
+    expect(t('en', 'inbox.flash.sent')).toBe('Waiting to send.');
+    expect(t('zh', 'inbox.flash.sent')).toContain('等着发出去');
+    expect(t('ar', 'inbox.flash.sent')).toContain('بانتظار الإرسال');
+  });
+
+  it('with no messaging provider it says so outright, in every locale', () => {
+    for (const l of LOCALES) {
+      const s = t(l, 'inbox.flash.sentNotLive');
+      expect(s.length).toBeGreaterThan(10);
+      expect(s).not.toBe(t(l, 'inbox.flash.sent'));
+    }
+    expect(t('en', 'inbox.flash.sentNotLive')).toContain('nothing went to the buyer');
+  });
+
+  it('skipping is unambiguous about the buyer seeing nothing', () => {
+    expect(t('en', 'inbox.flash.skipped')).toContain('nothing goes to the buyer');
+  });
+});
+
+describe('Release hardening · the handoff badge states the stored reason', () => {
+  const waiting = (handoffReason: string | null) => renderInboxList({
+    filter: 'all', waitingCount: 1,
+    conversations: [{
+      conversationId: 'c1', buyer: 'B', country: 'AE', status: 'awaiting', needsAction: false,
+      ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason,
+      latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
+      quantity: null, unitPriceUsd: null,
+    }],
+  }, 'en', NOW);
+
+  it('every stored reason renders as itself — none is reported as “asked for a person”', () => {
+    expect(waiting('human_requested')).toContain('the buyer asked for a person');
+    expect(waiting('complaint')).toContain('a complaint');
+    expect(waiting('complaint')).not.toContain('asked for a person');
+    expect(waiting('repeated_ambiguity')).toContain("the buyer's need stayed unclear");
+    expect(waiting('repeated_ambiguity')).not.toContain('asked for a person');
+    expect(waiting('low_confidence_image')).toContain('an unclear photo');
+    expect(waiting('low_confidence_image')).not.toContain('asked for a person');
+  });
+
+  it('no stored reason → it says only that you are needed, and invents nothing', () => {
+    const html = waiting(null);
+    expect(html).toContain('Waiting for you');
+    expect(html).not.toContain('asked for a person');
+    expect(html).not.toContain('complaint');
+  });
+
+  it('localizes the reason in zh and ar', () => {
+    const zh = renderInboxList({ filter: 'all', waitingCount: 1, conversations: [{
+      conversationId: 'c1', buyer: 'B', country: null, status: 'awaiting', needsAction: false,
+      ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason: 'complaint',
+      latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
+      quantity: null, unitPriceUsd: null }] }, 'zh', NOW);
+    expect(zh).toContain('有投诉');
+    expect(zh).not.toContain('complaint');
+  });
+});
+
+describe('Release hardening · a permanent change asks first', () => {
+  const withDraft = renderConversationDetail(detailWithDraft, 'en', NOW, null);
+
+  it('“Revoke” said nothing about being permanent, sitting next to “Skip”', () => {
+    // It rejects the draft AND demotes the capability business-wide, forever.
+    expect(withDraft).toContain('Stop doing this alone');
+    expect(withDraft).not.toMatch(/>Revoke</);
+    expect(withDraft).toContain('Skip drops this one reply');
+    // the note must name a control the owner can actually see
+    expect(withDraft).not.toContain('Revoke changes what');
+    expect(withDraft).toContain('changes what she may do on her own');
+  });
+
+  it('asks for confirmation, naming the capability it will take away', () => {
+    expect(withDraft).toContain('onclick="return confirm(this.dataset.confirm)"');
+    expect(withDraft).toMatch(/data-confirm="[^"]*Quoting[^"]*"/);
+    expect(withDraft).toMatch(/data-confirm="[^"]*Every future one will wait for you[^"]*"/);
+  });
+
+  it('the two harmless actions carry no confirmation — only the permanent one does', () => {
+    expect(withDraft.match(/onclick="return confirm/g) ?? []).toHaveLength(1);
+  });
+
+  it('the warning and the question are localized', () => {
+    for (const l of ['zh', 'ar'] as const) {
+      const html = renderConversationDetail(detailWithDraft, l, NOW, null);
+      expect(html).toContain('data-confirm="');
+      expect(html).not.toContain('Every future one will wait');
+    }
+    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, null)).toContain('以后每一条都要等你');
   });
 });

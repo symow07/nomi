@@ -154,7 +154,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('recently: real counts including how often you were needed', () => {
     const html = renderEmployee(base, 'en', null, ctx);
     expect(html).toContain('Recently');
-    expect(html).toContain('>12<'); expect(html).toContain('Conversations handled');
+    expect(html).toContain('>12<'); expect(html).toContain('Buyers she talked to');
     expect(html).toContain('>8<');  expect(html).toContain('Replies prepared');
     expect(html).toContain('>2<');  expect(html).toContain('Needed your help');
   });

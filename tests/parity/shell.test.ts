@@ -131,12 +131,16 @@ describe('Phase F · every surface draws from the same tokens', () => {
   it('no renderer redeclares a component the shell owns', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
-    const OWNED = ['.btn {', '.pill {', '.flash {', '.tabs {', '.tab {', '.empty {', '.list {',
-                   '.back {', '.stats {', '.stat {', '.inline {', ':focus-visible { outline'];
+    // A BARE rule redefines the component for the whole app; a scoped one
+    // (`.acts .btn { ... }`) is a local adjustment and is allowed.
+    const OWNED = ['btn', 'pill', 'flash', 'tabs', 'tab', 'empty', 'list', 'back', 'stats', 'stat', 'inline'];
     for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts') && x !== 'layout.ts')) {
       const src = await readFile(new URL(f, dir), 'utf8');
       for (const owned of OWNED)
-        expect(src.includes(owned), `${f} redeclares ${owned.replace(' {', '')}`).toBe(false);
+        expect(new RegExp(`(^|[;{}\\n])\\s*\\.${owned} \\{`, 'm').test(src),
+          `${f} redeclares .${owned}`).toBe(false);
+      expect(/(^|[;{}\n])\s*[a-z, ]*:focus-visible \{ ?outline/m.test(src),
+        `${f} redeclares the focus ring`).toBe(false);
     }
   });
 });

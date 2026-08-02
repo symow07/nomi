@@ -22,6 +22,7 @@ import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
+import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
 import { loadProductList } from './products.js';
 import { loadChannels, type ChannelView } from './channels.js';
@@ -73,7 +74,8 @@ export type FactoryView = {
   readonly products: {
     readonly total: number;
     readonly needPrice: number;
-    readonly names: readonly string[];   // a handful, for recognition only
+    /** A handful, for recognition only — localized at render time. */
+    readonly names: readonly { readonly name: string | null; readonly nameZh: string | null }[];
   };
   readonly promises: FactoryPromises;
   readonly connection: {
@@ -144,7 +146,7 @@ export async function loadFactory(
       // counted nor reported as missing a price.
       total: sold.length,
       needPrice: sold.filter((p) => !p.learned).length,
-      names: sold.slice(0, 4).map((p) => p.name),
+      names: sold.slice(0, 4).map((p) => ({ name: p.name, nameZh: p.nameZh })),
     },
     promises,
     connection: { channel: channels.whatsapp, ownerPhone: channels.ownerPhone },
@@ -211,7 +213,9 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
     ? `<p class="fempty">${esc(t(locale, 'factory.sell.empty', { name }))}</p>`
     : `<div class="fcount">${f.products.total}<span class="fcount-l">${esc(t(locale, 'factory.sell.items'))}</span></div>
        ${f.products.names.length
-        ? `<p class="fnames">${f.products.names.map((n) => `<bdi>${esc(n)}</bdi>`).join(' · ')}${f.products.total > f.products.names.length ? ' …' : ''}</p>`
+        ? `<p class="fnames">${f.products.names
+            .map((n) => productName(locale, n)).filter((n): n is string => n !== null)
+            .map((n) => `<bdi>${esc(n)}</bdi>`).join(' · ')}${f.products.total > f.products.names.length ? ' …' : ''}</p>`
         : ''}
        ${f.products.needPrice > 0
         ? `<p class="fwarn">${esc(t(locale, 'factory.sell.needPrice', { n: f.products.needPrice, name }))}</p>`

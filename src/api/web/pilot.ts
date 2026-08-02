@@ -60,7 +60,14 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
         exists(select 1 from products where business_id = ${B} and is_active and price_usd_per_unit is not null) as products,
         exists(select 1 from product_knowledge where business_id = ${B} and status = 'active' and source in ('owner_confirmed','owner_corrected')) as knowledge,
         (exists(select 1 from claims_policy where business_id = ${B} and allowed) or (select claims_reviewed_at from os) is not null) as claims,
-        exists(select 1 from channels where business_id = ${B} and kind = 'whatsapp' and status = 'connected') as channel,
+        -- Same predicate as loadOnboarding: connected AND holding an active
+        -- credential. The two derivations had already drifted — a rotated
+        -- credential left readiness saying "connected" while My factory's next
+        -- step said "connect WhatsApp", on the same page.
+        exists(select 1 from channels ch
+                 join channel_credentials cc on cc.business_id = ch.business_id
+                   and cc.channel = 'whatsapp' and cc.is_active
+                where ch.business_id = ${B} and ch.kind = 'whatsapp' and ch.status = 'connected') as channel,
         (select backup_tested_at from os) as backup_tested_at,
         (select secrets_rotated_at from os) as secrets_rotated_at,
         (select owner_ready_at from os) as owner_ready_at,

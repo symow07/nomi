@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ATTENTION_PRIORITY, renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
+import { ATTENTION_PRIORITY, needsOwnerAttention, renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, OWNER_AGENT } from '../../src/core/conversation/ownership.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -36,11 +36,39 @@ describe('M16.2a · operations snapshot (pure)', () => {
   });
 
   it('attention priority is explicit and ordered — no urgency scoring', () => {
-    // Human waiting first, then approvals, then knowledge gaps. Context buckets
-    // (ownerHandling, activity) are NOT attention demands and are excluded.
-    expect(ATTENTION_PRIORITY).toEqual(['handoffs', 'pendingApprovals', 'openGaps']);
-    expect(ATTENTION_PRIORITY).not.toContain('ownerHandling');
+    // A buyer waiting for a person first, then replies to review, then the
+    // threads the owner took over herself, then knowledge gaps.
+    expect(ATTENTION_PRIORITY).toEqual(['handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
     expect(ATTENTION_PRIORITY).not.toContain('activity');
+  });
+
+  it('each attention row leads somewhere different — two rows, one destination is a dead tap', () => {
+    const s: OperationsSnapshot = { ...emptyFactory, hasAttention: true,
+      attention: { pendingApprovals: 1, handoffs: 1, ownerHandling: 1 },
+      knowledge: { openGaps: 1, recentCorrections: 0, recentlyTaught: 0 } };
+    const hrefs = [...renderOperationsHome(s, 'en').matchAll(/class="need" href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs).toHaveLength(4);
+    expect(new Set(hrefs).size).toBe(4);
+  });
+
+  it('a conversation the owner took over is attention, not background', () => {
+    // Today used to render "you're all caught up · Lily is looking after your
+    // buyers" while the owner personally owed a buyer a reply.
+    const s: OperationsSnapshot = { ...emptyFactory,
+      attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 1 }, hasAttention: true };
+    expect(needsOwnerAttention(s)).toBe(true);
+    const html = renderOperationsHome(s, 'en');
+    expect(html).toContain('You are handling these');
+    expect(html).not.toContain("You're all caught up");
+    expect(html).not.toContain('Nothing needs you right now');
+    // and it is reachable, not just stated
+    expect(html).toContain('href="/app/inbox?filter=all"');   // its own group, not the approvals list
+  });
+
+  it('calm means calm: nothing waiting, nothing drafted, nothing of the owner’s own', () => {
+    const s = emptyFactory;
+    expect(needsOwnerAttention(s)).toBe(false);
+    expect(renderOperationsHome(s, 'en')).toContain("You're all caught up");
   });
 
   it('ownership mapping is the M16.1 one (handoffs vs owner-handling)', () => {
@@ -155,7 +183,7 @@ describe('Nomi Phase B · Today (render)', () => {
   it('activity is plain counts — no comparison, no ranking', () => {
     const html = renderOperationsHome(populated, 'en', obs);
     expect(html).toContain('What Lily did');
-    expect(html).toContain('Conversations handled');
+    expect(html).toContain('Buyers she talked to');
     expect(html).toContain('Replies prepared');
     expect(html).toContain('Replies you corrected');
     for (const w of ['vs', 'compared', 'last week', 'trend', 'better', 'worse']) {

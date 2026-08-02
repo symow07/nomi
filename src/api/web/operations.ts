@@ -55,7 +55,8 @@ export type OperationsSnapshot = {
  * "buyer waiting" concern has no honest source until Meta and is omitted rather
  * than invented.
  */
-export const ATTENTION_PRIORITY = ['handoffs', 'pendingApprovals', 'openGaps'] as const;
+export const ATTENTION_PRIORITY =
+  ['handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
 export type AttentionKind = (typeof ATTENTION_PRIORITY)[number];
 
 const EMPTY = (range: Range, provider: string): OperationsSnapshot => ({
@@ -119,7 +120,7 @@ export async function loadOperationsSnapshot(
       recentlyTaught: ops.report.factsAdded,          // M14 (owner_confirmed in range)
     },
     channel: { status: channels.whatsapp.status, provider },
-    hasAttention: attention.pendingApprovals + attention.handoffs + attention.ownerHandling > 0,
+    hasAttention: attention.pendingApprovals + attention.handoffs + attention.ownerHandling > 0,   // see needsOwnerAttention
   };
 }
 
@@ -136,11 +137,19 @@ export async function loadOperationsSnapshot(
 const ATTENTION_ROW: Record<AttentionKind, { readonly label: MessageKey; readonly href: string }> = {
   handoffs:         { label: 'ops.card.waiting',   href: '/app/inbox' },
   pendingApprovals: { label: 'ops.card.approvals', href: '/app/inbox?filter=pending' },
+  // A conversation the owner took over is waiting on the OWNER to type. It was
+  // computed here from the start but never shown, so Today could say "you're all
+  // caught up" while a buyer waited on her personally.
+  ownerHandling:    { label: 'ops.card.yours',     href: '/app/inbox?filter=all' },
   openGaps:         { label: 'knowledge.ops.gaps', href: '/app/knowledge' },
 };
 
 const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
   k === 'openGaps' ? s.knowledge.openGaps : s.attention[k];
+
+/** True only when nothing anywhere needs the owner — including her own threads. */
+export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>
+  ATTENTION_PRIORITY.some((k) => attentionCount(s, k) > 0);
 
 /**
  * The takeover observation. Structurally typed on purpose: pilot.ts already
@@ -174,7 +183,7 @@ export function renderOperationsHome(
       </a>`;
     }).join('');
 
-  const attention = rows
+  const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="needs">${rows}</div></section>`
     : `<section class="block calm">

@@ -256,7 +256,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Phase B: the attention section states either the real work or the calm truth.
     expect(home.body).toMatch(/Needs your attention|Nothing needs you/);
     expect(home.body).toContain('What Lily did');        // Phase B activity section
-    expect(home.body).toMatch(/Conversations handled/);  // M16.2b employee-activity fact
+    expect(home.body).toMatch(/Buyers she talked to/);    // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.body).toContain('Buyers');            // English default
@@ -1368,7 +1368,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('Needs your attention');
       expect(res.body).toContain('What Lily did');           // Phase B activity
-      expect(res.body).toContain('Conversations handled');
+      expect(res.body).toContain('Buyers she talked to');
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain('Messaging is not active yet');
       expect(res.body).toContain('class="notlive"');
@@ -1983,6 +1983,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         const w = await ensureConversation(tx as never, bid, '971500008891', 'Waiting Buyer');
         waitingId = w.conversationId;
         await tenantRepos(tx as never, bid).conversations.assign(waitingId as never, 'unclaimed');
+        // a real handoff always records WHY; the badge reads that signal
+        await tenantRepos(tx as never, bid).signals.record(waitingId as never, { kind: 'human_requested' });
 
         const a = await ensureConversation(tx as never, bid, '971500008892', 'Answered Buyer');
         aiId = a.conversationId;
@@ -2007,7 +2009,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(row!.ownership).toBe('WAITING_HUMAN');
       expect(row!.awaitingReview).toBe(false);            // she drafted nothing, by design
       expect(pending.waitingCount).toBeGreaterThan(0);
-      expect(renderInboxList(pending, 'en', new Date())).toContain('Asked for a person');
+      // the badge now states the SIGNAL that was stored, not a fixed sentence
+      expect(row!.handoffReason).toBe('human_requested');
+      expect(renderInboxList(pending, 'en', new Date())).toContain('the buyer asked for a person');
     });
 
     it('every waiting handoff sorts above every conversation that is not waiting', async () => {
@@ -2281,6 +2285,86 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         expect(page.body, `${route} must stay linked from My factory`).toContain(`href="${route}"`);
         const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
         expect(r.statusCode, route).toBe(200);
+      }
+    });
+  });
+
+  // ── 0022 · the objects that used to sit outside tenant isolation ────────────
+  // A view runs as its OWNER unless declared security_invoker, so these two —
+  // created by postgres — evaluated RLS against a superuser and skipped it.
+  // Scoped to one tenant they returned another tenant's buyer name, buyer email,
+  // conversation summary, draft text and corrected sent text.
+  describe('0022 · RLS gaps are closed', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    const asTenant = async <T>(biz: string, fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(biz); if (!p.ok) throw new Error('fixture');
+      return withTenantTx(prod.db, p.value, fn as never);
+    };
+    const countIn = (biz: string, rel: string) =>
+      asTenant(biz, (tx) => sql<{ n: number }>`select count(*)::int n from ${sql.raw(rel)}`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+
+    it('both views are declared security_invoker, so they inherit the base-table policies', async () => {
+      const rows = await asTenant(DEMO_BIZ, (tx) => sql<{ relname: string; opts: string[] | null }>`
+        select c.relname, c.reloptions as opts from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+         where c.relkind = 'v' and n.nspname = 'public'`.execute(tx as never).then((r) => r.rows));
+      expect(rows.length).toBeGreaterThan(0);
+      for (const v of rows)
+        expect((v.opts ?? []).join(','), `${v.relname} is not security_invoker`).toContain('security_invoker=true');
+    });
+
+    it('shadow.turn_decisions has RLS enabled, forced, and a tenant policy', async () => {
+      const r = await asTenant(DEMO_BIZ, (tx) => sql<{ sec: boolean; forced: boolean; policies: number }>`
+        select c.relrowsecurity as sec, c.relforcerowsecurity as forced,
+               (select count(*)::int from pg_policies p
+                 where p.schemaname='shadow' and p.tablename='turn_decisions') as policies
+          from pg_class c join pg_namespace n on n.oid=c.relnamespace
+         where n.nspname='shadow' and c.relname='turn_decisions'`
+        .execute(tx as never).then((x) => x.rows[0]!));
+      expect(r.sec).toBe(true);
+      expect(r.forced).toBe(true);
+      expect(r.policies).toBeGreaterThan(0);
+    });
+
+    it('SECURITY: one tenant sees none of another tenant’s rows through any of the three', async () => {
+      // Give each tenant a row in every object under test.
+      const seed = async (biz: string, tag: string) => {
+        await asTenant(biz, async (tx) => {
+          await sql`insert into shadow.turn_decisions (message_id, conversation_id, business_id, svc_decision)
+                    values (${`m-${tag}`}, null, ${biz}, ${JSON.stringify({ tag })}::jsonb)
+                    on conflict (message_id) do nothing`.execute(tx as never);
+        });
+      };
+      await seed(DEMO_BIZ, 'demo');
+      await seed(SANDBOX, 'sbx');
+
+      // Each tenant sees its own row and nothing else. (There is no honest
+      // "total" to compare against any more — an unscoped read now returns 0,
+      // which is the whole point; that is asserted in the next test.)
+      expect(await countIn(DEMO_BIZ, 'shadow.turn_decisions')).toBe(1);
+      expect(await countIn(SANDBOX, 'shadow.turn_decisions')).toBe(1);
+      expect(await countIn(DEMO_BIZ, 'active_conversations_summary')).toBeGreaterThan(0);
+
+      // the sharp assertion: the row tagged for one tenant is invisible to the other
+      const sbxSeesDemoRow = await asTenant(SANDBOX, (tx) => sql<{ n: number }>`
+        select count(*)::int n from shadow.turn_decisions where message_id = 'm-demo'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(sbxSeesDemoRow).toBe(0);
+      const demoSeesSbxRow = await asTenant(DEMO_BIZ, (tx) => sql<{ n: number }>`
+        select count(*)::int n from shadow.turn_decisions where message_id = 'm-sbx'`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(demoSeesSbxRow).toBe(0);
+    });
+
+    it('SECURITY: with no tenant set the views return nothing — they used to return everything', async () => {
+      const { sql: raw } = await import('kysely');
+      for (const rel of ['active_conversations_summary', 'training_examples', 'shadow.turn_decisions']) {
+        const n = await raw<{ n: number }>`select count(*)::int n from ${raw.raw(rel)}`
+          .execute(prod.db as never).then((r) => r.rows[0]!.n);
+        expect(n, `${rel} leaks without a tenant`).toBe(0);
       }
     });
   });

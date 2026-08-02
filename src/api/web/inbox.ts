@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, countryName, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { esc, deeper, back } from './layout.js';
@@ -24,7 +24,9 @@ export const FLAG: Record<string, string> = {
 };
 export const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 
-const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
+/** The catalogue name in the owner's own language. Shared — the factory page
+ *  used to print the English name to a Chinese owner. */
+export const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
   locale === 'zh' ? (p.nameZh ?? p.name) : (p.name ?? p.nameZh);
 
 export type InboxFilter = 'pending' | 'all';
@@ -42,6 +44,8 @@ export type ConversationSummary = {
   readonly ownership: ConversationOwnership;
   /** Phase D — her reply is written and waiting for you to review it. */
   readonly awaitingReview: boolean;
+  /** The stored problem-signal that caused the handoff. Never inferred. */
+  readonly handoffReason: string | null;
   readonly latestMessage: string | null;
   readonly latestAt: Date | null;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -72,14 +76,15 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null;
-      is_active: boolean; pending: number; unit_price: string | null;
+      is_active: boolean; pending: number; unit_price: string | null; handoff_reason: string | null;
     }>`
       select c.id, cl.display_name as buyer, cl.country,
              p.name_zh, p.name, cs.inquiry_quantity as qty,
              c.assigned_to, c.closed_at, c.is_active,
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
-             q.unit_price_usd as unit_price
+             q.unit_price_usd as unit_price,
+             sig.kind as handoff_reason
         from conversations c
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
@@ -88,6 +93,10 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
                             where m.conversation_id = c.id order by m.sent_at desc limit 1) lm on true
         left join lateral (select unit_price_usd from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
+        left join lateral (select kind from conversation_signals cs
+                            where cs.conversation_id = c.id and cs.resolved_at is null
+                              and cs.kind = any(${sql.raw(`array[${[...PROBLEM_KINDS].map((k) => `'${k}'`).join(',')}]`)})
+                            order by cs.created_at desc limit 1) sig on true
        order by
          -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
          -- fall out of the 50-row window. The sentinel comes from the ownership
@@ -107,6 +116,7 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
         status: st.status, needsAction: st.needs,
         ownership: ownershipOf(r.assigned_to),
         awaitingReview: r.pending > 0,
+        handoffReason: r.handoff_reason,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         unitPriceUsd: r.unit_price !== null ? Number(r.unit_price) : null,
@@ -115,7 +125,8 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
     // Phase D — "needs you" is an ownership question, not a drafts count. A buyer
     // who asked for a person has no draft by design; excluding them hid the most
     // urgent conversation in the business from the tab meant to surface it.
-    const needsOwner = (c: ConversationSummary) => c.needsAction || c.ownership === 'WAITING_HUMAN';
+    const needsOwner = (c: ConversationSummary) =>
+      c.needsAction || c.ownership === 'WAITING_HUMAN' || c.ownership === 'OWNER_CONTROLLED';
     const waitingCount = all.filter(needsOwner).length;
     const conversations = filter === 'pending' ? all.filter(needsOwner) : all;
     return { filter, waitingCount, conversations };
@@ -157,7 +168,7 @@ export type ConversationDetail = {
   readonly quote: { unitPriceUsd: number; totalUsd: number; quantity: number } | null;
   readonly order: { status: string; reference: string; totalUsd: number | null } | null;
   readonly messages: readonly TimelineMessage[];
-  readonly pendingDraft: { draftId: string; draftText: string } | null;
+  readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
   readonly ownership: ConversationOwnership;
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
   readonly lastHumanAction: LastHumanAction | null;
@@ -208,8 +219,8 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
-    const draft = (await sql<{ id: string; draft_text: string }>`
-      select id, draft_text from drafts where conversation_id = ${conversationId} and status = 'pending'
+    const draft = (await sql<{ id: string; draft_text: string; capability: string }>`
+      select id, draft_text, capability from drafts where conversation_id = ${conversationId} and status = 'pending'
        order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
@@ -252,7 +263,9 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       quote: q ? { unitPriceUsd: Number(q.unit_price_usd), totalUsd: Number(q.total_usd), quantity: q.quantity } : null,
       order: o ? { status: o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
       messages,
-      pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
+      pendingDraft: draft
+        ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability }
+        : null,
       ownership: ownershipOf(head.assigned_to),
       handoffReasons,
       lastHumanAction,
@@ -301,7 +314,15 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
   const hers     = data.conversations.filter((c) => !needsYou.includes(c) && !yours.includes(c));
 
   const badge = (c: ConversationSummary): string => {
-    if (c.ownership === 'WAITING_HUMAN') return `<span class="tag now">${esc(t(locale, 'buyers.badge.waiting'))}</span>`;
+    if (c.ownership === 'WAITING_HUMAN') {
+      // Say the reason that was STORED. Asserting "asked for a person" for a
+      // complaint or an unclear photo invents a fact about the buyer — on the
+      // one product whose promise is that she never does that.
+      const label = c.handoffReason
+        ? t(locale, `takeover.reason.${c.handoffReason}` as MessageKey)
+        : t(locale, 'buyers.badge.waitingUnknown');
+      return `<span class="tag now">${esc(label)}</span>`;
+    }
     if (c.awaitingReview) return `<span class="tag now">${esc(t(locale, 'buyers.badge.review'))}</span>`;
     if (c.ownership === 'OWNER_CONTROLLED') return `<span class="tag you">${esc(t(locale, 'buyers.badge.yours'))}</span>`;
     return '';
@@ -396,8 +417,12 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" name="command" value="不回">${esc(t(locale, 'inbox.action.skip'))}</button>
-          <button class="btn danger" name="command" value="收回">${esc(t(locale, 'inbox.action.revoke'))}</button>
+          <button class="btn danger" name="command" value="收回"
+                  onclick="return confirm(this.dataset.confirm)"
+                  data-confirm="${esc(t(locale, 'inbox.action.revoke.confirm', { cap: capabilityName(locale, d.pendingDraft.capability) }))}"
+          >${esc(t(locale, 'inbox.action.revoke'))}</button>
         </form>
+        <p class="muted revoke-note">${esc(t(locale, 'inbox.action.revoke.note'))}</p>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="editform">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
@@ -447,11 +472,17 @@ const INBOX_STYLE = `<style>
   .tag.now { background:#2e2413; color:#fbbf24; }
   .tag.you { background:#13233a; color:#93c5fd; }
   .review-intro { margin:0 0 12px; }
+  .revoke-note { margin:8px 0 0; }
   .knew { border-color:#23424a; }
   .knewlist { list-style:none; margin:0; padding:0; }
   .knewlist li { padding:8px 0; border-bottom:1px solid #1c2026; font-size:14px; color:#c8ccd2; }
   .knewlist li:last-child { border-bottom:0; }
-  @media (max-width:560px) { a.buyer { padding:15px 16px; } }
+  @media (max-width:560px) {
+    a.buyer { padding:15px 16px; }
+    /* Three actions must stay on one row: the destructive one belongs beside
+       its alternatives, not alone under Send where it reads as a primary. */
+    .acts .btn { padding-inline:12px; }
+  }
   .conv { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
   .conv.needs { border-color:#5a4a1f; background:#181510; }
   .conv:hover { border-color:#3a4250; }

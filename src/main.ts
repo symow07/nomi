@@ -10,6 +10,7 @@ import { anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
+import { assertSchemaCurrent } from './db/schemaVersion.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -194,6 +195,12 @@ export async function buildProduction(
   // green. In production this throws; elsewhere it warns, so migrations, seeds
   // and tests (which connect as the admin role on purpose) are unaffected.
   await assertSafeRuntimeRole(db, { production: process.env['NODE_ENV'] === 'production' });
+
+  // Release hardening — refuse to serve on a STALE schema. `select 1` succeeds
+  // on the old schema, so a version gap used to deploy green and only surface
+  // when the send path touched a column that was not there yet. Ahead is fine
+  // (migrations are additive, ADR-0007) — that is what keeps rollback safe.
+  await assertSchemaCurrent(db, { production: process.env['NODE_ENV'] === 'production' });
 
   // /health is the one route both modes share. providerStatus reports the
   // messaging surface; db is probed live; the worker infra is up in both modes.

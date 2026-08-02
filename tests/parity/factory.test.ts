@@ -16,7 +16,9 @@ const complete: FactoryView = {
     contactEmail: 'sales@sunrise.example', contactPhone: null,
     languagesServed: ['en', 'zh'], categories: ['drinkware'],
   },
-  products: { total: 12, needPrice: 0, names: ['Vacuum cup', 'Lunch box', 'Thermos', 'Kettle'] },
+  products: { total: 12, needPrice: 0, names: [
+    { name: 'Vacuum cup', nameZh: '保温杯' }, { name: 'Lunch box', nameZh: '饭盒' },
+    { name: 'Thermos', nameZh: '热水瓶' }, { name: 'Kettle', nameZh: '水壶' }] },
   promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
@@ -218,7 +220,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     const evil = renderFactory({
       ...complete,
       profile: { ...complete.profile, name: '<script>alert(1)</script>', description: '<img src=x onerror=alert(1)>' },
-      products: { ...complete.products, names: ['</p><script>bad()</script>'] },
+      products: { ...complete.products, names: [{ name: '</p><script>bad()</script>', nameZh: null }] },
     }, 'en');
     expect(evil).not.toContain('<script>alert(1)</script>');
     expect(evil).not.toContain('<img src=x onerror');
@@ -249,5 +251,90 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
       // the only percentages on the page are the owner's OWN discount rules
       for (const m of html.match(/\d+%/g) ?? []) expect(['8%']).toContain(m);
     }
+  });
+});
+
+/**
+ * Release hardening — the wording on My factory must come from the SAME policy
+ * the quote engine obeys. The Phase E defect was a second interpretation: the
+ * page read `pricingPolicy(null)` while `turn.ts` reads `pricingPolicy(productId)`
+ * and a per-product row wins, so the page described numbers no quote had used.
+ */
+describe('Release hardening · My factory quotes the guard, not a second reading', () => {
+  it('what the page promises is what computeQuote actually enforces', async () => {
+    const { computeQuote } = await import('../../src/core/commerce/quote.js');
+    const { product, tiers, policy } = await import('./fixtures.js');
+
+    // A catalogue with two products on DIFFERENT rules — the shape that broke it.
+    // (Floors sit under the fixture's $0.38 tier price so both quotes are real.)
+    const policies = [
+      policy({ floorPriceUsd: 0.30, maxDiscountPct: 8, humanRequiredAbovePct: 5 }),
+      policy({ floorPriceUsd: 0.36, maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
+    ];
+    const floors = policies.map((p) => p.floorPriceUsd);
+    const view = {
+      ...complete,
+      promises: {
+        certs: [], floorLowUsd: Math.min(...floors), floorHighUsd: Math.max(...floors),
+        ceilingPct: Math.min(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
+      },
+    };
+    const html = renderFactory(view as never, 'en');
+
+    // 1. Every floor the page states must bound every real quote.
+    for (const policy of policies) {
+      const r = computeQuote({ product: product(), tiers: tiers(), policy, rules: [], quantity: 20000 });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.value.unitPriceUsd).toBeGreaterThanOrEqual(view.promises.floorLowUsd);
+    }
+
+    // 2. The page must show the RANGE, never one product's number as "the" floor.
+    expect(html).toContain('$0.30');
+    expect(html).toContain('$0.36');
+    expect(html).not.toMatch(/never quotes below \$0\.36\./);
+
+    // 3. The stated ceiling must be the strictest one, so it is never a promise
+    //    the guard would exceed on some product.
+    expect(view.promises.ceilingPct).toBe(Math.min(...policies.map((p) => p.maxDiscountPct)));
+    expect(html).toContain('8%');
+    expect(html).not.toContain('12%');
+  });
+
+  it('states nothing about escalation, because escalation is not a gate', async () => {
+    // quote.ts sets requiresHuman from humanRequiredAbovePct, but turn.ts decides
+    // draft-vs-send from resolveMode(capability) alone and never reads it. A page
+    // that promised "between X% and Y% she waits for you" described nothing.
+    const { readFile } = await import('node:fs/promises');
+    const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
+    const decision = turn.slice(turn.indexOf('const mode = resolveMode'), turn.indexOf('const mode = resolveMode') + 400);
+    expect(decision).not.toContain('requiresHuman');
+
+    for (const l of LOCALES) {
+      const html = renderFactory(complete, l);
+      expect(html).not.toContain('waits for you');
+      expect(html).not.toContain('on her own');
+      expect(html).not.toContain('بنفسها');
+      expect(html).not.toContain('自己最多');
+    }
+  });
+});
+
+describe('Release hardening · the catalogue speaks the owner’s language', () => {
+  it('a Chinese owner sees the Chinese product names her catalogue already holds', () => {
+    // Scope to the names line: the business DESCRIPTION is owner-entered text
+    // and stays exactly as she typed it, in whatever language that was.
+    const names = (l: 'en' | 'zh') => renderFactory(complete, l).match(/<p class="fnames">.*?<\/p>/s)![0];
+    expect(names('zh')).toContain('保温杯');
+    expect(names('zh')).not.toContain('Vacuum cup');
+    expect(names('en')).toContain('Vacuum cup');
+    expect(names('en')).not.toContain('保温杯');
+  });
+
+  it('falls back to whichever name exists, never to a blank', () => {
+    const html = renderFactory({ ...complete, products: { ...complete.products,
+      names: [{ name: 'Only English', nameZh: null }, { name: null, nameZh: '只有中文' }] } }, 'zh');
+    expect(html).toContain('Only English');
+    expect(html).toContain('只有中文');
   });
 });
