@@ -99,10 +99,17 @@ done
 #  login
 curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE" || fail "login POST"
 
-#  the three owner surfaces
+#  the owner surfaces
 get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
+get /app/factory    "$SK/app-factory.html" "What you promise buyers" "My factory did not render"
 get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "Simulation only"        "Sandbox did not render"
+
+#  My factory is the door to the four surfaces it contains — they must stay reachable
+for r in /app/settings /app/products /app/knowledge /app/channels; do
+  grep -q "href=\"$r\"" "$SK/app-factory.html" || fail "My factory no longer links to $r"
+  [ "$(curl -sS -b "$J" -o /dev/null -w '%{http_code}' "$BASEURL$r")" = "200" ] || fail "$r stopped rendering"
+done
 
 #  rehearsal: buyer turn → take over → owner reply → hand back
 post /app/sandbox/message  "mode=scripted&text=Do%20you%20make%20canvas%20tote%20bags%3F" "sandbox buyer turn"
@@ -128,13 +135,14 @@ cat <<EOF
 
 PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
+                → My factory (+ the 4 surfaces it contains)
                 → buyer turn → take over → owner reply → hand back
                 rehearsal observed by the runbook: $REHEARSED
                 sandbox channel credentials: $CREDS (must be 0 — nothing delivered)
   URL:          $BASEURL
   health:       $HEALTH
   login code:   $CODE          (POST /login  code=$CODE)
-  pages:        $SK/app-home.html · app-onboard.html · app-sandbox.html
+  pages:        $SK/app-home.html · app-factory.html · app-onboard.html · app-sandbox.html
   cookie jar:   $SK/cookies.txt     (authenticated session)
   app log:      $SK/app.log
   server PID:   $APP_PID            (LEFT RUNNING)

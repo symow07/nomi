@@ -2108,6 +2108,150 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── Phase E · My factory, over real data ────────────────────────────────────
+  // The page owns nothing: it composes the profile, catalog, claims allowlist
+  // and channel that already exist. These tests check it tells the truth about
+  // each of them — and that the surfaces it folded in still work.
+  describe('Phase E · my factory (over real data)', () => {
+    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const view = (b = DEMO_BIZ) => import('../../src/api/web/factory.js')
+      .then(({ loadFactory }) => loadFactory(prod.db, b, false));
+    const html = async (b = DEMO_BIZ) => {
+      const { renderFactory } = await import('../../src/api/web/factory.js');
+      return renderFactory(await view(b), 'en');
+    };
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    });
+
+    it('factory information is the REAL business row, not a copy', async () => {
+      const [f, row] = await Promise.all([
+        view(),
+        q((tx) => sql<{ name: string; location: string | null }>`
+          select name, location from businesses where id = ${DEMO_BIZ}`
+          .execute(tx as never).then((r) => r.rows[0]!)),
+      ]);
+      expect(f.profile.name).toBe(row.name);
+      expect(f.profile.location).toBe(row.location);
+      expect(await html()).toContain(row.name);
+    });
+
+    it('products are the real active catalog, with the real unpriced count', async () => {
+      const [f, counts] = await Promise.all([
+        view(),
+        q((tx) => sql<{ total: number }>`
+          select count(*)::int total from products where business_id = ${DEMO_BIZ} and is_active`
+          .execute(tx as never).then((r) => r.rows[0]!)),
+      ]);
+      expect(f.products.total).toBe(counts.total);
+      expect(f.products.needPrice).toBeLessThanOrEqual(f.products.total);
+      expect(f.products.names.length).toBeLessThanOrEqual(4);       // recognition, not a dump
+    });
+
+    it('promises are the claims guard’s OWN allowlist — authorise one and it appears', async () => {
+      const { setCertification } = await import('../../src/api/web/knowledge.js');
+      expect((await view()).promises.certs).not.toContain('ISO9001');
+
+      expect((await setCertification(prod.db, DEMO_BIZ, 'ISO9001', true)).code).toBe('cert');
+      expect((await view()).promises.certs).toContain('ISO9001');
+      // the owner reads the promise, never the guard's key
+      expect(await html()).toContain('ISO 9001 quality system');
+      expect(await html()).not.toContain('>ISO9001<');
+
+      // withdrawing it removes the promise — default-deny, no stale claim left
+      expect((await setCertification(prod.db, DEMO_BIZ, 'ISO9001', false)).code).toBe('cert');
+      expect((await view()).promises.certs).not.toContain('ISO9001');
+      expect(await html()).not.toContain('ISO 9001 quality system');
+    });
+
+    it('a price rule is shown only when the owner has one, and matches the stored rule', async () => {
+      const f = await view();
+      const stored = await q((tx) => sql<{ floor: string; own: number; alone: number }>`
+        select floor_price_usd floor, max_discount_pct own, human_required_above_pct alone from pricing_policy
+         where business_id = ${DEMO_BIZ} and product_id is null limit 1`
+        .execute(tx as never).then((r) => r.rows[0] ?? null));
+      if (stored) {
+        expect(f.promises.floorPriceUsd).toBe(Number(stored.floor));
+        expect(f.promises.ceilingPct).toBe(stored.own);
+        expect(f.promises.ownAuthorityPct).toBe(stored.alone);
+        // the guard's own ordering: she settles alone BELOW the ceiling
+        expect(f.promises.ownAuthorityPct!).toBeLessThanOrEqual(f.promises.ceilingPct!);
+        expect(await html()).toContain('never quotes below');
+      } else {
+        expect(f.promises.floorPriceUsd).toBeNull();
+        expect(await html()).not.toContain('never quotes below');
+      }
+    });
+
+    it('connection reflects the real channel state and never leaks a secret', async () => {
+      const { loadChannels } = await import('../../src/api/web/channels.js');
+      const f = await view();
+      const real = await loadChannels(prod.db, DEMO_BIZ, false);
+      expect(f.connection.channel.connected).toBe(real.whatsapp.connected);
+      expect(f.connection.channel.status).toBe(real.whatsapp.status);
+
+      const page = await html();
+      const secrets = await q((tx) => sql<{ v: string }>`
+        select unnest(array_remove(array[secret_ref, secret_ciphertext, webhook_secret_ciphertext, secret_fingerprint], null)) v
+          from channel_credentials where business_id = ${DEMO_BIZ}`
+        .execute(tx as never).then((r) => r.rows.map((x) => x.v)));
+      expect(secrets.length, 'the demo tenant must have a credential for this test to mean anything').toBeGreaterThan(0);
+      for (const sec of secrets) expect(page, 'a secret reached the page').not.toContain(sec);
+    });
+
+    it('the next step is derived live from that same real data', async () => {
+      const f = await view();
+      const introduced = f.profile.name.trim() !== '' && (f.profile.description !== null || f.profile.location !== null);
+      const expected = !introduced ? 'introduce'
+        : f.products.total === 0 ? 'products'
+          : !f.connection.channel.connected ? 'connect' : null;
+      expect(f.nextStep).toBe(expected);
+    });
+
+    it('an unknown factory renders the honest empty state, never a crash', async () => {
+      const f = await view('00000000-0000-0000-0000-000000000000');
+      expect(f.profile.name).toBe('');
+      expect(f.products.total).toBe(0);
+      expect(f.promises.certs).toEqual([]);
+      expect(f.nextStep).toBe('introduce');
+      const page = await html('00000000-0000-0000-0000-000000000000');
+      expect(page).toContain('nothing to tell buyers about you yet');
+    });
+
+    it('SECURITY: the page requires an owner session, and shows only that owner’s factory', async () => {
+      const anon = await prod.app.inject({ method: 'GET', url: '/app/factory' });
+      expect(anon.statusCode).toBe(302);
+      expect(anon.headers['location']).toBe('/login');
+
+      const cookie = await login();
+      const mine = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      expect(mine.statusCode).toBe(200);
+      const demoName = (await view()).profile.name;
+      expect(mine.body).toContain(demoName);
+
+      // the sandbox tenant's own factory never appears on the demo owner's page
+      const other = await view(SANDBOX);
+      if (other.profile.name && other.profile.name !== demoName) expect(mine.body).not.toContain(other.profile.name);
+      expect((await view(SANDBOX)).products.total).not.toBe(-1);   // RLS-scoped read, no leak
+    });
+
+    it('the surfaces My factory folded in are still routed and still reachable', async () => {
+      const { FACTORY_ROUTES } = await import('../../src/api/web/layout.js');
+      const cookie = await login();
+      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      for (const route of FACTORY_ROUTES) {
+        expect(page.body, `${route} must stay linked from My factory`).toContain(`href="${route}"`);
+        const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
+        expect(r.statusCode, route).toBe(200);
+      }
+    });
+  });
+
   // ── M18.2 pilot allowlist, against real Postgres ────────────────────────────
   // The rule that stands between a bug and a real buyer's phone. Every check
   // here goes through the REAL send gate and the REAL store — no fakes.

@@ -20,6 +20,7 @@ import {
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
+import { loadFactory, renderFactory } from './factory.js';
 import {
   loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, runValidation, type AttestKey,
 } from './pilot.js';
@@ -311,6 +312,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderChannels(data, locale, flash),
     }));
   });
+
+  // ── Nomi Phase E · My factory ──────────────────────────────────────────────
+  // One calm page over the EXISTING profile / products / claims / channel read
+  // models. Read-only by design: every change still happens on the surface that
+  // owns it, so there is exactly one place that writes each thing.
+  app.get('/app/factory', authed('factory', async (s, _req, locale) =>
+    renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale)));
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
   app.get('/app/products', authed('products', async (s, _req, locale) =>

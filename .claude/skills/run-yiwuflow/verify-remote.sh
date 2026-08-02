@@ -52,7 +52,7 @@ case "$(printf '%s' "$HEALTH" | tr 'A-Z' 'a-z')" in
 esac
 
 # ── 2. auth gate ─────────────────────────────────────────────────────────────
-for p in /app /app/onboarding /app/inbox /app/sandbox; do
+for p in /app /app/onboarding /app/inbox /app/factory /app/sandbox; do
   c="$(code_of "$BASE$p")"
   [ "$c" = "302" ] || [ "$c" = "301" ] || fail "$p returned $c for an anonymous visitor (expected a redirect to /login)"
 done
@@ -101,6 +101,7 @@ check_page /app            '<h1 class="page">Today'  "Today renders"
 check_page /app/onboarding "Practice before launch"  "Pilot runbook renders"
 check_page /app/onboarding "Running version"         "deployment info visible to the owner"
 check_page /app/inbox      "Inbox"                   "Inbox renders"
+check_page /app/factory    "What you promise buyers" "My factory renders"
 check_page /app/knowledge  "What she knows"          "Knowledge renders"
 
 # Report the running build (informational, not a gate).

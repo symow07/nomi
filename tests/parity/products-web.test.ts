@@ -6,8 +6,8 @@ import {
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const items: ProductListItem[] = [
-  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPriceUsd: 0.92, learned: true, imageMatchable: true },
-  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPriceUsd: null, learned: false, imageMatchable: false },
+  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPriceUsd: 0.92, learned: true, imageMatchable: true, isActive: true },
+  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPriceUsd: null, learned: false, imageMatchable: false, isActive: true },
 ];
 
 const detail: ProductDetail = {

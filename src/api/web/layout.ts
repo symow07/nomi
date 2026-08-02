@@ -10,19 +10,29 @@ import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/message
  * their original names deliberately; only what the owner reads changed.
  */
 
+/**
+ * Nomi navigation. Moving toward four destinations — Today, Buyers, 小雅,
+ * My factory — one phase at a time.
+ *
+ * Phase E folds the four business-context surfaces (settings, products,
+ * knowledge, WhatsApp) into My factory, which links to each of them. Their
+ * ROUTES all still work and are still linked; only the top-level door moved,
+ * so nothing an owner (or a bookmark) relied on has been taken away.
+ */
 export const NAV: readonly { readonly href: string; readonly id: string; readonly icon: string }[] = [
   { href: '/app/onboarding',    id: 'onboarding',    icon: '🚀' },
   { href: '/app',               id: 'home',          icon: '🏠' },
   { href: '/app/inbox',         id: 'inbox',         icon: '📥' },
   { href: '/app/conversations', id: 'conversations', icon: '💬' },
-  { href: '/app/channels',      id: 'channels',      icon: '🔗' },
-  { href: '/app/products',      id: 'products',      icon: '📦' },
-  { href: '/app/knowledge',     id: 'knowledge',     icon: '📚' },
   { href: '/app/employee',      id: 'employee',      icon: '🧑‍💼' },
+  { href: '/app/factory',       id: 'factory',       icon: '🏭' },
   { href: '/app/analytics',     id: 'analytics',     icon: '📊' },
   { href: '/app/sandbox',       id: 'sandbox',       icon: '🧪' },
-  { href: '/app/settings',      id: 'settings',      icon: '⚙️' },
 ];
+
+/** Inside My factory — still routed, still linked, no longer a top-level door. */
+export const FACTORY_ROUTES: readonly string[] =
+  ['/app/settings', '/app/products', '/app/knowledge', '/app/channels'];
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -75,16 +85,17 @@ const STYLE = `
   .pill.warn { background:#2e2413; color:#fbbf24; }
   pre { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:18px; overflow-x:auto;
     font:14px/1.55 "SF Mono", ui-monospace, Menlo, monospace; color:#d6dae0; white-space:pre; margin:0; }
-  .muted { color:#6b7280; font-size:13px; }
+  .muted { color:#8b929c; font-size:13px; }   /* 6.2:1 — #6b7280 was 4.02:1, under AA at 13px */
   .empty { text-align:center; color:#8b929c; padding:40px 20px; }
-  /* RTL: mirror the sidebar to the right */
-  [dir="rtl"] .layout { grid-template-columns: 1fr 232px; }
-  [dir="rtl"] nav.side { grid-column: 2; }
-  [dir="rtl"] .content { grid-column: 1; }
+  /* RTL needs NO override here: a grid's first track already sits on the
+     inline-start edge, so the sidebar mirrors to the right on its own. The
+     three rules that used to live here re-flipped it — putting the sidebar
+     back on the LEFT in Arabic, and, because two explicitly-placed columns ran
+     against DOM order, pushing the whole content column into grid row 2 behind
+     a screen-height gap. Every page was affected at desktop width. */
   @media (max-width: 720px) {
-    .layout, [dir="rtl"] .layout { grid-template-columns: 1fr; }
+    .layout { grid-template-columns: 1fr; }
     nav.side { display:flex; flex-wrap:wrap; gap:4px; border-inline-end:none; border-bottom:1px solid #23272e; }
-    [dir="rtl"] nav.side, [dir="rtl"] .content { grid-column: auto; }
     nav.side .brand { width:100%; padding-bottom:10px; }
     nav.side a.navlink { margin:0; padding:8px 10px; }
     .stats { grid-template-columns: repeat(2,1fr); }

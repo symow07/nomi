@@ -34,6 +34,8 @@ export type ProductListItem = {
   readonly entryPriceUsd: number | null;
   readonly learned: boolean;
   readonly imageMatchable: boolean;
+  /** Deactivated products stay in the list but are not something you sell. */
+  readonly isActive: boolean;
 };
 
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
@@ -61,6 +63,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       entryPriceUsd: entryPrice,
       learned: r.is_active && entryPrice !== null,
       imageMatchable: r.is_active && Number(r.extras) > 0,
+      isActive: r.is_active,
     };
   }));
 }
