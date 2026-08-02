@@ -172,8 +172,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // is the boundary, so this route composes loadOperationsSnapshot +
   // renderOperationsHome and queries nothing else. Counts only; no new metrics.
   app.get('/app', authed('home', async (_s, _req, locale) => {
-    const snapshot = await loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider);
-    return renderOperationsHome(snapshot, locale);
+    // Phase B: Today composes two EXISTING read models — the operations snapshot
+    // and the pilot feedback loop. No new query, no new storage.
+    const [snapshot, feedback] = await Promise.all([
+      loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider),
+      loadPilotFeedback(deps.db, deps.businessId, 'today'),
+    ]);
+    return renderOperationsHome(snapshot, locale, {
+      conversationsNeedingYou: feedback.conversationsNeedingYou,
+      reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
+    });
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────

@@ -194,7 +194,8 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('M17.6 feedback: honest empty state before any buyer has talked', () => {
     const none: PilotFeedback = {
-      range: 'month', handoffReasons: [], ownerActions: [], lastActivityAt: null, hasActivity: false,
+      range: 'month', handoffReasons: [], ownerActions: [], conversationsNeedingYou: 0,
+      lastActivityAt: null, hasActivity: false,
     };
     for (const l of LOCALES) {
       const html = renderPilotRunbook(rb(), l, null, undefined, undefined, none);
@@ -214,7 +215,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
         { kind: 'takeover', count: 7, lastAt: NOW },
         { kind: 'owner_reply', count: 4, lastAt: NOW },
       ],
-      lastActivityAt: NOW, hasActivity: true,
+      conversationsNeedingYou: 6, lastActivityAt: NOW, hasActivity: true,
     };
     const html = renderPilotRunbook(rb(), 'en', null, undefined, undefined, f);
     expect(html).toContain(t('en', 'feedback.reasons'));

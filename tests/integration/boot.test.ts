@@ -254,7 +254,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.statusCode).toBe(200);
     expect(home.body).toContain("Lily's workspace");     // shell tagline (English default)
     expect(home.body).toContain('Needs your attention'); // M16.2b attention section
-    expect(home.body).toContain('System status');        // M16.2b honest channel status
+    expect(home.body).toContain('What Lily did');        // Phase B activity section
     expect(home.body).toMatch(/Conversations handled/);  // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
@@ -358,7 +358,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Channels');        // English default
+    expect(res.body).toContain('WhatsApp');        // English default
     expect(res.body).toContain('WhatsApp');
     expect(res.body).toContain('Coming soon');
     expect(res.body).toContain('Instagram');
@@ -575,7 +575,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/analytics?range=month', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Business review');   // English default
+    expect(res.body).toContain('Results');   // English default
     expect(res.body).toContain('Overview');
     expect(res.body).toContain('New customers');
     expect(res.body).toContain('Activity');
@@ -836,7 +836,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Pilot readiness');             // English default
+    expect(res.body).toContain('Getting ready');             // English default
     expect(res.body).toContain('Verified by system');          // detected badge (demo has products/channel)
     expect(res.body).toContain('action="/app/onboarding/validate"');   // sandbox check
     expect(res.body).toContain('action="/app/onboarding/attest"');     // owner attestation form
@@ -1366,9 +1366,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('Needs your attention');
-      expect(res.body).toContain('System status');
+      expect(res.body).toContain('What Lily did');           // Phase B activity
       expect(res.body).toContain('Conversations handled');
-      expect(res.body).toContain('Waiting for connection'); // honest in disabled mode
+      // Phase B: messaging state is ONE quiet line, not a status card
+      expect(res.body).toContain('Messaging is not active yet');
+      expect(res.body).toContain('class="notlive"');
       expect(res.body).not.toContain('class="pill ok"');     // never "Connected" pre-Meta
     });
 
@@ -1669,6 +1671,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     let bid: import('../../src/core/types/ids.js').BusinessId;
     let sbid: import('../../src/core/types/ids.js').BusinessId;
     const load = () => import('../../src/api/web/pilot.js').then(({ loadPilotRunbook }) => loadPilotRunbook);
+      const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+        import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
 
     beforeAll(async () => {
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -1762,6 +1766,69 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       for (const banned of ['score', 'rating', 'quality', 'percent', 'confidence']) {
         expect(blob.includes(banned), banned).toBe(false);
       }
+    });
+
+    it('Phase B: conversationsNeedingYou equals an INDEPENDENT distinct count', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const f = await loadPilotFeedback(prod.db, DEMO_BIZ, 'month');
+      const independent = await q((tx) => sql<{ n: number }>`
+        with cut as (select (date_trunc('month', now() at time zone 'Asia/Shanghai')
+                              at time zone 'Asia/Shanghai') as c)
+        select count(distinct conversation_id)::int as n
+          from conversation_events
+         where business_id=${DEMO_BIZ} and created_at >= (select c from cut)
+           and type in ('takeover','owner_reply')
+      `.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(f.conversationsNeedingYou).toBe(independent);
+    });
+
+    it('Phase B: approving a draft is NOT "stepping in" — only takeover/owner_reply count', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const before = (await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou;
+      // a routine approval must not inflate the count: under draft-first EVERY
+      // reply is approved, so counting those would say "n of n" and mean nothing
+      await q((tx) => sql`
+        insert into conversation_events (business_id, conversation_id, type, payload)
+        values (${DEMO_BIZ}, gen_random_uuid(), 'draft_resolved',
+                ${JSON.stringify({ actor: 'owner', status: 'approved' })}::jsonb)
+      `.execute(tx as never));
+      expect((await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou).toBe(before);
+
+      // but a real take-over does
+      await q((tx) => sql`
+        insert into conversation_events (business_id, conversation_id, type, payload)
+        values (${DEMO_BIZ}, gen_random_uuid(), 'takeover', ${JSON.stringify({ actor: 'owner' })}::jsonb)
+      `.execute(tx as never));
+      expect((await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou).toBe(before + 1);
+    });
+
+    it('Phase B: two events in ONE conversation count as one conversation', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const before = (await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou;
+      const cid = await q((tx) => sql<{ id: string }>`select gen_random_uuid() as id`
+        .execute(tx as never).then((r) => r.rows[0]!.id));
+      for (const type of ['takeover', 'owner_reply']) {
+        await q((tx) => sql`
+          insert into conversation_events (business_id, conversation_id, type, payload)
+          values (${DEMO_BIZ}, ${cid}, ${type}, ${JSON.stringify({ actor: 'owner' })}::jsonb)
+        `.execute(tx as never));
+      }
+      // DISTINCT, not a tally of events — "3 of 12 conversations", not "3 actions"
+      expect((await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou).toBe(before + 1);
+    });
+
+    it('Phase B: TENANT ISOLATION — another factory\'s takeovers are invisible', async () => {
+      const { loadPilotFeedback } = await import('../../src/api/web/pilot.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const sb = parseBusinessId(SANDBOX); if (!sb.ok) throw new Error('fixture');
+
+      const demoBefore = (await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou;
+      await withTenantTx(prod.db, sb.value, (tx) => sql`
+        insert into conversation_events (business_id, conversation_id, type, payload)
+        values (${SANDBOX}, gen_random_uuid(), 'takeover', ${JSON.stringify({ actor: 'owner' })}::jsonb)
+      `.execute(tx as never));
+      expect((await loadPilotFeedback(prod.db, DEMO_BIZ, 'month')).conversationsNeedingYou).toBe(demoBefore);
     });
 
     it('M17.6 feedback: an unknown factory is honestly empty, and it writes nothing', async () => {

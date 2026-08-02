@@ -97,7 +97,7 @@ check_page() {  # check_page <path> <marker> <label>
   local body; body="$(curl -sS --max-time 25 -b "$JAR" "$BASE$1" 2>/dev/null)" || fail "GET $1 failed"
   case "$body" in *"$2"*) ok "$3" ;; *) fail "$3 — marker '$2' missing from $1" ;; esac
 }
-check_page /app            "Needs your attention"    "Operations Home renders"
+check_page /app            '<h1 class="page">Today'  "Today renders"
 check_page /app/onboarding "Practice before launch"  "Pilot runbook renders"
 check_page /app/onboarding "Running version"         "deployment info visible to the owner"
 check_page /app/inbox      "Inbox"                   "Inbox renders"

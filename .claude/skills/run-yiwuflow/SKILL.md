@@ -10,7 +10,7 @@ credentials**. It is headless (no browser UI); you drive it with `curl`.
 
 **Drive it with the smoke script** — one command brings up an ephemeral Postgres,
 migrates + seeds the demo **and sandbox** tenants, builds, launches the server,
-and drives the whole owner walkthrough (auth gate → login → Operations Home →
+and drives the whole owner walkthrough (auth gate → login → Today →
 Pilot runbook → Sandbox → buyer turn → take over → owner reply → hand back),
 leaving the server running:
 
@@ -78,7 +78,7 @@ On success it prints `PASS` and leaves the server running, e.g.:
 
 ```
 PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
-  walkthrough:  auth gate → login → Operations Home → Pilot runbook → Sandbox
+  walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → buyer turn → take over → owner reply → hand back
                 rehearsal observed by the runbook: Practice before launch · 3/5
                 sandbox channel credentials: 0 (must be 0 — nothing delivered)
@@ -116,7 +116,7 @@ Log in from scratch (the flow the script automates):
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8787/app                  # 302 (unauth → /login)
 curl -s -c /tmp/jar -X POST http://127.0.0.1:8787/login \
   -H 'content-type: application/x-www-form-urlencoded' -d 'code=smoke-code'          # 302 → /app + Set-Cookie
-curl -s -b /tmp/jar http://127.0.0.1:8787/app | grep -o "Needs your attention"        # the home renders
+curl -s -b /tmp/jar http://127.0.0.1:8787/app | grep -o '<h1 class="page">Today'   # Today renders
 ```
 
 ### Stop

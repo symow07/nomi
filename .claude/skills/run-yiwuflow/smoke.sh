@@ -100,7 +100,7 @@ done
 curl -sS -c "$J" -o /dev/null -X POST "$BASEURL/login" -H "$FORM" -d "code=$CODE" || fail "login POST"
 
 #  the three owner surfaces
-get /app            "$SK/app-home.html"   "Needs your attention"    "Operations Home did not render"
+get /app            "$SK/app-home.html"   '<h1 class="page">Today'  "Today did not render"
 get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbook did not render"
 get /app/sandbox    "$SK/app-sandbox.html" "Simulation only"        "Sandbox did not render"
 
@@ -127,7 +127,7 @@ CREDS="$(psql "$MIGRATE_DATABASE_URL" -tAc \
 cat <<EOF
 
 PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
-  walkthrough:  auth gate → login → Operations Home → Pilot runbook → Sandbox
+  walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → buyer turn → take over → owner reply → hand back
                 rehearsal observed by the runbook: $REHEARSED
                 sandbox channel credentials: $CREDS (must be 0 — nothing delivered)

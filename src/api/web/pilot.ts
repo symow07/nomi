@@ -211,6 +211,15 @@ export type PilotFeedback = {
   readonly handoffReasons: readonly FeedbackItem[];
   /** What the owner did: takeover / owner_reply / resume_ai / draft_resolved. */
   readonly ownerActions: readonly FeedbackItem[];
+  /**
+   * Nomi Phase B — DISTINCT conversations where a human actually stepped in:
+   * the owner took the conversation over, or replied as themselves. Approving a
+   * draft is NOT stepping in — under draft-first every reply is approved, so
+   * counting those would say "12 of 12" every day and mean nothing. This counts
+   * the exceptions, which is the whole point: predictable work is hers, the
+   * exceptions are yours. A real COUNT(DISTINCT …), never a rate.
+   */
+  readonly conversationsNeedingYou: number;
   readonly lastActivityAt: Date | null;
   readonly hasActivity: boolean;
 };
@@ -221,7 +230,8 @@ export async function loadPilotFeedback(
   db: Db, businessIdRaw: string, range: Range = 'month',
 ): Promise<PilotFeedback> {
   const empty: PilotFeedback = {
-    range, handoffReasons: [], ownerActions: [], lastActivityAt: null, hasActivity: false,
+    range, handoffReasons: [], ownerActions: [], conversationsNeedingYou: 0,
+    lastActivityAt: null, hasActivity: false,
   };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
@@ -250,6 +260,14 @@ export async function loadPilotFeedback(
        group by type order by n desc, type asc
     `.execute(tx)).rows;
 
+    // Distinct conversations a human actually stepped into (see the type note).
+    const needing = (await sql<{ n: number }>`
+      select count(distinct conversation_id)::int as n
+        from conversation_events
+       where business_id = ${B} and created_at >= ${cutoff}
+         and type in ('takeover', 'owner_reply')
+    `.execute(tx)).rows[0]!.n;
+
     const handoffReasons = reasons.map((r): FeedbackItem => ({ kind: r.kind, count: r.n, lastAt: r.last_at }));
     const ownerActions = actions.map((r): FeedbackItem => ({ kind: r.type, count: r.n, lastAt: r.last_at }));
     const stamps = [...handoffReasons, ...ownerActions]
@@ -259,7 +277,7 @@ export async function loadPilotFeedback(
       : null;
 
     return {
-      range, handoffReasons, ownerActions, lastActivityAt,
+      range, handoffReasons, ownerActions, conversationsNeedingYou: needing, lastActivityAt,
       hasActivity: handoffReasons.length > 0 || ownerActions.length > 0,
     };
   });

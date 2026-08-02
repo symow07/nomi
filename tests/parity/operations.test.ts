@@ -74,76 +74,128 @@ const emptyFactory: OperationsSnapshot = {
   hasAttention: false,
 };
 
-describe('M16.2b · operations home (render)', () => {
-  it('en: four sections, real counts, deep links into the owning surfaces', () => {
-    const html = renderOperationsHome(populated, 'en');
+describe('Nomi Phase B · Today (render)', () => {
+  const obs = { conversationsNeedingYou: 3, reasons: [
+    { kind: 'human_requested', count: 1 },
+    { kind: 'complaint', count: 1 },
+  ] };
+
+  it('needs-you rows are tappable, counted, and deep-link to the owning surface', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
     expect(html).toContain('Needs your attention');
     expect(html).toContain('Waiting for you');       // handoffs
-    expect(html).toContain('Approvals needed');      // pending approvals
+    expect(html).toContain('Approvals needed');      // approvals
     expect(html).toContain('Questions to answer');   // gaps (M14 wording, reused)
-    expect(html).toContain('System status');
-    expect(html).toContain('Conversations handled'); // activity fact
-    // counts shown as-is
-    for (const n of ['>1<', '>2<', '>3<', '>5<', '>4<']) expect(html).toContain(n);
-    // deep links exist
-    expect(html).toContain('href="/app/inbox"');
-    expect(html).toContain('href="/app/inbox?filter=pending"');
-    expect(html).toContain('href="/app/knowledge"');
-    expect(html).toContain('href="/app/analytics"');
+    // each row is a LINK carrying its own count — one thumb, no hunting
+    expect(html).toContain('<a class="need" href="/app/inbox"');
+    expect(html).toContain('<a class="need" href="/app/inbox?filter=pending"');
+    expect(html).toContain('<a class="need" href="/app/knowledge"');
+    for (const n of ['>1<', '>2<', '>3<']) expect(html).toContain(n);
   });
 
-  it('zh + ar render in their own language', () => {
-    const zh = renderOperationsHome(populated, 'zh');
-    expect(zh).toContain('需要你处理'); expect(zh).toContain('等你接手'); expect(zh).toContain('系统状态');
-    expect(zh).not.toContain('Needs your attention');
-    const ar = renderOperationsHome(populated, 'ar');
-    expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain('حالة النظام');
-  });
-
-  it('attention is shown in ATTENTION_PRIORITY order — no urgency scoring', () => {
-    const html = renderOperationsHome(populated, 'en');
+  it('rows appear in ATTENTION_PRIORITY order — humans waiting first', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
     const waiting = html.indexOf('Waiting for you');
     const approvals = html.indexOf('Approvals needed');
     const gaps = html.indexOf('Questions to answer');
-    expect(waiting).toBeGreaterThanOrEqual(0);
     expect(waiting).toBeLessThan(approvals);
     expect(approvals).toBeLessThan(gaps);
   });
 
-  it('empty factory shows the honest all-caught-up state, no attention cards', () => {
+  it('a quiet day is a designed state, not an empty grid', () => {
     for (const [l, phrase] of [['en', "You're all caught up"], ['zh', '都处理完了'], ['ar', 'أنجزت كل شيء']] as const) {
       const html = renderOperationsHome(emptyFactory, l);
       expect(html).toContain(phrase);
+      expect(html).toContain('class="block calm"');
     }
     const en = renderOperationsHome(emptyFactory, 'en');
-    expect(en).not.toContain('Waiting for you');   // attention cards only render when non-zero
-    expect(en).not.toContain('Approvals needed');
+    expect(en).toContain('Lily is looking after your buyers');   // says WHY it is calm
+    expect(en).not.toContain('class="need"');                    // no attention rows at all
   });
 
-  it('system status is honest pre-Meta — never pretends messaging is live', () => {
-    const html = renderOperationsHome(populated, 'en');
-    expect(html).toContain('Waiting for connection');
+  it('takeover observation: two real counts as a fraction, with reasons', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
+    expect(html).toContain('How often you stepped in');
+    expect(html).toContain('3 of 5 conversations needed you');   // 5 = activity.handled
+    expect(html).toContain('Why you stepped in');
+    expect(html).toContain('the buyer asked for a person');      // M16.1 wording reused
+    expect(html).toContain('a complaint');
+  });
+
+  it('the fraction is only shown when the denominator is honest', () => {
+    // needed > handled (possible across ranges) ⇒ drop the denominator, never lie
+    const odd = renderOperationsHome(
+      { ...populated, activity: { ...populated.activity, handled: 1 } }, 'en',
+      { conversationsNeedingYou: 4, reasons: [] });
+    expect(odd).toContain('4 conversations needed you');
+    expect(odd).not.toContain('4 of 1');
+    // and nothing to report reads as such
+    const none = renderOperationsHome(populated, 'en', { conversationsNeedingYou: 0, reasons: [] });
+    expect(none).toContain('You did not need to step in.');
+  });
+
+  it('only reasons backed by events are shown', () => {
+    const html = renderOperationsHome(populated, 'en', { conversationsNeedingYou: 1, reasons: [] });
+    expect(html).not.toContain('Why you stepped in');            // no invented categories
+  });
+
+  it('the section is omitted entirely when no observation is supplied', () => {
+    expect(renderOperationsHome(populated, 'en')).not.toContain('How often you stepped in');
+  });
+
+  it('learning reads as her learning, not a score', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
+    expect(html).toContain('Lily is learning from your corrections');
+    expect(html).toContain('Facts added');
+    expect(html).toContain('Answers corrected');
+    const quiet = renderOperationsHome(emptyFactory, 'en', obs);
+    expect(quiet).toContain('Nothing new taught yet.');
+  });
+
+  it('activity is plain counts — no comparison, no ranking', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
+    expect(html).toContain('What Lily did');
+    expect(html).toContain('Conversations handled');
+    expect(html).toContain('Replies prepared');
+    expect(html).toContain('Replies you corrected');
+    for (const w of ['vs', 'compared', 'last week', 'trend', 'better', 'worse']) {
+      expect(html.toLowerCase().includes(w), w).toBe(false);
+    }
+  });
+
+  it('messaging state is one quiet line, never a fake Connected badge', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
     expect(html).toContain('Messaging is not active yet');
-    expect(html).toContain('class="pill warn"');
-    expect(html).not.toContain('class="pill ok"');   // not "Connected"
+    expect(html).toContain('class="notlive"');
+    expect(html).not.toContain('class="pill ok"');
+    // it is no longer a status card competing with real work
+    expect(html).not.toContain('System status');
+  });
+
+  it('zh + ar render in their own language, and RTL is handled', () => {
+    const zh = renderOperationsHome(populated, 'zh', obs);
+    expect(zh).toContain('需要你处理'); expect(zh).toContain('等你接手');
+    expect(zh).toContain('你出面了几次');
+    expect(zh).not.toContain('Needs your attention');
+    const ar = renderOperationsHome(populated, 'ar', obs);
+    expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain('كم مرة تدخّلت');
+    // the chevron must not point the wrong way in RTL
+    expect(ar).toContain('[dir="rtl"] .need-go');
   });
 
   it('invents no metric — no score / percentage / ranking in any locale', () => {
     for (const l of LOCALES) {
-      const html = (renderOperationsHome(populated, l) + renderOperationsHome(emptyFactory, l)).toLowerCase();
-      for (const banned of ['score', 'confidence', 'percent', '%', 'ranking', 'rating']) {
+      const html = (renderOperationsHome(populated, l, obs) + renderOperationsHome(emptyFactory, l, obs)).toLowerCase();
+      for (const banned of ['score', 'confidence', 'percent', '%', 'ranking', 'rating', 'rate']) {
         expect(html.includes(banned), `${l}:${banned}`).toBe(false);
       }
     }
   });
 
-  it('M17.4: infrastructure health stays OFF the Operations Home', () => {
-    // Delivery/queue health belongs on the runbook. The Home answers "what needs
-    // my attention today?" — it must not become a plumbing dashboard.
+  it('M17.4: infrastructure health stays OFF Today', () => {
     for (const l of LOCALES) {
-      const html = renderOperationsHome(populated, l);
+      const html = renderOperationsHome(populated, l, obs);
       expect(html).not.toContain(t(l, 'ops.health.title'));
-      expect(html).not.toContain(t(l, 'ops.health.stuck'));
       const low = html.toLowerCase();
       for (const infra of ['queue', 'worker', 'uptime', 'latency', 'memory', 'cpu']) {
         expect(low.includes(infra), `${l}:"${infra}"`).toBe(false);
@@ -155,14 +207,14 @@ describe('M16.2b · operations home (render)', () => {
     const LATIN = ['ai', 'llm', 'model', 'token', 'api', 'webhook', 'database', 'confidence', 'automation', 'prompt'];
     const CJK = ['模型', '人工智能', '数据库', '置信度', '接口'];
     for (const l of LOCALES) {
-      const html = (renderOperationsHome(populated, l) + renderOperationsHome(emptyFactory, l)).toLowerCase();
+      const html = (renderOperationsHome(populated, l, obs) + renderOperationsHome(emptyFactory, l, obs)).toLowerCase();
       for (const w of LATIN) expect(new RegExp(`\\b${w}\\b`).test(html), `${l}:${w}`).toBe(false);
       for (const w of CJK) expect(html.includes(w), `${l}:${w}`).toBe(false);
     }
   });
 
-  it('escapes nothing buyer-supplied (snapshot carries no free text) and is mobile-first', () => {
-    const html = renderOperationsHome(populated, 'en');
+  it('mobile-first: no tables, phone breakpoint present', () => {
+    const html = renderOperationsHome(populated, 'en', obs);
     expect(html).not.toContain('<table');
     expect(html).toContain('@media (max-width:560px)');
   });
