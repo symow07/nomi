@@ -463,9 +463,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Employee file');   // English default
-    expect(res.body).toContain('Responsibilities');
-    expect(res.body).toContain('Can do now');
+    expect(res.body).toContain('<h1 class="page">Lily</h1>');  // Phase C: the page IS her
+    expect(res.body).toContain('What she handles on her own');  // Phase C
+    expect(res.body).toContain('She handles this herself');   // Phase C: permission wording
     expect(res.body).toContain('Growth');
     expect(res.body).toContain('Promotion');
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
@@ -1845,6 +1845,110 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(rb.rehearsal.done.takeover).toBe(false);      // the SANDBOX events do not leak
       expect(rb.rehearsal.done.ownerReply).toBe(false);
       expect(rb.rehearsal.available).toBe(true);           // a sandbox id was supplied, just an empty one
+    });
+  });
+
+  // ── Nomi Phase C · 小雅 over real data ──────────────────────────────────────
+  describe('Phase C · 小雅 (over real data)', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    });
+
+    it('an unknown factory is honestly empty', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const e = await loadEmployee(prod.db, '00000000-0000-0000-0000-000000000000');
+      expect(e.knows).toBe(0);
+      expect(e.canDo).toEqual([]);
+      expect(e.promoted).toBe(false);
+    });
+
+    it('HONESTY: `knows` equals an independent COUNT of owner-taught knowledge', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const e = await loadEmployee(prod.db, DEMO_BIZ);
+      const independent = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from product_knowledge
+         where business_id=${DEMO_BIZ} and status='active'
+           and source in ('owner_confirmed','owner_corrected')
+      `.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(e.knows).toBe(independent);
+    });
+
+    it('teaching her a fact raises what she knows; a seeded sample does NOT', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const before = (await loadEmployee(prod.db, DEMO_BIZ)).knows;
+
+      // a system seed is not something the owner taught
+      await q((tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${DEMO_BIZ}, null, 'faq', 'phase-c-seed', 'sample', 'system_seed')
+      `.execute(tx as never));
+      expect((await loadEmployee(prod.db, DEMO_BIZ)).knows).toBe(before);
+
+      // one the owner confirmed IS
+      await q((tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${DEMO_BIZ}, null, 'faq', 'phase-c-taught', 'a taught fact', 'owner_confirmed')
+      `.execute(tx as never));
+      expect((await loadEmployee(prod.db, DEMO_BIZ)).knows).toBe(before + 1);
+    });
+
+    it('archiving a correction removes it from what she currently knows', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const before = (await loadEmployee(prod.db, DEMO_BIZ)).knows;
+      await q((tx) => sql`
+        update product_knowledge set status='archived', updated_at=now()
+         where business_id=${DEMO_BIZ} and label='phase-c-taught'
+      `.execute(tx as never));
+      expect((await loadEmployee(prod.db, DEMO_BIZ)).knows).toBe(before - 1);
+    });
+
+    it('capability state comes from the EXISTING autonomy policy, unchanged', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const e = await loadEmployee(prod.db, DEMO_BIZ);
+      const policy = await q((tx) => sql<{ capability: string; mode: string }>`
+        select capability, mode from autonomy_policy where business_id=${DEMO_BIZ} order by capability
+      `.execute(tx as never).then((r) => r.rows));
+      expect(e.capabilities.map((c) => c.capability)).toEqual(policy.map((p) => p.capability));
+      expect([...e.canDo].sort()).toEqual(policy.filter((p) => p.mode === 'auto').map((p) => p.capability).sort());
+      // confirm_order is never in the "handles alone" set
+      expect(e.canDo).not.toContain('confirm_order');
+    });
+
+    it('the page renders her name and the four questions, authenticated', async () => {
+      const cookie = await login();
+      const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('<h1 class="page">Lily</h1>');
+      expect(res.body).toContain('What she knows');
+      expect(res.body).toContain('What she handles on her own');
+      expect(res.body).toContain('Recently');
+      expect(res.body).toContain('What she still needs from you');
+    });
+
+    it('SECURITY: unauthenticated /app/employee redirects', async () => {
+      const res = await prod.app.inject({ method: 'GET', url: '/app/employee' });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toBe('/login');
+    });
+
+    it('TENANT ISOLATION: another factory\'s taught knowledge is invisible', async () => {
+      const { loadEmployee } = await import('../../src/api/web/employee.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+      const sb = parseBusinessId(SANDBOX); if (!sb.ok) throw new Error('fixture');
+
+      const demoBefore = (await loadEmployee(prod.db, DEMO_BIZ)).knows;
+      await withTenantTx(prod.db, sb.value, (tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${SANDBOX}, null, 'faq', 'other-tenant', 'not yours', 'owner_confirmed')
+      `.execute(tx as never));
+      expect((await loadEmployee(prod.db, DEMO_BIZ)).knows).toBe(demoBefore);
     });
   });
 

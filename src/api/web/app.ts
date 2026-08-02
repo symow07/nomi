@@ -346,10 +346,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const e = await loadEmployee(deps.db, s.businessId);
+    // Phase C: "who is she today?" composes her profile with EXISTING read
+    // models — M14 knowledge (gaps + report), the operations snapshot (activity)
+    // and the pilot feedback loop. No new query, no new storage.
+    const [e, ops, snapshot, feedback] = await Promise.all([
+      loadEmployee(deps.db, s.businessId),
+      loadKnowledgeOps(deps.db, s.businessId, 'month'),
+      loadOperationsSnapshot(deps.db, s.businessId, 'month', deps.provider),
+      loadPilotFeedback(deps.db, s.businessId, 'month'),
+    ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'employee.title'), active: 'employee',
-      bodyHtml: renderEmployee(e, locale, flash),
+      title: t(locale, 'nav.employee'), active: 'employee',
+      bodyHtml: renderEmployee(e, locale, flash, {
+        taughtRecently: ops.report.factsAdded,
+        corrected: ops.report.answersCorrected,
+        handled: snapshot.activity.handled,
+        draftsPrepared: snapshot.activity.draftsCreated,
+        neededYou: feedback.conversationsNeedingYou,
+        gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
+      }),
     }));
   });
   const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>

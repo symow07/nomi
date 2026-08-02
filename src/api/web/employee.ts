@@ -27,6 +27,13 @@ export type GrowthEvent = { readonly kind: GrowthKind; readonly capability: stri
 
 export type EmployeeProfile = {
   readonly hireDate: Date | null;
+  /**
+   * Nomi Phase C — how many things she has been taught that are still current:
+   * active knowledge the OWNER confirmed or corrected (seeded samples excluded,
+   * because nobody taught those). Part of who she is, so it lives on her
+   * profile. A real COUNT — never a mastery or coverage figure.
+   */
+  readonly knows: number;
   readonly stage: Stage;
   readonly canDo: readonly string[];       // auto capability codes
   readonly needConfirm: readonly string[]; // draft capability codes (excl. confirm_order)
@@ -39,7 +46,7 @@ export type EmployeeProfile = {
 export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
   const bid = parseBusinessId(businessIdRaw);
   const empty: EmployeeProfile = {
-    hireDate: null, stage: 'probation', canDo: [], needConfirm: [], capabilities: [],
+    hireDate: null, knows: 0, stage: 'probation', canDo: [], needConfirm: [], capabilities: [],
     growth: [], promoted: false, conditions: [],
   };
   if (!bid.ok) return empty;
@@ -47,6 +54,11 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
   return withTenantTx(db, bid.value, async (tx) => {
     const onboard = (await sql<{ signup_at: Date | null }>`
       select signup_at from onboarding_state where business_id = ${bid.value}`.execute(tx)).rows[0];
+
+    const knows = (await sql<{ n: number }>`
+      select count(*)::int as n from product_knowledge
+       where business_id = ${bid.value} and status = 'active'
+         and source in ('owner_confirmed', 'owner_corrected')`.execute(tx)).rows[0]!.n;
 
     const caps = (await sql<{ capability: string; mode: string }>`
       select capability, mode from autonomy_policy where business_id = ${bid.value} order by capability`.execute(tx)).rows;
@@ -85,6 +97,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 
     return {
       hireDate: onboard?.signup_at ?? null,
+      knows,
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
       conditions: promoted ? [] : [
@@ -106,7 +119,72 @@ const list = (title: string, mark: string, items: readonly string[], cls: string
     ? `<div class="dgroup"><div class="dtitle">${esc(title)}</div>${items.map((i) => `<div class="ditem ${cls}">${mark} ${esc(i)}</div>`).join('')}</div>`
     : `<div class="dgroup"><div class="dtitle">${esc(title)}</div><div class="ditem muted">${esc(emptyLabel)}</div></div>`;
 
-export function renderEmployee(e: EmployeeProfile, locale: Locale, flash: string | null): string {
+/**
+ * Nomi Phase C — the rest of "who is she today?", composed by the route from
+ * read models that already exist (M13/M14 knowledge, the operations snapshot,
+ * the pilot feedback loop). Structurally typed so this module imports nothing
+ * new and cannot create a cycle. Counts only; no rate, no score.
+ */
+export type HerContext = {
+  readonly taughtRecently: number;      // facts added in range (M14)
+  readonly corrected: number;           // answers you corrected in range (M14)
+  readonly handled: number;             // conversations she handled (M16.2a)
+  readonly draftsPrepared: number;
+  readonly neededYou: number;           // DISTINCT conversations a human stepped into
+  readonly gaps: readonly { readonly question: string; readonly count: number }[];
+};
+
+const countRow = (value: number, label: string): string =>
+  `<div class="hrow"><span class="hnum">${value}</span><span class="hlabel">${esc(label)}</span></div>`;
+
+/** 1 · What does she know? Her learning, in her terms — never a "database". */
+function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
+  if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
+    return `<div class="card"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+      <p class="muted empty-p">${esc(t(locale, 'her.knows.none'))}</p>
+      <a class="btn" href="/app/knowledge">${esc(t(locale, 'knowledge.teach'))}</a></div>`;
+  }
+  return `<div class="card"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+    <div class="hrows">
+      ${countRow(e.knows, t(locale, 'her.knows.count'))}
+      ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
+      ${c ? countRow(c.corrected, t(locale, 'her.knows.corrected')) : ''}
+    </div>
+    <a class="more" href="/app/knowledge">${esc(t(locale, 'ops.open'))} ›</a></div>`;
+}
+
+/** 3 · What did she do recently? Real counts, no rate. */
+function recentSection(c: HerContext | undefined, locale: Locale): string {
+  if (!c) return '';
+  const quiet = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
+  return `<div class="card"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
+    ${quiet ? `<p class="muted empty-p">${esc(t(locale, 'her.recent.quiet'))}</p>`
+      : `<div class="hrows">
+          ${countRow(c.handled, t(locale, 'ops.activity.handled'))}
+          ${countRow(c.draftsPrepared, t(locale, 'ops.activity.drafts'))}
+          ${countRow(c.neededYou, t(locale, 'her.recent.needed'))}
+         </div>`}</div>`;
+}
+
+/** 4 · What still needs teaching? Each item leads to the EXISTING teach flow. */
+function teachSection(c: HerContext | undefined, locale: Locale): string {
+  if (!c) return '';
+  if (c.gaps.length === 0) {
+    return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
+      <p class="muted empty-p">✓ ${esc(t(locale, 'her.teach.none'))}</p></div>`;
+  }
+  return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
+    <div class="gaps">${c.gaps.map((g) => `
+      <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
+        <span class="gq">${esc(g.question)}</span>
+        <span class="gmeta muted">${esc(t(locale, 'her.teach.asked', { count: g.count }))}</span>
+        <span class="gact">${esc(t(locale, 'her.teach.go'))} ›</span>
+      </a>`).join('')}</div></div>`;
+}
+
+export function renderEmployee(
+  e: EmployeeProfile, locale: Locale, flash: string | null, ctx?: HerContext,
+): string {
   const name = EMPLOYEE_NAME[locale];
   const capName = (c: string) => capabilityName(locale, c);
   const stageLabel = t(locale, `employee.stage.${e.stage}` as MessageKey);
@@ -118,11 +196,15 @@ export function renderEmployee(e: EmployeeProfile, locale: Locale, flash: string
     ${e.hireDate ? `<div class="muted" style="margin-top:8px">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
   </div>`;
 
+  // 2 · What can she handle? Permission and trust boundaries — never a measure
+  //     of how good she is. Promotion LOGIC is untouched; only the framing.
   const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
-  const duties = `<div class="card"><h2>${esc(t(locale, 'employee.duties.title'))}</h2>
-    ${list(t(locale, 'employee.duties.canDo'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
-    ${list(t(locale, 'employee.duties.needConfirm'), '⚠️', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
-    ${list(t(locale, 'employee.duties.cannotDo'), '✗', cannotDo, 'no', t(locale, 'employee.duties.none'))}
+  const duties = `<div class="card"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
+    ${e.canDo.length === 0 && e.needConfirm.length === 0
+      ? `<p class="muted empty-p">${esc(t(locale, 'her.handles.none'))}</p>` : ''}
+    ${list(t(locale, 'her.handles.alone'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'her.handles.waits'), '○', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
+    ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
   </div>`;
 
   const growth = `<div class="card"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
@@ -155,12 +237,38 @@ export function renderEmployee(e: EmployeeProfile, locale: Locale, flash: string
       </div>`
     : `<div class="card"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
-  return `<h1 class="page">${esc(t(locale, 'employee.title'))}</h1>
+  // Order answers "who is she today?": who she is → what she knows → what she is
+  // trusted with → what she did → what she still needs from you. Promotion and
+  // growth sit last: they are the mechanics behind the relationship, not the
+  // headline.
+  return `<h1 class="page">${esc(name)}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
-    ${card}${duties}${growth}${promo}${actions}${EMP_STYLE}`;
+    ${card}
+    ${knowsSection(e, ctx, locale)}
+    ${duties}
+    ${recentSection(ctx, locale)}
+    ${teachSection(ctx, locale)}
+    ${growth}${promo}${actions}${EMP_STYLE}`;
 }
 
 const EMP_STYLE = `<style>
+  /* Phase C: plain count rows and tappable gap rows — no matrix, no dense table. */
+  .hrows { display:flex; flex-direction:column; gap:2px; }
+  .hrow { display:flex; align-items:baseline; gap:12px; padding:8px 0; border-bottom:1px solid #1c2026; }
+  .hrow:last-child { border-bottom:0; }
+  .hnum { font-size:18px; font-weight:700; color:#fff; min-width:2.2em; font-variant-numeric:tabular-nums; }
+  .hlabel { color:#b9c0c9; font-size:15px; }
+  .empty-p { margin:0 0 12px; }
+  .more { display:inline-block; margin-top:12px; color:#60a5fa; font-size:14px; }
+  .gaps { display:flex; flex-direction:column; gap:10px; }
+  a.gap { display:grid; grid-template-columns:1fr auto; gap:4px 12px; background:#0f1216;
+          border:1px solid #2b313a; border-radius:12px; padding:14px 16px; }
+  a.gap:hover, a.gap:focus-visible { border-color:#3d7a63; }
+  .gq { font-size:15px; color:#e6e8eb; }
+  .gmeta { font-size:12px; grid-column:1; }
+  .gact { grid-row:1 / span 2; align-self:center; color:#60a5fa; font-size:14px; white-space:nowrap; }
+  [dir="rtl"] .gact { transform:scaleX(-1); }
+  @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
   .emp-h { display:flex; align-items:center; gap:14px; }
   .ava { width:44px; height:44px; border-radius:999px; background:#1b2430; display:flex; align-items:center; justify-content:center; font-size:22px; }
   .emp-name { font-size:19px; font-weight:700; }

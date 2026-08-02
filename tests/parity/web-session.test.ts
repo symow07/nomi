@@ -61,7 +61,12 @@ describe('M17.3 · production session cookie contract', () => {
     // the payload is signed: flipping one character invalidates it
     const codec = makeSessionCodec('x'.repeat(64));
     expect(codec.verify(token, Date.now())).not.toBeNull();
-    expect(codec.verify(token.slice(0, -1) + 'A', Date.now())).toBeNull();
+    // Flip the LAST character to one it is not: ~7% of tokens already end in
+    // 'A', and appending 'A' to the truncated token would rebuild the original
+    // byte-for-byte — a tamper test that silently tested nothing.
+    const flipped = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
+    expect(flipped).not.toBe(token);
+    expect(codec.verify(flipped, Date.now())).toBeNull();
     await app.close();
   });
 
