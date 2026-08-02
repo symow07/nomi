@@ -147,19 +147,19 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     expect(html).toContain('/logout');
     expect(html).toContain('class="langsw"');            // switcher present
     expect(html).toContain('href="/locale?set=zh');       // switch links exist
-    expect(html).toContain('YiwuFlow');                   // brand NOT renamed yet
+    expect(html).toContain('Nomi');                       // Phase A: customer-facing brand
   });
 
   it('zh shell: Chinese nav + tagline; ar shell: RTL', () => {
     const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(zh).toContain('<html lang="zh" dir="ltr">');
     expect(zh).toContain('小雅的工作台');
-    expect(zh).toContain('运营'); expect(zh).toContain('收件箱');   // M16.4c: nav matches the page it opens
+    expect(zh).toContain('今天'); expect(zh).toContain('收件箱');   // M16.4c: nav matches the page it opens
 
     const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
     expect(ar).toContain('مساحة عمل ياسمين');
-    expect(ar).toContain('العمليات');                     // M16.4c: "operations"
+    expect(ar).toContain('اليوم');                        // Phase A: "today"
   });
 
   it('nav uses owner language — no technical/AI vocabulary in any locale', () => {

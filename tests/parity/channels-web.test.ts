@@ -29,7 +29,7 @@ const needsAttention: ChannelsData = {
 describe('M9.4 · channel center (localized)', () => {
   it('connected: status, masked number, activity, health, manage actions — per locale', () => {
     const en = renderChannels(connected, 'en', null);
-    expect(en).toContain('Channels');
+    expect(en).toContain('WhatsApp');
     expect(en).toContain('Connected ✓');
     expect(en).toContain('+86 579****0001');       // MASKED — never a secret
     expect(en).toContain('Today');                 // localized relative time

@@ -101,7 +101,7 @@ check_page /app            "Needs your attention"    "Operations Home renders"
 check_page /app/onboarding "Practice before launch"  "Pilot runbook renders"
 check_page /app/onboarding "Running version"         "deployment info visible to the owner"
 check_page /app/inbox      "Inbox"                   "Inbox renders"
-check_page /app/knowledge  "Factory knowledge"       "Knowledge renders"
+check_page /app/knowledge  "What she knows"          "Knowledge renders"
 
 # Report the running build (informational, not a gate).
 BUILD="$(curl -sS --max-time 25 -b "$JAR" "$BASE/app/onboarding" 2>/dev/null \

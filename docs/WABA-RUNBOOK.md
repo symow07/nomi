@@ -15,7 +15,7 @@ Operational, not architectural. What to do, in order, and what to do when it bre
 4. **Display-name review** (1–3 days) → then production base URL + key.
 5. **Template pack, submitted in week one, one batch** (each edit = re-review):
    holding message, follow-up nudges × trigger × language, digest opener.
-   Wording frames YiwuFlow as the *merchant's own sales assistant* — never a
+   Wording frames Nomi as the *merchant's own sales assistant* — never a
    general-purpose AI (policy constraint, ADR-0012 A).
 
 ## Hard platform rules the code already honours

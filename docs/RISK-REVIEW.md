@@ -5,7 +5,7 @@ marked ⛔ should block production; ⚠️ should block *scale*; ▫️ are acce
 now, on the record.
 
 The single theme: **the engine is now well-defended; the edges are not.** Almost
-every remaining risk lives where YiwuFlow touches the outside world — channels,
+every remaining risk lives where Nomi touches the outside world — channels,
 humans, model behaviour, and the founder's own time.
 
 ---

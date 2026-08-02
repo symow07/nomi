@@ -105,8 +105,8 @@ Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE
 The script leaves a logged-in cookie jar. These return the expected marker text:
 
 ```bash
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/knowledge  | grep -o 'Factory knowledge'
-curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/onboarding | grep -o 'Pilot readiness'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/knowledge  | grep -o 'What she knows'
+curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/onboarding | grep -o 'Getting ready'
 curl -sb /tmp/yf-run/cookies.txt http://127.0.0.1:8787/app/sandbox    | grep -o 'Simulation only'
 ```
 

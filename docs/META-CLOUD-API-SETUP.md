@@ -32,7 +32,7 @@ recipients (up to 5) — exactly right for a one-owner pilot.
 ## 4 · Send the dashboard's first test message
 Use the API Setup page's **Send message** button (the hello_world template)
 to the phone you just added. Seeing it arrive proves token + number work
-before any YiwuFlow step. Reply anything from the phone — that opens the
+before any Nomi step. Reply anything from the phone — that opens the
 24-hour window so free-form replies work during verification.
 
 ## 5 · Webhook (after `npm start` + tunnel are up)
@@ -59,7 +59,7 @@ body). No extra configuration.
   API with a verified business or the 360dialog BSP path (adapter already
   in the codebase; flip `WHATSAPP_PROVIDER=360dialog`).
 
-## 7 · YiwuFlow-side wiring (done by the deploy flow, listed for transparency)
+## 7 · Nomi-side wiring (done by the deploy flow, listed for transparency)
 - `channel_credentials` row: `channel='whatsapp'`,
   `external_ref=<META_WHATSAPP_PHONE_NUMBER_ID>` for the pilot business —
   this is tenant resolution; without it inbound events are acked and dropped.

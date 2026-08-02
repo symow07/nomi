@@ -59,6 +59,31 @@ describe('ADR-0008 · catalog completeness (CI gate)', () => {
     for (const l of LOCALES) expect(EMPLOYEE_NAME[l].length).toBeGreaterThan(0);
     expect(EMPLOYEE_NAME).toEqual({ en: 'Lily', zh: '小雅', ar: 'ياسمين' });
   });
+
+  // Phase A (Nomi): the employee's nav entry IS her name — "you go to her", not
+  // "you configure an employee record". Two sources for one name would drift, so
+  // this pins them together.
+  it('the employee nav label is her name in every locale', () => {
+    for (const l of LOCALES) {
+      expect(t(l, 'nav.employee'), l).toBe(EMPLOYEE_NAME[l]);
+    }
+  });
+
+  // Phase A: nav labels are what the owner reads; the KEYS stay untouched so
+  // routes, tests and i18n lookups keep working.
+  it('no navigation label uses system vocabulary', () => {
+    const SYSTEM_WORDS = ['sandbox', 'channel', 'config', 'dashboard', 'admin', 'panel',
+                          'console', 'module', 'operations', '沙盒', '配置', '控制台', '后台'];
+    for (const l of LOCALES) {
+      for (const id of ['home','inbox','conversations','channels','products','knowledge',
+                        'employee','analytics','sandbox','settings','onboarding']) {
+        const label = t(l, `nav.${id}` as MessageKey).toLowerCase();
+        for (const w of SYSTEM_WORDS) {
+          expect(label.includes(w), `${l} nav.${id} = "${label}" contains "${w}"`).toBe(false);
+        }
+      }
+    }
+  });
 });
 
 describe('ADR-0008 · banned technical vocabulary in every locale', () => {

@@ -23,7 +23,7 @@ export type ShareableWeekInput = {
 };
 
 /** The referral mark — short, curious, never salesy. */
-export const SHARE_MARK_ZH = '—— 数字员工，由 YiwuFlow 打理';
+export const SHARE_MARK_ZH = '—— 数字员工，由 Nomi 打理';
 
 export function renderShareableWeekly(w: ShareableWeekInput): string {
   return joinSections([

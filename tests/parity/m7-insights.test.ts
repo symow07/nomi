@@ -162,7 +162,7 @@ describe('M7 · shareable 员工周报', () => {
   it('uses the box grammar and carries the referral mark', () => {
     expect(card.split('\n')[0]).toBe(BOX.top('👩‍💼 小雅的一周'));
     expect(card).toContain(SHARE_MARK_ZH);
-    expect(SHARE_MARK_ZH).toContain('YiwuFlow');
+    expect(SHARE_MARK_ZH).toContain('Nomi');
   });
 
   it('brags honestly: real numbers, one story, zero-value lines omitted', () => {

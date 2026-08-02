@@ -1,4 +1,4 @@
-# YiwuFlow — Environment Variable Checklist
+# Nomi — Environment Variable Checklist
 
 Set all variables in **n8n Settings → Environment Variables** before running any workflow.
 Variables marked **[DB]** are stored in the `businesses` table, not in n8n — update them via SQL after running the seed.

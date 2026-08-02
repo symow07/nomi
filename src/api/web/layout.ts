@@ -4,7 +4,10 @@ import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/message
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
  * (en/zh/ar) with RTL for Arabic and a language switcher. Owner language only.
- * Branding stays "YiwuFlow" here — the FLOWer rename is a separate change.
+ *
+ * Phase A: the customer-facing brand is "Nomi". Internal identifiers — the
+ * repository, database, `yiwuflow_app` role, migrations and i18n KEYS — keep
+ * their original names deliberately; only what the owner reads changed.
  */
 
 export const NAV: readonly { readonly href: string; readonly id: string; readonly icon: string }[] = [
@@ -108,7 +111,7 @@ export function shell(input: {
 <style>${STYLE}</style></head>
 <body><div class="layout">
   <nav class="side">
-    <div class="brand">YiwuFlow<small>${esc(t(locale, 'app.tagline', { name }))}</small></div>
+    <div class="brand">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></div>
     ${nav}
   </nav>
   <div class="content">
@@ -129,7 +132,7 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YiwuFlow · ${esc(t(locale, 'login.title'))}</title>
+<title>Nomi · ${esc(t(locale, 'login.title'))}</title>
 <style>${STYLE}
   .login { max-width: 360px; margin: 12vh auto; padding: 0 20px; }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:14px; }
@@ -144,7 +147,7 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
 </style></head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, input.path)}</div>
-  <div class="brand" style="font-weight:700;font-size:19px;margin-bottom:8px">YiwuFlow<small class="muted" style="display:block;font-size:12px">${esc(t(locale, 'login.brandTagline'))}</small></div>
+  <div class="brand" style="font-weight:700;font-size:19px;margin-bottom:8px">Nomi<small class="muted" style="display:block;font-size:12px">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">
     ${input.error ? `<div class="err">${esc(t(locale, 'login.error'))}</div>` : ''}
     <form method="post" action="/login">

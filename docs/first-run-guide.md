@@ -1,4 +1,4 @@
-# YiwuFlow — First Run Guide
+# Nomi — First Run Guide
 
 Start here. Do every step in order. Do not skip checkpoints.
 
@@ -16,7 +16,7 @@ Start here. Do every step in order. Do not skip checkpoints.
 
 4. Once ready, go to **Settings → API**. Copy and save:
    - **Project URL** → this is `SUPABASE_URL`
-   - **anon public** key → not used by YiwuFlow. After `rls_policies.sql`, RLS
+   - **anon public** key → not used by Nomi. After `rls_policies.sql`, RLS
      denies it everything. You can ignore it.
    - **service_role** key → this is `SUPABASE_SERVICE_KEY` (click the eye icon to reveal)
 
@@ -145,7 +145,7 @@ Come back and fill in the real values as you complete Steps 5 and 6.
 ## STEP 4B — Prepare Google Sheet
 
 1. Go to [sheets.google.com](https://sheets.google.com) → Create new spreadsheet
-2. Rename the spreadsheet to: `YiwuFlow Orders`
+2. Rename the spreadsheet to: `Nomi Orders`
 3. Click the default tab name (`Sheet1`) → Rename it to exactly: `Confirmed Orders`
    (case-sensitive — the n8n node looks for this exact name)
 
@@ -221,7 +221,7 @@ Expected: JSON containing `"mail.send"` in the scopes array. If you get a 403, t
 1. Open Telegram → search for **@BotFather** → start a conversation
 2. Send: `/newbot`
 3. Follow prompts:
-   - Bot name: `YiwuFlow Escalations` (display name)
+   - Bot name: `Nomi Escalations` (display name)
    - Bot username: something like `yiwuflow_alerts_bot` (must end in `bot`)
 4. BotFather replies with your bot token. Save it:
    ```
@@ -254,7 +254,7 @@ Expected: JSON containing `"mail.send"` in the scopes array. If you get a 403, t
 Send a test message directly:
 ```bash
 curl -s "https://api.telegram.org/botYOUR_BOT_TOKEN/sendMessage" \
-  -d "chat_id=YOUR_CHAT_ID&text=YiwuFlow+test+alert"
+  -d "chat_id=YOUR_CHAT_ID&text=Nomi+test+alert"
 ```
 Expected: JSON with `"ok":true`. Message appears in your group.
 
@@ -331,14 +331,14 @@ Follow `docs/n8n-mvp-build-order.md`. Build Phase 1, Phase 2, and Phase 3 in tha
 ### Create the sub-workflows first
 
 In n8n, create six empty workflows with these exact names (you'll build inside them in order):
-1. `YiwuFlow - Intake`
-2. `YiwuFlow - Multimodal Analysis`
-3. `YiwuFlow - Conversation + Decision`
-4. `YiwuFlow - Confirmation`
-5. `YiwuFlow - Escalation`
-6. `YiwuFlow - Dispatch`
+1. `Nomi - Intake`
+2. `Nomi - Multimodal Analysis`
+3. `Nomi - Conversation + Decision`
+4. `Nomi - Confirmation`
+5. `Nomi - Escalation`
+6. `Nomi - Dispatch`
 
-### Build Phase 1 inside `YiwuFlow - Intake`
+### Build Phase 1 inside `Nomi - Intake`
 
 Add nodes in this order (refer to `docs/n8n-workflow.md` for exact parameters):
 
@@ -374,7 +374,7 @@ Connect: 1 → 2 → 3 → 4(NO) → 5 → 6
 
 **Save the workflow. Do not activate yet.**
 
-### Build Phase 2 — still inside `YiwuFlow - Intake`
+### Build Phase 2 — still inside `Nomi - Intake`
 
 Add after node 6 (connect from the `text` output of the Switch for now):
 
@@ -383,9 +383,9 @@ Add after node 6 (connect from the `text` output of the Switch for now):
 9. (TRUE branch) **Create Client** → **Create Client Channel** → **Create Conversation** → **Create Conv State**
 10. (FALSE branch) **Supabase - Load Active Conv** (HTTP Request GET)
 11. **Enrich Input Object** (Code node — merges both branches)
-12. **→ Multimodal Analysis** (Execute Workflow node — target: `YiwuFlow - Multimodal Analysis`)
+12. **→ Multimodal Analysis** (Execute Workflow node — target: `Nomi - Multimodal Analysis`)
 
-### Build Phase 3 — inside `YiwuFlow - Multimodal Analysis`
+### Build Phase 3 — inside `Nomi - Multimodal Analysis`
 
 This workflow starts with a **When Called by Another Workflow** trigger node.
 
@@ -400,13 +400,13 @@ Add in order:
 8. **Claude - Full Analysis** (HTTP Request POST to Anthropic)
 9. **Parse Analysis JSON** (Code node)
 
-At the end of Phase 3, the output flows into `YiwuFlow - Conversation + Decision` via an Execute Workflow node. Build a minimal stub of that workflow (trigger + one NoOp) so the Execute Workflow node has a target.
+At the end of Phase 3, the output flows into `Nomi - Conversation + Decision` via an Execute Workflow node. Build a minimal stub of that workflow (trigger + one NoOp) so the Execute Workflow node has a target.
 
-### Build Phase 5 — inside `YiwuFlow - Conversation + Decision`
+### Build Phase 5 — inside `Nomi - Conversation + Decision`
 
 This is the response generation and dispatch loop. Build all nodes from Phase 5 in `docs/n8n-mvp-build-order.md`.
 
-For the Dispatch step, build a minimal `YiwuFlow - Dispatch` with just the **Test Echo** node (Node 6.4) connected to a **Respond to Webhook** node. This sends the reply back to `MOCK_CALLBACK_URL`.
+For the Dispatch step, build a minimal `Nomi - Dispatch` with just the **Test Echo** node (Node 6.4) connected to a **Respond to Webhook** node. This sends the reply back to `MOCK_CALLBACK_URL`.
 
 ---
 
@@ -414,7 +414,7 @@ For the Dispatch step, build a minimal `YiwuFlow - Dispatch` with just the **Tes
 
 ### 9a — Get your webhook URL
 
-In `YiwuFlow - Intake`, click the Webhook node → copy the **Test URL** (use this for manual testing) or activate the workflow to get the **Production URL**.
+In `Nomi - Intake`, click the Webhook node → copy the **Test URL** (use this for manual testing) or activate the workflow to get the **Production URL**.
 
 For first-run testing, use the **Test URL** so you can watch executions in real time.
 

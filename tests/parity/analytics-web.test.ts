@@ -28,7 +28,7 @@ describe('M9.8 · business review (localized)', () => {
 
   it('zh: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'zh');
-    expect(html).toContain('经营数据');
+    expect(html).toContain('经营情况');
     expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
     expect(html).toContain('沟通趋势'); expect(html).toContain('买家咨询');
     expect(html).toContain('报价与订单'); expect(html).toContain('小雅工作总结');
@@ -37,7 +37,7 @@ describe('M9.8 · business review (localized)', () => {
 
   it('en: four sections with real numbers', () => {
     const html = renderAnalytics(active, 'en');
-    expect(html).toContain('Business review');
+    expect(html).toContain('Results');
     expect(html).toContain('New customers'); expect(html).toContain('Activity');
     expect(html).toContain('Buyer inquiries'); expect(html).toContain("Lily's work");
     expect(html).toContain('Inquiries handled');
@@ -46,7 +46,7 @@ describe('M9.8 · business review (localized)', () => {
 
   it('ar: renders Arabic + employee name', () => {
     const html = renderAnalytics(active, 'ar');
-    expect(html).toContain('الأداء');
+    expect(html).toContain('النتائج');
     expect(html).toContain('عملاء جدد');
     expect(html).toContain('عمل ياسمين');
   });

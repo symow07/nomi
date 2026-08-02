@@ -1,6 +1,6 @@
 # Deployment (M17.1)
 
-Where YiwuFlow runs, how to tell **which build** is live, and how to verify a
+Where Nomi runs, how to tell **which build** is live, and how to verify a
 deploy without changing anything.
 
 ## The installation

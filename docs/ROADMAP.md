@@ -1,4 +1,4 @@
-# YiwuFlow — Roadmap & Architecture Status
+# Nomi — Roadmap & Architecture Status
 
 Companion to the master vision document. This file records **verified** status and
 the architectural findings that should reshape the milestone order.
@@ -50,7 +50,7 @@ never complete.
   Permanently null.
 
 The phase engine wrote 8 columns and none of the 3 the close depends on.
-`safe_to_confirm` was therefore **always false**. YiwuFlow could converse but
+`safe_to_confirm` was therefore **always false**. Nomi could converse but
 could never close an order.
 
 ### Fixed

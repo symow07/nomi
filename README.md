@@ -1,4 +1,4 @@
-# YiwuFlow MVP
+# Nomi MVP
 
 Multi-channel B2B sales automation for Yiwu export businesses.
 Handles WhatsApp (real) + WeChat / Instagram / RedNote (simulated via webhook).

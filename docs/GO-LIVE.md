@@ -1,6 +1,6 @@
 # Go-Live: switching WhatsApp on (M17.2)
 
-Everything up to this point is **preparation** — YiwuFlow currently runs with
+Everything up to this point is **preparation** — Nomi currently runs with
 `WHATSAPP_PROVIDER=disabled`, so no webhook is mounted and no message can be
 sent or received. This document is the one deliberate step that changes that,
 and how to undo it.

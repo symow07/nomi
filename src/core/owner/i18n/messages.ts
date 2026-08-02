@@ -11,15 +11,15 @@ import { type Locale, DEFAULT_LOCALE } from './locale.js';
 
 const EN = {
   // nav
-  'nav.home': 'Operations',
+  'nav.home': 'Today',
   'nav.inbox': 'Inbox',
   'nav.conversations': 'Conversations',
-  'nav.channels': 'Channels',
+  'nav.channels': 'WhatsApp',
   'nav.products': 'Products',
-  'nav.employee': 'Employee',
-  'nav.analytics': 'Business',
+  'nav.employee': 'Lily',
+  'nav.analytics': 'Results',
   'nav.settings': 'Settings',
-  'nav.onboarding': 'Pilot readiness',
+  'nav.onboarding': 'Getting ready',
   // shell
   'app.tagline': "{name}'s workspace",
   'header.stage': "Probation · you're mentoring her",
@@ -34,7 +34,7 @@ const EN = {
   'login.footer': 'Owner only · your employee still works in WhatsApp',
   'common.buyer': 'Buyer',
   // M16.2b · Operations Home (consumes the operations snapshot; counts only)
-  'ops.title': 'Operations',
+  'ops.title': 'Today',
   'ops.attention.title': 'Needs your attention',
   'ops.attention.allClear': "You're all caught up",
   'ops.card.waiting': 'Waiting for you',
@@ -54,7 +54,7 @@ const EN = {
   'order.status.shipped': 'Shipped',
   'order.status.cancelled': 'Cancelled',
   // analytics
-  'analytics.title': 'Business review',
+  'analytics.title': 'Results',
   'analytics.range.today': 'Today',
   'analytics.range.week': 'This week',
   'analytics.range.month': 'This month',
@@ -368,8 +368,8 @@ const EN = {
   'country.IN': 'India',
 
   // M12.2 — pilot sandbox
-  'nav.sandbox': 'Sandbox',
-  'sandbox.title': 'Practice sandbox',
+  'nav.sandbox': 'Practice',
+  'sandbox.title': 'Practice',
   'sandbox.banner': 'Simulation only. No customer messages are sent.',
   'sandbox.intro': 'Play the buyer. Watch how {name} replies — and approve or change anything before it would ever go out.',
   'sandbox.empty': 'No messages yet. Send one as the buyer to begin.',
@@ -381,7 +381,7 @@ const EN = {
   'sandbox.mode.scripted': 'Scripted',
   'sandbox.mode.live': 'Live',
   'sandbox.mode.liveOff': 'Live mode is unavailable',
-  'sandbox.scenario.label': 'Load a test case',
+  'sandbox.scenario.label': 'Try a situation',
   'sandbox.scenario.none': 'Choose a test case…',
   'sandbox.scenario.load': 'Load',
   'sandbox.scenario.badge': 'Test case',
@@ -434,8 +434,8 @@ const EN = {
   'sandbox.inv.noSilentCapabilityEscalation': 'Never sent without permission',
 
   // M13 — factory knowledge
-  'nav.knowledge': 'Knowledge',
-  'knowledge.title': 'Factory knowledge',
+  'nav.knowledge': 'What she knows',
+  'knowledge.title': 'What she knows',
   'knowledge.intro': "Teach the facts about your products and business. Your employee answers buyers from what you teach — and never states a number or a certification you haven't given.",
   'knowledge.products': 'Your products',
   'knowledge.business': 'About your business',
@@ -496,7 +496,7 @@ const EN = {
   'knowledge.usage.revised': 'revised {n}×',
 
   // M15.1 — pilot readiness
-  'pilot.title': 'Pilot readiness',
+  'pilot.title': 'Getting ready',
   'pilot.intro': 'Everything your employee needs before going live. Most is checked from your real data; the last few you confirm yourself.',
   'pilot.setup': 'Setup',
   'pilot.prelaunch': 'Before you go live',
@@ -627,15 +627,15 @@ const EN = {
 export type MessageKey = keyof typeof EN;
 
 const ZH: Record<MessageKey, string> = {
-  'nav.home': '运营',
+  'nav.home': '今天',
   'nav.inbox': '收件箱',
   'nav.conversations': '对话记录',
-  'nav.channels': '销售渠道',
+  'nav.channels': 'WhatsApp',
   'nav.products': '产品目录',
-  'nav.employee': '员工档案',
-  'nav.analytics': '经营数据',
+  'nav.employee': '小雅',
+  'nav.analytics': '经营情况',
   'nav.settings': '设置',
-  'nav.onboarding': '上线准备',
+  'nav.onboarding': '准备上线',
   'app.tagline': '{name}的工作台',
   'header.stage': '试用期 · 你在带她',
   'header.logout': '退出',
@@ -648,7 +648,7 @@ const ZH: Record<MessageKey, string> = {
   'login.footer': '仅限老板本人 · 员工的接待仍在 WhatsApp',
   'common.buyer': '买家',
   // M16.2b · 运营主页
-  'ops.title': '运营',
+  'ops.title': '今天',
   'ops.attention.title': '需要你处理',
   'ops.attention.allClear': '都处理完了',
   'ops.card.waiting': '等你接手',
@@ -666,7 +666,7 @@ const ZH: Record<MessageKey, string> = {
   'order.status.in_production': '生产中',
   'order.status.shipped': '已发货',
   'order.status.cancelled': '已取消',
-  'analytics.title': '经营数据',
+  'analytics.title': '经营情况',
   'analytics.range.today': '今天',
   'analytics.range.week': '本周',
   'analytics.range.month': '本月',
@@ -969,8 +969,8 @@ const ZH: Record<MessageKey, string> = {
   'country.IN': '印度',
 
   // M12.2 — pilot sandbox
-  'nav.sandbox': '沙盒',
-  'sandbox.title': '模拟练习',
+  'nav.sandbox': '练习',
+  'sandbox.title': '练习',
   'sandbox.banner': '仅为模拟演练，不会向任何客户发送消息。',
   'sandbox.intro': '你来扮演买家，看看{name}怎么回复——在真正发出之前，你可以先审核或修改。',
   'sandbox.empty': '还没有消息。先以买家身份发一条吧。',
@@ -982,7 +982,7 @@ const ZH: Record<MessageKey, string> = {
   'sandbox.mode.scripted': '脚本模式',
   'sandbox.mode.live': '实时模式',
   'sandbox.mode.liveOff': '实时模式暂不可用',
-  'sandbox.scenario.label': '加载测试用例',
+  'sandbox.scenario.label': '试一个情况',
   'sandbox.scenario.none': '选择一个测试用例……',
   'sandbox.scenario.load': '加载',
   'sandbox.scenario.badge': '测试用例',
@@ -1034,8 +1034,8 @@ const ZH: Record<MessageKey, string> = {
   'sandbox.inv.noSilentCapabilityEscalation': '未经允许绝不发送',
 
   // M13 — factory knowledge
-  'nav.knowledge': '知识库',
-  'knowledge.title': '工厂知识',
+  'nav.knowledge': '她知道的',
+  'knowledge.title': '她知道的',
   'knowledge.intro': '把产品和公司的信息教给员工。她只用你教的内容回答买家——绝不会说出你没给过的数字或认证。',
   'knowledge.products': '你的产品',
   'knowledge.business': '公司信息',
@@ -1096,7 +1096,7 @@ const ZH: Record<MessageKey, string> = {
   'knowledge.usage.revised': '修订{n}次',
 
   // M15.1 — pilot readiness
-  'pilot.title': '上线准备',
+  'pilot.title': '准备上线',
   'pilot.intro': '员工上线前需要准备的一切。大部分会根据你的真实数据自动检查，最后几项由你确认。',
   'pilot.setup': '设置',
   'pilot.prelaunch': '上线前确认',
@@ -1225,15 +1225,15 @@ const ZH: Record<MessageKey, string> = {
 };
 
 const AR: Record<MessageKey, string> = {
-  'nav.home': 'العمليات',
+  'nav.home': 'اليوم',
   'nav.inbox': 'الوارد',
   'nav.conversations': 'المحادثات',
-  'nav.channels': 'القنوات',
+  'nav.channels': 'واتساب',
   'nav.products': 'المنتجات',
-  'nav.employee': 'الموظفة',
-  'nav.analytics': 'الأداء',
+  'nav.employee': 'ياسمين',
+  'nav.analytics': 'النتائج',
   'nav.settings': 'الإعدادات',
-  'nav.onboarding': 'جاهزية التجربة',
+  'nav.onboarding': 'التجهيز',
   'app.tagline': 'مساحة عمل {name}',
   'header.stage': 'فترة تجربة · أنت تدرّبها',
   'header.logout': 'تسجيل الخروج',
@@ -1246,7 +1246,7 @@ const AR: Record<MessageKey, string> = {
   'login.footer': 'للمالك فقط · موظفتك تعمل عبر واتساب',
   'common.buyer': 'عميل',
   // M16.2b · واجهة العمليات
-  'ops.title': 'العمليات',
+  'ops.title': 'اليوم',
   'ops.attention.title': 'يحتاج انتباهك',
   'ops.attention.allClear': 'أنجزت كل شيء',
   'ops.card.waiting': 'بانتظار تدخّلك',
@@ -1264,7 +1264,7 @@ const AR: Record<MessageKey, string> = {
   'order.status.in_production': 'قيد الإنتاج',
   'order.status.shipped': 'تم الشحن',
   'order.status.cancelled': 'ملغى',
-  'analytics.title': 'الأداء',
+  'analytics.title': 'النتائج',
   'analytics.range.today': 'اليوم',
   'analytics.range.week': 'هذا الأسبوع',
   'analytics.range.month': 'هذا الشهر',
@@ -1567,8 +1567,8 @@ const AR: Record<MessageKey, string> = {
   'country.IN': 'الهند',
 
   // M12.2 — pilot sandbox
-  'nav.sandbox': 'المحاكاة',
-  'sandbox.title': 'بيئة التجربة',
+  'nav.sandbox': 'تدريب',
+  'sandbox.title': 'تدريب',
   'sandbox.banner': 'محاكاة فقط. لا تُرسَل أي رسائل إلى العملاء.',
   'sandbox.intro': 'العب دور المشتري وشاهد كيف تردّ {name} — ويمكنك الموافقة أو التعديل قبل أن تُرسَل فعلياً.',
   'sandbox.empty': 'لا توجد رسائل بعد. أرسل واحدة بصفتك المشتري للبدء.',
@@ -1580,7 +1580,7 @@ const AR: Record<MessageKey, string> = {
   'sandbox.mode.scripted': 'وضع نصّي',
   'sandbox.mode.live': 'مباشر',
   'sandbox.mode.liveOff': 'الوضع المباشر غير متاح',
-  'sandbox.scenario.label': 'تحميل حالة اختبار',
+  'sandbox.scenario.label': 'جرّب موقفاً',
   'sandbox.scenario.none': 'اختر حالة اختبار…',
   'sandbox.scenario.load': 'تحميل',
   'sandbox.scenario.badge': 'حالة اختبار',
@@ -1632,8 +1632,8 @@ const AR: Record<MessageKey, string> = {
   'sandbox.inv.noSilentCapabilityEscalation': 'لا تُرسل أبداً دون إذن',
 
   // M13 — factory knowledge
-  'nav.knowledge': 'المعرفة',
-  'knowledge.title': 'معرفة المصنع',
+  'nav.knowledge': 'ما تعرفه',
+  'knowledge.title': 'ما تعرفه',
   'knowledge.intro': 'علّم موظفتك حقائق منتجاتك وشركتك. تجيب المشترين مما تعلّمه هنا — ولا تذكر أبداً رقماً أو شهادة لم تمنحها إياها.',
   'knowledge.products': 'منتجاتك',
   'knowledge.business': 'عن شركتك',
@@ -1694,7 +1694,7 @@ const AR: Record<MessageKey, string> = {
   'knowledge.usage.revised': 'روجع {n} مرة',
 
   // M15.1 — pilot readiness
-  'pilot.title': 'جاهزية التجربة',
+  'pilot.title': 'التجهيز',
   'pilot.intro': 'كل ما تحتاجه موظفتك قبل الانطلاق. معظمه يُفحص من بياناتك الحقيقية، والباقي تؤكّده بنفسك.',
   'pilot.setup': 'الإعداد',
   'pilot.prelaunch': 'قبل الانطلاق',

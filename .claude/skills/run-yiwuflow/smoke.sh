@@ -140,7 +140,7 @@ PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
   server PID:   $APP_PID            (LEFT RUNNING)
 
 Drive more:
-  curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'Factory knowledge'
+  curl -sb $SK/cookies.txt $BASEURL/app/knowledge | grep -o 'What she knows'
   curl -sb $SK/cookies.txt $BASEURL/app/inbox     | grep -o 'Inbox'
 
 Stop everything:
