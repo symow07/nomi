@@ -2406,6 +2406,141 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
+  // ── M20.3 · activate / deactivate as real owner actions ─────────────────────
+  // Through the HTTP routes an owner actually uses, against real Postgres, with
+  // the real activation service doing the writing and the auditing.
+  describe('M20.3 · the owner turns messaging on, and off', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const post = async (path: string, cookie?: string) => prod.app.inject({
+      method: 'POST', url: path, ...(cookie ? { headers: { cookie } } : {}) });
+    const channel = () => q((tx) => sql<{ activated_at: Date | null; activated_by: string | null; status: string }>`
+      select activated_at, activated_by, status from channels
+       where business_id=${DEMO_BIZ} and kind='whatsapp'`.execute(tx as never).then((r) => r.rows[0] ?? null));
+    const audits = (action: string) => q((tx) => sql<{ n: number; actor: string | null }>`
+      select count(*)::int n, max(actor) actor from channel_audit
+       where business_id=${DEMO_BIZ} and action=${action}`.execute(tx as never).then((r) => r.rows[0]!));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { addToAllowlist } = await import('../../src/channels/allowlist.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      // Every precondition met, so the only variable is the owner's decision.
+      await q((tx) => sql`
+        insert into onboarding_state (business_id, backup_tested_at, secrets_rotated_at, owner_ready_at,
+                                      claims_reviewed_at, last_validation_at, last_validation_pass, last_validation_total)
+        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), 5, 5)
+        on conflict (business_id) do update set backup_tested_at=now(), secrets_rotated_at=now(),
+          owner_ready_at=now(), claims_reviewed_at=now(), last_validation_at=now(),
+          last_validation_pass=5, last_validation_total=5`.execute(tx as never));
+      await q((tx) => sql`update businesses set description='d', location='l', contact_email='e@x.com'
+                           where id=${DEMO_BIZ}`.execute(tx as never));
+      await q((tx) => sql`
+        insert into product_knowledge (business_id, product_id, kind, label, content, source)
+        values (${DEMO_BIZ}, null, 'faq', 'm203-fixture', 'a taught fact', 'owner_confirmed')
+        on conflict do nothing`.execute(tx as never));
+      await q((tx) => sql`update products set is_active=true,
+                            price_usd_per_unit=coalesce(price_usd_per_unit, 1.00)
+                           where business_id=${DEMO_BIZ}`.execute(tx as never));
+      await q((tx) => sql`
+        insert into channels (business_id, kind, status, pilot_mode)
+        values (${DEMO_BIZ}, 'whatsapp', 'connected', true)
+        on conflict (business_id, kind) do update set status='connected', pilot_mode=true,
+          activated_at=null, activated_by=null`.execute(tx as never));
+      await addToAllowlist(prod.db, bid, '971500007070', 'my own phone', 'owner');
+    });
+
+    it('SECURITY: both actions reject an anonymous caller and change nothing', async () => {
+      const before = await channel();
+      for (const path of ['/app/factory/activate', '/app/factory/deactivate']) {
+        const r = await post(path);
+        expect(r.statusCode, path).toBe(302);
+        expect(r.headers['location'], path).toBe('/login');
+      }
+      expect((await channel())!.activated_at).toEqual(before!.activated_at);
+    });
+
+    it('REFUSES to activate while a blocker stands, and names that same blocker', async () => {
+      // Break a precondition that is INDEPENDENT of the readiness roll-up:
+      // an empty allowlist means there is nobody she is allowed to message.
+      const { archiveFromAllowlist, addToAllowlist } = await import('../../src/channels/allowlist.js');
+      await archiveFromAllowlist(prod.db, bid, '971500007070', 'owner');
+
+      const cookie = await login();
+      const r = await post('/app/factory/activate', cookie);
+      expect(r.statusCode).toBe(302);
+      expect((await channel())!.activated_at, 'activated despite a blocker').toBeNull();
+      expect(decodeURIComponent(String(r.headers['location']))).toContain('start with your own');
+
+      // the page and the refusal must say the SAME thing
+      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      expect(page.body).toContain('start with your own');
+      expect(page.body).not.toContain('action="/app/factory/activate"');
+
+      await addToAllowlist(prod.db, bid, '971500007070', 'my own phone', 'owner');
+    });
+
+    it('activates: writes through the service, audits the actor, and shows it at once', async () => {
+      const beforeAudit = (await audits('activate')).n;
+      const cookie = await login();
+      const r = await post('/app/factory/activate', cookie);
+      expect(r.statusCode).toBe(302);
+      expect(String(r.headers['location'])).toContain('/app/factory?flash=');
+
+      const ch = (await channel())!;
+      expect(ch.activated_at).toBeInstanceOf(Date);
+      expect(ch.activated_by).toBe('owner');
+
+      const a = await audits('activate');
+      expect(a.n).toBe(beforeAudit + 1);
+      expect(a.actor).toBe('owner');
+
+      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      expect(page.body).toContain('is talking to real buyers');
+      expect(page.body).toContain('action="/app/factory/deactivate"');
+      expect(page.body).not.toContain('action="/app/factory/activate"');
+    });
+
+    it('deactivates: back to not-live, audited, and the data is still there', async () => {
+      const beforeAudit = (await audits('deactivate')).n;
+      const buyersBefore = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from conversations`.execute(tx as never).then((x) => x.rows[0]!.n));
+
+      const cookie = await login();
+      const r = await post('/app/factory/deactivate', cookie);
+      expect(r.statusCode).toBe(302);
+
+      expect((await channel())!.activated_at).toBeNull();
+      const a = await audits('deactivate');
+      expect(a.n).toBe(beforeAudit + 1);
+      expect(a.actor).toBe('owner');
+
+      // "nothing is deleted" is a promise the page makes — hold it to it
+      expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
+        .execute(tx as never).then((x) => x.rows[0]!.n))).toBe(buyersBefore);
+
+      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      expect(page.body).not.toContain('is talking to real buyers');
+    });
+
+    it('SECURITY: activating one factory leaves another factory untouched', async () => {
+      const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const sb = parseBusinessId(SANDBOX); if (!sb.ok) throw new Error('fixture');
+      const sandboxChannel = () => withTenantTx(prod.db, sb.value, (tx) =>
+        sql<{ n: number }>`select count(*)::int n from channels where activated_at is not null`
+          .execute(tx as never).then((r) => r.rows[0]!.n));
+
+      const cookie = await login();
+      await post('/app/factory/activate', cookie);
+      expect((await channel())!.activated_at).toBeInstanceOf(Date);
+      expect(await sandboxChannel(), 'the other tenant was activated too').toBe(0);
+      await post('/app/factory/deactivate', cookie);
+    });
+  });
+
   // ── M18.2 pilot allowlist, against real Postgres ────────────────────────────
   // The rule that stands between a bug and a real buyer's phone. Every check
   // here goes through the REAL send gate and the REAL store — no fakes.

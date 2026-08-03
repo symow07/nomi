@@ -131,15 +131,16 @@ export async function deactivate(
 /** Is this factory activated right now? (activation + connected channel) */
 export async function activationState(
   db: Db, businessId: BusinessId,
-): Promise<{ activatedAt: Date | null; pilotMode: boolean; status: string | null }> {
+): Promise<{ activatedAt: Date | null; activatedBy: string | null; pilotMode: boolean; status: string | null }> {
   return withTenantTx(db, businessId, (tx) =>
-    sql<{ activated_at: Date | null; pilot_mode: boolean; status: string }>`
-      select activated_at, pilot_mode, status from channels
+    sql<{ activated_at: Date | null; activated_by: string | null; pilot_mode: boolean; status: string }>`
+      select activated_at, activated_by, pilot_mode, status from channels
        where business_id = ${businessId} and kind = 'whatsapp' limit 1
     `.execute(tx).then((r) => {
       const row = r.rows[0];
       return {
         activatedAt: row?.activated_at ?? null,
+        activatedBy: row?.activated_by ?? null,
         pilotMode: row?.pilot_mode ?? true,     // fail-closed
         status: row?.status ?? null,
       };

@@ -22,7 +22,7 @@ const complete: FactoryView = {
   promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
-  readiness: { canActivate: true, blockers: [], live: false,
+  readiness: { canActivate: true, blockers: [], live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
 };
 
@@ -36,7 +36,8 @@ const fresh: FactoryView = {
   promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: channel(false), ownerPhone: null },
   nextStep: 'profile',
-  readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], live: false },
+  readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], live: false,
+    activatedAt: null, activatedBy: null },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
@@ -92,11 +93,11 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // humanRequiredAbovePct sets `requiresHuman`, which lands in the quote audit
     // and NEVER decides draft-vs-send (turn.ts asks resolveMode only) — so the
     // page must not promise the owner that a big discount waits for her.
-    const html = renderFactory(complete, 'en');
-    expect(html).toContain('never quotes below $0.75');
-    expect(html).toContain('never discounts more than 8%');
-    expect(html).not.toContain('waits for you');
-    expect(html).not.toContain('on her own');
+    const rules = renderFactory(complete, 'en').match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
+    expect(rules).toContain('never quotes below $0.75');
+    expect(rules).toContain('never discounts more than 8%');
+    expect(rules).not.toContain('waits for you');
+    expect(rules).not.toContain('on her own');
   });
 
   it('a catalogue with different floors reports the range, never one product’s number', () => {
@@ -151,9 +152,12 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
       expect(html, href).toContain(`href="${href}"`);
   });
 
-  it('reads nothing back to the owner as a form — it is a page, not a settings panel', () => {
+  it('is a page, not a settings panel — the only form is the go-live decision', () => {
     const html = renderFactory(complete, 'en');
-    expect(html).not.toContain('<form');
+    // M20.3 adds activate/deactivate here deliberately; nothing else on this
+    // page collects input — every edit still happens on the surface that owns it.
+    for (const f of html.match(/<form[^>]*action="([^"]*)"/g) ?? [])
+      expect(f).toMatch(/\/app\/factory\/(activate|deactivate)/);
     expect(html).not.toContain('<input');
     expect(html).not.toContain('<textarea');
     expect(html).not.toContain('<table');
@@ -312,11 +316,11 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     expect(decision).not.toContain('requiresHuman');
 
     for (const l of LOCALES) {
-      const html = renderFactory(complete, l);
-      expect(html).not.toContain('waits for you');
-      expect(html).not.toContain('on her own');
-      expect(html).not.toContain('بنفسها');
-      expect(html).not.toContain('自己最多');
+      const rules = renderFactory(complete, l).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
+      expect(rules).not.toContain('waits for you');
+      expect(rules).not.toContain('on her own');
+      expect(rules).not.toContain('بنفسها');
+      expect(rules).not.toContain('自己最多');
     }
   });
 });
@@ -413,5 +417,63 @@ describe('M20.2 · the activation readiness surface', () => {
     }
     expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'zh')).toContain('连接WhatsApp');
     expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'ar')).toContain('اربط واتساب');
+  });
+});
+
+/** M20.3 — going live is an owner decision, made here, and reversible here. */
+describe('M20.3 · activate and deactivate as owner actions', () => {
+  const view = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' = 'en') =>
+    renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
+
+  it('ready: offers the decision, and says what it does before it is taken', () => {
+    const html = view({ canActivate: true, blockers: [], live: false });
+    expect(html).toContain('action="/app/factory/activate"');
+    expect(html).toContain('Let Lily start');
+    expect(html).toMatch(/data-confirm="[^"]*writes every reply and waits for your OK[^"]*"/);
+    expect(html).toMatch(/data-confirm="[^"]*stop her at any time[^"]*"/);
+    expect(html).toContain('she still writes, you still send');   // draft-first, stated
+    expect(html).toContain('Only these people can receive a message');
+  });
+
+  it('not ready: no way to activate — the decision is not offered at all', () => {
+    const html = view({ canActivate: false, blockers: ['no_channel'], live: false });
+    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).toContain('Connect WhatsApp.');
+  });
+
+  it('live: the stop control is there, and explains what stopping does', () => {
+    const html = view({ live: true, canActivate: true, blockers: [] });
+    expect(html).toContain('action="/app/factory/deactivate"');
+    expect(html).toContain('Stop messaging');
+    expect(html).toContain('sends nothing further');
+    expect(html).toContain('stay exactly as they are');          // nothing is deleted
+    expect(html).toContain('start again whenever you want');     // rollback is possible
+    expect(html).not.toContain('action="/app/factory/activate"');
+  });
+
+  it('live: says when it started and who started it — from the stored row', () => {
+    const html = view({ live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'owner' });
+    expect(html).toMatch(/Started .* by owner/);
+  });
+
+  it('both decisions confirm first — neither fires on a stray tap', () => {
+    expect(view({ canActivate: true, blockers: [] })).toContain('onclick="return confirm(this.dataset.confirm)"');
+    expect(view({ live: true })).toContain('onclick="return confirm(this.dataset.confirm)"');
+  });
+
+  it('the controls and their warnings are localized', () => {
+    expect(view({ canActivate: true, blockers: [] }, 'zh')).toContain('让小雅开始');
+    expect(view({ live: true }, 'zh')).toContain('停止发消息');
+    expect(view({ live: true }, 'zh')).toContain('什么都不会删掉');
+    expect(view({ canActivate: true, blockers: [] }, 'ar')).toContain('دع ياسمين تبدأ');
+    expect(view({ live: true }, 'ar')).toContain('أوقف المراسلة');
+  });
+
+  it('activation is never described as autonomy', () => {
+    for (const l of LOCALES) {
+      const html = (view({ canActivate: true, blockers: [] }, l) + view({ live: true }, l)).toLowerCase();
+      for (const banned of ['automatic', 'automatically', 'on its own', '自动', 'تلقائي'])
+        expect(html.includes(banned), `${l}:${banned}`).toBe(false);
+    }
   });
 });

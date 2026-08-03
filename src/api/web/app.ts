@@ -21,6 +21,7 @@ import {
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { loadFactory, renderFactory } from './factory.js';
+import { activate, deactivate } from '../../channels/activation.js';
 import {
   loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, runValidation, type AttestKey,
 } from './pilot.js';
@@ -323,8 +324,41 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // One calm page over the EXISTING profile / products / claims / channel read
   // models. Read-only by design: every change still happens on the surface that
   // owns it, so there is exactly one place that writes each thing.
-  app.get('/app/factory', authed('factory', async (s, _req, locale) =>
-    renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale)));
+  app.get('/app/factory', authed('factory', async (s, req, locale) => {
+    const flash = typeof (req.query as { flash?: string }).flash === 'string'
+      ? (req.query as { flash: string }).flash : null;
+    return renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale, flash);
+  }));
+
+  // M20.3 — going live, and coming back. Both go through the EXISTING service:
+  // `activate` re-runs its own preconditions and refuses with the same blocker
+  // codes My factory already shows, and both write channel_audit themselves.
+  // Post/Redirect/Get, so a refresh never re-fires the most consequential
+  // action in the product.
+  const factoryFlash = (req: FastifyRequest, key: MessageKey) =>
+    `/app/factory?flash=${encodeURIComponent(t(localeOf(req), key))}`;
+
+  app.post('/app/factory/activate', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    const r = await activate(deps.db, bid.value, 'owner');
+    // A refusal names the same blocker the page was already showing, so the
+    // owner never sees a reason that contradicts what they just read.
+    return reply.redirect(r.ok
+      ? factoryFlash(req, 'activation.flash.activated')
+      : factoryFlash(req, `activation.blocker.${r.code}` as MessageKey));
+  });
+
+  app.post('/app/factory/deactivate', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    await deactivate(deps.db, bid.value, 'owner', 'owner stopped messaging');
+    return reply.redirect(factoryFlash(req, 'activation.flash.deactivated'));
+  });
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
   app.get('/app/products', authed('products', async (s, _req, locale) =>

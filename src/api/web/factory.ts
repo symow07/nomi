@@ -20,7 +20,7 @@ import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd } from '../../core/owner/i18n/format.js';
+import { formatUsd, formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
@@ -69,6 +69,9 @@ export type FactoryReadiness = {
   readonly recipients: readonly { readonly phone: string; readonly label: string | null }[];
   /** The owner has actually turned messaging on (channels.activated_at). */
   readonly live: boolean;
+  /** Who turned it on and when — straight from the row activate() wrote. */
+  readonly activatedAt: Date | null;
+  readonly activatedBy: string | null;
 };
 
 export type FactoryView = {
@@ -167,6 +170,8 @@ export async function loadFactory(
       // Live means the owner turned it ON — not merely that the channel is
       // connected. That distinction is the whole of M20.1.
       live: state?.activatedAt != null,
+      activatedAt: state?.activatedAt ?? null,
+      activatedBy: state?.activatedBy ?? null,
     },
   };
 }
@@ -197,7 +202,7 @@ const section = (title: string, question: string, body: string, href: string, mo
     ${deeper(href, more)}
   </section>`;
 
-export function renderFactory(f: FactoryView, locale: Locale): string {
+export function renderFactory(f: FactoryView, locale: Locale, flash: string | null = null): string {
   const name = EMPLOYEE_NAME[locale];
   const p = f.profile;
 
@@ -302,14 +307,33 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
     return `<li>○ ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
   }).join('')}</ul>`;
 
+  // M20.3 — the decision itself. Confirmed, because it is the moment a real
+  // buyer can first be reached; and reversible, because the stop control is
+  // never further away than the start one was.
+  const confirmBtn = (action: string, cls: string, label: string, question: string) =>
+    `<form method="post" action="/app/factory/${action}" class="inline">
+      <button class="btn ${cls}" type="submit"
+              onclick="return confirm(this.dataset.confirm)"
+              data-confirm="${esc(question)}">${esc(label)}</button>
+    </form>`;
+
   const readyBody = r.live
     ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>
-       ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}`
+       ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
+          when: formatDate(locale, r.activatedAt), who: r.activatedBy ?? '' }))}</p>` : ''}
+       ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
+       <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
+       <div class="facts">${confirmBtn('deactivate', 'danger',
+          t(locale, 'activation.action.deactivate'),
+          t(locale, 'activation.action.deactivateConfirm', { name }))}</div>`
     : r.canActivate
       ? `<p class="fok">${esc(t(locale, 'activation.can', { name }))}</p>
          <p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>
          ${recipientList}
          <p class="fnever">${esc(t(locale, 'activation.stillDrafts', { name }))}</p>
+         <div class="facts">${confirmBtn('activate', 'send',
+            t(locale, 'activation.action.activate', { name }),
+            t(locale, 'activation.action.confirm', { name }))}</div>
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`
       : `<p class="fdesc">${esc(t(locale, 'activation.cannot', { name }))}</p>
@@ -318,6 +342,7 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
 
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
     ${next}
     ${section(t(locale, 'factory.about.title'), t(locale, 'factory.about.q'), aboutBody, '/app/settings', t(locale, 'factory.about.more'))}
