@@ -12,7 +12,9 @@ import type { SendPlan } from '../../src/core/channel/window.js';
 
 const openPlan: SendPlan = { action: 'send_free', ownerNoteZh: '' };
 const closedPlan: SendPlan = { action: 'wait_for_buyer', ownerNoteZh: '' };
-const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan };
+// M20.1 — these cases are about the ALLOWLIST, so the channel is live; the
+// activation refusal has its own tests below.
+const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan, activated: true };
 
 describe('M18.2 · phone normalization (the comparison key)', () => {
   it('an owner-typed number and a WhatsApp wa_id normalize to the same thing', () => {
@@ -99,5 +101,56 @@ describe('M18.5 · daily outbound ceiling (blocks, never warns)', () => {
   it('the allowlist is checked BEFORE the ceiling — the more specific refusal wins', () => {
     expect(gateOutbound({ ...base, pilotMode: true, recipientAllowed: false, dailyCeilingReached: true }))
       .toEqual({ allow: false, reason: 'not_allowlisted' });
+  });
+});
+
+/**
+ * M20.1 — activation is a property of the CHANNEL, not of who is speaking.
+ * Connected means the credentials work. Activated means the owner decided.
+ * Until then nothing reaches a buyer, whoever wrote it.
+ */
+describe('M20.1 · nothing goes out before the owner turns messaging on', () => {
+  const live = { ...base, recipientAllowed: true };
+
+  it('refuses an employee message on a channel that was never activated', () => {
+    expect(gateOutbound({ ...live, activated: false }))
+      .toEqual({ allow: false, reason: 'not_activated' });
+  });
+
+  it('refuses the OWNER’s own reply too — no exceptions', () => {
+    // The owner takeover path is exempt from the daily ceiling and from the
+    // pause/handoff gates, deliberately. It is NOT exempt from this one.
+    expect(gateOutbound({ ...live, origin: 'owner', activated: false }))
+      .toEqual({ allow: false, reason: 'not_activated' });
+  });
+
+  it('FAIL-CLOSED: a caller that never resolves activation blocks, it does not send', () => {
+    const { activated: _omitted, ...withoutActivation } = live;
+    expect(gateOutbound(withoutActivation)).toEqual({ allow: false, reason: 'not_activated' });
+  });
+
+  it('activation is checked FIRST — before the pilot is live nothing else matters', () => {
+    // A message that would also fail the allowlist, the ceiling and the window
+    // still reports the reason the owner can act on.
+    expect(gateOutbound({
+      ...base, activated: false, recipientAllowed: false, pilotMode: true,
+      dailyCeilingReached: true, windowPlan: closedPlan, assignedTo: 'owner', paused: true,
+    })).toEqual({ allow: false, reason: 'not_activated' });
+  });
+
+  it('once activated, the other gates decide as before', () => {
+    expect(gateOutbound({ ...live, activated: true })).toEqual({ allow: true, viaTemplate: false });
+    expect(gateOutbound({ ...live, activated: true, pilotMode: true, recipientAllowed: false }))
+      .toEqual({ allow: false, reason: 'not_allowlisted' });
+    expect(gateOutbound({ ...live, activated: true, origin: 'employee', assignedTo: 'owner' }))
+      .toEqual({ allow: false, reason: 'handed_off' });
+  });
+
+  it('being connected is not being activated — the states are independent', () => {
+    // A reconnect restores the connection; it must not make the system live.
+    // The gate only ever reads `activated`, so a connected-but-not-activated
+    // channel is silent by construction.
+    const connectedNotActivated = { ...live, pilotMode: true, recipientAllowed: true, activated: false };
+    expect(gateOutbound(connectedNotActivated).allow).toBe(false);
   });
 });

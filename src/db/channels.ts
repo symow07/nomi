@@ -46,12 +46,13 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
 
       const ctxRes = await sql<{
         assigned_to: string | null; paused: boolean; last_inbound_at: Date | null;
-        pilot_mode: boolean | null; buyer_wa_id: string | null; sent_today: number;
+        pilot_mode: boolean | null; activated_at: Date | null;
+        buyer_wa_id: string | null; sent_today: number;
       }>`
         select c.assigned_to,
                coalesce(tb.paused, false) as paused,
                ch.last_inbound_at,
-               ch.pilot_mode,
+               ch.pilot_mode, ch.activated_at,
                cc.channel_user_id as buyer_wa_id,
                (select count(*)::int from outbound_messages om
                  where om.business_id = c.business_id and om.origin = 'employee'
@@ -92,6 +93,9 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
       // M18.2 — pilot mode + allowlist resolved INSIDE this transaction, so the
       // gate decides on current state. Both fail closed: a missing channel row
       // counts as pilot mode ON, an unresolved buyer number as not allowed.
+      // M20.1 — CONNECTED is not ACTIVATED. `activated_at` is written only by
+      // the owner's explicit decision; a missing channel row means not live.
+      const activated = c?.activated_at != null;
       const pilotMode = c?.pilot_mode ?? true;
       const recipientAllowed = pilotMode
         ? await isAllowlisted(tx, businessId, c?.buyer_wa_id ?? null)
@@ -102,6 +106,7 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
         paused: c?.paused ?? false,
         lastInboundAt: c?.last_inbound_at ?? null,
         template: 'none',   // template infra is post-M3; owner path applies
+        activated,
         pilotMode,
         recipientAllowed,
         // M18.5 — counts EMPLOYEE messages actually sent today, so an owner

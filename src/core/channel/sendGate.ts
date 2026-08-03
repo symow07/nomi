@@ -28,10 +28,20 @@ export type GateInput = {
   readonly recipientAllowed?: boolean;
   /** M18.5 — the tenant has already sent its daily maximum. */
   readonly dailyCeilingReached?: boolean;
+  /**
+   * M20.1 — the owner has explicitly turned messaging on for this channel
+   * (`channels.activated_at`). CONNECTED is not ACTIVATED: working credentials
+   * mean the provider is reachable, not that the owner decided to go live.
+   *
+   * Absent is treated as NOT activated, like every other optional here: a
+   * caller that forgets to resolve activation gets silence, not a live send.
+   */
+  readonly activated?: boolean;
 };
 
 export type GateRefusal =
   | 'handed_off' | 'paused' | 'window_closed'
+  | 'not_activated'        // M20.1
   | 'not_allowlisted'      // M18.2
   | 'daily_ceiling';       // M18.5
 
@@ -40,6 +50,11 @@ export type GateDecision =
   | { readonly allow: false; readonly reason: GateRefusal };
 
 export function gateOutbound(g: GateInput): GateDecision {
+  // M20.1 — activation is a property of the CHANNEL, not of who is speaking,
+  // so it binds the owner exactly as it binds the employee. It is checked
+  // first: before the pilot is live, nothing else about this message matters.
+  if (g.activated !== true) return { allow: false, reason: 'not_activated' };
+
   if (g.origin === 'employee') {
     if (g.assignedTo !== null) return { allow: false, reason: 'handed_off' };
     if (g.paused) return { allow: false, reason: 'paused' };

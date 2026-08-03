@@ -196,9 +196,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   // wamid counter per instance and outbound_messages.provider_message_id is
   // UNIQUE, so separate instances collide on the second send.
   let m18Adapter: import('../../src/channels/contract.js').ChannelAdapter;
+  let m18Sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
   beforeAll(async () => {
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
-    m18Adapter = whatsappSimulator().adapter;
+    m18Sim = whatsappSimulator();
+    m18Adapter = m18Sim.adapter;
   });
   let prod: import('../../src/main.js').Production;
 
@@ -2385,7 +2387,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
       // Put the demo channel in pilot mode explicitly (it is the default too).
-      await q((tx) => sql`update channels set pilot_mode = true where business_id=${DEMO_BIZ}`.execute(tx as never));
+      // M20.1 — and LIVE: activation now binds every send, so these allowlist
+      // cases would otherwise all refuse for the wrong reason. Set directly
+      // rather than through activate(), which has preconditions of its own —
+      // those get their own tests below.
+      await q((tx) => sql`
+        update channels set pilot_mode = true, activated_at = now(), activated_by = 'test'
+         where business_id=${DEMO_BIZ}`.execute(tx as never));
     });
 
     it('owner adds a number: normalized on the way in, and audited', async () => {
@@ -2517,6 +2525,127 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   // Activation is a GATE, not a display: it refuses until the factory is
   // genuinely ready. The drill then proves the rollback ladder for real —
   // enable → send → disable → verify blocked → restore — with no fake state.
+  // ── M20.1 · activation binds the real send path ─────────────────────────────
+  // Not a gate unit test: the REAL channelStore resolves activation from the
+  // REAL channels row, the REAL worker drives, and a spy adapter stands in for
+  // the provider so a "sent" here is a message that would have reached a buyer.
+  describe('M20.1 · nothing reaches a buyer before the owner activates', () => {
+    const BUYER = '971500005551';
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    let cid = '';
+    /** What actually reached the provider — a send here would have reached a buyer.
+     *  Uses the file-wide simulator: wamids must stay unique across describes. */
+    const delivered = () => m18Sim.sendCount();
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+
+    const drive = async () => {
+      const { channelStore } = await import('../../src/db/channels.js');
+      const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+      return q((tx) => driveConversationOutbound(
+        { store: channelStore(tx as never, bid), adapter: m18Adapter, now: () => new Date() }, cid));
+    };
+    const queueOne = async (body: string, origin: 'employee' | 'owner') => {
+      const { enqueueOutboundRow } = await import('../../src/db/channels.js');
+      await q((tx) => enqueueOutboundRow(tx as never, bid, cid, body, origin));
+    };
+    /** M3 orders sends: a queued row waits for the previous one to be DELIVERED.
+     *  Settle prior rows so these cases isolate the activation decision. */
+    const settle = () => q((tx) => sql`
+      update outbound_messages set status='delivered'
+       where conversation_id = ${cid} and status = 'sent'`.execute(tx as never));
+    const setActivated = (on: boolean) => q((tx) => sql`
+      update channels set activated_at = ${on ? new Date() : null}, activated_by = ${on ? 'test' : null}
+       where business_id = ${DEMO_BIZ} and kind = 'whatsapp'`.execute(tx as never));
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const { addToAllowlist } = await import('../../src/channels/allowlist.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+      await addToAllowlist(prod.db, bid, BUYER, 'm20 buyer', 'owner');
+      cid = await q(async (tx) => {
+        const c = await ensureConversation(tx as never, bid, BUYER, 'M20 Buyer');
+        await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+        // open the 24h window so this isolates ACTIVATION, not the window
+        await sql`update channels set last_inbound_at=now(), status='connected', pilot_mode=true
+                   where business_id=${DEMO_BIZ}`.execute(tx as never);
+        return c.conversationId;
+      });
+    });
+
+    it('connected but NOT activated: the employee reply is canceled, never delivered', async () => {
+      await setActivated(false);
+      const before = delivered();
+      await queueOne('Employee reply before go-live', 'employee');
+      const effects = await drive();
+      expect(delivered() - before, 'a message reached the provider before activation').toBe(0);
+      expect(effects.some((e) => e.kind === 'canceled' && e.reason === 'not_activated'),
+        JSON.stringify(effects)).toBe(true);
+    });
+
+    it('the OWNER’s own reply is refused too — activation has no exceptions', async () => {
+      await setActivated(false);
+      const before = delivered();
+      await queueOne('Owner speaking before go-live', 'owner');
+      const effects = await drive();
+      expect(delivered() - before).toBe(0);
+      expect(effects.some((e) => e.kind === 'canceled' && e.reason === 'not_activated')).toBe(true);
+    });
+
+    it('the refusal is recorded where the owner can see it, not swallowed', async () => {
+      const rows = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from outbound_messages
+         where conversation_id = ${cid} and status = 'canceled'
+           and last_error like '%not_activated%'`.execute(tx as never).then((r) => r.rows[0]!.n));
+      expect(rows).toBeGreaterThanOrEqual(2);   // the employee one and the owner one
+    });
+
+    it('after the owner activates, the same message goes out', async () => {
+      await setActivated(true);
+      const before = delivered();
+      await queueOne('Reply after go-live', 'employee');
+      const effects = await drive();
+      expect(effects.some((e) => e.kind === 'sent'), JSON.stringify(effects)).toBe(true);
+      expect(delivered() - before).toBe(1);
+      // and it is the row we queued, marked sent with a provider id
+      const row = await q((tx) => sql<{ status: string; pid: string | null }>`
+        select status, provider_message_id pid from outbound_messages
+         where conversation_id=${cid} and body='Reply after go-live'`
+        .execute(tx as never).then((r) => r.rows[0]!));
+      expect(row.status).toBe('sent');
+      expect(row.pid).toBeTruthy();
+    });
+
+    it('deactivating puts it back — the rollback is real, not cosmetic', async () => {
+      const { deactivate } = await import('../../src/channels/activation.js');
+      await deactivate(prod.db, bid, 'owner', 'rollback drill');
+      await settle();
+      const before = delivered();
+      await queueOne('Reply after rollback', 'employee');
+      const effects = await drive();
+      expect(delivered() - before).toBe(0);
+      expect(effects.some((e) => e.kind === 'canceled')).toBe(true);
+    });
+
+    it('CONNECTED is not ACTIVATED: reconnecting does not make the system live', async () => {
+      const { reconnectChannel } = await import('../../src/api/web/channels.js');
+      await reconnectChannel(prod.db, DEMO_BIZ, 'owner');       // restores the connection
+      const row = await q((tx) => sql<{ status: string; activated_at: Date | null }>`
+        select status, activated_at from channels where business_id=${DEMO_BIZ} and kind='whatsapp'`
+        .execute(tx as never).then((r) => r.rows[0]!));
+      expect(row.status).toBe('connected');
+      expect(row.activated_at, 'reconnect must not activate').toBeNull();
+
+      await settle();
+      const before = delivered();
+      await queueOne('Reply after a reconnect', 'employee');
+      const effects = await drive();
+      expect(delivered() - before, 'a reconnect made the system live').toBe(0);
+      expect(effects.some((e) => e.kind === 'canceled' && e.reason === 'not_activated')).toBe(true);
+    });
+  });
+
   describe('M18.1/M18.4 · activation and the rollback drill', () => {
     const BUYER = '971500004444';
     let bid: import('../../src/core/types/ids.js').BusinessId;
@@ -2554,6 +2683,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         values (${DEMO_BIZ}, 'whatsapp', 'connected', true)
         on conflict (business_id, kind) do update set status='connected', pilot_mode=true`.execute(tx as never));
       await addToAllowlist(prod.db, bid, BUYER, 'friendly buyer', 'owner');
+      // M20.1 — this block is ABOUT activation, so it starts from not-activated
+      // whatever a sibling describe left behind. Connected, but not live.
+      await q((tx) => sql`update channels set activated_at = null, activated_by = null
+                           where business_id=${DEMO_BIZ}`.execute(tx as never));
     });
 
     it('REFUSES while the factory is not ready — and names the reason', async () => {

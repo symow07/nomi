@@ -31,10 +31,11 @@ function memStore(initial: readonly Partial<Row>[], ctx: Partial<ConversationSen
   const transitions: string[] = [];
   const context: ConversationSendContext = {
     assignedTo: null, paused: false, lastInboundAt: hoursAgo(1), template: 'none',
-    // These M3 tests predate the pilot allowlist and exercise window/retry/
-    // ordering. The gate is fail-closed (M18.2), so a store supplying no pilot
-    // context blocks everything — state explicitly that pilot mode is off.
+    // These M3 tests predate the pilot controls and exercise window/retry/
+    // ordering. The gate is fail-closed (M18.2, M20.1), so a store supplying no
+    // pilot context blocks everything — state the live conditions explicitly.
     pilotMode: false,
+    activated: true,
     ...ctx,
   };
   const byId = (id: string) => rows.find((r) => r.id === id)!;

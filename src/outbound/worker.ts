@@ -33,6 +33,8 @@ export type ConversationSendContext = {
   readonly recipientAllowed?: boolean;
   /** M18.5 — the tenant already sent its daily maximum. */
   readonly dailyCeilingReached?: boolean;
+  /** M20.1 — the owner turned messaging on. Absent = not activated. */
+  readonly activated?: boolean;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -121,13 +123,16 @@ export async function driveConversationOutbound(
     ...(ctx.pilotMode !== undefined ? { pilotMode: ctx.pilotMode } : {}),
     ...(ctx.recipientAllowed !== undefined ? { recipientAllowed: ctx.recipientAllowed } : {}),
     ...(ctx.dailyCeilingReached !== undefined ? { dailyCeilingReached: ctx.dailyCeilingReached } : {}),
+    // M20.1 — same fail-closed convention: a store that does not resolve
+    // activation gets the safe answer.
+    ...(ctx.activated !== undefined ? { activated: ctx.activated } : {}),
   });
   if (!gate.allow) {
     await deps.store.transition(candidate.id, 'canceled', `canceled: ${gate.reason}`);
     // M18.2 — a refusal to reach a non-allowlisted buyer is a safety event, not
     // routine flow control: record it where the owner can see it. The status
     // transition above already makes it non-silent; this makes it visible.
-    if (gate.reason === 'not_allowlisted' && deps.store.auditBlocked) {
+    if ((gate.reason === 'not_allowlisted' || gate.reason === 'not_activated') && deps.store.auditBlocked) {
       await deps.store.auditBlocked(candidate.id, candidate.to, gate.reason);
     }
     return [...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }];
