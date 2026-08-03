@@ -22,7 +22,8 @@ const complete: FactoryView = {
   promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
-  readiness: { prepared: 6, preparedTotal: 6, confirmed: 3, confirmedTotal: 3, rehearsed: true, live: false },
+  readiness: { canActivate: true, blockers: [], live: false,
+    recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
 };
 
 /** A factory on its first day. */
@@ -35,7 +36,7 @@ const fresh: FactoryView = {
   promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: channel(false), ownerPhone: null },
   nextStep: 'profile',
-  readiness: { prepared: 0, preparedTotal: 6, confirmed: 0, confirmedTotal: 3, rehearsed: false, live: false },
+  readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], live: false },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
@@ -336,5 +337,81 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
       names: [{ name: 'Only English', nameZh: null }, { name: null, nameZh: '只有中文' }] } }, 'zh');
     expect(html).toContain('Only English');
     expect(html).toContain('只有中文');
+  });
+});
+
+/**
+ * M20.2 — "Can she be activated now?" answered by the gate itself. The page may
+ * never say more than the preconditions say, and never less.
+ */
+describe('M20.2 · the activation readiness surface', () => {
+  const withReadiness = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' = 'en') =>
+    renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
+
+  it('ready: says so, and names exactly who can receive a message', () => {
+    const html = withReadiness({ canActivate: true, blockers: [], live: false });
+    expect(html).toContain('can start talking to real buyers whenever you say so');
+    expect(html).toContain('Only these people can receive a message from Lily');
+    expect(html).toContain('my phone');
+    expect(html).toContain('971500002222');          // no label → the number itself
+  });
+
+  it('ready: still says the owner decides — activation is not autonomy', () => {
+    expect(withReadiness({ canActivate: true, blockers: [] }))
+      .toContain('she still writes, you still send');
+  });
+
+  it('not ready: states each blocker the gate reported, and nothing else', () => {
+    const html = withReadiness({ canActivate: false, blockers: ['no_channel', 'secrets_not_rotated'] });
+    expect(html).toContain('Connect WhatsApp.');
+    expect(html).toContain('Confirm you have changed your keys.');
+    expect(html).not.toContain('Finish getting Lily ready');        // not a reported blocker
+    expect(html).not.toContain('whenever you say so');
+  });
+
+  it('not ready: each blocker links to the place that fixes it', () => {
+    expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }))
+      .toContain('<a class="blink" href="/app/channels">');
+    expect(withReadiness({ canActivate: false, blockers: ['secrets_not_rotated'] }))
+      .toContain('<a class="blink" href="/app/onboarding">');
+  });
+
+  it('a blocker with no surface yet states the requirement instead of a dead link', () => {
+    // The allowlist UI arrives in M20.4; until then this must not pretend.
+    const html = withReadiness({ canActivate: false, blockers: ['no_allowlist'] });
+    expect(html).toContain('start with your own');
+    expect(html).not.toMatch(/<a class="blink"[^>]*>[^<]*start with your own/);
+  });
+
+  it('live: reports that she is talking to real buyers, and to whom', () => {
+    const html = withReadiness({ live: true, canActivate: true, blockers: [] });
+    expect(html).toContain('is talking to real buyers');
+    expect(html).toContain('my phone');
+    expect(html).not.toContain('whenever you say so');   // she already started
+  });
+
+  it('invents no grade: no score, no percentage, no “n of m ready”', () => {
+    for (const l of LOCALES) {
+      for (const r of [{ canActivate: true, blockers: [] as never },
+                       { canActivate: false, blockers: ['not_ready', 'no_allowlist'] as never }]) {
+        const html = withReadiness(r, l).replace(/<style>[\s\S]*?<\/style>/g, '')
+          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
+        expect(html).not.toMatch(/\d+\s*%/);
+        expect(html).not.toMatch(/\d+\s*(of|\/)\s*\d+/);
+        for (const banned of ['score', 'grade', 'rating', '评分', '得分'])
+          expect(html.toLowerCase().includes(banned), `${l}:${banned}`).toBe(false);
+      }
+    }
+  });
+
+  it('speaks owner language in every locale — no leaked blocker codes', () => {
+    for (const l of LOCALES) {
+      const html = withReadiness({ canActivate: false,
+        blockers: ['schema_stale', 'not_ready', 'no_allowlist', 'secrets_not_rotated', 'no_channel'] as never }, l);
+      for (const code of ['schema_stale', 'not_ready', 'no_allowlist', 'secrets_not_rotated', 'no_channel'])
+        expect(html.includes(code), `${l} leaks ${code}`).toBe(false);
+    }
+    expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'zh')).toContain('连接WhatsApp');
+    expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'ar')).toContain('اربط واتساب');
   });
 });

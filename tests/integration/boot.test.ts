@@ -2236,18 +2236,53 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await view('00000000-0000-0000-0000-000000000000')).nextStep).toBe(other.nextStep);
     });
 
-    it('readiness summarises the EXISTING pilot model — counts, never a grade', async () => {
-      const { loadPilotReadiness } = await import('../../src/api/web/pilot.js');
-      const [f, pilot] = await Promise.all([view(), loadPilotReadiness(prod.db, DEMO_BIZ)]);
-      expect(f.readiness.preparedTotal).toBe(Object.keys(pilot.detected).length);
-      expect(f.readiness.prepared).toBe(Object.values(pilot.detected).filter(Boolean).length);
-      expect(f.readiness.rehearsed).toBe(pilot.detected.sandbox);
-      // The owner's OWN discount rule is a business number and may show a %;
-      // nothing else on the page may.
+    it('M20.2: readiness is the ACTIVATION gate itself, not a second opinion', async () => {
+      // The page and the activate action must never disagree, so the page asks
+      // the same function activate() obeys.
+      const { activationPreconditions } = await import('../../src/channels/activation.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+      const [f, pre] = await Promise.all([view(), activationPreconditions(prod.db, p.value)]);
+
+      expect(f.readiness.blockers).toEqual(pre.blockers);
+      expect(f.readiness.canActivate).toBe(pre.blockers.length === 0);
+
       const page = (await html()).replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
       expect(page).toContain('Before she talks to real buyers');
-      expect(page).not.toMatch(/\d+\s*%/);          // no rate, no score
+      expect(page).not.toMatch(/\d+\s*%/);          // no rate, no grade
       expect(page).toContain('href="/app/onboarding"');
+    });
+
+    it('M20.2: every blocker the gate reports is stated, with a way to fix it', async () => {
+      const f = await view();
+      const page = await html();
+      const FIX: Record<string, string | null> = {
+        schema_stale: '/app/onboarding', not_ready: '/app/onboarding',
+        secrets_not_rotated: '/app/onboarding', no_channel: '/app/channels',
+        no_allowlist: null,
+      };
+      for (const b of f.readiness.blockers) {
+        const href = FIX[b];
+        if (href) expect(page, `${b} needs a way to fix it`).toContain(`href="${href}"`);
+      }
+      // and the page never invents a blocker the gate did not report
+      if (f.readiness.blockers.length === 0) expect(page).toContain('whenever you say so');
+    });
+
+    it('M20.2: “live” means the owner activated, not merely that a channel is connected', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
+      const set = (on: boolean) => withTenantTx(prod.db, p.value, (tx) => sql`
+        update channels set status='connected', activated_at=${on ? new Date() : null}
+         where business_id=${DEMO_BIZ} and kind='whatsapp'`.execute(tx as never));
+
+      await set(false);
+      expect((await view()).readiness.live, 'connected must not read as live').toBe(false);
+      await set(true);
+      expect((await view()).readiness.live).toBe(true);
+      expect(await html()).toContain('is talking to real buyers');
+      await set(false);
     });
 
     it('an unknown factory renders the honest empty state, never a crash', async () => {

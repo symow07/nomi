@@ -27,7 +27,8 @@ import { loadBusinessProfile, type BusinessProfile } from './settings.js';
 import { loadProductList } from './products.js';
 import { loadChannels, type ChannelView } from './channels.js';
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
-import { loadPilotReadiness } from './pilot.js';
+import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
+import { listAllowlist } from '../../channels/allowlist.js';
 
 /**
  * What the factory still needs. Phase F: there is now exactly ONE derivation of
@@ -61,11 +62,12 @@ export type FactoryPromises = {
 
 /** Getting ready to go live — a summary of the EXISTING pilot readiness model. */
 export type FactoryReadiness = {
-  readonly prepared: number;      // real counts, never a grade
-  readonly preparedTotal: number;
-  readonly confirmed: number;
-  readonly confirmedTotal: number;
-  readonly rehearsed: boolean;
+  readonly canActivate: boolean;
+  /** Stored blockers, in the order the gate reports them. Never scored. */
+  readonly blockers: readonly ActivationRefusal[];
+  /** Who may receive a message once she is live. Real allowlist rows. */
+  readonly recipients: readonly { readonly phone: string; readonly label: string | null }[];
+  /** The owner has actually turned messaging on (channels.activated_at). */
   readonly live: boolean;
 };
 
@@ -129,16 +131,21 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
 export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
 ): Promise<FactoryView> {
-  const [profile, products, promises, channels, setup, pilot] = await Promise.all([
+  const bid = parseBusinessId(businessIdRaw);
+  const [profile, products, promises, channels, setup, pre, state, recipients] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
     loadChannels(db, businessIdRaw, messagingEnabled),
     loadOnboarding(db, businessIdRaw),
-    loadPilotReadiness(db, businessIdRaw),
+    // M20.2 — the ONE activation derivation. `activationPreconditions` already
+    // composes pilot readiness, the allowlist count, the channel and the schema
+    // check; asking IT means this page and the activate action cannot disagree.
+    bid.ok ? activationPreconditions(db, bid.value) : null,
+    bid.ok ? activationState(db, bid.value) : null,
+    bid.ok ? listAllowlist(db, bid.value) : [],
   ]);
   const sold = products.filter((p) => p.isActive);
-  const detected = Object.values(pilot.detected);
   return {
     profile,
     products: {
@@ -153,18 +160,31 @@ export async function loadFactory(
     // The ONE setup derivation — not this module's own opinion of "introduced".
     nextStep: setup.nextStep,
     readiness: {
-      prepared: detected.filter(Boolean).length,
-      preparedTotal: detected.length,
-      confirmed: [pilot.attest.backupTestedAt, pilot.attest.secretsRotatedAt, pilot.attest.ownerReadyAt]
-        .filter((x) => x !== null).length,
-      confirmedTotal: 3,
-      rehearsed: pilot.detected.sandbox,
-      live: channels.whatsapp.connected && messagingEnabled,
+      // No preconditions resolved (unknown business) is NOT "ready".
+      canActivate: pre !== null && pre.blockers.length === 0,
+      blockers: pre?.blockers ?? [],
+      recipients: recipients.map((r) => ({ phone: r.phone, label: r.label })),
+      // Live means the owner turned it ON — not merely that the channel is
+      // connected. That distinction is the whole of M20.1.
+      live: state?.activatedAt != null,
     },
   };
 }
 
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
+
+/**
+ * Where each blocker is actually fixed. `no_allowlist` has no surface yet — it
+ * arrives in M20.4 — so it states the requirement rather than offering a link
+ * that goes nowhere.
+ */
+const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
+  schema_stale: '/app/onboarding',
+  not_ready: '/app/onboarding',
+  secrets_not_rotated: '/app/onboarding',
+  no_channel: '/app/channels',
+  no_allowlist: null,
+};
 
 /** A fact the owner told her. Absent facts are simply not shown. */
 const fact = (label: string, value: string | null): string =>
@@ -266,21 +286,37 @@ export function renderFactory(f: FactoryView, locale: Locale): string {
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
       : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;
 
-  // 5 · Getting ready to go live — a SUMMARY of the pilot readiness model that
-  //     already exists. Real counts only; the full runbook is one tap away.
+  // 5 · Can she be activated now? — answered by the SAME preconditions the
+  //     activate action obeys. Either the list of blockers is empty, or it says
+  //     exactly what is in the way and where to fix it. No score, no grade.
   const r = f.readiness;
+  const recipientList = r.recipients.length
+    ? `<ul class="fsteps">${r.recipients.slice(0, 8).map((x) =>
+        `<li class="done">✓ <bdi>${esc(x.label ?? x.phone)}</bdi>${x.label ? ` <span class="muted">${esc(x.phone)}</span>` : ''}</li>`).join('')}
+       </ul>${r.recipients.length > 8 ? `<p class="fdesc">${esc(t(locale, 'activation.recipients.more', { n: r.recipients.length - 8 }))}</p>` : ''}`
+    : '';
+
+  const blockerList = `<ul class="fsteps">${r.blockers.map((b) => {
+    const href = BLOCKER_FIX[b];
+    const line = esc(t(locale, `activation.blocker.${b}` as MessageKey, { name }));
+    return `<li>○ ${href ? `<a class="blink" href="${href}">${line}</a>` : line}</li>`;
+  }).join('')}</ul>`;
+
   const readyBody = r.live
-    ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`
-    : `<ul class="fsteps">
-        <li class="${r.prepared === r.preparedTotal ? 'done' : ''}">${r.prepared === r.preparedTotal ? '✓' : '○'}
-          ${esc(t(locale, 'factory.ready.prepared', { n: r.prepared, total: r.preparedTotal }))}</li>
-        <li class="${r.rehearsed ? 'done' : ''}">${r.rehearsed ? '✓' : '○'}
-          ${esc(t(locale, r.rehearsed ? 'factory.ready.rehearsed' : 'factory.ready.rehearse', { name }))}</li>
-        <li class="${r.confirmed === r.confirmedTotal ? 'done' : ''}">${r.confirmed === r.confirmedTotal ? '✓' : '○'}
-          ${esc(t(locale, 'factory.ready.confirmed', { n: r.confirmed, total: r.confirmedTotal }))}</li>
-      </ul>
-      <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
-      ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
+    ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>
+       ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}`
+    : r.canActivate
+      ? `<p class="fok">${esc(t(locale, 'activation.can', { name }))}</p>
+         <p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>
+         ${recipientList}
+         <p class="fnever">${esc(t(locale, 'activation.stillDrafts', { name }))}</p>
+         <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
+         ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`
+      : `<p class="fdesc">${esc(t(locale, 'activation.cannot', { name }))}</p>
+         ${blockerList}
+         <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
+         ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
+
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
     ${next}
@@ -336,6 +372,7 @@ const FACTORY_STYLE = `<style>
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
   .fsteps li { font-size:14px; color:#a8afb8; }
   .fsteps li.done { color:#d6dae0; }
+  .blink { color:#60a5fa; }
   .fconn { display:flex; align-items:center; gap:13px; }
   .fconn-t { font-size:15px; color:#e7eaee; }
   .fconn-s { font-size:13px; color:#8b929c; }
