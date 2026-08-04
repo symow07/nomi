@@ -1,4 +1,5 @@
 import { isAllowlisted } from '../channels/allowlist.js';
+import type { ChannelFacts } from '../core/channel/lifecycle.js';
 import { DAILY_OUTBOUND_CEILING } from '../core/channel/limits.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
@@ -298,4 +299,40 @@ export async function enqueueOutboundRow(
     returning id
   `.execute(tx);
   return row.rows[0]?.id ?? null;
+}
+
+/**
+ * M20.4 (F-09) — resolve the facts an owner-facing precheck needs, from the same
+ * columns `channelStore.load` uses for the gate. Read-only; authorises nothing.
+ */
+export async function ownerSendFacts(
+  tx: Tx, businessId: BusinessId, conversationId: string, providerConfigured: boolean,
+): Promise<{ facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean }> {
+  const row = (await sql<{
+    status: string | null; activated_at: Date | null; disconnected_at: Date | null;
+    pilot_mode: boolean | null; cred: boolean | null; buyer_wa_id: string | null;
+  }>`
+    select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode,
+           (select bool_or(cc.is_active) from channel_credentials cc
+             where cc.business_id = ${businessId} and cc.channel = 'whatsapp') as cred,
+           cc2.channel_user_id as buyer_wa_id
+      from conversations c
+      left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
+      left join client_channels cc2 on cc2.client_id = c.client_id and cc2.channel = 'whatsapp'
+     where c.id = ${conversationId} limit 1
+  `.execute(tx)).rows[0];
+
+  const pilotMode = row?.pilot_mode ?? true;
+  return {
+    facts: {
+      hasChannel: row?.status != null,
+      status: row?.status ?? null,
+      credentialActive: row?.cred === true,
+      providerConfigured,
+      activatedAt: row?.activated_at ?? null,
+      disconnectedAt: row?.disconnected_at ?? null,
+    },
+    pilotMode,
+    recipientAllowed: pilotMode ? await isAllowlisted(tx, businessId, row?.buyer_wa_id ?? null) : true,
+  };
 }

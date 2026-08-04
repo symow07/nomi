@@ -152,13 +152,13 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
       expect(html, href).toContain(`href="${href}"`);
   });
 
-  it('is a page, not a settings panel — the only form is the go-live decision', () => {
+  it('is a page, not a settings panel — it collects only go-live decisions', () => {
     const html = renderFactory(complete, 'en');
-    // M20.3 adds activate/deactivate here deliberately; nothing else on this
-    // page collects input — every edit still happens on the surface that owns it.
+    // M20.3 added activate/deactivate; M20.4 added the allowlist, because the
+    // blocker pointed here and had nowhere to send her. Nothing else on this
+    // page collects input — every other edit happens on the surface that owns it.
     for (const f of html.match(/<form[^>]*action="([^"]*)"/g) ?? [])
-      expect(f).toMatch(/\/app\/factory\/(activate|deactivate)/);
-    expect(html).not.toContain('<input');
+      expect(f).toMatch(/\/app\/factory\/(activate|deactivate|allowlist\/(add|remove))/);
     expect(html).not.toContain('<textarea');
     expect(html).not.toContain('<table');
   });
@@ -546,5 +546,49 @@ describe('M20.3.1 · activation truth, localized', () => {
     for (const physical of ['margin-left', 'margin-right', 'padding-left', 'padding-right',
                             'border-left', 'border-right', 'text-align:left', 'text-align:right'])
       expect(style.includes(physical), physical).toBe(false);
+  });
+});
+
+/**
+ * M20.4 (F-06) — in the M21 rehearsal the owner was told to add her own number
+ * and there was nowhere to do it: one mention across every surface, no link,
+ * no route. She could not finish setup without an engineer.
+ */
+describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
+  const view = (recipients: FactoryView['readiness']['recipients'], l: 'en' | 'zh' | 'ar' = 'en') =>
+    renderFactory({ ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l);
+
+  it('THE M21 REPRODUCTION: there is now a way to add a number', () => {
+    const html = view([]);
+    expect(html).toContain('action="/app/factory/allowlist/add"');
+    expect(html).toContain('name="phone"');
+  });
+
+  it('empty list says so, and says to start with your own number', () => {
+    expect(view([])).toContain('Add your own number first');
+    expect(view([])).not.toContain('class="fsteps"><li class="done">');
+  });
+
+  it('each number can be removed, and removal confirms first', () => {
+    const html = view([{ phone: '8613900001111', label: '老板本人' }]);
+    expect(html).toContain('action="/app/factory/allowlist/remove"');
+    expect(html).toContain('value="8613900001111"');
+    expect(html).toMatch(/data-confirm="[^"]*will stop answering them[^"]*"/);
+  });
+
+  it('states the consequence for everyone NOT on the list', () => {
+    expect(view([])).toContain('still reaches you — she just will not answer them');
+  });
+
+  it('localized, and the number itself is bidi-isolated', () => {
+    expect(view([], 'zh')).toContain('{name}可以联系谁'.replace('{name}', '小雅'));
+    expect(view([], 'ar')).toContain('من يجوز لـ ياسمين مراسلته');
+    expect(view([{ phone: '8613900001111', label: null }], 'ar')).toContain('<bdi>8613900001111</bdi>');
+  });
+
+  it('no bulk import, no team management — one number at a time', () => {
+    const html = view([]);
+    expect(html).not.toContain('type="file"');
+    expect(html).not.toContain('<textarea');
   });
 });

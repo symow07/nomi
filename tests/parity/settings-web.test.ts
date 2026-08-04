@@ -95,3 +95,67 @@ describe('M11.1 · settings renderer (localized)', () => {
     }
   });
 });
+
+/**
+ * M20.4 (F-07) — the M21 rehearsal stopped here: a Chinese landline without a
+ * leading "+" was rejected, the error said only "check what you entered", and
+ * the description, location, hours, e-mail and languages were all discarded.
+ */
+describe('M20.4 · F-07 · a rejected save loses nothing and says which field', () => {
+  const typed = {
+    name: '义乌宏发保温杯厂', description: '不锈钢保温杯、饭盒、竹砧板。',
+    location: '浙江义乌', workingHours: '周一至周六 9:00-18:00',
+    contactEmail: 'sales@hongfa.example', contactPhone: '8657985001234',   // the M21 input
+    languagesServed: ['zh', 'en'],
+  };
+
+  it('THE M21 REPRODUCTION: that exact phone is rejected, and only the phone', () => {
+    const r = validateProfile(typed);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors).toEqual({ contactPhone: 'phoneShape' });
+  });
+
+  it('reports EVERY bad field at once, so one retry is enough', () => {
+    const r = validateProfile({ ...typed, name: '', contactEmail: 'not-an-email', contactPhone: 'abc' });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors).toEqual({ name: 'required', contactEmail: 'emailShape', contactPhone: 'phoneShape' });
+  });
+
+  it('the re-render carries the owner’s own words back, not the stored row', () => {
+    const stored: BusinessProfile = { ...bare, name: 'OLD NAME' };
+    const html = renderSettings(stored, 'zh', null, typed, { contactPhone: 'phoneShape' });
+    for (const v of ['义乌宏发保温杯厂', '不锈钢保温杯、饭盒、竹砧板。', '浙江义乌',
+                     '周一至周六 9:00-18:00', 'sales@hongfa.example', '8657985001234'])
+      expect(html, v).toContain(v);
+    expect(html).not.toContain('OLD NAME');          // the submission wins
+  });
+
+  it('marks the field that failed, and only that one', () => {
+    const html = renderSettings(bare, 'en', null, typed, { contactPhone: 'phoneShape' });
+    expect(html.match(/class="fld bad"/g) ?? []).toHaveLength(1);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Start with + and the country code');
+  });
+
+  it('the phone error states the shape it wants', () => {
+    expect(renderSettings(bare, 'en', null, typed, { contactPhone: 'phoneShape' }))
+      .toContain('+8657985001234');
+    expect(renderSettings(bare, 'zh', null, typed, { contactPhone: 'phoneShape' }))
+      .toContain('要以+和国家号开头');
+    expect(renderSettings(bare, 'ar', null, typed, { contactPhone: 'phoneShape' }))
+      .toContain('ابدأ بـ +');
+  });
+
+  it('checkbox state survives too — the languages she ticked stay ticked', () => {
+    const html = renderSettings(bare, 'en', null, { ...typed, languagesServed: ['ar'] }, { contactPhone: 'phoneShape' });
+    expect(html).toMatch(/name="lang_ar"[^>]*checked/);
+    expect(html).not.toMatch(/name="lang_zh"[^>]*checked/);
+  });
+
+  it('a valid phone with + still passes, in every locale’s rendering', () => {
+    expect(validateProfile({ ...typed, contactPhone: '+8657985001234' }).ok).toBe(true);
+    expect(validateProfile({ ...typed, contactPhone: '' }).ok).toBe(true);   // empty clears
+  });
+});

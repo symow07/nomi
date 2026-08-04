@@ -29,18 +29,36 @@ type ProfileValue = {
 const CAP = { name: 200, location: 200, workingHours: 200, description: 1000 };
 const nz = (s: string): string | null => (s.trim() === '' ? null : s.trim());
 
-/** Pure validation. name is required; email/phone shapes; length caps; langs ⊆ {en,zh,ar}. */
-export function validateProfile(input: ProfileInput): { ok: true; value: ProfileValue } | { ok: false } {
+/**
+ * M20.4 (F-07) — which field, and why. The old validator returned a bare
+ * `{ok:false}`, so the route could only say "check what you entered" and then
+ * re-render from the DATABASE — discarding everything the owner had typed. A
+ * Chinese landline without a leading "+" therefore silently threw away the
+ * description, location, hours, e-mail and languages alongside it.
+ */
+export type ProfileField = 'name' | 'description' | 'location' | 'workingHours' | 'contactEmail' | 'contactPhone';
+export type ProfileError = 'required' | 'tooLong' | 'emailShape' | 'phoneShape';
+export type ProfileErrors = Partial<Record<ProfileField, ProfileError>>;
+
+/** Pure validation. Reports EVERY bad field at once, so one fix-and-retry is enough. */
+export function validateProfile(
+  input: ProfileInput,
+): { ok: true; value: ProfileValue } | { ok: false; errors: ProfileErrors } {
+  const errors: ProfileErrors = {};
   const name = input.name.trim();
-  if (name.length === 0 || name.length > CAP.name) return { ok: false };
-  if (input.description.trim().length > CAP.description) return { ok: false };
-  if (input.location.trim().length > CAP.location) return { ok: false };
-  if (input.workingHours.trim().length > CAP.workingHours) return { ok: false };
+  if (name.length === 0) errors.name = 'required';
+  else if (name.length > CAP.name) errors.name = 'tooLong';
+  if (input.description.trim().length > CAP.description) errors.description = 'tooLong';
+  if (input.location.trim().length > CAP.location) errors.location = 'tooLong';
+  if (input.workingHours.trim().length > CAP.workingHours) errors.workingHours = 'tooLong';
 
   const email = input.contactEmail.trim();
-  if (email !== '' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false };
+  if (email !== '' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.contactEmail = 'emailShape';
   const phone = validateOwnerPhone(input.contactPhone);   // reuse: empty clears, else E.164-ish
-  if (!phone.ok) return { ok: false };
+  if (!phone.ok) errors.contactPhone = 'phoneShape';
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (!phone.ok) return { ok: false, errors };
 
   const langs = input.languagesServed.filter((l): l is Locale => l === 'en' || l === 'zh' || l === 'ar');
   return {
@@ -95,11 +113,13 @@ export async function loadBusinessProfile(db: Db, businessIdRaw: string): Promis
 const langsSql = (langs: readonly string[]) =>
   langs.length ? sql`array[${sql.join(langs.map((l) => sql`${l}`), sql`, `)}]::text[]` : sql`array[]::text[]`;
 
-export async function saveBusinessProfile(db: Db, businessIdRaw: string, input: ProfileInput, actor: string): Promise<{ code: 'saved' | 'invalid' }> {
+export async function saveBusinessProfile(
+  db: Db, businessIdRaw: string, input: ProfileInput, actor: string,
+): Promise<{ code: 'saved' } | { code: 'invalid'; errors: ProfileErrors }> {
   const v = validateProfile(input);
-  if (!v.ok) return { code: 'invalid' };
+  if (!v.ok) return { code: 'invalid', errors: v.errors };
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { code: 'invalid' };
+  if (!bid.ok) return { code: 'invalid', errors: {} };
 
   await withTenantTx(db, bid.value, async (tx) => {
     const cur = (await sql<{
@@ -134,25 +154,40 @@ export async function saveBusinessProfile(db: Db, businessIdRaw: string, input: 
 
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
 
-export function renderSettings(p: BusinessProfile, locale: Locale, flash: string | null): string {
-  const field = (id: string, label: MessageKey, value: string | null, ph = '') =>
-    `<label class="fld"><span class="muted">${esc(t(locale, label))}</span>
-      <input name="${id}" value="${esc(value ?? '')}"${ph ? ` placeholder="${esc(ph)}"` : ''} /></label>`;
+/** What the owner just typed, so a rejected save re-renders THEIR words. */
+export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
+
+export function renderSettings(
+  p: BusinessProfile, locale: Locale, flash: string | null,
+  draft: ProfileDraft = {}, errors: ProfileErrors = {},
+): string {
+  // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
+  // owner typed is lost when one field is wrong.
+  const val = (f: ProfileField, stored: string | null): string => draft[f] ?? stored ?? '';
+  const errLine = (f: ProfileField): string => {
+    const e = errors[f];
+    if (!e) return '';
+    const detail = e === 'tooLong' ? { n: CAP[f as keyof typeof CAP] ?? 200 } : {};
+    return `<span class="fielderr" role="alert">${esc(t(locale, `settings.err.${e}` as MessageKey, detail))}</span>`;
+  };
+  const field = (id: string, label: MessageKey, f: ProfileField, stored: string | null, ph = '') =>
+    `<label class="fld ${errors[f] ? 'bad' : ''}"><span class="muted">${esc(t(locale, label))}</span>
+      <input name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />${errLine(f)}</label>`;
 
   const languages = `<div class="fld"><span class="muted">${esc(t(locale, 'settings.field.languages'))}</span>
     <div class="langs">${LOCALES.map((l) =>
-      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${p.languagesServed.includes(l) ? ' checked' : ''} /> ${esc(LOCALE_LABEL[l])}</label>`).join('')}</div></div>`;
+      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> ${esc(LOCALE_LABEL[l])}</label>`).join('')}</div></div>`;
 
   const form = `<div class="card"><h2>${esc(t(locale, 'settings.profile.title'))}</h2>
     <form method="post" action="/app/settings" class="pform">
-      ${field('name', 'settings.field.name', p.name)}
+      ${field('name', 'settings.field.name', 'name', p.name)}
       <label class="fld"><span class="muted">${esc(t(locale, 'settings.field.description'))}</span>
-        <textarea name="description" rows="3">${esc(p.description ?? '')}</textarea></label>
-      ${field('location', 'settings.field.location', p.location)}
-      ${field('working_hours', 'settings.field.workingHours', p.workingHours, t(locale, 'settings.workingHours.ph'))}
+        <textarea name="description" rows="3">${esc(val('description', p.description))}</textarea>${errLine('description')}</label>
+      ${field('location', 'settings.field.location', 'location', p.location)}
+      ${field('working_hours', 'settings.field.workingHours', 'workingHours', p.workingHours, t(locale, 'settings.workingHours.ph'))}
       ${languages}
-      ${field('contact_email', 'settings.field.contactEmail', p.contactEmail)}
-      ${field('contact_phone', 'settings.field.contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'))}
+      ${field('contact_email', 'settings.field.contactEmail', 'contactEmail', p.contactEmail)}
+      ${field('contact_phone', 'settings.field.contactPhone', 'contactPhone', p.contactPhone, t(locale, 'settings.alerts.placeholder'))}
       <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>
   </div>`;
@@ -169,6 +204,8 @@ export function renderSettings(p: BusinessProfile, locale: Locale, flash: string
 }
 
 const SETTINGS_STYLE = `<style>
+  .fielderr { color:#f87171; font-size:13px; }
+  .fld.bad input, .fld.bad textarea { border-color:#5a1f1f; }
   .ok-line { color:#4ade80; font-weight:600; margin-bottom:10px; }
   .pform { display:flex; flex-direction:column; gap:14px; }
   .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }

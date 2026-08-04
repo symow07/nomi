@@ -786,10 +786,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(await nameOf()).toBe('Acme Exports');            // persisted
     expect(await auditCount()).toBe(before + 1);            // audited (update_profile)
 
-    // invalid: empty name is rejected — the saved name is unchanged.
+    // Invalid: empty name is rejected — the saved name is unchanged. Since
+    // M20.4 (F-07) a rejection RE-RENDERS the submission instead of redirecting,
+    // so nothing the owner typed is lost.
     const bad = await prod.app.inject({ method: 'POST', url: '/app/settings',
-      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'name=' });
-    expect(bad.headers['location']).toContain('flash=');
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'name=&location=Ningbo' });
+    expect(bad.statusCode).toBe(200);
+    expect(bad.body).toContain('class="fld bad"');          // the failing field is named
+    expect(bad.body).toContain('Ningbo');                   // her other input survived
     expect(await nameOf()).toBe('Acme Exports');            // unchanged
 
     // restore the demo name
@@ -2584,6 +2589,118 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await channel())!.activated_at).toBeInstanceOf(Date);
       expect(await sandboxChannel(), 'the other tenant was activated too').toBe(0);
       await deactivate(prod.db, bid, 'owner', 'test cleanup');
+    });
+  });
+
+  // ── M20.4 · the M21 blockers, reproduced against real Postgres ──────────────
+  describe('M20.4 · the owner completion path', () => {
+    let bid: import('../../src/core/types/ids.js').BusinessId;
+    const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+    const post = (path: string, body: string, cookie: string) => prod.app.inject({
+      method: 'POST', url: path, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: body });
+
+    beforeAll(async () => {
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    });
+
+    it('F-07: the M21 phone is rejected WITHOUT discarding the rest of the form', async () => {
+      const cookie = await login();
+      const r = await post('/app/settings',
+        'name=' + encodeURIComponent('义乌宏发保温杯厂')
+        + '&description=' + encodeURIComponent('不锈钢保温杯、饭盒、竹砧板。')
+        + '&location=' + encodeURIComponent('浙江义乌')
+        + '&contact_phone=8657985001234', cookie);       // the exact M21 input
+
+      expect(r.statusCode, 'must re-render, not redirect away').toBe(200);
+      // her words come back
+      expect(r.body).toContain('不锈钢保温杯、饭盒、竹砧板。');
+      expect(r.body).toContain('浙江义乌');
+      expect(r.body).toContain('8657985001234');
+      // and the failing field is named
+      expect(r.body).toContain('class="fld bad"');
+      expect(r.body).toContain('role="alert"');
+      // nothing was written
+      const row = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from businesses where id=${DEMO_BIZ} and location='浙江义乌'`
+        .execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(row).toBe(0);
+    });
+
+    it('F-06: the owner can add and remove a number, and it persists + audits', async () => {
+      const cookie = await login();
+      const before = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from pilot_allowlist where phone='8613900002222'`
+        .execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(before).toBe(0);
+
+      const add = await post('/app/factory/allowlist/add',
+        'phone=' + encodeURIComponent('+86 139 0000 2222') + '&label=' + encodeURIComponent('my own phone'), cookie);
+      expect(add.statusCode).toBe(302);
+      // SUCCESS MESSAGE MAPS TO PERSISTED STATE
+      const stored = await q((tx) => sql<{ phone: string; label: string | null; archived: Date | null }>`
+        select phone, label, archived_at as archived from pilot_allowlist where phone='8613900002222'`
+        .execute(tx as never).then((x) => x.rows[0]!));
+      expect(stored.phone).toBe('8613900002222');        // normalised
+      expect(stored.label).toBe('my own phone');
+      expect(stored.archived).toBeNull();
+      expect(decodeURIComponent(String(add.headers['location']))).toContain('can now receive');
+
+      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      expect(page.body).toContain('my own phone');
+
+      const rm = await post('/app/factory/allowlist/remove', 'phone=8613900002222', cookie);
+      expect(rm.statusCode).toBe(302);
+      const after = await q((tx) => sql<{ archived: Date | null }>`
+        select archived_at as archived from pilot_allowlist where phone='8613900002222'`
+        .execute(tx as never).then((x) => x.rows[0]!));
+      expect(after.archived, 'archive, never delete').not.toBeNull();
+
+      const audits = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from channel_audit where action in ('allowlist_add','allowlist_remove')`
+        .execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(audits).toBeGreaterThanOrEqual(2);
+    });
+
+    it('F-06 SECURITY: both allowlist actions reject an anonymous caller', async () => {
+      for (const p of ['/app/factory/allowlist/add', '/app/factory/allowlist/remove']) {
+        const r = await prod.app.inject({ method: 'POST', url: p,
+          headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=8613900003333' });
+        expect(r.statusCode, p).toBe(302);
+        expect(r.headers['location'], p).toBe('/login');
+      }
+      const leaked = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from pilot_allowlist where phone='8613900003333'`
+        .execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(leaked).toBe(0);
+    });
+
+    it('F-08: reconnect on a factory with NO channel row reports the truth', async () => {
+      const { reconnectChannel } = await import('../../src/api/web/channels.js');
+      const OTHER = '5a4d0000-0000-4000-8000-0000000000b1';       // sandbox tenant: no channel
+      const r = await reconnectChannel(prod.db, OTHER, 'owner');
+      expect(r.code, 'must not claim success on zero rows').toBe('nothing_to_connect');
+    });
+
+    it('F-09: a reply while messaging is off is refused up front, and named', async () => {
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { ensureConversation } = await import('../../src/db/channels.js');
+      const cid = await withTenantTx(prod.db, bid, async (tx) => {
+        const c = await ensureConversation(tx, bid, '971500006061', 'F09 Buyer');
+        await sql`update conversations set assigned_to='owner' where id=${c.conversationId}`.execute(tx as never);
+        return c.conversationId;
+      });
+      const cookie = await login();
+      const r = await post(`/app/inbox/${cid}/reply`, 'text=' + encodeURIComponent('这条不该发出去'), cookie);
+      expect(r.statusCode).toBe(302);
+      const flash = decodeURIComponent(String(r.headers['location']));
+      expect(flash).toMatch(/Not sent|没有发出去|لم يُرسَل/);
+      // and NOTHING was queued — the owner is not left with a pending row
+      const queued = await q((tx) => sql<{ n: number }>`
+        select count(*)::int n from outbound_messages where conversation_id=${cid}`
+        .execute(tx as never).then((x) => x.rows[0]!.n));
+      expect(queued).toBe(0);
     });
   });
 

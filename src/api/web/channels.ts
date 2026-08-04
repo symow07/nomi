@@ -134,6 +134,7 @@ export async function saveOwnerPhone(db: Db, businessIdRaw: string, rawPhone: st
 /** ── State actions — real effects on channel_credentials, audited ─────────── */
 
 export type ChannelFlash =
+  | 'nothing_to_connect' | 'no_credential'      // M20.4 (F-08)
   | 'disconnected' | 'reconnected' | 'test_ok' | 'test_degraded' | 'test_not_connected' | 'failed';
 export type ChannelActionResult = { readonly code: ChannelFlash };
 
@@ -159,12 +160,23 @@ export async function disconnectChannel(db: Db, businessIdRaw: string, actor: st
 export async function reconnectChannel(db: Db, businessIdRaw: string, actor: string): Promise<ChannelActionResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
-  await withTenantTx(db, bid.value, async (tx) => {
+  // M20.4 (F-08) — the M21 rehearsal got "已重新连接。小雅又开始接待了。" while the
+  // channels table went from 0 rows to 0 rows: the UPDATE matched nothing and the
+  // route reported success anyway. Report what the row ACTUALLY says afterwards.
+  return withTenantTx(db, bid.value, async (tx) => {
     await sql`update channel_credentials set is_active = true where business_id = ${bid.value} and channel = ${KIND}`.execute(tx);
     await sql`update channels set status = 'connected', connected_at = now(), disconnected_at = null, updated_at = now() where business_id = ${bid.value} and kind = ${KIND}`.execute(tx);
+    const row = (await sql<{ status: string; cred: boolean | null }>`
+      select ch.status,
+             (select bool_or(cc.is_active) from channel_credentials cc
+               where cc.business_id = ch.business_id and cc.channel = ${KIND}) as cred
+        from channels ch where ch.business_id = ${bid.value} and ch.kind = ${KIND} limit 1
+    `.execute(tx)).rows[0];
+    if (!row) return { code: 'nothing_to_connect' as const };       // no channel exists
+    if (row.cred !== true) return { code: 'no_credential' as const }; // nothing to connect WITH
     await audit(tx, bid.value, 'reconnect', actor);
+    return { code: 'reconnected' as const };
   });
-  return { code: 'reconnected' };
 }
 
 export async function testChannel(db: Db, businessIdRaw: string, actor: string, messagingEnabled: boolean): Promise<ChannelActionResult> {

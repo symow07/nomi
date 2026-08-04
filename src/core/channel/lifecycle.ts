@@ -65,3 +65,26 @@ export function channelLifecycle(f: ChannelFacts): ChannelLifecycle {
  * channel is already on, and both other states need the connection fixed first.
  */
 export const canActivateChannel = (f: ChannelFacts): boolean => channelLifecycle(f) === 'ready';
+
+/**
+ * M20.4 (F-09) — why an owner-typed reply would not leave, if it would not.
+ *
+ * This is NOT a second gate. `gateOutbound` remains the only authority over
+ * what is sent; this decides only what the owner is TOLD, synchronously, at the
+ * moment she presses send — because the real gate runs later in the worker and
+ * cannot answer her in time. It reads the same facts, so the two cannot say
+ * different things, and it is deliberately conservative: anything it is unsure
+ * of, it stays quiet about and lets the gate decide.
+ */
+export type SendPrecheck = 'ok' | 'not_activated' | 'not_connected' | 'not_allowlisted';
+
+export function precheckOwnerSend(
+  f: ChannelFacts, opts: { readonly recipientAllowed: boolean; readonly pilotMode: boolean },
+): SendPrecheck {
+  const state = channelLifecycle(f);
+  if (state === 'not_connected') return 'not_connected';
+  if (state === 'paused') return 'not_activated';
+  if (state === 'ready') return 'not_activated';        // connected, never started
+  if (opts.pilotMode && !opts.recipientAllowed) return 'not_allowlisted';
+  return 'ok';
+}

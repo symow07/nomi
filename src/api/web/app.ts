@@ -22,6 +22,9 @@ import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { loadFactory, renderFactory } from './factory.js';
 import { activate, deactivate } from '../../channels/activation.js';
+import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
+import { ownerSendFacts } from '../../db/channels.js';
+import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import {
   loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, runValidation, type AttestKey,
 } from './pilot.js';
@@ -267,6 +270,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/inbox');
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
+    // M20.4 (F-09) — the M21 rehearsal accepted a reply after the owner had
+    // stopped messaging and told her "等着发出去" (waiting to send). The gate
+    // then correctly canceled it and nothing said so. Ask the SAME facts the
+    // gate reads before accepting, so the answer she gets is the true one.
+    const pre = await withTenantTx(deps.db, bid.value, (tx) =>
+      ownerSendFacts(tx, bid.value, cid, messagingEnabled));
+    const verdict = precheckOwnerSend(pre.facts, pre);
+    if (verdict !== 'ok') {
+      return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(
+        t(localeOf(req), `inbox.blocked.${verdict}` as MessageKey))}`);
+    }
     const r = await ownerReply(
       { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
       { businessId: bid.value, conversationId: cid, text, actor: 'owner' },
@@ -335,8 +349,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // codes My factory already shows, and both write channel_audit themselves.
   // Post/Redirect/Get, so a refresh never re-fires the most consequential
   // action in the product.
-  const factoryFlash = (req: FastifyRequest, key: MessageKey) =>
-    `/app/factory?flash=${encodeURIComponent(t(localeOf(req), key))}`;
+  const factoryFlash = (req: FastifyRequest, key: MessageKey, params?: Record<string, string | number>) =>
+    `/app/factory?flash=${encodeURIComponent(t(localeOf(req), key, params))}`;
 
   app.post('/app/factory/activate', async (req, reply) => {
     const s = sessionOf(req);
@@ -349,6 +363,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(r.ok
       ? factoryFlash(req, 'activation.flash.activated')
       : factoryFlash(req, `activation.blocker.${r.code}` as MessageKey));
+  });
+
+  // M20.4 (F-06) — the owner decides who may be reached. Reuses the existing
+  // allowlist services (they normalise the number and write channel_audit); this
+  // adds no model and no permission system. Every flash below is derived from
+  // what the service actually persisted, never assumed.
+  app.post('/app/factory/allowlist/add', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    const b = (req.body ?? {}) as { phone?: string; label?: string };
+    const label = String(b.label ?? '').trim() || null;
+    const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, 'owner');
+    return reply.redirect(r.ok
+      ? factoryFlash(req, 'allowlist.flash.added', { who: label ?? r.phone })
+      : factoryFlash(req, 'allowlist.flash.invalid'));
+  });
+
+  app.post('/app/factory/allowlist/remove', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
+    const r = await archiveFromAllowlist(deps.db, bid.value, phone, 'owner');
+    return reply.redirect(r.ok
+      ? factoryFlash(req, 'allowlist.flash.removed', { who: r.phone })
+      : factoryFlash(req, 'allowlist.flash.invalid'));
   });
 
   app.post('/app/factory/deactivate', async (req, reply) => {
@@ -529,8 +572,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       languagesServed: LOCALES.filter((l) => b[`lang_${l}`] !== undefined),
     };
     const r = await saveBusinessProfile(deps.db, s.businessId, input, 'owner');
-    const flash = t(locale, r.code === 'saved' ? 'settings.flash.profileSaved' : 'settings.flash.profileInvalid');
-    return reply.redirect(`/app/settings?flash=${encodeURIComponent(flash)}`);
+    if (r.code === 'saved') {
+      return reply.redirect(`/app/settings?flash=${encodeURIComponent(t(locale, 'settings.flash.profileSaved'))}`);
+    }
+    // M20.4 (F-07) — a rejected save re-RENDERS the owner's own submission with
+    // the bad field marked. Redirecting would reload from the database and throw
+    // away everything she typed, which is the M21 defect.
+    const profile = await loadBusinessProfile(deps.db, s.businessId);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'settings.profile.title'), active: 'settings',
+      bodyHtml: renderSettings(profile, locale, t(locale, 'settings.flash.profileFix'), {
+        name: input.name, description: input.description, location: input.location,
+        workingHours: input.workingHours, contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone, languagesServed: input.languagesServed,
+      }, r.errors),
+    }));
   });
 
   // ── M13/M14 Factory Knowledge: ops overview + teach/correct ────────────────

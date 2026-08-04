@@ -292,11 +292,36 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
         <div class="fconn-s">${esc(t(locale, `channel.state.${lc}` as MessageKey, { name }))}</div>
         <div class="fconn-h muted">${esc(t(locale, `channel.state.${lc}.hint` as MessageKey, { name }))}</div>
       </div>`;
+  // M20.4 (F-06) — the allowlist lives here, where the blocker sends her. It
+  // reuses pilot_allowlist and the existing add/archive services: no second
+  // store, no permission system. (Kept OUT of the template — an HTML comment
+  // ships to the owner's browser, and this one tripped the banned-vocabulary
+  // guard by containing a word owners never see.)
   const reachBody = `
     ${lc === 'active' || lc === 'ready'
       ? `<div class="fconn on">${conn}</div>`
       : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
     ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
+    <h3 class="sub3">${esc(t(locale, 'allowlist.title', { name }))}</h3>
+    <p class="fdesc">${esc(t(locale, 'allowlist.note', { name }))}</p>
+    ${f.readiness.recipients.length === 0
+      ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
+      : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
+          <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
+            <form method="post" action="/app/factory/allowlist/remove" class="inline rm">
+              <input type="hidden" name="phone" value="${esc(r.phone)}" />
+              <button class="btn ghost" type="submit"
+                      onclick="return confirm(this.dataset.confirm)"
+                      data-confirm="${esc(t(locale, 'allowlist.remove.confirm', { who: r.label ?? r.phone, name }))}"
+              >${esc(t(locale, 'allowlist.remove'))}</button>
+            </form></li>`).join('')}</ul>`}
+    <form method="post" action="/app/factory/allowlist/add" class="alform">
+      <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.phone'))}</span>
+        <input name="phone" inputmode="tel" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" required /></label>
+      <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.label'))}</span>
+        <input name="label" placeholder="${esc(t(locale, 'allowlist.label.ph'))}" /></label>
+      <button class="btn send" type="submit">${esc(t(locale, 'allowlist.add'))}</button>
+    </form>
     <p class="fdesc">${esc(t(locale, lc === 'active' ? 'factory.reach.nextConnected' : 'factory.reach.nextNot', { name }))}</p>
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
@@ -408,6 +433,12 @@ const FACTORY_STYLE = `<style>
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
   .fsteps li { font-size:14px; color:#a8afb8; }
   .fsteps li.done { color:#d6dae0; }
+  .sub3 { font-size:15px; font-weight:600; color:#e7eaee; margin:22px 0 4px; }
+  .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:34ch; }
+  .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }
+  .alform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px;
+    color:#fff; padding:10px 14px; font:inherit; }
+  .rm { margin-inline-start:8px; }
   .blink { color:#60a5fa; }
   .fconn { display:flex; align-items:center; gap:13px; }
   .fconn-t { font-size:15px; color:#e7eaee; }
