@@ -38,6 +38,7 @@ import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as par
 import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
   activeSandboxConversationId, sandboxFlushOutbound,
+  runScriptedPractice, renderPractice,
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
@@ -670,10 +671,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const q = req.query as { mode?: string; flash?: string; ask?: string };
       const flash = typeof q.flash === 'string' ? q.flash : null;
       const prefill = typeof q.ask === 'string' ? q.ask : '';
-      const view = await loadSandboxView(sbxDeps);
+      // M20.4 (F-04) — the safety checks run IN MEMORY, so a factory provisioned
+      // one minute ago can practise. Nothing here writes or sends.
+      const practice = await runScriptedPractice();
+      // The free-typing half still needs a practice conversation. If this
+      // installation has none, say so — never render a picker that does nothing.
+      const view = await loadSandboxView(sbxDeps).catch(() => null);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill }),
+        bodyHtml: renderPractice(practice, locale) + (view
+          ? renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill })
+          : `<div class="card"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
       }));
     });
 

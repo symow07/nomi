@@ -326,3 +326,55 @@ describe('M16.4b · owner-facing practice-case names', () => {
     for (const s of SCENARIOS) expect(html).toContain(`value="${s.id}"`);
   });
 });
+
+/**
+ * M20.4 (F-04) — the M21 rehearsal found practice silently dead on a fresh
+ * factory: it wrote turns to a hard-coded tenant only an operator script
+ * creates, so choosing a case did nothing at all, with no error.
+ */
+describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it proves', () => {
+  it('THE M21 REPRODUCTION: it runs with no database and no sandbox tenant', async () => {
+    const { runScriptedPractice } = await import('../../src/api/web/sandbox.js');
+    const r = await runScriptedPractice();          // no Db argument exists to pass
+    expect(r.total).toBeGreaterThan(20);
+    expect(r.passed).toBe(r.total);                 // the golden safety set
+  });
+
+  it('the golden set is unchanged — practice IS the regression set', async () => {
+    const { runScriptedPractice } = await import('../../src/api/web/sandbox.js');
+    const { SCENARIOS } = await import('../../src/trust/scenarios.js');
+    const r = await runScriptedPractice();
+    expect(r.total).toBe(SCENARIOS.length);
+    expect(new Set(r.cases.map((c) => c.id))).toEqual(new Set(SCENARIOS.map((s) => s.id)));
+  });
+
+  it('states what it proves AND what it does not', async () => {
+    const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
+    const html = renderPractice(await runScriptedPractice(), 'en');
+    expect(html).toContain('will not quote below your floor');
+    expect(html).toContain('will not claim a certification you have not confirmed');
+    expect(html).toContain('What it does not prove');
+    expect(html).toContain('whether WhatsApp delivers it');
+  });
+
+  it('shows a real count, never a score or a percentage', async () => {
+    const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
+    const r = await runScriptedPractice();
+    const html = renderPractice(r, 'en').replace(/<style>[\s\S]*?<\/style>/g, '');
+    expect(html).toContain(`${r.passed} / ${r.total}`);
+    expect(html).not.toMatch(/\d+\s*%/);
+    for (const banned of ['score', 'grade', 'rating']) expect(html.toLowerCase()).not.toContain(banned);
+  });
+
+  it('renders in all three locales with each case named in the owner’s words', async () => {
+    const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
+    const r = await runScriptedPractice();
+    for (const l of LOCALES) {
+      const html = renderPractice(r, l);
+      expect(html.length).toBeGreaterThan(800);
+      expect(html).not.toContain('sandbox.case.');       // every id resolved to copy
+    }
+    expect(renderPractice(r, 'zh')).toContain('练习——安全检查');
+    expect(renderPractice(r, 'ar')).toContain('فحوص السلامة');
+  });
+});

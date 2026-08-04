@@ -245,6 +245,45 @@ export type SandboxTrust = {
   readonly quote: { readonly unitPriceUsd: number; readonly totalUsd: number } | null;
   readonly checks: readonly CheckResult[];
 };
+/**
+ * M20.4 (F-04) — scripted practice, run IN MEMORY.
+ *
+ * The M21 rehearsal found this surface silently dead on a fresh factory: it
+ * wrote turns to a separate hard-coded tenant that only an operator script
+ * creates, so choosing a case returned 302 and nothing happened. Scripted
+ * practice now runs the M12.1 harness in process — the same 23 golden scenarios
+ * the readiness check runs — so it works the moment a factory exists.
+ *
+ * Isolation is now absolute rather than conventional: no DB write, no adapter,
+ * no conversation. There is nothing for a message to escape through.
+ */
+export type PracticeCase = {
+  readonly id: string;
+  readonly title: string;
+  readonly category: string;
+  readonly passed: boolean;
+  readonly checks: readonly { readonly invariant: string; readonly pass: boolean; readonly detail: string }[];
+};
+export type PracticeReport = {
+  readonly cases: readonly PracticeCase[];
+  readonly passed: number;
+  readonly total: number;
+};
+
+/** Run the golden safety set. No database, no provider — nothing can be sent. */
+export async function runScriptedPractice(): Promise<PracticeReport> {
+  const { runAll } = await import('../../trust/harness.js');
+  const { SCENARIOS } = await import('../../trust/scenarios.js');
+  const r = await runAll(SCENARIOS);
+  return {
+    cases: r.scenarios.map((x) => ({
+      id: x.id, title: x.title, category: x.category, passed: x.passed,
+      checks: x.checks.map((c) => ({ invariant: c.invariant, pass: c.pass, detail: c.detail })),
+    })),
+    passed: r.passed, total: r.total,
+  };
+}
+
 export type SandboxView = {
   readonly hasConversation: boolean;
   readonly messages: readonly SandboxMessage[];
@@ -414,6 +453,23 @@ function sandboxTakeoverCard(view: SandboxView, locale: Locale, mode: SandboxMod
   }
 }
 
+/** M20.4 (F-04) — what scripted practice proves, and what it does not. */
+export function renderPractice(report: PracticeReport, locale: Locale): string {
+  const rows = report.cases.map((c) => `
+    <li class="pcase ${c.passed ? 'ok' : 'bad'}">
+      <span class="pmark">${c.passed ? '✓' : '✗'}</span>
+      <span class="ptitle">${esc(t(locale, `sandbox.case.${c.id}` as MessageKey))}</span>
+    </li>`).join('');
+  return `<div class="card">
+    <h2>${esc(t(locale, 'practice.scripted.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <div class="pcount">${report.passed} / ${report.total}</div>
+    <ul class="pcases">${rows}</ul>
+    <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: EMPLOYEE_NAME[locale] }))}</p>
+  </div>`;
+}
+
 export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null; prefill?: string }): string {
   const name = EMPLOYEE_NAME[locale];
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
@@ -465,6 +521,13 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
 }
 
 const SANDBOX_STYLE = `<style>
+  .pcount { font-size:22px; font-weight:600; color:#fff; font-variant-numeric:tabular-nums; margin:4px 0 12px; }
+  .pcases { list-style:none; margin:0; padding:0; }
+  .pcase { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid #1c2026; font-size:14px; }
+  .pcase:last-child { border-bottom:0; }
+  .pcase.ok .pmark { color:#4ade80; } .pcase.bad .pmark { color:#f87171; }
+  .ptitle { color:#c8ccd2; }
+  .pproves { margin:12px 0 0; max-width:62ch; line-height:1.6; }
   .dhead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .sbx-banner { background:#2e2413; color:#fbbf24; border:1px solid #5a4a1f; border-radius:12px; padding:12px 16px; font-weight:600; font-size:14px; margin:6px 0 12px; }
   .sbx-intro { margin:0 0 16px; }
