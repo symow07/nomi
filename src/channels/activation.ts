@@ -1,4 +1,7 @@
 import { sql } from 'kysely';
+import {
+  channelLifecycle, isConnected, type ChannelFacts, type ChannelLifecycle,
+} from '../core/channel/lifecycle.js';
 import { withTenantTx, type Db } from '../db/client.js';
 import { loadPilotReadiness } from '../api/web/pilot.js';
 import { activeAllowlistCount } from './allowlist.js';
@@ -39,23 +42,39 @@ export type ActivationPreconditions = {
   readonly hasChannel: boolean;
   /** M19.1 — the applied migration version vs the one this build needs. */
   readonly schema: { readonly required: number; readonly actual: number | null; readonly ok: boolean };
+  /** M20.3.1 — the one channel-state answer both sections of My factory render. */
+  readonly lifecycle: ChannelLifecycle;
   readonly blockers: readonly ActivationRefusal[];
 };
 
 export async function activationPreconditions(
-  db: Db, businessId: BusinessId,
+  db: Db, businessId: BusinessId, opts: { readonly providerConfigured: boolean },
 ): Promise<ActivationPreconditions> {
-  const [readiness, allowlistCount, channel, schema] = await Promise.all([
+  const [readiness, allowlistCount, chRow, schema] = await Promise.all([
     loadPilotReadiness(db, businessId),
     activeAllowlistCount(db, businessId),
+    // M20.3.1 — the REAL question, not "does a row exist?". A row exists after a
+    // rollback too, which is how a disconnected factory came to read as ready.
     withTenantTx(db, businessId, (tx) =>
-      sql<{ n: number }>`
-        select count(*)::int as n from channels
-         where business_id = ${businessId} and kind = 'whatsapp'
-      `.execute(tx).then((r) => r.rows[0]!.n)),
+      sql<{ status: string | null; cred_active: boolean | null; activated_at: Date | null; disconnected_at: Date | null }>`
+        select ch.status, ch.activated_at, ch.disconnected_at,
+               (select bool_or(cc.is_active) from channel_credentials cc
+                 where cc.business_id = ch.business_id and cc.channel = 'whatsapp') as cred_active
+          from channels ch
+         where ch.business_id = ${businessId} and ch.kind = 'whatsapp' limit 1
+      `.execute(tx).then((r) => r.rows[0] ?? null)),
     readSchemaState(db),
   ]);
 
+  const facts: ChannelFacts = {
+    hasChannel: chRow !== null,
+    status: chRow?.status ?? null,
+    credentialActive: chRow?.cred_active === true,
+    providerConfigured: opts.providerConfigured,
+    activatedAt: chRow?.activated_at ?? null,
+    disconnectedAt: chRow?.disconnected_at ?? null,
+  };
+  const lifecycle = channelLifecycle(facts);
   const secretsRotated = readiness.attest.secretsRotatedAt !== null;
   const blockers: ActivationRefusal[] = [];
   // M19.1 FIRST: a stale schema means the send path is broken in a way that
@@ -65,13 +84,16 @@ export async function activationPreconditions(
   if (!readiness.readyToLaunch) blockers.push('not_ready');
   if (allowlistCount < 1) blockers.push('no_allowlist');
   if (!secretsRotated) blockers.push('secrets_not_rotated');
-  if (channel < 1) blockers.push('no_channel');
+  // Not "is there a row" but "could a message actually leave" — a paused or
+  // never-connected channel is equally not ready, and says so on the page.
+  if (!isConnected(facts)) blockers.push('no_channel');
 
   return {
     ready: readiness.readyToLaunch,
     allowlistCount,
     secretsRotated,
-    hasChannel: channel > 0,
+    hasChannel: isConnected(facts),
+    lifecycle,
     schema: { required: schema.required, actual: schema.actual, ok: schema.ok },
     blockers,
   };
@@ -83,9 +105,9 @@ export async function activationPreconditions(
  * start of a controlled pilot, not the end of one.
  */
 export async function activate(
-  db: Db, businessId: BusinessId, actor: string,
+  db: Db, businessId: BusinessId, actor: string, opts: { readonly providerConfigured: boolean },
 ): Promise<ActivationResult> {
-  const pre = await activationPreconditions(db, businessId);
+  const pre = await activationPreconditions(db, businessId, opts);
   if (pre.blockers.length > 0) return { ok: false, code: pre.blockers[0]! };
 
   return withTenantTx(db, businessId, async (tx) => {

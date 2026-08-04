@@ -22,7 +22,7 @@ const complete: FactoryView = {
   promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
-  readiness: { canActivate: true, blockers: [], live: false, activatedAt: null, activatedBy: null,
+  readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
 };
 
@@ -36,8 +36,8 @@ const fresh: FactoryView = {
   promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: channel(false), ownerPhone: null },
   nextStep: 'profile',
-  readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], live: false,
-    activatedAt: null, activatedBy: null },
+  readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], lifecycle: 'not_connected',
+    live: false, activatedAt: null, activatedBy: null },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
@@ -119,10 +119,10 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(none).toContain('she will not say');       // the rule holds even with nothing allowed
   });
 
-  it('connection says connected or not, and what that means — not how it works', () => {
+  it('connection says which of the four states it is in, and what that means', () => {
     const on = renderFactory(complete, 'en');
     expect(on).toContain('Connected');
-    expect(on).toContain('reach Lily');
+    expect(on).toContain('you decide when Lily starts');
     expect(on).toContain('+971 50 ••• 4444');
     const off = renderFactory(fresh, 'en');
     expect(off).toContain('Not connected');
@@ -198,12 +198,16 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     expect(ar).toContain('<bdi class="fval">');
   });
 
-  it('a disconnected channel is its own remedy — the block links to the fix', () => {
-    const off = renderFactory(fresh, 'ar');
-    expect(off).toContain('<a class="fconn off" href="/app/channels"');
-    const on = renderFactory(complete, 'en');
-    expect(on).toContain('<div class="fconn on"');
-    expect(on).not.toContain('fconn off');
+  it('a channel that cannot carry a message is its own remedy — the block links to the fix', () => {
+    for (const lc of ['not_connected', 'paused'] as const) {
+      const html = renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar');
+      expect(html, lc).toContain('<a class="fconn off" href="/app/channels"');
+    }
+    for (const lc of ['ready', 'active'] as const) {
+      const html = renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'en');
+      expect(html, lc).toContain('<div class="fconn on"');
+      expect(html, lc).not.toContain('fconn off');
+    }
   });
 
   it('RTL-safe layout: no physical left/right in the page’s own styles', () => {
@@ -475,5 +479,72 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
       for (const banned of ['automatic', 'automatically', 'on its own', '自动', 'تلقائي'])
         expect(html.includes(banned), `${l}:${banned}`).toBe(false);
     }
+  });
+});
+
+/** M20.3.1 — the page states one channel truth, in every language. */
+describe('M20.3.1 · activation truth, localized', () => {
+  const at = (lifecycle: FactoryView['readiness']['lifecycle'], l: 'en' | 'zh' | 'ar',
+              over: Partial<FactoryView['readiness']> = {}) =>
+    // the stylesheet carries English comments; the owner reads the markup
+    renderFactory({ ...complete, readiness: {
+      ...complete.readiness, lifecycle, live: lifecycle === 'active',
+      canActivate: lifecycle === 'ready',
+      blockers: lifecycle === 'ready' || lifecycle === 'active' ? [] : ['no_channel'],
+      ...over } } as FactoryView, l).replace(/<style>[\s\S]*?<\/style>/g, '');
+
+  it('each state reads as itself, and says what it means for her day', () => {
+    expect(at('not_connected', 'en')).toContain('Not connected');
+    expect(at('not_connected', 'en')).toContain('cannot receive or answer a buyer');
+    expect(at('ready', 'en')).toContain('Ready — you decide when Lily starts');
+    expect(at('active', 'en')).toContain('Lily is handling conversations');
+    expect(at('paused', 'en')).toContain('Paused');
+    expect(at('paused', 'en')).toContain('Reconnect to continue. Nothing was deleted');
+  });
+
+  it('THE BUG: a paused channel never offers to start, and never claims to be ready', () => {
+    const html = at('paused', 'en');
+    expect(html).toContain('Paused');
+    expect(html).not.toContain('whenever you say so');
+    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).toContain('Connect WhatsApp.');            // the blocker, stated
+  });
+
+  it('a paused channel is not described as never-connected', () => {
+    expect(at('paused', 'en')).not.toContain('Not connected');
+    expect(at('not_connected', 'en')).not.toContain('Paused');
+  });
+
+  it('only READY offers the decision — the other three do not', () => {
+    expect(at('ready', 'en')).toContain('action="/app/factory/activate"');
+    for (const lc of ['not_connected', 'paused', 'active'] as const)
+      expect(at(lc, 'en'), lc).not.toContain('action="/app/factory/activate"');
+  });
+
+  it('all four states, all three locales, with nothing falling back to English', () => {
+    for (const lc of ['not_connected', 'ready', 'active', 'paused'] as const) {
+      for (const l of ['zh', 'ar'] as const) {
+        const html = at(lc, l);
+        expect(html.length, `${l}/${lc}`).toBeGreaterThan(500);
+        for (const en of ['Not connected', 'Paused', 'Ready —', 'is handling conversations'])
+          expect(html.includes(en), `${l}/${lc} leaked "${en}"`).toBe(false);
+      }
+    }
+    expect(at('paused', 'zh')).toContain('已暂停');
+    expect(at('paused', 'zh')).toContain('重新连接就能继续');
+    expect(at('paused', 'ar')).toContain('متوقف');
+    expect(at('ready', 'zh')).toContain('准备好了');
+    expect(at('active', 'ar')).toContain('يعمل');
+  });
+
+  it('RTL: the Arabic page still mirrors, and the state block stays logical', () => {
+    const ar = renderFactory({ ...complete, readiness: {
+      ...complete.readiness, lifecycle: 'paused', live: false, canActivate: false,
+      blockers: ['no_channel'] } } as FactoryView, 'ar');
+    expect(ar).toContain('class="go"');                       // mirrored by the shell
+    const style = ar.match(/<style>[\s\S]*<\/style>/)![0];
+    for (const physical of ['margin-left', 'margin-right', 'padding-left', 'padding-right',
+                            'border-left', 'border-right', 'text-align:left', 'text-align:right'])
+      expect(style.includes(physical), physical).toBe(false);
   });
 });

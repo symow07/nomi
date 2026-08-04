@@ -2242,7 +2242,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { activationPreconditions } = await import('../../src/channels/activation.js');
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
-      const [f, pre] = await Promise.all([view(), activationPreconditions(prod.db, p.value)]);
+      // The app builds with provider 'disabled', so the page asks with
+      // providerConfigured:false — assert against the SAME question.
+      const [f, pre] = await Promise.all([
+        view(), activationPreconditions(prod.db, p.value, { providerConfigured: false })]);
 
       expect(f.readiness.blockers).toEqual(pre.blockers);
       expect(f.readiness.canActivate).toBe(pre.blockers.length === 0);
@@ -2269,20 +2272,44 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       if (f.readiness.blockers.length === 0) expect(page).toContain('whenever you say so');
     });
 
-    it('M20.2: “live” means the owner activated, not merely that a channel is connected', async () => {
+    it('M20.3.1: activation on a channel that cannot carry a message is NOT “active”', async () => {
       const { withTenantTx } = await import('../../src/db/client.js');
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const { loadFactory } = await import('../../src/api/web/factory.js');
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
       const set = (on: boolean) => withTenantTx(prod.db, p.value, (tx) => sql`
         update channels set status='connected', activated_at=${on ? new Date() : null}
          where business_id=${DEMO_BIZ} and kind='whatsapp'`.execute(tx as never));
 
-      await set(false);
-      expect((await view()).readiness.live, 'connected must not read as live').toBe(false);
       await set(true);
-      expect((await view()).readiness.live).toBe(true);
-      expect(await html()).toContain('is talking to real buyers');
+      // This installation has no messaging provider: connected + activated is
+      // still not a channel a buyer can be reached on, so it must not say so.
+      const asShipped = await loadFactory(prod.db, DEMO_BIZ, false);
+      expect(asShipped.readiness.live).toBe(false);
+      expect(asShipped.readiness.lifecycle).not.toBe('active');
+
+      // With a provider configured, the same row IS active.
+      const withProvider = await loadFactory(prod.db, DEMO_BIZ, true);
+      expect(withProvider.readiness.lifecycle).toBe('active');
+      expect(withProvider.readiness.live).toBe(true);
       await set(false);
+    });
+
+    it('M20.3.1: the connection section and the activation section never disagree', async () => {
+      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
+      for (const provider of [false, true]) {
+        const v = await loadFactory(prod.db, DEMO_BIZ, provider);
+        const page = renderFactory(v, 'en');
+        const offersActivate = page.includes('action="/app/factory/activate"');
+        const saysReady = page.includes('whenever you say so');
+        // "you can start" may only appear when the channel is genuinely ready
+        if (saysReady || offersActivate) expect(v.readiness.lifecycle, JSON.stringify(v.readiness)).toBe('ready');
+        // and a channel that cannot carry a message never reads as ready
+        if (v.readiness.lifecycle !== 'ready' && v.readiness.lifecycle !== 'active') {
+          expect(page).not.toContain('whenever you say so');
+          expect(page).not.toContain('action="/app/factory/activate"');
+        }
+      }
     });
 
     it('an unknown factory renders the honest empty state, never a crash', async () => {
@@ -2448,7 +2475,20 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         values (${DEMO_BIZ}, 'whatsapp', 'connected', true)
         on conflict (business_id, kind) do update set status='connected', pilot_mode=true,
           activated_at=null, activated_by=null`.execute(tx as never));
+      await q((tx) => sql`
+        insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine, is_active)
+        values (${DEMO_BIZ}, 'whatsapp', 'm203-ref', 'm203-secret', 'service', true)
+        on conflict (channel, external_ref) do update set is_active = true`.execute(tx as never));
       await addToAllowlist(prod.db, bid, '971500007070', 'my own phone', 'owner');
+    });
+
+    it('M20.3.1: an installation with NO messaging provider cannot be activated', async () => {
+      // The route passes this app's real provider state, which is 'disabled'.
+      const cookie = await login();
+      const r = await post('/app/factory/activate', cookie);
+      expect(r.statusCode).toBe(302);
+      expect((await channel())!.activated_at, 'activated with no provider').toBeNull();
+      expect(decodeURIComponent(String(r.headers['location']))).toContain('Connect WhatsApp');
     });
 
     it('SECURITY: both actions reject an anonymous caller and change nothing', async () => {
@@ -2482,11 +2522,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('activates: writes through the service, audits the actor, and shows it at once', async () => {
+      const { activate } = await import('../../src/channels/activation.js');
+      const { loadFactory, renderFactory } = await import('../../src/api/web/factory.js');
       const beforeAudit = (await audits('activate')).n;
-      const cookie = await login();
-      const r = await post('/app/factory/activate', cookie);
-      expect(r.statusCode).toBe(302);
-      expect(String(r.headers['location'])).toContain('/app/factory?flash=');
+      const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
+      expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
 
       const ch = (await channel())!;
       expect(ch.activated_at).toBeInstanceOf(Date);
@@ -2496,10 +2536,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(a.n).toBe(beforeAudit + 1);
       expect(a.actor).toBe('owner');
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
-      expect(page.body).toContain('is talking to real buyers');
-      expect(page.body).toContain('action="/app/factory/deactivate"');
-      expect(page.body).not.toContain('action="/app/factory/activate"');
+      // rendered as an installation that HAS a provider — this one has none
+      const page = renderFactory(await loadFactory(prod.db, DEMO_BIZ, true), 'en');
+      expect(page).toContain('is talking to real buyers');
+      expect(page).toContain('action="/app/factory/deactivate"');
+      expect(page).not.toContain('action="/app/factory/activate"');
     });
 
     it('deactivates: back to not-live, audited, and the data is still there', async () => {
@@ -2510,6 +2551,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const r = await post('/app/factory/deactivate', cookie);
       expect(r.statusCode).toBe(302);
+      expect(cookie).toBeTruthy();
 
       expect((await channel())!.activated_at).toBeNull();
       const a = await audits('deactivate');
@@ -2533,11 +2575,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         sql<{ n: number }>`select count(*)::int n from channels where activated_at is not null`
           .execute(tx as never).then((r) => r.rows[0]!.n));
 
-      const cookie = await login();
-      await post('/app/factory/activate', cookie);
+      const { activate, deactivate } = await import('../../src/channels/activation.js');
+      // the previous test rolled back, which disconnects (State D) — an owner
+      // reconnects before starting again, so do the same here
+      const { reconnectChannel } = await import('../../src/api/web/channels.js');
+      await reconnectChannel(prod.db, DEMO_BIZ, 'owner');
+      await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect((await channel())!.activated_at).toBeInstanceOf(Date);
       expect(await sandboxChannel(), 'the other tenant was activated too').toBe(0);
-      await post('/app/factory/deactivate', cookie);
+      await deactivate(prod.db, bid, 'owner', 'test cleanup');
     });
   });
 
@@ -2866,11 +2912,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         insert into onboarding_state (business_id, secrets_rotated_at) values (${DEMO_BIZ}, null)
         on conflict (business_id) do update set secrets_rotated_at = null`.execute(tx as never));
 
-      const pre = await activationPreconditions(prod.db, bid);
+      const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.blockers.length).toBeGreaterThan(0);
       expect(pre.blockers).toContain('secrets_not_rotated');   // the M18.0 gate holds
 
-      const r = await activate(prod.db, bid, 'owner');
+      const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r.ok).toBe(false);
       // nothing was activated by a refused attempt
       const { activationState } = await import('../../src/channels/activation.js');
@@ -2888,7 +2934,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       for (const e of await listAllowlist(prod.db, bid)) {
         if (!e.archivedAt) await archiveFromAllowlist(prod.db, bid, e.phone, 'test');
       }
-      const pre = await activationPreconditions(prod.db, bid);
+      const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.allowlistCount).toBe(0);
       expect(pre.blockers).toContain('no_allowlist');
 
@@ -2908,7 +2954,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(state.stale).toBe(false);
 
       const { activationPreconditions } = await import('../../src/channels/activation.js');
-      const pre = await activationPreconditions(prod.db, bid);
+      const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.schema.ok).toBe(true);
       expect(pre.blockers).not.toContain('schema_stale');
     });
@@ -2925,23 +2971,23 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                                where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
         });
 
-      const pre = await activationPreconditions(prod.db, bid);
+      const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.schema.ok, JSON.stringify(pre.schema)).toBe(false);
       expect(pre.blockers[0]).toBe('schema_stale');        // reported FIRST
 
-      const r = await activate(prod.db, bid, 'owner');
+      const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r).toEqual({ ok: false, code: 'schema_stale' });
 
       // restore so the drill below runs against a current schema
       await q((tx) => sql`update _migrations set version = version + 100
                            where version <= ${REQUIRED_SCHEMA_VERSION - 100}`.execute(tx as never));
-      expect((await activationPreconditions(prod.db, bid)).schema.ok).toBe(true);
+      expect((await activationPreconditions(prod.db, bid, { providerConfigured: true })).schema.ok).toBe(true);
     });
 
     it('DRILL 1 — enable: activation succeeds, is audited, and keeps pilot mode ON', async () => {
       const { activate, activationState } = await import('../../src/channels/activation.js');
       const before = await audits('activate');
-      const r = await activate(prod.db, bid, 'owner');
+      const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
 
       const state = await activationState(prod.db, bid);
@@ -3006,7 +3052,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { activate, activationState } = await import('../../src/channels/activation.js');
       await q((tx) => sql`update channels set status='connected', connected_at=now(), disconnected_at=null
                            where business_id=${DEMO_BIZ}`.execute(tx as never));
-      const r = await activate(prod.db, bid, 'owner');
+      const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r, JSON.stringify(r)).toMatchObject({ ok: true });
       const state = await activationState(prod.db, bid);
       expect(state.activatedAt).toBeInstanceOf(Date);

@@ -343,7 +343,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
-    const r = await activate(deps.db, bid.value, 'owner');
+    const r = await activate(deps.db, bid.value, 'owner', { providerConfigured: messagingEnabled });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
     return reply.redirect(r.ok

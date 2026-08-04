@@ -28,6 +28,7 @@ import { loadProductList } from './products.js';
 import { loadChannels, type ChannelView } from './channels.js';
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
+import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 
 /**
@@ -67,7 +68,12 @@ export type FactoryReadiness = {
   readonly blockers: readonly ActivationRefusal[];
   /** Who may receive a message once she is live. Real allowlist rows. */
   readonly recipients: readonly { readonly phone: string; readonly label: string | null }[];
-  /** The owner has actually turned messaging on (channels.activated_at). */
+  /**
+   * M20.3.1 — the ONE channel-state answer. Both the connection section and
+   * this one render from it, so the page cannot contradict itself.
+   */
+  readonly lifecycle: ChannelLifecycle;
+  /** The owner has actually turned messaging on AND it can carry a message. */
   readonly live: boolean;
   /** Who turned it on and when — straight from the row activate() wrote. */
   readonly activatedAt: Date | null;
@@ -144,7 +150,7 @@ export async function loadFactory(
     // M20.2 — the ONE activation derivation. `activationPreconditions` already
     // composes pilot readiness, the allowlist count, the channel and the schema
     // check; asking IT means this page and the activate action cannot disagree.
-    bid.ok ? activationPreconditions(db, bid.value) : null,
+    bid.ok ? activationPreconditions(db, bid.value, { providerConfigured: messagingEnabled }) : null,
     bid.ok ? activationState(db, bid.value) : null,
     bid.ok ? listAllowlist(db, bid.value) : [],
   ]);
@@ -166,10 +172,11 @@ export async function loadFactory(
       // No preconditions resolved (unknown business) is NOT "ready".
       canActivate: pre !== null && pre.blockers.length === 0,
       blockers: pre?.blockers ?? [],
+      lifecycle: pre?.lifecycle ?? 'not_connected',
       recipients: recipients.map((r) => ({ phone: r.phone, label: r.label })),
       // Live means the owner turned it ON — not merely that the channel is
       // connected. That distinction is the whole of M20.1.
-      live: state?.activatedAt != null,
+      live: pre?.lifecycle === 'active',
       activatedAt: state?.activatedAt ?? null,
       activatedBy: state?.activatedBy ?? null,
     },
@@ -275,18 +282,22 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>`;
 
   // 4 · Where buyers reach you — connected or not, and what happens next.
+  // M20.3.1 — one lifecycle, four honest states. "Paused" and "never connected"
+  // are different problems with different next steps, so they read differently.
+  const lc = f.readiness.lifecycle;
   const c = f.connection.channel;
   const conn = `<span class="fconn-i" aria-hidden="true">📱</span>
       <div>
         <div class="fconn-t">WhatsApp</div>
-        <div class="fconn-s">${esc(t(locale, c.connected ? 'factory.reach.connected' : 'factory.reach.notConnected'))}</div>
+        <div class="fconn-s">${esc(t(locale, `channel.state.${lc}` as MessageKey, { name }))}</div>
+        <div class="fconn-h muted">${esc(t(locale, `channel.state.${lc}.hint` as MessageKey, { name }))}</div>
       </div>`;
   const reachBody = `
-    ${c.connected
+    ${lc === 'active' || lc === 'ready'
       ? `<div class="fconn on">${conn}</div>`
       : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
-    ${c.connected && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
-    <p class="fdesc">${esc(t(locale, c.connected ? 'factory.reach.nextConnected' : 'factory.reach.nextNot', { name }))}</p>
+    ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
+    <p class="fdesc">${esc(t(locale, lc === 'active' ? 'factory.reach.nextConnected' : 'factory.reach.nextNot', { name }))}</p>
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
       : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;
@@ -401,6 +412,7 @@ const FACTORY_STYLE = `<style>
   .fconn { display:flex; align-items:center; gap:13px; }
   .fconn-t { font-size:15px; color:#e7eaee; }
   .fconn-s { font-size:13px; color:#8b929c; }
+  .fconn-h { font-size:13px; margin-top:2px; }
   .fconn-i { font-size:22px; }
   .fconn.on .fconn-s { color:#7fb894; }
   /* Not connected stops everything, so it looks like it and links to the fix. */
