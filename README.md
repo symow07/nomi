@@ -1,361 +1,269 @@
-# Nomi MVP
+# Nomi
 
-Multi-channel B2B sales automation for Yiwu export businesses.
-Handles WhatsApp (real) + WeChat / Instagram / RedNote (simulated via webhook).
-Supports text and image input in any language.
+**A sales employee a factory can trust in front of a real buyer.**
+
+A Yiwu-area factory hires a digital employee. She answers buyer enquiries on
+WhatsApp — identifies the product, quotes within the owner's own price rules,
+and never states a price, specification or certification the owner has not given
+her. When she cannot answer safely, she stops and hands the conversation to a
+person.
+
+The owner runs it themselves. There is no operator between them and the product.
+
+> The repository, database, migrations and internal identifiers are named
+> `yiwuflow`; the product the owner sees is **Nomi**. That split is deliberate —
+> see [PRODUCT.md](PRODUCT.md).
 
 ---
 
-## File Structure
+## 1. What it is
+
+The product is not "an AI that replies to customers". It is a control system
+around one, built on four commitments:
+
+**Owner-controlled.** She proposes; the owner decides. Draft-first is the
+default and order confirmation is draft-forever. Autonomy is granted per
+capability, one capability at a time, and can be taken back in one tap.
+
+**Factory knowledge before answering.** Every claim traces to something the
+owner taught or confirmed. Certifications are default-deny: anything not
+explicitly authorised is refused, even if the buyer insists. Prices come from
+the owner's catalogue and price rules, never from the model.
+
+**Human takeover when needed.** One ownership model — she has it, a human is
+waited on, or the owner holds it. A buyer who asks for a person gets one, and
+while a human holds a conversation she is silent.
+
+**Trust before scale.** Messaging is off until the owner explicitly turns it on,
+and even then only the numbers on their allowlist can be reached. Going live is
+a decision made in the product, recorded, and reversible in one tap.
+
+Three languages are first-class: **English, 中文, العربية** (RTL). The owner
+picks whichever they are comfortable in; none is the source of truth.
+
+---
+
+## 2. Architecture
+
+A modular TypeScript monolith. One process serves the owner's web surface and
+runs the background worker.
 
 ```
-yiwuflow/
-├── n8n/                          — ★ IMPORTABLE WORKFLOWS — start here
-│   ├── README.md                 — Import order, wiring, credentials, design notes
-│   ├── intake.json               — Webhook → dedup → client/conversation resolve
-│   ├── multimodal-analysis.json  — Injection guard, fast path, text + vision
-│   ├── conversation-decision.json— Escalation, phase machine, reply, persistence
-│   ├── confirmation.json         — Validation → order → Sheets → email → close
-│   ├── escalation.json           — Escalation event → Telegram → handoff
-│   └── dispatch.json             — Sends the reply to the channel
-├── supabase/
-│   ├── schema.sql          — Database schema (run 1st)
-│   ├── seed_products.sql   — 15 products with aliases + images (run 2nd)
-│   └── rls_policies.sql    — Row Level Security (run 3rd — REQUIRED)
-├── tools/
-│   ├── build-workflows.mjs    — Regenerates n8n/*.json from the spec
-│   ├── validate-workflows.mjs — Structure, reachability, JS syntax
-│   └── test-logic.mjs         — Runs the deterministic nodes against samples/
-├── docs/
-│   ├── n8n-workflow.md          — Node-by-node reference (source of truth)
-│   ├── n8n-mvp-build-order.md   — Phased build + test order
-│   ├── first-run-guide.md       — Step-by-step first run
-│   ├── env-checklist.md         — Every env var, where it's used
-│   └── archive/                 — Superseded flat-workflow docs. Do not build from these.
-├── prompts/
-│   ├── analysis.txt        — Combined language + intent + phase analysis prompt
-│   ├── response.txt        — Response generation prompt
-│   ├── image_analysis.txt  — Product identification from image prompt
-│   └── order_validation.txt — Order safety check prompt
-├── samples/
-│   └── payloads.json       — 18 test payloads (text, image, Arabic, Chinese, etc.)
-└── README.md
+Buyer on WhatsApp
+      │  signed webhook
+      ▼
+  ingress ──► pipeline/turn ──► decide ──► retrieval (taught knowledge)
+                    │                          │
+                    │                          └─► commerce (quote, guards)
+                    ▼
+             draft  ──or──  auto-send        (per-capability autonomy)
+                    │
+      owner reviews │ approves / edits / skips
+                    ▼
+            outbound queue ──► send gate ──► WhatsApp adapter
 ```
 
-**The workflows in `n8n/` are the product.** They are generated from
-`docs/n8n-workflow.md`; import them rather than building 112 nodes by hand.
-See [`n8n/README.md`](n8n/README.md).
+| Layer | Where | What it is |
+|---|---|---|
+| HTTP + owner UI | `src/api/` | Fastify. Server-rendered HTML, no client framework. |
+| Turn pipeline | `src/pipeline/` | One buyer message end to end. |
+| Pure domain | `src/core/` | Decisions, guards, pricing, i18n. **No I/O, no clock, no randomness** — enforced by `npm run boundaries`. |
+| Persistence | `src/db/` | Postgres via Kysely. Every query runs inside a tenant transaction. |
+| Queues | `src/queue/`, `src/worker/` | pg-boss, in the same Postgres. |
+| Channels | `src/channels/` | WhatsApp adapters, allowlist, activation. |
+| Outbound | `src/outbound/` | The one path a message takes to a buyer. |
+| Model calls | `src/llm/` | Anthropic. Never a source of prices or claims. |
+| Trust harness | `src/trust/` | Scripted safety scenarios, run as a test. |
+
+Runtime dependencies are deliberately few: `fastify`, `kysely`, `pg`, `pg-boss`,
+`@anthropic-ai/sdk`, `zod`.
+
+### The invariants
+
+These are the load-bearing rules. Tests enforce each one; breaking any of them
+is a defect, not a design choice.
+
+- **One send path.** Exactly one function inserts an outbound row, and exactly
+  one place calls the provider — behind one gate.
+- **One approval path.** Every draft resolution goes through one service, under
+  a row lock, so a double-tap cannot send twice.
+- **One ownership model.** `ownershipOf(assigned_to)` is the only interpreter of
+  who holds a conversation.
+- **One knowledge source.** `product_knowledge` for facts, `claims_policy` for
+  what may be claimed. Corrections supersede; nothing is overwritten.
+- **One setup derivation.** A single live query answers "what is still missing".
+- **No invented numbers.** Every figure shown to an owner is a real count. No
+  scores, no ratings, no percentages-as-performance.
+- **Archive, never erase.** The application role holds no `DELETE` anywhere.
+
+### The send gate
+
+Nothing reaches a buyer without passing all of it, and every check fails closed —
+an unresolved input is treated as "no", never "yes":
+
+| Refusal | Meaning |
+|---|---|
+| `not_activated` | The owner has not turned messaging on for this channel. |
+| `not_allowlisted` | This buyer is not on the pilot allowlist. Binds the owner too. |
+| `handed_off` | A human holds this conversation; she stays silent. |
+| `paused` | The capability was pulled back, or the tenant is paused. |
+| `daily_ceiling` | The tenant hit its daily maximum (employee messages only). |
+| `window_closed` | Outside the 24-hour window; it goes back to the owner. |
+
+**Connected ≠ activated.** Working credentials mean a message *could* leave.
+Activation means the owner *decided* it should. A channel is in exactly one of
+four states — not connected, ready, active, paused — and every surface renders
+that one answer.
+
+### Tenancy
+
+Multi-tenant by Postgres RLS. The app connects as `yiwuflow_app`, a role that is
+neither superuser nor `BYPASSRLS`, and every query runs inside
+`withTenantTx(db, businessId, …)`. Two boot guards refuse to serve rather than
+serve unsafely:
+
+- the runtime role is not subject to row security → **refuse**
+- the database schema is behind this build → **refuse**, with the migrate command
+
+Migrations are additive and forward-only; an older build runs correctly against
+a newer schema, which is what makes rollback safe.
+
+### The owner's product
+
+Four destinations, each answering one question:
+
+| Surface | Question |
+|---|---|
+| **Today** (`/app`) | What needs me today? |
+| **Buyers** (`/app/inbox`) | Who needs care? |
+| **小雅** (`/app/employee`) | Who is she today? |
+| **My factory** (`/app/factory`) | What does she need to know about my factory? |
+
+Everything else — products, knowledge, connections, settings, practice, the
+go-live runbook — is reached from one of those four, never from a permanent
+menu slot.
 
 ---
 
-## Prerequisites
+## 3. Running it locally
 
-| Service | Purpose | Required for v1 |
-|---------|---------|----------------|
-| Supabase (free tier ok) | Database | Yes |
-| n8n Cloud or self-hosted | Orchestration | Yes |
-| Anthropic API (claude-sonnet-4-6) | AI analysis + response | Yes |
-| 360dialog | WhatsApp messaging | Yes (real channel) |
-| SendGrid | Email confirmation | Yes |
-| Telegram Bot | Escalation alerts | Yes |
-| Google Sheets API | Order logging | Yes |
-| webhook.site or equivalent | Simulated channel testing | Yes (testing) |
-
----
-
-## Setup Order
-
-### Step 1 — Supabase
-
-1. Create a new Supabase project at supabase.com
-2. Go to **SQL Editor**
-3. Paste and run `supabase/schema.sql` — creates all tables, indexes, views, and functions including `search_product_by_text` and `generate_order_reference`
-4. Paste and run `supabase/seed_products.sql` — inserts business, products, aliases, images
-5. Paste and run `supabase/rls_policies.sql` — **required.** Locks the database down (see the key note below). Skipping this leaves every table publicly readable and writable.
-5. Update your `businesses` row with real values:
-   ```sql
-   UPDATE businesses SET
-     escalation_email = 'your@email.com',
-     escalation_telegram_chat_id = 'your-telegram-chat-id',
-     google_sheet_id = 'your-google-sheet-id'
-   WHERE id = 'a0000000-0000-0000-0000-000000000001';
-   ```
-6. Enable **pg_trgm** extension if not already enabled:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS pg_trgm;
-   ```
-7. Collect your Supabase project URL and **service_role** key from **Settings → API**.
-   (The anon key is not used — see the key note below.)
-
-**Note on Supabase keys — read this before going live:**
-
-Run `supabase/rls_policies.sql` as step 3. Without it, every table is wide open:
-Supabase grants the `anon` role access to the `public` schema by default and new
-tables have RLS off, so anyone holding the anon key can read *and write*
-`clients` (names, emails, phones), `messages` (full conversation history), and
-`orders` (quantities, prices, totals). The anon key is designed to be publicly
-distributable — treating it as a secret is not a defence.
-
-`rls_policies.sql` enables RLS with **no policies for `anon`**, which denies it
-everything, and revokes its table grants for good measure. `service_role` has
-`BYPASSRLS`, so n8n keeps working.
-
-**All n8n Supabase nodes therefore use `SUPABASE_SERVICE_KEY`, reads included.**
-`SUPABASE_ANON_KEY` is not used anywhere and can be left unset — a leaked one now
-does nothing. (This is safe precisely because n8n is a trusted server-side caller;
-there is no browser client, so the anon key never bought any security here.)
-
-**Product images — required for the image pipeline:**
-The seed ships placeholder URLs containing `YOUR_PROJECT_REF`. Claude Vision fetches
-these over the public internet, so **TC-006 and TC-007 fail until they resolve.**
-1. Supabase → Storage → new bucket named `yiwuflow`, marked **public**
-2. Upload product photos under `products/` using the filenames in the seed
-3. Run the `UPDATE` at the bottom of `seed_products.sql` with your project ref
-
-Verify by opening any `product_images.url` in a browser — it must load without auth.
-
----
-
-### Step 2 — 360dialog (WhatsApp)
-
-1. Create account at 360dialog.com
-2. Complete WhatsApp Business API onboarding
-3. Set webhook URL to: `https://your-n8n-host/webhook/whatsapp`
-4. Set webhook secret
-5. Note your API key
-
-For testing without 360dialog: use the simulated webhook at `/webhook/simulate` with payloads from `samples/payloads.json`.
-
----
-
-### Step 3 — Telegram Bot
-
-1. Message @BotFather on Telegram
-2. Run `/newbot` — follow instructions
-3. Note the bot token
-4. Add the bot to your escalation group/channel
-5. Get the chat ID:
-   ```
-   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
-   ```
-   Send a message to the group, look for `chat.id` in the response.
-
----
-
-### Step 4 — SendGrid
-
-1. Create account at sendgrid.com
-2. Verify your sender domain (Settings → Sender Authentication)
-3. Create an API key with Mail Send permissions
-4. Note the API key and verified sender email
-
----
-
-### Step 5 — Google Sheets
-
-1. Create a new Google Sheet
-2. Rename the first tab to `Confirmed Orders`
-3. Add these headers in Row 1 (columns A through T):
-   ```
-   Order Ref | Date | Client | Email | Channel | Contact | Country |
-   Product | SKU | Qty | Unit | Unit Price USD | Total USD |
-   Payment Terms | Ship To | Lead Time | Notes | Status | DB Order ID | Conv ID
-   ```
-4. Share the sheet with your Google service account email (from n8n Google Sheets credentials)
-5. Note the Sheet ID from the URL: `https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit`
-
----
-
-### Step 6 — n8n
-
-#### Environment Variables
-
-In n8n Settings → Environment Variables (or via `.env` for self-hosted):
-
-```
-BUSINESS_ID                  = a0000000-0000-0000-0000-000000000001
-SUPABASE_URL                 = https://your-project-ref.supabase.co
-SUPABASE_SERVICE_KEY         = eyJhbGc...   # ALL Supabase calls, reads included
-ANTHROPIC_API_KEY            = sk-ant-api03-...
-MOCK_CALLBACK_URL            = https://webhook.site/your-unique-url
-GOOGLE_SHEET_ID              = 1BxiMVs0XRA5...          # Confirmation only
-TELEGRAM_BOT_TOKEN           = 123456789:AAF...         # Escalation only
-TELEGRAM_ESCALATION_CHAT_ID  = -1001234567890           # Escalation only
-SENDGRID_API_KEY             = SG.your-key-here         # Confirmation only
-SENDGRID_FROM_EMAIL          = sales@yourdomain.com     # Confirmation only
-DIALOG360_API_KEY            = your-360dialog-api-key   # real WhatsApp only (deferred)
-WHATSAPP_WEBHOOK_SECRET      = whatsapp_secret_abc123   # real WhatsApp only (deferred)
-```
-
-`SUPABASE_ANON_KEY` is deliberately absent — see the key note above.
-
-#### Credentials to Configure in n8n
-
-Everything else is an env var; only these two need real n8n credentials:
-
-- **Webhook (Intake)**: Header Auth — name `x-webhook-secret`, value `test_secret_xyz`
-- **Google Sheets (Confirmation)**: OAuth2 or Service Account. The account needs **Editor** on the sheet.
-
-#### Building Workflows
-
-**Don't.** Import them: `n8n/*.json`, six workflows, 112 nodes, already built.
-Follow [`n8n/README.md`](n8n/README.md) — import leaves-first, then set the
-`workflowId` on each Execute Workflow node (the one manual step).
-
-`docs/n8n-workflow.md` remains the node-by-node reference and the source the JSON
-is generated from. Read it to understand a node; don't retype it.
-
-Then test each stage in this order, per `docs/n8n-mvp-build-order.md`:
-1. Intake (with simulated payloads first)
-2. Multimodal Analysis — text branch
-3. Multimodal Analysis — image branch
-4. Conversation + Decision
-5. Dispatch (echo mode)
-6. Escalation
-7. Confirmation + Sheets + Email
-
-Use n8n's **Pin Data** feature to freeze node output for debugging.
-
----
-
-### Step 7 — Testing
-
-Use the payloads in `samples/payloads.json`.
-
-Send each payload to your simulated webhook:
+Requires Node and a local Postgres.
 
 ```bash
-curl -X POST https://your-n8n-host/webhook/simulate \
-  -H "Content-Type: application/json" \
-  -H "x-webhook-secret: test_secret_xyz" \
-  -d @- << 'EOF'
-{
-  "message_id": "msg_tc001",
-  "external_id": "ext_tc001",
-  "business_id": "a0000000-0000-0000-0000-000000000001",
-  "channel": "webhook_test",
-  "client_channel_id": "webhook_test:user_tc001",
-  "timestamp": "2026-04-13T09:00:00Z",
-  "input_type": "text",
-  "text": "Hi, I need some products from Yiwu",
-  "audio_url": null,
-  "image_url": null,
-  "image_caption": null,
-  "raw_payload": {},
-  "metadata": { "wa_profile_name": "Omar Khalid" }
-}
-EOF
+npm install
+bash .claude/skills/run-yiwuflow/smoke.sh
 ```
 
-The response comes back to `MOCK_CALLBACK_URL` (set it to a webhook.site URL to inspect it).
+That script is the fastest honest path: it starts an ephemeral Postgres,
+migrates, seeds a demo factory and the practice sandbox, builds, launches, and
+drives the whole owner walkthrough. It prints the URL and login code, and leaves
+the server running.
 
-**Recommended test sequence:**
-1. TC-001 — first message from new client
-2. TC-002 — product identified in first message
-3. TC-003 — Arabic text (verify Arabic reply)
-4. TC-006 — image only (requires a real image URL)
-5. TC-007 — image + text
-6. TC-009 — escalation trigger (verify Telegram message arrives)
-7. TC-011 — order confirmation (verify Sheets row + email)
-8. TC-012 — injection attempt (verify no AI call, safe reply returned)
-9. TC-015 — duplicate message (verify silent drop, no duplicate reply)
+Manually, if you prefer:
 
----
-
-## Key Design Rules
-
-**Phase advancement is one-way.** The conversation always moves forward:
-`warm_intake → clarification → qualification → commercial_discussion → confirmation → closed`
-
-It never goes backward. Escalation can happen from any phase.
-
-**Price and MOQ are never discussed before `commercial_discussion` phase.**
-The response prompt enforces this. Do not change this rule.
-
-**Order confirmation requires 5 conditions met:**
-1. Product confirmed by client
-2. Quantity >= MOQ
-3. Price acknowledged
-4. Email present
-5. Explicit "yes" from client in latest message
-
-**AI calls per message:**
-- Text: 2 calls (analysis + response generation)
-- Image: 3 calls (vision + analysis + response generation)
-- Fast path (yes/no detection): 0 calls
-
-**Deduplication:** Based on `external_id` + `conversation_id`. Always fires before any processing.
-
-**Injections:** Blocked before AI analysis. Safe fallback reply returned with no AI involvement.
-
----
-
-## Latency Targets
-
-| Flow | Target |
-|------|--------|
-| Text (fast path yes/no) | < 1s |
-| Text (known product) | < 2.5s |
-| Text (new client, product search) | < 4s |
-| Image only | < 5s |
-| Image + text | < 6s |
-
-DB writes and state updates run in parallel with dispatch — they do not block the reply.
-
----
-
-## What Is Not In v1
-
-| Feature | Status |
-|---------|--------|
-| Real WeChat API | v2 — requires CN business registration |
-| Real Instagram DMs | v2 — requires Meta API review |
-| Real RedNote | v2 |
-| Voice transcription (Whisper) | v2 — architecture ready, pipeline placeholder in place |
-| Vector image search (pgvector) | v2 |
-| Admin dashboard | v2 |
-| Proactive follow-up sequences | v2 |
-| Multi-tenant SaaS mode | v2 |
-
----
-
-## Troubleshooting
-
-**AI returns non-JSON text:**
-The parse nodes have safe fallback defaults. Check n8n execution logs.
-If frequent: add `"Return only a valid JSON object, no prose"` as last line in system prompt.
-
-**Supabase query returns 401, or a read returns `[]` when rows clearly exist:**
-That node is still using the anon key. After `rls_policies.sql`, `anon` is denied
-everything by design — every Supabase node must send `SUPABASE_SERVICE_KEY`,
-reads included. Check the node's `apikey` / `Authorization` headers.
-
-**Do not "fix" this by disabling RLS.** That re-opens `clients`, `messages`, and
-`orders` to anyone holding the anon key, which is a key meant to be public.
-
-**A workflow branch just stops, with no error:**
-Almost always the empty-array problem: PostgREST returns `[]`, n8n splits arrays
-into items, and zero items halts that branch silently. Every Supabase node must
-set **Response → Include Full Response** (`fullResponse`), then read the array
-from `$json.body`. The generated workflows already do this.
-
-**Product alias search returns empty:**
-Verify `pg_trgm` extension is enabled. Run:
-```sql
-SELECT * FROM product_aliases WHERE lower(alias) ILIKE '%bag%' LIMIT 5;
-```
-If this returns results but the API query does not, check URL encoding of the query parameter.
-
-**WhatsApp webhook signature fails:**
-Ensure `WHATSAPP_WEBHOOK_SECRET` matches what is set in 360dialog dashboard exactly (case-sensitive).
-
-**Google Sheets append fails:**
-Verify the service account has **Editor** access to the sheet.
-Check the sheet tab name matches exactly: `Confirmed Orders`.
-
-**Telegram notification not arriving:**
-Test the Telegram send directly:
 ```bash
-curl "https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>&text=test"
+export MIGRATE_DATABASE_URL='postgresql://…'   # admin role
+npm run migrate
+npm run seed:demo
+npm run seed:sandbox
+npm run build && npm start
 ```
-Ensure the bot has been added to the group and is not muted.
+
+Messaging is **off** unless `WHATSAPP_PROVIDER` is set. With it unset there is no
+adapter, no webhook route, and no outbound worker — the owner surface runs fully.
+
+Environment variables are listed in [`docs/env-checklist.md`](docs/env-checklist.md).
+The app validates them at boot and exits with the names of anything missing or
+malformed; it never prints a value.
+
+---
+
+## 4. Testing
+
+```bash
+npm run check     # typecheck + core purity + the full unit suite
+npm run trust     # the scripted safety scenarios
+```
+
+Integration tests need a real Postgres:
+
+```bash
+DATABASE_URL='postgresql://…' npx vitest run tests/integration/
+```
+
+| Suite | What it protects |
+|---|---|
+| `tests/parity/` | Pure logic and every rendered surface, in all three locales |
+| `tests/pipeline/` | One buyer turn, with fakes for I/O |
+| `tests/integration/` | Real Postgres: RLS, the send path, boot, owner routes |
+| `tests/harness/` | The trust harness — scripted safety scenarios |
+
+The suite treats certain things as facts about the product rather than
+implementation details: the send gate's fail-closed behaviour, tenant isolation,
+the banned owner-facing vocabulary, and the absence of invented metrics.
+
+---
+
+## 5. Deploying
+
+Railway builds on push to `main`. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Apply migrations **before** the new build boots — it refuses to start on a stale
+schema:
+
+```bash
+MIGRATE_DATABASE_URL='<admin url>' node tools/migrate.mjs
+git push
+bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+```
+
+`verify-remote` is read-only and safe against production: health, that `/health`
+leaks no build information, that every owner surface redirects when signed out,
+that owner actions reject anonymous callers, the session cookie flags, that the
+webhook is absent while messaging is disabled, and that each owner surface
+renders.
+
+Back up with **both** parts before a migration — a database dump without its
+roles file restores with RLS enabled and zero policies. See
+[`docs/BACKUP-RESTORE.md`](docs/BACKUP-RESTORE.md).
+
+---
+
+## 6. Where things are written down
+
+| Document | |
+|---|---|
+| [PRODUCT.md](PRODUCT.md) | Who the owner is, their devices, the language rules |
+| [docs/adr/](docs/adr/) | The decisions and why, including the ones since regretted |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Where it runs, which build is live, how to verify |
+| [docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md) | Backup that actually restores |
+| [docs/GO-LIVE.md](docs/GO-LIVE.md) | Turning messaging on, and off again |
+| [docs/OPS-RUNBOOK.md](docs/OPS-RUNBOOK.md) · [docs/INCIDENT-PLAYBOOK.md](docs/INCIDENT-PLAYBOOK.md) | Running it, and when it breaks |
+| [docs/SECRET-ROTATION.md](docs/SECRET-ROTATION.md) | Rotating credentials |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What is next |
+
+---
+
+## 7. Status
+
+Controlled-pilot ready: code and deployment verified, tenant isolation enforced
+and proven, and **messaging disabled**.
+
+Not yet done: the pilot activation experience is partly built — the send path
+obeys activation and My factory can start and stop it, but allowlist management
+still has no owner-facing screen. Meta/WhatsApp Cloud integration has not been
+started.
+
+---
+
+## 8. Legacy in this tree
+
+`n8n/`, `supabase/`, `prompts/` and `samples/` are from the first version, which
+ran as n8n workflows against Supabase. **They are not the product and are not
+deployed.** They remain for history, and because some prompt text and test
+payloads are still useful references. The runtime never depended on Supabase —
+see [`docs/SUPABASE-EXIT-AUDIT.md`](docs/SUPABASE-EXIT-AUDIT.md) — and the
+extraction is recorded in
+[ADR-0001](docs/adr/0001-extract-core-from-n8n.md).
+
+Nothing in `src/` imports any of it.
