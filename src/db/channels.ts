@@ -117,12 +117,20 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
       return { rows, ctx };
     },
 
-    // M18.2 — a blocked send is recorded where the owner can see it. The status
-    // transition already makes it non-silent; this makes it visible.
-    async auditBlocked(outboundId, to, reason) {
+    /**
+     * M22 — a refused send is recorded with the reason it was ACTUALLY refused
+     * for. This wrote `blocked_not_allowlisted` for every reason it was handed,
+     * including `not_activated`; the truth lived only in `detail`, so anything
+     * reading the trail by action read a falsehood. One verb (`send_refused`,
+     * 0023), the real reason in the payload — the same shape `gateOutbound`
+     * returns, carried through unaltered.
+     *
+     * This RECORDS a decision the gate already made. It does not make one.
+     */
+    async recordRefusal(outboundId, to, reason) {
       await sql`
         insert into channel_audit (business_id, action, actor, detail)
-        values (${businessId}, 'blocked_not_allowlisted', 'system',
+        values (${businessId}, 'send_refused', 'system',
                 ${JSON.stringify({ outboundId, to, reason })}::jsonb)
       `.execute(tx);
     },

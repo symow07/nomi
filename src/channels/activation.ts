@@ -108,7 +108,18 @@ export async function activate(
   db: Db, businessId: BusinessId, actor: string, opts: { readonly providerConfigured: boolean },
 ): Promise<ActivationResult> {
   const pre = await activationPreconditions(db, businessId, opts);
-  if (pre.blockers.length > 0) return { ok: false, code: pre.blockers[0]! };
+  if (pre.blockers.length > 0) {
+    // M22 (F-10) — a refused activation is its own event with its own verb.
+    // Conflating it with a refused SEND hid which of the two had happened: they
+    // occur at different moments, for different reasons, with different fixes.
+    // The refusal itself is unchanged — this only records what already happened.
+    await withTenantTx(db, businessId, (tx) => sql`
+      insert into channel_audit (business_id, action, actor, detail)
+      values (${businessId}, 'activation_refused', ${actor},
+              ${JSON.stringify({ blockers: pre.blockers })}::jsonb)
+    `.execute(tx));
+    return { ok: false, code: pre.blockers[0]! };
+  }
 
   return withTenantTx(db, businessId, async (tx) => {
     const now = new Date();

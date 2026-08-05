@@ -28,7 +28,7 @@ import type { Db } from './client.js';
  *      Bumped so a deploy cannot serve against a database where those three
  *      objects are still readable across tenants.
  */
-export const REQUIRED_SCHEMA_VERSION = 22;
+export const REQUIRED_SCHEMA_VERSION = 23;
 
 export type SchemaState = {
   readonly required: number;

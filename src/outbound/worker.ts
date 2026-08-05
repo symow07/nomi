@@ -48,20 +48,50 @@ export type OutboundStore = {
   recordProviderId(id: string, providerMessageId: string): Promise<void>;
   scheduleRetry(id: string, delayMs: number, error: string): Promise<void>;
   deadLetter(id: string, error: string): Promise<void>;
-  /** M18.2 — record a blocked send so the owner can see it. Optional so
-   *  in-memory test stores need not implement it. */
-  auditBlocked?(outboundId: string, to: string, reason: GateRefusal): Promise<void>;
+  /** M22 — record a refused send so the owner can see it, with the reason it
+   *  was actually refused for. Optional so in-memory test stores need not
+   *  implement it. */
+  recordRefusal?(outboundId: string, to: string, reason: RefusalReason): Promise<void>;
 };
+
+/**
+ * M22 — every way a queued message can end without reaching the buyer.
+ *
+ * The six `GateRefusal` values are `gateOutbound`'s own, carried through
+ * unchanged — this adds no reason of its own and makes no decision. The
+ * seventh, `window_needs_owner`, is the case the gate ALLOWS but only through a
+ * template: `{ allow: true, viaTemplate: true }`. No template has been approved
+ * with Meta, so the message cannot go, and calling that "allowed" in the
+ * owner's audit trail would be the same lie this milestone exists to remove.
+ */
+export type RefusalReason = GateRefusal | 'window_needs_owner';
 
 export type DriveEffect =
   | { readonly kind: 'reclaimed'; readonly id: string }
-  | { readonly kind: 'canceled'; readonly id: string; readonly reason: GateRefusal | 'window_needs_owner' }
+  | { readonly kind: 'canceled'; readonly id: string; readonly reason: RefusalReason }
   | { readonly kind: 'sent'; readonly id: string; readonly providerMessageId: string }
   | { readonly kind: 'retry_scheduled'; readonly id: string; readonly delayMs: number }
   | { readonly kind: 'dead_lettered'; readonly id: string }
   | { readonly kind: 'failed_permanent'; readonly id: string }
   | { readonly kind: 'waiting'; readonly blockedOn: string; readonly recheckInMs: number }
   | { readonly kind: 'idle' };
+
+/**
+ * M22 — the ONE way a queued message stops here. Two writes, always both:
+ * the row is canceled with the reason in `last_error` (which is what the
+ * owner's surfaces read), and an audit row names the reason (which is what an
+ * operator reads). Every refusal went through the first of these already; only
+ * two of the six went through the second, so four of them left no trace an
+ * owner could ever be shown.
+ *
+ * It decides nothing. `gateOutbound` has already decided; this records it.
+ */
+async function refuse(
+  deps: { store: OutboundStore }, row: OutboundWorkRow, reason: RefusalReason,
+): Promise<void> {
+  await deps.store.transition(row.id, 'canceled', `canceled: ${reason}`);
+  if (deps.store.recordRefusal) await deps.store.recordRefusal(row.id, row.to, reason);
+}
 
 export async function driveConversationOutbound(
   deps: { store: OutboundStore; adapter: ChannelAdapter; now: () => Date },
@@ -93,7 +123,7 @@ export async function driveConversationOutbound(
     active = [];
     for (const r of live) {
       if (r.status === 'queued' && r.origin === 'employee') {
-        await deps.store.transition(r.id, 'canceled', `canceled: ${suppressReason}`);
+        await refuse(deps, r, suppressReason);
         effects.push({ kind: 'canceled', id: r.id, reason: suppressReason });
       } else {
         active.push(r);
@@ -128,19 +158,17 @@ export async function driveConversationOutbound(
     ...(ctx.activated !== undefined ? { activated: ctx.activated } : {}),
   });
   if (!gate.allow) {
-    await deps.store.transition(candidate.id, 'canceled', `canceled: ${gate.reason}`);
-    // M18.2 — a refusal to reach a non-allowlisted buyer is a safety event, not
-    // routine flow control: record it where the owner can see it. The status
-    // transition above already makes it non-silent; this makes it visible.
-    if ((gate.reason === 'not_allowlisted' || gate.reason === 'not_activated') && deps.store.auditBlocked) {
-      await deps.store.auditBlocked(candidate.id, candidate.to, gate.reason);
-    }
+    await refuse(deps, candidate, gate.reason);
     return [...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }];
   }
   if (gate.viaTemplate) {
-    // No self-serve template sending yet: outside the window, contact goes
-    // back to the owner (需要你确认后再联系) instead of auto-sending.
-    await deps.store.transition(candidate.id, 'canceled', 'canceled: window_needs_owner');
+    // The gate allows this, but ONLY through an approved template — and no
+    // template exists yet (M22 §B). The message therefore does not go, and it
+    // is recorded as a refusal rather than quietly dropped: "allowed" in the
+    // audit trail beside a buyer who heard nothing is exactly the silence this
+    // milestone removes. Meta template sending replaces this branch; nothing
+    // here fakes or bypasses it.
+    await refuse(deps, candidate, 'window_needs_owner');
     return [...effects, { kind: 'canceled', id: candidate.id, reason: 'window_needs_owner' }];
   }
 

@@ -2779,7 +2779,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const before = await q((tx) => sql<{ n: number }>`
         select count(*)::int n from channel_audit
-         where business_id=${DEMO_BIZ} and action='blocked_not_allowlisted'`.execute(tx as never).then((x) => x.rows[0]!.n));
+         where business_id=${DEMO_BIZ} and action='send_refused'`.execute(tx as never).then((x) => x.rows[0]!.n));
 
       const cid = await withTenantTx(prod.db, bid, async (tx) => {
         const c = await ensureConversation(tx, bid, BLOCKED, 'Not Allowlisted');
@@ -2806,11 +2806,20 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       `.execute(tx as never).then((x) => x.rows[0]!));
       expect(row.status).toBe('canceled');
 
-      // and the refusal is visible to the owner
+      // and the refusal is visible to the owner, NAMED FOR WHAT IT WAS.
+      // M22: this used to assert only that a row appeared. The verb was
+      // hardcoded to 'blocked_not_allowlisted' for every reason, so a
+      // not_activated refusal was recorded as an allowlist block and this test
+      // passed anyway. Assert the reason, or the audit trail can lie again.
+      const rows = await q((tx) => sql<{ action: string; detail: { reason?: string } }>`
+        select action, detail from channel_audit
+         where business_id=${DEMO_BIZ} and action='send_refused'
+         order by at desc limit 1`.execute(tx as never).then((x) => x.rows));
       const after = await q((tx) => sql<{ n: number }>`
         select count(*)::int n from channel_audit
-         where business_id=${DEMO_BIZ} and action='blocked_not_allowlisted'`.execute(tx as never).then((x) => x.rows[0]!.n));
+         where business_id=${DEMO_BIZ} and action='send_refused'`.execute(tx as never).then((x) => x.rows[0]!.n));
       expect(after).toBe(before + 1);
+      expect(rows[0]?.detail?.reason).toBe('not_allowlisted');
 
       // the transition trail records WHY — no silent drop
       const trail = await q((tx) => sql<{ detail: string | null }>`
