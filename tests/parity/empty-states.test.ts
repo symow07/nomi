@@ -30,15 +30,21 @@ const emptyHer = renderEmployee(
 const emptyBuyers = (filter: 'pending' | 'all') =>
   renderInboxList({ filter, waitingCount: 0, conversations: [] }, 'en', NOW);
 
+// This fixture is `as never`, so nothing type-checks it — and it drifted twice
+// behind the real FactoryView. `promises` still carried Phase-E's pre-rename
+// field names, which meant `floorLowUsd` was undefined, `undefined !== null`
+// was true, and formatUsd(undefined) threw before a single assertion ran. The
+// whole file had stopped executing. Keep it honest against the real shape.
 const emptyFactory = renderFactory({
   profile: { name: '', description: null, location: null, workingHours: null,
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
   products: { total: 0, needPrice: 0, names: [] },
-  promises: { certs: [], floorPriceUsd: null, ownAuthorityPct: null, ceilingPct: null },
+  promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null }, ownerPhone: null },
   nextStep: 'profile',
-  readiness: { prepared: 0, preparedTotal: 6, confirmed: 0, confirmedTotal: 3, rehearsed: false, live: false },
+  readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
+    live: false, activatedAt: null, activatedBy: null },
 } as never, 'en');
 
 const emptyCustomers = renderCustomerList({ query: '', customers: [] } as never, 'en', NOW);
