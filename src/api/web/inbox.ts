@@ -5,6 +5,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
+import { loadRefusals, type Refusal } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
 
 /** The stored problem-signal kinds shown as a takeover reason (no classifier). */
@@ -29,7 +30,12 @@ export const flag = (c: string | null): string => (c ? (FLAG[c] ?? '') : '');
 export const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
   locale === 'zh' ? (p.nameZh ?? p.name) : (p.name ?? p.nameZh);
 
-export type InboxFilter = 'pending' | 'all';
+/**
+ * M22 — `blocked` is reached from Today, not from a permanent tab: it is a
+ * consequence of something going wrong, so it appears only when it has
+ * something to show. Same rule the shell applies to contextual destinations.
+ */
+export type InboxFilter = 'pending' | 'all' | 'blocked';
 type InboxStatus = 'awaiting' | 'paused' | 'done' | 'handled';
 
 export type ConversationSummary = {
@@ -55,6 +61,8 @@ export type ConversationSummary = {
 
 export type InboxList = {
   readonly filter: InboxFilter;
+  /** M22 — conversations holding a message that never reached the buyer. */
+  readonly blockedCount: number;
   readonly waitingCount: number;
   readonly conversations: readonly ConversationSummary[];
 };
@@ -68,7 +76,7 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
 
 export async function loadInboxList(db: Db, businessIdRaw: string, filter: InboxFilter): Promise<InboxList> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { filter, waitingCount: 0, conversations: [] };
+  if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [] };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const rows = (await sql<{
@@ -128,8 +136,22 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
     const needsOwner = (c: ConversationSummary) =>
       c.needsAction || c.ownership === 'WAITING_HUMAN' || c.ownership === 'OWNER_CONTROLLED';
     const waitingCount = all.filter(needsOwner).length;
-    const conversations = filter === 'pending' ? all.filter(needsOwner) : all;
-    return { filter, waitingCount, conversations };
+
+    // M22 — which of these conversations is holding a refused message. Read
+    // through the SAME loader the conversation and Today use, so three
+    // surfaces cannot report three different answers.
+    const refused = await sql<{ conversation_id: string }>`
+      select distinct conversation_id from outbound_messages
+       where business_id = ${bid.value} and status = 'canceled'
+         and cancel_reason is not null
+         and created_at > now() - make_interval(days => 7)
+    `.execute(tx).then((r) => new Set(r.rows.map((x) => x.conversation_id)));
+    const blocked = all.filter((c) => refused.has(c.conversationId));
+
+    const conversations = filter === 'pending' ? all.filter(needsOwner)
+      : filter === 'blocked' ? blocked
+      : all;
+    return { filter, waitingCount, blockedCount: blocked.length, conversations };
   });
 }
 
@@ -170,6 +192,12 @@ export type ConversationDetail = {
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
   readonly ownership: ConversationOwnership;
+  /**
+   * M22 — messages in THIS conversation that never reached the buyer. The
+   * evidence is `outbound_messages.cancel_reason`, written by the worker when
+   * `gateOutbound` refused; nothing here re-decides anything.
+   */
+  readonly refusals: readonly Refusal[];
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
   readonly lastHumanAction: LastHumanAction | null;
   /**
@@ -224,6 +252,11 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
        order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
+    // M22 — what did not reach this buyer. Read through the shared loader, so
+    // the conversation, the inbox tab and Today can never disagree. Its own
+    // tenant transaction (it is a read model, not a fragment of this query).
+    const refusals = await loadRefusals(db, businessIdRaw, { conversationId });
+
     // Takeover reason (M16.1): unresolved PROBLEM signals — stored data, no classifier.
     const handoffReasons = (await sql<{ kind: string }>`
       select kind from conversation_signals where conversation_id = ${conversationId} and resolved_at is null
@@ -267,6 +300,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability }
         : null,
       ownership: ownershipOf(head.assigned_to),
+      refusals,
       handoffReasons,
       lastHumanAction,
       knowledgeUsed,
@@ -292,14 +326,24 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
   const name = EMPLOYEE_NAME[locale];
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
-    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}</a>`;
-  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}</div>`;
+    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}</a>`;
+  // M22 — `blocked` is not a permanent tab. It appears when something did not
+  // reach a buyer, or when the owner arrived here from Today's link, and
+  // disappears again once there is nothing to show. An always-present tab that
+  // is almost always empty trains the owner to ignore it.
+  const showBlocked = data.blockedCount > 0 || data.filter === 'blocked';
+  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showBlocked ? tab('blocked') : ''}</div>`;
   const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
 
   if (data.conversations.length === 0) {
     const body = data.filter === 'pending'
       ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
+      // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
+      // "no message failed" is the normal state and not an achievement.
+      : data.filter === 'blocked'
+      ? `<div class="empty">${esc(t(locale, 'refused.none'))}
+          <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${title}${tabs}<div class="card">${body}</div>
@@ -363,6 +407,30 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date): string {
   const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: EMPLOYEE_NAME[locale] });
   const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
   return `<div class="lastact muted">${esc(t(locale, 'takeover.lastLabel'))}: ${esc(phrase + when)}</div>`;
+}
+
+/**
+ * M22 — a message that did not reach this buyer, in three sentences: what
+ * happened, why, and what the owner can do about it.
+ *
+ * The tone is deliberate. Nothing here blames her employee: every one of these
+ * is a rule the OWNER set or a rule WhatsApp sets, working exactly as intended.
+ * The failure being reported is that nobody said so — not that the gate refused.
+ *
+ * Read-only. It renders `outbound_messages.cancel_reason` and can change nothing.
+ */
+function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string {
+  if (rs.length === 0) return '';
+  const name = EMPLOYEE_NAME[locale];
+  return `<div class="card refused">
+    <h3 class="rf-h">${esc(t(locale, 'refused.title'))}</h3>
+    ${rs.map((r) => `<div class="rf">
+      <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, { name }))}</div>
+      <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, { name }))}</div>
+      <div class="rf-d">${esc(t(locale, `refused.do.${r.reason}` as MessageKey, { name }))}</div>
+      <div class="rf-t muted">${esc(formatRelative(locale, r.at, now))}</div>
+    </div>`).join('')}
+  </div>`;
 }
 
 /** M16.1/M16.2c — the human control surface, driven purely by ownership. */
@@ -449,6 +517,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     </div>
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
+    ${refusalCard(d.refusals, locale, now)}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${knew}
@@ -458,6 +527,16 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
 }
 
 const INBOX_STYLE = `<style>
+  /* M22 — a refusal is information, not an alarm. Amber, like the disconnected
+     channel: something needs the owner, and nothing is broken. */
+  .card.refused { border-color:#8a7330; background:#181510; }
+  .rf-h { font-size:15px; font-weight:600; color:#e7eaee; margin:0 0 10px; }
+  .rf { padding:10px 0; border-top:1px solid #2a2419; }
+  .rf:first-of-type { border-top:0; padding-top:0; }
+  .rf-w { font-size:14px; color:#e0b551; }
+  .rf-y { font-size:13px; margin-top:3px; line-height:1.55; max-width:62ch; }
+  .rf-d { font-size:14px; color:#d6dae0; margin-top:6px; }
+  .rf-t { font-size:12px; margin-top:4px; }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
   .bgroup { margin-bottom:26px; }
   .bgroup-h { font-size:13px; letter-spacing:0; color:#8b929c;

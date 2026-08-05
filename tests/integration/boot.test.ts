@@ -1339,7 +1339,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('empty / unknown factory → honest zeros', async () => {
       const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
       const s = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'month', 'disabled');
-      expect(s.attention).toEqual({ pendingApprovals: 0, handoffs: 0, ownerHandling: 0 });
+      expect(s.attention).toEqual({ pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 });
       expect(s.activity).toEqual({ handled: 0, draftsCreated: 0, corrections: 0 });
       expect(s.hasAttention).toBe(false);
       expect(s.channel.status).toBe('not_connected');
@@ -3220,5 +3220,210 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('shuts down cleanly', async () => {
     await prod.close();
     await prod.close();
+  });
+});
+
+/**
+ * M22 — every gateOutbound refusal, driven through the REAL worker against a
+ * real database, then read back through the owner's own read model.
+ *
+ * The pure tests (tests/parity/refusals.test.ts) prove the copy is complete and
+ * honest. What can only be proven here is the part that was broken: that the
+ * reason RECORDED is the reason it was actually refused for, and that the owner
+ * can see it. Before M22, `auditBlocked` wrote `blocked_not_allowlisted` for
+ * every reason and four of the six refusals wrote nothing at all.
+ */
+d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
+  let prod: import('../../src/main.js').Production;
+  let bid: import('../../src/core/types/ids.js').BusinessId;
+  let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
+  const M22_BIZ = 'de300000-0000-4000-8000-0000000000b1';
+
+  const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
+    import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
+
+  beforeAll(async () => {
+    const { buildProduction } = await import('../../src/main.js');
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const p = parseBusinessId(M22_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
+    sim = whatsappSimulator();
+    prod = await buildProduction({
+      provider: 'meta', DATABASE_URL: DATABASE_URL!,
+      ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok',
+      META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765',
+      META_APP_SECRET: 'meta-app-secret-not-real',
+      META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'm22-verify-token',
+      CREDENTIAL_KEY: 'b'.repeat(64), PORT: 0,
+    }, { adapter: sim.adapter, logger: false });
+  }, 30_000);
+
+  afterAll(async () => { await prod?.close(); });
+
+  /**
+   * Queue one employee message to `phone` and drive the worker over it under
+   * whatever channel/conversation state the caller set up. Returns what the
+   * worker did plus what the owner would be shown.
+   */
+  const driveOne = async (phone: string, label: string) => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+    const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+    const { loadRefusals } = await import('../../src/api/web/refusals.js');
+
+    const cid = await withTenantTx(prod.db, bid, async (tx) => {
+      const c = await ensureConversation(tx, bid, phone, label);
+      await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+      await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
+                values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
+      await enqueueOutboundRow(tx, bid, c.conversationId, 'a reply the buyer never sees', 'employee');
+      return c.conversationId;
+    });
+    const effects = await withTenantTx(prod.db, bid, (tx) =>
+      driveConversationOutbound(
+        { store: channelStore(tx as never, bid), adapter: sim.adapter, now: () => new Date() }, cid));
+    const refusals = await loadRefusals(prod.db, M22_BIZ, { conversationId: cid });
+    const audit = await q((tx) => sql<{ action: string; detail: { reason?: string } }>`
+      select action, detail from channel_audit
+       where business_id=${M22_BIZ} and action='send_refused'
+       order by at desc limit 1`.execute(tx as never).then((r) => r.rows[0]));
+    const row = await q((tx) => sql<{ status: string; cancel_reason: string | null }>`
+      select status, cancel_reason from outbound_messages
+       where conversation_id=${cid} order by seq desc limit 1`
+      .execute(tx as never).then((r) => r.rows[0]!));
+    return { cid, effects, refusals, audit, row };
+  };
+
+  const setChannel = (patch: string) => q((tx) =>
+    sql.raw(`update channels set ${patch} where business_id='${M22_BIZ}' and kind='whatsapp'`)
+      .execute(tx as never));
+
+  it('not_activated: the row is canceled, audited by its REAL reason, and shown', async () => {
+    await setChannel(`activated_at = null, activated_by = null, pilot_mode = true`);
+    const { effects, refusals, audit, row } = await driveOne('971500007701', 'M22 A');
+
+    expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_activated' }));
+    expect(effects.some((e) => e.kind === 'sent')).toBe(false);          // nothing left the building
+    expect(row.status).toBe('canceled');
+    expect(row.cancel_reason).toBe('canceled: not_activated');
+    // THE bug this milestone fixes: the verb used to say 'blocked_not_allowlisted'.
+    expect(audit?.action).toBe('send_refused');
+    expect(audit?.detail?.reason).toBe('not_activated');
+    expect(refusals.map((r) => r.reason)).toEqual(['not_activated']);    // and the owner sees it
+  });
+
+  it('not_allowlisted: refused for the allowlist, and recorded as such', async () => {
+    await setChannel(`activated_at = now(), activated_by = 'test', pilot_mode = true`);
+    const { effects, refusals, audit } = await driveOne('971500007702', 'M22 B');
+
+    expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
+    expect(audit?.detail?.reason).toBe('not_allowlisted');
+    expect(refusals.map((r) => r.reason)).toEqual(['not_allowlisted']);
+  });
+
+  it('handed_off: a human holds it, so she stays silent — and says so', async () => {
+    await setChannel(`activated_at = now(), activated_by = 'test', pilot_mode = false`);
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+    const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+    const { loadRefusals } = await import('../../src/api/web/refusals.js');
+
+    const cid = await withTenantTx(prod.db, bid, async (tx) => {
+      const c = await ensureConversation(tx, bid, '971500007703', 'M22 C');
+      await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
+                values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
+      await enqueueOutboundRow(tx, bid, c.conversationId, 'she must not say this', 'employee');
+      await sql`update conversations set assigned_to='owner' where id=${c.conversationId}`.execute(tx as never);
+      return c.conversationId;
+    });
+    const effects = await withTenantTx(prod.db, bid, (tx) =>
+      driveConversationOutbound(
+        { store: channelStore(tx as never, bid), adapter: sim.adapter, now: () => new Date() }, cid));
+
+    expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'handed_off' }));
+    expect(effects.some((e) => e.kind === 'sent')).toBe(false);
+    // Before M22 this refusal wrote NO audit row at all.
+    const audit = await q((tx) => sql<{ detail: { reason?: string } }>`
+      select detail from channel_audit where business_id=${M22_BIZ} and action='send_refused'
+       order by at desc limit 1`.execute(tx as never).then((r) => r.rows[0]));
+    expect(audit?.detail?.reason).toBe('handed_off');
+    expect((await loadRefusals(prod.db, M22_BIZ, { conversationId: cid })).map((r) => r.reason))
+      .toEqual(['handed_off']);
+  });
+
+  it('window_closed: outside the day WhatsApp allows, nothing is sent and the owner is told', async () => {
+    await setChannel(`activated_at = now(), activated_by = 'test', pilot_mode = false`);
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { ensureConversation, enqueueOutboundRow, channelStore } = await import('../../src/db/channels.js');
+    const { driveConversationOutbound } = await import('../../src/outbound/worker.js');
+    const { loadRefusals } = await import('../../src/api/web/refusals.js');
+
+    const cid = await withTenantTx(prod.db, bid, async (tx) => {
+      const c = await ensureConversation(tx, bid, '971500007704', 'M22 D');
+      await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
+      await enqueueOutboundRow(tx, bid, c.conversationId, 'a reply three days late', 'employee');
+      // The buyer last spoke three days ago, so the 24-hour window is long shut.
+      // NOTE: the worker reads `channels.last_inbound_at`, not the messages
+      // table and not a per-conversation column — an old row in `messages`
+      // leaves the window wide open, and the first version of this test sent a
+      // real message because of it. Set the fact the gate actually reads.
+      await sql`update channels set last_inbound_at = now() - interval '3 days'
+                 where business_id=${M22_BIZ} and kind='whatsapp'`.execute(tx as never);
+      return c.conversationId;
+    });
+    const effects = await withTenantTx(prod.db, bid, (tx) =>
+      driveConversationOutbound(
+        { store: channelStore(tx as never, bid), adapter: sim.adapter, now: () => new Date() }, cid));
+
+    // This is the one that happens every night in a real pilot, and the one
+    // that was completely silent: canceled, no audit row, nothing shown.
+    expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'window_closed' }));
+    expect(effects.some((e) => e.kind === 'sent')).toBe(false);
+    const shown = await loadRefusals(prod.db, M22_BIZ, { conversationId: cid });
+    expect(shown.map((r) => r.reason)).toEqual(['window_closed']);
+    expect(shown[0]?.buyer).toBe('M22 D');
+  });
+
+  it('the count Today shows equals the refusals it can list — never an estimate', async () => {
+    const { countRefusals, loadRefusals } = await import('../../src/api/web/refusals.js');
+    const n = await countRefusals(prod.db, M22_BIZ);
+    const listed = await loadRefusals(prod.db, M22_BIZ, { limit: 500 });
+    expect(n).toBe(listed.length);
+    expect(n).toBeGreaterThan(0);                    // the cases above really landed
+  });
+
+  it('a refused message is never delivered, however it was refused', () => {
+    // The simulator IS the provider here: anything that reaches it would have
+    // reached a real buyer. Every message queued in this describe was refused
+    // for a different reason, so the strongest true statement is that the
+    // provider was never called at all.
+    expect(sim.sendCount()).toBe(0);
+    expect(sim.sentIds).toEqual([]);
+  });
+
+  it('activation refusals are their own event, not a send refusal (F-10)', async () => {
+    const { activate } = await import('../../src/channels/activation.js');
+    await setChannel(`activated_at = null, activated_by = null, status = 'disconnected'`);
+    const before = await q((tx) => sql<{ n: number }>`
+      select count(*)::int n from channel_audit
+       where business_id=${M22_BIZ} and action='activation_refused'`
+      .execute(tx as never).then((r) => r.rows[0]!.n));
+
+    const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
+    expect(r.ok).toBe(false);
+
+    const after = await q((tx) => sql<{ n: number; detail: { blockers?: string[] } }>`
+      select (select count(*)::int from channel_audit
+               where business_id=${M22_BIZ} and action='activation_refused') as n,
+             (select detail from channel_audit
+               where business_id=${M22_BIZ} and action='activation_refused'
+               order by at desc limit 1) as detail`
+      .execute(tx as never).then((x) => x.rows[0]!));
+    expect(after.n).toBe(before + 1);
+    expect(after.detail?.blockers?.length).toBeGreaterThan(0);
+    // and it did NOT masquerade as a blocked send
+    expect(r.ok === false && r.code).toBeTruthy();
   });
 });

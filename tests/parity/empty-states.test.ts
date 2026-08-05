@@ -28,7 +28,7 @@ const emptyHer = renderEmployee(
   { handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [] } as never);
 
 const emptyBuyers = (filter: 'pending' | 'all') =>
-  renderInboxList({ filter, waitingCount: 0, conversations: [] }, 'en', NOW);
+  renderInboxList({ filter, waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
 
 // This fixture is `as never`, so nothing type-checks it — and it drifted twice
 // behind the real FactoryView. `promises` still carried Phase-E's pre-rename
@@ -99,7 +99,7 @@ describe('Phase F · every empty surface says what happens next', () => {
 
   it('reads the same way in every locale — nothing falls back to English', () => {
     for (const l of LOCALES) {
-      const html = renderInboxList({ filter: 'all', waitingCount: 0, conversations: [] }, l, NOW);
+      const html = renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] }, l, NOW);
       expect(html.length).toBeGreaterThan(100);
       expect(html).toContain('href="/app/factory"');           // the way forward, every locale
       if (l !== 'en') expect(html).not.toContain('No conversations yet');

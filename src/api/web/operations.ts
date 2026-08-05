@@ -6,6 +6,7 @@ import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { countRefusals } from './refusals.js';
 import { esc, deeper } from './layout.js';
 
 /**
@@ -30,6 +31,14 @@ export type OperationsSnapshot = {
     readonly pendingApprovals: number;   // drafts awaiting the owner
     readonly handoffs: number;           // conversations WAITING_HUMAN (unclaimed)
     readonly ownerHandling: number;      // conversations the owner already controls
+    /**
+     * M22 — messages that did not reach a buyer. A real count of canceled
+     * outbound rows (countRefusals), not a rate and not a health signal. It
+     * leads the list because it is the only concern here the owner has no
+     * other way to discover: a handoff at least sits visibly in the inbox,
+     * while a refused message left a buyer waiting on a reply nobody sent.
+     */
+    readonly blockedMessages: number;
   };
   /** What the employee did in the range. */
   readonly activity: {
@@ -56,12 +65,12 @@ export type OperationsSnapshot = {
  * than invented.
  */
 export const ATTENTION_PRIORITY =
-  ['handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
+  ['blockedMessages', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
 export type AttentionKind = (typeof ATTENTION_PRIORITY)[number];
 
 const EMPTY = (range: Range, provider: string): OperationsSnapshot => ({
   range,
-  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0 },
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { status: 'not_connected', provider },
@@ -77,7 +86,7 @@ export async function loadOperationsSnapshot(
   const unit = RANGE_UNIT[range];
 
   // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, counts] = await Promise.all([
+  const [ops, channels, counts, blockedMessages] = await Promise.all([
     loadKnowledgeOps(db, businessIdRaw, range),
     loadChannels(db, businessIdRaw, provider !== 'disabled'),
     withTenantTx(db, B, async (tx) => {
@@ -107,9 +116,15 @@ export async function loadOperationsSnapshot(
       `.execute(tx)).rows[0]!;
       return { handoffs, ownerHandling, ...q };
     }),
+    // M22 — counted by the database over persisted canceled rows, through the
+    // SAME predicate that lists them, so the number and the list agree.
+    countRefusals(db, businessIdRaw),
   ]);
 
-  const attention = { pendingApprovals: counts.pending, handoffs: counts.handoffs, ownerHandling: counts.ownerHandling };
+  const attention = {
+    pendingApprovals: counts.pending, handoffs: counts.handoffs,
+    ownerHandling: counts.ownerHandling, blockedMessages,
+  };
   return {
     range,
     attention,
@@ -120,7 +135,8 @@ export async function loadOperationsSnapshot(
       recentlyTaught: ops.report.factsAdded,          // M14 (owner_confirmed in range)
     },
     channel: { status: channels.whatsapp.status, provider },
-    hasAttention: attention.pendingApprovals + attention.handoffs + attention.ownerHandling > 0,   // see needsOwnerAttention
+    hasAttention: attention.pendingApprovals + attention.handoffs
+                + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
   };
 }
 
@@ -135,6 +151,9 @@ export async function loadOperationsSnapshot(
 
 /** What the owner may still need to do, in the M16.2a priority order. */
 const ATTENTION_ROW: Record<AttentionKind, { readonly label: MessageKey; readonly href: string }> = {
+  // M22 — a buyer who was never replied to. Leads the list; the link goes to
+  // the conversations it happened in, where the reason and the fix are stated.
+  blockedMessages:  { label: 'ops.card.blocked',   href: '/app/inbox?filter=blocked' },
   handoffs:         { label: 'ops.card.waiting',   href: '/app/inbox' },
   pendingApprovals: { label: 'ops.card.approvals', href: '/app/inbox?filter=pending' },
   // A conversation the owner took over is waiting on the OWNER to type. It was

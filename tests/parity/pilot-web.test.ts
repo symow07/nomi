@@ -73,7 +73,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
 // ── M16.2d — the full operations runbook (before / during / practice / after) ─
 const snap = (over: Partial<OperationsSnapshot> = {}): OperationsSnapshot => ({
   range: 'week',
-  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 0 },
+  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 4, draftsCreated: 3, corrections: 1 },
   knowledge: { openGaps: 2, recentCorrections: 1, recentlyTaught: 3 },
   channel: { status: 'not_connected', provider: 'disabled' },
@@ -113,7 +113,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
 
   it('during pilot: honest quiet state when the factory has no activity', () => {
     const quiet = snap({
-      attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0 },
+      attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
       activity: { handled: 0, draftsCreated: 0, corrections: 0 },
       knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
       hasAttention: false,

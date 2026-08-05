@@ -12,7 +12,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 
 const sample = (): OperationsSnapshot => ({
   range: 'week',
-  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1 },
+  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
   activity: { handled: 5, draftsCreated: 4, corrections: 1 },
   knowledge: { openGaps: 3, recentCorrections: 1, recentlyTaught: 2 },
   channel: { status: 'not_connected', provider: 'disabled' },
@@ -36,15 +36,19 @@ describe('M16.2a · operations snapshot (pure)', () => {
   });
 
   it('attention priority is explicit and ordered — no urgency scoring', () => {
-    // A buyer waiting for a person first, then replies to review, then the
-    // threads the owner took over herself, then knowledge gaps.
-    expect(ATTENTION_PRIORITY).toEqual(['handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
+    // M22: a message that never reached a buyer comes first — it is the only
+    // concern here the owner has no other way to find. A handoff at least sits
+    // visibly in the inbox; a refused reply left a buyer waiting on nothing.
+    // Then a buyer waiting for a person, replies to review, the threads she
+    // took over herself, and knowledge gaps.
+    expect(ATTENTION_PRIORITY).toEqual(
+      ['blockedMessages', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
     expect(ATTENTION_PRIORITY).not.toContain('activity');
   });
 
   it('each attention row leads somewhere different — two rows, one destination is a dead tap', () => {
     const s: OperationsSnapshot = { ...emptyFactory, hasAttention: true,
-      attention: { pendingApprovals: 1, handoffs: 1, ownerHandling: 1 },
+      attention: { pendingApprovals: 1, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
       knowledge: { openGaps: 1, recentCorrections: 0, recentlyTaught: 0 } };
     const hrefs = [...renderOperationsHome(s, 'en').matchAll(/class="need" href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs).toHaveLength(4);
@@ -55,7 +59,7 @@ describe('M16.2a · operations snapshot (pure)', () => {
     // Today used to render "you're all caught up · Lily is looking after your
     // buyers" while the owner personally owed a buyer a reply.
     const s: OperationsSnapshot = { ...emptyFactory,
-      attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 1 }, hasAttention: true };
+      attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 1, blockedMessages: 0 }, hasAttention: true };
     expect(needsOwnerAttention(s)).toBe(true);
     const html = renderOperationsHome(s, 'en');
     expect(html).toContain('You are handling these');
@@ -87,7 +91,7 @@ describe('M16.2a · operations snapshot (pure)', () => {
 
 const populated: OperationsSnapshot = {
   range: 'today',
-  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1 },
+  attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
   activity: { handled: 5, draftsCreated: 4, corrections: 1 },
   knowledge: { openGaps: 3, recentCorrections: 1, recentlyTaught: 2 },
   channel: { status: 'not_connected', provider: 'disabled' },
@@ -95,7 +99,7 @@ const populated: OperationsSnapshot = {
 };
 const emptyFactory: OperationsSnapshot = {
   range: 'today',
-  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0 },
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { status: 'not_connected', provider: 'disabled' },

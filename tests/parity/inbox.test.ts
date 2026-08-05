@@ -10,7 +10,7 @@ import type { ConversationOwnership } from '../../src/core/conversation/ownershi
 const NOW = new Date('2026-07-27T10:00:00Z');
 
 const listWithWork: InboxList = {
-  filter: 'pending', waitingCount: 1,
+  filter: 'pending', waitingCount: 1, blockedCount: 0,
   conversations: [{
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE',
     status: 'awaiting', needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
@@ -29,7 +29,7 @@ const detailWithDraft: ConversationDetail = {
     { direction: 'outbound', text: 'Checking for you.', at: new Date('2026-07-27T09:01:00Z') },
   ],
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },
-  ownership: 'AI', handoffReasons: [], lastHumanAction: null, knowledgeUsed: [],
+  ownership: 'AI', refusals: [], handoffReasons: [], lastHumanAction: null, knowledgeUsed: [],
 };
 
 // M16.2c — a conversation detail in a given ownership state (draft omitted for
@@ -56,14 +56,14 @@ describe('M9.3 · inbox list (localized)', () => {
   });
 
   it('empty pending → all-good per locale, not "no data"', () => {
-    expect(renderInboxList({ filter: 'pending', waitingCount: 0, conversations: [] }, 'zh', NOW)).toContain('现在没有买家需要你');
-    const en = renderInboxList({ filter: 'pending', waitingCount: 0, conversations: [] }, 'en', NOW);
+    expect(renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'zh', NOW)).toContain('现在没有买家需要你');
+    const en = renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
     expect(en).toContain('No buyer needs you right now');
     expect(en.toLowerCase()).not.toContain('no data');
   });
 
   it('empty all → explains the next action', () => {
-    expect(renderInboxList({ filter: 'all', waitingCount: 0, conversations: [] }, 'en', NOW)).toContain('No conversations yet');
+    expect(renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW)).toContain('No conversations yet');
   });
 
   it('default filter opens pending only when work is waiting', () => {
@@ -226,7 +226,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     product: { name: null, nameZh: null }, quantity: null, unitPriceUsd: null, ...over,
   });
   const list = (cs: InboxList['conversations']): InboxList =>
-    ({ filter: 'all', waitingCount: 0, conversations: cs });
+    ({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: cs });
 
   const mixed = list([
     conv('c-ai'),
@@ -270,7 +270,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
   });
 
   it('calm empty state is about the buyers, not about missing data', () => {
-    const en = renderInboxList({ filter: 'pending', waitingCount: 0, conversations: [] }, 'en', NOW);
+    const en = renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
     expect(en).toContain('No buyer needs you right now');
     expect(en.toLowerCase()).not.toContain('no data');
     expect(en.toLowerCase()).not.toContain('0 conversations');
@@ -395,7 +395,7 @@ describe('Release hardening · the product never claims a delivery it has not ma
 
 describe('Release hardening · the handoff badge states the stored reason', () => {
   const waiting = (handoffReason: string | null) => renderInboxList({
-    filter: 'all', waitingCount: 1,
+    filter: 'all', waitingCount: 1, blockedCount: 0,
     conversations: [{
       conversationId: 'c1', buyer: 'B', country: 'AE', status: 'awaiting', needsAction: false,
       ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason,
@@ -422,7 +422,7 @@ describe('Release hardening · the handoff badge states the stored reason', () =
   });
 
   it('localizes the reason in zh and ar', () => {
-    const zh = renderInboxList({ filter: 'all', waitingCount: 1, conversations: [{
+    const zh = renderInboxList({ filter: 'all', waitingCount: 1, blockedCount: 0, conversations: [{
       conversationId: 'c1', buyer: 'B', country: null, status: 'awaiting', needsAction: false,
       ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason: 'complaint',
       latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
