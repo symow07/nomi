@@ -106,7 +106,13 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
         assignedTo: c?.assigned_to ?? null,
         paused: c?.paused ?? false,
         lastInboundAt: c?.last_inbound_at ?? null,
-        template: 'none',   // template infra is post-M3; owner path applies
+        // M22 §B — THE template entry point (TEMPLATE_ENTRY_POINT in
+        // core/channel/templateReadiness.ts names this exact line). While it
+        // reads 'none', `sendPlan` can never return `send_template`, so
+        // `gate.viaTemplate` is never true and a closed window always refuses
+        // as `window_closed`. Replace this literal with the tenant's real
+        // template state once Meta approves one; nothing else has to change.
+        template: 'none',
         activated,
         pilotMode,
         recipientAllowed,

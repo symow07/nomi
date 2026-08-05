@@ -10,6 +10,7 @@ import { type RehearsalReport } from '../../trust/factoryRehearsal.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
+import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
 import { esc, deeper } from './layout.js';
 
 /**
@@ -529,6 +530,27 @@ function metaSection(m: MetaReadiness, locale: Locale): string {
     ${rows}
     <div class="verdict ${m.live ? 'ok' : ''}">${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</div>
     ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
+    ${templateRow(locale)}
+  </div>`;
+}
+
+/**
+ * M22 §B — re-engagement readiness, stated as its own line because it is its
+ * own problem.
+ *
+ * Credentials are ours to configure; an approved template is Meta's to grant.
+ * Folding them together would let a fully-credentialled installation read as
+ * ready while every conversation older than a day was still unreachable. The
+ * state comes from the same TemplateState the send path consumes — no second
+ * source, and nothing here can approve anything.
+ */
+function templateRow(locale: Locale): string {
+  const r = templateReadiness(TEMPLATE_ENTRY_POINT.currentValue);
+  return `<div class="pr ${r.canReopenWindow ? 'done' : 'todo'}">
+    <span class="mk">${r.canReopenWindow ? '✓' : '○'}</span>
+    <span class="lbl">${esc(t(locale, 'meta.template.label'))}</span>
+    <div class="pr-b"><span class="muted">${esc(t(locale,
+      r.canReopenWindow ? 'meta.template.approved' : 'meta.template.none'))}</span></div>
   </div>`;
 }
 
