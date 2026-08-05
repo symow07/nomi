@@ -30,6 +30,10 @@ import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js'
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
+import {
+  rehearseFactory, PROBE_CAP,
+  type FactoryFixture, type FactoryProduct, type FindingReason, type RehearsalReport,
+} from '../../trust/factoryRehearsal.js';
 
 /**
  * What the factory still needs. Phase F: there is now exactly ONE derivation of
@@ -96,6 +100,12 @@ export type FactoryView = {
   /** null = the factory is set up. A complete factory feels complete. */
   readonly nextStep: FactoryStep | null;
   readonly readiness: FactoryReadiness;
+  /**
+   * M20.5 — what she cannot answer yet, derived from this factory's own rows.
+   * Advisory ONLY: nothing here reaches `readiness`, and `activationPreconditions`
+   * has never heard of it. null when the business id could not be resolved.
+   */
+  readonly rehearsal: RehearsalReport | null;
 };
 
 /**
@@ -137,11 +147,115 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
   });
 }
 
+/**
+ * M20.5 — the rows the factory rehearsal runs on. READ ONLY: one SELECT, inside
+ * the same tenant transaction as everything else on this page, and nothing in
+ * the rehearsal path can write (see `src/trust/factoryRehearsal.ts`).
+ *
+ * The cap is a page-load budget, not a priority system and not a stored rank:
+ * `products × probes` turns run in-process on every render, so an owner with two
+ * hundred products would pay for two hundred of them. Products a buyer has
+ * actually been quoted come first — `quotes` is a real row, not a score — and
+ * the rest follow the product list's own ordering.
+ */
+async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<FactoryFixture | null> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return null;
+
+  type Row = {
+    id: string; sku: string; name: string; moq: number; unit: string; lead_time_days: number | null;
+    tiers: { minQty: number; maxQty: number | null; unitPriceUsd: number }[];
+    policy: { floorPriceUsd: number; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
+    knowledge: { kind: string; label: string; content: string; source: string }[];
+  };
+
+  return withTenantTx(db, bid.value, async (tx) => {
+    const [picked, claims, total] = await Promise.all([
+      sql<Row>`
+        with picked as (
+          select p.id, p.sku, p.name, p.moq, p.unit, p.lead_time_days
+            from products p
+           where p.business_id = ${bid.value} and p.is_active
+           order by (exists (select 1 from quotes q where q.product_id = p.id)) desc,
+                    p.updated_at desc
+           limit ${PROBE_CAP}
+        )
+        select k.id, k.sku, k.name, k.moq, k.unit, k.lead_time_days,
+          coalesce((select json_agg(json_build_object(
+                      'minQty', t.min_qty, 'maxQty', t.max_qty, 'unitPriceUsd', t.unit_price_usd)
+                      order by t.min_qty)
+                      from price_tiers t where t.product_id = k.id), '[]'::json) as tiers,
+          -- The policy the QUOTE ENGINE would use: the per-product row wins, and
+          -- the business-wide row is the fallback (repos.pricingPolicy, M9.5).
+          coalesce(
+            (select json_build_object('floorPriceUsd', pp.floor_price_usd,
+                                      'maxDiscountPct', pp.max_discount_pct,
+                                      'humanRequiredAbovePct', pp.human_required_above_pct)
+               from pricing_policy pp
+              where pp.business_id = ${bid.value} and pp.product_id = k.id),
+            (select json_build_object('floorPriceUsd', pp.floor_price_usd,
+                                      'maxDiscountPct', pp.max_discount_pct,
+                                      'humanRequiredAbovePct', pp.human_required_above_pct)
+               from pricing_policy pp
+              where pp.business_id = ${bid.value} and pp.product_id is null)
+          ) as policy,
+          coalesce((select json_agg(json_build_object(
+                      'kind', kn.kind, 'label', kn.label, 'content', kn.content, 'source', kn.source)
+                      order by kn.created_at)
+                      from product_knowledge kn
+                     where kn.product_id = k.id and kn.status = 'active'), '[]'::json) as knowledge
+          from picked k
+      `.execute(tx).then((r) => r.rows),
+      tenantRepos(tx, bid.value).catalog.claimsPolicy(),
+      sql<{ n: number }>`
+        select count(*)::int as n from products where business_id = ${bid.value} and is_active
+      `.execute(tx).then((r) => Number(r.rows[0]?.n ?? 0)),
+    ]);
+
+    const products: FactoryProduct[] = picked.map((r) => ({
+      id: r.id,
+      sku: r.sku,
+      name: r.name,
+      moq: Number(r.moq),
+      unit: r.unit,
+      leadTimeDays: r.lead_time_days === null ? null : Number(r.lead_time_days),
+      tiers: (r.tiers ?? []).map((t) => ({
+        minQty: Number(t.minQty),
+        maxQty: t.maxQty === null ? null : Number(t.maxQty),
+        unitPriceUsd: Number(t.unitPriceUsd),
+      })),
+      policy: r.policy === null ? null : {
+        floorPriceUsd: Number(r.policy.floorPriceUsd),
+        maxDiscountPct: Number(r.policy.maxDiscountPct),
+        humanRequiredAbovePct: Number(r.policy.humanRequiredAbovePct),
+      },
+      knowledge: (r.knowledge ?? []).map((k) => ({
+        kind: k.kind as FactoryProduct['knowledge'][number]['kind'],
+        label: k.label,
+        content: k.content,
+        source: k.source as FactoryProduct['knowledge'][number]['source'],
+      })),
+    }));
+
+    return { products, allowedClaims: claims, productsTotal: total };
+  });
+}
+
+/**
+ * Run the rehearsal for a business. Exported because the OPERATOR surface
+ * (/app/onboarding) needs the violations with their evidence, while the owner's
+ * page needs only the findings — one derivation, read two ways.
+ */
+export async function loadFactoryRehearsal(db: Db, businessIdRaw: string): Promise<RehearsalReport | null> {
+  const fixture = await loadFactoryFixture(db, businessIdRaw);
+  return fixture === null ? null : rehearseFactory(fixture);
+}
+
 export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, recipients] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -153,6 +267,10 @@ export async function loadFactory(
     bid.ok ? activationPreconditions(db, bid.value, { providerConfigured: messagingEnabled }) : null,
     bid.ok ? activationState(db, bid.value) : null,
     bid.ok ? listAllowlist(db, bid.value) : [],
+    // M20.5 — advisory, and deliberately NOT an input to `pre`. If this threw
+    // or hung it would take the whole page with it, which is why it reads rows
+    // the page already trusts and runs pure code over them.
+    loadFactoryRehearsal(db, businessIdRaw),
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -180,6 +298,7 @@ export async function loadFactory(
       activatedAt: state?.activatedAt ?? null,
       activatedBy: state?.activatedBy ?? null,
     },
+    rehearsal,
   };
 }
 
@@ -197,6 +316,55 @@ const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   no_channel: '/app/channels',
   no_allowlist: null,
 };
+
+/**
+ * M20.5 — where each kind of gap is actually closed. A finding that cannot be
+ * acted on is a complaint, so every one of these points at a real screen.
+ */
+const FINDING_FIX: Record<FindingReason, string> = {
+  no_price: '/app/products',
+  no_price_at_moq: '/app/products',
+  floor_above_price: '/app/products',
+  nothing_taught: '/app/knowledge',
+  answer_withheld: '/app/knowledge',
+  claim_not_authorised: '/app/knowledge',
+};
+
+/**
+ * The rehearsal, in the owner's words. It leads with the LIST, never a tally:
+ * "three findings" is a grade, "she cannot quote the canvas tote" is a task.
+ * An empty list says exactly what was checked and nothing more — a factory that
+ * has taught her nothing still gets findings, so silence here is earned.
+ */
+function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string): string {
+  if (r.productsChecked === 0) return '';
+  const scope = r.productsTotal > r.productsChecked
+    ? t(locale, 'factory.rehearsal.scopeSome', { n: r.productsChecked, total: r.productsTotal })
+    : t(locale, 'factory.rehearsal.scopeAll', { n: r.productsChecked });
+
+  // Grouped by reason, not one line per product. A new factory has the same gap
+  // on every product it sells; twelve identical sentences read as an indictment,
+  // while one sentence over twelve names reads as a job to do. The names are all
+  // there either way — the grouping changes the tone, not the information.
+  const groups = new Map<FindingReason, string[]>();
+  for (const f of r.findings) {
+    const names = groups.get(f.reason);
+    if (names) { if (f.productName) names.push(f.productName); }
+    else groups.set(f.reason, f.productName ? [f.productName] : []);
+  }
+
+  const body = groups.size === 0
+    ? `<p class="fok">${esc(t(locale, 'factory.rehearsal.none', { name }))}</p>`
+    : [...groups].map(([reason, names]) => `<div class="fgap">
+        <a class="blink" href="${FINDING_FIX[reason]}">${esc(t(locale, `factory.rehearsal.${reason}` as MessageKey, { name }))}</a>
+        ${names.length ? `<p class="fnames">${names.map((n) => `<bdi>${esc(n)}</bdi>`).join(' · ')}</p>` : ''}
+      </div>`).join('');
+
+  return `<h3 class="sub3">${esc(t(locale, 'factory.rehearsal.title', { name }))}</h3>
+    <p class="fdesc">${esc(t(locale, 'factory.rehearsal.lede', { name }))}</p>
+    <div class="rehear">${body}</div>
+    <p class="fdesc muted">${esc(scope)}</p>`;
+}
 
 /** A fact the owner told her. Absent facts are simply not shown. */
 const fact = (label: string, value: string | null): string =>
@@ -377,6 +545,10 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
 
+  // M20.5 — appended AFTER the activation decision, never folded into it. These
+  // are things she cannot answer yet; none of them is a reason to keep her off.
+  const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name) : '';
+
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
@@ -385,7 +557,7 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ${section(t(locale, 'factory.sell.title'), t(locale, 'factory.sell.q'), sellBody, '/app/products', t(locale, 'factory.sell.more'))}
     ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
-    ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody, '/app/onboarding', t(locale, 'factory.ready.more'))}
+    ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
     ${FACTORY_STYLE}`;
 }
 
@@ -434,6 +606,9 @@ const FACTORY_STYLE = `<style>
   .fsteps li { font-size:14px; color:#a8afb8; }
   .fsteps li.done { color:#d6dae0; }
   .sub3 { font-size:15px; font-weight:600; color:#e7eaee; margin:22px 0 4px; }
+  /* Findings are a to-do list, not an alarm: same weight as any other step. */
+  .rehear { margin-top:12px; display:flex; flex-direction:column; gap:14px; }
+  .fgap .fnames { margin-top:3px; }
   .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:34ch; }
   .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }
   .alform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px;

@@ -6,6 +6,7 @@ import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
+import { type RehearsalReport } from '../../trust/factoryRehearsal.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -548,9 +549,41 @@ function healthSection(r: Reliability, locale: Locale): string {
   </div>`;
 }
 
+/**
+ * M20.5 — where an invariant that failed on REAL factory data surfaces.
+ *
+ * This is the operator's panel, next to the build version and the credential
+ * shapes, and it is the only place these appear. The distinction it keeps is the
+ * whole point of the split: a FINDING ("no price is set for the canvas tote") is
+ * the owner's to fix and lives in My factory; a VIOLATION means the engine broke
+ * its own promise on her rows — she cannot act on it, and showing it to her as a
+ * task would be blaming her for our defect.
+ *
+ * Silence here is the normal state, so it says so rather than showing a tick.
+ */
+function engineSection(r: RehearsalReport, locale: Locale): string {
+  if (r.violations.length === 0) {
+    return `<div class="card">
+      <h2>${esc(t(locale, 'runbook.engine.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'runbook.engine.ok', { n: r.probesRun }))}</p>
+    </div>`;
+  }
+  return `<div class="card">
+    <h2>${esc(t(locale, 'runbook.engine.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'runbook.engine.bad'))}</p>
+    ${r.violations.map((v) => `<div class="ev">
+      <div class="ev-h"><span class="mono">${esc(v.invariant)}</span> <span class="mono muted">${esc(v.probeId)}</span></div>
+      <div class="ev-d">${esc(v.detail)}</div>
+      <pre class="ev-p">in:  ${esc(v.fixture)}
+out: ${esc(v.engine)}</pre>
+    </div>`).join('')}
+  </div>`;
+}
+
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: string | null,
   deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
+  rehearsal?: RehearsalReport | null,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
@@ -559,6 +592,7 @@ export function renderPilotRunbook(
     + afterSection(locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
     + (meta ? metaSection(meta, locale) : '')
+    + (rehearsal ? engineSection(rehearsal, locale) : '')
     + (deployment ? deploymentSection(deployment, locale) : '')
     + RUNBOOK_STYLE;
 }
@@ -572,6 +606,13 @@ const RUNBOOK_STYLE = `<style>
   .rbsteps { margin:6px 0 14px; padding-inline-start:20px; color:#c8ccd2; font-size:14px; }
   .rbsteps li { padding:2px 0; }
   .rbrow .mono { font:13px/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
+  /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
+  .ev { border:1px solid #4a2626; background:#1a1211; border-radius:12px; padding:12px 14px; margin-top:12px; }
+  .ev-h { display:flex; gap:10px; flex-wrap:wrap; }
+  .ev-h .mono { font:13px/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
+  .ev-d { font-size:13px; color:#e8b4b4; margin-top:6px; }
+  .ev-p { font:12px/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:#a8afb8;
+          margin:8px 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
 </style>`;
 
 const PILOT_STYLE = `<style>

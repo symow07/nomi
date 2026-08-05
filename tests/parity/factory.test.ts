@@ -24,6 +24,7 @@ const complete: FactoryView = {
   nextStep: null,
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
+  rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
 };
 
 /** A factory on its first day. */
@@ -38,6 +39,9 @@ const fresh: FactoryView = {
   nextStep: 'profile',
   readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
+  // Nothing to rehearse on day one — no products means no probes, so the whole
+  // block is absent rather than reporting an empty success.
+  rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {

@@ -158,7 +158,16 @@ export type HarnessReport = {
   readonly total: number; readonly passed: number; readonly failed: number;
 };
 
-export async function runScenario(s: Scenario): Promise<ScenarioReport> {
+/**
+ * Run one scenario and return BOTH the invariant verdict and the engine's own
+ * output. `runScenario` keeps the original narrow shape; M20.5's factory
+ * rehearsal needs the outcome itself, because "she cannot quote this product"
+ * is read from `result.quoteRefusal`, not from a passing check. Additive: the
+ * golden path below is byte-for-byte what it was.
+ */
+export async function evaluateScenario(
+  s: Scenario,
+): Promise<{ readonly report: ScenarioReport; readonly outcome: TurnOutcome }> {
   if (s.schemaVersion !== SCHEMA_VERSION) {
     throw new Error(`scenario ${s.id}: unsupported schemaVersion ${s.schemaVersion} (harness supports ${SCHEMA_VERSION})`);
   }
@@ -173,9 +182,16 @@ export async function runScenario(s: Scenario): Promise<ScenarioReport> {
   const appliedMode: TurnOutcome['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (productId: string): number | null => tenant.floorFor(productId);
 
-  const ctx: TurnOutcome = { scenario: s, result, effects, floorOf, capability, requestedMode, appliedMode };
-  const checks = s.expect.map((e) => runCheck(e, ctx));
-  return { id: s.id, title: s.title, category: s.category, checks, passed: checks.every((c) => c.pass) };
+  const outcome: TurnOutcome = { scenario: s, result, effects, floorOf, capability, requestedMode, appliedMode };
+  const checks = s.expect.map((e) => runCheck(e, outcome));
+  return {
+    report: { id: s.id, title: s.title, category: s.category, checks, passed: checks.every((c) => c.pass) },
+    outcome,
+  };
+}
+
+export async function runScenario(s: Scenario): Promise<ScenarioReport> {
+  return (await evaluateScenario(s)).report;
 }
 
 export async function runAll(scenarios: readonly Scenario[]): Promise<HarnessReport> {

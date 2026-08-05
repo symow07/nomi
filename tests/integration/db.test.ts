@@ -182,3 +182,78 @@ d('order idempotency invariant (requires DATABASE_URL)', () => {
     await db.destroy();
   });
 });
+
+/**
+ * M20.5 — the factory rehearsal's fixture query, against a real Postgres as the
+ * RUNTIME role (RLS enforced, no BYPASSRLS). The pure half is covered in
+ * tests/parity/factory-rehearsal.test.ts; what can only be proven here is that
+ * the SQL runs, that it stays inside the tenant, and that it WRITES NOTHING.
+ */
+d('M20.5 factory rehearsal reads (requires DATABASE_URL)', () => {
+  /**
+   * The business with the MOST products. Picking `limit 1` would usually land on
+   * an empty fixture tenant, and a rehearsal over zero products asserts nothing.
+   */
+  const anyBusiness = async (db: unknown): Promise<string | null> => {
+    const { sql } = await import('kysely');
+    const r = await sql<{ id: string }>`
+      select b.id from businesses b
+       order by (select count(*) from products p where p.business_id = b.id) desc
+       limit 1
+    `.execute(db as never);
+    return r.rows[0]?.id ?? null;
+  };
+
+  it('the fixture query runs as the app role and stays inside the tenant', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { loadFactoryRehearsal } = await import('../../src/api/web/factory.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = await anyBusiness(db);
+      if (bid === null) return;                       // an empty database proves nothing
+      const r = await loadFactoryRehearsal(db, bid);
+      expect(r).not.toBeNull();
+      // It actually ran over rows — otherwise the assertions below are theatre.
+      expect(r!.productsChecked, 'no products to rehearse').toBeGreaterThan(0);
+      expect(r!.probesRun).toBeGreaterThanOrEqual(r!.productsChecked);
+      // Every product it checked came from THIS business, and the cap held.
+      expect(r!.productsChecked).toBeLessThanOrEqual(20);
+      expect(r!.productsChecked).toBeLessThanOrEqual(r!.productsTotal);
+      // An invariant failing on real rows is an engine defect, not a data gap.
+      expect(r!.violations, JSON.stringify(r!.violations)).toEqual([]);
+    } finally { await db.destroy(); }
+  });
+
+  it('an unknown business id yields nothing rather than another tenant’s rows', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { loadFactoryRehearsal } = await import('../../src/api/web/factory.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      expect(await loadFactoryRehearsal(db, 'not-a-uuid')).toBeNull();
+      const r = await loadFactoryRehearsal(db, '00000000-0000-4000-8000-000000000000');
+      expect(r?.productsChecked).toBe(0);
+      expect(r?.productsTotal).toBe(0);
+    } finally { await db.destroy(); }
+  });
+
+  it('running it changes no row — the rehearsal is read-only', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { loadFactoryRehearsal } = await import('../../src/api/web/factory.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = await anyBusiness(db);
+      if (bid === null) return;
+      const counts = async () => (await sql<{ c: string }>`
+        select (select count(*) from conversations)::text
+             || ',' || (select count(*) from outbound_messages)::text
+             || ',' || (select count(*) from drafts)::text
+             || ',' || (select count(*) from product_knowledge)::text
+             || ',' || (select count(*) from quotes)::text as c
+      `.execute(db)).rows[0]!.c;
+      const before = await counts();
+      await loadFactoryRehearsal(db, bid);
+      expect(await counts()).toBe(before);
+    } finally { await db.destroy(); }
+  });
+});

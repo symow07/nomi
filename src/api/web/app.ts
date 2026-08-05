@@ -20,7 +20,7 @@ import {
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
-import { loadFactory, renderFactory } from './factory.js';
+import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
@@ -525,9 +525,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       provider: deps.provider,
       channelStatus: (await loadChannels(deps.db, s.businessId, messagingEnabled)).whatsapp.status,
     });
+    // M20.5: invariant violations on this factory's REAL rows are an engine
+    // defect, so they surface here — beside the build version — and nowhere the
+    // owner is asked to act. The findings from the same run stay in My factory.
+    const rehearsal = await loadFactoryRehearsal(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal),
     }));
   });
 

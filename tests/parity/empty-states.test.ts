@@ -45,6 +45,9 @@ const emptyFactory = renderFactory({
   nextStep: 'profile',
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
+  // Nothing to rehearse on day one — no products means no probes, so the block
+  // is absent rather than reporting an empty success.
+  rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
 } as never, 'en');
 
 const emptyCustomers = renderCustomerList({ query: '', customers: [] } as never, 'en', NOW);
