@@ -5,6 +5,10 @@ import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
 import { renderFactory } from '../../src/api/web/factory.js';
 import { renderCustomerList } from '../../src/api/web/conversations.js';
+import type { OperationsSnapshot } from '../../src/api/web/operations.js';
+import type { FactoryView } from '../../src/api/web/factory.js';
+import type { EmployeeProfile, HerContext } from '../../src/api/web/employee.js';
+import type { CustomerList } from '../../src/api/web/conversations.js';
 
 /**
  * Phase F — every surface must answer "what happens next?" when it is empty.
@@ -12,30 +16,34 @@ import { renderCustomerList } from '../../src/api/web/conversations.js';
  */
 const NOW = new Date('2026-08-02T10:00:00Z');
 
-const emptyToday = renderOperationsHome({
+const emptyTodaySnapshot: OperationsSnapshot = {
   range: 'today',
-  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, stuckOutbound: 0, unpricedProducts: 0 },
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
   hasAttention: false,
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-  channel: { provider: 'disabled', status: 'not_connected', deliveredToday: 0, failedToday: 0 },
-} as never, 'en');
+  channel: { provider: 'disabled', status: 'not_connected' },
+};
+const emptyToday = renderOperationsHome(emptyTodaySnapshot, 'en');
 
-const emptyHer = renderEmployee(
-  { stage: 'probation', hireDate: null, knows: 0, canDo: [], needConfirm: [], capabilities: [],
-    growth: [], promoted: false, conditions: [] } as never,
-  'en', null,
-  { handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [] } as never);
+const emptyProfile: EmployeeProfile = {
+  stage: 'probation', hireDate: null, knows: 0, canDo: [], needConfirm: [], capabilities: [],
+  growth: [], promoted: false, conditions: [],
+};
+const emptyContext: HerContext = {
+  handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [],
+};
+const emptyHer = renderEmployee(emptyProfile, 'en', null, emptyContext);
 
 const emptyBuyers = (filter: 'pending' | 'all') =>
   renderInboxList({ filter, waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
 
-// This fixture is `as never`, so nothing type-checks it — and it drifted twice
-// behind the real FactoryView. `promises` still carried Phase-E's pre-rename
-// field names, which meant `floorLowUsd` was undefined, `undefined !== null`
-// was true, and formatUsd(undefined) threw before a single assertion ran. The
-// whole file had stopped executing. Keep it honest against the real shape.
-const emptyFactory = renderFactory({
+// M22 — TYPED, not `as never`. It was cast, so nothing checked it, and it
+// drifted twice behind the real FactoryView: `promises` still carried Phase-E's
+// pre-rename field names, `floorLowUsd` was undefined, `undefined !== null` was
+// true, and formatUsd(undefined) threw before a single assertion in this file
+// ran. Typing it is the fix; the comment was only a warning.
+const emptyFactoryView: FactoryView = {
   profile: { name: '', description: null, location: null, workingHours: null,
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
   products: { total: 0, needPrice: 0, names: [] },
@@ -48,9 +56,11 @@ const emptyFactory = renderFactory({
   // Nothing to rehearse on day one — no products means no probes, so the block
   // is absent rather than reporting an empty success.
   rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
-} as never, 'en');
+};
+const emptyFactory = renderFactory(emptyFactoryView, 'en');
 
-const emptyCustomers = renderCustomerList({ query: '', customers: [] } as never, 'en', NOW);
+const emptyCustomerList: CustomerList = { query: '', customers: [] };
+const emptyCustomers = renderCustomerList(emptyCustomerList, 'en', NOW);
 
 const SURFACES: readonly (readonly [string, string])[] = [
   ['Today', emptyToday],

@@ -7,6 +7,7 @@ import {
 import { evaluateScenario, runAll } from '../../src/trust/harness.js';
 import { SCENARIOS } from '../../src/trust/scenarios.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import type { ChannelView } from '../../src/api/web/channels.js';
 import { renderPilotRunbook, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -318,13 +319,17 @@ const view = (rehearsal: RehearsalReport | null): FactoryView => ({
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
   products: { total: 2, needPrice: 0, names: [] },
   promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
-  connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
-    displayId: null, lastActivityAt: null, problem: null } as never, ownerPhone: null },
+  connection: { channel: OFFLINE_CHANNEL, ownerPhone: null },
   nextStep: null,
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
   rehearsal,
 });
+
+const OFFLINE_CHANNEL: ChannelView = {
+  kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
+  displayId: null, lastActivityAt: null, problem: null,
+};
 
 const withFindings: RehearsalReport = {
   findings: [

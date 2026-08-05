@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+
+/** The simulator's default instance tag (M22): wamids are `SIM_OUT_<tag>_<n>`. */
+const SIM_TAG = '1';
 import {
   driveConversationOutbound,
   type OutboundStore, type OutboundWorkRow, type ConversationSendContext,
@@ -65,7 +68,7 @@ describe('M3 · outbound worker drive', () => {
   it('happy path: queued → sending → sent, provider id recorded, transitions audited', async () => {
     const m = memStore([{ id: 'a' }]);
     const effects = await drive(m.store);
-    expect(effects).toEqual([{ kind: 'sent', id: 'a', providerMessageId: 'wamid.SIM_OUT_1' }]);
+    expect(effects).toEqual([{ kind: 'sent', id: 'a', providerMessageId: `wamid.SIM_OUT_${SIM_TAG}_1` }]);
     expect(m.transitions).toEqual(['a:queued->sending', 'a:sending->sent']);
   });
 
@@ -221,15 +224,15 @@ describe('M3 · webhook ingress', () => {
 
   it('status webhooks flow through the same path (delivery reconciliation input)', async () => {
     const { sim, app, delivered } = harness();
-    await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));
+    await post(app, sim.status(`wamid.SIM_OUT_${SIM_TAG}_1`, 'delivered'));
     expect(delivered[0]).toMatchObject({ kind: 'status', status: 'delivered' });
   });
 
   it('delivered then read BOTH process (statuses share a wamid — compound dedup key), retries still dedup', async () => {
     const { sim, app, delivered } = harness();
-    await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));
-    await post(app, sim.status('wamid.SIM_OUT_1', 'read'));           // must NOT be dropped
-    const retry = await post(app, sim.status('wamid.SIM_OUT_1', 'delivered'));  // true replay
+    await post(app, sim.status(`wamid.SIM_OUT_${SIM_TAG}_1`, 'delivered'));
+    await post(app, sim.status(`wamid.SIM_OUT_${SIM_TAG}_1`, 'read'));           // must NOT be dropped
+    const retry = await post(app, sim.status(`wamid.SIM_OUT_${SIM_TAG}_1`, 'delivered'));  // true replay
     expect(delivered.map((e) => e.kind === 'status' && e.status)).toEqual(['delivered', 'read']);
     expect(retry.json()).toEqual({ ok: true, received: 0 });
   });

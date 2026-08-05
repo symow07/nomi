@@ -74,10 +74,10 @@ describe('M13 · knowledge UI (localized renderer)', () => {
  * product stops implying a scope it never had.
  */
 describe('M22 (F-03) · claims scope is stated, not implied', () => {
-  const d = {
+  const d: ProductKnowledge = {
     productId: 'p1', productName: 'Canvas tote',
     items: [], certs: ['CE'], appliesToProducts: 12,
-  } as never;
+  };
 
   it('says plainly that certifications cover the whole catalogue', () => {
     const html = renderProductKnowledge(d, 'en', null);

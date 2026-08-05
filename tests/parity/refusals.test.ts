@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { REFUSAL_REASONS, type Refusal } from '../../src/api/web/refusals.js';
 import { gateOutbound, type GateRefusal } from '../../src/core/channel/sendGate.js';
+import type { SendPlan } from '../../src/core/channel/window.js';
 import { renderConversationDetail, renderInboxList, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -207,6 +208,16 @@ describe('M22 · the blocked filter appears only when it has something to say', 
 
 // ── the boundary this milestone must not cross ───────────────────────────────
 
+/**
+ * The three real SendPlan values. These were `{ action: 'send_free_form' } as
+ * never` — a value the type does not have, which the cast hid: `gateOutbound`
+ * falls through on anything it does not recognise, so the assertions passed
+ * while testing a state that cannot occur.
+ */
+const OPEN: SendPlan = { action: 'send_free', ownerNoteZh: '可以直接回复' };
+const CLOSED: SendPlan = { action: 'wait_for_buyer', ownerNoteZh: '暂时不能主动发送，客户回复后即可继续' };
+const TEMPLATE: SendPlan = { action: 'send_template', ownerNoteZh: '需要使用已批准的消息，需要你确认后再联系' };
+
 describe('M22 · gateOutbound remains the only authority', () => {
   it('the refusal read model makes no decision — it has no gate to call', async () => {
     const src = await readFile(new URL('../../src/api/web/refusals.ts', import.meta.url), 'utf8');
@@ -239,19 +250,19 @@ describe('M22 · gateOutbound remains the only authority', () => {
     // Its six reasons, its fail-closed defaults, its order. Asserted here so a
     // refusal SURFACE can never quietly become a refusal RULE.
     expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false,
-      windowPlan: { action: 'send_free_form' } as never }))
+      windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_activated' });          // activation first
     expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
-      windowPlan: { action: 'send_free_form' } as never }))
+      windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_allowlisted' });        // pilot mode assumed ON
     expect(gateOutbound({ origin: 'employee', assignedTo: 'someone', paused: false, activated: true,
-      pilotMode: false, windowPlan: { action: 'send_free_form' } as never }))
+      pilotMode: false, windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'handed_off' });
     expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
-      pilotMode: false, windowPlan: { action: 'wait_for_buyer' } as never }))
+      pilotMode: false, windowPlan: CLOSED }))
       .toEqual({ allow: false, reason: 'window_closed' });
     expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
-      pilotMode: false, windowPlan: { action: 'send_template' } as never }))
+      pilotMode: false, windowPlan: TEMPLATE }))
       .toEqual({ allow: true, viaTemplate: true });
   });
 });

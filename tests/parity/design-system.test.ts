@@ -175,3 +175,41 @@ describe('M2 · PWA tokens are complete and sane', () => {
     }
   });
 });
+
+/**
+ * M22 — fixtures must be TYPED.
+ *
+ * `{...} as never` on a whole fixture disables every check the compiler could
+ * make about it, and this repo has paid for that twice in one week:
+ *
+ *   - `empty-states.test.ts` carried Phase-E's pre-rename field names, so
+ *     `formatUsd(undefined)` threw at module load and NONE of its six tests ran
+ *     for weeks while `npm run check` reported "1 failed | 819 passed".
+ *   - `refusals.test.ts` asserted against `{ action: 'send_free_form' }`, a
+ *     SendPlan action that does not exist. `gateOutbound` falls through on
+ *     anything it does not recognise, so the assertions passed while testing a
+ *     state that cannot occur.
+ *
+ * Narrow casts on a single field are allowed — they are visible and local. What
+ * this forbids is casting an entire object literal, which is where shape drift
+ * hides. Typing a fixture is one import; the compiler then finds the drift.
+ */
+describe('M22 · no parity fixture opts out of type-checking', () => {
+  it('no whole-object literal is cast away with `as never`', async () => {
+    const { readdir, readFile } = await import('node:fs/promises');
+    const dir = new URL('./', import.meta.url);
+    const offenders: string[] = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith('.test.ts'))) {
+      const src = await readFile(new URL(f, dir), 'utf8');
+      src.split('\n').forEach((line, i) => {
+        // Comments describe the rule; only code can break it.
+        if (/^\s*(\*|\/\/)/.test(line)) return;
+        // A line that closes an object literal and immediately casts it away.
+        if (/\}\s*as never/.test(line) && !/db:\s*\{\}\s*as never/.test(line)) {
+          offenders.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`);
+        }
+      });
+    }
+    expect(offenders, `type the fixture instead:\n${offenders.join('\n')}`).toEqual([]);
+  });
+});

@@ -34,6 +34,9 @@ export const SIMULATOR_SECRET = 'sim-webhook-secret-not-a-real-credential';
 
 export type Simulator = {
   readonly adapter: ChannelAdapter;
+  /** The phone-number id this instance's webhooks carry — the credential's
+   *  `external_ref`, which Postgres holds unique across ALL tenants. */
+  readonly phoneNumberId: string;
   /** wamids of successful sends, in order. */
   readonly sentIds: readonly string[];
   readonly sendCount: () => number;
@@ -52,9 +55,22 @@ export type SignedWebhook = {
 export const SIM_PHONE_NUMBER_ID = 'SIM_PNID_1';
 const SIM_BUYER = '971500000001';
 
-export function whatsappSimulator(script: readonly SendBehavior[] = []): Simulator {
+/**
+ * M22 — `tag` namespaces the two identifiers Postgres holds GLOBALLY unique:
+ * the credential's `external_ref` (the phone-number id the webhook resolves a
+ * tenant by) and `outbound_messages.provider_message_id` (the wamid). Two
+ * simulator instances, or two runs against one database, otherwise collide on
+ * both — a duplicate-key error in the middle of an unrelated assertion, which
+ * is how it has surfaced twice. Defaults to the historical values, so every
+ * existing caller behaves exactly as before.
+ */
+export function whatsappSimulator(
+  script: readonly SendBehavior[] = [], opts: { readonly tag?: string } = {},
+): Simulator {
   FORBID_PRODUCTION();
 
+  const tag = opts.tag ?? '1';
+  const phoneNumberId = `SIM_PNID_${tag}`;
   let sendN = 0;
   let eventN = 0;
   const remaining = [...script];
@@ -65,7 +81,7 @@ export function whatsappSimulator(script: readonly SendBehavior[] = []): Simulat
     const behavior = remaining.shift() ?? 'ok';
     switch (behavior) {
       case 'ok': {
-        const id = `wamid.SIM_OUT_${sendN}`;
+        const id = `wamid.SIM_OUT_${tag}_${sendN}`;
         sentIds.push(id);
         void init;
         return { status: 201, text: async () => JSON.stringify({ messages: [{ id }] }) };
@@ -108,13 +124,14 @@ export function whatsappSimulator(script: readonly SendBehavior[] = []): Simulat
     object: 'whatsapp_business_account',
     entry: [{ id: 'SIM_WABA', changes: [{ field: 'messages', value: {
       messaging_product: 'whatsapp',
-      metadata: { display_phone_number: '8657900000000', phone_number_id: SIM_PHONE_NUMBER_ID },
+      metadata: { display_phone_number: '8657900000000', phone_number_id: phoneNumberId },
       ...value,
     } }] }],
   });
 
   return {
     adapter: simAdapter,
+    phoneNumberId,
     sentIds,
     sendCount: () => sendN,
 

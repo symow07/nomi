@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
+import type { ChannelView } from '../../src/api/web/channels.js';
+import type { ActivationRefusal } from '../../src/channels/activation.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const channel = (connected: boolean) => ({
-  kind: 'whatsapp', connected, status: (connected ? 'connected' : 'not_connected') as never,
+  kind: 'whatsapp' as const, connected,
+  status: (connected ? 'connected' : 'not_connected') as ChannelView['status'],
   healthOk: connected, displayId: connected ? '+971 50 ••• 4444' : null,
   lastActivityAt: null, problem: null,
 });
@@ -285,21 +288,25 @@ describe('Release hardening · My factory quotes the guard, not a second reading
       policy({ floorPriceUsd: 0.36, maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
     ];
     const floors = policies.map((p) => p.floorPriceUsd);
-    const view = {
+    const view: FactoryView = {
       ...complete,
       promises: {
         certs: [], floorLowUsd: Math.min(...floors), floorHighUsd: Math.max(...floors),
         ceilingPct: Math.min(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
       },
     };
-    const html = renderFactory(view as never, 'en');
+    const html = renderFactory(view, 'en');
 
     // 1. Every floor the page states must bound every real quote.
+    // (Typing this fixture surfaced the assumption: floorLowUsd is nullable,
+    // and comparing a price against `null` would have compared against 0.)
+    const stated = view.promises.floorLowUsd;
+    expect(stated, 'the page states no floor at all').not.toBeNull();
     for (const policy of policies) {
       const r = computeQuote({ product: product(), tiers: tiers(), policy, rules: [], quantity: 20000 });
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      expect(r.value.unitPriceUsd).toBeGreaterThanOrEqual(view.promises.floorLowUsd);
+      expect(r.value.unitPriceUsd).toBeGreaterThanOrEqual(stated!);
     }
 
     // 2. The page must show the RANGE, never one product's number as "the" floor.
@@ -404,8 +411,11 @@ describe('M20.2 · the activation readiness surface', () => {
 
   it('invents no grade: no score, no percentage, no “n of m ready”', () => {
     for (const l of LOCALES) {
-      for (const r of [{ canActivate: true, blockers: [] as never },
-                       { canActivate: false, blockers: ['not_ready', 'no_allowlist'] as never }]) {
+      const cases: readonly { canActivate: boolean; blockers: readonly ActivationRefusal[] }[] = [
+        { canActivate: true, blockers: [] },
+        { canActivate: false, blockers: ['not_ready', 'no_allowlist'] },
+      ];
+      for (const r of cases) {
         const html = withReadiness(r, l).replace(/<style>[\s\S]*?<\/style>/g, '')
           .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
         expect(html).not.toMatch(/\d+\s*%/);
@@ -419,7 +429,7 @@ describe('M20.2 · the activation readiness surface', () => {
   it('speaks owner language in every locale — no leaked blocker codes', () => {
     for (const l of LOCALES) {
       const html = withReadiness({ canActivate: false,
-        blockers: ['schema_stale', 'not_ready', 'no_allowlist', 'secrets_not_rotated', 'no_channel'] as never }, l);
+        blockers: ['schema_stale', 'not_ready', 'no_allowlist', 'secrets_not_rotated', 'no_channel'] satisfies readonly ActivationRefusal[] }, l);
       for (const code of ['schema_stale', 'not_ready', 'no_allowlist', 'secrets_not_rotated', 'no_channel'])
         expect(html.includes(code), `${l} leaks ${code}`).toBe(false);
     }

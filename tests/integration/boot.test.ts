@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { DEMO_NAMESPACE, demoPhone } from '../../src/demo/factory.js';
 import { sql } from 'kysely';
 
 /**
@@ -13,7 +14,54 @@ import { sql } from 'kysely';
 const DATABASE_URL = process.env['DATABASE_URL'];
 const d = DATABASE_URL ? describe : describe.skip;
 
-const DEMO_BIZ = 'de300000-0000-4000-8000-0000000000b1';
+/**
+ * M22 — ONE TENANT PER RUN.
+ *
+ * This suite drives the real product: it activates channels, resolves drafts,
+ * takes conversations over and sends messages. All of that persists. Run twice
+ * against one database and ten assertions failed with errors that read exactly
+ * like regressions — "expected 2 to be 3" — costing a diagnostic detour every
+ * time. The suite was not wrong; it was not repeatable.
+ *
+ * Every demo id derives from an eight-hex-character namespace, so a run can
+ * seed a factory of its own and leave the shared demo alone. That needs the
+ * migrate role (RLS refuses a new `businesses` row to the app role, correctly),
+ * so it happens only when MIGRATE_DATABASE_URL is available. Without it the run
+ * falls back to the shared demo tenant — the old behaviour, now named.
+ */
+const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
+const RUN_NS = MIGRATE_URL
+  ? `f${Date.now().toString(16).slice(-7)}`      // 8 hex chars, unique per run
+  : DEMO_NAMESPACE;
+const DEMO_BIZ = `${RUN_NS}-0000-4000-8000-0000000000b1`;
+const nsId = (suffix: string) => `${RUN_NS}-0000-4000-8000-${suffix}`;
+/** channel_credentials.external_ref is unique across ALL tenants, like the
+ *  simulator's phone-number id — so a fixture ref is run-scoped too. */
+const M203_REF = `m203-ref-${RUN_NS}`;
+/** A test phone number in this run's own block, so client_channels — UNIQUE on
+ *  (channel, channel_user_id) GLOBALLY — cannot collide with a previous run. */
+const ph = (n: string) => demoPhone(n, RUN_NS);
+
+beforeAll(async () => {
+  if (!DATABASE_URL || !MIGRATE_URL) return;
+  // `buildProduction` resolves the owner's tenant from process.env, not from
+  // the cfg it is handed (same gap that cost a harness restart in M21), so the
+  // web surfaces would otherwise operate on the shared demo while the direct
+  // database assertions looked at this run's tenant.
+  process.env['PILOT_BUSINESS_ID'] = DEMO_BIZ;
+  const { demoSeedSql } = await import('../../src/demo/factory.js');
+  const { demoTrustSeedSql } = await import('../../src/demo/trust.js');
+  const pg = (await import('pg')).default;
+  const client = new pg.Client({ connectionString: MIGRATE_URL });
+  await client.connect();
+  try {
+    await client.query('begin');
+    await client.query(demoSeedSql(RUN_NS));
+    await client.query(demoTrustSeedSql(RUN_NS));
+    await client.query('commit');
+  } catch (e) { await client.query('rollback'); throw e; }
+  finally { await client.end(); }
+}, 60_000);
 
 d('production boot-and-probe (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
@@ -21,28 +69,30 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
 
   beforeAll(async () => {
     const { buildProduction } = await import('../../src/main.js');
-    const { whatsappSimulator, SIM_PHONE_NUMBER_ID } = await import('../../src/channels/whatsapp/simulator.js');
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
     const { createDb, withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
 
-    // The simulator's phone_number_id must resolve to the demo tenant.
+    // Built first: its phone_number_id is the credential's external_ref, which
+    // Postgres holds unique across ALL tenants, so it has to be this run's.
+    sim = whatsappSimulator([], { tag: RUN_NS });
+
+    // The simulator's phone_number_id must resolve to THIS run's tenant.
     const setup = createDb(DATABASE_URL!);
     const bid = parseBusinessId(DEMO_BIZ);
     if (!bid.ok) throw new Error('fixture');
     await withTenantTx(setup, bid.value, (tx) => sql`
       insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
-      values (${DEMO_BIZ}, 'whatsapp', ${SIM_PHONE_NUMBER_ID}, 'sim-test', 'service')
+      values (${DEMO_BIZ}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')
       on conflict (channel, external_ref) do nothing
     `.execute(tx));
     await setup.destroy();
-
-    sim = whatsappSimulator();
     prod = await buildProduction({
       provider: 'meta',
       DATABASE_URL: DATABASE_URL!,
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok',
-      META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_PHONE_NUMBER_ID: `1${ph('2345678901234')}5`,
       META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765',
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0',
@@ -163,7 +213,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     await withTenantTx(prod.db, parsed.value, (tx) =>
-      sql`update businesses set owner_locale='en', owner_phone='+8613800000001' where id=${parsed.value}`.execute(tx));
+      sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000001')} where id=${parsed.value}`.execute(tx));
 
     const before = sim.sentIds.length;
     // Enqueue a neutral alert; the consumer registered by buildProduction must
@@ -192,14 +242,14 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
  * Railway before Meta onboarding finishes.
  */
 d('production deployment mode (requires DATABASE_URL)', () => {
-  // ONE simulator for this whole describe: whatsappSimulator() restarts its
+  // ONE simulator for this whole describe: whatsappSimulator([], { tag: RUN_NS }) restarts its
   // wamid counter per instance and outbound_messages.provider_message_id is
   // UNIQUE, so separate instances collide on the second send.
   let m18Adapter: import('../../src/channels/contract.js').ChannelAdapter;
   let m18Sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
   beforeAll(async () => {
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
-    m18Sim = whatsappSimulator();
+    m18Sim = whatsappSimulator([], { tag: RUN_NS });
     m18Adapter = m18Sim.adapter;
   });
   let prod: import('../../src/main.js').Production;
@@ -255,8 +305,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
     expect(home.body).toContain("Lily's workspace");     // shell tagline (English default)
-    // Phase B: the attention section states either the real work or the calm truth.
-    expect(home.body).toMatch(/Needs your attention|Nothing needs you/);
+    // Phase B: the attention section states either the real work or the calm
+    // truth. M22 (F-01) added a THIRD honest state — messaging off, so nobody
+    // can reach her — and this run's tenant is freshly seeded and not live, so
+    // that is the one it lands on. Before the per-run tenant, this assertion
+    // passed because leftover state from earlier runs kept work on the page.
+    expect(home.body).toMatch(/Needs your attention|Nothing needs you|No buyer can reach/);
     expect(home.body).toContain('What Lily did');        // Phase B activity section
     expect(home.body).toMatch(/Buyers she talked to/);    // M16.2b employee-activity fact
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
@@ -287,19 +341,22 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // authenticated home follows the cookie
     const cookie = await login();
     const zhHome = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie: `${cookie}; yf_locale=zh` } });
-    expect(zhHome.body).toContain('需要你处理');   // M16.2b Operations Home, localized
+    // M22 (F-01): a freshly-seeded, not-yet-live factory lands on the third
+    // honest state rather than the attention list. Either is correct here; what
+    // is asserted is that the page is LOCALIZED, which was always the point.
+    expect(zhHome.body).toMatch(/需要你处理|买家现在还找不到/);   // M16.2b Operations Home, localized
   });
 
   it('M9.3 inbox: opens a real conversation; unknown/foreign id → 404, no leak', async () => {
     const cookie = await login();
     // Demo conversation 302 (Sara / canvas bags) exists for the demo business.
     const detail = await prod.app.inject({ method: 'GET',
-      url: '/app/inbox/de300000-0000-4000-8000-000000000302', headers: { cookie } });
+      url: `/app/inbox/${RUN_NS}-0000-4000-8000-000000000302`, headers: { cookie } });
     expect(detail.statusCode).toBe(200);
     expect(detail.body).toContain('Conversation');   // English default
 
     const unknown = await prod.app.inject({ method: 'GET',
-      url: '/app/inbox/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+      url: `/app/inbox/${RUN_NS}-0000-4000-8000-0000000009ff`, headers: { cookie } });
     expect(unknown.statusCode).toBe(404);
     expect(unknown.body).toContain('Conversation not found');
     // Never reveals whether the id exists in another tenant.
@@ -310,8 +367,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
-    const CONV = 'de300000-0000-4000-8000-000000000302';
-    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    const CONV = nsId('000000000302');
+    const parsed = parseBusinessId(DEMO_BIZ);
     if (!parsed.ok) throw new Error('fixture');
     const bidv = parsed.value;
 
@@ -374,7 +431,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
-    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    const parsed = parseBusinessId(DEMO_BIZ);
     if (!parsed.ok) throw new Error('fixture');
     const bidv = parsed.value;
     const cookie = await login();
@@ -421,14 +478,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(list.body).toContain('Learned');
 
     const detail = await prod.app.inject({ method: 'GET',
-      url: '/app/products/de300000-0000-4000-8000-000000000101', headers: { cookie } });
+      url: `/app/products/${RUN_NS}-0000-4000-8000-000000000101`, headers: { cookie } });
     expect(detail.statusCode).toBe(200);
     expect(detail.body).toContain('Pricing');
     expect(detail.body).toContain('What buyers call it');   // aliases
     expect(detail.body).toContain('canvas bag');
 
     const missing = await prod.app.inject({ method: 'GET',
-      url: '/app/products/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+      url: `/app/products/${RUN_NS}-0000-4000-8000-0000000009ff`, headers: { cookie } });
     expect(missing.body).toContain('Product not found');
   });
 
@@ -436,7 +493,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
-    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    const parsed = parseBusinessId(DEMO_BIZ);
     if (!parsed.ok) throw new Error('fixture');
     const bidv = parsed.value;
     const cookie = await login();
@@ -480,7 +537,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
-    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    const parsed = parseBusinessId(DEMO_BIZ);
     if (!parsed.ok) throw new Error('fixture');
     const bidv = parsed.value;
     const cookie = await login();
@@ -516,7 +573,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
-    const parsed = parseBusinessId('de300000-0000-4000-8000-0000000000b1');
+    const parsed = parseBusinessId(DEMO_BIZ);
     if (!parsed.ok) throw new Error('fixture');
     const mode = await withTenantTx(prod.db, parsed.value, (tx) =>
       sql<{ m: string }>`select mode as m from autonomy_policy where capability='confirm_order'`.execute(tx).then((r) => r.rows[0]?.m));
@@ -552,7 +609,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('M9.7 conversations: customer file renders profile + timeline', async () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET',
-      url: '/app/conversations/de300000-0000-4000-8000-000000000301', headers: { cookie } });
+      url: `/app/conversations/${RUN_NS}-0000-4000-8000-000000000301`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Customer file');
@@ -563,7 +620,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('M9.7 conversations: unknown id 404s without revealing existence', async () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET',
-      url: '/app/conversations/de300000-0000-4000-8000-0000000009ff', headers: { cookie } });
+      url: `/app/conversations/${RUN_NS}-0000-4000-8000-0000000009ff`, headers: { cookie } });
     expect(res.statusCode).toBe(404);
     expect(res.body).toContain('Customer not found');
   });
@@ -618,7 +675,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   it('M9.8 analytics: a business with no data shows the honest empty state (tenant isolation)', async () => {
     const { loadAnalytics } = await import('../../src/api/web/analytics.js');
     // A well-formed but data-less business sees ZERO — never the demo's rows.
-    const other = await loadAnalytics(prod.db, 'de300000-0000-4000-8000-0000000000c9', 'month');
+    const other = await loadAnalytics(prod.db, nsId('0000000000c9'), 'month');
     expect(other.hasActivity).toBe(false);
     expect(other.summary.newClients).toBe(0);
     expect(other.summary.activeConvos).toBe(0);
@@ -641,17 +698,17 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const rec = { sendText: async (to: string, body: string) => { sent.push({ to, body }); return { ok: true as const, providerMessageId: 'x' }; } };
     const job = (kind: 'hot_lead' | 'handoff') => ({ businessId: DEMO_BIZ, kind, conversationId: null });
 
-    await setOwner('zh', '+8613800000000');
+    await setOwner('zh', `+${ph('8613800000000')}`);
     expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'))).toBe('sent');
     expect(sent).toHaveLength(1);                    // exactly one send — no duplicate
-    expect(sent[0]!.to).toBe('+8613800000000');      // persisted destination
+    expect(sent[0]!.to).toBe(`+${ph('8613800000000')}`);      // persisted destination
     expect(sent[0]!.body).toContain('小雅');          // zh
 
-    await setOwner('en', '+8613800000000');
+    await setOwner('en', `+${ph('8613800000000')}`);
     await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'));
     expect(sent[1]!.body).toContain('Lily');          // locale switched to en
 
-    await setOwner('ar', '+8613800000000');
+    await setOwner('ar', `+${ph('8613800000000')}`);
     await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('handoff'));
     expect(sent[2]!.body).toContain('ياسمين');        // ar
 
@@ -677,7 +734,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const { sql } = await import('kysely');
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
-    await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_locale='en', owner_phone='+8613800000009' where id=${parsed.value}`.execute(tx));
+    await withTenantTx(prod.db, parsed.value, (tx) => sql`update businesses set owner_locale='en', owner_phone=${'+' + ph('8613800000009')} where id=${parsed.value}`.execute(tx));
     const j = { businessId: DEMO_BIZ, kind: 'hot_lead' as const, conversationId: null };
 
     const retry = { sendText: async () => ({ ok: false as const, retryable: true, error: '503' }) };
@@ -705,23 +762,23 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const before = await auditCount();
     const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
-      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=%2B8613800000042' });
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000004')}2` });
     expect(save.statusCode).toBe(302);
     expect(save.headers['location']).toContain('/app/channels?flash=');
-    expect(await phoneOf()).toBe('+8613800000042');       // saved
+    expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
 
     // A notification now resolves the destination.
     const sent: { to: string }[] = [];
     const rec = { sendText: async (to: string) => { sent.push({ to }); return { ok: true as const, providerMessageId: 'x' }; } };
     expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, { businessId: DEMO_BIZ, kind: 'hot_lead', conversationId: null })).toBe('sent');
-    expect(sent[0]!.to).toBe('+8613800000042');
+    expect(sent[0]!.to).toBe(`+${ph('8613800000042')}`);
 
     // invalid input is rejected — number unchanged.
     const bad = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=not-a-number' });
     expect(bad.headers['location']).toContain('flash=');
-    expect(await phoneOf()).toBe('+8613800000042');       // unchanged
+    expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // unchanged
 
     // clear
     await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
@@ -731,7 +788,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
   it('P3 settings: unauthenticated cannot change the alert number', async () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=%2B8613800000099' });
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000009')}9` });
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/login');
   });
@@ -808,7 +865,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const { sql } = await import('kysely');
     const parsed = parseBusinessId(DEMO_BIZ); if (!parsed.ok) throw new Error('fixture');
     const bidv = parsed.value;
-    const CONV = 'de300000-0000-4000-8000-000000000302';
+    const CONV = nsId('000000000302');
     const stepDone = (d: Awaited<ReturnType<typeof loadOnboarding>>, s: string) => d.steps.find((x) => x.step === s)!.done;
     const stateStep = () => withTenantTx(prod.db, bidv, (tx) =>
       sql<{ s: string | null }>`select step as s from onboarding_state where business_id=${bidv}`.execute(tx).then((r) => r.rows[0]?.s ?? null));
@@ -872,6 +929,36 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     };
 
     beforeAll(async () => {
+      // M22 — the sandbox tenant is a SINGLETON by design (one practice space
+      // per installation), so unlike the factory it cannot be re-namespaced per
+      // run. These tests assert it starts empty, which a previous run's practice
+      // conversation breaks. Clear it through the product's own affordance —
+      // the same one the owner taps, which archives rather than deletes.
+      //
+      // BEFORE the seed, not after: reset archives the ONE active conversation
+      // it finds, so seeding first and resetting second leaves the seed's
+      // conversation archived and a later test's conversation active — which is
+      // exactly the state the reset test then fails on.
+      // `resetSandbox` archives THE active conversation — one per call, because
+      // the sandbox is meant to hold one. Runs accumulate them, so drain until
+      // none is left. Bounded: a reset that stops archiving is a real defect and
+      // should surface as this loop giving up, not as an infinite one.
+      const { resetSandbox } = await import('../../src/api/web/sandbox.js');
+      // Scoped to the sandbox BUYER's thread, which is the only thing
+      // `resetSandbox` governs (it finds the conversation by SANDBOX_WA_ID).
+      // Counting every active conversation in the tenant would demand more of
+      // reset than it promises, and fail on threads it cannot reach.
+      const activeNow = () => withSandbox((tx) => sql<{ n: number }>`
+        select count(*)::int as n from conversations c
+          join client_channels cc on cc.client_id = c.client_id
+           and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
+         where c.business_id=${SANDBOX} and c.is_active`
+        .execute(tx as never).then((r) => r.rows[0]!.n));
+      for (let i = 0; i < 50 && (await activeNow()) > 0; i++) {
+        await resetSandbox({ db: prod.db, businessId: SANDBOX, now: () => new Date() });
+      }
+      expect(await activeNow(), 'sandbox would not drain').toBe(0);
+
       const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
       // App-role seed inside the sandbox tenant tx (businesses RLS with-check = id).
       await withSandbox(async (tx) => {
@@ -945,7 +1032,16 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(reset.statusCode).toBe(302);
 
       const { active, total, evt } = await withSandbox(async (tx) => ({
-        active: (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX} and is_active`.execute(tx as never)).rows[0]!.n,
+        // M22 — scoped to the sandbox BUYER's thread, which is what reset
+        // governs (`findActiveConversation` looks it up by SANDBOX_WA_ID).
+        // Counting every active conversation in the tenant demanded more of
+        // reset than it promises and only passed on a never-reused database:
+        // the human-control tests below open threads under other numbers that
+        // reset structurally cannot reach.
+        active: (await sql<{ n: number }>`select count(*)::int as n from conversations c
+          join client_channels cc on cc.client_id = c.client_id
+           and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
+         where c.business_id=${SANDBOX} and c.is_active`.execute(tx as never)).rows[0]!.n,
         total: (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX}`.execute(tx as never)).rows[0]!.n,
         evt: (await sql<{ n: number }>`select count(*)::int as n from conversation_events where business_id=${SANDBOX} and type='sandbox_reset'`.execute(tx as never)).rows[0]!.n,
       }));
@@ -1170,7 +1266,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // A conversation WITH a channel identity so ownerReply can enqueue, then
       // simulate the auto-handoff (unclaimed) it would arrive in.
       convId = await withTenantTx(prod.db, bid, async (tx) => {
-        const { conversationId } = await ensureConversation(tx, bid, '971500009999', 'Takeover Buyer');
+        const { conversationId } = await ensureConversation(tx, bid, ph('971500009999'), 'Takeover Buyer');
         await tenantRepos(tx, bid).conversations.assign(conversationId as never, 'unclaimed');
         return conversationId;
       });
@@ -1299,8 +1395,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { tenantRepos } = await import('../../src/db/repos.js');
       const before = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'month', 'disabled');
       await withTenantTx(prod.db, bid, async (tx) => {
-        const a = await ensureConversation(tx, bid, '971500008881', 'Ops A');
-        const b = await ensureConversation(tx, bid, '971500008882', 'Ops B');
+        const a = await ensureConversation(tx, bid, ph('971500008881'), 'Ops A');
+        const b = await ensureConversation(tx, bid, ph('971500008882'), 'Ops B');
         await tenantRepos(tx, bid).conversations.assign(a.conversationId as never, 'unclaimed');
         await tenantRepos(tx, bid).conversations.assign(b.conversationId as never, 'owner');
         await sql`insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
@@ -1388,7 +1484,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { tenantRepos } = await import('../../src/db/repos.js');
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
       const SECRET = 'ZZsecretdraftbodyDoNotLeak';
-      const BUYERTAG = '971500009999zzpii';
+      const BUYERTAG = `${ph('971500009999')}zzpii`;
       await withTenantTx(prod.db, bid, async (tx) => {
         const c = await ensureConversation(tx, bid, BUYERTAG, 'Leak Probe');
         await tenantRepos(tx, bid).conversations.assign(c.conversationId as never, 'unclaimed');
@@ -1469,7 +1565,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { tenantRepos } = await import('../../src/db/repos.js');
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
       convId = await withTenantTx(prod.db, bid, async (tx) => {
-        const { conversationId } = await ensureConversation(tx, bid, '971500007777', 'Detail Buyer');
+        const { conversationId } = await ensureConversation(tx, bid, ph('971500007777'), 'Detail Buyer');
         await tenantRepos(tx, bid).conversations.assign(conversationId as never, 'unclaimed');
         await tenantRepos(tx, bid).signals.record(conversationId as never, { kind: 'human_requested' });
         return conversationId;
@@ -1767,7 +1863,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const beforeHuman = before.handoffReasons.find((r) => r.kind === 'human_requested')?.count ?? 0;
 
       await withTenantTx(prod.db, bid, async (tx) => {
-        const c = await ensureConversation(tx, bid, '971500006666', 'Feedback Buyer');
+        const c = await ensureConversation(tx, bid, ph('971500006666'), 'Feedback Buyer');
         await tenantRepos(tx, bid).signals.record(c.conversationId as never, { kind: 'human_requested' });
       });
 
@@ -1994,13 +2090,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
 
       await q(async (tx) => {
-        const w = await ensureConversation(tx as never, bid, '971500008891', 'Waiting Buyer');
+        const w = await ensureConversation(tx as never, bid, ph('971500008891'), 'Waiting Buyer');
         waitingId = w.conversationId;
         await tenantRepos(tx as never, bid).conversations.assign(waitingId as never, 'unclaimed');
         // a real handoff always records WHY; the badge reads that signal
         await tenantRepos(tx as never, bid).signals.record(waitingId as never, { kind: 'human_requested' });
 
-        const a = await ensureConversation(tx as never, bid, '971500008892', 'Answered Buyer');
+        const a = await ensureConversation(tx as never, bid, ph('971500008892'), 'Answered Buyer');
         aiId = a.conversationId;
 
         // a real taught fact, and the usage audit the pipeline writes for it
@@ -2414,23 +2510,27 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                     on conflict (message_id) do nothing`.execute(tx as never);
         });
       };
-      await seed(DEMO_BIZ, 'demo');
-      await seed(SANDBOX, 'sbx');
+      // message_id is UNIQUE across ALL tenants, so the tags are run-scoped:
+      // otherwise a second run's insert is swallowed by `do nothing` and the
+      // tenant it was meant for sees zero rows.
+      const demoTag = `demo-${RUN_NS}`, sbxTag = `sbx-${RUN_NS}`;
+      await seed(DEMO_BIZ, demoTag);
+      await seed(SANDBOX, sbxTag);
 
       // Each tenant sees its own row and nothing else. (There is no honest
       // "total" to compare against any more — an unscoped read now returns 0,
       // which is the whole point; that is asserted in the next test.)
       expect(await countIn(DEMO_BIZ, 'shadow.turn_decisions')).toBe(1);
-      expect(await countIn(SANDBOX, 'shadow.turn_decisions')).toBe(1);
+      expect(await countIn(SANDBOX, 'shadow.turn_decisions')).toBeGreaterThan(0);
       expect(await countIn(DEMO_BIZ, 'active_conversations_summary')).toBeGreaterThan(0);
 
       // the sharp assertion: the row tagged for one tenant is invisible to the other
       const sbxSeesDemoRow = await asTenant(SANDBOX, (tx) => sql<{ n: number }>`
-        select count(*)::int n from shadow.turn_decisions where message_id = 'm-demo'`
+        select count(*)::int n from shadow.turn_decisions where message_id = ${`m-${demoTag}`}`
         .execute(tx as never).then((r) => r.rows[0]!.n));
       expect(sbxSeesDemoRow).toBe(0);
       const demoSeesSbxRow = await asTenant(DEMO_BIZ, (tx) => sql<{ n: number }>`
-        select count(*)::int n from shadow.turn_decisions where message_id = 'm-sbx'`
+        select count(*)::int n from shadow.turn_decisions where message_id = ${`m-${sbxTag}`}`
         .execute(tx as never).then((r) => r.rows[0]!.n));
       expect(demoSeesSbxRow).toBe(0);
     });
@@ -2489,9 +2589,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
           activated_at=null, activated_by=null`.execute(tx as never));
       await q((tx) => sql`
         insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine, is_active)
-        values (${DEMO_BIZ}, 'whatsapp', 'm203-ref', 'm203-secret', 'service', true)
+        values (${DEMO_BIZ}, 'whatsapp', ${M203_REF}, 'm203-secret', 'service', true)
         on conflict (channel, external_ref) do update set is_active = true`.execute(tx as never));
-      await addToAllowlist(prod.db, bid, '971500007070', 'my own phone', 'owner');
+      await addToAllowlist(prod.db, bid, ph('971500007070'), 'my own phone', 'owner');
     });
 
     it('M20.3.1: an installation with NO messaging provider cannot be activated', async () => {
@@ -2517,7 +2617,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // Break a precondition that is INDEPENDENT of the readiness roll-up:
       // an empty allowlist means there is nobody she is allowed to message.
       const { archiveFromAllowlist, addToAllowlist } = await import('../../src/channels/allowlist.js');
-      await archiveFromAllowlist(prod.db, bid, '971500007070', 'owner');
+      await archiveFromAllowlist(prod.db, bid, ph('971500007070'), 'owner');
 
       const cookie = await login();
       const r = await post('/app/factory/activate', cookie);
@@ -2530,7 +2630,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(page.body).toContain('start with your own');
       expect(page.body).not.toContain('action="/app/factory/activate"');
 
-      await addToAllowlist(prod.db, bid, '971500007070', 'my own phone', 'owner');
+      await addToAllowlist(prod.db, bid, ph('971500007070'), 'my own phone', 'owner');
     });
 
     it('activates: writes through the service, audits the actor, and shows it at once', async () => {
@@ -2618,13 +2718,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         'name=' + encodeURIComponent('义乌宏发保温杯厂')
         + '&description=' + encodeURIComponent('不锈钢保温杯、饭盒、竹砧板。')
         + '&location=' + encodeURIComponent('浙江义乌')
-        + '&contact_phone=8657985001234', cookie);       // the exact M21 input
+        + `&contact_phone=${ph('865798500123')}4`, cookie);       // the exact M21 input
 
       expect(r.statusCode, 'must re-render, not redirect away').toBe(200);
       // her words come back
       expect(r.body).toContain('不锈钢保温杯、饭盒、竹砧板。');
       expect(r.body).toContain('浙江义乌');
-      expect(r.body).toContain('8657985001234');
+      expect(r.body).toContain(ph('8657985001234'));
       // and the failing field is named
       expect(r.body).toContain('class="fld bad"');
       expect(r.body).toContain('role="alert"');
@@ -2638,18 +2738,22 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('F-06: the owner can add and remove a number, and it persists + audits', async () => {
       const cookie = await login();
       const before = await q((tx) => sql<{ n: number }>`
-        select count(*)::int n from pilot_allowlist where phone='8613900002222'`
+        select count(*)::int n from pilot_allowlist where phone=${ph('8613900002222')}`
         .execute(tx as never).then((x) => x.rows[0]!.n));
       expect(before).toBe(0);
 
+      // Typed the way an owner types it — spaces and a plus — so normalisation
+      // is what is under test. Same number as the assertions above.
+      const N = ph('8613900002222');
+      const typed = `+${N.slice(0, 2)} ${N.slice(2, 5)} ${N.slice(5, 9)} ${N.slice(9)}`;
       const add = await post('/app/factory/allowlist/add',
-        'phone=' + encodeURIComponent('+86 139 0000 2222') + '&label=' + encodeURIComponent('my own phone'), cookie);
+        'phone=' + encodeURIComponent(typed) + '&label=' + encodeURIComponent('my own phone'), cookie);
       expect(add.statusCode).toBe(302);
       // SUCCESS MESSAGE MAPS TO PERSISTED STATE
       const stored = await q((tx) => sql<{ phone: string; label: string | null; archived: Date | null }>`
-        select phone, label, archived_at as archived from pilot_allowlist where phone='8613900002222'`
+        select phone, label, archived_at as archived from pilot_allowlist where phone=${ph('8613900002222')}`
         .execute(tx as never).then((x) => x.rows[0]!));
-      expect(stored.phone).toBe('8613900002222');        // normalised
+      expect(stored.phone).toBe(ph('8613900002222'));        // normalised
       expect(stored.label).toBe('my own phone');
       expect(stored.archived).toBeNull();
       expect(decodeURIComponent(String(add.headers['location']))).toContain('can now receive');
@@ -2657,10 +2761,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
       expect(page.body).toContain('my own phone');
 
-      const rm = await post('/app/factory/allowlist/remove', 'phone=8613900002222', cookie);
+      const rm = await post('/app/factory/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);
       expect(rm.statusCode).toBe(302);
       const after = await q((tx) => sql<{ archived: Date | null }>`
-        select archived_at as archived from pilot_allowlist where phone='8613900002222'`
+        select archived_at as archived from pilot_allowlist where phone=${ph('8613900002222')}`
         .execute(tx as never).then((x) => x.rows[0]!));
       expect(after.archived, 'archive, never delete').not.toBeNull();
 
@@ -2673,12 +2777,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('F-06 SECURITY: both allowlist actions reject an anonymous caller', async () => {
       for (const p of ['/app/factory/allowlist/add', '/app/factory/allowlist/remove']) {
         const r = await prod.app.inject({ method: 'POST', url: p,
-          headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=8613900003333' });
+          headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=${ph('861390000333')}3` });
         expect(r.statusCode, p).toBe(302);
         expect(r.headers['location'], p).toBe('/login');
       }
       const leaked = await q((tx) => sql<{ n: number }>`
-        select count(*)::int n from pilot_allowlist where phone='8613900003333'`
+        select count(*)::int n from pilot_allowlist where phone=${ph('8613900003333')}`
         .execute(tx as never).then((x) => x.rows[0]!.n));
       expect(leaked).toBe(0);
     });
@@ -2694,7 +2798,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { withTenantTx } = await import('../../src/db/client.js');
       const { ensureConversation } = await import('../../src/db/channels.js');
       const cid = await withTenantTx(prod.db, bid, async (tx) => {
-        const c = await ensureConversation(tx, bid, '971500006061', 'F09 Buyer');
+        const c = await ensureConversation(tx, bid, ph('971500006061'), 'F09 Buyer');
         await sql`update conversations set assigned_to='owner' where id=${c.conversationId}`.execute(tx as never);
         return c.conversationId;
       });
@@ -2715,8 +2819,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   // The rule that stands between a bug and a real buyer's phone. Every check
   // here goes through the REAL send gate and the REAL store — no fakes.
   describe('M18.2 · pilot allowlist', () => {
-    const ALLOWED = '971500001111';
-    const BLOCKED = '971500002222';
+    const ALLOWED = ph('971500001111');
+    const BLOCKED = ph('971500002222');
     let bid: import('../../src/core/types/ids.js').BusinessId;
     const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
@@ -2738,7 +2842,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('owner adds a number: normalized on the way in, and audited', async () => {
       const { addToAllowlist, listAllowlist } = await import('../../src/channels/allowlist.js');
-      const r = await addToAllowlist(prod.db, bid, '+971 50 000 1111', 'my phone', 'owner');
+      const typedByOwner = `+${ALLOWED.slice(0, 3)} ${ALLOWED.slice(3, 5)} ${ALLOWED.slice(5, 8)} ${ALLOWED.slice(8)}`;
+      const r = await addToAllowlist(prod.db, bid, typedByOwner, 'my phone', 'owner');
       expect(r).toEqual({ ok: true, phone: ALLOWED });          // stored as digits
 
       const list = await listAllowlist(prod.db, bid);
@@ -2840,7 +2945,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('archiving a number blocks it again — and never deletes the record', async () => {
       const { addToAllowlist, archiveFromAllowlist, listAllowlist, activeAllowlistCount } =
         await import('../../src/channels/allowlist.js');
-      const TEMP = '971500003333';
+      const TEMP = ph('971500003333');
       await addToAllowlist(prod.db, bid, TEMP, 'temporary', 'owner');
       const activeBefore = await activeAllowlistCount(prod.db, bid);
 
@@ -2879,7 +2984,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   // REAL channels row, the REAL worker drives, and a spy adapter stands in for
   // the provider so a "sent" here is a message that would have reached a buyer.
   describe('M20.1 · nothing reaches a buyer before the owner activates', () => {
-    const BUYER = '971500005551';
+    const BUYER = ph('971500005551');
     let bid: import('../../src/core/types/ids.js').BusinessId;
     let cid = '';
     /** What actually reached the provider — a send here would have reached a buyer.
@@ -2996,7 +3101,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
   });
 
   describe('M18.1/M18.4 · activation and the rollback drill', () => {
-    const BUYER = '971500004444';
+    const BUYER = ph('971500004444');
     let bid: import('../../src/core/types/ids.js').BusinessId;
     const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
       import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
@@ -3147,7 +3252,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const allowed = await drive(BUYER, 'hello allowlisted buyer');
       expect(allowed.some((e) => e.kind === 'sent'), JSON.stringify(allowed)).toBe(true);
-      const stranger = await drive('971509999999', 'MUST NEVER BE DELIVERED');
+      const stranger = await drive(ph('971509999999'), 'MUST NEVER BE DELIVERED');
       expect(stranger).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
       expect(stranger.some((e) => e.kind === 'sent')).toBe(false);
     });
@@ -3244,7 +3349,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let bid: import('../../src/core/types/ids.js').BusinessId;
   let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
-  const M22_BIZ = 'de300000-0000-4000-8000-0000000000b1';
+  const M22_BIZ = DEMO_BIZ;
 
   const q = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
     import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, bid, fn as never));
@@ -3254,12 +3359,12 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const p = parseBusinessId(M22_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
-    sim = whatsappSimulator();
+    sim = whatsappSimulator([], { tag: RUN_NS });
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!,
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok',
-      META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_PHONE_NUMBER_ID: `1${ph('2345678901234')}5`,
       META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765',
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'm22-verify-token',
@@ -3309,7 +3414,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
 
   it('not_activated: the row is canceled, audited by its REAL reason, and shown', async () => {
     await setChannel(`activated_at = null, activated_by = null, pilot_mode = true`);
-    const { effects, refusals, audit, row } = await driveOne('971500007701', 'M22 A');
+    const { effects, refusals, audit, row } = await driveOne(ph('971500007701'), 'M22 A');
 
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_activated' }));
     expect(effects.some((e) => e.kind === 'sent')).toBe(false);          // nothing left the building
@@ -3323,7 +3428,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
 
   it('not_allowlisted: refused for the allowlist, and recorded as such', async () => {
     await setChannel(`activated_at = now(), activated_by = 'test', pilot_mode = true`);
-    const { effects, refusals, audit } = await driveOne('971500007702', 'M22 B');
+    const { effects, refusals, audit } = await driveOne(ph('971500007702'), 'M22 B');
 
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'not_allowlisted' }));
     expect(audit?.detail?.reason).toBe('not_allowlisted');
@@ -3338,7 +3443,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { loadRefusals } = await import('../../src/api/web/refusals.js');
 
     const cid = await withTenantTx(prod.db, bid, async (tx) => {
-      const c = await ensureConversation(tx, bid, '971500007703', 'M22 C');
+      const c = await ensureConversation(tx, bid, ph('971500007703'), 'M22 C');
       await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
                 values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
       await enqueueOutboundRow(tx, bid, c.conversationId, 'she must not say this', 'employee');
@@ -3368,7 +3473,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { loadRefusals } = await import('../../src/api/web/refusals.js');
 
     const cid = await withTenantTx(prod.db, bid, async (tx) => {
-      const c = await ensureConversation(tx, bid, '971500007704', 'M22 D');
+      const c = await ensureConversation(tx, bid, ph('971500007704'), 'M22 D');
       await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
       await enqueueOutboundRow(tx, bid, c.conversationId, 'a reply three days late', 'employee');
       // The buyer last spoke three days ago, so the 24-hour window is long shut.
