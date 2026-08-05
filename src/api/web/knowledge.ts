@@ -35,6 +35,14 @@ export type ProductKnowledge = {
   readonly productId: string; readonly productName: string | null;
   readonly items: readonly KItem[];
   readonly certs: readonly string[];   // active certification/compliance claim keys
+  /**
+   * M22 (F-03) — how many products a certification toggle on this page affects.
+   * `claims_policy` has no product_id: it is BUSINESS-WIDE. Rendering it under
+   * one product's name, with a hint saying "turned on here", read as if it
+   * applied to that product alone. It never did. A real count, so the sentence
+   * states the true scope instead of implying a false one.
+   */
+  readonly appliesToProducts: number;
 };
 
 export type KnowledgeIndex = {
@@ -81,7 +89,10 @@ export async function loadProductKnowledge(db: Db, businessIdRaw: string, produc
       select claim_key from claims_policy
        where business_id = ${bid.value} and kind in ('certification','compliance') and allowed
     `.execute(tx)).rows.map((r) => r.claim_key);
-    return { productId, productName: head.name, items, certs };
+    const appliesToProducts = Number((await sql<{ n: number }>`
+      select count(*)::int as n from products where business_id = ${bid.value} and is_active
+    `.execute(tx)).rows[0]?.n ?? 0);
+    return { productId, productName: head.name, items, certs, appliesToProducts };
   });
 }
 
@@ -219,11 +230,17 @@ export function renderProductKnowledge(
 
   const certs = CERT_KEYS.map((k) => {
     const on = d.certs.includes(k);
+    // M22 (F-03) — this toggle changes what she may say about EVERY product.
+    // The owner is standing on one product's page, so she is asked plainly.
+    const q = t(locale, on ? 'knowledge.cert.confirmOff' : 'knowledge.cert.confirmOn',
+      { key: k, n: d.appliesToProducts });
     return `<form method="post" action="/app/knowledge/cert" class="inline certtoggle">
       <input type="hidden" name="productId" value="${esc(d.productId)}" />
       <input type="hidden" name="key" value="${esc(k)}" />
       <input type="hidden" name="allowed" value="${on ? '0' : '1'}" />
-      <button class="cert ${on ? 'on' : ''}" type="submit">${on ? '✓ ' : ''}${esc(k)}</button>
+      <button class="cert ${on ? 'on' : ''}" type="submit"
+              onclick="return confirm(this.dataset.confirm)"
+              data-confirm="${esc(q)}">${on ? '✓ ' : ''}${esc(k)}</button>
     </form>`;
   }).join('');
 
@@ -232,14 +249,20 @@ export function renderProductKnowledge(
       <h1 class="page">${esc(d.productName ?? '—')}</h1></div>
     ${flashHtml}
     <div class="card"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
+      <p class="scope">${esc(t(locale, 'knowledge.cert.scope', { n: d.appliesToProducts }))}</p>
       <p class="muted">${esc(t(locale, 'knowledge.cert.hint'))}</p>
       <div class="certs">${certs}</div>
     </div>
-    <div class="card">${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
+    <div class="card">
+      <h2>${esc(t(locale, 'knowledge.taught.title'))}</h2>
+      <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: d.productName ?? '' }))}</p>
+      ${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
     ${KNOWLEDGE_STYLE}`;
 }
 
 const KNOWLEDGE_STYLE = `<style>
+  /* The two scopes sit side by side, so each says which one it is. */
+  .scope { font-size:13px; color:#e0b551; margin:2px 0 10px; }
   .klist { display:flex; flex-direction:column; gap:8px; }
   .krow { display:flex; justify-content:space-between; background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:12px 16px; }
   .krow:hover { border-color:#3a4250; }

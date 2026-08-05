@@ -17,7 +17,7 @@ const product: ProductKnowledge = {
     { id: 'k1', kind: 'specification', label: 'Dimensions', content: '38 x 40 cm', source: 'owner_confirmed' },
     { id: 'k2', kind: 'faq', label: 'What colors?', content: 'Red, blue, white.', source: 'owner_corrected' },
   ],
-  certs: ['CE'],
+  certs: ['CE'], appliesToProducts: 12,
 };
 
 describe('M13 · knowledge UI (localized renderer)', () => {
@@ -57,5 +57,63 @@ describe('M13 · knowledge UI (localized renderer)', () => {
   it('localizes the certifications hint + zh/ar chrome', () => {
     expect(renderProductKnowledge(product, 'zh', null)).toContain(t('zh', 'knowledge.cert.hint'));
     expect(renderProductKnowledge(product, 'ar', null)).toContain(t('ar', 'knowledge.cert.title'));
+  });
+});
+
+/**
+ * M22 (F-03) — the owner must know what Lily is allowed to say, and TO WHOM.
+ *
+ * `claims_policy` has no product_id: a certification is authorised for the whole
+ * business. It was rendered under one product's name with the hint "Only
+ * certifications turned on here may be stated to buyers", which reads as though
+ * it applied to that product alone. An owner tapping CE while looking at her
+ * canvas tote was authorising it for her entire catalogue.
+ *
+ * The storage is deliberately unchanged: making claims per-product would change
+ * the safety core's data model and the guard's lookup. What changes is that the
+ * product stops implying a scope it never had.
+ */
+describe('M22 (F-03) · claims scope is stated, not implied', () => {
+  const d = {
+    productId: 'p1', productName: 'Canvas tote',
+    items: [], certs: ['CE'], appliesToProducts: 12,
+  } as never;
+
+  it('says plainly that certifications cover the whole catalogue', () => {
+    const html = renderProductKnowledge(d, 'en', null);
+    expect(html).toContain('These apply to everything you sell — all 12 of your products, not only this one.');
+  });
+
+  it('and that taught facts do not — the two scopes read differently', () => {
+    const html = renderProductKnowledge(d, 'en', null);
+    expect(html).toContain('What she knows about this product');
+    expect(html).toContain('used only when a buyer asks about Canvas tote');
+    // Both scopes are named on the same screen, so neither can be assumed.
+    expect(html.indexOf('everything you sell')).toBeLessThan(html.indexOf('only when a buyer asks about'));
+  });
+
+  it('a catalogue-wide change is confirmed, from a page showing one product', () => {
+    const html = renderProductKnowledge(d, 'en', null);
+    expect(html).toContain('for all 12 of your products');
+    expect(html).toContain('onclick="return confirm(this.dataset.confirm)"');
+  });
+
+  it('turning one OFF is confirmed too — she stops confirming it to anyone', () => {
+    const html = renderProductKnowledge(d, 'en', null);
+    expect(html).toContain('Turn off CE for all 12 of your products?');   // CE is on
+    expect(html).toContain('Turn on FDA for all 12 of your products?');   // FDA is not
+  });
+
+  it('states the default-deny rule without claiming a scope', () => {
+    expect(renderProductKnowledge(d, 'en', null))
+      .toContain('Anything not turned on here is refused, however a buyer asks.');
+  });
+
+  it('reads in every locale', () => {
+    for (const l of LOCALES) {
+      const html = renderProductKnowledge(d, l, null);
+      expect(html).toContain('12');                       // the real count, every locale
+      if (l !== 'en') expect(html).not.toContain('everything you sell');
+    }
   });
 });
