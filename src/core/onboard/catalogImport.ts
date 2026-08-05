@@ -9,6 +9,14 @@
  */
 
 export type ExtractedProduct = {
+  /**
+   * M22 (F-02) — the owner's OWN article number, when the line carried one.
+   * This is how she, her buyers and her factory floor all refer to the product;
+   * a generated `NEW-<timestamp>` in its place means she can no longer find her
+   * own goods, and a re-import creates a second copy of everything.
+   * null when the line had none — then, and only then, one is generated.
+   */
+  readonly sku: string | null;
   readonly name: string;
   readonly nameZh: string | null;
   readonly priceUsd: number | null;    // null = owner must fill at confirm
@@ -27,17 +35,38 @@ export interface CatalogExtractor {
 const UNIT_WORDS = 'pcs|pieces?|sets?|pairs?|boxes|cartons?|个|件|套|双|箱';
 
 /**
+ * An article number at the START of the line — where suppliers put it. Two
+ * shapes, both requiring letters AND digits so a plain word or a bare quantity
+ * can never be mistaken for one:
+ *
+ *   ZX-200, BAG-NW-001    dash-joined alphanumeric
+ *   HX2035                letters followed by at least two digits
+ *
+ * Deliberately narrow. `A4 paper` keeps A4 in the name (one digit), `500ml cup`
+ * is untouched (leads with digits), and 帆布袋 has no Latin prefix at all.
+ * Guessing wrong here renames the owner's product, so it only fires when the
+ * shape is unmistakable.
+ */
+const ARTICLE_NO = /^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+|[A-Za-z]{1,6}\d{2,})\s+/;
+
+/**
  * Deterministic parser for the shapes owners actually paste:
  *   帆布袋 1.05美元 500个起
  *   ZX-200 Thermos 500ml  $2.60  MOQ 1000
  *   保温杯\t2.6\t1000        (Excel tab row)
  * One product per line; unparseable lines are skipped, never fatal.
+ *
+ * M22 (F-02): a leading article number is kept AS the sku rather than glued
+ * into the name. This is the shape the doc line above always showed and the
+ * import always threw away.
  */
 export function parsePriceLines(text: string): readonly ExtractedProduct[] {
   const out: ExtractedProduct[] = [];
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (!line || line.length < 3) continue;
+
+    const article = line.match(ARTICLE_NO)?.[1] ?? null;
 
     const price =
       line.match(/[$＄]\s*(\d+(?:\.\d+)?)/)?.[1] ??
@@ -49,8 +78,8 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       line.match(/(\d[\d,]*)\s*(?:个|件|套|pcs)?\s*起/)?.[1] ??
       line.match(/\t(\d{2,})\s*$/)?.[1] ?? null;
 
-    // Name = the line minus price/moq/currency fragments.
-    const name = line
+    // Name = the line minus the article number, price/moq/currency fragments.
+    const name = (article ? line.slice(article.length) : line)
       .replace(/[$＄]\s*\d+(?:\.\d+)?/g, ' ')
       .replace(/\d+(?:\.\d+)?\s*(?:美元|美金|USD)/gi, ' ')
       .replace(/(?:MOQ|起订|最低)\s*[:：]?\s*\d[\d,]*/gi, ' ')
@@ -58,12 +87,16 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       .replace(/\t\d+(?:\.\d+)?/g, ' ')
       .replace(new RegExp(`\\b(${UNIT_WORDS})\\b`, 'gi'), ' ')
       .replace(/\s+/g, ' ').trim();
-    if (!name) continue;
+    // A line that is ONLY an article number has no name to sell under; keep it
+    // as the name rather than dropping the product or inventing a description.
+    const finalName = name || article;
+    if (!finalName) continue;
 
-    const zh = /[一-鿿]/.test(name);
+    const zh = /[一-鿿]/.test(finalName);
     out.push({
-      name,
-      nameZh: zh ? name : null,
+      sku: article,
+      name: finalName,
+      nameZh: zh ? finalName : null,
       priceUsd: price ? Number(price) : null,
       moq: moq ? Number(moq.replace(/,/g, '')) : null,
       unit: 'pcs',
@@ -86,7 +119,9 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
   const rejected: ValidatedImport['rejected'][number][] = [];
   const seen = new Set<string>();
   for (const p of products) {
-    const key = p.name.toLowerCase();
+    // M22 (F-02): the owner's article number identifies the product; the name
+    // only does when she gave no number.
+    const key = (p.sku ?? p.name).toLowerCase();
     if (p.name.length < 2 || p.name.length > 120) {
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {

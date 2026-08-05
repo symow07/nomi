@@ -257,3 +257,54 @@ d('M20.5 factory rehearsal reads (requires DATABASE_URL)', () => {
     } finally { await db.destroy(); }
   });
 });
+
+/**
+ * M22 (F-02) — the owner's article number survives all the way to the database,
+ * and a re-import says so instead of silently doing nothing.
+ */
+d('M22 · product import preserves owner identity (requires DATABASE_URL)', () => {
+  it('stores her sku, and a second import of the same list reports it', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { confirmImport } = await import('../../src/api/web/products.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = (await sql<{ id: string }>`
+        select b.id from businesses b
+         order by (select count(*) from products p where p.business_id = b.id) desc limit 1`
+        .execute(db)).rows[0]?.id;
+      if (!bid) return;
+
+      // A unique article number, so this test is repeatable against a database
+      // that has already run it (the row is never deleted — see ADR-0005).
+      const sku = `M22-${Date.now().toString(36).toUpperCase()}`;
+      const line = `${sku} Test Thermos $2.60 MOQ 1000`;
+
+      const first = await confirmImport(db, bid, line);
+      expect(first.learned).toBe(1);
+      expect(first.alreadyHere).toBe(0);
+
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const p = parseBusinessId(bid); if (!p.ok) throw new Error('fixture');
+      const stored = await withTenantTx(db, p.value, (tx) => sql<{ sku: string; name: string }>`
+        select sku, name from products where business_id = ${bid} and sku = ${sku}`
+        .execute(tx).then((r) => r.rows[0]));
+      // HER number, not NEW-<timestamp>, and not glued into the name.
+      expect(stored?.sku).toBe(sku);
+      expect(stored?.name).not.toContain(sku);
+      expect(stored?.name).toContain('Thermos');
+
+      // Re-importing the same list must not duplicate her catalogue, and must
+      // not report "0 learned" with no explanation.
+      const second = await confirmImport(db, bid, line);
+      expect(second.learned).toBe(0);
+      expect(second.alreadyHere).toBe(1);
+
+      const copies = await withTenantTx(db, p.value, (tx) => sql<{ n: number }>`
+        select count(*)::int n from products where business_id = ${bid} and sku = ${sku}`
+        .execute(tx).then((r) => Number(r.rows[0]!.n)));
+      expect(copies).toBe(1);
+    } finally { await db.destroy(); }
+  });
+});

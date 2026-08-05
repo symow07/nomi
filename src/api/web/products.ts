@@ -127,16 +127,26 @@ export function reviewImport(rawText: string): ValidatedImport {
   return validateExtracted(parsePriceLines(rawText));
 }
 
-export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<{ learned: number; needsConfirm: number }> {
+/**
+ * M22 (F-02) — `alreadyHere` is reported rather than swallowed. `on conflict do
+ * nothing` used to make a re-import look like it did nothing at all: "0 learned"
+ * with no explanation, which is the false-success class in reverse. Now that the
+ * owner's OWN sku is used, a re-import collides on purpose and she is told so.
+ */
+export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<{ learned: number; needsConfirm: number; alreadyHere: number }> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { learned: 0, needsConfirm: 0 };
+  if (!bid.ok) return { learned: 0, needsConfirm: 0, alreadyHere: 0 };
   const { accepted } = reviewImport(rawText);
-  let learned = 0, needsConfirm = 0;
+  let learned = 0, needsConfirm = 0, alreadyHere = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
     for (let i = 0; i < accepted.length; i++) {
       const p = accepted[i]!;
-      const sku = `NEW-${Date.now().toString(36)}-${i}`;
+      // Her article number is who this product IS — to her, her buyers and her
+      // factory floor. A generated id in its place means she cannot find her own
+      // goods and every re-import silently duplicates her catalogue. One is
+      // generated ONLY when the line carried no number at all.
+      const sku = p.sku ?? `NEW-${Date.now().toString(36)}-${i}`;
       const moq = p.moq ?? 100;
       const active = p.priceUsd !== null;   // TRUST RULE: no price → not activated
       const ins = await sql<{ id: string }>`
@@ -144,6 +154,7 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
         values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq}, ${p.priceUsd}, ${active})
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
+      if (!id) { alreadyHere++; continue; }        // her sku is already in the catalogue
       if (id && p.priceUsd !== null) {
         await sql`insert into price_tiers (product_id, min_qty, unit_price_usd) values (${id}, 1, ${p.priceUsd}) on conflict do nothing`.execute(tx);
         await sql`insert into pricing_policy (business_id, product_id, floor_price_usd, max_discount_pct, human_required_above_pct)
@@ -154,14 +165,17 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
       }
     }
   });
-  return { learned, needsConfirm };
+  return { learned, needsConfirm, alreadyHere };
 }
 
 /** Localized confirm flash — called by the route (has locale). */
-export const importFlash = (locale: Locale, r: { learned: number; needsConfirm: number }): string =>
-  r.needsConfirm > 0
+export const importFlash = (locale: Locale, r: { learned: number; needsConfirm: number; alreadyHere?: number }): string => {
+  const base = r.needsConfirm > 0
     ? t(locale, 'product.flash.learnedAndPending', { learned: r.learned, needsConfirm: r.needsConfirm })
     : t(locale, 'product.flash.learnedOnly', { learned: r.learned });
+  // A re-import that changed nothing must say so, not report a silent zero.
+  return r.alreadyHere ? `${base} ${t(locale, 'product.flash.alreadyHere', { n: r.alreadyHere })}` : base;
+};
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 

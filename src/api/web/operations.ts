@@ -202,21 +202,41 @@ export function renderOperationsHome(
       </a>`;
     }).join('');
 
+  // M22 (F-01) — a quiet day has two very different causes, and saying the
+  // wrong one is a lie the owner cannot check. "{name} is looking after your
+  // buyers" was shown unconditionally, including on a factory where messaging
+  // was switched off and she was looking after nobody. The signal is the same
+  // one `notLive` below already uses — no second derivation of channel state,
+  // and nothing here re-answers the M20.3 lifecycle question.
+  const live = s.channel.provider !== 'disabled';
   const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="needs">${rows}</div></section>`
-    : `<section class="block calm">
+    : live
+    ? `<section class="block calm">
         <div class="calm-mark" aria-hidden="true">✓</div>
         <div>
           <h2 class="calm-h">${esc(t(locale, 'ops.attention.allClear'))}</h2>
           <p class="calm-b">${esc(t(locale, 'today.calm.body', { name }))}</p>
+        </div>
+      </section>`
+    // Not a ✓: nothing has been achieved. Nobody can reach her yet, and the
+    // way forward is stated instead of implied.
+    : `<section class="block calm off">
+        <div>
+          <h2 class="calm-h">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>
+          <p class="calm-b">${esc(t(locale, 'today.calm.notLive.body', { name }))}</p>
+          ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
         </div>
       </section>`;
 
   // 2 · How often you stepped in — two real counts as a fraction, never a rate.
   //     The denominator is only shown when it is honest (needed ≤ handled).
   let stepIn = '';
-  if (takeover) {
+  // M22 (F-01) — "You did not need to step in" on a factory where nothing
+  // happened at all reads as a good outcome. It is not an outcome; it is an
+  // absence. With nothing handled and nothing needed, the section says nothing.
+  if (takeover && !(takeover.conversationsNeedingYou === 0 && s.activity.handled === 0)) {
     const needed = takeover.conversationsNeedingYou;
     const handled = s.activity.handled;
     const sentence = needed === 0
@@ -273,6 +293,8 @@ export function renderOperationsHome(
   ${notLive}
   <style>
     .block { padding:22px 0; border-top:1px solid #23272e; }
+    /* Not-live is neutral, not celebratory: no tick, no green. */
+    .calm.off .calm-h { color:#e7eaee; }
     .block:first-of-type { border-top:0; padding-top:6px; }
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
     .needs { display:flex; flex-direction:column; gap:10px; }

@@ -72,7 +72,9 @@ describe('M16.2a · operations snapshot (pure)', () => {
   it('calm means calm: nothing waiting, nothing drafted, nothing of the owner’s own', () => {
     const s = emptyFactory;
     expect(needsOwnerAttention(s)).toBe(false);
-    expect(renderOperationsHome(s, 'en')).toContain("You're all caught up");
+    // M22 (F-01): with messaging LIVE, a quiet day is genuinely all-clear.
+    expect(renderOperationsHome({ ...s, channel: { status: 'connected', provider: 'meta' } }, 'en'))
+      .toContain("You're all caught up");
   });
 
   it('ownership mapping is the M16.1 one (handoffs vs owner-handling)', () => {
@@ -134,15 +136,44 @@ describe('Nomi Phase B · Today (render)', () => {
     expect(approvals).toBeLessThan(gaps);
   });
 
+  const liveQuiet: OperationsSnapshot =
+    { ...emptyFactory, channel: { status: 'connected', provider: 'meta' } };
+
   it('a quiet day is a designed state, not an empty grid', () => {
     for (const [l, phrase] of [['en', "You're all caught up"], ['zh', '都处理完了'], ['ar', 'أنجزت كل شيء']] as const) {
-      const html = renderOperationsHome(emptyFactory, l);
+      const html = renderOperationsHome(liveQuiet, l);
       expect(html).toContain(phrase);
       expect(html).toContain('class="block calm"');
     }
-    const en = renderOperationsHome(emptyFactory, 'en');
+    const en = renderOperationsHome(liveQuiet, 'en');
     expect(en).toContain('Lily is looking after your buyers');   // says WHY it is calm
     expect(en).not.toContain('class="need"');                    // no attention rows at all
+  });
+
+  it('M22 (F-01) · a quiet day with messaging OFF is not the same quiet day', () => {
+    // The defect: "Lily is looking after your buyers. Nothing needs you right
+    // now." was shown on a factory where messaging was off and she was looking
+    // after nobody. Nothing was wrong, and the product said something untrue.
+    const html = renderOperationsHome(emptyFactory, 'en');
+    expect(html).not.toContain('Lily is looking after your buyers');
+    expect(html).not.toContain("You're all caught up");
+    expect(html).toContain('No buyer can reach Lily yet');
+    expect(html).toContain('Messaging is not on.');
+    expect(html).toContain('href="/app/factory"');               // and a way forward
+    // Asserted on the MARKUP: 'calm-mark' also appears in the stylesheet, which
+    // ships on every render, so matching the bare string would always pass.
+    expect(html).not.toContain('<div class="calm-mark"');        // no ✓ for a non-achievement
+  });
+
+  it('M22 (F-01) · says nothing about stepping in when nothing happened', () => {
+    // "You did not need to step in" reads as a good outcome. With nothing
+    // handled and nothing needed it is not an outcome, it is an absence.
+    const quiet = { conversationsNeedingYou: 0, reasons: [] };
+    expect(renderOperationsHome(emptyFactory, 'en', quiet))
+      .not.toContain('You did not need to step in');
+    // But once she HAS handled conversations, "you did not need to" is real.
+    const worked = { ...liveQuiet, activity: { handled: 6, draftsCreated: 4, corrections: 1 } };
+    expect(renderOperationsHome(worked, 'en', quiet)).toContain('You did not need to step in');
   });
 
   it('takeover observation: two real counts as a fraction, with reasons', () => {

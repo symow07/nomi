@@ -1424,11 +1424,18 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       }
     });
 
-    it('empty factory renders the honest all-caught-up state', async () => {
+    it('empty factory renders the honest quiet state', async () => {
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
       const snap = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'today', 'disabled');
       const html = renderOperationsHome(snap, 'en');
-      expect(html).toContain("You're all caught up");
+      // M22 (F-01): with messaging off she is looking after nobody, so this
+      // says why it is quiet instead of congratulating the owner. It used to
+      // read "You're all caught up · Lily is looking after your buyers" on a
+      // factory where nothing could reach her at all.
+      expect(html).toContain('No buyer can reach Lily yet');
+      expect(html).not.toContain("You're all caught up");
+      expect(html).not.toContain('Lily is looking after your buyers');
+      expect(html).toContain('href="/app/factory"');
       expect(html).not.toContain('Waiting for you');
       expect(html).not.toContain('Approvals needed');
     });
