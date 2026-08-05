@@ -308,3 +308,83 @@ d('M22 · product import preserves owner identity (requires DATABASE_URL)', () =
     } finally { await db.destroy(); }
   });
 });
+
+/**
+ * M23 — tenant identity, against a real database.
+ *
+ * The pure tests cover every decision branch. What can only be proven here is
+ * the READ: that a real business is found, an absent one is not, and the
+ * security property this tool must not weaken still holds — the application
+ * role cannot create a tenant.
+ */
+d('M23 · pilot tenant identity (requires DATABASE_URL)', () => {
+  const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+
+  it('reads a real business, and refuses one that does not exist', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { readPilotTenant, enforcePilotTenant } = await import('../../src/db/pilotTenant.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const real = (await sql<{ id: string }>`
+        select id from businesses where id <> ${SANDBOX} limit 1`.execute(db)).rows[0]?.id;
+
+      if (real) {
+        const ok = await readPilotTenant(db, { pilotBusinessId: real, sandboxBusinessId: SANDBOX });
+        expect(ok.exists).toBe(true);
+        expect(ok.isSandbox).toBe(false);
+        expect(ok.ok).toBe(true);
+        expect(ok.name).not.toBeNull();
+        expect(() => enforcePilotTenant(ok, { production: true })).not.toThrow();
+      }
+
+      const missing = await readPilotTenant(db, {
+        pilotBusinessId: '00000000-0000-4000-8000-00000000dead', sandboxBusinessId: SANDBOX });
+      expect(missing.exists).toBe(false);
+      expect(missing.ok).toBe(false);
+      expect(() => enforcePilotTenant(missing, { production: true })).toThrow(/no business with that id exists/);
+    } finally { await db.destroy(); }
+  });
+
+  it('refuses the practice sandbox even though the row is really there', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { readPilotTenant, enforcePilotTenant } = await import('../../src/db/pilotTenant.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const s = await readPilotTenant(db, { pilotBusinessId: SANDBOX, sandboxBusinessId: SANDBOX });
+      expect(s.isSandbox).toBe(true);
+      expect(s.ok).toBe(false);
+      expect(() => enforcePilotTenant(s, { production: true })).toThrow(/PRACTICE SANDBOX/);
+    } finally { await db.destroy(); }
+  });
+
+  it('a malformed id is refused, not crashed on', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { readPilotTenant } = await import('../../src/db/pilotTenant.js');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const s = await readPilotTenant(db, { pilotBusinessId: 'not-a-uuid', sandboxBusinessId: SANDBOX });
+      expect(s.exists).toBe(false);
+      expect(s.ok).toBe(false);
+    } finally { await db.destroy(); }
+  });
+
+  it('SECURITY: the application role still cannot create a tenant', async () => {
+    // The provisioning tool uses the ADMIN connection. If this ever passes,
+    // the tool has become a permission expansion and must be reverted.
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const anyBiz = (await sql<{ id: string }>`select id from businesses limit 1`.execute(db)).rows[0]?.id;
+      if (!anyBiz) return;
+      const bid = parseBusinessId(anyBiz); if (!bid.ok) throw new Error('fixture');
+      const attempt = withTenantTx(db, bid.value, (tx) => sql`
+        insert into businesses (id, name, timezone, default_language, engine)
+        values ('00000000-0000-4000-8000-0000000000ff', 'Smuggled Co', 'Asia/Shanghai', 'en', 'service')
+      `.execute(tx));
+      await expect(attempt).rejects.toMatchObject({ code: '42501' });   // RLS WITH CHECK
+    } finally { await db.destroy(); }
+  });
+});

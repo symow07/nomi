@@ -11,6 +11,7 @@ import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { assertSchemaCurrent } from './db/schemaVersion.js';
+import { assertPilotTenant } from './db/pilotTenant.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -202,6 +203,21 @@ export async function buildProduction(
   // (migrations are additive, ADR-0007) — that is what keeps rollback safe.
   await assertSchemaCurrent(db, { production: process.env['NODE_ENV'] === 'production' });
 
+  // M23 — WHOSE factory is this? PILOT_BUSINESS_ID decides which business every
+  // owner surface reads, and it defaults to the DEMO id, which exists only in a
+  // seeded development database. On live production the sole business was the
+  // practice sandbox, so the owner was going to land on an absent tenant (loud:
+  // the first product dies on a foreign key) or inside the sandbox itself
+  // (silent: it all works, into the space whose reset archives conversations).
+  // Neither shows on /health. Refuse, as with role and schema.
+  const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? 'de300000-0000-4000-8000-0000000000b1';
+  const SANDBOX_ID = process.env['SANDBOX_BUSINESS_ID'] ?? SANDBOX_BUSINESS_ID;
+  await assertPilotTenant(db, {
+    pilotBusinessId: PILOT_BUSINESS_ID,
+    sandboxBusinessId: SANDBOX_ID,
+    production: process.env['NODE_ENV'] === 'production',
+  });
+
   // /health is the one route both modes share. providerStatus reports the
   // messaging surface; db is probed live; the worker infra is up in both modes.
   const mountHealth = (a: FastifyInstance, providerStatus: 'active' | 'disabled') => {
@@ -219,8 +235,6 @@ export async function buildProduction(
   // Owner login: explicit OWNER_ACCESS_CODE, else generated (logged once by
   // the CLI so the founder can grab it; set it in the host for stability).
   const ownerAccessCode = process.env['OWNER_ACCESS_CODE'] || randomBytes(4).toString('hex');
-  const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? 'de300000-0000-4000-8000-0000000000b1';
-  const SANDBOX_ID = process.env['SANDBOX_BUSINESS_ID'] ?? SANDBOX_BUSINESS_ID;
   // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
   // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'

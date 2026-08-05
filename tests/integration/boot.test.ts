@@ -3539,3 +3539,66 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     expect(r.ok === false && r.code).toBeTruthy();
   });
 });
+
+/**
+ * M23 — the tenant guard at the place it matters: BOOT.
+ *
+ * The pure tests cover every decision; the db tests cover the read. This proves
+ * the guard is actually WIRED — a guard nothing calls is not a guard, which is
+ * the exact lesson `assertSchemaCurrent` was hardened by in the release audit.
+ */
+d('M23 · boot refuses a wrong pilot tenant (requires DATABASE_URL)', () => {
+  const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+  const cfg = (pilot: string) => ({
+    provider: 'disabled' as const,
+    DATABASE_URL: DATABASE_URL!,
+    ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+    CREDENTIAL_KEY: 'c'.repeat(64),
+    PORT: 0,
+    __pilot: pilot,
+  });
+
+  /** buildProduction reads PILOT_BUSINESS_ID from process.env, not from cfg. */
+  const bootWith = async (pilot: string | undefined, production: boolean) => {
+    const { buildProduction } = await import('../../src/main.js');
+    const prevPilot = process.env['PILOT_BUSINESS_ID'];
+    const prevEnv = process.env['NODE_ENV'];
+    if (pilot === undefined) delete process.env['PILOT_BUSINESS_ID'];
+    else process.env['PILOT_BUSINESS_ID'] = pilot;
+    if (production) process.env['NODE_ENV'] = 'production';
+    try {
+      const p = await buildProduction(cfg(pilot ?? '') as never, { logger: false });
+      await p.close();
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    } finally {
+      if (prevPilot === undefined) delete process.env['PILOT_BUSINESS_ID'];
+      else process.env['PILOT_BUSINESS_ID'] = prevPilot;
+      if (prevEnv === undefined) delete process.env['NODE_ENV'];
+      else process.env['NODE_ENV'] = prevEnv;
+    }
+  };
+
+  it('refuses to boot in production when the tenant does not exist', async () => {
+    const err = await bootWith('00000000-0000-4000-8000-00000000dead', true);
+    expect(err, 'production booted on a nonexistent tenant').not.toBeNull();
+    expect(err).toMatch(/no business with that id exists/);
+    expect(err).toContain('provision-factory.mjs');
+  }, 30_000);
+
+  it('refuses to boot in production when the tenant IS the practice sandbox', async () => {
+    const err = await bootWith(SANDBOX, true);
+    expect(err, 'production booted inside the practice sandbox').not.toBeNull();
+    expect(err).toMatch(/PRACTICE SANDBOX/);
+  }, 30_000);
+
+  it('boots in production against a real, distinct factory', async () => {
+    // This run's own seeded tenant — real, and not the sandbox.
+    expect(await bootWith(DEMO_BIZ, true)).toBeNull();
+  }, 30_000);
+
+  it('outside production it warns and still serves — a developer is not locked out', async () => {
+    expect(await bootWith('00000000-0000-4000-8000-00000000dead', false)).toBeNull();
+  }, 30_000);
+});

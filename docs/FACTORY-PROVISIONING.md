@@ -24,52 +24,87 @@ pre-ticked.
 
 ## Step 1 — create the tenant (admin connection)
 
-```sql
--- Pick a fresh UUID: select gen_random_uuid();
-insert into businesses (id, name, timezone, default_language, engine)
-values ('<uuid>', '<Factory Co., Ltd>', 'Asia/Shanghai', 'en', 'service');
-
--- Optional: start the onboarding record (created on first attestation anyway)
-insert into onboarding_state (business_id, step) values ('<uuid>', 'business_basics');
+```bash
+MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh
 ```
 
-- `default_language` — `en`, `zh`, or `ar`. The owner can switch it in the UI at
-  any time; this is only the starting point.
-- `engine` — `service` (the TypeScript engine). `n8n` exists only for the
-  legacy rollback path in ADR-0009.
-- **Do not insert a `channels` row.** `channels.status` accepts only
-  `connected | connecting | needs_attention | disconnected | degraded`; the
-  "not connected yet" state is the *absence* of a connected channel and is
-  derived by the read model. A row is created when the channel is connected.
+It generates the id itself, creates one `businesses` row, and prints the value
+to configure plus the factory's readiness — every item `○`:
 
-Confirm the tenant starts honestly empty — every readiness item false:
+```
+  Factory provisioned: 义乌启明日用品厂
 
-```sql
-with os as (select * from onboarding_state where business_id='<uuid>')
-select
-  coalesce((select (description is not null and location is not null
-                    and (contact_email is not null or contact_phone is not null))
-            from businesses where id='<uuid>'), false) as profile,
-  exists(select 1 from products where business_id='<uuid>' and is_active
-           and price_usd_per_unit is not null) as products,
-  exists(select 1 from product_knowledge where business_id='<uuid>' and status='active'
-           and source in ('owner_confirmed','owner_corrected')) as knowledge,
-  (exists(select 1 from claims_policy where business_id='<uuid>' and allowed)
-    or (select claims_reviewed_at from os) is not null) as claims,
-  exists(select 1 from channels where business_id='<uuid>' and kind='whatsapp'
-           and status='connected') as channel;
--- expected on a new factory: f | f | f | f | f
+  Set this in the deployment environment, exactly:
+
+      PILOT_BUSINESS_ID=0c8fca99-6637-4310-9161-fa4150f96d7c
+
+      ○ business profile
+      ○ products with prices
+      ○ taught knowledge
+      ○ claims reviewed
+      ○ pilot allowlist
+      ○ WhatsApp connected   (needs Meta — see GO-LIVE.md)
 ```
 
-Then confirm isolation — a brand-new tenant must see nothing of any other:
+**The id is generated, never supplied.** An operator who can pass an id is an
+operator who can pass the sandbox's, which is the mistake this tool exists to
+make impossible. The language argument is `en | zh | ar` and is only a starting
+point — the owner can change it in the UI.
 
-```sql
-begin;
-  select set_config('app.business_id', '<uuid>', true);
-  select count(*) from products;   -- 0
-  select count(*) from messages;   -- 0
-rollback;
+`MIGRATE_DATABASE_URL` is required: the application role is refused by RLS
+(`businesses` carries `with check (id = current_business_id())`). This tool does
+not weaken that, and an integration test asserts the app role still cannot
+create a tenant.
+
+**The factory starts empty.** No products, no knowledge, no claims, no
+conversations, and no `channels` row — "not connected" is the *absence* of a
+connected channel, derived by the read model (M20.3.1), not a stored status. M15
+readiness derives from real rows, so a seeded head start would be a lie the
+product then reports as progress. The tool exits non-zero if a brand-new factory
+somehow reports anything as done.
+
+## Step 1b — tenant identity (M23)
+
+`PILOT_BUSINESS_ID` decides which business every owner surface reads. Set it to
+the id printed above.
+
+```bash
+# host environment
+PILOT_BUSINESS_ID=<the id the tool printed>
 ```
+
+**This is enforced at boot.** `assertPilotTenant` refuses to start when the id
+is unset, names a business that does not exist, or names the practice sandbox —
+joining `assertSafeRuntimeRole` (tenant isolation) and `assertSchemaCurrent`
+(schema currency). In production it throws; elsewhere it warns, so a developer
+without a provisioned factory is not locked out.
+
+### The sandbox separation rule
+
+**A factory must never be the practice sandbox.** `SANDBOX_BUSINESS_ID`
+(`5a4d0000-…-b1`) is where the owner rehearses: `/app/sandbox` resets it, which
+archives conversations, and it is seeded with a product nobody sold. Pointing
+`PILOT_BUSINESS_ID` at it is the dangerous failure precisely because **nothing
+breaks** — the owner teaches her real catalogue into practice space and no
+surface tells her.
+
+This was not hypothetical. Live production held exactly one business, the
+practice sandbox, while `PILOT_BUSINESS_ID` defaulted to a demo id that did not
+exist there. Both reachable states were wrong; neither showed on `/health`.
+
+### Verifying tenant identity
+
+```bash
+# 1. the row exists and is not the sandbox
+psql "$MIGRATE_DATABASE_URL" -c "select id, name from businesses;"
+
+# 2. the deployment agrees — it will refuse to boot if it does not
+#    (watch the deploy logs; a refusal names the exact operator action)
+curl -s https://<host>/health
+```
+
+`/health` deliberately does **not** report the tenant id, for the same reason it
+does not report the commit (M17.1).
 
 ## Step 2 — give the owner access
 

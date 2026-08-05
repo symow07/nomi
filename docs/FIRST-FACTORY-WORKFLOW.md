@@ -6,10 +6,37 @@ step 5 is reversible, and step 5 onward is deliberately narrow.
 
 Each stage has an exit condition. Do not move on until it is true.
 
+    provision → verify tenant → owner setup → knowledge → rehearsal
+      → security → allowlist → Meta connection → first buyer
+
+## 0. Tenant identity — operator. **Blocking, and easy to get wrong.**
+
+Before anything else, the deployment must know *whose factory it is*.
+
+```bash
+MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh
+# → prints PILOT_BUSINESS_ID=<id>;  set it in the host environment
+```
+
+`assertPilotTenant` refuses to boot when that id is unset, absent, or is the
+**practice sandbox**. The sandbox case is the one to fear: everything works, and
+the owner teaches her real catalogue into the space `/app/sandbox` resets.
+
+Live production reached exactly this state — one business, the practice sandbox,
+with `PILOT_BUSINESS_ID` defaulting to a demo id that did not exist there.
+
+**Exit:** the deployment boots, and `select id, name from businesses` shows the
+factory you meant, distinct from `5a4d0000-…-b1`.
+
+> **Rollout order matters.** The guard refuses a wrong tenant, so provision and
+> set `PILOT_BUSINESS_ID` **before** deploying a build that contains it.
+> Otherwise the deployment will correctly refuse to start.
+
 ## 1. Provision — operator, ~10 minutes
 
-`FACTORY-PROVISIONING.md`. Create the `businesses` row, set `OWNER_ACCESS_CODE`,
-send it to the owner. No `channels` row — "not connected" is the absence of one.
+`FACTORY-PROVISIONING.md`. Stage 0 created the `businesses` row; now set
+`OWNER_ACCESS_CODE` and send it to the owner. No `channels` row — "not
+connected" is the absence of one.
 
 **Exit:** the owner can log in and `/app/onboarding` shows every item ○.
 
