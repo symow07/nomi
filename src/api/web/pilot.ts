@@ -7,6 +7,7 @@ import { formatDate } from '../../core/owner/i18n/format.js';
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import { type RehearsalReport } from '../../trust/factoryRehearsal.js';
+import type { TemplateState } from '../../core/channel/window.js';
 import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './operations.js';
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -513,7 +514,7 @@ function deploymentSection(d: DeploymentInfo, locale: Locale): string {
  * missing and switches nothing on. Credential VALUES never appear here — only
  * whether each one is set and correctly shaped.
  */
-function metaSection(m: MetaReadiness, locale: Locale): string {
+function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateState): string {
   const rows = m.credentials.map((c) => {
     const done = c.state === 'ok';
     return `<div class="pr ${done ? 'done' : 'todo'}">
@@ -530,7 +531,7 @@ function metaSection(m: MetaReadiness, locale: Locale): string {
     ${rows}
     <div class="verdict ${m.live ? 'ok' : ''}">${esc(t(locale, m.live ? 'meta.live' : 'meta.notLive'))}</div>
     ${blockers ? `<ul class="rbsteps muted">${blockers}</ul>` : ''}
-    ${templateRow(locale)}
+    ${templateRow(locale, templateState)}
   </div>`;
 }
 
@@ -544,8 +545,11 @@ function metaSection(m: MetaReadiness, locale: Locale): string {
  * state comes from the same TemplateState the send path consumes — no second
  * source, and nothing here can approve anything.
  */
-function templateRow(locale: Locale): string {
-  const r = templateReadiness(TEMPLATE_ENTRY_POINT.currentValue);
+function templateRow(locale: Locale, state: TemplateState): string {
+  // M25 — the REAL state, not the constant. Rendering `TEMPLATE_ENTRY_POINT`
+  // here made the operator's own panel report a hardcoded value: the same
+  // defect as the send path's, on the surface meant to reveal it.
+  const r = templateReadiness(state);
   return `<div class="pr ${r.canReopenWindow ? 'done' : 'todo'}">
     <span class="mk">${r.canReopenWindow ? '✓' : '○'}</span>
     <span class="lbl">${esc(t(locale, 'meta.template.label'))}</span>
@@ -606,6 +610,7 @@ export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: string | null,
   deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
   rehearsal?: RehearsalReport | null,
+  templateState: TemplateState = 'none',
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
@@ -613,7 +618,7 @@ export function renderPilotRunbook(
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + (meta ? metaSection(meta, locale) : '')
+    + (meta ? metaSection(meta, locale, templateState) : '')
     + (rehearsal ? engineSection(rehearsal, locale) : '')
     + (deployment ? deploymentSection(deployment, locale) : '')
     + RUNBOOK_STYLE;

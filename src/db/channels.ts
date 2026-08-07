@@ -1,5 +1,6 @@
 import { isAllowlisted } from '../channels/allowlist.js';
 import type { ChannelFacts } from '../core/channel/lifecycle.js';
+import type { TemplateState } from '../core/channel/window.js';
 import { DAILY_OUTBOUND_CEILING } from '../core/channel/limits.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
@@ -16,7 +17,17 @@ import type { ConnectionAction } from '../channels/contract.js';
  * domain.
  */
 
-export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
+/**
+ * M25 — the installation's real template capability, threaded in from the
+ * composition root rather than read from the environment here, so this module
+ * stays a store and the fact stays testable. Absent = no capability, which is
+ * the fail-closed answer and what every existing caller gets unchanged.
+ */
+export type ChannelStoreOptions = { readonly template?: TemplateState };
+
+export function channelStore(
+  tx: Tx, businessId: BusinessId, opts: ChannelStoreOptions = {},
+): OutboundStore & {
   reconcileStatus(providerMessageId: string, incoming: ProviderStatus, detail: string | null): Promise<{
     outcome: 'applied' | 'ignored' | 'unknown_message';
     conversationId: string | null;
@@ -106,13 +117,13 @@ export function channelStore(tx: Tx, businessId: BusinessId): OutboundStore & {
         assignedTo: c?.assigned_to ?? null,
         paused: c?.paused ?? false,
         lastInboundAt: c?.last_inbound_at ?? null,
-        // M22 §B — THE template entry point (TEMPLATE_ENTRY_POINT in
-        // core/channel/templateReadiness.ts names this exact line). While it
-        // reads 'none', `sendPlan` can never return `send_template`, so
-        // `gate.viaTemplate` is never true and a closed window always refuses
-        // as `window_closed`. Replace this literal with the tenant's real
-        // template state once Meta approves one; nothing else has to change.
-        template: 'none',
+        // M25 — THE template entry point (TEMPLATE_ENTRY_POINT in
+        // core/channel/templateReadiness.ts names it). No longer a literal: it
+        // is `templateState()` resolved at boot from the provider and the
+        // templates the operator recorded as approved. While it resolves to
+        // 'none' a closed window refuses as `window_closed`; the moment a real
+        // approval is recorded it becomes `window_needs_owner`, gate unchanged.
+        template: opts.template ?? 'none',
         activated,
         pilotMode,
         recipientAllowed,

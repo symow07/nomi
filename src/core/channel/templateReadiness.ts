@@ -24,7 +24,7 @@ import type { TemplateState } from './window.js';
  */
 
 export type TemplateReadiness = {
-  /** What the send path will be told. Today, always 'none'. */
+  /** What the send path will be told, derived from the installation. */
   readonly state: TemplateState;
   /** Can a conversation be re-opened after the 24-hour window closes? */
   readonly canReopenWindow: boolean;
@@ -46,22 +46,68 @@ export function templateReadiness(state: TemplateState): TemplateReadiness {
 }
 
 /**
+ * M25 — the state itself, DERIVED. This is what replaced the hardcoded literal
+ * `channelStore.load` used to put into every `ConversationSendContext`.
+ *
+ * WHERE THE TRUTH LIVES. A template is approved by Meta, not by us, and the
+ * product must not call Meta to find out. So it is told, the same way every
+ * other Meta fact is: the operator records it beside the credentials.
+ *
+ * WHAT THIS DOES NOT CLAIM. Not that a template will send — nothing here calls
+ * anything, and the worker still hands the conversation back to the owner. It
+ * decides only what is TRUE of this installation, so the refusal the owner
+ * reads is derived rather than assumed.
+ *
+ * Fail closed, as everywhere else: anything unresolved is 'none', the state
+ * that keeps a message with the owner.
+ */
+export type TemplateFacts = {
+  /** A messaging provider is wired (WHATSAPP_PROVIDER is not 'disabled'). */
+  readonly providerConfigured: boolean;
+  /** Templates the operator has recorded as APPROVED by the provider. */
+  readonly approvedTemplates: readonly string[];
+};
+
+export function templateState(f: TemplateFacts): TemplateState {
+  // No provider means no template can leave whatever is approved — reporting
+  // 'approved' here would be readiness the installation does not have.
+  if (!f.providerConfigured) return 'none';
+  return f.approvedTemplates.some((t) => t.trim() !== '') ? 'approved' : 'none';
+}
+
+/**
+ * Parse the operator's list. Forgiving about spacing and empty entries, and
+ * deliberately unforgiving about everything else: this is the only thing
+ * between "a template exists" and "we told the owner one does".
+ *
+ * `'rejected'` is never derived. A rejected template is simply not approved,
+ * and from outside Meta the two are indistinguishable; inventing the
+ * distinction would be a status we cannot substantiate. The value stays in
+ * `TemplateState` because `sendPlan` handles it and a future status sync can
+ * produce it honestly.
+ */
+export function parseApprovedTemplates(raw: string | undefined): readonly string[] {
+  if (!raw) return [];
+  return raw.split(',').map((s) => s.trim()).filter((s) => s !== '');
+}
+
+/**
  * The single place an approved template enters the send path.
  *
- * `channelStore.load` hardcodes `template: 'none'` into every
- * `ConversationSendContext`. That one value is why `sendPlan` never returns
- * `send_template` in production, why `gate.viaTemplate` is never true, and why
- * `window_needs_owner` — though fully implemented and fully explained to the
- * owner — cannot currently fire. Replace that literal with the tenant's real
- * template state and the whole path lights up, gate unchanged.
+ * M25 replaced the literal with `templateState(...)`, resolved once at the
+ * composition root and threaded into `channelStore`. `sendPlan` returns
+ * `send_template` the moment that state is 'approved', `gateOutbound` reports
+ * `viaTemplate`, and `window_needs_owner` becomes reachable — gate unchanged,
+ * nothing else to edit.
  *
  * Returned as data rather than written only in a comment so a test can pin it:
- * if the entry point moves, the test that asserts this file names the truth
- * fails, instead of the documentation quietly going stale.
+ * if the entry point moves, the test fails instead of the documentation
+ * quietly going stale.
  */
 export const TEMPLATE_ENTRY_POINT = {
   file: 'src/db/channels.ts',
   symbol: 'channelStore.load',
   field: 'template',
-  currentValue: 'none',
+  /** No longer a literal — resolved from META_TEMPLATE_NAMES + provider state. */
+  source: 'templateState(TemplateFacts)',
 } as const;

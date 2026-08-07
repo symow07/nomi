@@ -12,6 +12,7 @@ import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { assertSchemaCurrent } from './db/schemaVersion.js';
 import { assertPilotTenant } from './db/pilotTenant.js';
+import { templateState, parseApprovedTemplates } from './core/channel/templateReadiness.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -235,6 +236,14 @@ export async function buildProduction(
   // Owner login: explicit OWNER_ACCESS_CODE, else generated (logged once by
   // the CLI so the founder can grab it; set it in the host for stability).
   const ownerAccessCode = process.env['OWNER_ACCESS_CODE'] || randomBytes(4).toString('hex');
+  // M25 — the installation's REAL template capability, resolved once. A template
+  // is approved by Meta, not by us, and we must not call Meta to find out — so
+  // the operator records it beside the credentials. Empty (the state today) =
+  // 'none', which keeps an out-of-window message with the owner.
+  const TEMPLATE_STATE = templateState({
+    providerConfigured: cfg.provider !== 'disabled',
+    approvedTemplates: parseApprovedTemplates(process.env['META_TEMPLATE_NAMES']),
+  });
   // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
   // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
@@ -246,6 +255,7 @@ export async function buildProduction(
       sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
+      templateState: TEMPLATE_STATE,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       avatar: process.env['EMPLOYEE_AVATAR'] ?? '👩‍💼',
@@ -326,7 +336,7 @@ export async function buildProduction(
       if (job.data.reply) {
         await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply);
       }
-      const store = channelStore(tx, businessId.value);
+      const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       return driveConversationOutbound(
         { store, adapter, now: () => new Date() }, job.data.conversationId,
       );

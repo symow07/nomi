@@ -21,6 +21,7 @@ import {
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
+import type { TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
@@ -72,6 +73,9 @@ export type WebDeps = {
   readonly employeeName: string;
   readonly avatar: string;
   readonly provider: string;
+  /** M25 — the installation's real template capability, derived at boot.
+   *  Absent = 'none', the fail-closed answer. */
+  readonly templateState?: TemplateState;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
@@ -531,7 +535,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const rehearsal = await loadFactoryRehearsal(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal, deps.templateState ?? 'none'),
     }));
   });
 
