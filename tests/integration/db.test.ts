@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Integration tests — real Postgres, no mocks. (ADR-0008 §3)
+ * Integration tests — real Postgres, no mocks. (ADR-0013 §3)
  *
  * These verify the two guarantees that CANNOT be faked, because they ARE
  * database behaviours:

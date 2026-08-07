@@ -1,4 +1,4 @@
-# ADR-0008 — Testing strategy
+# ADR-0013 — Testing strategy
 
 **Status:** Proposed · **Depends on:** [0002](0002-repository-and-service-boundaries.md)
 

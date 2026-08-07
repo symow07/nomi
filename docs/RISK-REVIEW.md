@@ -92,9 +92,12 @@ requires human approval.*
 
 **⚠️ Every turn is 1–2 LLM calls with no per-tenant budget.** One viral RedNote
 post = one tenant consuming the platform's whole Anthropic quota and budget.
-The `usage_ledger` is designed but not built. *Mitigation: build the ledger +
-per-tenant daily cap in M1 — it is ~50 lines in the worker and turns a platform
-outage into one tenant's throttle.*
+~~The `usage_ledger` is designed but not built.~~ **Closed.** The ledger exists
+(migration 0008: `usage_ledger`, `tenant_budgets`), `core/budget.ts` decides, and
+`channelStore.load` resolves the pause from real usage against the tenant's own
+budget — a tenant over its cap is paused, not the platform. A separate daily
+outbound ceiling (M18.5) blocks a runaway loop from spending the day messaging a
+real buyer, and never blocks the owner.
 
 **▫️ pg-boss on the primary; catalog re-fetched per turn; single region
 (ap-southeast-1 — good for China/GCC clients).** All fine for years at

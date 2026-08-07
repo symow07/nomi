@@ -12,7 +12,7 @@ Read in order — each builds on the last.
 | [0005](0005-multi-tenancy-and-rls.md) | **RLS enforced by the database**; tenant from the credential, never the payload. | `business_id` is currently read from the request body — spoofable. Service key bypasses RLS entirely. |
 | [0006](0006-deterministic-commercial-engine.md) | **Postgres owns the numbers.** Price tiers, floor price, numeral guard. Delete the LLM order-validator. | The AI can currently invent prices, and an LLM is being paid to do arithmetic on a money gate that prompt injection can reach. |
 | [0007](0007-database-migrations.md) | **Forward-only, expand/contract.** Additive while n8n still runs. | Keeps rollback free. Ends the "paste SQL into the editor" era. |
-| [0008](0008-testing-strategy.md) | **Assert on decisions, never on prose.** Parity suite is the migration contract. | Tests and types replace the code review a solo dev doesn't get. LLM prose diffs are flaky and worthless. |
+| [0013](0013-testing-strategy.md) | **Assert on decisions, never on prose.** Parity suite is the migration contract. | Tests and types replace the code review a solo dev doesn't get. LLM prose diffs are flaky and worthless. |
 | [0009](0009-shadow-run-cutover-rollback.md) | **Shadow-run on real traffic, per-channel cutover, rollback = one flag.** | Prove the engine is right before it can touch a customer. |
 
 ## The four rules everything else follows from

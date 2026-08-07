@@ -246,24 +246,54 @@ roles file restores with RLS enabled and zero policies. See
 
 ## 7. Status
 
-Controlled-pilot ready: code and deployment verified, tenant isolation enforced
-and proven, and **messaging disabled**.
+**Controlled-pilot ready, messaging deliberately disabled.** Deployed and
+verified in production: schema current, tenant isolation enforced and proven,
+three boot guards active, and the owner surfaces serving a real, intentional
+factory tenant.
 
-Not yet done: the pilot activation experience is partly built — the send path
-obeys activation and My factory can start and stop it, but allowlist management
-still has no owner-facing screen. Meta/WhatsApp Cloud integration has not been
-started.
+Built and verified:
+
+- **Activation** — connect ≠ activate. Preconditions are a live derivation, the
+  owner starts and stops messaging from My factory, and the send gate refuses
+  anything the owner has not turned on.
+- **Allowlist** — add and remove numbers from My factory, audited. During a
+  pilot the list binds everyone, the owner included.
+- **Refusal visibility** — every way a message can fail to reach a buyer is
+  recorded, surfaced on the conversation it belongs to and in Today, and says
+  what happened and what to do about it. A silent refusal is a product defect.
+- **Factory rehearsal** — what she cannot answer yet, derived from the owner's
+  own catalogue, prices, taught knowledge and authorised claims. Never blocks
+  activation.
+- **Tenant identity** — the process refuses to boot on a missing tenant, or on
+  the practice sandbox.
+
+Not done, and the only external dependency: **Meta / WhatsApp Cloud**. Business
+verification, phone provisioning, credentials, message-template approval, webhook
+registration and channel connection are all outstanding, and activation is
+blocked until they exist. The adapter itself is written and exercised against a
+simulator; no Meta traffic has ever been sent.
+
+Also outstanding: outbound media (she can read a buyer's photo but not send
+one), and message templates — until one is approved, a conversation that falls
+outside the 24-hour window goes back to the owner rather than being re-opened.
 
 ---
 
-## 8. Legacy in this tree
+## 8. What is left from the first version
 
-`n8n/`, `supabase/`, `prompts/` and `samples/` are from the first version, which
-ran as n8n workflows against Supabase. **They are not the product and are not
-deployed.** They remain for history, and because some prompt text and test
-payloads are still useful references. The runtime never depended on Supabase —
-see [`docs/SUPABASE-EXIT-AUDIT.md`](docs/SUPABASE-EXIT-AUDIT.md) — and the
-extraction is recorded in
-[ADR-0001](docs/adr/0001-extract-core-from-n8n.md).
+The product began as n8n workflows against Supabase. The workflows are gone
+(`ADR-0001` records the extraction, `docs/SUPABASE-EXIT-AUDIT.md` the database
+exit). Three directories survive, and — contrary to what this section used to
+claim — **two of them are load-bearing**:
 
-Nothing in `src/` imports any of it.
+| Path | Status |
+|---|---|
+| `prompts/` | **Live.** `src/llm/anthropic.ts` reads `analysis.txt`, `response.txt` and `image_analysis.txt` on every model call. |
+| `supabase/` | **Live.** `tools/migrate.mjs` applies `schema.sql` as the migration baseline; `rls_policies.sql` is applied only when Supabase's own roles exist. The filename is historical; the content is portable SQL. |
+| `samples/` | **Live in tests.** `payloads.json` is the corpus the parity suite replays. |
+
+Only `prompts/order_validation.txt` is inert — it is quoted in a comment in
+`core/types/commerce.ts` as the origin of the confirmation rules, and kept for
+that provenance.
+
+The runtime has never depended on Supabase-the-service.

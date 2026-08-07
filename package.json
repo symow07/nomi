@@ -12,8 +12,6 @@
     "test:parity": "vitest run tests/parity",
     "trust": "vitest run tests/harness/trust-harness.test.ts --disable-console-intercept",
     "check": "npm run typecheck && npm run boundaries && npm run test",
-    "workflows:build": "node tools/build-workflows.mjs",
-    "workflows:check": "node tools/validate-workflows.mjs && node tools/test-logic.mjs",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "migrate": "node tools/migrate.mjs",

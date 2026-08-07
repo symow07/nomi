@@ -305,9 +305,9 @@ export async function loadFactory(
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */
 
 /**
- * Where each blocker is actually fixed. `no_allowlist` has no surface yet — it
- * arrives in M20.4 — so it states the requirement rather than offering a link
- * that goes nowhere.
+ * Where each blocker is actually fixed. Every blocker now has a real surface —
+ * `no_allowlist` gained one in M20.4, in the same section this page renders — so
+ * none of them states a requirement without offering the way to meet it.
  */
 const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   schema_stale: '/app/onboarding',
