@@ -27,5 +27,8 @@ export function whatsappAdapter(cfg: {
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.webhookSecret),
     parseWebhook,
     sendText: (to, body) => client.sendText(to, body),
+    // M26 — the simulator is built on this factory, so implementing it here is
+    // what lets the media path be driven end to end in tests without a provider.
+    sendMedia: (to, media) => client.sendImage(to, media.url, media.caption),
   };
 }

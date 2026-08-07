@@ -70,6 +70,24 @@ export function whatsappClient(cfg: {
         text: { body },
       });
     },
+    /**
+     * M26 — an image by link. Meta fetches the URL itself, so the picture must
+     * be publicly reachable; that is a property of where the owner's product
+     * images are hosted, not something this client can assert. Same `post`,
+     * so the same timeout, the same retry classification, and the same
+     * "2xx without a message id is a failure" rule apply unchanged.
+     */
+    sendImage(to: string, url: string, caption: string): Promise<WhatsAppSendResult> {
+      return post({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'image',
+        // An empty caption is omitted rather than sent as "": the provider
+        // treats a present-but-empty caption as a caption.
+        image: caption.trim() === '' ? { link: url } : { link: url, caption },
+      });
+    },
     /** Typing indicator + read receipt: cheap humanity (TRUST docs). */
     markRead(messageId: string): Promise<WhatsAppSendResult> {
       return post({ messaging_product: 'whatsapp', status: 'read', message_id: messageId });

@@ -37,6 +37,9 @@ export function metaAdapter(cfg: MetaConfig): ChannelAdapter {
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
     parseWebhook,
     sendText: (to, body) => client.sendText(to, body),
+    // M26 — present, and never called while WHATSAPP_PROVIDER is disabled:
+    // main.ts mounts no adapter and no outbound worker in that mode.
+    sendMedia: (to, media) => client.sendImage(to, media.url, media.caption),
   };
 }
 

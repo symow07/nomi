@@ -18,6 +18,20 @@ export type SendResult =
   | { readonly ok: true; readonly providerMessageId: string }
   | { readonly ok: false; readonly retryable: boolean; readonly error: string };
 
+/**
+ * M26 — a picture, with the words that go with it.
+ *
+ * `caption` is ordinary reply text and is guarded exactly like any other reply:
+ * it passes through the numeral and claims guards upstream, and reaches here
+ * already approved. The URL is not free text — it is one of the owner's own
+ * `product_images.url` rows, so a picture a buyer receives is always one the
+ * owner uploaded.
+ */
+export type OutboundMedia = {
+  readonly url: string;
+  readonly caption: string;
+};
+
 export interface ChannelAdapter {
   readonly kind: ChannelKind;
   readonly provider: string;                    // '360dialog' | 'simulator'
@@ -26,6 +40,13 @@ export interface ChannelAdapter {
   /** Raw provider payload → canonical events. Never throws. */
   parseWebhook(payload: unknown): ChannelEvent[];
   sendText(to: string, body: string): Promise<SendResult>;
+  /**
+   * M26 — optional so an adapter that cannot carry pictures says so by omission
+   * rather than by throwing. The worker refuses an image row when this is
+   * absent; it never silently downgrades to text, because a caption without its
+   * picture is a different message from the one the owner approved.
+   */
+  sendMedia?(to: string, media: OutboundMedia): Promise<SendResult>;
 }
 
 /** Actions that must leave an audit record (who, when, outcome). */

@@ -47,9 +47,10 @@ export function channelStore(
         id: string; seq: number; status: OutboundStatus; requires_order: boolean;
         attempts: number; sent_at: Date | null; to_wa_id: string | null; body: string;
         origin: 'employee' | 'owner'; sending_since: Date | null;
+        kind: string; media_url: string | null;
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
-               origin, sending_since
+               origin, sending_since, kind, media_url
           from outbound_messages
          where conversation_id = ${conversationId}
            and (next_retry_at is null or next_retry_at <= now())
@@ -101,6 +102,7 @@ export function channelStore(
         id: r.id, seq: r.seq, status: r.status, requiresOrder: r.requires_order,
         attempts: r.attempts, sentAt: r.sent_at, to: r.to_wa_id ?? '', body: r.body,
         origin: r.origin, sendingSince: r.sending_since,
+        kind: r.kind, mediaUrl: r.media_url,
       }));
       // M18.2 — pilot mode + allowlist resolved INSIDE this transaction, so the
       // gate decides on current state. Both fail closed: a missing channel row

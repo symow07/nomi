@@ -16,9 +16,15 @@ import { redactSecrets } from '../security/credentials.js';
 
 export type OutboundWorkRow = OutboundRow & {
   readonly to: string;
+  /** Text, or the caption when `kind` is 'image'. */
   readonly body: string;
   readonly origin: 'employee' | 'owner';
   readonly sendingSince: Date | null;
+  /** M26 — 'text' (default), 'quote_card', or 'image'. */
+  readonly kind?: string;
+  /** M26 — where the picture is, for kind='image'. One of the owner's own
+   *  product_images.url rows. Null for every text row. */
+  readonly mediaUrl?: string | null;
 };
 
 export type ConversationSendContext = {
@@ -64,7 +70,7 @@ export type OutboundStore = {
  * with Meta, so the message cannot go, and calling that "allowed" in the
  * owner's audit trail would be the same lie this milestone exists to remove.
  */
-export type RefusalReason = GateRefusal | 'window_needs_owner';
+export type RefusalReason = GateRefusal | 'window_needs_owner' | 'media_unsupported';
 
 export type DriveEffect =
   | { readonly kind: 'reclaimed'; readonly id: string }
@@ -173,8 +179,25 @@ export async function driveConversationOutbound(
   }
 
   // 5. Send, with the transition recorded on both sides of the wire.
+  //
+  // M26 — a picture goes out through THIS path and no other: same ordering,
+  // same gate above, same transitions, same retry classification. The only
+  // branch is which adapter call carries it.
+  //
+  // An image row whose adapter cannot send media is REFUSED, never downgraded
+  // to its caption: a caption without its picture is a different message from
+  // the one the owner approved, and sending it would be exactly the quiet
+  // substitution this product exists to not do.
+  if (candidate.kind === 'image') {
+    if (!candidate.mediaUrl || !deps.adapter.sendMedia) {
+      await refuse(deps, candidate, 'media_unsupported');
+      return [...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }];
+    }
+  }
   await deps.store.transition(candidate.id, 'sending', null);
-  const result = await deps.adapter.sendText(candidate.to, candidate.body);
+  const result = candidate.kind === 'image' && candidate.mediaUrl && deps.adapter.sendMedia
+    ? await deps.adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })
+    : await deps.adapter.sendText(candidate.to, candidate.body);
 
   if (result.ok) {
     await deps.store.recordProviderId(candidate.id, result.providerMessageId);

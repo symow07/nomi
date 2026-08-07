@@ -24,11 +24,11 @@ import type { Db } from './client.js';
 /**
  * The migration this build requires. BUMP THIS when adding a migration whose
  * columns or tables the code reads — that is what makes the guard meaningful.
- * 22 = tenant isolation closed on two views + shadow.turn_decisions (0022).
- *      Bumped so a deploy cannot serve against a database where those three
- *      objects are still readable across tenants.
+ * 24 = outbound_messages.media_url (0024). The worker SELECTs it on every
+ *      drive tick, so a build reading it against a database without the column
+ *      would throw on the first outbound message rather than at boot.
  */
-export const REQUIRED_SCHEMA_VERSION = 23;
+export const REQUIRED_SCHEMA_VERSION = 24;
 
 export type SchemaState = {
   readonly required: number;

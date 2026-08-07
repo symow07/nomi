@@ -64,9 +64,14 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
 
   it('the refusal vocabulary covers gateOutbound exactly, plus the template case', () => {
     for (const r of GATE_REASONS) expect(REFUSAL_REASONS, r).toContain(r);
-    // `window_needs_owner` is the gate's allow-via-template branch: allowed, but
-    // no template exists, so it does not go. It is the seventh and last.
-    expect([...REFUSAL_REASONS].sort()).toEqual([...GATE_REASONS, 'window_needs_owner'].sort());
+    // Two reasons come from OUTSIDE the gate, and both are ways a message the
+    // gate allowed still does not reach the buyer:
+    //   window_needs_owner  allowed only via a template, and none is approved
+    //   media_unsupported   an image row on a connection that cannot carry one
+    // Neither is a second gate: both are the send path reporting that it could
+    // not carry out a decision the gate already made.
+    expect([...REFUSAL_REASONS].sort())
+      .toEqual([...GATE_REASONS, 'window_needs_owner', 'media_unsupported'].sort());
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {
@@ -92,7 +97,7 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
   it('every "what can I do" names an action, never just restates the problem', () => {
     // A refusal the owner cannot act on is a complaint. Each of these must
     // contain a verb she can carry out today.
-    const ACTIONABLE = /reply|message|add|start|leave|hand|wait|clears|tomorrow|yourself|ready|done/i;
+    const ACTIONABLE = /reply|message|add|start|leave|hand|wait|clears|tomorrow|yourself|ready|done|send/i;
     for (const reason of REFUSAL_REASONS) {
       const todo = t('en', `refused.do.${reason}` as MessageKey, { name: 'Lily' });
       expect(ACTIONABLE.test(todo), `${reason}: "${todo}"`).toBe(true);

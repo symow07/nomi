@@ -50,6 +50,7 @@ export type Refusal = {
 export const REFUSAL_REASONS: readonly RefusalReason[] = [
   'handed_off', 'paused', 'window_closed', 'not_activated',
   'not_allowlisted', 'daily_ceiling', 'window_needs_owner',
+  'media_unsupported',
 ];
 
 /** `transition()` stores the detail string verbatim: "canceled: <reason>". */
