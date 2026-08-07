@@ -21,6 +21,19 @@ export type DeploymentInfo = {
   /** When THIS process started (uptime is the only honest "deployed at" we have). */
   readonly startedAt: Date;
   readonly nodeVersion: string;
+  /**
+   * M27 — is the owner's login code stable across deploys?
+   *
+   * `OWNER_ACCESS_CODE` unset means main.ts generates a random one at every
+   * boot and logs it once. The owner is then locked out of her own product the
+   * next time anything deploys, and the only way back in is reading a log line.
+   * This cost a real release: an authenticated verification failed with "no
+   * session cookie" and the cause was invisible from every surface.
+   *
+   * It is on the OPERATOR's panel, never the owner's — she cannot fix it, and
+   * the value itself is never rendered anywhere.
+   */
+  readonly ownerCodeStable: boolean;
 };
 
 /** Railway's variables first, then generic CI names — first non-empty wins. */
@@ -43,5 +56,7 @@ export function readDeployment(
     provider: env['WHATSAPP_PROVIDER']?.trim() || 'disabled',
     startedAt: new Date(now.getTime() - Math.max(0, uptimeSeconds) * 1000),
     nodeVersion: process.versions.node,
+    // Presence only — the value is never read here and never rendered.
+    ownerCodeStable: (env['OWNER_ACCESS_CODE'] ?? '').trim() !== '',
   };
 }

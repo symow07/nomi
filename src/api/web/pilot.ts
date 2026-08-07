@@ -506,6 +506,9 @@ function deploymentSection(d: DeploymentInfo, locale: Locale): string {
     ${row('runbook.deploy.environment', d.environment)}
     ${row('runbook.deploy.channelMode', messaging)}
     ${row('runbook.deploy.since', formatDate(locale, d.startedAt))}
+    ${d.ownerCodeStable ? '' : `<div class="ev">
+      <div class="ev-d">${esc(t(locale, 'runbook.deploy.codeUnstable'))}</div>
+    </div>`}
   </div>`;
 }
 

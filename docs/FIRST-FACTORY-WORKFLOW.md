@@ -38,6 +38,13 @@ factory you meant, distinct from `5a4d0000-…-b1`.
 `OWNER_ACCESS_CODE` and send it to the owner. No `channels` row — "not
 connected" is the absence of one.
 
+> **Set `OWNER_ACCESS_CODE` explicitly.** Leave it unset and a new code is
+> generated at *every* boot and written once to the log — the owner is locked
+> out of her own product the next time anything deploys. This has already
+> happened here: an authenticated verification failed with "no session cookie"
+> and nothing on any surface explained why. The runbook's *This installation*
+> panel now says so when it applies.
+
 **Exit:** the owner can log in and `/app/onboarding` shows every item ○.
 
 ## 2. Owner setup — owner, a few hours over a few days

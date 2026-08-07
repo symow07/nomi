@@ -16,9 +16,24 @@ import { parseProductId } from '../core/types/ids.js';
  */
 const MODEL = 'claude-sonnet-4-6';
 
-/** Prompts are versioned by content hash so the turns table records provenance. */
+/**
+ * Prompts are versioned by content hash so the turns table records provenance.
+ *
+ * M27 — resolved relative to THIS MODULE, not the working directory. It used to
+ * read `prompts/<file>`, which resolves against `process.cwd()`: correct only
+ * while the process happens to start in the repository root. Any change to the
+ * start command's directory would have thrown ENOENT on the FIRST buyer message
+ * — after the webhook, after tenant resolution, at the one moment there is a
+ * real person waiting. It had never been exercised in production, because
+ * messaging has never been on.
+ *
+ * `dist/` mirrors `src/`, so `../../prompts/` is the repository root from both
+ * `src/llm/` under tsx and `dist/llm/` under node.
+ */
+const PROMPT_DIR = new URL('../../prompts/', import.meta.url);
+
 function loadPrompt(file: string): { text: string; version: string } {
-  const text = readFileSync(`prompts/${file}`, 'utf8').trim();
+  const text = readFileSync(new URL(file, PROMPT_DIR), 'utf8').trim();
   let h = 0;
   for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
   return { text, version: `${file}@${(h >>> 0).toString(16)}` };

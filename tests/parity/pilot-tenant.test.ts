@@ -151,3 +151,61 @@ describe('M23 · the guard makes no decision it is not entitled to', () => {
     expect(src).toContain(SANDBOX_BUSINESS_ID);
   });
 });
+
+/**
+ * M27 — the two operational defects a first factory would actually meet.
+ * Neither is a feature; both are ways the product breaks for a real owner at
+ * the worst possible moment, and both had already happened here.
+ */
+describe('M27 · prompts load wherever the process starts', () => {
+  it('resolves from the module, not the working directory', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/llm/anthropic.ts', import.meta.url), 'utf8');
+    // `readFileSync(\`prompts/${f}\`)` resolves against process.cwd(). Correct
+    // only while the process happens to start in the repository root, and it
+    // would have thrown ENOENT on the FIRST buyer message — after the webhook,
+    // after tenant resolution, with a real person waiting. Never exercised in
+    // production, because messaging has never been on.
+    expect(src).not.toContain('readFileSync(`prompts/');
+    expect(src).toContain("new URL('../../prompts/', import.meta.url)");
+  });
+
+  it('every prompt the client loads really exists at that path', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const dir = new URL('../../prompts/', import.meta.url);
+    for (const f of ['analysis.txt', 'response.txt', 'image_analysis.txt']) {
+      const text = await readFile(new URL(f, dir), 'utf8');
+      expect(text.trim().length, f).toBeGreaterThan(100);
+    }
+  });
+});
+
+describe('M27 · the owner is not locked out by a deploy', () => {
+  it('an unset OWNER_ACCESS_CODE is reported to the OPERATOR', async () => {
+    const { readDeployment } = await import('../../src/api/web/deployment.js');
+    const now = new Date('2026-08-06T10:00:00Z');
+    expect(readDeployment({}, now, 60).ownerCodeStable).toBe(false);
+    expect(readDeployment({ OWNER_ACCESS_CODE: '   ' }, now, 60).ownerCodeStable).toBe(false);
+    expect(readDeployment({ OWNER_ACCESS_CODE: 'a-long-stable-phrase' }, now, 60).ownerCodeStable).toBe(true);
+  });
+
+  it('the code itself is never carried or rendered', async () => {
+    const { readDeployment } = await import('../../src/api/web/deployment.js');
+    const secret = 'super-secret-owner-code';
+    const info = readDeployment({ OWNER_ACCESS_CODE: secret }, new Date(), 60);
+    expect(JSON.stringify(info)).not.toContain(secret);
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/api/web/deployment.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/ownerAccessCode\s*:/);          // presence only
+  });
+
+  it('the warning names the fix, and appears only when it applies', async () => {
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { LOCALES } = await import('../../src/core/owner/i18n/locale.js');
+    for (const l of LOCALES) {
+      const msg = t(l, 'runbook.deploy.codeUnstable');
+      expect(msg.length, l).toBeGreaterThan(20);
+      expect(msg, l).toContain('OWNER_ACCESS_CODE');
+    }
+  });
+});
