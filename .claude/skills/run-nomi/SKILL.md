@@ -167,8 +167,10 @@ Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_a
 - **`NODE_ENV=production` breaks login over http.** It flips the session cookie to
   `Secure`, so it's never sent back over plain http and every `/app` request bounces
   to `/login`. The script runs with `env -u NODE_ENV`; keep it unset locally.
-- **`nomi_app` is created `NOLOGIN`** (migration 0005). Local runs must
-  `alter role nomi_app login;` (the script does) or the app can't connect.
+- **The runtime role is created `NOLOGIN`** — by migration 0005, under its
+  original name `yiwuflow_app`; migration 0026 renames it to `nomi_app`. Local
+  runs must grant it login (the script does, under whichever name is present) or
+  the app can't connect.
 - **The repo `.env` may hold prod credentials.** `main.ts` loads `.env` but only for
   *unset* vars, so the script's explicit `DATABASE_URL` wins — nothing hits prod.
   Don't rely on `.env` for the local run.

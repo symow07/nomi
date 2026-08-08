@@ -84,13 +84,16 @@ implementation detail, not a design hierarchy.
   contained `yiwuflow`, so nothing she reads changed.
 
   What deliberately keeps the old name: migrations 0001–0022 (applied history,
-  forward-only per ADR-0007), `docs/adr/` and `docs/archive/` (the record of
-  decisions taken under it), and the database itself (`ALTER DATABASE ... RENAME`
-  needs zero open connections, which Railway does not generally allow — it is
-  documented as historical in DEPLOYMENT.md rather than bundled into the role
-  rename, which would turn two recoverable problems into one unrecoverable one).
-  The runtime role moved in migration 0026, across three releases so an older
-  build still runs against the newer schema.
+  forward-only per ADR-0007), and `docs/adr/` and `docs/archive/` (the record of
+  decisions taken under it). The runtime role moved in migration 0026, across
+  three releases so an older build still runs against the newer schema.
+
+  The database is not on that list, because it never carried the old name. It is
+  called `railway` — the name Railway gives a Postgres it provisions — so the
+  name is historical in the sense that nobody chose it, not in the sense that it
+  preserves anything. There is no `yiwuflow` database, and this section and
+  DEPLOYMENT.md both once described one, along with the `ALTER DATABASE` dance
+  needed to rename it. See DEPLOYMENT.md for what the cluster actually holds.
 
 ## Accessibility
 

@@ -191,6 +191,14 @@ What did NOT change, deliberately:
   Documented as historical in `DEPLOYMENT.md` rather than bundled into the role
   rename — that would turn two recoverable problems into one unrecoverable one.
 
+  > **Correction (2026-08-08).** There is no `yiwuflow` database, and there
+  > never was one on this cluster. It holds exactly `postgres`, `railway`,
+  > `template0` and `template1`; the application database is `railway`, the
+  > default name Railway gives a Postgres it provisions. Nothing needed renaming
+  > and no maintenance window was ever owed. The bullet above stands unedited
+  > because it records what was believed when it was written — the same reason
+  > this directory kept the old role name. `DEPLOYMENT.md` carries the fact.
+
 The role rename spends nothing: it ships across three releases so that an older
 build still runs against the newer schema, which is the rollback property
 ADR-0007 exists to provide.
