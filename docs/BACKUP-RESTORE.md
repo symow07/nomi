@@ -1,14 +1,14 @@
 # Backup & Restore (M17.4)
 
 > **A roles dump taken before migration 0026 restores the OLD role name.**
-> `pg_dumpall --roles-only` writes `CREATE ROLE nomi_app`, and restoring it
+> `pg_dumpall --roles-only` writes `CREATE ROLE yiwuflow_app`, and restoring it
 > gives you a database whose policies name a role the current build will not
 > connect as — `assertSafeRuntimeRole` refuses to serve, and the failure reads
 > like a configuration error rather than a restore that predates a rename.
 >
 > After restoring any roles file dated before the rename:
 > ```bash
-> psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app rename to nomi_app;"
+> psql "$MIGRATE_DATABASE_URL" -c "alter role yiwuflow_app rename to nomi_app;"
 > psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app login password '<new>';"
 > ```
 > The password step is not optional: an md5-hashed password is salted with the

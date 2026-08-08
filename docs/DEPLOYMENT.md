@@ -12,7 +12,7 @@ deploy without changing anything.
 | Deploy trigger | push to `main` |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
-| Database name | `yiwuflow`, historical. `ALTER DATABASE ... RENAME` requires zero open connections, which Railway does not generally allow, so it was NOT bundled with the role rename (0026) — doing both in one migration turns two recoverable problems into one unrecoverable one. Rename it as its own maintenance step or leave it. |
+| Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`; there is no `yiwuflow` database and there never was one here. Earlier revisions of this row described one, and a rename procedure for it. |
 | Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
@@ -97,6 +97,21 @@ Exit 0 = all checks passed; exit 1 = first failure, with detail.
    Migrations are additive and forward-only (ADR-0007), so applying them while
    the OLD build is still serving is safe — it ignores what it does not know
    about. That is what makes this order possible, and rollback safe.
+
+   **If the build already crashed on the guard, the migration alone does not
+   bring it back.** Railway does not retry a crashed deployment when the cause
+   is fixed outside it. The schema reaches the required version and the service
+   stays down, still serving 502, for as long as nobody redeploys. A correct
+   database and a down service is the expected intermediate state here, not a
+   second fault — do not go looking for a new problem.
+
+   ```bash
+   railway redeploy -s <service> -y      # same commit; the DB is what changed
+   ```
+
+   Or Deployments → the crashed deployment → Redeploy. Observed 2026-08-08:
+   `0025` applied cleanly and `max(version)` read 25 while `/health` stayed 502
+   until the redeploy was issued by hand.
 
    Back up first, both parts (`BACKUP-RESTORE.md`): a dump without its roles
    file restores with RLS enabled and zero policies.

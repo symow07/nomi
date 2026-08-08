@@ -55,7 +55,11 @@ select setval(pg_get_serial_sequence('ops_flags','id'),           (select coales
 ```
 
 ## 4 · Roles (runtime ≠ migration credentials)
-Migration 0005 creates `nomi_app` (nologin, no BYPASSRLS) with grants.
+Migration 0005 creates the runtime role as `yiwuflow_app` (nologin, no
+BYPASSRLS) with grants; migration 0026 renames it to `nomi_app`. A full
+`npm run migrate` therefore leaves you with `nomi_app`, and every command below
+uses that name — but `yiwuflow_app` is what you will find if you read 0005
+itself, which is applied history and is never rewritten (ADR-0007).
 Give it login on the target:
 ```sql
 alter role nomi_app login password '<generated>';
