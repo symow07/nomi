@@ -1,5 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { metaAdapter, metaMediaFetcher, META_GRAPH_BASE } from '../../src/channels/whatsapp/meta.js';
 import { whatsappAdapter } from '../../src/channels/whatsapp/adapter.js';
 import { signBody } from '../../src/channels/whatsapp/signature.js';
@@ -259,9 +262,15 @@ describe('provider selection (validateEnv)', () => {
 
 /* ── Automatic secret generation ─────────────────────────────────────────── */
 describe('internal secret generation', () => {
-  const TMP = '/private/tmp/claude-501/-Users-apple-Desktop-myProjects-yiwuflow/3d861d81-0312-4474-b20f-ababbc2f8d4f/scratchpad/test.env';
+  // A fresh path per test, under the OS temp directory. This was an absolute
+  // macOS scratchpad path, so it existed on exactly one machine and both tests
+  // here failed with ENOENT anywhere else — including any CI runner. The uuid
+  // also stops two concurrent runs from sharing one file.
+  let TMP = '';
   const NAMES = ['WEBHOOK_SECRET', 'WEBHOOK_VERIFY_TOKEN', 'CREDENTIAL_KEY'] as const;
   const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => { TMP = join(tmpdir(), `yiwuflow-test-${randomUUID()}.env`); });
 
   afterEach(() => {
     for (const n of NAMES) {
