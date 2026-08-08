@@ -41,11 +41,11 @@ createdb -h 127.0.0.1 -p "$PGPORT" -U postgres yiwuflow || fail "createdb"
 echo "[2/6] migrate + grant app-role login + seed demo & sandbox tenants"
 export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/yiwuflow"
 node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
-# migration 0005 creates yiwuflow_app NOLOGIN; local runs need it to log in.
-psql "$MIGRATE_DATABASE_URL" -tAc "alter role yiwuflow_app login;" >/dev/null 2>&1 || fail "grant login"
+# migration 0005 creates nomi_app NOLOGIN; local runs need it to log in.
+psql "$MIGRATE_DATABASE_URL" -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
 # The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
-DATABASE_URL="postgresql://yiwuflow_app@127.0.0.1:$PGPORT/yiwuflow" \
+DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/yiwuflow" \
   node tools/seed-sandbox.mjs >/dev/null 2>&1 || fail "seed sandbox"
 
 echo "[3/6] build (tsc → dist)"
@@ -56,7 +56,7 @@ echo "[4/6] launch server (disabled mode) on :$APPPORT"
 # over http; DATABASE_URL/ANTHROPIC override anything in .env.
 env -u NODE_ENV \
   WHATSAPP_PROVIDER=disabled \
-  DATABASE_URL="postgresql://yiwuflow_app@127.0.0.1:$PGPORT/yiwuflow" \
+  DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/yiwuflow" \
   ANTHROPIC_API_KEY="sk-ant-smoke-not-a-real-key-00000000" \
   CREDENTIAL_KEY="$(printf 'a%.0s' $(seq 1 64))" \
   WEBHOOK_VERIFY_TOKEN="smoke-verify-token-0001" \

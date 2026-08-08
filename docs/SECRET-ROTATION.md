@@ -17,7 +17,7 @@ planned, no-surprise procedure and, critically, the blast radius of each key.
 | Secret | Used by | Blast radius on rotation | Steps |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | Worker LLM calls | New calls use the new key; in-flight calls unaffected. No DB impact. | New key in Anthropic console → set env → redeploy → revoke old. |
-| `DATABASE_URL` (runtime, `yiwuflow_app`) | Service (RLS-scoped, no superuser) | Brief connection reset on redeploy. | `ALTER ROLE yiwuflow_app WITH PASSWORD '…'` → update env → redeploy. |
+| `DATABASE_URL` (runtime, `nomi_app`) | Service (RLS-scoped, no superuser) | Brief connection reset on redeploy. | `ALTER ROLE nomi_app WITH PASSWORD '…'` → update env → redeploy. |
 | `MIGRATE_DATABASE_URL` (admin/`postgres`) | `tools/migrate.mjs` only | None on the running service. | Rotate the admin password → update wherever migrations are run. |
 | `META_WHATSAPP_ACCESS_TOKEN` | Meta Graph send (provider=meta) | Sends fail until updated. | New token in Meta console → set env → redeploy → confirm a test send. |
 | `META_APP_SECRET` | Inbound webhook signature check | Inbound webhooks rejected until updated on both sides. | Rotate in Meta app → set env → redeploy. |
@@ -50,7 +50,7 @@ it cannot be done from the repo. Exact steps, in order:
 #    Set the new value in Railway (Variables → ANTHROPIC_API_KEY) and redeploy.
 
 # 2. Postgres runtime role (the app; RLS-scoped, no superuser)
-psql "$MIGRATE_DATABASE_URL" -c "alter role yiwuflow_app with password '<new-strong-password>';"
+psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app with password '<new-strong-password>';"
 #    → update DATABASE_URL in Railway → redeploy.
 
 # 3. Postgres admin role (migrations only; not used by the running service)

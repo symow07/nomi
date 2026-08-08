@@ -11,7 +11,7 @@ See M18.1.
 
 ## Rotation procedures — both verified by execution
 
-### Database credentials (`yiwuflow_app`, and the admin role)
+### Database credentials (`nomi_app`, and the admin role)
 
 Verified against a real Postgres: after `ALTER ROLE`, the **old password is
 rejected**, the new one works, RLS is still enforced under the new credential,
@@ -19,13 +19,13 @@ and the role's privileges survive (still **zero** DELETE grants anywhere).
 
 ```bash
 # 1. rotate the runtime role
-psql "$MIGRATE_DATABASE_URL" -c "alter role yiwuflow_app with password '<new>';"
+psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app with password '<new>';"
 # 2. update DATABASE_URL in Railway → redeploy
 # 3. verify: old rejected, new works
-psql "postgresql://yiwuflow_app:<OLD>@<host>/yiwuflow" -c "select 1;"   # must FAIL
-psql "postgresql://yiwuflow_app:<NEW>@<host>/yiwuflow" -c "select 1;"   # must succeed
+psql "postgresql://nomi_app:<OLD>@<host>/yiwuflow" -c "select 1;"   # must FAIL
+psql "postgresql://nomi_app:<NEW>@<host>/yiwuflow" -c "select 1;"   # must succeed
 # 4. verify the security control survived
-psql "postgresql://yiwuflow_app:<NEW>@<host>/yiwuflow" -c "select count(*) from clients;"  # must be 0
+psql "postgresql://nomi_app:<NEW>@<host>/yiwuflow" -c "select count(*) from clients;"  # must be 0
 ```
 
 Rotate the **admin** role the same way and update `MIGRATE_DATABASE_URL`
@@ -84,7 +84,7 @@ run against a production *build*, not the deployment.
 Activation is permitted only when **all** of these are true:
 
 - [ ] Anthropic key rotated at source and the old one revoked
-- [ ] `yiwuflow_app` password rotated; old credential proven rejected
+- [ ] `nomi_app` password rotated; old credential proven rejected
 - [ ] Admin/migration password rotated
 - [ ] `CREDENTIAL_KEY` checked (and re-encrypted if any credential rows exist)
 - [ ] **Secrets rotated** confirmed on `/app/onboarding` — this is what unblocks `activate()`

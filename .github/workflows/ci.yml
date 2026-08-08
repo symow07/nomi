@@ -49,7 +49,7 @@ jobs:
         image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: yiwuflow
+          POSTGRES_DB: nomi
         ports: ['5432:5432']
         # Without this the first migration can race the server's own startup.
         options: >-
@@ -59,12 +59,12 @@ jobs:
           --health-retries 20
 
     env:
-      MIGRATE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/yiwuflow
+      MIGRATE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nomi
       # The RUNTIME connection is a DIFFERENT, non-superuser role. Running these
       # tests as `postgres` would make every RLS assertion pass while proving
       # nothing, because a superuser bypasses row security entirely — which is
       # exactly what M19's runtime-identity guard exists to prevent.
-      DATABASE_URL: postgresql://yiwuflow_app:yiwuflow_app@127.0.0.1:5432/yiwuflow
+      DATABASE_URL: postgresql://nomi_app:nomi_app@127.0.0.1:5432/nomi
 
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +80,12 @@ jobs:
         run: node tools/migrate.mjs
 
       - name: Grant the app role a login
-        # Migration 0005 creates yiwuflow_app with NOLOGIN — a password is set
-        # per environment, out of band. This is that step for CI.
+        # Migration 0005 creates the role NOLOGIN under its original name and
+        # 0026 renames it to nomi_app; a password is set per environment, out of
+        # band. This is that step for CI, after every migration has run.
         run: |
           psql "$MIGRATE_DATABASE_URL" -v ON_ERROR_STOP=1 -c \
-            "alter role yiwuflow_app login password 'yiwuflow_app';"
+            "alter role nomi_app login password 'nomi_app';"
 
       - name: Confirm the runtime role is subject to RLS
         # Fail here, loudly, rather than let 214 tests pass against a connection

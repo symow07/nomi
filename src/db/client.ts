@@ -7,7 +7,7 @@ import type { BusinessId } from '../core/types/ids.js';
  * Connection + tenant binding. (ADR-0005)
  *
  * Two rules enforced here:
- *  1. The pool connects as `yiwuflow_app` — a role WITHOUT BYPASSRLS. RLS the
+ *  1. The pool connects as `nomi_app` — a role WITHOUT BYPASSRLS. RLS the
  *     application can bypass is decoration.
  *  2. Every unit of work runs inside a transaction that has SET LOCAL
  *     app.business_id. `set_config(..., true)` is transaction-scoped, which is

@@ -136,12 +136,12 @@ into `.env`. Useless purely headless — prefer the smoke script. Stop with Ctrl
 ## Environment
 
 The smoke script sets these; listed for the human/`npm start` path. Two DB URLs:
-migrations/seed run as the **admin** role, the app runs as **`yiwuflow_app`** (RLS).
+migrations/seed run as the **admin** role, the app runs as **`nomi_app`** (RLS).
 
 | Variable | Required | Value used | Notes |
 |---|---|---|---|
 | `WHATSAPP_PROVIDER` | No | `disabled` | unset ⇒ disabled; `meta`/`360dialog` need provider creds |
-| `DATABASE_URL` | Yes | `postgresql://yiwuflow_app@127.0.0.1:55440/yiwuflow` | app role — RLS enforced |
+| `DATABASE_URL` | Yes | `postgresql://nomi_app@127.0.0.1:55440/yiwuflow` | app role — RLS enforced |
 | `MIGRATE_DATABASE_URL` | migrate/seed | `postgresql://postgres@127.0.0.1:55440/yiwuflow` | admin role (DDL) |
 | `ANTHROPIC_API_KEY` | Yes (shape) | `sk-ant-smoke-...` (len ≥ 20) | not called in disabled mode |
 | `CREDENTIAL_KEY` | Yes | 64 hex chars | derives the session-cookie secret |
@@ -156,7 +156,7 @@ npm run check        # tsc + src/core purity boundaries + vitest (617 pass; DB-b
 ```
 
 The DB-backed integration tests run only when `DATABASE_URL` points at a migrated
-Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://yiwuflow_app@127.0.0.1:55440/yiwuflow npx vitest run tests/integration/boot.test.ts`.
+Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_app@127.0.0.1:55440/yiwuflow npx vitest run tests/integration/boot.test.ts`.
 
 ## Gotchas
 
@@ -167,8 +167,8 @@ Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://yiwufl
 - **`NODE_ENV=production` breaks login over http.** It flips the session cookie to
   `Secure`, so it's never sent back over plain http and every `/app` request bounces
   to `/login`. The script runs with `env -u NODE_ENV`; keep it unset locally.
-- **`yiwuflow_app` is created `NOLOGIN`** (migration 0005). Local runs must
-  `alter role yiwuflow_app login;` (the script does) or the app can't connect.
+- **`nomi_app` is created `NOLOGIN`** (migration 0005). Local runs must
+  `alter role nomi_app login;` (the script does) or the app can't connect.
 - **The repo `.env` may hold prod credentials.** `main.ts` loads `.env` but only for
   *unset* vars, so the script's explicit `DATABASE_URL` wins — nothing hits prod.
   Don't rely on `.env` for the local run.

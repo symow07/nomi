@@ -7,7 +7,7 @@
  *
  * Connection: MIGRATE_DATABASE_URL (admin/DDL role) falling back to
  * DATABASE_URL. Runtime and migration credentials should differ in
- * production — the runtime role (yiwuflow_app) cannot run DDL.
+ * production — the runtime role (nomi_app) cannot run DDL.
  *
  * Order on a clean database:
  *   1. supabase/schema.sql        — baseline tables (plain SQL; extensions
@@ -18,7 +18,7 @@
  * supabase/rls_policies.sql is deliberately NOT applied on plain PostgreSQL:
  * it hardens Supabase's `anon`/`authenticated` roles, which do not exist
  * elsewhere — the threat it guards is Supabase-specific. Tenant isolation for
- * the app comes from migration 0005 (yiwuflow_app role + RLS policies), which
+ * the app comes from migration 0005 (nomi_app role + RLS policies), which
  * IS applied. If those roles exist (i.e. we're pointed at Supabase), it is
  * applied for defence in depth.
  *

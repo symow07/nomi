@@ -164,3 +164,33 @@ The architecture holds; the operations story is what changes. In priority order:
 What deliberately does **not** change: one service, one Postgres (bigger box +
 read replica before any sharding conversation), pg-boss until a measured queue
 bottleneck, n8n still only at the edges.
+
+---
+
+## Reversed: the yiwuflow / Nomi name split (2026-08-08)
+
+`PRODUCT.md` argued for a deliberate split — internal identifiers named
+`yiwuflow`, the product the owner sees named **Nomi** — on the grounds that
+renaming a repository, a database and a role is risk with no user-visible
+benefit.
+
+**That is reversed. There is one name, and it is Nomi.** The split cost more
+than it saved: two vocabularies for one thing, in a codebase whose central
+discipline is that a name means exactly what it says. Every surface an owner
+reads already said Nomi, so nothing she sees changed.
+
+What did NOT change, deliberately:
+
+- **Migrations 0001–0022 still say `yiwuflow_app`.** They are applied history
+  and forward-only (ADR-0007); the role name in them records what was true when
+  they ran. The rename is migration 0026.
+- **This directory and `docs/archive/` still say yiwuflow.** They are the record
+  of decisions taken under that name, and rewriting them would falsify it.
+- **The database is still named `yiwuflow`.** `ALTER DATABASE ... RENAME`
+  requires zero open connections, which Railway does not generally allow.
+  Documented as historical in `DEPLOYMENT.md` rather than bundled into the role
+  rename — that would turn two recoverable problems into one unrecoverable one.
+
+The role rename spends nothing: it ships across three releases so that an older
+build still runs against the newer schema, which is the rollback property
+ADR-0007 exists to provide.

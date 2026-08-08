@@ -117,7 +117,7 @@ that one answer.
 
 ### Tenancy
 
-Multi-tenant by Postgres RLS. The app connects as `yiwuflow_app`, a role that is
+Multi-tenant by Postgres RLS. The app connects as `nomi_app`, a role that is
 neither superuser nor `BYPASSRLS`, and every query runs inside
 `withTenantTx(db, businessId, …)`. Two boot guards refuse to serve rather than
 serve unsafely:

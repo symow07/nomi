@@ -14,7 +14,7 @@ exits with the names of anything missing or malformed; it never prints a value.*
 
 | Variable | Shape the boot check enforces | What it is |
 |---|---|---|
-| `DATABASE_URL` | starts with `postgres` | The **runtime** connection, as `yiwuflow_app`. Boot refuses if this role is a superuser or bypasses RLS. |
+| `DATABASE_URL` | starts with `postgres` | The **runtime** connection, as `nomi_app`. Boot refuses if this role is a superuser or bypasses RLS. |
 | `ANTHROPIC_API_KEY` | ≥ 20 chars | Model calls. Never a source of prices or claims. |
 | `WEBHOOK_VERIFY_TOKEN` | ≥ 16 chars | The string the provider echoes back during webhook verification. You choose it. |
 | `CREDENTIAL_KEY` | 64 hex chars | Encrypts stored channel credentials, and derives the owner session secret. **Boot refuses in production if this was generated rather than supplied** — see below. |

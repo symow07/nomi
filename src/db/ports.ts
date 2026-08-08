@@ -24,7 +24,7 @@ import type { KnowledgeSnippet } from '../core/types/knowledge.js';
  *    isolation; these interfaces cannot express a cross-tenant read because
  *    they never take a foreign BusinessId.
  *
- * 2. The connection is `yiwuflow_app` (no BYPASSRLS). The service_role key is
+ * 2. The connection is `nomi_app` (no BYPASSRLS). The service_role key is
  *    retired from application use.
  */
 

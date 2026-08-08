@@ -632,3 +632,72 @@ d('M29 · unauthored price rules are reported, not migrated (requires DATABASE_U
     expect(loud).toContain('Nothing rewrites them');
   });
 });
+
+/**
+ * B1 — the runtime role is renamed, and RLS survives it.
+ *
+ * The claim this proves rather than assumes: `pg_policy` stores role OIDs, not
+ * names, so `ALTER ROLE ... RENAME TO` carries every policy written across
+ * 0005–0022 with it and not one has to be rewritten. If that were wrong, the
+ * rename would silently strip tenant isolation from 49 tables while every
+ * surface kept working — the worst shape a defect can take here.
+ */
+d('B1 · tenant isolation holds under the renamed role (requires DATABASE_URL)', () => {
+  it('every RLS policy names the role this build actually connects as', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { ACCEPTED_RUNTIME_ROLES } = await import('../../src/db/runtimeIdentity.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const me = (await sql<{ u: string }>`select current_user as u`.execute(db)).rows[0]!.u;
+      expect(ACCEPTED_RUNTIME_ROLES, `connected as ${me}`).toContain(me);
+
+      // Policies are attached to THIS role by OID. After a rename the count must
+      // be unchanged and must name the current role — not the old one.
+      const n = (await sql<{ n: number }>`
+        select count(*)::int as n from pg_policy p
+         join pg_roles r on r.oid = any(p.polroles)
+        where r.rolname = current_user
+      `.execute(db)).rows[0]!.n;
+      expect(Number(n), 'no policy targets the connected role').toBeGreaterThan(0);
+
+      // And no policy is left pointing at a role that no longer exists.
+      const orphans = (await sql<{ n: number }>`
+        select count(*)::int as n from pg_policy p
+         where exists (select 1 from unnest(p.polroles) oid
+                        where oid <> 0 and not exists (select 1 from pg_roles r where r.oid = oid))
+      `.execute(db)).rows[0]!.n;
+      expect(Number(orphans)).toBe(0);
+    } finally { await db.destroy(); }
+  });
+
+  it('the transition set is temporary by construction', async () => {
+    const { ACCEPTED_RUNTIME_ROLES, RUNTIME_ROLE } = await import('../../src/db/runtimeIdentity.js');
+    // One release only. If this grows, the rename never finished.
+    expect(ACCEPTED_RUNTIME_ROLES.length).toBeLessThanOrEqual(2);
+    expect(ACCEPTED_RUNTIME_ROLES[0]).toBe(RUNTIME_ROLE);
+    expect(RUNTIME_ROLE).toBe('nomi_app');
+  });
+
+  it('cross-tenant reads are still refused — the isolation, not just the wiring', async () => {
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const a = (await sql<{ id: string }>`select id from businesses limit 1`.execute(db)).rows[0]?.id;
+      if (!a) return;
+      const p = parseBusinessId(a); if (!p.ok) throw new Error('fixture');
+      const foreign = '99999999-9999-4999-8999-999999999999';
+      for (const table of ['products', 'conversations', 'product_knowledge', 'pricing_policy']) {
+        const n = await withTenantTx(db, p.value, (tx) =>
+          sql<{ n: number }>`select count(*)::int n from ${sql.raw(table)} where business_id = ${foreign}`
+            .execute(tx).then((r) => Number(r.rows[0]!.n)));
+        expect(n, `${table} leaked across tenants after the rename`).toBe(0);
+      }
+      // And with no tenant context at all, nothing is visible.
+      const bare = (await sql<{ n: number }>`select count(*)::int n from products`.execute(db)).rows[0]!.n;
+      expect(Number(bare)).toBe(0);
+    } finally { await db.destroy(); }
+  });
+});
