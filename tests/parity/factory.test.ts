@@ -264,14 +264,23 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('invents no metric: no score, no rating, no performance percentage', () => {
     for (const l of LOCALES) {
-      const html = renderFactory(complete, l).replace(/<style>[\s\S]*?<\/style>/g, '');
+      const html = renderFactory(complete, l).replace(/<style>[\s\S]*?<\/style>/g, '')
+          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '')
+          // Excised BY PROVENANCE, not by value. `.frules` and `.fprices` are the
+          // only regions carrying numbers the OWNER wrote; everything left must
+          // contain no percentage at all. A whitelist of literals ('8%','10%')
+          // would pass a computed metric that happened to render as 10%.
+          //
+          // The non-greedy `[\s\S]*?</div>` and the missing /g flag are correct
+          // only because `.fprices` (src/api/web/factory.ts) holds <p> children
+          // and no nested <div>, and renders once. Nest a div there and this
+          // strip stops at the inner close — which is why this comment exists.
+          .replace(/<div class="fprices">[\s\S]*?<\/div>/, '');
       for (const banned of ['score', 'rating', 'ranking', 'accuracy', 'performance', '评分', '成功率'])
         expect(html.toLowerCase().includes(banned), `${l}:${banned}`).toBe(false);
-      // The only percentages on the page are the owner's OWN numbers: the
-      // ceiling the guard enforces (8%), and — M29 — the limits she stated
-      // herself (10% she may give, ask above 7%). A number she wrote down is
-      // not a metric; a number we computed about her would be.
-      for (const m of html.match(/\d+%/g) ?? []) expect(['8%', '10%', '7%']).toContain(m);
+      // A number she wrote down is not a metric; a number we computed about her
+      // would be. With both owner regions removed, NO percentage may survive.
+      expect(html).not.toMatch(/\d+\s*%/);
     }
   });
 });
@@ -425,6 +434,8 @@ describe('M20.2 · the activation readiness surface', () => {
         const html = withReadiness(r, l).replace(/<style>[\s\S]*?<\/style>/g, '')
           .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '')
           // M29 — same carve-out, same reason: the owner's own stated limits.
+          // See the note on the sibling strip above about the non-greedy match:
+          // it holds only while `.fprices` has no nested <div>.
           .replace(/<div class="fprices">[\s\S]*?<\/div>/, '');
         expect(html).not.toMatch(/\d+\s*%/);
         expect(html).not.toMatch(/\d+\s*(of|\/)\s*\d+/);

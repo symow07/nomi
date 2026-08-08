@@ -550,3 +550,85 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
     } finally { await db.destroy(); }
   });
 });
+
+/**
+ * M29 follow-up — fabricated price rules are COUNTED, never rewritten.
+ *
+ * The values cannot discriminate (a real owner may legitimately answer
+ * floor == list with no discount authority), so the audit trail does: a row the
+ * owner authored always leaves `price_rules_set`, and the old importer never
+ * could.
+ */
+d('M29 · unauthored price rules are reported, not migrated (requires DATABASE_URL)', () => {
+  it('zero when every rule carries its audit entry; non-zero when one does not', async () => {
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { countUnauthoredPriceRules, savePriceRules } = await import('../../src/api/web/priceRules.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = (await sql<{ id: string }>`
+        select b.id from businesses b
+         order by (select count(*) from products p where p.business_id = b.id) desc limit 1
+      `.execute(db)).rows[0]?.id;
+      if (!bid) return;
+      const p = parseBusinessId(bid); if (!p.ok) throw new Error('fixture');
+
+      const sku = `M29D-${Date.now().toString(36).toUpperCase()}`;
+      const { confirmImport } = await import('../../src/api/web/products.js');
+      await confirmImport(db, bid, `${sku} Audit Probe $9.00 MOQ 100`);
+      const id = await withTenantTx(db, p.value, (tx) => sql<{ id: string }>`
+        select id from products where business_id = ${bid} and sku = ${sku}
+      `.execute(tx as never).then((x) => x.rows[0]!.id));
+
+      const before = await countUnauthoredPriceRules(db, bid);
+
+      // Simulate what the OLD importer wrote: a policy row with no audit entry.
+      await withTenantTx(db, p.value, (tx) => sql`
+        insert into pricing_policy (business_id, product_id, floor_price_usd,
+                                    max_discount_pct, human_required_above_pct)
+        values (${bid}, ${id}, 9.00, 0, 0)
+      `.execute(tx as never));
+      expect(await countUnauthoredPriceRules(db, bid)).toBe(before + 1);
+
+      // The owner answering the three questions is what clears it — her write
+      // leaves the audit entry the importer never could.
+      const saved = await savePriceRules(db, bid, 'owner',
+        { productId: id, floorUsd: '7.00', maxDiscountPct: '10', askAbovePct: '5' });
+      expect(saved.ok).toBe(true);
+      expect(await countUnauthoredPriceRules(db, bid)).toBe(before);
+
+      // Nothing was rewritten on the way: the count is a read.
+      const still = await withTenantTx(db, p.value, (tx) => sql<{ n: number }>`
+        select count(*)::int n from pricing_policy where business_id = ${bid}
+      `.execute(tx as never).then((x) => Number(x.rows[0]!.n)));
+      expect(still).toBeGreaterThan(0);
+    } finally { await db.destroy(); }
+  });
+
+  it('the operator line is absent at zero and present above it', async () => {
+    const { renderPilotRunbook } = await import('../../src/api/web/pilot.js');
+    const { readDeployment } = await import('../../src/api/web/deployment.js');
+    const rb = {
+      readiness: { detected: { profile: false, products: false, priceRules: false, knowledge: false,
+        claims: false, sandbox: false, channel: false },
+        attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
+        validation: { at: null, pass: null, total: null }, readyToLaunch: false },
+      operations: { range: 'week', attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
+        activity: { handled: 0, draftsCreated: 0, corrections: 0 },
+        knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
+        channel: { status: 'not_connected', provider: 'disabled' }, hasAttention: false },
+      rehearsal: { available: false, done: { takeover: false, ownerReply: false, resume: false,
+        knowledgeCorrection: false, validationPassed: false }, completed: 0, total: 5 },
+      reliability: { stuckOutbound: 0, oldestQueuedAt: null },
+    } as never;
+    const dep = readDeployment({ OWNER_ACCESS_CODE: 'x', CREDENTIAL_KEY: 'y' }, new Date(), 60);
+
+    const quiet = renderPilotRunbook(rb, 'en', null, dep, undefined, undefined, undefined, 'none', 0);
+    expect(quiet).not.toContain('written by the old importer');
+
+    const loud = renderPilotRunbook(rb, 'en', null, dep, undefined, undefined, undefined, 'none', 3);
+    expect(loud).toContain('3 price rules were written by the old importer');
+    expect(loud).toContain('Nothing rewrites them');
+  });
+});

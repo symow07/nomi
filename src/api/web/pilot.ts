@@ -501,7 +501,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
  * deliberately NOT on /health, so a public probe cannot advertise the commit.
  * Anything the host does not report renders as "Not reported", never a guess.
  */
-function deploymentSection(d: DeploymentInfo, locale: Locale): string {
+function deploymentSection(d: DeploymentInfo, locale: Locale, unauthoredPriceRules = 0): string {
   const unknown = t(locale, 'runbook.deploy.unknown');
   const row = (label: MessageKey, value: string) =>
     `<div class="rbrow"><span class="lbl">${esc(t(locale, label))}</span><b class="n mono">${esc(value)}</b></div>`;
@@ -520,6 +520,9 @@ function deploymentSection(d: DeploymentInfo, locale: Locale): string {
     </div>`}
     ${d.credentialKeyStable ? '' : `<div class="ev">
       <div class="ev-d">${esc(t(locale, 'runbook.deploy.credentialKeyUnstable'))}</div>
+    </div>`}
+    ${unauthoredPriceRules === 0 ? '' : `<div class="ev">
+      <div class="ev-d">${esc(t(locale, 'runbook.deploy.unauthoredPriceRules', { n: unauthoredPriceRules }))}</div>
     </div>`}
   </div>`;
 }
@@ -626,6 +629,7 @@ export function renderPilotRunbook(
   deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
   rehearsal?: RehearsalReport | null,
   templateState: TemplateState = 'none',
+  unauthoredPriceRules = 0,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
@@ -635,7 +639,7 @@ export function renderPilotRunbook(
     + (feedback ? feedbackSection(feedback, locale) : '')
     + (meta ? metaSection(meta, locale, templateState) : '')
     + (rehearsal ? engineSection(rehearsal, locale) : '')
-    + (deployment ? deploymentSection(deployment, locale) : '')
+    + (deployment ? deploymentSection(deployment, locale, unauthoredPriceRules) : '')
     + RUNBOOK_STYLE;
 }
 

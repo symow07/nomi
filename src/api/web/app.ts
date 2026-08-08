@@ -14,7 +14,7 @@ import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
   renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
 } from './products.js';
-import { loadPriceRules, savePriceRules, renderPriceRules } from './priceRules.js';
+import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
@@ -594,9 +594,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // defect, so they surface here — beside the build version — and nowhere the
     // owner is asked to act. The findings from the same run stay in My factory.
     const rehearsal = await loadFactoryRehearsal(deps.db, s.businessId);
+    // M29 follow-up — price rules the old importer fabricated. Operator-only:
+    // the owner cannot fix it and did not cause it. Zero on any factory
+    // provisioned after M29, which is the point.
+    const unauthored = await countUnauthoredPriceRules(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal, deps.templateState ?? 'none'),
+      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal, deps.templateState ?? 'none', unauthored),
     }));
   });
 

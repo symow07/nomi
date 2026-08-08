@@ -287,3 +287,43 @@ const PRICES_STYLE = `<style>
   .prow { border-top:1px solid #1e2229; padding-top:14px; }
   .phead { display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; font-size:15px; color:#e7eaee; }
 </style>`;
+
+/**
+ * M29 follow-up — how many price rules were never authored by a human?
+ *
+ * Rows the OLD `confirmImport` wrote carry floor = the list price, no discount
+ * authority, no ask-above threshold. Nothing migrates them and nothing should:
+ * guessing at what the owner meant is the exact failure M29 removed.
+ *
+ * THE VALUES CANNOT DISCRIMINATE. `validatePriceRules` accepts floor == list
+ * with 0/0 from a real owner — it only rejects a floor ABOVE list — so a
+ * fabricated triple is indistinguishable from a conservative real one by
+ * inspection. The AUDIT TRAIL can: `savePriceRules` is the only writer left and
+ * it always records `price_rules_set`, which the importer never could. So this
+ * reads what was recorded rather than inferring from what the row says.
+ *
+ * Operator-only. The owner cannot fix it and did not cause it, and on a factory
+ * provisioned after M29 the answer is zero — the check earns its place by
+ * staying silent until an old tenant appears.
+ */
+export async function countUnauthoredPriceRules(db: Db, businessIdRaw: string): Promise<number> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return 0;
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ n: number }>`
+      select count(*)::int as n
+        from pricing_policy pp
+       where pp.business_id = ${bid.value}
+         and not exists (
+           select 1 from channel_audit ca
+            where ca.business_id = ${bid.value}
+              and ca.action = 'price_rules_set'
+              -- Both sides are null for the business-wide default, and
+              -- IS NOT DISTINCT FROM is the only comparison that matches
+              -- there; plain equality would silently never match it.
+              and (ca.detail ->> 'productId') is not distinct from pp.product_id::text
+         )
+    `.execute(tx);
+    return Number(r.rows[0]?.n ?? 0);
+  });
+}
