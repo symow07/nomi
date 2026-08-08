@@ -1,3 +1,15 @@
+> **ARCHIVED — a snapshot of 2026-07-14, not current.** Kept because the
+> reasoning is still worth reading and because two of its ⛔ items record real
+> history; do not act on its rankings.
+>
+> Resolved since: **"there is still no git repository"** — the repository exists
+> and every milestone below M19 is in it. **Free-tier Supabase pauses** — the
+> runtime never depended on Supabase-the-service (`SUPABASE-EXIT-AUDIT.md`);
+> production is Railway Postgres 18. **`usage_ledger` designed but not built** —
+> it exists (migration 0008) with `tenant_budgets` and `core/budget.ts`.
+>
+> Superseded by `docs/ROADMAP.md` for status and `docs/adr/` for decisions.
+
 # Production Risk Review — 2026-07-14
 
 What can still hurt us, ranked within category by (likelihood × damage). Items

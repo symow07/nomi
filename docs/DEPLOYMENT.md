@@ -11,7 +11,7 @@ deploy without changing anything.
 | Repo | `git@github.com:symow07/Flower.git`, branch `main` |
 | Deploy trigger | push to `main` |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
-| Database | Postgres (Railway), schema at migration **0021** |
+| Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
 | Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
@@ -80,14 +80,25 @@ Exit 0 = all checks passed; exit 1 = first failure, with detail.
 ## Deploy
 
 1. Merge to `main` → Railway builds and redeploys.
-2. **If the change includes a migration**, apply it before/with the release:
+2. **Apply migrations BEFORE the new build boots.** Not "before/with" — before.
+   `assertSchemaCurrent` refuses to start on a database behind the build, so a
+   push that lands first takes production down until the migration runs.
+
    ```bash
+   # what this build requires, read from the code — never from a number in a doc
+   REQUIRED=$(grep -oE 'REQUIRED_SCHEMA_VERSION = [0-9]+' src/db/schemaVersion.ts | grep -oE '[0-9]+')
+   ACTUAL=$(psql "$MIGRATE_DATABASE_URL" -tAc "select max(version) from _migrations;")
+   echo "database $ACTUAL, build needs $REQUIRED"
+
    MIGRATE_DATABASE_URL='<admin url>' node tools/migrate.mjs
    ```
-   Migrations are additive and forward-only (ADR-0007). Check the current version:
-   ```bash
-   psql "$MIGRATE_DATABASE_URL" -tAc "select max(version) from _migrations;"
-   ```
+
+   Migrations are additive and forward-only (ADR-0007), so applying them while
+   the OLD build is still serving is safe — it ignores what it does not know
+   about. That is what makes this order possible, and rollback safe.
+
+   Back up first, both parts (`BACKUP-RESTORE.md`): a dump without its roles
+   file restores with RLS enabled and zero policies.
 3. Verify: `verify-remote.sh https://<host> <code>` and confirm *Running version*
    on `/app/onboarding` matches the commit you just shipped.
 

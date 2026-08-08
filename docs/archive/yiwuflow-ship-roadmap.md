@@ -1,3 +1,10 @@
+> **ARCHIVED — the n8n-era ship roadmap, 2026-07-17.** Written when the product was
+> n8n workflows against Supabase; that system was extracted to TypeScript
+> (ADR-0001) and deleted in M24/M28. The milestone numbering here does not match
+> the one the repository actually used.
+>
+> Superseded by `docs/ROADMAP.md`.
+
 # YiwuFlow — Ship Roadmap v3 (Execution Edition)
 
 **Objective:** Transform YiwuFlow from an excellent engineering project into a product that factory owners love, trust, recommend, and happily pay for — without touching the finished architecture.

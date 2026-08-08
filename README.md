@@ -266,6 +266,10 @@ Built and verified:
   activation.
 - **Tenant identity** — the process refuses to boot on a missing tenant, or on
   the practice sandbox.
+- **Pictures** — she reads a buyer's photo and matches it to a product, and she
+  can send one back. A picture goes out through the same single send path and
+  the same gate as any reply, and an image whose photo cannot be carried is
+  refused rather than quietly sent as its caption alone.
 
 Not done, and the only external dependency: **Meta / WhatsApp Cloud**. Business
 verification, phone provisioning, credentials, message-template approval, webhook
@@ -273,9 +277,10 @@ registration and channel connection are all outstanding, and activation is
 blocked until they exist. The adapter itself is written and exercised against a
 simulator; no Meta traffic has ever been sent.
 
-Also outstanding: outbound media (she can read a buyer's photo but not send
-one), and message templates — until one is approved, a conversation that falls
-outside the 24-hour window goes back to the owner rather than being re-opened.
+Also outstanding: message templates — until Meta approves one, a conversation
+that falls outside the 24-hour window goes back to the owner rather than being
+re-opened. The state is derived from what is actually approved, so the path
+lights up the moment one is.
 
 ---
 

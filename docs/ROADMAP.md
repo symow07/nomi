@@ -32,6 +32,7 @@ provisioned in production and serving; no buyer has ever been messaged.
 | Refusal visibility | Every gate refusal is recorded, surfaced, explained, and given a next action. |
 | Factory rehearsal | What she cannot answer yet, from the owner's own rows. Advisory only. |
 | Tenant identity | The process refuses to boot on a missing tenant or the practice sandbox. |
+| Pictures | She reads a buyer's photo and can send one back, through the same send path and gate. An image whose photo cannot be carried is refused, never downgraded to its caption. |
 | Tenancy | Postgres RLS, non-superuser runtime role, proven per-table. |
 | i18n | English / 中文 / العربية, enforced by catalog tests. |
 
@@ -43,8 +44,6 @@ send. None of it is code we can write; the adapter is built and simulator-tested
 
 ### Outstanding — buildable now
 
-- **Outbound media.** She can read a buyer's photo and match it to a product;
-  she cannot send one. For a Yiwu supplier that is half a salesperson.
 - **First factory setup.** The production tenant is empty. Profile, products,
   knowledge and claims are the owner's work, and the path is
   `docs/FIRST-FACTORY-WORKFLOW.md`.

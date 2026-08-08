@@ -1,3 +1,10 @@
+> **ARCHIVED — the n8n-era Ship Plan as Milestones, 2026-07-17.** Written when the product was
+> n8n workflows against Supabase; that system was extracted to TypeScript
+> (ADR-0001) and deleted in M24/M28. The milestone numbering here does not match
+> the one the repository actually used.
+>
+> Superseded by `docs/ROADMAP.md`.
+
 # YiwuFlow — Ship Plan as Milestones
 
 Eight milestones. Each one has a **goal**, a **deliverables checklist**, and an **exit criterion** — a real-world test that must pass before the next milestone starts. No milestone is "done" because the code is merged; it's done when the exit criterion passes.

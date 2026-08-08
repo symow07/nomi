@@ -133,7 +133,7 @@ contract) are produced *as part of building them*, this sprint.
 | 15–16 | Logging, monitoring | ADR-0008/0009; document's metric names adopted as the naming sheet when OTel lands (sprint 2) |
 | 17 | Testing | ADR-0008 (99 tests, parity, replay); E2E added with sandbox |
 | 18 | Scaling | ADR-0010 Q6 (1,000-tenant plan) |
-| 19–20 | Security, risk | ADR-0005 + RISK-REVIEW.md + advisor-driven hardening (live) |
+| 19–20 | Security, risk | ADR-0005 + `docs/archive/RISK-REVIEW-2026-07-14.md` + advisor-driven hardening (live) |
 
 ## The actual plan this produces (unchanged in strategy, improved in detail)
 
