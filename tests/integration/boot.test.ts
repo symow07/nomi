@@ -489,7 +489,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(missing.body).toContain('Product not found');
   });
 
-  it('M9.5 TRUST RULE: an unconfirmed (price-less) product is inactive and excluded from quotes', async () => {
+  it('M29 TRUST RULE: nothing is sellable until a HUMAN states the floor', async () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
@@ -509,8 +509,30 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const activeOf = (name: string) => withTenantTx(prod.db, bidv, (tx) =>
       sql<{ a: boolean }>`select is_active as a from products where name=${name} order by created_at desc limit 1`
         .execute(tx).then((r) => r.rows[0]?.a));
-    expect(await activeOf('独家测试杯')).toBe(true);     // priced → learned/active
-    expect(await activeOf('神秘无价样品')).toBe(false);   // no price → NOT activated
+    // M29 — this used to assert `priced → active`, because the importer wrote a
+    // pricing_policy row itself: floor = the list price, no discount authority.
+    // That rule was fabricated, and a quote clamped against it is not "within
+    // the owner's own price rules". Now BOTH halves must come from a human, so
+    // a priced product is still pending until she says what she would accept.
+    expect(await activeOf('独家测试杯')).toBe(false);     // priced, but no floor stated
+    expect(await activeOf('神秘无价样品')).toBe(false);   // no price either
+
+    // And the importer wrote no rule of its own for either of them.
+    const policiesFor = (name: string) => withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ n: number }>`select count(*)::int n from pricing_policy pp
+        join products pr on pr.id = pp.product_id
+       where pr.business_id=${bidv} and pr.name=${name}`.execute(tx).then((r) => Number(r.rows[0]!.n)));
+    expect(await policiesFor('独家测试杯')).toBe(0);
+
+    // The owner answers the three questions, and THAT is what turns it on.
+    const { savePriceRules } = await import('../../src/api/web/priceRules.js');
+    const pid = await withTenantTx(prod.db, bidv, (tx) =>
+      sql<{ id: string }>`select id from products where business_id=${bidv} and name='独家测试杯'
+        order by created_at desc limit 1`.execute(tx).then((r) => r.rows[0]!.id));
+    const saved = await savePriceRules(prod.db, DEMO_BIZ, 'owner',
+      { productId: pid, floorUsd: '3.50', maxDiscountPct: '10', askAbovePct: '7' });
+    expect(saved.ok).toBe(true);
+    expect(await activeOf('独家测试杯')).toBe(true);      // her answer, not ours
 
     // Retrieval (what feeds quotes) excludes the inactive product entirely.
     const hits = await withTenantTx(prod.db, bidv, (tx) =>

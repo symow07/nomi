@@ -281,7 +281,8 @@ d('M22 · product import preserves owner identity (requires DATABASE_URL)', () =
       const line = `${sku} Test Thermos $2.60 MOQ 1000`;
 
       const first = await confirmImport(db, bid, line);
-      expect(first.learned).toBe(1);
+      expect(first.added).toBe(1);
+      expect(first.withPrice).toBe(1);
       expect(first.alreadyHere).toBe(0);
 
       const { withTenantTx } = await import('../../src/db/client.js');
@@ -298,7 +299,7 @@ d('M22 · product import preserves owner identity (requires DATABASE_URL)', () =
       // Re-importing the same list must not duplicate her catalogue, and must
       // not report "0 learned" with no explanation.
       const second = await confirmImport(db, bid, line);
-      expect(second.learned).toBe(0);
+      expect(second.added).toBe(0);
       expect(second.alreadyHere).toBe(1);
 
       const copies = await withTenantTx(db, p.value, (tx) => sql<{ n: number }>`
@@ -385,6 +386,167 @@ d('M23 · pilot tenant identity (requires DATABASE_URL)', () => {
         values ('00000000-0000-4000-8000-0000000000ff', 'Smuggled Co', 'Asia/Shanghai', 'en', 'service')
       `.execute(tx));
       await expect(attempt).rejects.toMatchObject({ code: '42501' });   // RLS WITH CHECK
+    } finally { await db.destroy(); }
+  });
+});
+
+/**
+ * M29 — the owner authors her own price rules, against a real database.
+ *
+ * The pure tests cover validation and what the quote engine does with the
+ * answers. What can only be proven here: the importer really stops writing a
+ * policy row, an edit really supersedes and is really audited, and readiness
+ * really derives the new item from rows rather than from a constant.
+ */
+d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
+  const biz = async (db: unknown): Promise<string | null> => {
+    const { sql } = await import('kysely');
+    const r = await sql<{ id: string }>`
+      select b.id from businesses b
+       order by (select count(*) from products p where p.business_id = b.id) desc limit 1
+    `.execute(db as never);
+    return r.rows[0]?.id ?? null;
+  };
+
+  it('an import writes NO pricing_policy row, and nothing it adds is sellable', async () => {
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { confirmImport } = await import('../../src/api/web/products.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = await biz(db); if (!bid) return;
+      const p = parseBusinessId(bid); if (!p.ok) throw new Error('fixture');
+      const sku = `M29-${Date.now().toString(36).toUpperCase()}`;
+
+      const r = await confirmImport(db, bid, `${sku} Test Tote $2.60 MOQ 1000`);
+      expect(r.added).toBe(1);
+      expect(r.withPrice).toBe(1);
+
+      const row = await withTenantTx(db, p.value, (tx) => sql<{
+        id: string; is_active: boolean; policies: number;
+      }>`
+        select pr.id, pr.is_active,
+               (select count(*)::int from pricing_policy pp where pp.product_id = pr.id) as policies
+          from products pr where pr.business_id = ${bid} and pr.sku = ${sku}
+      `.execute(tx as never).then((x) => x.rows[0]!));
+
+      // The fabricated floor is gone…
+      expect(Number(row.policies)).toBe(0);
+      // …and because no human has stated one, she cannot sell it yet.
+      expect(row.is_active).toBe(false);
+    } finally { await db.destroy(); }
+  });
+
+  it('the owner answers, the product becomes sellable, and it is audited', async () => {
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { confirmImport } = await import('../../src/api/web/products.js');
+    const { savePriceRules, loadPriceRules } = await import('../../src/api/web/priceRules.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = await biz(db); if (!bid) return;
+      const p = parseBusinessId(bid); if (!p.ok) throw new Error('fixture');
+      const sku = `M29B-${Date.now().toString(36).toUpperCase()}`;
+      await confirmImport(db, bid, `${sku} Test Mug $3.00 MOQ 500`);
+
+      const id = await withTenantTx(db, p.value, (tx) => sql<{ id: string }>`
+        select id from products where business_id = ${bid} and sku = ${sku}
+      `.execute(tx as never).then((x) => x.rows[0]!.id));
+
+      const saved = await savePriceRules(db, bid, 'owner', {
+        productId: id, floorUsd: '2.00', maxDiscountPct: '10', askAbovePct: '7',
+      });
+      expect(saved.ok).toBe(true);
+      if (saved.ok) expect(saved.activated).toBe(true);      // her answer turned it on
+
+      const after = await withTenantTx(db, p.value, (tx) => sql<{
+        is_active: boolean; floor: string; max: string; ask: string;
+      }>`
+        select pr.is_active, pp.floor_price_usd as floor, pp.max_discount_pct as max,
+               pp.human_required_above_pct as ask
+          from products pr join pricing_policy pp on pp.product_id = pr.id
+         where pr.id = ${id}
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      expect(after.is_active).toBe(true);
+      expect(Number(after.floor)).toBe(2);
+      expect(Number(after.max)).toBe(10);
+
+      // The view reports her own answers back, not an inherited default.
+      const view = await loadPriceRules(db, bid);
+      const mine = view.products.find((x) => x.productId === id);
+      expect(mine?.own).toEqual({ floorUsd: 2, maxDiscountPct: 10, askAbovePct: 7 });
+
+      // Audited, with the verb migration 0025 added and from → to.
+      const audit = await withTenantTx(db, p.value, (tx) => sql<{ detail: unknown }>`
+        select detail from channel_audit
+         where business_id = ${bid} and action = 'price_rules_set'
+         order by at desc limit 1
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      const d0 = audit.detail as { productId: string; changes: Record<string, { from: unknown; to: unknown }> };
+      expect(d0.productId).toBe(id);
+      expect(d0.changes['floorUsd']).toEqual({ from: null, to: 2 });
+    } finally { await db.destroy(); }
+  });
+
+  it('a price edit supersedes rather than overwriting silently, and moves the tier with it', async () => {
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { confirmImport, updateProduct } = await import('../../src/api/web/products.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      const bid = await biz(db); if (!bid) return;
+      const p = parseBusinessId(bid); if (!p.ok) throw new Error('fixture');
+      const sku = `M29C-${Date.now().toString(36).toUpperCase()}`;
+      await confirmImport(db, bid, `${sku} Test Bottle $4.00 MOQ 200`);
+      const id = await withTenantTx(db, p.value, (tx) => sql<{ id: string }>`
+        select id from products where business_id = ${bid} and sku = ${sku}
+      `.execute(tx as never).then((x) => x.rows[0]!.id));
+
+      const r = await updateProduct(db, bid, id, 'owner', { priceUsd: '3.50' });
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.changed).toContain('priceUsd');
+
+      const after = await withTenantTx(db, p.value, (tx) => sql<{ price: string; tier: string }>`
+        select pr.price_usd_per_unit as price, pt.unit_price_usd as tier
+          from products pr join price_tiers pt on pt.product_id = pr.id and pt.min_qty = 1
+         where pr.id = ${id}
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      // The list price and the entry tier are one fact; letting them drift is
+      // how a quote comes out at a number the owner never set.
+      expect(Number(after.price)).toBe(3.5);
+      expect(Number(after.tier)).toBe(3.5);
+
+      const audit = await withTenantTx(db, p.value, (tx) => sql<{ detail: unknown }>`
+        select detail from channel_audit
+         where business_id = ${bid} and action = 'product_edited'
+         order by at desc limit 1
+      `.execute(tx as never).then((x) => x.rows[0]!));
+      const d0 = audit.detail as { changes: Record<string, { from: unknown; to: unknown }> };
+      // The change is legible as a change: 4 → 3.5, not just "3.5".
+      expect(d0.changes['priceUsd']).toEqual({ from: 4, to: 3.5 });
+    } finally { await db.destroy(); }
+  });
+
+  it('readiness reports the new item from real rows — false on a tenant with none', async () => {
+    const { createDb } = await import('../../src/db/client.js');
+    const { loadPilotReadiness } = await import('../../src/api/web/pilot.js');
+    const { sql } = await import('kysely');
+    const db = createDb(DATABASE_URL!);
+    try {
+      // A tenant with no pricing_policy row at all.
+      const bare = (await sql<{ id: string }>`
+        select b.id from businesses b
+         where not exists (select 1 from pricing_policy pp where pp.business_id = b.id)
+         limit 1
+      `.execute(db)).rows[0]?.id;
+      if (bare) expect((await loadPilotReadiness(db, bare)).detected.priceRules).toBe(false);
+
+      const withRules = (await sql<{ id: string }>`
+        select business_id as id from pricing_policy limit 1`.execute(db)).rows[0]?.id;
+      if (withRules) expect((await loadPilotReadiness(db, withRules)).detected.priceRules).toBe(true);
     } finally { await db.destroy(); }
   });
 });

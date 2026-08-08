@@ -28,6 +28,8 @@ const complete: FactoryView = {
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
+  prices: { businessDefault: { floorUsd: 0.35, maxDiscountPct: 10, askAbovePct: 7 },
+    products: [], unanswered: 0 },
 };
 
 /** A factory on its first day. */
@@ -45,6 +47,7 @@ const fresh: FactoryView = {
   // Nothing to rehearse on day one — no products means no probes, so the whole
   // block is absent rather than reporting an empty success.
   rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
+  prices: { businessDefault: null, products: [], unanswered: 0 },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
@@ -264,8 +267,11 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
       const html = renderFactory(complete, l).replace(/<style>[\s\S]*?<\/style>/g, '');
       for (const banned of ['score', 'rating', 'ranking', 'accuracy', 'performance', '评分', '成功率'])
         expect(html.toLowerCase().includes(banned), `${l}:${banned}`).toBe(false);
-      // the only percentages on the page are the owner's OWN discount rules
-      for (const m of html.match(/\d+%/g) ?? []) expect(['8%']).toContain(m);
+      // The only percentages on the page are the owner's OWN numbers: the
+      // ceiling the guard enforces (8%), and — M29 — the limits she stated
+      // herself (10% she may give, ask above 7%). A number she wrote down is
+      // not a metric; a number we computed about her would be.
+      for (const m of html.match(/\d+%/g) ?? []) expect(['8%', '10%', '7%']).toContain(m);
     }
   });
 });
@@ -417,7 +423,9 @@ describe('M20.2 · the activation readiness surface', () => {
       ];
       for (const r of cases) {
         const html = withReadiness(r, l).replace(/<style>[\s\S]*?<\/style>/g, '')
-          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
+          .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '')
+          // M29 — same carve-out, same reason: the owner's own stated limits.
+          .replace(/<div class="fprices">[\s\S]*?<\/div>/, '');
         expect(html).not.toMatch(/\d+\s*%/);
         expect(html).not.toMatch(/\d+\s*(of|\/)\s*\d+/);
         for (const banned of ['score', 'grade', 'rating', '评分', '得分'])

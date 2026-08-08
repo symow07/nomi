@@ -80,6 +80,8 @@ export type ProductDetail = {
   readonly customizable: boolean;
   readonly learned: boolean;
   readonly imageMatchable: boolean;
+  /** M29 — whether she offers it to buyers. Archive-never-erase: false, not gone. */
+  readonly isActive: boolean;
   readonly tiers: readonly { minQty: number; maxQty: number | null; unitPriceUsd: number }[];
   readonly aliases: readonly string[];
   readonly images: readonly string[];
@@ -115,7 +117,8 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     return {
       id: p.id, name: p.name, nameZh: p.name_zh, sku: p.sku,
       category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
-      customizable: p.customizable, learned, imageMatchable: p.is_active && aliases.length + images.length > 0,
+      customizable: p.customizable, learned, isActive: p.is_active,
+      imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
     };
   });
@@ -133,11 +136,20 @@ export function reviewImport(rawText: string): ValidatedImport {
  * with no explanation, which is the false-success class in reverse. Now that the
  * owner's OWN sku is used, a re-import collides on purpose and she is told so.
  */
-export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<{ learned: number; needsConfirm: number; alreadyHere: number }> {
+export type ImportResult = {
+  /** Rows created. None is sellable: an import cannot know a floor. */
+  readonly added: number;
+  /** Of those, how many carry a price and so need only the price rules. */
+  readonly withPrice: number;
+  /** Her sku was already in the catalogue — reported, never swallowed (F-02). */
+  readonly alreadyHere: number;
+};
+
+export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<ImportResult> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { learned: 0, needsConfirm: 0, alreadyHere: 0 };
+  if (!bid.ok) return { added: 0, withPrice: 0, alreadyHere: 0 };
   const { accepted } = reviewImport(rawText);
-  let learned = 0, needsConfirm = 0, alreadyHere = 0;
+  let added = 0, withPrice = 0, alreadyHere = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
     for (let i = 0; i < accepted.length; i++) {
@@ -148,31 +160,44 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
       // generated ONLY when the line carried no number at all.
       const sku = p.sku ?? `NEW-${Date.now().toString(36)}-${i}`;
       const moq = p.moq ?? 100;
-      const active = p.priceUsd !== null;   // TRUST RULE: no price → not activated
+      // M29 — TRUST RULE, now applied to BOTH halves of a sellable product.
+      // A price with no owner-stated floor is not a product she can quote: the
+      // floor decides what she may never go below, and an import has no way to
+      // know it. So nothing imported is sellable on arrival. The owner answers
+      // three questions (savePriceRules) and that is what turns it on.
       const ins = await sql<{ id: string }>`
         insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, is_active)
-        values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq}, ${p.priceUsd}, ${active})
+        values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq}, ${p.priceUsd}, false)
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
       if (!id) { alreadyHere++; continue; }        // her sku is already in the catalogue
-      if (id && p.priceUsd !== null) {
+      added++;
+      if (p.priceUsd !== null) {
+        withPrice++;
         await sql`insert into price_tiers (product_id, min_qty, unit_price_usd) values (${id}, 1, ${p.priceUsd}) on conflict do nothing`.execute(tx);
-        await sql`insert into pricing_policy (business_id, product_id, floor_price_usd, max_discount_pct, human_required_above_pct)
-                  values (${bid.value}, ${id}, ${p.priceUsd}, 0, 0) on conflict (business_id, product_id) do nothing`.execute(tx);
-        learned++;
-      } else if (id) {
-        needsConfirm++;
+        // NO pricing_policy row. This used to write
+        //   floor = the list price, maxDiscount = 0, askAbove = 0
+        // which is not a cautious default but a fabricated one: it asserts she
+        // will never take a cent off and has granted no authority, and she said
+        // neither. Every quote was then clamped against a rule she never wrote,
+        // under a product whose central claim is that it quotes within HER
+        // rules. Absence is the only honest representation of "not asked yet".
       }
     }
   });
-  return { learned, needsConfirm, alreadyHere };
+  return { added, withPrice, alreadyHere };
 }
 
 /** Localized confirm flash — called by the route (has locale). */
-export const importFlash = (locale: Locale, r: { learned: number; needsConfirm: number; alreadyHere?: number }): string => {
-  const base = r.needsConfirm > 0
-    ? t(locale, 'product.flash.learnedAndPending', { learned: r.learned, needsConfirm: r.needsConfirm })
-    : t(locale, 'product.flash.learnedOnly', { learned: r.learned });
+export const importFlash = (locale: Locale, r: { added: number; withPrice: number; alreadyHere?: number }): string => {
+  // M29 — this used to say "Learned N products", which was the false-success
+  // class: an imported product is not learned, because the floor that decides
+  // what she may never go below has not been stated by anyone. It says what
+  // was added and what is still needed before she can quote any of it.
+  const name = EMPLOYEE_NAME[locale];
+  const base = r.withPrice > 0
+    ? t(locale, 'product.flash.addedNeedRules', { added: r.added, withPrice: r.withPrice, name })
+    : t(locale, 'product.flash.addedNeedPrice', { added: r.added, name });
   // A re-import that changed nothing must say so, not report a silent zero.
   return r.alreadyHere ? `${base} ${t(locale, 'product.flash.alreadyHere', { n: r.alreadyHere })}` : base;
 };
@@ -206,10 +231,38 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
   return `${head}<div class="list">${cards}</div>${PRODUCT_STYLE}`;
 }
 
-export function renderProductDetail(d: ProductDetail, locale: Locale): string {
+export function renderProductDetail(
+  d: ProductDetail, locale: Locale, flash: string | null = null,
+  errors: Partial<Record<ProductEditField, ProductEditError>> = {},
+  draft: Record<string, string | undefined> = {},
+): string {
   const u = unitLabel(locale, d.unit);
   const title = displayName(locale, d.name, d.nameZh);
   const alt = locale === 'zh' ? (d.name !== title ? d.name : null) : (d.nameZh && d.nameZh !== title ? d.nameZh : null);
+
+  // M29 — the edit form. Everything an owner can change about a product she
+  // already has; the price limits are their own page because they are three
+  // questions about the business, not fields on a row.
+  const name = EMPLOYEE_NAME[locale];
+  const ferr = (f: ProductEditField): string =>
+    errors[f] ? `<p class="perr">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+  const val = (f: string, fallback: string): string =>
+    esc(draft[f] !== undefined ? draft[f]! : fallback);
+  const editForm = `<div class="card">
+    <h2>${esc(t(locale, 'product.edit.title'))}</h2>
+    <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
+        <input name="priceUsd" inputmode="decimal"
+               value="${val('priceUsd', d.tiers[0] ? String(d.tiers[0].unitPriceUsd) : '')}" />${ferr('priceUsd')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.moq'))}</span>
+        <input name="moq" inputmode="numeric" value="${val('moq', String(d.moq))}" />${ferr('moq')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>
+        <input name="unit" value="${val('unit', d.unit)}" />${ferr('unit')}</label>
+      <label class="pcheck"><input type="checkbox" name="isActive" ${d.isActive ? 'checked' : ''} />
+        <span>${esc(t(locale, 'product.edit.active'))}</span></label>
+      <button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
+    </form>
+  </div>`;
 
   const tiers = d.tiers.length
     ? `<div class="card"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
@@ -231,6 +284,7 @@ export function renderProductDetail(d: ProductDetail, locale: Locale): string {
     : '';
 
   return `
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.learned)}</div>
     ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
@@ -242,7 +296,7 @@ export function renderProductDetail(d: ProductDetail, locale: Locale): string {
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
     </div>
-    ${tiers}${aliases}${images}${quotes}${PRODUCT_STYLE}`;
+    ${tiers}${editForm}${aliases}${images}${quotes}${PRODUCT_STYLE}`;
 }
 
 export function renderAddForm(locale: Locale): string {
@@ -281,6 +335,12 @@ export function renderReview(v: ValidatedImport, rawText: string, locale: Locale
 }
 
 const PRODUCT_STYLE = `<style>
+  .pform { display:flex; flex-direction:column; gap:14px; max-width:38ch; margin-top:6px; }
+  .pq { display:flex; flex-direction:column; gap:6px; font-size:14px; color:#d6dae0; }
+  .pq input { background:#0f1216; border:1px solid #2b313a; border-radius:10px;
+              color:#fff; padding:11px 14px; font:inherit; min-height:44px; }
+  .pcheck { display:flex; align-items:center; gap:10px; font-size:14px; color:#d6dae0; min-height:44px; }
+  .perr { color:#e0b551; font-size:13px; margin:0; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .prod { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
   .prod:hover { border-color:#3a4250; }
@@ -298,3 +358,121 @@ const PRODUCT_STYLE = `<style>
   textarea { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:12px; font:inherit; resize:vertical; margin:10px 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
 </style>`;
+
+/**
+ * M29 — the owner edits her own product.
+ *
+ * Until now `confirmImport` was the only writer of `products` outside the demo
+ * seeds, and every insert was `on conflict do nothing`. A wrong price could not
+ * be corrected: re-importing the same sku collided and was reported as "already
+ * here", so the catalogue was write-once by accident rather than by design.
+ *
+ * ARCHIVE, NEVER ERASE. The app role holds no DELETE anywhere; a product the
+ * owner stops selling is `is_active = false`, which the retrieval and quote
+ * paths already treat as not-on-offer. Nothing is removed.
+ *
+ * A PRICE CHANGE READS AS A CHANGE. Every field that moved is audited with its
+ * BEFORE and AFTER, so "0.45 → 0.38" is recoverable from the trail rather than
+ * being a silent overwrite. The list price and the entry tier move together —
+ * they are the same fact stored twice, and letting them drift is how a quote
+ * comes out at a price the owner never set.
+ */
+export type ProductEdit = {
+  readonly priceUsd?: string | null;
+  readonly moq?: string | null;
+  readonly unit?: string | null;
+  readonly isActive?: boolean;
+};
+
+export type ProductEditField = 'priceUsd' | 'moq' | 'unit' | 'isActive';
+export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor';
+
+export type EditResult =
+  | { readonly ok: true; readonly changed: readonly ProductEditField[] }
+  | { readonly ok: false; readonly errors: Partial<Record<ProductEditField, ProductEditError>> };
+
+export async function updateProduct(
+  db: Db, businessIdRaw: string, productId: string, actor: string, edit: ProductEdit,
+): Promise<EditResult> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { ok: false, errors: {} };
+
+  return withTenantTx(db, bid.value, async (tx) => {
+    const cur = (await sql<{
+      price: string | null; moq: number; unit: string; is_active: boolean; floor: string | null;
+    }>`
+      select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active,
+             pp.floor_price_usd as floor
+        from products p
+        left join pricing_policy pp
+          on pp.business_id = ${bid.value} and pp.product_id = p.id
+       where p.business_id = ${bid.value} and p.id = ${productId} limit 1
+    `.execute(tx)).rows[0];
+    if (!cur) return { ok: false, errors: {} };
+
+    const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
+    let price: number | null = cur.price === null ? null : Number(cur.price);
+    let moq = cur.moq;
+    let unit = cur.unit;
+
+    if (edit.priceUsd !== undefined && edit.priceUsd !== null && edit.priceUsd.trim() !== '') {
+      const n = Number(edit.priceUsd.trim());
+      if (!Number.isFinite(n)) errors.priceUsd = 'not_a_number';
+      else if (!(n > 0)) errors.priceUsd = 'not_positive';
+      // A new list price BELOW her own floor would make the product silently
+      // unquotable — quote.ts refuses `below_floor` rather than selling at a
+      // loss. She is told now, not by a buyer's silence later.
+      else if (cur.floor !== null && n < Number(cur.floor)) errors.priceUsd = 'below_floor';
+      else price = Number(n.toFixed(4));
+    }
+    if (edit.moq !== undefined && edit.moq !== null && edit.moq.trim() !== '') {
+      const n = Number(edit.moq.trim());
+      if (!Number.isFinite(n)) errors.moq = 'not_a_number';
+      else if (!(n > 0) || !Number.isInteger(n)) errors.moq = 'not_positive';
+      else moq = n;
+    }
+    if (edit.unit !== undefined && edit.unit !== null) {
+      const u = edit.unit.trim();
+      if (u === '') errors.unit = 'empty';
+      else unit = u;
+    }
+    if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+    const isActive = edit.isActive ?? cur.is_active;
+    const changed: ProductEditField[] = [];
+    const detail: Record<string, { from: unknown; to: unknown }> = {};
+    const note = (f: ProductEditField, from: unknown, to: unknown) => {
+      if (from !== to) { changed.push(f); detail[f] = { from, to }; }
+    };
+    note('priceUsd', cur.price === null ? null : Number(cur.price), price);
+    note('moq', cur.moq, moq);
+    note('unit', cur.unit, unit);
+    note('isActive', cur.is_active, isActive);
+
+    if (changed.length === 0) return { ok: true, changed: [] };
+
+    await sql`
+      update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
+                          is_active = ${isActive}, updated_at = now()
+       where business_id = ${bid.value} and id = ${productId}
+    `.execute(tx);
+
+    // The entry tier is the same fact as the list price. Letting them drift is
+    // how a quote comes out at a number the owner never set.
+    if (detail['priceUsd'] && price !== null) {
+      await sql`
+        insert into price_tiers (product_id, min_qty, unit_price_usd)
+        values (${productId}, 1, ${price})
+        on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd
+      `.execute(tx);
+    }
+
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'product_edited', ${actor},
+              ${JSON.stringify({ productId, changes: detail })}::jsonb)
+    `.execute(tx);
+
+    return { ok: true, changed };
+  });
+}

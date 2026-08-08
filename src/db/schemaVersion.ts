@@ -24,11 +24,16 @@ import type { Db } from './client.js';
 /**
  * The migration this build requires. BUMP THIS when adding a migration whose
  * columns or tables the code reads — that is what makes the guard meaningful.
- * 24 = outbound_messages.media_url (0024). The worker SELECTs it on every
- *      drive tick, so a build reading it against a database without the column
- *      would throw on the first outbound message rather than at boot.
+ * 25 = the product_edited / price_rules_set audit verbs (0025). No new column
+ *      is READ, so the usual "does the code read something new?" test says no —
+ *      but `channel_audit.action` is CHECK-constrained, and this build WRITES
+ *      both verbs. Against a database at 24 the constraint rejects them, and
+ *      the failure lands the moment an owner saves a price. A build that cannot
+ *      record an owner's edit has no business accepting one, so it refuses at
+ *      boot instead. The rule is "bump when the build REQUIRES the migration",
+ *      of which reading a new column is only the commonest case.
  */
-export const REQUIRED_SCHEMA_VERSION = 24;
+export const REQUIRED_SCHEMA_VERSION = 25;
 
 export type SchemaState = {
   readonly required: number;

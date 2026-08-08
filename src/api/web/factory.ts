@@ -30,6 +30,7 @@ import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js'
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
+import { loadPriceRules, type PriceRulesView } from './priceRules.js';
 import {
   rehearseFactory, PROBE_CAP,
   type FactoryFixture, type FactoryProduct, type FindingReason, type RehearsalReport,
@@ -106,6 +107,8 @@ export type FactoryView = {
    * has never heard of it. null when the business id could not be resolved.
    */
   readonly rehearsal: RehearsalReport | null;
+  /** M29 — how much of her own price limits she has actually stated. */
+  readonly prices: PriceRulesView;
 };
 
 /**
@@ -255,7 +258,7 @@ export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -271,6 +274,7 @@ export async function loadFactory(
     // or hung it would take the whole page with it, which is why it reads rows
     // the page already trusts and runs pure code over them.
     loadFactoryRehearsal(db, businessIdRaw),
+    loadPriceRules(db, businessIdRaw),
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -299,6 +303,7 @@ export async function loadFactory(
       activatedBy: state?.activatedBy ?? null,
     },
     rehearsal,
+    prices,
   };
 }
 
@@ -449,6 +454,20 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ${priceRules.length ? `<ul class="frules">${priceRules.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
     <p class="fnever">${esc(t(locale, 'factory.promise.never', { name }))}</p>`;
 
+  // M29 — what she may never go below. Counts of real rows: how many priced
+  // products still have no limit the owner stated. Never a score.
+  const pr = f.prices;
+  const pricesBody = pr.businessDefault === null && pr.products.every((p) => p.own === null)
+    ? `<p class="fwarn">${esc(t(locale, 'factory.prices.none', { name }))}</p>`
+    : `<div class="fprices">${pr.businessDefault
+        ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
+            floor: formatUsd(pr.businessDefault.floorUsd), max: pr.businessDefault.maxDiscountPct,
+            ask: pr.businessDefault.askAbovePct, name }))}</p>`
+        : ''}
+       ${pr.unanswered > 0
+        ? `<p class="fwarn">${esc(t(locale, 'factory.prices.some', { n: pr.unanswered }))}</p>`
+        : `<p class="fok">${esc(t(locale, 'factory.prices.all'))}</p>`}</div>`;
+
   // 4 · Where buyers reach you — connected or not, and what happens next.
   // M20.3.1 — one lifecycle, four honest states. "Paused" and "never connected"
   // are different problems with different next steps, so they read differently.
@@ -556,6 +575,7 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ${section(t(locale, 'factory.about.title'), t(locale, 'factory.about.q'), aboutBody, '/app/settings', t(locale, 'factory.about.more'))}
     ${section(t(locale, 'factory.sell.title'), t(locale, 'factory.sell.q'), sellBody, '/app/products', t(locale, 'factory.sell.more'))}
     ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
+    ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody, '/app/factory/prices', t(locale, 'factory.prices.more'))}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
     ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
     ${FACTORY_STYLE}`;

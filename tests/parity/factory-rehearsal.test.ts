@@ -324,6 +324,7 @@ const view = (rehearsal: RehearsalReport | null): FactoryView => ({
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
   rehearsal,
+  prices: { businessDefault: null, products: [], unanswered: 0 },
 });
 
 const OFFLINE_CHANNEL: ChannelView = {
@@ -412,7 +413,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
 /** A runbook with nothing interesting in it — only the engine panel is on trial. */
 const runbook: PilotRunbook = {
   readiness: {
-    detected: { profile: true, products: true, knowledge: true, claims: false, sandbox: false, channel: false },
+    detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: false, sandbox: false, channel: false },
     attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
     validation: { at: null, pass: null, total: null },
     readyToLaunch: false,

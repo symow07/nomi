@@ -11,7 +11,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
 const NOW = new Date('2026-08-01T10:00:00Z');
 
 const pr = (over: Partial<PilotReadiness> = {}): PilotReadiness => ({
-  detected: { profile: true, products: true, knowledge: true, claims: false, sandbox: false, channel: false },
+  detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: false, sandbox: false, channel: false },
   attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
   validation: { at: null, pass: null, total: null },
   readyToLaunch: false,
@@ -49,7 +49,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
     expect(never).toContain('action="/app/onboarding/validate"');
     expect(never).toContain(t('en', 'pilot.validate.never'));
 
-    const ran = renderPilotReadiness(pr({ detected: { profile: true, products: true, knowledge: true, claims: true, sandbox: true, channel: false }, validation: { at: NOW, pass: 23, total: 23 } }), 'en', null);
+    const ran = renderPilotReadiness(pr({ detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: true, sandbox: true, channel: false }, validation: { at: NOW, pass: 23, total: 23 } }), 'en', null);
     expect(ran).toContain('23/23');
     expect(ran).toContain(t('en', 'pilot.verifiedBySystem'));   // sandbox now ✓
   });
@@ -60,7 +60,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
     expect(notReady).toContain(t('en', 'pilot.blocker.channel'));   // honest "coming with WhatsApp"
 
     const ready = renderPilotReadiness(pr({
-      detected: { profile: true, products: true, knowledge: true, claims: true, sandbox: true, channel: false },
+      detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: true, sandbox: true, channel: false },
       attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW },
       readyToLaunch: true,
     }), 'en', null);

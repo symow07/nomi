@@ -12,7 +12,7 @@ const items: ProductListItem[] = [
 
 const detail: ProductDetail = {
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
-  unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, imageMatchable: true,
+  unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, isActive: true, imageMatchable: true,
   tiers: [{ minQty: 500, maxQty: 2000, unitPriceUsd: 1.05 }, { minQty: 2000, maxQty: null, unitPriceUsd: 0.92 }],
   aliases: ['canvas bag', 'tote bag', '帆布包'],
   images: [],

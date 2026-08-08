@@ -12,8 +12,9 @@ import {
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
-  renderAddForm, renderReview, reviewImport, confirmImport, importFlash,
+  renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
 } from './products.js';
+import { loadPriceRules, savePriceRules, renderPriceRules } from './priceRules.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
@@ -428,6 +429,66 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderReview(reviewImport(text), text, locale),
     }));
   });
+  // M29 — the owner edits her own product. Archive-never-erase: "stop offering
+  // this" is is_active=false, and every changed field is audited old → new.
+  app.post('/app/products/:id/edit', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const id = (req.params as { id: string }).id;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await updateProduct(deps.db, s.businessId, id, 'owner', {
+      priceUsd: b['priceUsd'] ?? null,
+      moq: b['moq'] ?? null,
+      unit: b['unit'] ?? null,
+      isActive: b['isActive'] === 'on',
+    });
+    const locale = localeOf(req);
+    if (!r.ok) {
+      const d = await loadProductDetail(deps.db, s.businessId, id);
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'product.edit.title'), active: 'products',
+        bodyHtml: d ? renderProductDetail(d, locale, null, r.errors, b) : '',
+      }));
+    }
+    const flash = t(locale, r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
+    return reply.redirect(`/app/products/${encodeURIComponent(id)}?flash=${encodeURIComponent(flash)}`);
+  });
+
+  // ── M29 Price limits: the three questions, reached from My factory ────────
+  app.get('/app/factory/prices', authed('factory', async (s, req, locale) => {
+    const q = req.query as { flash?: string; product?: string };
+    return renderPriceRules(
+      await loadPriceRules(deps.db, s.businessId), locale,
+      typeof q.flash === 'string' ? q.flash : null, {},
+      typeof q.product === 'string' ? { productId: q.product } : {},
+    );
+  }));
+  app.post('/app/factory/prices', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const productId = (b['productId'] ?? '').trim() || null;
+    const r = await savePriceRules(deps.db, s.businessId, 'owner', {
+      productId,
+      floorUsd: b['floorUsd'] ?? null,
+      maxDiscountPct: b['maxDiscountPct'] ?? null,
+      askAbovePct: b['askAbovePct'] ?? null,
+    });
+    if (!r.ok) {
+      // F-07: a rejected answer re-renders WITH what she typed, never blank.
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'prices.title'), active: 'factory',
+        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null,
+          r.errors, { productId }),
+      }));
+    }
+    const flash = t(locale, r.activated ? 'prices.flash.savedAndLive'
+      : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
+      { name: deps.employeeName });
+    return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
+  });
+
   app.post('/app/products/add/confirm', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');

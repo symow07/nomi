@@ -25,7 +25,8 @@ import { esc, deeper } from './layout.js';
  * "Verified by system" vs "Confirmed by owner". No scores, no percentages.
  */
 
-export type DetectedKey = 'profile' | 'products' | 'knowledge' | 'claims' | 'sandbox' | 'channel';
+export type DetectedKey =
+  | 'profile' | 'products' | 'priceRules' | 'knowledge' | 'claims' | 'sandbox' | 'channel';
 export type AttestKey = 'backup_tested' | 'secrets_rotated' | 'owner_ready' | 'claims_reviewed';
 
 const ATTEST_COL: Record<AttestKey, string> = {
@@ -42,7 +43,7 @@ export type PilotReadiness = {
 
 export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise<PilotReadiness> {
   const empty: PilotReadiness = {
-    detected: { profile: false, products: false, knowledge: false, claims: false, sandbox: false, channel: false },
+    detected: { profile: false, products: false, priceRules: false, knowledge: false, claims: false, sandbox: false, channel: false },
     attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
     validation: { at: null, pass: null, total: null },
     readyToLaunch: false,
@@ -53,7 +54,7 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
 
   return withTenantTx(db, B, async (tx) => {
     const r = (await sql<{
-      profile: boolean; products: boolean; knowledge: boolean; claims: boolean; channel: boolean;
+      profile: boolean; products: boolean; price_rules: boolean; knowledge: boolean; claims: boolean; channel: boolean;
       backup_tested_at: Date | null; secrets_rotated_at: Date | null; owner_ready_at: Date | null;
       last_validation_at: Date | null; last_validation_pass: number | null; last_validation_total: number | null;
     }>`
@@ -61,6 +62,11 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
       select
         coalesce((select (description is not null and location is not null and (contact_email is not null or contact_phone is not null)) from businesses where id = ${B}), false) as profile,
         exists(select 1 from products where business_id = ${B} and is_active and price_usd_per_unit is not null) as products,
+        -- M29 — has a HUMAN stated what she may never go below? A row is only
+        -- ever written by savePriceRules; the importer used to fabricate one per
+        -- product (floor = list price, no discount authority), so this check
+        -- would have read true on a factory whose rules nobody had written.
+        exists(select 1 from pricing_policy where business_id = ${B}) as price_rules,
         exists(select 1 from product_knowledge where business_id = ${B} and status = 'active' and source in ('owner_confirmed','owner_corrected')) as knowledge,
         (exists(select 1 from claims_policy where business_id = ${B} and allowed) or (select claims_reviewed_at from os) is not null) as claims,
         -- Same predicate as loadOnboarding: connected AND holding an active
@@ -82,9 +88,11 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     const sandbox = r.last_validation_at !== null && r.last_validation_pass !== null
       && r.last_validation_total !== null && r.last_validation_pass === r.last_validation_total;
 
-    const detected = { profile: r.profile, products: r.products, knowledge: r.knowledge, claims: r.claims, sandbox, channel: r.channel };
+    const detected = { profile: r.profile, products: r.products, priceRules: r.price_rules,
+      knowledge: r.knowledge, claims: r.claims, sandbox, channel: r.channel };
     const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at, ownerReadyAt: r.owner_ready_at };
-    const readyToLaunch = detected.profile && detected.products && detected.knowledge && detected.claims && detected.sandbox
+    const readyToLaunch = detected.profile && detected.products && detected.priceRules
+      && detected.knowledge && detected.claims && detected.sandbox
       && !!attest.backupTestedAt && !!attest.secretsRotatedAt && !!attest.ownerReadyAt;
 
     return {
@@ -328,8 +336,9 @@ export async function runValidation(db: Db, businessIdRaw: string): Promise<{ pa
 // ── renderer (pure, localized, escaped) ──────────────────────────────────────
 
 const DETECTED_LINK: Record<DetectedKey, string> = {
-  profile: '/app/settings', products: '/app/products', knowledge: '/app/knowledge',
-  claims: '/app/knowledge', sandbox: '/app/sandbox', channel: '/app/channels',
+  profile: '/app/settings', products: '/app/products', priceRules: '/app/factory/prices',
+  knowledge: '/app/knowledge', claims: '/app/knowledge', sandbox: '/app/sandbox',
+  channel: '/app/channels',
 };
 
 function detectedRow(key: DetectedKey, done: boolean, locale: Locale): string {
@@ -361,7 +370,7 @@ function attestRow(key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at:
 
 export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: string | null): string {
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
-  const detectedOrder: DetectedKey[] = ['profile', 'products', 'knowledge', 'claims', 'sandbox', 'channel'];
+  const detectedOrder: DetectedKey[] = ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale)).join('');
 
   const v = d.validation;
