@@ -21,34 +21,19 @@ import type { Db } from './client.js';
  */
 
 /**
- * The role the RLS policies are written for.
+ * The one role the RLS policies are written for.
  *
- * `nomi_app` is the name. `yiwuflow_app` is what it was called before the
- * product took one name (B1), and it is accepted for EXACTLY ONE RELEASE.
- *
- * WHY A TRANSITION SET AT ALL. This guard compares `current_user` at boot and
- * refuses to serve on a mismatch, so the role, the connection string and this
- * constant must move together. Migration 0026 renames the role, and a build
- * pinned to a single name cannot survive the moment in between — which would
- * make 0026 the first migration in this repo that an older build cannot run
- * against, spending the rollback property ADR-0007 exists to provide.
- * Accepting both names for one release costs a deploy cycle and keeps it.
- *
- * This is not a weakened guard. The security property is `rolsuper=false` and
- * `rolbypassrls=false`, and both still hold for either name; all that widens is
- * which non-superuser role is expected.
- *
- * REMOVAL: the release immediately after 0026 is applied narrows this back to
- * `nomi_app` alone and bumps REQUIRED_SCHEMA_VERSION to 26. A test asserts the
- * set has at most two entries so it cannot quietly become a permanent list.
+ * The rename from `yiwuflow_app` is complete (migration 0026). The release
+ * before this one accepted both names, so that applying 0026 did not require an
+ * older build to refuse — the rollback property ADR-0007 provides. That
+ * transition set is now removed; a build that accepted the old name would only
+ * hide a connection string nobody updated.
  */
 export const RUNTIME_ROLE = 'nomi_app';
 
-/** Accepted during the rename only. See RUNTIME_ROLE. */
-export const RUNTIME_ROLE_LEGACY = 'yiwuflow_app';
-
-/** Every name this build will serve under. */
-export const ACCEPTED_RUNTIME_ROLES: readonly string[] = [RUNTIME_ROLE, RUNTIME_ROLE_LEGACY];
+/** Kept as a one-element set: `checkRuntimeRole` reads it, and a future rename
+ *  widens it for exactly one release again rather than editing the comparison. */
+export const ACCEPTED_RUNTIME_ROLES: readonly string[] = [RUNTIME_ROLE];
 
 export type RuntimeIdentity = {
   readonly currentUser: string;

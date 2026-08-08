@@ -84,16 +84,8 @@ jobs:
         # 0026 renames it to nomi_app; a password is set per environment, out of
         # band. This is that step for CI, after every migration has run.
         run: |
-          # B1 transition: 0005 creates the role under its original name, 0026
-          # renames it. Until 0026 is applied either may be live. Collapses to
-          # nomi_app alone at step 3.
           psql "$MIGRATE_DATABASE_URL" -v ON_ERROR_STOP=1 -c \
-            "do \$\$ begin
-               if exists (select 1 from pg_roles where rolname='nomi_app')
-                 then alter role nomi_app login password 'nomi_app';
-                 else alter role yiwuflow_app rename to nomi_app;
-                      alter role nomi_app login password 'nomi_app';
-               end if; end \$\$;"
+            "alter role nomi_app login password 'nomi_app';"
 
       - name: Confirm the runtime role is subject to RLS
         # Fail here, loudly, rather than let 214 tests pass against a connection

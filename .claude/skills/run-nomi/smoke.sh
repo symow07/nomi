@@ -42,11 +42,9 @@ echo "[2/6] migrate + grant app-role login + seed demo & sandbox tenants"
 export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/nomi"
 node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
 # Migration 0005 creates the role NOLOGIN; local runs need it to log in.
-# B1 transition: 0005 creates it under the ORIGINAL name and 0026 renames it.
-# Until 0026 is on disk, do the rename here so everything downstream can use one
-# name. This is an ephemeral local cluster, so the rename costs nothing.
-# Collapses to a plain `alter role nomi_app login` once 0026 ships (step 3).
-psql "$MIGRATE_DATABASE_URL" -tAc "do \$\$ begin if exists (select 1 from pg_roles where rolname='nomi_app') then alter role nomi_app login; else alter role yiwuflow_app rename to nomi_app; alter role nomi_app login; end if; end \$\$;" >/dev/null 2>&1 || fail "grant login"
+# 0005 creates it under its original name and 0026 renames it to nomi_app;
+# both have run by the time we get here.
+psql "$MIGRATE_DATABASE_URL" -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
 # The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
 DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/nomi" \
