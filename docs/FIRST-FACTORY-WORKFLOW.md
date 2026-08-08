@@ -45,6 +45,17 @@ connected" is the absence of one.
 > and nothing on any surface explained why. The runbook's *This installation*
 > panel now says so when it applies.
 
+> **Set `CREDENTIAL_KEY` in the host at the same time**, and treat it as the
+> more serious of the two. It has the identical failure — unset means generated
+> per boot, written to a `.env` that no deploy preserves — but the damage is not
+> recoverable. It encrypts `channel_credentials`, so a new key makes every
+> stored WhatsApp credential permanently undecryptable; it also seeds the
+> session secret, so every owner session drops at the same instant. In
+> production, boot now **refuses** rather than starting into that state. Do this
+> before the channel is switched on, because the credentials it protects do not
+> exist yet — after that, changing it costs a re-authorisation with the
+> provider. The *This installation* panel reports whether it is stable.
+
 **Exit:** the owner can log in and `/app/onboarding` shows every item ○.
 
 ## 2. Owner setup — owner, a few hours over a few days

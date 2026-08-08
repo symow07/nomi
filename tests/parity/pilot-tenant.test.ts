@@ -180,6 +180,66 @@ describe('M27 · prompts load wherever the process starts', () => {
   });
 });
 
+describe('CREDENTIAL_KEY must be supplied, not generated', () => {
+  it('refuses to boot in production when the key was generated', async () => {
+    const { assertStableCredentialKey } = await import('../../src/main.js');
+    expect(() => assertStableCredentialKey(['CREDENTIAL_KEY'], { production: true }))
+      .toThrow(/CREDENTIAL_KEY was generated at boot/);
+  });
+
+  it('names the consequences and the fix, not just "misconfigured"', async () => {
+    const { assertStableCredentialKey } = await import('../../src/main.js');
+    let message = '';
+    try {
+      assertStableCredentialKey(['CREDENTIAL_KEY'], { production: true });
+    } catch (e) { message = (e as Error).message; }
+    // The person reading this has a deployment that just refused to start.
+    expect(message).toMatch(/undecryptable/);
+    expect(message).toMatch(/session/);
+    expect(message).toMatch(/grep \^CREDENTIAL_KEY= \.env/);
+  });
+
+  it('warns but does not refuse outside production', async () => {
+    const { assertStableCredentialKey } = await import('../../src/main.js');
+    const warnings: string[] = [];
+    expect(() => assertStableCredentialKey(
+      ['CREDENTIAL_KEY'], { production: false, warn: (m) => warnings.push(m) },
+    )).not.toThrow();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/not enforced outside production/);
+  });
+
+  it('is silent when the key came from the environment', async () => {
+    const { assertStableCredentialKey } = await import('../../src/main.js');
+    const warnings: string[] = [];
+    // Other secrets being generated is fine; only CREDENTIAL_KEY is fatal.
+    expect(() => assertStableCredentialKey(
+      ['WEBHOOK_SECRET', 'WEBHOOK_VERIFY_TOKEN'],
+      { production: true, warn: (m) => warnings.push(m) },
+    )).not.toThrow();
+    expect(() => assertStableCredentialKey([], { production: true })).not.toThrow();
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('reports stability to the OPERATOR without carrying the key', async () => {
+    const { readDeployment } = await import('../../src/api/web/deployment.js');
+    const now = new Date('2026-08-08T10:00:00Z');
+    expect(readDeployment({}, now, 60).credentialKeyStable).toBe(false);
+    expect(readDeployment({ CREDENTIAL_KEY: '   ' }, now, 60).credentialKeyStable).toBe(false);
+
+    const secret = 'deadbeef'.repeat(8);
+    const info = readDeployment({ CREDENTIAL_KEY: secret }, now, 60);
+    expect(info.credentialKeyStable).toBe(true);
+    expect(JSON.stringify(info)).not.toContain(secret);
+
+    // Presence only: the rendered panel must never interpolate the value.
+    const { readFile } = await import('node:fs/promises');
+    const panel = await readFile(new URL('../../src/api/web/pilot.ts', import.meta.url), 'utf8');
+    expect(panel).not.toMatch(/CREDENTIAL_KEY/);
+    expect(panel).toMatch(/credentialKeyStable \? '' :/);
+  });
+});
+
 describe('M27 · the owner is not locked out by a deploy', () => {
   it('an unset OWNER_ACCESS_CODE is reported to the OPERATOR', async () => {
     const { readDeployment } = await import('../../src/api/web/deployment.js');

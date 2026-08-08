@@ -509,6 +509,9 @@ function deploymentSection(d: DeploymentInfo, locale: Locale): string {
     ${d.ownerCodeStable ? '' : `<div class="ev">
       <div class="ev-d">${esc(t(locale, 'runbook.deploy.codeUnstable'))}</div>
     </div>`}
+    ${d.credentialKeyStable ? '' : `<div class="ev">
+      <div class="ev-d">${esc(t(locale, 'runbook.deploy.credentialKeyUnstable'))}</div>
+    </div>`}
   </div>`;
 }
 

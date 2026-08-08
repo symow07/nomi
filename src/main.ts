@@ -142,9 +142,33 @@ const GENERATED_SECRETS: readonly { name: string; bytes: number }[] = [
  * Generate any missing internal secret with crypto.randomBytes, persist it to
  * .env (append-only — an existing value is NEVER overwritten), and export it
  * to the current process. Values are never logged; callers get names only.
- * On ephemeral hosts (Railway), run locally once and paste the .env values
- * into the host's environment — a per-boot regeneration would invalidate the
- * webhook verify token registered with the provider.
+ *
+ * ON EPHEMERAL HOSTS THIS IS A DATA-LOSS HAZARD, NOT A CONVENIENCE.
+ *
+ * .env does not survive a Railway deploy. An installation that never set these
+ * in the HOST environment regenerates them on every boot, and the three
+ * secrets fail very differently:
+ *
+ *   WEBHOOK_VERIFY_TOKEN  regenerating breaks provider registration — the
+ *                         webhook stops verifying until it is re-registered.
+ *
+ *   CREDENTIAL_KEY        regenerating is unrecoverable. It is the AES-256-GCM
+ *                         key for `channel_credentials` (src/security/credentials.ts),
+ *                         so every stored WhatsApp credential becomes
+ *                         permanently undecryptable — the ciphertext is still
+ *                         there and nothing can read it again. It is ALSO the
+ *                         seed for the web session secret (see `sessionSecret`
+ *                         below), so every owner session is invalidated at the
+ *                         same moment. The owner is logged out of a product
+ *                         whose channel has just gone dark, and re-entering the
+ *                         credentials is the only way back.
+ *
+ * validateEnv cannot catch any of this: generation runs first and always
+ * succeeds, so by the time validation looks, the variable is present and
+ * well-formed. Presence is not stability. That is what
+ * `assertStableCredentialKey` below is for.
+ *
+ * Run locally once and paste the .env values into the host's environment.
  */
 export function ensureGeneratedSecrets(envPath = '.env'): string[] {
   const generated: string[] = [];
@@ -160,6 +184,49 @@ export function ensureGeneratedSecrets(envPath = '.env'): string[] {
     appendFileSync(envPath, (existsSync(envPath) ? '' : '# generated secrets\n') + toAppend, { mode: 0o600 });
   }
   return generated;
+}
+
+/**
+ * Boot gate — CREDENTIAL_KEY must be SUPPLIED, not generated.
+ *
+ * Joins runtimeIdentity, schemaVersion and pilotTenant as a refuse-to-serve
+ * guard, with the same production/non-production asymmetry: production throws,
+ * everywhere else warns, so a developer on a fresh checkout is never locked out
+ * of their own machine.
+ *
+ * It runs EARLIER than the other three, before the database is even opened,
+ * because unlike them it needs nothing but the result of secret generation —
+ * and because every boot past this point with a fresh key is one that has
+ * already orphaned the stored credentials.
+ *
+ * Stronger than M27's OWNER_ACCESS_CODE guard, deliberately. A regenerated
+ * access code locks the owner out until someone reads a log line; a regenerated
+ * CREDENTIAL_KEY destroys data that no log line can recover.
+ */
+export function assertStableCredentialKey(
+  generatedNames: readonly string[],
+  opts: { readonly production: boolean; readonly warn?: (msg: string) => void },
+): void {
+  if (!generatedNames.includes('CREDENTIAL_KEY')) return;
+
+  const problem =
+    'CREDENTIAL_KEY was generated at boot, not supplied by the environment.\n' +
+    'It was written to .env, which does not survive a deploy on an ephemeral\n' +
+    'host, so the next boot generates a different one. When that happens:\n' +
+    '  - every stored WhatsApp credential in channel_credentials becomes\n' +
+    '    permanently undecryptable (the ciphertext survives; the key does not)\n' +
+    '  - every owner session is invalidated, because the web session secret is\n' +
+    '    derived from this key\n' +
+    'Set it in the HOST environment and redeploy. To keep the credentials that\n' +
+    'are already stored, use the value currently in .env:\n' +
+    '  grep ^CREDENTIAL_KEY= .env\n' +
+    'If .env is gone, the stored credentials are unrecoverable and the channel\n' +
+    'must be re-authorised — see docs/SECRET-ROTATION.md.';
+
+  if (opts.production) throw new Error(problem);
+  (opts.warn ?? ((m: string) => console.warn(m)))(
+    `WARNING (not enforced outside production):\n${problem}`,
+  );
 }
 
 /** Minimal .env loader (no dependency; Railway injects env directly). */
@@ -432,6 +499,10 @@ if (isMain) {
   if (generated.length) {
     console.error(`generated internal secrets (values in .env, never logged): ${generated.join(', ')}`);
   }
+  // Before the database, before validateEnv: a generated CREDENTIAL_KEY means
+  // the stored credentials are already orphaned, and every further step makes
+  // it worse. Refuse in production; warn elsewhere.
+  assertStableCredentialKey(generated, { production: process.env['NODE_ENV'] === 'production' });
   const v = validateEnv(process.env);
   if (!v.ok) {
     console.error('environment invalid:\n  ' + v.problems.join('\n  '));

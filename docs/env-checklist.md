@@ -17,7 +17,35 @@ exits with the names of anything missing or malformed; it never prints a value.*
 | `DATABASE_URL` | starts with `postgres` | The **runtime** connection, as `yiwuflow_app`. Boot refuses if this role is a superuser or bypasses RLS. |
 | `ANTHROPIC_API_KEY` | ≥ 20 chars | Model calls. Never a source of prices or claims. |
 | `WEBHOOK_VERIFY_TOKEN` | ≥ 16 chars | The string the provider echoes back during webhook verification. You choose it. |
-| `CREDENTIAL_KEY` | 64 hex chars | Encrypts stored channel credentials, and derives the owner session secret. |
+| `CREDENTIAL_KEY` | 64 hex chars | Encrypts stored channel credentials, and derives the owner session secret. **Boot refuses in production if this was generated rather than supplied** — see below. |
+
+### `CREDENTIAL_KEY` must come from the host, not from `.env`
+
+If it is unset, boot generates one and appends it to `.env`. That file does not
+survive a deploy on an ephemeral host, so the next boot generates a **different**
+key. At that moment, irreversibly:
+
+- every credential in `channel_credentials` becomes undecryptable — the
+  ciphertext is intact and nothing can ever read it again, so the channel goes
+  dark until it is re-authorised with the provider;
+- every owner session is invalidated, because the web session secret is derived
+  from this key. The owner is logged out of a product that has just stopped
+  working.
+
+`validateEnv` cannot catch this. Generation runs first and always succeeds, so
+by the time validation looks the variable is present and correctly shaped.
+**Presence is not stability.** In production the boot guard therefore refuses to
+serve; outside production it warns.
+
+To fix an installation that is already in this state, take the value that boot
+generated *before* redeploying:
+
+```bash
+grep ^CREDENTIAL_KEY= .env     # then set it in the host environment
+```
+
+If `.env` is already gone, the stored credentials cannot be recovered and the
+channel must be re-authorised — see `SECRET-ROTATION.md`.
 
 ## Required for the owner surface
 

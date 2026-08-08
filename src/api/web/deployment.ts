@@ -34,6 +34,25 @@ export type DeploymentInfo = {
    * the value itself is never rendered anywhere.
    */
   readonly ownerCodeStable: boolean;
+  /**
+   * Is the credential encryption key stable across deploys?
+   *
+   * `CREDENTIAL_KEY` unset means main.ts generates one at boot and writes it to
+   * .env, which does not survive a deploy. The next boot generates a different
+   * key, and at that moment every stored WhatsApp credential becomes
+   * permanently undecryptable and every owner session is invalidated — the
+   * channel goes dark and the owner is logged out of the product at once.
+   *
+   * Strictly worse than `ownerCodeStable` above: a lost access code is
+   * recoverable from a log line, a lost credential key is not recoverable at
+   * all. In production the boot guard refuses to serve, so a running production
+   * process should always report this true; it is surfaced anyway because a
+   * false here on any other environment is the warning that the same
+   * installation will lose its credentials the moment it is promoted.
+   *
+   * Operator panel only, and presence only — the key is never rendered.
+   */
+  readonly credentialKeyStable: boolean;
 };
 
 /** Railway's variables first, then generic CI names — first non-empty wins. */
@@ -56,7 +75,8 @@ export function readDeployment(
     provider: env['WHATSAPP_PROVIDER']?.trim() || 'disabled',
     startedAt: new Date(now.getTime() - Math.max(0, uptimeSeconds) * 1000),
     nodeVersion: process.versions.node,
-    // Presence only — the value is never read here and never rendered.
+    // Presence only — neither value is read here and neither is ever rendered.
     ownerCodeStable: (env['OWNER_ACCESS_CODE'] ?? '').trim() !== '',
+    credentialKeyStable: (env['CREDENTIAL_KEY'] ?? '').trim() !== '',
   };
 }
