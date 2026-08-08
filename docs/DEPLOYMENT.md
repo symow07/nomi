@@ -8,10 +8,11 @@ deploy without changing anything.
 | | |
 |---|---|
 | Host | Railway |
-| Repo | `git@github.com:symow07/Flower.git`, branch `main` |
+| Repo | `git@github.com:symow07/nomi.git`, branch `main` |
 | Deploy trigger | push to `main` |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
+| Database name | `yiwuflow`, historical. `ALTER DATABASE ... RENAME` requires zero open connections, which Railway does not generally allow, so it was NOT bundled with the role rename (0026) — doing both in one migration turns two recoverable problems into one unrecoverable one. Rename it as its own maintenance step or leave it. |
 | Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
@@ -58,7 +59,7 @@ host does not report a value, the page says *Not reported* rather than guessing.
 ## Verify a deployment (read-only)
 
 ```bash
-bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+bash .claude/skills/run-nomi/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
 ```
 
 Only GETs plus one login POST — it never posts an owner action, never touches
@@ -117,7 +118,7 @@ of rolling back the app: `/app/channels` → Disconnect sets `channels.status =
 ## Local equivalent
 
 ```bash
-bash .claude/skills/run-yiwuflow/smoke.sh
+bash .claude/skills/run-nomi/smoke.sh
 ```
 
 Ephemeral Postgres, migrate, seed both tenants, build, launch, and drive the full

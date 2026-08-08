@@ -43,7 +43,7 @@ ingest and queue under every switch — nothing is dropped.
 - Confirm what is actually live: `/app/onboarding` → *This installation* → Running
   version (owner login required; deliberately not on `/health`).
 - Before any deploy: `npm run check` green is mandatory, no exceptions solo.
-- Post-deploy: `bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> <code>`.
+- Post-deploy: `bash .claude/skills/run-nomi/verify-remote.sh https://<host> <code>`.
 
 ### 5. Credential leak (API key / DB password)
 - Rotate at source (Meta app / Railway Postgres / Anthropic console) FIRST.

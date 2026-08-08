@@ -1,5 +1,5 @@
 {
-  "_comment": "YiwuFlow MVP — Test Payloads. POST to /webhook/simulate with header x-webhook-secret: test_secret_xyz",
+  "_comment": "Nomi MVP — Test Payloads. POST to /webhook/simulate with header x-webhook-secret: test_secret_xyz",
 
   "test_cases": [
 

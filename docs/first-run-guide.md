@@ -8,7 +8,7 @@ Start here. Do every step in order. Do not skip checkpoints.
 
 1. Go to [supabase.com](https://supabase.com) → Sign in → **New project**
 2. Fill in:
-   - **Name:** `yiwuflow`
+   - **Name:** `nomi`
    - **Database password:** generate a strong one and save it somewhere safe
    - **Region:** choose closest to your target customers (Singapore or Frankfurt for Yiwu exporters)
    - **Plan:** Free tier is sufficient for MVP
@@ -175,8 +175,8 @@ Come back and fill in the real values as you complete Steps 5 and 6.
    - Go to [console.cloud.google.com](https://console.cloud.google.com)
    - Create a project → Enable **Google Sheets API**
    - Go to **IAM & Admin → Service Accounts → Create service account**
-   - Name it `yiwuflow-sheets`, click through, create key → **JSON** → download
-   - Copy the `client_email` value from the JSON (looks like `yiwuflow-sheets@your-project.iam.gserviceaccount.com`)
+   - Name it `nomi-sheets`, click through, create key → **JSON** → download
+   - Copy the `client_email` value from the JSON (looks like `nomi-sheets@your-project.iam.gserviceaccount.com`)
    - Back in Google Sheets: **Share** the spreadsheet with that service account email → **Editor** access
    - In n8n: configure Google Sheets credential → Service Account → paste the JSON content
 
@@ -196,7 +196,7 @@ Manually add one dummy row to the `Confirmed Orders` tab and then delete it. If 
 
 3. Create an API key:
    - Go to **Settings → API Keys → Create API Key**
-   - Name: `yiwuflow-mvp`
+   - Name: `nomi-mvp`
    - Permission: **Restricted Access → Mail Send → Full Access**
    - Click **Create & View** — copy the key immediately (shown only once)
 
@@ -222,7 +222,7 @@ Expected: JSON containing `"mail.send"` in the scopes array. If you get a 403, t
 2. Send: `/newbot`
 3. Follow prompts:
    - Bot name: `Nomi Escalations` (display name)
-   - Bot username: something like `yiwuflow_alerts_bot` (must end in `bot`)
+   - Bot username: something like `nomi_alerts_bot` (must end in `bot`)
 4. BotFather replies with your bot token. Save it:
    ```
    TELEGRAM_BOT_TOKEN = 123456789:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

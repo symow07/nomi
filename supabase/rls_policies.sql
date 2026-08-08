@@ -1,5 +1,5 @@
 -- =============================================================================
--- YiwuFlow — Row Level Security
+-- Nomi — Row Level Security
 -- Run this AFTER schema.sql and seed_products.sql.
 -- =============================================================================
 --
@@ -14,7 +14,7 @@
 --
 -- THE MODEL
 --
--- YiwuFlow has no browser client. n8n is a trusted server-side caller, so it
+-- Nomi has no browser client. n8n is a trusted server-side caller, so it
 -- can hold the service key, and nothing else ever needs database access. We
 -- therefore deny `anon` and `authenticated` outright:
 --

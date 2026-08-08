@@ -6,7 +6,7 @@ for the production migration later — this changes configuration, not behavior.
 
 ## 1 · Create the app
 1. developers.facebook.com → **My Apps → Create App** → type **Business**.
-   Name it anything (e.g. `yiwuflow-pilot`); it is never shown to buyers.
+   Name it anything (e.g. `nomi-pilot`); it is never shown to buyers.
 2. On the app dashboard → **Add product → WhatsApp → Set up**. Accept the
    auto-created (or select an existing) Meta Business Account.
 

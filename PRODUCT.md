@@ -13,8 +13,8 @@ business hires a digital employee who answers buyer enquiries on WhatsApp —
 identifies the product, quotes within the owner's rules, and never states a
 price, specification, or certification the owner has not given her.
 
-Product name is **Nomi** (customer-facing). The engineering identifiers, repository,
-database, and migration history remain `yiwuflow` deliberately; see Constraints.
+Product name is **Nomi**, and it is now the only name. The split this document
+once argued for — `yiwuflow` inside, Nomi outside — is reversed; see Constraints.
 
 ## Primary user
 
@@ -75,8 +75,22 @@ implementation detail, not a design hierarchy.
 - **Archive, never erase.** The application role holds no DELETE anywhere.
 - **Pilot safety**: an allowlist gates who can be messaged; activation is explicit and
   refuses on unmet preconditions.
-- Internal names stay: repository, database, migrations, i18n keys, nav ids,
-  `yiwuflow_app` role. Only customer-facing brand, UI copy, and documentation change.
+- **One name.** This section previously argued the opposite: that the repository,
+  database, migrations, i18n keys and role should keep the name `yiwuflow` while
+  only the owner-facing brand said Nomi, on the grounds that renaming them was
+  risk without user-visible benefit. That is reversed. The split cost more than
+  it saved — two vocabularies for one thing, in a codebase whose whole
+  discipline is that a name means what it says — and no owner-facing copy ever
+  contained `yiwuflow`, so nothing she reads changed.
+
+  What deliberately keeps the old name: migrations 0001–0022 (applied history,
+  forward-only per ADR-0007), `docs/adr/` and `docs/archive/` (the record of
+  decisions taken under it), and the database itself (`ALTER DATABASE ... RENAME`
+  needs zero open connections, which Railway does not generally allow — it is
+  documented as historical in DEPLOYMENT.md rather than bundled into the role
+  rename, which would turn two recoverable problems into one unrecoverable one).
+  The runtime role moved in migration 0026, across three releases so an older
+  build still runs against the newer schema.
 
 ## Accessibility
 

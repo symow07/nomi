@@ -1,9 +1,9 @@
 ---
-name: run-yiwuflow
-description: Build, run, start, launch, and drive YiwuFlow locally — the Fastify server that serves the owner Command Center (server-rendered pages) plus /health, backed by Postgres. Use when asked to run/start/launch YiwuFlow, boot the server, log in to the Command Center, inspect or screenshot a page, or smoke-test it end-to-end. Runs in `disabled` mode with no Meta/WhatsApp credentials.
+name: run-nomi
+description: Build, run, start, launch, and drive Nomi locally — the Fastify server that serves the owner Command Center (server-rendered pages) plus /health, backed by Postgres. Use when asked to run/start/launch Nomi, boot the server, log in to the Command Center, inspect or screenshot a page, or smoke-test it end-to-end. Runs in `disabled` mode with no Meta/WhatsApp credentials.
 ---
 
-YiwuFlow is a single Node/TypeScript monolith: one Fastify process that serves a
+Nomi is a single Node/TypeScript monolith: one Fastify process that serves a
 public `/health` probe and the owner **Command Center** (server-rendered HTML at
 `/app/*`, behind a login). It needs Postgres and — in `disabled` mode — **no Meta
 credentials**. It is headless (no browser UI); you drive it with `curl`.
@@ -15,14 +15,14 @@ Pilot runbook → Sandbox → buyer turn → take over → owner reply → hand 
 leaving the server running:
 
 ```bash
-bash .claude/skills/run-yiwuflow/smoke.sh
+bash .claude/skills/run-nomi/smoke.sh
 ```
 
 **To verify a DEPLOYED instance instead** (read-only — GETs plus one login POST;
 never posts an owner action, never sends a message, safe against production):
 
 ```bash
-bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+bash .claude/skills/run-nomi/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
 ```
 
 It checks `/health` (including that it leaks no build info), the auth gate on
@@ -71,13 +71,13 @@ The smoke script is the driver. It is idempotent (wipes and recreates its scratc
 dir each run) and self-contained:
 
 ```bash
-bash .claude/skills/run-yiwuflow/smoke.sh
+bash .claude/skills/run-nomi/smoke.sh
 ```
 
 On success it prints `PASS` and leaves the server running, e.g.:
 
 ```
-PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
+PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → buyer turn → take over → owner reply → hand back
                 rehearsal observed by the runbook: Practice before launch · 3/5
@@ -98,7 +98,7 @@ runbook **observes** the rehearsal it just practised (`3/5` or better), and that
 the sandbox tenant still has **zero** channel credentials — i.e. nothing was
 really delivered. Any missing marker or wrong status code aborts with `FAIL`.
 
-Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE=... bash .claude/skills/run-yiwuflow/smoke.sh`.
+Override the ports or login code via env: `PGPORT=... PORT=... OWNER_ACCESS_CODE=... bash .claude/skills/run-nomi/smoke.sh`.
 
 ### Drive more (authenticated)
 
@@ -141,8 +141,8 @@ migrations/seed run as the **admin** role, the app runs as **`nomi_app`** (RLS).
 | Variable | Required | Value used | Notes |
 |---|---|---|---|
 | `WHATSAPP_PROVIDER` | No | `disabled` | unset ⇒ disabled; `meta`/`360dialog` need provider creds |
-| `DATABASE_URL` | Yes | `postgresql://nomi_app@127.0.0.1:55440/yiwuflow` | app role — RLS enforced |
-| `MIGRATE_DATABASE_URL` | migrate/seed | `postgresql://postgres@127.0.0.1:55440/yiwuflow` | admin role (DDL) |
+| `DATABASE_URL` | Yes | `postgresql://nomi_app@127.0.0.1:55440/nomi` | app role — RLS enforced |
+| `MIGRATE_DATABASE_URL` | migrate/seed | `postgresql://postgres@127.0.0.1:55440/nomi` | admin role (DDL) |
 | `ANTHROPIC_API_KEY` | Yes (shape) | `sk-ant-smoke-...` (len ≥ 20) | not called in disabled mode |
 | `CREDENTIAL_KEY` | Yes | 64 hex chars | derives the session-cookie secret |
 | `WEBHOOK_VERIFY_TOKEN` | Yes | any ≥ 16 chars | |
@@ -156,7 +156,7 @@ npm run check        # tsc + src/core purity boundaries + vitest (617 pass; DB-b
 ```
 
 The DB-backed integration tests run only when `DATABASE_URL` points at a migrated
-Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_app@127.0.0.1:55440/yiwuflow npx vitest run tests/integration/boot.test.ts`.
+Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_app@127.0.0.1:55440/nomi npx vitest run tests/integration/boot.test.ts`.
 
 ## Gotchas
 

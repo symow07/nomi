@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# verify-remote — READ-ONLY verification of a DEPLOYED YiwuFlow (M17.1).
+# verify-remote — READ-ONLY verification of a DEPLOYED Nomi (M17.1).
 #
-#   bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> [access-code]
+#   bash .claude/skills/run-nomi/verify-remote.sh https://<host> [access-code]
 #
 # Answers "is the deployment actually up and correctly locked down?" without
 # changing anything: it performs GETs plus a single login POST when an access

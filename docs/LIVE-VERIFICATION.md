@@ -13,7 +13,7 @@ work, and it is blocked exclusively on external credentials. Budget: **under
 | Webhook HMAC secret | you choose it (any 32+ char random string) | env `WEBHOOK_SECRET` — also given to 360dialog webhook config |
 | Webhook verify token | you choose it | env `WEBHOOK_VERIFY_TOKEN` |
 | Credential encryption key | `openssl rand -hex 32` | env `CREDENTIAL_KEY` |
-| Database runtime credentials (`yiwuflow_app`) | your standalone PostgreSQL host (e.g. Railway) — bootstrap with `npm run migrate`, then `alter role yiwuflow_app login password '…'`; see POSTGRES-MIGRATION-RUNBOOK.md | env `DATABASE_URL` (admin URL only in `MIGRATE_DATABASE_URL`) |
+| Database runtime credentials (`nomi_app`) | your standalone PostgreSQL host (e.g. Railway) — bootstrap with `npm run migrate`, then `alter role nomi_app login password '…'`; see POSTGRES-MIGRATION-RUNBOOK.md | env `DATABASE_URL` (admin URL only in `MIGRATE_DATABASE_URL`) |
 | Anthropic API key | console.anthropic.com | env `ANTHROPIC_API_KEY` (AI replies only — not needed for channel verification) |
 
 Secrets go in `.env` (gitignored) only. Never in code, fixtures, or chat.

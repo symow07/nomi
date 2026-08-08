@@ -11,8 +11,8 @@ Time budget: ~45 min. Everything before step 8 is safe to rerun.
 ```bash
 # From Supabase: full logical dump (needs the postgres-role connection string
 # from the dashboard — Session mode, port 5432, NOT the pooler)
-pg_dump "$SUPABASE_URL" --no-owner --no-privileges -Fc -f yiwuflow-pre-cutover.dump
-pg_restore -l yiwuflow-pre-cutover.dump | head        # sanity: readable TOC
+pg_dump "$SUPABASE_URL" --no-owner --no-privileges -Fc -f nomi-pre-cutover.dump
+pg_restore -l nomi-pre-cutover.dump | head        # sanity: readable TOC
 ```
 Keep this file. It is the rollback.
 
@@ -31,7 +31,7 @@ node tools/migrate.mjs --status                                  # expect: pendi
 ```
 **Path B — restore the dump wholesale** (brings schema+data together):
 ```bash
-pg_restore -d "$ADMIN_URL" --no-owner --no-privileges yiwuflow-pre-cutover.dump
+pg_restore -d "$ADMIN_URL" --no-owner --no-privileges nomi-pre-cutover.dump
 ```
 Path B note: the dump contains Supabase-side extras (`april_draft` archive
 schema, `supabase_migrations` metadata, `pgboss` schema). Harmless; drop the
@@ -40,8 +40,8 @@ first two later if unwanted. Skip data-only step 3 if you used Path B.
 ## 3 · Data (with Path A schema)
 ```bash
 pg_dump "$SUPABASE_URL" --data-only --no-owner --disable-triggers \
-  --schema=public -Fc -f yiwuflow-data.dump
-pg_restore -d "$ADMIN_URL" --data-only --disable-triggers yiwuflow-data.dump
+  --schema=public -Fc -f nomi-data.dump
+pg_restore -d "$ADMIN_URL" --data-only --disable-triggers nomi-data.dump
 ```
 Restore order is handled by pg_restore's TOC; `--disable-triggers` avoids FK
 ordering issues. Then repair sequences (identity columns):
@@ -55,14 +55,14 @@ select setval(pg_get_serial_sequence('ops_flags','id'),           (select coales
 ```
 
 ## 4 · Roles (runtime ≠ migration credentials)
-Migration 0005 creates `yiwuflow_app` (nologin, no BYPASSRLS) with grants.
+Migration 0005 creates `nomi_app` (nologin, no BYPASSRLS) with grants.
 Give it login on the target:
 ```sql
-alter role yiwuflow_app login password '<generated>';
+alter role nomi_app login password '<generated>';
 ```
-Runtime `DATABASE_URL` uses `yiwuflow_app`. Keep the admin URL only in
+Runtime `DATABASE_URL` uses `nomi_app`. Keep the admin URL only in
 `MIGRATE_DATABASE_URL` for future migrations. The app user must not be
-superuser — verify: `select rolsuper from pg_roles where rolname='yiwuflow_app';` → f.
+superuser — verify: `select rolsuper from pg_roles where rolname='nomi_app';` → f.
 
 ## 5 · Verification (all must pass before cutover)
 ```bash
@@ -80,7 +80,7 @@ select sku from retrieve_products('de300000-0000-4000-8000-0000000000b1'::uuid,
 ```
 ```bash
 # app-level: integration suite as the app role + full check
-DATABASE_URL="postgresql://yiwuflow_app:...@target/db" npm run check   # full suite green, 0 skipped (529 as of 2026-07-28)
+DATABASE_URL="postgresql://nomi_app:...@target/db" npm run check   # full suite green, 0 skipped (529 as of 2026-07-28)
 ```
 Representative-data validation: spot-check Ahmed's conversation (messages
 count, thermos quote at $2.10 in message text), one closed repair record,

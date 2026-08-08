@@ -7,7 +7,7 @@ import {
  * M19 (B0) — the runtime connection must be subject to RLS.
  *
  * This is the check that would have caught the real production finding:
- * `yiwuflow_app` was NOLOGIN, so the app could not have been connecting as the
+ * `nomi_app` was NOLOGIN, so the app could not have been connecting as the
  * role every policy targets — while all tests passed and /health stayed green.
  */
 
@@ -15,7 +15,7 @@ const app: RuntimeIdentity = { currentUser: RUNTIME_ROLE, isSuperuser: false, by
 const superuser: RuntimeIdentity = { currentUser: 'postgres', isSuperuser: true, bypassesRls: true };
 
 describe('M19 · runtime database identity', () => {
-  it('ACCEPTS yiwuflow_app with no superuser and no bypass', () => {
+  it('ACCEPTS nomi_app with no superuser and no bypass', () => {
     expect(checkRuntimeRole(app, { expectRole: true })).toMatchObject({ safe: true, problems: [] });
     expect(checkRuntimeRole(app, { expectRole: false })).toMatchObject({ safe: true });
   });
@@ -27,7 +27,7 @@ describe('M19 · runtime database identity', () => {
   });
 
   it('REFUSES a superuser even when the role name is right', () => {
-    // a yiwuflow_app that had been granted SUPERUSER would still bypass RLS
+    // a nomi_app that had been granted SUPERUSER would still bypass RLS
     const v = checkRuntimeRole({ ...app, isSuperuser: true }, { expectRole: true });
     expect(v.safe).toBe(false);
     expect(v.problems).toContain('superuser');

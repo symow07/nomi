@@ -1,4 +1,4 @@
-# YiwuFlow — MVP Build Order
+# Nomi — MVP Build Order
 ## Phase 1 Only: Simulated Webhook, Text + Image, Confirmation, Escalation
 
 Build and test each phase completely before starting the next.
@@ -33,12 +33,12 @@ Create these as separate n8n workflows before building nodes inside them:
 
 | Workflow | Trigger |
 |----------|---------|
-| YiwuFlow - Intake | Webhook |
-| YiwuFlow - Multimodal Analysis | Called by Intake |
-| YiwuFlow - Conversation + Decision | Called by Multimodal |
-| YiwuFlow - Confirmation | Called by Conversation |
-| YiwuFlow - Escalation | Called by Conversation |
-| YiwuFlow - Dispatch | Called by Conversation |
+| Nomi - Intake | Webhook |
+| Nomi - Multimodal Analysis | Called by Intake |
+| Nomi - Conversation + Decision | Called by Multimodal |
+| Nomi - Confirmation | Called by Conversation |
+| Nomi - Escalation | Called by Conversation |
+| Nomi - Dispatch | Called by Conversation |
 
 ---
 
@@ -105,7 +105,7 @@ Send TC-012 (injection attempt).
 
 **Goal:** For every non-duplicate message, resolve or create the client record and active conversation.
 
-Build inside **YiwuFlow - Intake**, after step 1.6's output rejoins (or before the Switch — Intake handles all input types).
+Build inside **Nomi - Intake**, after step 1.6's output rejoins (or before the Switch — Intake handles all input types).
 
 ### Build order
 
@@ -151,7 +151,7 @@ Send TC-001 again (same `client_channel_id`, different `external_id` — change 
 
 **Goal:** Run Claude analysis on text messages. Produce structured `analysis` object covering language, intent, product candidates, and phase recommendation.
 
-Build inside **YiwuFlow - Multimodal Analysis**, Text branch (from step 1.6).
+Build inside **Nomi - Multimodal Analysis**, Text branch (from step 1.6).
 
 ### Build order
 
@@ -218,7 +218,7 @@ Send TC-003 (Arabic text).
 
 **Goal:** Run Claude Vision on image messages. Match result against product catalog via fuzzy alias search. Produce same `analysis` output shape as Phase 3.
 
-Build inside **YiwuFlow - Multimodal Analysis**, Image branch (from step 1.6).
+Build inside **Nomi - Multimodal Analysis**, Image branch (from step 1.6).
 
 ### Build order
 
@@ -264,7 +264,7 @@ Send TC-007 (image + text).
 
 **Goal:** Generate a client-facing reply. Save all messages to DB. Update conversation state. Send reply to `MOCK_CALLBACK_URL`.
 
-Build inside **YiwuFlow - Conversation + Decision** and **YiwuFlow - Dispatch**.
+Build inside **Nomi - Conversation + Decision** and **Nomi - Dispatch**.
 
 ### Build order
 
@@ -333,7 +333,7 @@ Send TC-005 (early price question).
 
 **Goal:** When escalation score hits 100, notify operator on Telegram, update conversation to `escalated`, send client a handoff message.
 
-Build inside **YiwuFlow - Escalation**.
+Build inside **Nomi - Escalation**.
 
 ### Build order
 
@@ -369,7 +369,7 @@ Send TC-009 (client requests human — "I want to speak to someone").
 
 **Goal:** When all 5 conditions are met and `phase_action = 'confirm_order'`, validate the order with AI, write it to DB and Google Sheets, send a confirmation email.
 
-Build inside **YiwuFlow - Confirmation**. This sub-workflow is called from step 5.10 YES branch.
+Build inside **Nomi - Confirmation**. This sub-workflow is called from step 5.10 YES branch.
 
 ### Build order
 

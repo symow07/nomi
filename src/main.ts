@@ -259,7 +259,7 @@ export async function buildProduction(
   });
 
   // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
-  // tenant isolation. Every RLS policy targets yiwuflow_app; a superuser or
+  // tenant isolation. Every RLS policy targets nomi_app; a superuser or
   // BYPASSRLS connection ignores row security while /health still reports
   // green. In production this throws; elsewhere it warns, so migrations, seeds
   // and tests (which connect as the admin role on purpose) are unaffected.
@@ -519,8 +519,8 @@ if (isMain) {
   prod.app.log.info(
     { port: v.cfg.PORT, provider: v.cfg.provider },
     v.cfg.provider === 'disabled'
-      ? 'yiwuflow up in deployment mode (health + worker infra, no messaging)'
-      : 'yiwuflow production up (webhook + worker)',
+      ? 'nomi up in deployment mode (health + worker infra, no messaging)'
+      : 'nomi production up (webhook + worker)',
   );
 
   let shuttingDown = false;

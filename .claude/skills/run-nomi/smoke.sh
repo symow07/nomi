@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-yiwuflow — clean machine → running, seeded, verified YiwuFlow server.
+# run-nomi — clean machine → running, seeded, verified Nomi server.
 #
 # Brings up an EPHEMERAL Postgres, migrates + seeds the demo tenant, builds,
 # launches the server in `disabled` mode (no Meta credentials needed), and
@@ -11,7 +11,7 @@
 # ephemeral cluster, so the repo's .env (which may hold prod creds) is ignored.
 set -uo pipefail
 
-# Repo root = three levels up from this skill dir (.claude/skills/run-yiwuflow/).
+# Repo root = three levels up from this skill dir (.claude/skills/run-nomi/).
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
@@ -36,16 +36,20 @@ echo "[1/6] ephemeral Postgres on :$PGPORT"
 initdb -D "$SK/pg" -U postgres --auth-local=trust --auth-host=trust >/dev/null 2>&1 || fail "initdb"
 pg_ctl -D "$SK/pg" -o "-p $PGPORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=$SOCK" \
   -l "$SK/pg.log" -w start >/dev/null 2>&1 || fail "postgres start (see $SK/pg.log)"
-createdb -h 127.0.0.1 -p "$PGPORT" -U postgres yiwuflow || fail "createdb"
+createdb -h 127.0.0.1 -p "$PGPORT" -U postgres nomi || fail "createdb"
 
 echo "[2/6] migrate + grant app-role login + seed demo & sandbox tenants"
-export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/yiwuflow"
+export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/nomi"
 node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
-# migration 0005 creates nomi_app NOLOGIN; local runs need it to log in.
-psql "$MIGRATE_DATABASE_URL" -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
+# Migration 0005 creates the role NOLOGIN; local runs need it to log in.
+# B1 transition: 0005 creates it under the ORIGINAL name and 0026 renames it.
+# Until 0026 is on disk, do the rename here so everything downstream can use one
+# name. This is an ephemeral local cluster, so the rename costs nothing.
+# Collapses to a plain `alter role nomi_app login` once 0026 ships (step 3).
+psql "$MIGRATE_DATABASE_URL" -tAc "do \$\$ begin if exists (select 1 from pg_roles where rolname='nomi_app') then alter role nomi_app login; else alter role yiwuflow_app rename to nomi_app; alter role nomi_app login; end if; end \$\$;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
 # The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
-DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/yiwuflow" \
+DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/nomi" \
   node tools/seed-sandbox.mjs >/dev/null 2>&1 || fail "seed sandbox"
 
 echo "[3/6] build (tsc → dist)"
@@ -56,7 +60,7 @@ echo "[4/6] launch server (disabled mode) on :$APPPORT"
 # over http; DATABASE_URL/ANTHROPIC override anything in .env.
 env -u NODE_ENV \
   WHATSAPP_PROVIDER=disabled \
-  DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/yiwuflow" \
+  DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/nomi" \
   ANTHROPIC_API_KEY="sk-ant-smoke-not-a-real-key-00000000" \
   CREDENTIAL_KEY="$(printf 'a%.0s' $(seq 1 64))" \
   WEBHOOK_VERIFY_TOKEN="smoke-verify-token-0001" \
@@ -133,7 +137,7 @@ CREDS="$(psql "$MIGRATE_DATABASE_URL" -tAc \
 
 cat <<EOF
 
-PASS — YiwuFlow is running and the owner walkthrough was driven end-to-end.
+PASS — Nomi is running and the owner walkthrough was driven end-to-end.
   walkthrough:  auth gate → login → Today → Pilot runbook → Sandbox
                 → My factory (+ the 4 surfaces it contains)
                 → buyer turn → take over → owner reply → hand back

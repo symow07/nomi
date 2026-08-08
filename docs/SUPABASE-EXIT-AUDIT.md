@@ -14,10 +14,10 @@ actually bootstrapped. Both are fixed.
 | Supabase client libraries / `createClient` | **nowhere** — `package.json` deps are pg, kysely, pg-boss, fastify, zod, @anthropic-ai/sdk | — | none needed |
 | Supabase REST (PostgREST) calls | `n8n/*.json` workflows + `tools/build-workflows.mjs`, `tools/test-logic.mjs` | no | **legacy engine only** — not part of the v1.0 runtime (TS service). Left untouched; if the n8n shadow is ever revived on standalone PG it needs a PostgREST substitute (out of scope, deliberate) |
 | Supabase RPC | n8n workflows call `resolve_tenant`/`search_product_by_text` via PostgREST RPC; **the TS service calls the same functions via parameterized SQL** (`src/db/repos.ts`, `src/retrieval/hybrid.ts`) | functions are plain PL/pgSQL | none — already ordinary SQL calls |
-| service_role usage | n8n only (`SUPABASE_SERVICE_KEY` in `docs/env-checklist.md`) | no | legacy; the TS service connects as `yiwuflow_app` (no BYPASSRLS) and never had a service-role concept |
+| service_role usage | n8n only (`SUPABASE_SERVICE_KEY` in `docs/env-checklist.md`) | no | legacy; the TS service connects as `nomi_app` (no BYPASSRLS) and never had a service-role concept |
 | anon key usage | none (rls_policies.sql exists to *neutralize* it) | — | n/a |
 | Supabase Auth / Storage / Realtime / Edge Functions | **not used anywhere** — verified by grep across src/, tools/, tests/, docs/ | — | nothing to replace; stated per brief §6 |
-| RLS policies | `migrations/0005` etc.: `current_business_id()` + `set_config('app.business_id', …, true)` + per-table policies for role `yiwuflow_app` | **yes — pure PostgreSQL** | kept as-is; this is the tenant-isolation mechanism and it is portable (verified live on PG16) |
+| RLS policies | `migrations/0005` etc.: `current_business_id()` + `set_config('app.business_id', …, true)` + per-table policies for role `nomi_app` | **yes — pure PostgreSQL** | kept as-is; this is the tenant-isolation mechanism and it is portable (verified live on PG16) |
 | `supabase/rls_policies.sql` | hardening against Supabase's `anon`/`authenticated` roles | no (roles don't exist elsewhere) | applied by the runner **only when those roles exist**; on plain PG the threat doesn't exist and 0005 provides isolation |
 | Supabase env vars | `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` in `docs/env-checklist.md` (n8n-era doc) | no | doc marked legacy; service env is `DATABASE_URL` + pool vars only |
 | Supabase CLI / dashboard / MCP migrations | how I applied 0001–0014 to the hosted DB; `supabase_migrations` schema is hosted-side metadata | no | replaced by `tools/migrate.mjs`; canonical history is our own `_migrations` table (portable, inside the migrations themselves) |
@@ -55,7 +55,7 @@ actually bootstrapped. Both are fixed.
 ## Verified on standalone PostgreSQL 16 (local, from zero)
 initdb → `migrate.mjs` applies baseline + all 14 → `seed-demo.mjs` →
 `retrieve_products('canvas tote bag cotton')` returns **ZX-100 first** →
-integration suite passes **as the `yiwuflow_app` role** (RLS zero-rows,
+integration suite passes **as the `nomi_app` role** (RLS zero-rows,
 cross-tenant deny, order idempotency) → full check 394/394, zero skips →
 Fatima photo e2e byte-identical (ZX-100, 5,000 pcs, $0.92, $4,600.00,
 queued→sending→sent, delivered→read, late-status ignored, digest).

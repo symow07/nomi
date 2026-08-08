@@ -10,9 +10,11 @@ person.
 
 The owner runs it themselves. There is no operator between them and the product.
 
-> The repository, database, migrations and internal identifiers are named
-> `yiwuflow`; the product the owner sees is **Nomi**. That split is deliberate —
-> see [PRODUCT.md](PRODUCT.md).
+> There was once a split: internal identifiers named `yiwuflow`, the product
+> named **Nomi**. It is reversed — one name, everywhere. Migrations 0001–0022,
+> `docs/adr/` and `docs/archive/` still carry the old name, because they are
+> applied history and the record of decisions taken under it. See
+> [ADR-0010](docs/adr/0010-open-questions.md).
 
 ---
 
@@ -151,7 +153,7 @@ Requires Node and a local Postgres.
 
 ```bash
 npm install
-bash .claude/skills/run-yiwuflow/smoke.sh
+bash .claude/skills/run-nomi/smoke.sh
 ```
 
 That script is the fastest honest path: it starts an ephemeral Postgres,
@@ -214,7 +216,7 @@ schema:
 ```bash
 MIGRATE_DATABASE_URL='<admin url>' node tools/migrate.mjs
 git push
-bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+bash .claude/skills/run-nomi/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
 ```
 
 `verify-remote` is read-only and safe against production: health, that `/health`

@@ -5,9 +5,10 @@ import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/message
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
  * (en/zh/ar) with RTL for Arabic and a language switcher. Owner language only.
  *
- * Phase A: the customer-facing brand is "Nomi". Internal identifiers — the
- * repository, database, `yiwuflow_app` role, migrations and i18n KEYS — keep
- * their original names deliberately; only what the owner reads changed.
+ * Phase A introduced the owner-facing brand "Nomi" while internal identifiers
+ * kept the name `yiwuflow`. That split is reversed (B1): there is one name now.
+ * The i18n KEYS are English-keyed by ADR-0008 and were never affected either
+ * way — no owner-facing string ever contained the old name.
  */
 
 /**

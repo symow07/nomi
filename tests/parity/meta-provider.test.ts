@@ -270,7 +270,7 @@ describe('internal secret generation', () => {
   const NAMES = ['WEBHOOK_SECRET', 'WEBHOOK_VERIFY_TOKEN', 'CREDENTIAL_KEY'] as const;
   const saved: Record<string, string | undefined> = {};
 
-  beforeEach(() => { TMP = join(tmpdir(), `yiwuflow-test-${randomUUID()}.env`); });
+  beforeEach(() => { TMP = join(tmpdir(), `nomi-test-${randomUUID()}.env`); });
 
   afterEach(() => {
     for (const n of NAMES) {

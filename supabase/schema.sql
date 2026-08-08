@@ -1,5 +1,5 @@
 -- =============================================================================
--- YiwuFlow MVP — Supabase Schema
+-- Nomi MVP — Supabase Schema
 -- Version: 1.0
 -- Run this in Supabase SQL editor or via psql
 -- =============================================================================

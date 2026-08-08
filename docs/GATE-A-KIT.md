@@ -8,7 +8,7 @@ WhatsApp, and the pilot week is real traffic. So the order is fixed:
 
 1. **git remote + push**（今天，5分钟——所有提交仍只在这台机器上）
 2. **凑齐钥匙**：360dialog sandbox key · ANTHROPIC_API_KEY · 独立 PostgreSQL
-   的 `DATABASE_URL`（yiwuflow_app 运行角色）+ `MIGRATE_DATABASE_URL`（管理角色，
+   的 `DATABASE_URL`（nomi_app 运行角色）+ `MIGRATE_DATABASE_URL`（管理角色，
    见 POSTGRES-MIGRATION-RUNBOOK.md）· `openssl rand -hex 32` → CREDENTIAL_KEY ·
    一个隧道/主机
 3. **跑一遍 [LIVE-VERIFICATION.md](LIVE-VERIFICATION.md)**（<30分钟，8步）

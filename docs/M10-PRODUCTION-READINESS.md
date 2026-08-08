@@ -26,7 +26,7 @@ Legend: ✅ verified in code/tests/drill · ⚠️ needs a manual action (below)
 ## 2 · Database safety
 - ✅ Reproducible from empty — drill run 2026-07-28: fresh DB → `tools/migrate.mjs`
   (baseline + 15 migrations) → `tools/seed-demo.mjs` (12 products / 6 buyers /
-  5 conversations / 2 trust events) → verified as the **runtime** `yiwuflow_app`
+  5 conversations / 2 trust events) → verified as the **runtime** `nomi_app`
   role under RLS (demo tenant sees rows; a different tenant sees 0) → re-migrate
   idempotent (0 new) → dropped. Clean pass.
 - ✅ Restore procedure documented — `OPS-RUNBOOK.md` (pg_dump `-Fc` → restore to a
@@ -63,7 +63,7 @@ Legend: ✅ verified in code/tests/drill · ⚠️ needs a manual action (below)
 ## Remaining manual actions (outside the code)
 1. **Rotate at source**: `ANTHROPIC_API_KEY` and the Railway admin `DATABASE_URL`
    (both exposed in a setup chat). `SECRET-ROTATION.md`.
-2. **Runtime DB role**: point the Railway service at `yiwuflow_app` (RLS-enforced)
+2. **Runtime DB role**: point the Railway service at `nomi_app` (RLS-enforced)
    instead of the `postgres` superuser used for initial bring-up.
 3. **Backups**: confirm Railway backup schedule/PITR; run one pg_dump/restore
    drill and record it in `OPS-RUNBOOK.md`.

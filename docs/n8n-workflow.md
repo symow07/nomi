@@ -1,4 +1,4 @@
-# YiwuFlow — n8n Workflow Design
+# Nomi — n8n Workflow Design
 ## Node-by-Node Implementation Reference
 
 > **You do not need to build these by hand.** All six sub-workflows are generated
@@ -320,7 +320,7 @@ return [{
 ```
 Type:       Execute Workflow
 Name:       → Multimodal Analysis
-Workflow:   YiwuFlow - Multimodal Analysis
+Workflow:   Nomi - Multimodal Analysis
 ```
 
 ---
@@ -1428,7 +1428,7 @@ Body:
 {
   "chat_id": "{{ $env.TELEGRAM_ESCALATION_CHAT_ID }}",
   "parse_mode": "HTML",
-  "text": "🔔 <b>ESCALATION — YiwuFlow</b>\n\nClient: {{ $json.conversation_state.client_name }}\nChannel: {{ $json.channel }}\nContact: {{ $json.client_channel_id }}\n\nReason: {{ $json.escalation_flags.join(', ') }}\nScore: {{ $json.escalation_score }}\nProduct: {{ $json.conversation_state.product_name || 'Unknown' }}\nQty: {{ $json.conversation_state.inquiry_quantity || 'Not stated' }}\n\nAction: Reply to client directly on {{ $json.channel }}\nConv ID: {{ $json.conversation_id }}"
+  "text": "🔔 <b>ESCALATION — Nomi</b>\n\nClient: {{ $json.conversation_state.client_name }}\nChannel: {{ $json.channel }}\nContact: {{ $json.client_channel_id }}\n\nReason: {{ $json.escalation_flags.join(', ') }}\nScore: {{ $json.escalation_score }}\nProduct: {{ $json.conversation_state.product_name || 'Unknown' }}\nQty: {{ $json.conversation_state.inquiry_quantity || 'Not stated' }}\n\nAction: Reply to client directly on {{ $json.channel }}\nConv ID: {{ $json.conversation_id }}"
 }
 ```
 

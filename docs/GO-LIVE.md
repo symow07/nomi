@@ -63,7 +63,7 @@ in `META-CLOUD-API-SETUP.md`.
    `disabled`, so nothing changes yet — this only makes the readiness page ✓.
 2. **Verify the deployment is healthy** before turning messaging on:
    ```bash
-   bash .claude/skills/run-yiwuflow/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
+   bash .claude/skills/run-nomi/verify-remote.sh https://<host> "$OWNER_ACCESS_CODE"
    ```
    While messaging is disabled this asserts `/webhook/whatsapp` is **404**.
 3. **Flip the provider**: set `WHATSAPP_PROVIDER=meta` and redeploy. The webhook

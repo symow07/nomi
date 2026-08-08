@@ -1,14 +1,14 @@
 # Backup & Restore (M17.4)
 
 > **A roles dump taken before migration 0026 restores the OLD role name.**
-> `pg_dumpall --roles-only` writes `CREATE ROLE yiwuflow_app`, and restoring it
+> `pg_dumpall --roles-only` writes `CREATE ROLE nomi_app`, and restoring it
 > gives you a database whose policies name a role the current build will not
 > connect as — `assertSafeRuntimeRole` refuses to serve, and the failure reads
 > like a configuration error rather than a restore that predates a rename.
 >
 > After restoring any roles file dated before the rename:
 > ```bash
-> psql "$MIGRATE_DATABASE_URL" -c "alter role yiwuflow_app rename to nomi_app;"
+> psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app rename to nomi_app;"
 > psql "$MIGRATE_DATABASE_URL" -c "alter role nomi_app login password '<new>';"
 > ```
 > The password step is not optional: an md5-hashed password is salted with the
@@ -43,7 +43,7 @@ Two artifacts, always taken together:
 pg_dumpall -d "$MIGRATE_DATABASE_URL" --roles-only -f roles-$(date +%F).sql
 
 # 2. the database itself (custom format — compressed, selective restore)
-pg_dump -Fc -d "$MIGRATE_DATABASE_URL" -f yiwuflow-$(date +%F).dump
+pg_dump -Fc -d "$MIGRATE_DATABASE_URL" -f nomi-$(date +%F).dump
 ```
 
 Store both together; a database dump without its roles file is not a usable
@@ -56,23 +56,23 @@ volume snapshot cannot be restored selectively or inspected before use.
 
 ```bash
 # 0. target cluster, empty database
-createdb -h <host> -U postgres yiwuflow_restored
+createdb -h <host> -U postgres nomi_restored
 
 # 1. ROLES FIRST — without this, every RLS policy silently fails to restore
 psql -h <host> -U postgres -d postgres -f roles-<date>.sql
 #    "role postgres already exists" is expected and harmless
 
 # 2. the database
-pg_restore -d "postgresql://postgres@<host>/yiwuflow_restored" --no-owner yiwuflow-<date>.dump
+pg_restore -d "postgresql://postgres@<host>/nomi_restored" --no-owner nomi-<date>.dump
 
 # 3. the app role must be able to log in (migration 0005 creates it NOLOGIN)
-psql "postgresql://postgres@<host>/yiwuflow_restored" -c "alter role nomi_app login password '<new>';"
+psql "postgresql://postgres@<host>/nomi_restored" -c "alter role nomi_app login password '<new>';"
 ```
 
 ## Verify — a restore is not done until these pass
 
 ```bash
-DST="postgresql://postgres@<host>/yiwuflow_restored"
+DST="postgresql://postgres@<host>/nomi_restored"
 
 # schema version matches the source
 psql "$DST" -tAc "select max(version) from _migrations;"
@@ -91,7 +91,7 @@ psql "$DST" -tAc "
 psql "$DST" -tAc "select count(*) from pg_roles where rolname='nomi_app';"
 
 # tenant isolation actually denies: no tenant context ⇒ zero rows
-psql "postgresql://nomi_app@<host>/yiwuflow_restored" -tAc "select count(*) from clients;"   # must be 0
+psql "postgresql://nomi_app@<host>/nomi_restored" -tAc "select count(*) from clients;"   # must be 0
 
 # spot-check the data
 psql "$DST" -tAc "select (select count(*) from businesses), (select count(*) from messages);"
