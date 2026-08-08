@@ -29,11 +29,11 @@ import type { PgBoss } from 'pg-boss';
  * ingress, channel store, outbound drive — into the one process `npm start`
  * runs. No business logic lives here; only wiring.
  *
- * Routes mounted: GET/POST /webhook/whatsapp + GET /health. The legacy
- * /shadow/turn server (src/api/server.ts) is deliberately NOT mounted (H1):
- * it trusts a caller-supplied business_id, which is acceptable only for the
- * trusted n8n shadow caller, never for a public host. Tenant identity here
- * comes exclusively from the channel credential (phone_number_id).
+ * Routes mounted: GET/POST /webhook/whatsapp + GET /health. Tenant identity
+ * comes exclusively from the channel credential (phone_number_id) — never from
+ * anything a caller supplies. The /shadow/turn server that once broke that rule
+ * (it read business_id from the request body, safe only for the trusted n8n
+ * caller) was never mounted, and was deleted with n8n in M28.
  */
 
 /** ── Env: validate names and shapes; never print values ─────────────────── */

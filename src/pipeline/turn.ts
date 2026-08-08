@@ -24,7 +24,6 @@ import {
   orderConfirmedReply,
   quoteRefusalContext,
 } from '../core/conversation/templates.js';
-import type { DecisionFingerprint } from '../shadow/compare.js';
 
 /**
  * The turn pipeline.
@@ -59,6 +58,34 @@ export type TurnRequest = {
   conversationId: ConversationId;
   messageId: string;
   text: string;
+};
+
+/**
+ * The decision this turn reduced to — phase, product, quantity, scores and the
+ * quote, and nothing the model wrote.
+ *
+ * It outlived what it was built for. It existed to diff this engine against the
+ * n8n one, on the principle that two engines can word a reply differently while
+ * making the identical decision, so only decisions are worth comparing. n8n is
+ * gone and the comparator with it (M28), but the fingerprint is still the
+ * cheapest honest summary of a turn — `tests/pipeline/turn.test.ts` asserts a
+ * quote through it — so the TYPE stays here, beside the only thing that builds
+ * one, and the dead comparison logic does not.
+ */
+export type DecisionFingerprint = {
+  readonly phase: string;
+  readonly productId: string | null;
+  readonly productConfirmed: boolean;
+  readonly quantity: number | null;
+  readonly problemScore: number;
+  readonly leadScore: number;
+  readonly pendingQuestion: string | null;
+  readonly phaseAction: 'maintain' | 'advance' | 'confirm_order' | 'handoff' | 'silent';
+  readonly quote: {
+    readonly unitPriceUsd: number;
+    readonly discountPct: number;
+    readonly totalUsd: number;
+  } | null;
 };
 
 export type TurnResult = {

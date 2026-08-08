@@ -16,14 +16,10 @@ import { PgBoss } from 'pg-boss';
 export const QUEUES = {
   /** one job per inbound message; serialized per conversation */
   inbound: 'message.inbound',
-  /** delivery of a reply back to the channel (via n8n or direct adapter) */
+  /** delivery of a reply back to the channel */
   outbound: 'message.outbound',
   /** telegram/slack alerts: hot lead, handoff, delivery-failure */
   notify: 'notify.team',
-  /** post-order side effects: sheets append, confirmation email */
-  orderEffects: 'order.effects',
-  /** nightly shadow diff job */
-  shadowDiff: 'shadow.diff',
 } as const;
 
 export async function startBoss(connectionString: string): Promise<PgBoss> {

@@ -73,11 +73,11 @@ export async function startWorker(env: { DATABASE_URL: string; ANTHROPIC_API_KEY
       } satisfies NotifyJob, { singletonKey: `${job.data.businessId}:${alertKind}:${job.data.conversationId}` });
     }
     // NOTE: an `order.effects` job used to be enqueued here. Nothing ever
-    // consumed it — no `boss.work(QUEUES.orderEffects)` exists — so every
-    // confirmed order left a job to sit until pg-boss expired it, and an
-    // expired job is what the dead-letter handler turns into an owner alert.
-    // The order itself is already persisted by commitTurn; when there are real
-    // post-order effects, add the consumer and the producer together.
+    // consumed it, so every confirmed order left a job to sit until pg-boss
+    // expired it — and an expired job is what the dead-letter handler turns
+    // into an owner alert. The producer went first; the queue itself was
+    // deleted in M28. The order is already persisted by commitTurn; when there
+    // are real post-order effects, add the consumer and the producer together.
   });
 
   // Dead letters become alerts, not silence: an exhausted retry is a page.
