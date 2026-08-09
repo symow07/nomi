@@ -59,7 +59,13 @@ Then it encrypts all three with `age` and uploads only the ciphertext.
 | Destination | Railway bucket `nomi-backups` (region `iad`), plus the local copy |
 | Encryption | `age`, public-key. Only the ciphertext is uploaded |
 | Schedule | **Manual.** Before every migration, and before any maintenance touching roles or the database |
-| Restore last proven | **2026-08-09** — 4/4 checks, from the encrypted bucket copy |
+| Restore last proven | **2026-08-09** — 4/4 checks, from the encrypted bucket copy, on a post-0026 pair |
+
+**Pairs taken from 2026-08-09 onward restore without the rename step.** 0026 is
+applied, so their roles file creates `nomi_app` directly and the warning block
+at the top of this file does not apply to them. The pre-0026 pairs are kept
+deliberately: they carry `yiwuflow_app` and are the only artifacts that can
+recover the state before the rename. Do not prune them because they look stale.
 
 **Two things this destination does NOT give you.** The bucket is on Railway, the
 same account as production: it survives a dropped table, a bad migration or a

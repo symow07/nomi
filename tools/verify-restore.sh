@@ -133,9 +133,17 @@ echo "    pg_restore reported $RESTORE_ERRS error line(s)"
 # ── 3. the four checks ──────────────────────────────────────────────────────
 echo "[3/3] verification"
 
-# (a) schema version
+# (a) schema version — taken from the pair's own manifest, never a constant.
+# Hardcoding it means every migration silently turns this check into a lie.
+EXPECT_V="$(sed -n 's/^schema_version: *//p' "$BK/MANIFEST.txt" 2>/dev/null | tr -d ' ')"
 V="$(q 'select max(version) from _migrations')"
-[ "$V" = "25" ] && ok "(a) schema version = $V" || bad "(a) schema version = ${V:-<none>}, expected 25"
+if [ -z "$EXPECT_V" ]; then
+  bad "(a) no schema_version in MANIFEST.txt — cannot verify (restored: ${V:-<none>})"
+elif [ "$V" = "$EXPECT_V" ]; then
+  ok "(a) schema version = $V (matches manifest)"
+else
+  bad "(a) schema version = ${V:-<none>}, manifest says $EXPECT_V"
+fi
 
 # (b) RLS on every business_id table, each with at least one policy
 IFS='|' read -r TOTAL BID VIOL_OFF VIOL_NOPOL <<EOF
