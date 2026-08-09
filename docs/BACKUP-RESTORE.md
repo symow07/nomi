@@ -36,23 +36,78 @@ the app role cannot read anything. Data survives; the security control does not.
 
 ## Backup
 
-Two artifacts, always taken together:
+`tools/backup.sh` produces both artifacts as one unit. It refuses to leave a
+half-pair behind: everything is staged in a temp directory and moved into place
+only after both files exist and pass readback checks, so an interrupted run
+leaves nothing that could be mistaken for a backup.
 
 ```bash
-# 1. cluster roles (nomi_app and its attributes)
-pg_dumpall -d "$MIGRATE_DATABASE_URL" --roles-only -f roles-$(date +%F).sql
-
-# 2. the database itself (custom format — compressed, selective restore)
-pg_dump -Fc -d "$MIGRATE_DATABASE_URL" -f nomi-$(date +%F).dump
+MIGRATE_DATABASE_URL='<admin url>' \
+AGE_RECIPIENT='age1w3k5nun9q7j9vk02dv0mzjj6au0agcevd2henjp9depakzftypeqxn39kt' \
+RAILWAY_BUCKET='nomi-backups' \
+  bash tools/backup.sh ~/nomi-backups
 ```
 
-Store both together; a database dump without its roles file is not a usable
-backup. Treat them as sensitive — they contain every buyer message.
+It writes `~/nomi-backups/nomi-backup-<UTC>/` containing `roles-<ts>.sql`,
+`nomi-<ts>.dump` and a `MANIFEST.txt` carrying sizes, sha256 of both, the server
+version, the runtime role name, and the schema version the pair was taken at.
+Then it encrypts all three with `age` and uploads only the ciphertext.
 
-Railway also takes its own volume backups; that is not a substitute, because a
-volume snapshot cannot be restored selectively or inspected before use.
+| | |
+|---|---|
+| Mechanism | `pg_dumpall --roles-only` + `pg_dump -Fc`, via `tools/backup.sh` |
+| Destination | Railway bucket `nomi-backups` (region `iad`), plus the local copy |
+| Encryption | `age`, public-key. Only the ciphertext is uploaded |
+| Schedule | **Manual.** Before every migration, and before any maintenance touching roles or the database |
+| Restore last proven | **2026-08-09** — 4/4 checks, from the encrypted bucket copy |
+
+**Two things this destination does NOT give you.** The bucket is on Railway, the
+same account as production: it survives a dropped table, a bad migration or a
+deleted service, but not the loss of the Railway account itself. And `iad` is
+production's own region, so there is no geographic separation. Both were
+accepted deliberately in exchange for setup that needs no second vendor. If the
+pilot's data ever justifies it, the fix is one off-platform bucket and a change
+to `RAILWAY_BUCKET`.
+
+**The age private key is the single point of failure.** It lives at
+`~/nomi-backups/age-key.txt` (mode 600) and must also be in the password
+manager. Every uploaded backup is unreadable without it — a laptop failure that
+takes the key with it turns the entire bucket into noise. The key must never be
+stored in the bucket it protects.
+
+**From a machine outside Railway**, `MIGRATE_DATABASE_URL` points at
+`postgres.railway.internal`, which does not resolve. Use the public TCP proxy
+host from `railway variables -s Postgres` instead. That path drops connections
+intermittently; the script retries each dump up to four times, and a dropped
+connection is a retry, not corruption.
+
+Railway also takes volume backups, and can be given continuous archiving
+(`railway postgres pitr enable`, pgBackRest, WAL to a bucket). Neither is a
+substitute for this pair: a physical snapshot restores as a whole new service
+and cannot be inspected or selectively restored before you commit to it.
 
 ## Restore
+
+> **The target cluster must have `pgvector` BEFORE you start, and must not be
+> older than the source.** Migration 0007 adds `products.embedding` of type
+> `vector` wherever the extension exists, and production has it. Restoring into
+> a cluster without pgvector does not fail loudly: the `vector` type cannot be
+> created, so the `products` table fails, and everything depending on it follows
+> — including the RLS policies on `price_tiers`, `product_aliases` and
+> `product_images`. You are left with **three tables carrying RLS and zero
+> policies**, which is the same open-and-silent end state as a roles-less
+> restore, reached by a different road. Measured on 2026-08-09: 49 tables and 49
+> policies with pgvector present, 48 and 45 without it.
+>
+> `tools/verify-restore.sh` checks for pgvector and warns before it starts.
+> `tools/backup.sh` refuses to dump with a `pg_dump` older than the server.
+
+If the artifacts came from the bucket, decrypt them first:
+
+```bash
+age -d -i ~/nomi-backups/age-key.txt -o roles-<date>.sql roles-<date>.sql.age
+age -d -i ~/nomi-backups/age-key.txt -o nomi-<date>.dump nomi-<date>.dump.age
+```
 
 ```bash
 # 0. target cluster, empty database
@@ -70,6 +125,26 @@ psql "postgresql://postgres@<host>/nomi_restored" -c "alter role nomi_app login 
 ```
 
 ## Verify — a restore is not done until these pass
+
+`tools/verify-restore.sh` does all of this automatically, against a throwaway
+cluster it builds and destroys itself. It never takes a URL, so it cannot reach
+production even by accident.
+
+```bash
+bash tools/verify-restore.sh ~/nomi-backups/nomi-backup-<ts>
+```
+
+It runs the four checks below and exits non-zero unless all four pass. Run it on
+a pair that came **from the destination**, decrypted — not on the local copy the
+dump script just wrote. Restoring the file you still have on disk proves nothing
+about the copy you will actually reach for.
+
+Proven on 2026-08-09 against the encrypted bucket copy: schema 25 · 40
+`business_id` tables, all with RLS and ≥1 policy, of 49 · 49 policies ·
+`yiwuflow_app` canlogin/no-superuser/no-bypassrls · **0 businesses** as the
+runtime role. Identical to production's live numbers the same day.
+
+The manual equivalent, if you are doing it by hand:
 
 ```bash
 DST="postgresql://postgres@<host>/nomi_restored"
@@ -107,8 +182,22 @@ Then point a **non-production** instance at the restored database and open
 by you" vs "Verified by system"). Only tick it after running the verify block
 above against a real restore. Re-test after any migration that adds a table.
 
+What satisfies it: `bash tools/verify-restore.sh <pair>` exiting 0 with 4/4, on
+a pair fetched from the bucket and decrypted. That is what makes
+FIRST-FACTORY-WORKFLOW §4's **backup tested** exit condition meetable — it was
+not meetable at all before 2026-08-09, because no backup existed.
+
 ## Point-in-time expectations
 
-There is no continuous archiving configured. The recovery point is the age of
-the last dump, so schedule dumps to match how much conversation history the
-pilot can afford to lose. State this honestly to the factory before go-live.
+**There is still no continuous archiving.** The recovery point is the age of the
+last dump, and dumps are manual — so the honest number to give the factory is
+"everything since the last time someone ran the script". Take one before every
+migration and before any maintenance touching roles.
+
+Railway can close this gap: `railway postgres pitr enable` turns on pgBackRest
+WAL archiving to a bucket, giving continuous recovery with a weekly full plus
+daily incrementals and roughly a four-week window. It has no separate licence
+fee — you pay bucket storage and egress — but the window **starts at the first
+base backup after enabling** and is not retroactive. It restores by creating a
+new sibling Postgres service, which auto-promotes and cannot be inspected before
+promotion. That is why it complements these dumps rather than replacing them.
