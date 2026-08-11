@@ -7,7 +7,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "boundaries": "node tools/check-boundaries.mjs",
+    "boundaries": "node tools/check-boundaries.mjs && node tools/check-reachable.mjs",
     "test": "vitest run",
     "test:parity": "vitest run tests/parity",
     "trust": "vitest run tests/harness/trust-harness.test.ts --disable-console-intercept",
