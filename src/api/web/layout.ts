@@ -1,6 +1,7 @@
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { cssVariables } from '../../core/owner/css.js';
+import { markDetail, faviconDataUri } from '../../core/owner/brand.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -91,7 +92,9 @@ ${cssVariables()}
   .layout { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
   nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
     padding: var(--space-16) var(--space-12); }
-  .brand { font-weight: 700; font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight: 700;
+    font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
+  .brand .mark { flex:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
     font-size:var(--font-size-micro); letter-spacing:0; margin-top:2px; }
   nav.side a.navlink { display: flex; align-items: center; gap: 10px; padding: var(--space-12);
@@ -185,6 +188,11 @@ ${cssVariables()}
   .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
   .go { font-size:var(--font-size-base); color:var(--color-jade); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
+  /* The chevron above mirrors because it POINTS — "onward" is to the left in
+     Arabic. The mark does NOT, and its absence here is deliberate rather than an
+     oversight: a brand mark is a constant, the same object in every language,
+     and flipping it would make Nomi a different mark for Arabic readers. Only
+     directional glyphs mirror. Do not add .mark to this rule. */
   a:focus-visible, button:focus-visible, input:focus-visible,
   textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-jade); outline-offset:2px; }
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
@@ -230,10 +238,11 @@ export function shell(input: {
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(name)}</title>
+<link rel="icon" href="${faviconDataUri()}">
 <style>${STYLE}</style></head>
 <body><div class="layout">
   <nav class="side">
-    <div class="brand">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></div>
+    <div class="brand">${markDetail(40, null)}<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
     ${nav}
   </nav>
   <div class="content">

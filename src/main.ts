@@ -21,6 +21,7 @@ import { driveConversationOutbound } from './outbound/worker.js';
 import { QUEUES, enqueueInbound, type NotifyJob } from './queue/boss.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
+import { markSmall } from './core/owner/brand.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
 
@@ -325,7 +326,9 @@ export async function buildProduction(
       templateState: TEMPLATE_STATE,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
-      avatar: process.env['EMPLOYEE_AVATAR'] ?? '👩‍💼',
+      // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
+      // their emoji, unchanged. The small cut, because the header avatar is 30px.
+      avatar: process.env['EMPLOYEE_AVATAR'] ?? markSmall(30, null),
       provider: cfg.provider,
       secureCookie: process.env['NODE_ENV'] === 'production',
       // The EXISTING outbound path — the same QUEUES.outbound worker the turn

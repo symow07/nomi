@@ -72,7 +72,7 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 | `NODE_ENV` | unset | `production` makes the three boot guards **refuse** rather than warn. |
 | `SANDBOX_BUSINESS_ID` | the seeded sandbox | The practice tenant. Must never equal `PILOT_BUSINESS_ID`. |
 | `SANDBOX_LIVE_AI` | unset | `1` offers Live-AI mode in the sandbox. It spends tokens; scripted is the default. |
-| `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | 小雅 · 👩 | What the owner calls her. |
+| `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | 小雅 · the Nomi mark | What the owner calls her. When `EMPLOYEE_AVATAR` is unset the header shows the brand mark (inline SVG, small cut); setting it to an emoji still wins, unchanged. |
 | `ENGINE_VERSION` | derived | Stamped into quote audit rows. |
 | `MIGRATE_DATABASE_URL` | — | **Not read by the app.** Used by `tools/migrate.mjs` and `tools/provision-factory.mjs`; an admin role that can run DDL. Runtime and migration credentials should differ. |
 
