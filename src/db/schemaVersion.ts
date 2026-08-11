@@ -37,8 +37,15 @@ import type { Db } from './client.js';
  *      record an owner's edit has no business accepting one, so it refuses at
  *      boot instead. The rule is "bump when the build REQUIRES the migration",
  *      of which reading a new column is only the commonest case.
+ *
+ * 27 = the audio_unheard signal kind and transcript_corrected audit verb
+ *      (0027, M34). Same reasoning as 25: both columns are CHECK-constrained
+ *      and this build WRITES both values — the first voice note that cannot be
+ *      heard records the signal, the first transcript correction records the
+ *      verb. Against a 26 database either write is rejected exactly when a
+ *      buyer or an owner is waiting on it.
  */
-export const REQUIRED_SCHEMA_VERSION = 26;
+export const REQUIRED_SCHEMA_VERSION = 27;
 
 export type SchemaState = {
   readonly required: number;

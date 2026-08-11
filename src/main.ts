@@ -474,6 +474,10 @@ export async function buildProduction(
         await enqueueInbound(boss, {
           businessId: bid, conversationId,
           messageId: e.eventId, text: e.text ?? '',
+          // M34 — the parser has captured these since M3; nothing carried them
+          // past the webhook until now, which is why a voice note arrived as
+          // empty text and was answered as though nothing had been said.
+          messageType: e.messageType, mediaId: e.mediaId,
         });
       } else {
         const r = await withTenantTx(db, bid, (tx) =>

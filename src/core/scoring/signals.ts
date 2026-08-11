@@ -18,6 +18,14 @@ export type Signal =
   | { readonly kind: 'complaint' }
   | { readonly kind: 'repeated_ambiguity'; readonly turns: number }
   | { readonly kind: 'low_confidence_image' }
+  /**
+   * M34 — a voice note that could not be heard. A PROBLEM signal by the same
+   * reasoning as low_confidence_image: the machine does not know what the buyer
+   * said, so the employee must not answer and the owner must be told. The
+   * reason travels in the payload so the owner surface can say what to do about
+   * it; the signal itself only says "something was said and not heard".
+   */
+  | { readonly kind: 'audio_unheard'; readonly reason: string }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly totalUsd: number }
   | { readonly kind: 'customization_requested' }
@@ -32,22 +40,54 @@ const PROBLEM_KINDS = new Set<SignalKind>([
   'complaint',
   'repeated_ambiguity',
   'low_confidence_image',
+  // M34 — the machine does not know what the buyer said. Gating the close on
+  // this is the whole point: an unheard question must not be answered.
+  'audio_unheard',
 ]);
+
+/**
+ * One representative Signal per kind, so tests can cover the union without
+ * transcribing a list that drifts. Typed as a full map, so adding a kind to
+ * `Signal` without adding a sample here fails the compiler rather than
+ * silently shrinking every test that iterates it.
+ */
+export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kind: K }> } = {
+  human_requested: { kind: 'human_requested' },
+  complaint: { kind: 'complaint' },
+  repeated_ambiguity: { kind: 'repeated_ambiguity', turns: 2 },
+  low_confidence_image: { kind: 'low_confidence_image' },
+  audio_unheard: { kind: 'audio_unheard', reason: 'transcription_failed' },
+  high_value: { kind: 'high_value', totalUsd: 1 },
+  customization_requested: { kind: 'customization_requested' },
+  logistics_discussed: { kind: 'logistics_discussed' },
+  moq_accepted: { kind: 'moq_accepted' },
+  price_acknowledged: { kind: 'price_acknowledged' },
+};
 
 export const isProblemSignal = (s: Signal): boolean => PROBLEM_KINDS.has(s.kind);
 export const isLeadSignal = (s: Signal): boolean => !isProblemSignal(s);
 
-/** Maps to the DB CHECK constraint on escalation_events.trigger_reason. */
-export type TriggerReason =
-  | 'high_value'
-  | 'unclear_product'
-  | 'customization'
-  | 'complex_negotiation'
-  | 'repeated_ambiguity'
-  | 'client_request'
-  | 'logistics_payment'
-  | 'manual'
-  | 'low_confidence_image';
+/**
+ * Mirrors the DB CHECK constraint on escalation_events.trigger_reason.
+ *
+ * A const array with the type derived FROM it, rather than a type with the
+ * values transcribed into a test: a test that needs the legal set imports this
+ * one, and adding a reason cannot leave a stale copy behind.
+ */
+export const TRIGGER_REASONS = [
+  'high_value',
+  'unclear_product',
+  'customization',
+  'complex_negotiation',
+  'repeated_ambiguity',
+  'client_request',
+  'logistics_payment',
+  'manual',
+  'low_confidence_image',
+  'audio_unheard',
+] as const;
+
+export type TriggerReason = typeof TRIGGER_REASONS[number];
 
 export function toTriggerReason(s: Signal): TriggerReason {
   switch (s.kind) {
@@ -59,6 +99,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'repeated_ambiguity';
     case 'low_confidence_image':
       return 'low_confidence_image';
+    case 'audio_unheard':
+      return 'audio_unheard';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

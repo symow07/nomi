@@ -311,6 +311,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
             return { kind: 'repeated_ambiguity', turns: Number(p['turns'] ?? 2) } as Signal;
           case 'high_value':
             return { kind: 'high_value', totalUsd: Number(p['totalUsd'] ?? 0) } as Signal;
+          case 'audio_unheard':
+            return { kind: 'audio_unheard', reason: String(p['reason'] ?? 'transcription_failed') } as Signal;
           default:
             return { kind: r.kind } as Signal;
         }

@@ -53,6 +53,15 @@ export type InboundJob = {
   conversationId: string;
   messageId: string;
   text: string;
+  /**
+   * M34 — what the buyer actually sent. Optional so jobs queued by an older
+   * build (which never set it) deserialize as text, which is what they were.
+   * 'audio' routes through transcription before the turn; an untranscribable
+   * note is REFUSED (audio_unheard), never treated as empty text.
+   */
+  messageType?: 'text' | 'image' | 'audio' | 'unsupported';
+  /** Provider media id for audio/image — short-lived, fetch promptly. */
+  mediaId?: string | null;
 };
 
 export type OutboundJob = {

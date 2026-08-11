@@ -41,7 +41,7 @@ const detail = (refusals: readonly Refusal[]): ConversationDetail => ({
   conversationId: 'c-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Canvas tote', nameZh: null }, quantity: 5000, quote: null, order: null,
   messages: [{ direction: 'inbound', text: 'what is your price?', at: NOW }],
-  pendingDraft: null, ownership: 'AI', refusals, handoffReasons: [],
+  pendingDraft: null, ownership: 'AI', refusals, handoffReasons: [], unheardReason: null,
   lastHumanAction: null, knowledgeUsed: [],
 });
 

@@ -8,6 +8,8 @@ import {
   isHotLead,
   needsHandoff,
   toTriggerReason,
+  TRIGGER_REASONS,
+  SIGNAL_SAMPLES,
   type Signal,
 } from '../../src/core/scoring/signals.js';
 import { computeQuote, selectTier } from '../../src/core/commerce/quote.js';
@@ -122,17 +124,11 @@ describe('scoring: problem vs lead', () => {
 
   it('every signal maps to a valid escalation_events.trigger_reason', () => {
     const VALID = new Set([
-      'high_value', 'unclear_product', 'customization', 'complex_negotiation',
-      'repeated_ambiguity', 'client_request', 'logistics_payment', 'manual',
-      'low_confidence_image',
+      ...TRIGGER_REASONS,
     ]);
-    const all: Signal[] = [
-      { kind: 'human_requested' }, { kind: 'complaint' },
-      { kind: 'repeated_ambiguity', turns: 2 }, { kind: 'low_confidence_image' },
-      { kind: 'high_value', totalUsd: 1 }, { kind: 'customization_requested' },
-      { kind: 'logistics_discussed' }, { kind: 'moq_accepted' },
-      { kind: 'price_acknowledged' },
-    ];
+    // Every Signal kind, from the typed sample map — not a list transcribed
+    // here, which would silently stop covering a kind the day one is added.
+    const all: Signal[] = Object.values(SIGNAL_SAMPLES);
     for (const s of all) expect(VALID.has(toTriggerReason(s))).toBe(true);
   });
 });

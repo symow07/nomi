@@ -294,6 +294,57 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
 
+  /**
+   * M34 — the owner corrects what was heard.
+   *
+   * ARCHIVE, NEVER ERASE. `transcription` keeps the machine's original reading
+   * untouched; `text_content` takes the owner's words, so everything downstream
+   * (the timeline, a future turn, an export) reads what she said was said. The
+   * audit row carries both, so a correction reads as a correction rather than
+   * as a message that was always that way.
+   *
+   * NOT A SECOND TRANSCRIBER. This writes down a human's testimony about what a
+   * human said; it makes no claim of its own and re-runs nothing.
+   */
+  app.post('/app/inbox/:conversationId/heard', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const body = req.body as { messageId?: string; heard?: string } | undefined;
+    const messageId = String(body?.messageId ?? '');
+    const heard = String(body?.heard ?? '').trim();
+    const back = `/app/inbox/${encodeURIComponent(cid)}`;
+    if (!messageId || !heard) return reply.redirect(back);
+
+    await withTenantTx(deps.db, bid.value, async (tx) => {
+      // The ORIGINAL is whatever `transcription` already holds — set on first
+      // correction, left alone on every later one, so the machine's reading
+      // survives however many times the owner refines her own.
+      const before = (await sql<{ text_content: string | null; transcription: string | null }>`
+        select text_content, transcription from messages
+         where id = ${messageId}::uuid and conversation_id = ${cid}::uuid limit 1
+      `.execute(tx)).rows[0];
+      if (!before) return;
+      await sql`
+        update messages
+           set text_content = ${heard},
+               transcription = coalesce(transcription, ${before.text_content}),
+               input_type = 'voice_transcribed'
+         where id = ${messageId}::uuid and conversation_id = ${cid}::uuid
+      `.execute(tx);
+      await sql`
+        insert into channel_audit (business_id, channel, action, detail)
+        values (${bid.value}, 'whatsapp', 'transcript_corrected',
+                ${JSON.stringify({
+                  conversationId: cid, messageId,
+                  before: before.transcription ?? before.text_content, after: heard,
+                })}::jsonb)
+      `.execute(tx);
+    });
+    return reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'voice.flash.corrected'))}`);
+  });
+
   app.post('/app/inbox/:conversationId/resume', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const cid = (req.params as { conversationId: string }).conversationId;

@@ -9,7 +9,11 @@ import { loadRefusals, type Refusal } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
 
 /** The stored problem-signal kinds shown as a takeover reason (no classifier). */
-const PROBLEM_KINDS = new Set(['human_requested', 'complaint', 'repeated_ambiguity', 'low_confidence_image']);
+const PROBLEM_KINDS = new Set([
+  'human_requested', 'complaint', 'repeated_ambiguity', 'low_confidence_image',
+  // M34 — she could not hear the question, so she did not answer it.
+  'audio_unheard',
+]);
 
 /**
  * M9.3 + ADR-0008 — the owner's decision desk. A VIEW over existing data;
@@ -160,9 +164,64 @@ export function defaultFilter(waitingCount: number): InboxFilter {
   return waitingCount > 0 ? 'pending' : 'all';
 }
 
+/**
+ * M34 — a spoken message, shown as what it is.
+ *
+ * The buyer's words are in the voice serif like any other person's speech; what
+ * distinguishes them is a label saying they were HEARD rather than read, and a
+ * form to correct the hearing. The label is not decoration: a transcript the
+ * owner believes is a quote is exactly the failure this milestone exists to
+ * prevent.
+ *
+ * When she could not make out the words at all, there is no text to show — so
+ * the bubble says so plainly, and the correction form is how the owner supplies
+ * what was actually said.
+ */
+function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string): string {
+  const heardNothing = m.text.trim() === '';
+  const body = heardNothing
+    ? `<div class="unheard-line muted">🎤 ${esc(t(locale, 'voice.notHeard'))}</div>`
+    // The SPOKEN words keep pre-wrap — a buyer's line breaks are his. The
+    // wrapper must not: `.bubble` is pre-wrap for exactly that reason, and a
+    // multi-element bubble would render this file's own indentation as blank
+    // lines inside it.
+    : `<div class="said"><bdi>${esc(m.text)}</bdi></div>`;
+  // "Heard as" over "She could not make out the words" contradicts itself, so
+  // when there is nothing to label the line speaks for itself.
+  const label = heardNothing ? null
+    : m.heard === 'voice_corrected' ? t(locale, 'voice.corrected') : t(locale, 'voice.heardAs');
+  return `<div class="bubble voiced">`
+    + (label ? `<div class="heard-label muted">🎤 ${esc(label)}</div>` : '')
+    + body
+    + (m.originalTranscript ? `<div class="orig muted"><bdi>${esc(m.originalTranscript)}</bdi></div>` : '')
+    + (m.id ? `<details class="fixheard"><summary>${esc(t(locale, 'voice.correct'))}</summary>`
+        + `<form method="post" action="/app/inbox/${encodeURIComponent(conversationId)}/heard">`
+        + `<input type="hidden" name="messageId" value="${esc(m.id)}" />`
+        + `<textarea name="heard" rows="2" placeholder="${esc(t(locale, 'voice.correctPlaceholder'))}">${esc(heardNothing ? '' : m.text)}</textarea>`
+        + `<button class="btn" type="submit">${esc(t(locale, 'voice.correctSave'))}</button>`
+        + `</form></details>` : '')
+    + `</div>`;
+}
+
 /** ── Conversation detail ─────────────────────────────────────────────────── */
 
-export type TimelineMessage = { direction: 'inbound' | 'outbound'; text: string; at: Date | null };
+export type TimelineMessage = {
+  direction: 'inbound' | 'outbound';
+  text: string;
+  at: Date | null;
+  /**
+   * M34 — how these words reached us. 'voice' means the buyer spoke and this is
+   * what was heard; 'voice_corrected' means the owner has since said what he
+   * actually said, and HER words are the text above. A spoken message reads
+   * differently from a typed one, and pretending otherwise is what let an
+   * unheard question be answered confidently.
+   */
+  heard?: 'voice' | 'voice_corrected' | undefined;
+  /** The unedited machine reading, kept when the owner has corrected it. */
+  originalTranscript?: string | null | undefined;
+  /** Message id, so the owner can correct what was heard. */
+  id?: string | undefined;
+};
 
 /** M16.2c — the human control-plane event kinds, in conversation_events. */
 export type HumanActionType = 'takeover' | 'owner_reply' | 'resume_ai' | 'draft_resolved';
@@ -199,6 +258,8 @@ export type ConversationDetail = {
    */
   readonly refusals: readonly Refusal[];
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
+  /** M34 — why a voice note could not be heard, when one could not. */
+  readonly unheardReason: string | null;
   readonly lastHumanAction: LastHumanAction | null;
   /**
    * Phase D — which taught facts supported her most recent reply, by LABEL.
@@ -230,12 +291,29 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
     `.execute(tx)).rows[0];
     if (!head) return null;
 
-    const messages = (await sql<{ direction: string; text_content: string | null; sent_at: Date | null }>`
-      select direction, text_content, sent_at from messages
+    // M34 — `transcription` holds the ORIGINAL machine reading and is never
+    // overwritten (archive, never erase); `text_content` holds the words in
+    // force. They differ exactly when the owner has corrected a transcript,
+    // which is how the surface can show both.
+    const messages = (await sql<{
+      id: string; direction: string; text_content: string | null; sent_at: Date | null;
+      input_type: string; transcription: string | null;
+    }>`
+      select id, direction, text_content, sent_at, input_type, transcription from messages
        where conversation_id = ${conversationId} order by sent_at asc limit 200
     `.execute(tx)).rows
-      .filter((m) => m.text_content !== null)
-      .map((m): TimelineMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, at: m.sent_at }));
+      .filter((m) => m.text_content !== null || m.input_type === 'voice')
+      .map((m): TimelineMessage => {
+        const spoken = m.input_type === 'voice' || m.input_type === 'voice_transcribed';
+        const corrected = spoken && m.transcription !== null && m.transcription !== m.text_content;
+        return {
+          direction: m.direction === 'inbound' ? 'inbound' : 'outbound',
+          text: m.text_content ?? '',
+          at: m.sent_at,
+          ...(spoken ? { heard: corrected ? 'voice_corrected' as const : 'voice' as const, id: m.id } : {}),
+          ...(corrected ? { originalTranscript: m.transcription } : {}),
+        };
+      });
 
     const q = (await sql<{ unit_price_usd: string; total_usd: string; quantity: number }>`
       select unit_price_usd, total_usd, quantity from quotes
@@ -258,9 +336,17 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
     const refusals = await loadRefusals(db, businessIdRaw, { conversationId });
 
     // Takeover reason (M16.1): unresolved PROBLEM signals — stored data, no classifier.
-    const handoffReasons = (await sql<{ kind: string }>`
-      select kind from conversation_signals where conversation_id = ${conversationId} and resolved_at is null
-    `.execute(tx)).rows.map((r) => r.kind).filter((k) => PROBLEM_KINDS.has(k));
+    const signalRows = (await sql<{ kind: string; payload: Record<string, unknown> | null }>`
+      select kind, payload from conversation_signals
+       where conversation_id = ${conversationId} and resolved_at is null
+    `.execute(tx)).rows;
+    const handoffReasons = signalRows.map((r) => r.kind).filter((k) => PROBLEM_KINDS.has(k));
+    // M34 — WHY she could not hear it decides what the owner should do about
+    // it, so the reason travels to the surface rather than collapsing into
+    // "something went wrong".
+    const unheardReason = signalRows.find((r) => r.kind === 'audio_unheard')
+      ? String((signalRows.find((r) => r.kind === 'audio_unheard')!.payload ?? {})['reason'] ?? 'transcription_failed')
+      : null;
 
     // M16.2c "what happened last?": the latest human action — kind + actor + time
     // only. payload->>'actor' is a human/agent id, never buyer data; no body read.
@@ -302,6 +388,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       ownership: ownershipOf(head.assigned_to),
       refusals,
       handoffReasons,
+      unheardReason,
       lastHumanAction,
       knowledgeUsed,
     };
@@ -471,7 +558,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m) => `
         <div class="msg ${m.direction}">
-          <div class="bubble"><bdi>${esc(m.text)}</bdi></div>
+          ${m.heard ? voiceBubble(locale, m, d.conversationId) : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
           <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(EMPLOYEE_NAME[locale])}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
@@ -507,6 +594,22 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
         <ul class="knewlist">${d.knowledgeUsed.map((k) => `<li>${esc(k)}</li>`).join('')}</ul></div>`
     : '';
 
+  /**
+   * M34 — the unheard card. Same three-part shape as a refusal (M22): what
+   * happened, why, what you do about it. It sits above the timeline because it
+   * explains the silence the owner is about to notice there.
+   */
+  const unheardCard = d.unheardReason
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'unheard.title'))}</h3>
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'unheard.what', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-y muted">${esc(t(locale, `unheard.why.${d.unheardReason}` as MessageKey))}</div>
+          <div class="rf-d">${esc(t(locale, `unheard.do.${d.unheardReason}` as MessageKey))}</div>
+        </div>
+      </div>`
+    : '';
+
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
 
   return `
@@ -517,6 +620,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     </div>
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
+    ${unheardCard}
     ${refusalCard(d.refusals, locale, now)}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
@@ -552,6 +656,22 @@ const INBOX_STYLE = `<style>
   .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
   .review-intro { margin:0 0 12px; }
   .revoke-note { margin:8px 0 0; }
+  /* M34 — a heard message says so. The label and the superseded reading are the
+     product speaking ABOUT the speech, so they stay sans while the words
+     themselves keep the voice serif they inherit from .bubble. */
+  /* The bubble is pre-wrap so a buyer's own line breaks survive; a voiced
+     bubble holds several elements, so the wrapper opts out and the spoken
+     words opt back in. Without this the markup's indentation renders as
+     blank lines — invisible in tests, obvious in a screenshot. */
+  .bubble.voiced { white-space:normal; }
+  .bubble.voiced .said { white-space:pre-wrap; }
+  .heard-label { font-family:var(--font-family); font-size:var(--font-size-micro); margin-bottom:6px; }
+  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-note); }
+  .orig { font-size:var(--font-size-caption); margin-top:8px;
+          border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
+  .fixheard { margin-top:10px; font-family:var(--font-family); }
+  .fixheard summary { font-size:var(--font-size-caption); color:var(--color-ink-secondary); cursor:pointer; }
+  .fixheard form { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
   .knew { /* provenance panel, not a state boundary — no card, no tinted border */ }
   .knewlist { list-style:none; margin:0; padding:0; }
   .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
