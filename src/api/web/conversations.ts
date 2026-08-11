@@ -385,27 +385,27 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
 
 const CONV_STYLE = `<style>
   .search { display:flex; gap:8px; align-items:center; margin-bottom:16px; }
-  .search input { flex:1; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; }
-  .search .clear { font-size:13px; }
-  .cust { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
-  .cust.needs { border-color:#5a4a1f; background:#181510; }
-  .cust:hover { border-color:#3a4250; }
+  .search input { flex:1; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .search .clear { font-size:var(--font-size-caption); }
+  .cust { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
+  .cust.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
+  .cust:hover { border-color:var(--color-border); }
   .cust-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .cust-b { font-size:13px; margin-top:6px; } .cust-t { font-size:12px; margin-top:8px; }
-  .pill.muted { background:#1b2027; color:#8b929c; }
-  .ok { color:#4ade80; font-size:17px; font-weight:700; margin-bottom:6px; }
+  .cust-b { font-size:var(--font-size-caption); margin-top:6px; } .cust-t { font-size:var(--font-size-micro); margin-top:8px; }
+  .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; margin-bottom:6px; }
   .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
-  .dhead .who { font-size:15px; }
-  .subline { font-size:13px; margin-bottom:12px; }
-  .prow { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid #1c2026; font-size:14px; }
+  .dhead .who { font-size:var(--font-size-small); }
+  .subline { font-size:var(--font-size-caption); margin-bottom:12px; }
+  .prow { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .prow:last-child { border-bottom:none; }
   .tl { list-style:none; padding:0; margin:0; }
-  .tl li { display:flex; gap:12px; padding:11px 0; border-inline-start:2px solid #23272e; margin-inline-start:8px; padding-inline-start:16px; position:relative; }
-  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:#14171c; font-size:15px; line-height:1; }
-  .tl .tx { font-size:14px; } .tl .ts { font-size:12px; margin-top:3px; }
-  .tl-owner .tx { color:#c9b884; } .tl-order .tx { color:#4ade80; } .tl-quote .tx { color:#93c5fd; }
-  .cx { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid #1c2026; font-size:14px; }
-  .cx:last-child { border-bottom:none; } .cx-l { color:#8b929c; min-width:72px; }
-  .need-card { display:flex; align-items:center; justify-content:space-between; gap:12px; border-color:#5a4a1f; font-size:14px; }
+  .tl li { display:flex; gap:12px; padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:8px; padding-inline-start:16px; position:relative; }
+  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface); font-size:var(--font-size-small); line-height:1; }
+  .tl .tx { font-size:var(--font-size-note); } .tl .ts { font-size:var(--font-size-micro); margin-top:3px; }
+  .tl-owner .tx { color:var(--color-highlight); } .tl-order .tx { color:var(--color-ok); } .tl-quote .tx { color:var(--color-highlight); }
+  .cx { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
+  .need-card { display:flex; align-items:center; justify-content:space-between; gap:12px; border-color:var(--color-waiting-line); font-size:var(--font-size-note); }
   @media (max-width:560px) { .cust, .card { border-radius:12px; } }
 </style>`;

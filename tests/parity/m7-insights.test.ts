@@ -8,7 +8,7 @@ import { knowledgeLineZh, knowledgeDeltaZh } from '../../src/core/trust/knowledg
 import { renderMonthlyReview } from '../../src/core/owner/reviewReport.js';
 import { renderShareableWeekly, SHARE_MARK_ZH } from '../../src/core/owner/weeklyShare.js';
 import { computeReview } from '../../src/core/trust/review.js';
-import { PWA_TOKENS, MOTION_SPECS, KEYBOARD_SHORTCUTS, BOX } from '../../src/core/owner/tokens.js';
+import { DESIGN_TOKENS, MOTION_SPECS, KEYBOARD_SHORTCUTS, BOX } from '../../src/core/owner/tokens.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
 import { DEMO_MONTH_STATS } from '../../src/demo/trust.js';
@@ -197,13 +197,13 @@ describe('M7 · shareable 员工周报', () => {
 /* ── PWA polish as data ──────────────────────────────────────────────────── */
 describe('M7 · premium feel tokens', () => {
   it('dark palette mirrors light semantics key-for-key, valid hex', () => {
-    expect(Object.keys(PWA_TOKENS.colorDark).sort()).toEqual(Object.keys(PWA_TOKENS.color).sort());
-    for (const hex of Object.values(PWA_TOKENS.colorDark)) expect(hex).toMatch(/^#[0-9A-F]{6}$/i);
+    expect(Object.keys(DESIGN_TOKENS.colorDark).sort()).toEqual(Object.keys(DESIGN_TOKENS.color).sort());
+    for (const hex of Object.values(DESIGN_TOKENS.colorDark)) expect(hex).toMatch(/^#[0-9A-F]{6}$/i);
   });
 
   it('every micro-interaction is ≤300ms and skippable; reduced motion collapses', () => {
     for (const spec of Object.values(MOTION_SPECS)) {
-      expect(spec.durationMs).toBeLessThanOrEqual(PWA_TOKENS.motionMs.max);
+      expect(spec.durationMs).toBeLessThanOrEqual(DESIGN_TOKENS.motionMs.max);
       expect(spec.skippable).toBe(true);
     }
   });

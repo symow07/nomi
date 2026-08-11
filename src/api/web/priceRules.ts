@@ -279,13 +279,13 @@ export function renderPriceRules(
 
 const PRICES_STYLE = `<style>
   .pform { display:flex; flex-direction:column; gap:14px; max-width:44ch; margin-top:12px; }
-  .pq { display:flex; flex-direction:column; gap:6px; font-size:14px; color:#d6dae0; }
-  .pq input { background:#0f1216; border:1px solid #2b313a; border-radius:10px;
-              color:#fff; padding:11px 14px; font:inherit; min-height:44px; }
-  .perr { color:#e0b551; font-size:13px; margin:0; }
+  .pq { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
+  .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
+              color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+  .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
   .plist { list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:18px; }
-  .prow { border-top:1px solid #1e2229; padding-top:14px; }
-  .phead { display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; font-size:15px; color:#e7eaee; }
+  .prow { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
+  .phead { display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
 </style>`;
 
 /**

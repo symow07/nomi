@@ -8,7 +8,7 @@ import { arcStatus, ARC_ORDER, type ArcSignals } from '../../src/core/ops/arc.js
 import { ONBOARDING_SEQUENCE, dueLifecycleMessages, type LifecycleContext } from '../../src/core/owner/lifecycle.js';
 import { renderContactUs, KB_ARTICLES } from '../../src/core/owner/support.js';
 import { PERF_BUDGETS } from '../../src/core/ops/perf.js';
-import { PWA_TOKENS } from '../../src/core/owner/tokens.js';
+import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { renderDailyDigest } from '../../src/core/owner/digest.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
@@ -168,7 +168,7 @@ describe('M8 · performance budgets', () => {
   it('budgets exist and agree with the motion system', () => {
     expect(PERF_BUDGETS.approvalCardOpenMs).toBeLessThanOrEqual(1000);
     expect(PERF_BUDGETS.rendererMs).toBeLessThanOrEqual(16);
-    expect(PWA_TOKENS.motionMs.max).toBeLessThanOrEqual(PERF_BUDGETS.approvalCardOpenMs);
+    expect(DESIGN_TOKENS.motionMs.max).toBeLessThanOrEqual(PERF_BUDGETS.approvalCardOpenMs);
   });
 
   it('quote compute is honestly instant: 1000 quotes well under budget, zero LLM', () => {

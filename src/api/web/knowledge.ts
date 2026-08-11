@@ -262,20 +262,20 @@ export function renderProductKnowledge(
 
 const KNOWLEDGE_STYLE = `<style>
   /* The two scopes sit side by side, so each says which one it is. */
-  .scope { font-size:13px; color:#e0b551; margin:2px 0 10px; }
+  .scope { font-size:var(--font-size-caption); color:var(--color-highlight); margin:2px 0 10px; }
   .klist { display:flex; flex-direction:column; gap:8px; }
-  .krow { display:flex; justify-content:space-between; background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:12px 16px; }
-  .krow:hover { border-color:#3a4250; }
-  .kitem { border:1px solid #23272e; border-radius:12px; padding:14px; margin-bottom:12px; }
+  .krow { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
+  .krow:hover { border-color:var(--color-border); }
+  .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:12px; }
   .kh { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .kh .src { margin-inline-start:auto; font-size:12px; }
+  .kh .src { margin-inline-start:auto; font-size:var(--font-size-micro); }
   .kc { margin:8px 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
-  .teach h3 { margin:0; font-size:14px; }
-  input[type=text], textarea, select { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:9px 12px; font:inherit; }
+  .teach h3 { margin:0; font-size:var(--font-size-note); }
+  input[type=text], textarea, select { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:8px; }
   .certs { display:flex; flex-wrap:wrap; gap:8px; }
-  .cert { padding:8px 14px; border-radius:999px; border:1px solid #2b313a; background:#0f1216; color:#b9c0c9; cursor:pointer; font-size:13px; }
-  .cert.on { background:#0f2e1c; color:#4ade80; border-color:#1f5a3a; }
+  .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper-sunk); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
+  .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
   .dhead { display:flex; align-items:center; gap:12px; } 
 </style>`;

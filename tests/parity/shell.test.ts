@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { shell, deeper, NAV, CONTEXTUAL_ROUTES } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { cssVariables } from '../../src/core/owner/css.js';
+import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 
 /**
  * Phase F — the shared shell, enforced. Every owner surface is drawn inside it,
  * so anything wrong here is wrong four times over.
  */
-/** The scale the product settled on. Anything else is a one-off. */
-const SCALE = [12, 13, 14, 15, 17, 19, 22, 26];
-
 const page = (locale: 'en' | 'zh' | 'ar' = 'en', active = 'home') =>
   shell({ title: 'T', active, locale, path: '/app', avatar: '👩', bodyHtml: '<p>body</p>' });
 
@@ -59,9 +58,71 @@ describe('Phase F · the shell is usable with a thumb', () => {
     expect(style).toMatch(/header\.top \{[^}]*flex-wrap: wrap/);
   });
 
-  it('one type scale — the product had nineteen sizes, ten of them a pixel apart', () => {
-    const sizes = new Set([...style.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1])));
-    for (const size of sizes) expect(SCALE, `${size}px is off the scale`).toContain(size);
+  /**
+   * The product had nineteen sizes, ten of them a pixel apart. The old form of
+   * this test carried its own copy of the scale — `const SCALE = [12,13,14,15,
+   * 17,19,22,26]` — which is why 19px and 26px counted as "on the scale" while
+   * belonging to no token. Now the scale comes from the tokens, and the check
+   * is that every variable the stylesheet REFERENCES is one the token block
+   * actually declares. A `var(--font-size-huge)` typo renders as nothing and is
+   * invisible by eye; here it fails.
+   */
+  it('every var() the shell references is a variable the tokens emit', () => {
+    const declared = new Set([...cssVariables().matchAll(/^\s*--([a-z0-9-]+):/gm)].map((m) => m[1]));
+    const referenced = new Set([...style.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
+    expect(referenced.size, 'the shell should consume tokens').toBeGreaterThan(10);
+    const undeclared = [...referenced].filter((r) => !declared.has(r));
+    expect(undeclared, `referenced but never emitted: ${undeclared.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * The same check across every renderer, because an undeclared custom property
+   * is the one CSS error with no symptom: `var(--color-inkk)` resolves to
+   * nothing, the rule is dropped, and the element silently inherits. Nothing
+   * throws, no test fails, and it is invisible unless you happen to look at that
+   * state on that page.
+   */
+  /**
+   * A wash, a paper tint and a border are GROUNDS. Setting one as `color:`
+   * paints text the colour of the thing behind it. This is not hypothetical:
+   * converting the renderers to tokens sent `#d8e3db` — a pale green that was
+   * TEXT on a dark panel — to `--color-jade-wash`, and `.fnext-t` rendered an
+   * invisible label on `/app/factory` in both light and dark. Every test still
+   * passed; only a screenshot showed it.
+   *
+   * `--color-surface` is deliberately allowed: white-on-jade is how the primary
+   * button and the active language chip are drawn.
+   */
+  it('no ground colour is used as a foreground', async () => {
+    const { readdir, readFile } = await import('node:fs/promises');
+    const dir = new URL('../../src/api/web/', import.meta.url);
+    const grounds = /(^|[^-])color:\s*var\(--color-(paper|paper-sunk|border|[a-z]+-wash|[a-z]+-line)\)/g;
+    const offences: string[] = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
+      const src = await readFile(new URL(f, dir), 'utf8');
+      for (const m of src.matchAll(grounds)) offences.push(`${f}: ${m[0].trim()}`);
+    }
+    expect(offences, `invisible text: ${offences.join(' · ')}`).toEqual([]);
+  });
+
+  it('no renderer references a custom property the tokens do not emit', async () => {
+    const { readdir, readFile } = await import('node:fs/promises');
+    const declared = new Set([...cssVariables().matchAll(/^\s*--([a-z0-9-]+):/gm)].map((m) => m[1]));
+    const dir = new URL('../../src/api/web/', import.meta.url);
+    const undeclared: string[] = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
+      const src = await readFile(new URL(f, dir), 'utf8');
+      for (const m of src.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
+        if (!declared.has(m[1])) undeclared.push(`${f}: --${m[1]}`);
+      }
+    }
+    expect(undeclared, `undeclared custom propert(ies): ${undeclared.join(' · ')}`).toEqual([]);
+  });
+
+  it('the emitted type scale is exactly the token scale', () => {
+    const emitted = [...cssVariables().matchAll(/--font-size-[a-z]+: (\d+)px/g)].map((m) => Number(m[1]));
+    expect(emitted.sort((a, b) => a - b))
+      .toEqual(Object.values(DESIGN_TOKENS.font.sizePx).slice().sort((a, b) => a - b));
   });
 
   it('section headings are sentence case everywhere — the eyebrow was the SaaS tell', () => {
@@ -79,7 +140,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
   it('keyboard focus is visible on every interactive element, app-wide', () => {
     expect(style).toContain('a:focus-visible');
     expect(style).toContain('button:focus-visible');
-    expect(style).toContain('outline:2px solid #60a5fa');
+    // the colour comes from the token, not from a hex typed into this test
+    expect(style).toContain('outline:2px solid var(--color-jade)');
   });
 });
 
@@ -118,14 +180,26 @@ describe('Phase F · direction', () => {
 });
 
 describe('Phase F · every surface draws from the same tokens', () => {
-  it('no renderer invents a font size off the scale', async () => {
+  /**
+   * Stronger than the rule it replaces. This used to check that any literal
+   * `font-size: NNpx` a renderer wrote appeared in a list kept in this file —
+   * so a renderer could type its own size forever, provided the number was
+   * blessed. A size is not allowed to be literal at all now: it comes from
+   * `--font-size-*` or it is a bug. Same for colour, which had no rule here and
+   * is how the whole surface drifted to blue-grey.
+   */
+  it('no renderer writes a literal font size or colour — tokens or nothing', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
     const dir = new URL('../../src/api/web/', import.meta.url);
+    const offences: string[] = [];
     for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
       const src = await readFile(new URL(f, dir), 'utf8');
-      for (const m of src.matchAll(/font-size:\s*(\d+)px/g))
-        expect(SCALE, `${f}: ${m[1]}px`).toContain(Number(m[1]));
+      // layout.ts embeds the generated token block; everything else is authored
+      const authored = f === 'layout.ts' ? src.replace(cssVariables(), '') : src;
+      for (const m of authored.matchAll(/font-size:\s*(\d+)px/g)) offences.push(`${f}: ${m[0]}`);
+      for (const m of authored.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) offences.push(`${f}: ${m[0]}`);
     }
+    expect(offences, `literal design values: ${offences.join(' · ')}`).toEqual([]);
   });
 
   it('no renderer redeclares a component the shell owns', async () => {

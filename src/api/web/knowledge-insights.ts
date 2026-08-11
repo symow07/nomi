@@ -230,18 +230,18 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
 }
 
 const OPS_STYLE = `<style>
-  .stat .v { font-size:26px; font-weight:700; color:#fff; } .stat .l { font-size:12px; color:#8b929c; margin-top:4px; }
-  h3.sub { font-size:13px; color:#8b929c; margin:16px 0 8px; }
+  .stat .v { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); } .stat .l { font-size:var(--font-size-micro); color:var(--color-ink-secondary); margin-top:4px; }
+  h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:16px 0 8px; }
   .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
-  .reqs .q { color:#d6dae0; }
-  .gap { border:1px solid #23272e; border-radius:12px; padding:14px; margin-bottom:10px; }
-  .gq { font-size:15px; margin-bottom:8px; } .gmeta { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
+  .reqs .q { color:var(--color-ink); }
+  .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .gq { font-size:var(--font-size-small); margin-bottom:8px; } .gmeta { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
   .gacts { display:flex; gap:8px; }
-  .pill.reason { background:#2e2413; color:#fbbf24; }
-  .pill.taught { background:#0f2e1c; color:#4ade80; } .pill.corrected { background:#13233a; color:#93c5fd; } .pill.archived { background:#23272e; color:#8b929c; }
+  .pill.reason { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .pill.taught { background:var(--color-jade-wash); color:var(--color-ok); } .pill.corrected { background:var(--color-highlight-wash); color:var(--color-highlight); } .pill.archived { background:var(--color-border); color:var(--color-ink-secondary); }
   .acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
   .acts li { display:flex; align-items:center; gap:8px; }
-  .usage { font-size:12px; margin-top:6px; }
+  .usage { font-size:var(--font-size-micro); margin-top:6px; }
   @media (max-width:560px) { }
 </style>`;
 

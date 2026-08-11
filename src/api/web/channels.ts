@@ -245,7 +245,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" />
       <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>
-    <p class="muted" style="font-size:12px">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
+    <p class="muted" style="font-size:var(--font-size-micro)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
   </div>`;
 
   const soon = `<div class="card">
@@ -259,7 +259,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
     ${whatsappCard}
     ${alertsCard}
     ${soon}
-    <p class="muted" style="font-size:12px">${esc(t(locale, 'channel.footer'))}</p>
+    <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'channel.footer'))}</p>
     ${CHANNELS_STYLE}`;
 }
 
@@ -280,14 +280,14 @@ export function renderConnectGuide(locale: Locale): string {
 
 const CHANNELS_STYLE = `<style>
   .ch-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .ch-name { font-size:15px; font-weight:700; }
-  .ch-desc { font-size:13px; margin:6px 0 12px; }
-  .ch-info { display:flex; flex-direction:column; gap:6px; background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:12px; font-size:14px; margin-bottom:12px; }
+  .ch-name { font-size:var(--font-size-small); font-weight:700; }
+  .ch-desc { font-size:var(--font-size-caption); margin:6px 0 12px; }
+  .ch-info { display:flex; flex-direction:column; gap:6px; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:12px; }
   .ch-acts { display:flex; gap:8px; flex-wrap:wrap; }
-  .prob { background:#2e2413; color:#fbbf24; border-radius:10px; padding:12px; font-size:14px; margin-bottom:12px; line-height:1.6; }
+  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:12px; line-height:1.6; }
   .ownerform { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
-  .ownerform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; }
+  .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-  .soon-chip { background:#0f1216; border:1px solid #23272e; border-radius:999px; padding:6px 14px; color:#8b929c; font-size:13px; }
+  .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:4px; }
 </style>`;

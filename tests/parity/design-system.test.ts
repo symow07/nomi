@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { BOX, BUDGET, CARD_ORDER, MARK, PWA_TOKENS } from '../../src/core/owner/tokens.js';
+import { BOX, BUDGET, CARD_ORDER, MARK, DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
+import { cssVariables } from '../../src/core/owner/css.js';
+import { shell, loginPage } from '../../src/api/web/layout.js';
 import { actionBar, box, buyerHeader, textWidth } from '../../src/core/owner/components.js';
 import { EMPTY, PROGRESS, SUCCESS, renderProblem } from '../../src/core/owner/states.js';
 import { BANNED_OWNER_TERMS, STATUS } from '../../src/core/owner/vocabulary.js';
@@ -148,31 +150,99 @@ describe('M2 · budgets are tokens', () => {
   });
 });
 
-/* ── the PWA inherits the system as data ─────────────────────────────────── */
-describe('M2 · PWA tokens are complete and sane', () => {
-  it('semantic colors are hex and mirror the text markers', () => {
-    for (const [name, hex] of Object.entries(PWA_TOKENS.color)) {
-      expect(hex, name).toMatch(/^#[0-9A-F]{6}$/i);
+/* ── the system is what the SURFACE renders, not what the object says ─────── */
+
+/**
+ * M30 — this section used to read the token object and assert things about the
+ * token object: `expect(PWA_TOKENS.font.sizePx.base).toBeGreaterThanOrEqual(16)`
+ * passed for months while the shell shipped a hand-written `font: 15px/1.5` and
+ * imported no tokens at all. A test that reads the value and checks the value
+ * is not a test — it restates the source.
+ *
+ * So every claim about how the product LOOKS is now made against the HTML that
+ * `shell()` actually returns. The only assertions left on the object are the
+ * ones that are genuinely about the object: that its status vocabulary matches
+ * `STATUS`, and that the emitter derives rather than transcribes.
+ */
+const page = shell({
+  title: 'T', active: 'home', locale: 'en', path: '/app', avatar: '👩', bodyHtml: '<p>body</p>',
+});
+
+/** The shell minus the generated token block — i.e. everything hand-written. */
+const handWritten = page.replace(cssVariables(), '');
+
+describe('M30 · the rendered shell IS the design system', () => {
+  it('declares the token base size and line height — not a typed-in one', () => {
+    // the variable carries the token's value…
+    expect(page).toContain(`--font-size-base: ${DESIGN_TOKENS.font.sizePx.base}px`);
+    expect(page).toContain(`--line-height: ${DESIGN_TOKENS.font.lineHeight}`);
+    // …and body actually consumes it, rather than restating a number
+    expect(page).toMatch(/body \{[^}]*font: var\(--font-size-base\)\/var\(--line-height\)/);
+    // the value the product renders is the one 45+ eyes were promised
+    expect(DESIGN_TOKENS.font.sizePx.base).toBeGreaterThanOrEqual(16);
+  });
+
+  it('contains no hardcoded hex outside the emitted :root block', () => {
+    const strays = handWritten.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    expect(strays, `hardcoded colour(s) in the shell: ${strays.join(', ')}`).toEqual([]);
+  });
+
+  it('the login page obeys the same rule — it shares the shell stylesheet', () => {
+    const login = loginPage({ locale: 'en', path: '/login' }).replace(cssVariables(), '');
+    const strays = login.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    expect(strays, `hardcoded colour(s) in login: ${strays.join(', ')}`).toEqual([]);
+  });
+
+  it('every type size is a token — no literal px font-size survives', () => {
+    const literals = [...handWritten.matchAll(/font-size:\s*(\d+)px/g)].map((m) => m[0]);
+    expect(literals, `off-token size(s): ${literals.join(', ')}`).toEqual([]);
+    // the shorthand `font:` is the other way a size sneaks in
+    expect(handWritten).not.toMatch(/font:\s*\d+px/);
+  });
+
+  it('emits a variable for every colour token, dark palette included', () => {
+    const css = cssVariables();
+    for (const key of Object.keys(DESIGN_TOKENS.color)) {
+      const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+      expect(css, key).toContain(`--color-${name}:`);
     }
-    // every text marker meaning has a color counterpart
-    expect(PWA_TOKENS.color.ok).toBeDefined();
-    expect(PWA_TOKENS.color.warn).toBeDefined();
-    expect(PWA_TOKENS.color.highlight).toBeDefined();
+    expect(css).toContain('@media (prefers-color-scheme: dark)');
+  });
+});
+
+describe('M30 · the emitter derives, it does not transcribe', () => {
+  /**
+   * The failure this whole commit exists to prevent: a hand-maintained mapping
+   * that has to be edited in step with the tokens, and one day is not. A token
+   * that does not exist here must still reach the page.
+   */
+  it('a colour token nobody wrote a line for still becomes a variable', () => {
+    const extended = {
+      ...DESIGN_TOKENS,
+      color: { ...DESIGN_TOKENS.color, inventedForThisTest: '#ABCDEF' },
+    } as unknown as typeof DESIGN_TOKENS;
+    const css = cssVariables(extended);
+    expect(css).toContain('--color-invented-for-this-test: #ABCDEF;');
+    expect(css.length).toBeGreaterThan(cssVariables().length);
   });
 
-  it('motion respects the ≤300ms spec and type respects 45+ eyes', () => {
-    expect(PWA_TOKENS.motionMs.max).toBeLessThanOrEqual(300);
-    expect(PWA_TOKENS.font.sizePx.base).toBeGreaterThanOrEqual(16);
-    expect(PWA_TOKENS.font.lineHeight).toBeGreaterThanOrEqual(1.5);
+  it('spacing variables are named by value, so extending the scale moves nothing', () => {
+    for (const v of DESIGN_TOKENS.spacingPx) expect(cssVariables()).toContain(`--space-${v}: ${v}px;`);
   });
+});
 
-  it('status chips cover exactly the five canonical statuses with valid color keys', () => {
-    expect(Object.keys(PWA_TOKENS.statusChip).sort()).toEqual(
+describe('M2 · status chips stay keyed to the owner vocabulary', () => {
+  it('cover exactly the five canonical statuses with valid color keys', () => {
+    expect(Object.keys(DESIGN_TOKENS.statusChip).sort()).toEqual(
       [...Object.values(STATUS)].sort(),
     );
-    for (const colorKey of Object.values(PWA_TOKENS.statusChip)) {
-      expect(Object.keys(PWA_TOKENS.color)).toContain(colorKey);
+    for (const colorKey of Object.values(DESIGN_TOKENS.statusChip)) {
+      expect(Object.keys(DESIGN_TOKENS.color)).toContain(colorKey);
     }
+  });
+
+  it('motion respects the ≤300ms spec', () => {
+    expect(DESIGN_TOKENS.motionMs.max).toBeLessThanOrEqual(300);
   });
 });
 

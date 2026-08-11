@@ -204,15 +204,15 @@ export function renderSettings(
 }
 
 const SETTINGS_STYLE = `<style>
-  .fielderr { color:#f87171; font-size:13px; }
-  .fld.bad input, .fld.bad textarea { border-color:#5a1f1f; }
-  .ok-line { color:#4ade80; font-weight:600; margin-bottom:10px; }
+  .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
+  .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
+  .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:10px; }
   .pform { display:flex; flex-direction:column; gap:14px; }
-  .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }
-  .pform input, .pform textarea { background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px 14px; font:inherit; resize:vertical; }
+  .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
+  .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
   .langs { display:flex; flex-wrap:wrap; gap:14px; padding-top:2px; }
-  .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:14px; color:#e6e8eb; }
+  .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
   .cats { display:flex; flex-wrap:wrap; gap:8px; }
-  .cat { background:#0f1216; border:1px solid #23272e; border-radius:999px; padding:5px 12px; font-size:13px; color:#b9c0c9; }
+  .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   
 </style>`;

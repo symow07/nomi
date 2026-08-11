@@ -529,32 +529,32 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
 const INBOX_STYLE = `<style>
   /* M22 — a refusal is information, not an alarm. Amber, like the disconnected
      channel: something needs the owner, and nothing is broken. */
-  .card.refused { border-color:#8a7330; background:#181510; }
-  .rf-h { font-size:15px; font-weight:600; color:#e7eaee; margin:0 0 10px; }
-  .rf { padding:10px 0; border-top:1px solid #2a2419; }
+  .card.refused { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
+  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 10px; }
+  .rf { padding:10px 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
-  .rf-w { font-size:14px; color:#e0b551; }
-  .rf-y { font-size:13px; margin-top:3px; line-height:1.55; max-width:62ch; }
-  .rf-d { font-size:14px; color:#d6dae0; margin-top:6px; }
-  .rf-t { font-size:12px; margin-top:4px; }
+  .rf-w { font-size:var(--font-size-note); color:var(--color-highlight); }
+  .rf-y { font-size:var(--font-size-caption); margin-top:3px; line-height:1.55; max-width:62ch; }
+  .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:6px; }
+  .rf-t { font-size:var(--font-size-micro); margin-top:4px; }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
   .bgroup { margin-bottom:26px; }
-  .bgroup-h { font-size:13px; letter-spacing:0; color:#8b929c;
+  .bgroup-h { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary);
               margin:0 0 12px; font-weight:600; }
-  a.buyer { display:block; background:#14171c; border:1px solid #2b313a; border-radius:14px; padding:16px 18px; }
-  a.buyer:hover, a.buyer:focus-visible { border-color:#3d7a63; }
+  a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px 18px; }
+  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
   .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  .buyer-d { font-size:13px; margin-top:6px; }
-  .buyer-m { margin-top:8px; font-size:14px; color:#c8ccd2; }
-  .buyer-t { font-size:12px; margin-top:10px; }
-  .tag { font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
-  .tag.now { background:#2e2413; color:#fbbf24; }
-  .tag.you { background:#13233a; color:#93c5fd; }
+  .buyer-d { font-size:var(--font-size-caption); margin-top:6px; }
+  .buyer-m { margin-top:8px; font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .buyer-t { font-size:var(--font-size-micro); margin-top:10px; }
+  .tag { font-size:var(--font-size-micro); font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
+  .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
   .review-intro { margin:0 0 12px; }
   .revoke-note { margin:8px 0 0; }
-  .knew { border-color:#23424a; }
+  .knew { border-color:var(--color-highlight-line); }
   .knewlist { list-style:none; margin:0; padding:0; }
-  .knewlist li { padding:8px 0; border-bottom:1px solid #1c2026; font-size:14px; color:#c8ccd2; }
+  .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
   .knewlist li:last-child { border-bottom:0; }
   @media (max-width:560px) {
     a.buyer { padding:15px 16px; }
@@ -562,33 +562,33 @@ const INBOX_STYLE = `<style>
        its alternatives, not alone under Send where it reads as a primary. */
     .acts .btn { padding-inline:12px; }
   }
-  .conv { display:block; background:#14171c; border:1px solid #23272e; border-radius:14px; padding:16px; }
-  .conv.needs { border-color:#5a4a1f; background:#181510; }
-  .conv:hover { border-color:#3a4250; }
+  .conv { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
+  .conv.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
+  .conv:hover { border-color:var(--color-border); }
   .conv-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .need { color:#fbbf24; font-size:13px; font-weight:600; margin-top:6px; }
-  .conv-b { font-size:13px; margin-top:6px; } .conv-m { margin-top:6px; font-size:14px; color:#c8ccd2; }
-  .conv-t { font-size:12px; margin-top:8px; }
-  .ok-card { text-align:center; padding:12px; } .ok { color:#4ade80; font-size:17px; font-weight:700; }
+  .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:6px; }
+  .conv-b { font-size:var(--font-size-caption); margin-top:6px; } .conv-m { margin-top:6px; font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .conv-t { font-size:var(--font-size-micro); margin-top:8px; }
+  .ok-card { text-align:center; padding:12px; } .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; }
   .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
-  .dhead .who { font-size:15px; }
-  .subline { font-size:13px; margin-bottom:12px; }
-  .ctx { background:#0f1216; border:1px solid #23272e; border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; display:flex; flex-direction:column; gap:6px; }
-  .card.draft { border-color:#5a4a1f; }
-  .proposed { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:14px; margin-bottom:12px; font-size:15px; white-space:pre-wrap; }
+  .dhead .who { font-size:var(--font-size-small); }
+  .subline { font-size:var(--font-size-caption); margin-bottom:12px; }
+  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:var(--font-size-note); display:flex; flex-direction:column; gap:6px; }
+  .card.draft { border-color:var(--color-waiting-line); }
+  .proposed { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:14px; margin-bottom:12px; font-size:var(--font-size-small); white-space:pre-wrap; }
   .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .editform { display:flex; flex-direction:column; gap:8px; }
-  textarea { width:100%; background:#0f1216; border:1px solid #2b313a; border-radius:10px; color:#fff; padding:10px; font:inherit; resize:vertical; }
+  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .timeline { display:flex; flex-direction:column; gap:12px; }
   .msg { max-width:82%; } .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
-  .bubble { padding:10px 14px; border-radius:14px; font-size:15px; white-space:pre-wrap; word-break:break-word; }
-  .msg.inbound .bubble { background:#1b2027; border-start-start-radius:4px; }
-  .msg.outbound .bubble { background:#1b3050; border-start-end-radius:4px; }
-  .ts { font-size:12px; margin-top:4px; }
+  .bubble { padding:10px 14px; border-radius:14px; font-size:var(--font-size-small); white-space:pre-wrap; word-break:break-word; }
+  .msg.inbound .bubble { background:var(--color-paper-sunk); border-start-start-radius:4px; }
+  .msg.outbound .bubble { background:var(--color-highlight-line); border-start-end-radius:4px; }
+  .ts { font-size:var(--font-size-micro); margin-top:4px; }
   .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .takeover.warn { border-color:#5a4a1f; } .takeover.owner { border-color:#23424a; flex-direction:column; align-items:stretch; }
-  .why { flex-basis:100%; font-size:13px; }
-  .lastact { flex-basis:100%; font-size:12px; }
+  .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
+  .why { flex-basis:100%; font-size:var(--font-size-caption); }
+  .lastact { flex-basis:100%; font-size:var(--font-size-micro); }
   .replyform { display:flex; flex-direction:column; gap:8px; }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } .msg { max-width:92%; } }
 </style>`;

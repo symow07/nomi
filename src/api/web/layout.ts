@@ -1,5 +1,6 @@
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { cssVariables } from '../../core/owner/css.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -60,94 +61,131 @@ function switcher(locale: Locale, path: string): string {
     ).join('')}</div>`;
 }
 
+/**
+ * The stylesheet holds NO literal colour and NO literal type size. Every one is
+ * `var(--…)`, emitted by `cssVariables()` from `DESIGN_TOKENS`. This file used
+ * to hand-write all of them, which is how the product shipped 15px/1.5 in cold
+ * blue-grey while the token file described 17px/1.6 on warm paper, and how
+ * `design-system.test.ts` asserted `base >= 16` and passed for months.
+ *
+ * Tints are `--color-*-wash` / `--color-*-line` tokens, not `color-mix(… 12% …)`:
+ * the owner surface bans the `%` character in rendered HTML, and a CSS
+ * percentage trips that rule exactly as a fake metric would. If you need a
+ * colour that is not here, add it to `DESIGN_TOKENS.color` — it becomes a
+ * variable on its own, with no edit to the emitter.
+ */
 const STYLE = `
-  :root { color-scheme: dark; }
+${cssVariables()}
   * { box-sizing: border-box; }
-  body { margin: 0; background: #0b0d10; color: #e6e8eb;
-    font: 15px/1.5 -apple-system, "Segoe UI", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif; }
+  body { margin: 0; background: var(--color-surface-alt); color: var(--color-ink);
+    font: var(--font-size-base)/var(--line-height) var(--font-family); }
   a { color: inherit; text-decoration: none; }
+  /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
+  .voice { font-family: var(--font-voice); }
   .layout { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
-  nav.side { background: #101317; border-inline-end: 1px solid #23272e; padding: 20px 12px; }
-  .brand { font-weight: 700; font-size: 17px; padding: 6px 12px 18px; letter-spacing: .3px; }
-  .brand small { display:block; color:#8b929c; font-weight:500; font-size:12px; letter-spacing:0; margin-top:2px; }
-  nav.side a.navlink { display: flex; align-items: center; gap: 10px; padding: 12px;
-    min-height: 44px; border-radius: 10px; color: #b9c0c9; font-size: 15px; margin-bottom: 2px; }
-  nav.side a.navlink:hover { background: #171b21; color: #fff; }
-  nav.side a.navlink.active { background: #1b2430; color: #fff; }
+  nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
+    padding: var(--space-16) var(--space-12); }
+  .brand { font-weight: 700; font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
+  .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
+    font-size:var(--font-size-micro); letter-spacing:0; margin-top:2px; }
+  nav.side a.navlink { display: flex; align-items: center; gap: 10px; padding: var(--space-12);
+    min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
+    font-size: var(--font-size-small); margin-bottom: 2px; }
+  nav.side a.navlink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
+  /* The active destination is the one accent on this screen. */
+  nav.side a.navlink.active { background: var(--color-jade-wash); color: var(--color-jade-deep); font-weight:600; }
   nav.side a.navlink .ic { width: 20px; text-align: center; }
   header.top { display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 8px 12px; padding: 16px 28px; border-bottom: 1px solid #23272e; }
+    flex-wrap: wrap; gap: 8px 12px; padding: var(--space-16) var(--space-24);
+    border-bottom: 1px solid var(--color-border); }
   header.top .who { display:flex; align-items:center; gap:10px; }
-  header.top .avatar { width: 30px; height: 30px; border-radius: 999px; background:#1b2430;
-    display:flex; align-items:center; justify-content:center; font-size:15px; }
+  header.top .whoname { font-weight:600; }
+  header.top .avatar { width: 30px; height: 30px; border-radius: var(--radius-chip);
+    background:var(--color-jade-wash);
+    display:flex; align-items:center; justify-content:center; font-size:var(--font-size-small); }
   header.top .right { display:flex; align-items:center; gap:14px; }
   /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
   header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
-    color:#8b929c; font-size:14px; white-space:nowrap; }
-  header.top .logout:hover { color:#f87171; }
-  .langsw { display:inline-flex; gap:2px; background:#0f1216; border:1px solid #23272e;
-    border-radius:999px; padding:3px; }
+    color:var(--color-ink-secondary); font-size:var(--font-size-note); white-space:nowrap; }
+  header.top .logout:hover { color:var(--color-warn); }
+  .langsw { display:inline-flex; gap:2px; background:var(--color-paper-sunk);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
-    border-radius:999px; font-size:13px; color:#b9c0c9; white-space:nowrap; }
-  .langsw a.on { background:#1b2430; color:#fff; }
-  main { padding: 28px; max-width: 1040px; }
-  h1.page { font-size: 19px; margin: 0 0 18px; }
-  .card { background:#14171c; border:1px solid #23272e; border-radius:14px; padding:20px; margin:16px 0; }
+    border-radius:var(--radius-chip); font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); white-space:nowrap; }
+  .langsw a.on { background:var(--color-jade); color:var(--color-surface); }
+  main { padding: var(--space-24); max-width: 1040px; }
+  h1.page { font-size: var(--font-size-title); margin: 0 0 18px; }
+  /* The hairline in --shadow-lift1 does what a 1px border used to; two would
+     read as a double rule at the same edge. */
+  .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
+    box-shadow:var(--shadow-lift1); padding:var(--space-16); margin:var(--space-16) 0; }
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
-  .card h2, .block h2, main h2 { font-size:17px; font-weight:600; color:#e7eaee;
-    margin:0 0 14px; text-transform:none; letter-spacing:0; }
+  .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
+    color:var(--color-ink); margin:0 0 14px; text-transform:none; letter-spacing:0; }
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
-  .stat { display:flex; align-items:baseline; gap:10px; padding:8px 0; border-bottom:1px solid #1c2026; }
+  .stat { display:flex; align-items:baseline; gap:10px; padding:8px 0;
+    border-bottom:1px solid var(--color-border); }
   .stat:last-child { border-bottom:0; }
-  .stat .v { font-size:17px; font-weight:600; color:#fff; font-variant-numeric:tabular-nums; min-width:2.5em; }
-  .stat .l { font-size:14px; color:#b9c0c9; }
+  .stat .v { font-size:var(--font-size-base); font-weight:600; color:var(--color-ink);
+    font-variant-numeric:tabular-nums; min-width:2.5em; }
+  .stat .l { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
 
   /* One pill. It marks STATE — never decoration, never a label wearing a costume. */
-  .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600;
+  .pill { display:inline-block; padding:4px 10px; border-radius:var(--radius-chip);
+    font-size:var(--font-size-micro); font-weight:600;
     margin-inline-end:8px; margin-block-end:8px; white-space:nowrap; }
-  .pill.ok { background:#0f2e1c; color:#4ade80; } .pill.bad { background:#2e1414; color:#f87171; }
-  .pill.warn { background:#2e2413; color:#fbbf24; }
-  .pill.owner { background:#13233a; color:#93c5fd; }
+  .pill.ok { background:var(--color-ok-wash); color:var(--color-ok); }
+  .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
+  .pill.warn { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .pill.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
 
-  /* One button. Grey does nothing on its own; blue sends; red takes something away. */
+  /* One button. Quiet does nothing on its own; jade sends; red takes something away. */
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
-    padding:10px 18px; border-radius:10px; border:0; background:#2a313c; color:#fff;
-    font:inherit; font-size:14px; cursor:pointer; }
-  .btn.send { background:#2563eb; }
-  .btn.send:hover { background:#1d4ed8; }
-  .btn.danger { background:#3a2020; color:#f8b4b4; }
-  .btn.ghost { background:transparent; border:1px solid #2b313a; color:#b9c0c9; }
+    padding:10px 18px; border-radius:var(--radius-card); border:0;
+    background:var(--color-paper-sunk); color:var(--color-ink);
+    font:inherit; font-size:var(--font-size-note); cursor:pointer; }
+  .btn.send { background:var(--color-jade); color:var(--color-surface); box-shadow:var(--shadow-lift1); }
+  .btn.send:hover { background:var(--color-jade-deep); }
+  .btn.danger { background:var(--color-warn-wash); color:var(--color-warn); }
+  .btn.ghost { background:transparent; border:1px solid var(--color-border); color:var(--color-ink-secondary); }
   .inline { display:inline; }
 
   /* One notice. */
-  .flash { background:#0f2e1c; color:#4ade80; border-radius:10px; padding:10px 14px;
-    margin-bottom:14px; font-size:14px; }
+  .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
+    border-radius:var(--radius-card); padding:10px 14px;
+    margin-bottom:14px; font-size:var(--font-size-note); }
 
   /* One tab row. */
   .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px; border-radius:999px;
-    background:#14171c; border:1px solid #23272e; color:#b9c0c9; font-size:14px; }
-  .tab.on { background:#1b2430; color:#fff; }
+  .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px;
+    border-radius:var(--radius-chip); background:var(--color-surface);
+    border:1px solid var(--color-border); color:var(--color-ink-secondary);
+    font-size:var(--font-size-note); }
+  .tab.on { background:var(--color-jade-wash); border-color:var(--color-jade-line); color:var(--color-jade-deep); }
 
   .list { display:flex; flex-direction:column; gap:10px; }
   .back { display:inline-flex; align-items:center; gap:6px; min-height:44px;
-    color:#60a5fa; font-size:14px; }
-  pre { background:#0f1216; border:1px solid #23272e; border-radius:10px; padding:18px; overflow-x:auto;
-    font:14px/1.55 "SF Mono", ui-monospace, Menlo, monospace; color:#d6dae0; white-space:pre; margin:0; }
+    color:var(--color-jade); font-size:var(--font-size-note); }
+  pre { background:var(--color-paper-sunk); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); padding:18px; overflow-x:auto;
+    font:var(--font-size-note)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
+    color:var(--color-ink); white-space:pre; margin:0; }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   .deeper { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:10px 0;
-    font-size:14px; color:#8fb6a4; }
-  .deeper:hover, .deeper:focus-visible { color:#b9d8c8; }
-  .go { font-size:17px; color:#6f8f7e; }
+    font-size:var(--font-size-note); color:var(--color-jade); }
+  .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
+  .go { font-size:var(--font-size-base); color:var(--color-jade); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
   a:focus-visible, button:focus-visible, input:focus-visible,
-  textarea:focus-visible, select:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
-  .muted { color:#8b929c; font-size:13px; }   /* 6.2:1 — #6b7280 was 4.02:1, under AA at 13px */
+  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-jade); outline-offset:2px; }
+  .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   /* One empty state: calm, centred, and never louder than the page. */
-  .empty { text-align:center; color:#8b929c; font-size:14px; padding:28px 16px; }
+  .empty { text-align:center; color:var(--color-ink-secondary);
+    font-size:var(--font-size-note); padding:28px 16px; }
   /* RTL needs NO override here: a grid's first track already sits on the
      inline-start edge, so the sidebar mirrors to the right on its own. The
      three rules that used to live here re-flipped it — putting the sidebar
@@ -159,14 +197,14 @@ const STYLE = `
     /* Four destinations fit one row on a phone: an equal-width bottom-style bar
        at the top, each a full-height target, no wrapping to three ragged rows. */
     nav.side { display:flex; gap:6px; padding:10px 12px; border-inline-end:none;
-      border-bottom:1px solid #23272e; }
+      border-bottom:1px solid var(--color-border); }
     nav.side .brand { display:none; }
     nav.side a.navlink { flex:1; flex-direction:column; gap:3px; margin:0; padding:8px 4px;
-      min-height:56px; justify-content:center; font-size:12px; text-align:center; }
-    nav.side a.navlink .ic { width:auto; font-size:19px; }
-    header.top { padding:12px 16px; }
+      min-height:56px; justify-content:center; font-size:var(--font-size-micro); text-align:center; }
+    nav.side a.navlink .ic { width:auto; font-size:var(--font-size-title); }
+    header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
-    main { padding:20px 16px; }
+    main { padding:var(--space-16); }
     .stats { grid-template-columns: repeat(2,1fr); }
   }
 `;
@@ -197,8 +235,8 @@ export function shell(input: {
   <div class="content">
     <header class="top">
       <div class="who"><span class="avatar">${input.avatar}</span>
-        <div><div style="font-weight:600">${esc(name)}</div>
-        <div class="muted" style="font-size:12px">${esc(t(locale, 'header.stage'))}</div></div></div>
+        <div><div class="whoname">${esc(name)}</div>
+        <div class="muted">${esc(t(locale, 'header.stage'))}</div></div></div>
       <div class="right">${switcher(locale, input.path)}
         <a class="logout" href="/logout">${esc(t(locale, 'header.logout'))}</a></div>
     </header>
@@ -216,18 +254,22 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
 <style>${STYLE}
   .login { max-width: 360px; margin: 12vh auto; padding: 0 20px; }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:14px; }
-  .login .card { padding: 28px; }
-  input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid #2b313a;
-    background:#0f1216; color:#fff; font-size:15px; margin:8px 0 14px; }
-  button { width:100%; padding:12px; border:0; border-radius:10px; background:#2563eb;
-    color:#fff; font-weight:600; font-size:15px; cursor:pointer; }
-  button:hover { background:#1d4ed8; }
-  .err { color:#f87171; font-size:13px; margin-bottom:8px; }
-  label { color:#8b929c; font-size:13px; }
+  .login .card { padding: var(--space-24); }
+  .login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:8px; padding:0; }
+  input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
+    border:1px solid var(--color-border); background:var(--color-paper-sunk);
+    color:var(--color-ink); font-size:var(--font-size-small); margin:8px 0 14px; }
+  button { width:100%; padding:12px; border:0; border-radius:var(--radius-card);
+    background:var(--color-jade); color:var(--color-surface); font-weight:600;
+    font-size:var(--font-size-small); cursor:pointer; }
+  button:hover { background:var(--color-jade-deep); }
+  .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:8px; }
+  label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .login .foot { text-align:center; font-size:var(--font-size-micro); }
 </style></head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, input.path)}</div>
-  <div class="brand" style="font-weight:700;font-size:19px;margin-bottom:8px">Nomi<small class="muted" style="display:block;font-size:12px">${esc(t(locale, 'login.brandTagline'))}</small></div>
+  <div class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
   <div class="card">
     ${input.error ? `<div class="err">${esc(t(locale, 'login.error'))}</div>` : ''}
     <form method="post" action="/login">
@@ -236,6 +278,6 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
       <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>
   </div>
-  <p class="muted" style="text-align:center;font-size:12px">${esc(t(locale, 'login.footer'))}</p>
+  <p class="muted foot">${esc(t(locale, 'login.footer'))}</p>
 </div></body></html>`;
 }

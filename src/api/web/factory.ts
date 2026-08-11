@@ -582,73 +582,73 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
 }
 
 const FACTORY_STYLE = `<style>
-  .lede { color:#8b929c; margin:-6px 0 22px; font-size:15px; max-width:60ch; }
+  .lede { color:var(--color-ink-secondary); margin:-6px 0 22px; font-size:var(--font-size-small); max-width:60ch; }
 
   /* The next step is a door, not a checklist row. It vanishes when done. */
   .fnext { display:flex; align-items:center; justify-content:space-between; gap:12px;
-           background:#152119; border:1px solid #2c4636; border-radius:14px;
+           background:var(--color-jade-wash); border:1px solid var(--color-jade-line); border-radius:14px;
            padding:16px 18px; margin-bottom:26px; }
-  .fnext:hover, .fnext:focus-visible { border-color:#3d7a63; }
-  .fnext-t { color:#d8e3db; font-size:15px; }
+  .fnext:hover, .fnext:focus-visible { border-color:var(--color-jade-line); }
+  .fnext-t { color:var(--color-jade-deep); font-size:var(--font-size-small); }
 
   /* Sections are grouped decisions, not settings panels. */
-  .fblock { border-top:1px solid #1e2229; padding:24px 0 26px; }
+  .fblock { border-top:1px solid var(--color-paper-sunk); padding:24px 0 26px; }
   .fblock:first-of-type { border-top:0; padding-top:0; }
   .fhead { margin-bottom:14px; }
-  .fhead h2 { margin:0; font-size:17px; font-weight:600; color:#e7eaee; }
-  .fq { margin:4px 0 0; font-size:13px; color:#8b929c; }
+  .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
+  .fq { margin:4px 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
 
-  .fname { font-size:19px; font-weight:600; color:#fff; }
-  .fdesc { color:#a8afb8; font-size:14px; line-height:1.6; margin:8px 0 0; max-width:62ch; }
+  .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
+  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:8px 0 0; max-width:62ch; }
   .fdesc-lead { margin:0 0 12px; }
-  .fempty { color:#a8afb8; font-size:14px; line-height:1.6; margin:0; max-width:62ch; }
+  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:0; max-width:62ch; }
   .facts { margin-top:14px; display:flex; flex-direction:column; gap:9px; }
-  .frow { display:flex; gap:14px; font-size:14px; }
-  .flabel { color:#8b929c; min-width:8.5em; }
-  .fval { color:#d6dae0; }
+  .frow { display:flex; gap:14px; font-size:var(--font-size-note); }
+  .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
+  .fval { color:var(--color-ink); }
 
   /* A product tally is never the loudest thing an owner reads. */
-  .fcount { font-size:22px; font-weight:600; color:#fff; display:flex; align-items:baseline; gap:9px;
+  .fcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:9px;
             font-variant-numeric:tabular-nums; }
-  .fcount-l { font-size:14px; font-weight:400; color:#8b929c; }
-  .fnames { color:#a8afb8; font-size:14px; line-height:1.6; margin:6px 0 0; }
-  .fwarn { color:#e0b551; font-size:14px; margin:12px 0 0; }
-  .fok { color:#7fb894; font-size:14px; margin:12px 0 0; }
+  .fcount-l { font-size:var(--font-size-note); font-weight:400; color:var(--color-ink-secondary); }
+  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:6px 0 0; }
+  .fwarn { color:var(--color-highlight); font-size:var(--font-size-note); margin:12px 0 0; }
+  .fok { color:var(--color-jade); font-size:var(--font-size-note); margin:12px 0 0; }
 
   .fchips { display:flex; flex-wrap:wrap; gap:8px; }
-  .fchip { font-size:13px; padding:6px 13px; border-radius:999px;
-           background:#14231b; color:#8fc9a6; border:1px solid #274434; }
-  .frules { margin:14px 0 0; padding-inline-start:18px; color:#d6dae0; font-size:14px; line-height:1.6; }
+  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px;
+           background:var(--color-jade-wash); color:var(--color-ok); border:1px solid var(--color-jade-line); }
+  .frules { margin:14px 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-note); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
-  .fnever { margin:16px 0 0; font-size:15px; line-height:1.6; color:#d8e3db; max-width:62ch;
-            border-inline-start:2px solid #274434; padding-inline-start:14px; }
+  .fnever { margin:16px 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-jade-deep); max-width:62ch;
+            border-inline-start:2px solid var(--color-jade-line); padding-inline-start:14px; }
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
-  .fsteps li { font-size:14px; color:#a8afb8; }
-  .fsteps li.done { color:#d6dae0; }
-  .sub3 { font-size:15px; font-weight:600; color:#e7eaee; margin:22px 0 4px; }
+  .fsteps li { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .fsteps li.done { color:var(--color-ink); }
+  .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:22px 0 4px; }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:12px; display:flex; flex-direction:column; gap:14px; }
   .fgap .fnames { margin-top:3px; }
   .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:34ch; }
-  .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:14px; }
-  .alform input { background:#0f1216; border:1px solid #2b313a; border-radius:10px;
-    color:#fff; padding:10px 14px; font:inherit; }
+  .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
+  .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
+    color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:8px; }
-  .blink { color:#60a5fa; }
+  .blink { color:var(--color-jade); }
   .fconn { display:flex; align-items:center; gap:13px; }
-  .fconn-t { font-size:15px; color:#e7eaee; }
-  .fconn-s { font-size:13px; color:#8b929c; }
-  .fconn-h { font-size:13px; margin-top:2px; }
-  .fconn-i { font-size:22px; }
-  .fconn.on .fconn-s { color:#7fb894; }
+  .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
+  .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fconn-h { font-size:var(--font-size-caption); margin-top:2px; }
+  .fconn-i { font-size:var(--font-size-numeral); }
+  .fconn.on .fconn-s { color:var(--color-jade); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
-  .fconn.off { background:#181510; border:1px solid #8a7330; border-radius:14px; padding:14px 16px; }
-  .fconn.off:hover, .fconn.off:focus-visible { border-color:#b39445; }
-  .fconn.off .fconn-s { color:#e0b551; }
+  .fconn.off { background:var(--color-highlight-wash); border:1px solid var(--color-highlight); border-radius:14px; padding:14px 16px; }
+  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-highlight); }
+  .fconn.off .fconn-s { color:var(--color-highlight); }
   .fconn.off .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:8px; }
   @media (max-width:560px) {
     .frow { flex-direction:column; align-items:flex-start; gap:2px; }
-    .flabel { min-width:0; font-size:13px; }
+    .flabel { min-width:0; font-size:var(--font-size-caption); }
   }
 </style>`;
