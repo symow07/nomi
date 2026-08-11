@@ -21,12 +21,18 @@ import { cssVariables } from '../../core/owner/css.js';
  * conversations from Buyers, results from Today, practice and the go-live
  * runbook from My factory. Every one of those routes still works — this moved
  * the door, not the room.
+ *
+ * No icons. These carried 🏠 💬 👩 🏭, which rendered differently on every
+ * device, sat badly next to Arabic, and were the loudest thing in a shell whose
+ * whole argument is restraint. The words already say what the pictures gestured
+ * at. The field is DELETED rather than blanked, so nothing can quietly put one
+ * back for a single destination.
  */
-export const NAV: readonly { readonly href: string; readonly id: string; readonly icon: string }[] = [
-  { href: '/app',           id: 'home',     icon: '🏠' },
-  { href: '/app/inbox',     id: 'inbox',    icon: '💬' },
-  { href: '/app/employee',  id: 'employee', icon: '👩' },
-  { href: '/app/factory',   id: 'factory',  icon: '🏭' },
+export const NAV: readonly { readonly href: string; readonly id: string }[] = [
+  { href: '/app',           id: 'home' },
+  { href: '/app/inbox',     id: 'inbox' },
+  { href: '/app/employee',  id: 'employee' },
+  { href: '/app/factory',   id: 'factory' },
 ];
 
 /** Reached from a surface above rather than the nav. Nothing here was removed. */
@@ -94,7 +100,6 @@ ${cssVariables()}
   nav.side a.navlink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
   /* The active destination is the one accent on this screen. */
   nav.side a.navlink.active { background: var(--color-jade-wash); color: var(--color-jade-deep); font-weight:600; }
-  nav.side a.navlink .ic { width: 20px; text-align: center; }
   header.top { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 8px 12px; padding: var(--space-16) var(--space-24);
     border-bottom: 1px solid var(--color-border); }
@@ -201,7 +206,6 @@ ${cssVariables()}
     nav.side .brand { display:none; }
     nav.side a.navlink { flex:1; flex-direction:column; gap:3px; margin:0; padding:8px 4px;
       min-height:56px; justify-content:center; font-size:var(--font-size-micro); text-align:center; }
-    nav.side a.navlink .ic { width:auto; font-size:var(--font-size-title); }
     header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
     main { padding:var(--space-16); }
@@ -220,8 +224,8 @@ export function shell(input: {
   const { locale } = input;
   const name = EMPLOYEE_NAME[locale];
   const nav = NAV.map((n) =>
-    `<a href="${n.href}" class="navlink ${n.id === input.active ? 'active' : ''}">
-       <span class="ic">${n.icon}</span>${esc(t(locale, `nav.${n.id}` as MessageKey))}</a>`).join('');
+    `<a href="${n.href}" class="navlink ${n.id === input.active ? 'active' : ''}"
+       >${esc(t(locale, `nav.${n.id}` as MessageKey))}</a>`).join('');
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

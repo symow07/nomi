@@ -26,6 +26,26 @@ describe('Phase F · four destinations, and nothing else competing', () => {
     expect(page('zh')).not.toContain('收件箱');
   });
 
+  /**
+   * The nav carried 🏠 💬 👩 🏭. Emoji render as a different picture on every
+   * platform, sit badly beside Arabic, and were the loudest thing on a screen
+   * arguing for restraint. The field is gone from NAV, not blanked — so this
+   * checks the SHAPE as well as the output, and a re-added icon fails to
+   * compile before it ever reaches a page.
+   */
+  const navOf = (l: 'en' | 'zh' | 'ar') => page(l).split('<nav class="side"')[1]?.split('</nav>')[0] ?? '';
+
+  it('the nav carries words, not pictures', () => {
+    for (const n of NAV) expect(Object.keys(n).sort()).toEqual(['href', 'id']);
+    const pictographs = navOf('en').match(/\p{Extended_Pictographic}/gu) ?? [];
+    expect(pictographs, `emoji in the nav: ${pictographs.join(' ')}`).toEqual([]);
+    // and the destinations are still named, in every locale
+    for (const l of LOCALES) {
+      expect(navOf(l).match(/\p{Extended_Pictographic}/gu) ?? [], l).toEqual([]);
+      for (const n of NAV) expect(navOf(l), `${l}/${n.id}`).toContain(n.href);
+    }
+  });
+
   it('no surface that is reached contextually also holds a nav slot', () => {
     const navHrefs = new Set(NAV.map((n) => n.href));
     for (const r of CONTEXTUAL_ROUTES) expect(navHrefs.has(r), r).toBe(false);
