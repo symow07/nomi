@@ -268,10 +268,21 @@ Built and verified:
   activation.
 - **Tenant identity** — the process refuses to boot on a missing tenant, or on
   the practice sandbox.
+- **Her price rules are the owner's** — floor, maximum discount and the point
+  above which a person decides. A product with no rules stated is not sellable:
+  absence means "not answered yet", never a default, so she quotes nothing until
+  the owner has said what she will accept. The owner authors and edits them from
+  My factory, and every change is recorded with its before and after.
 - **Pictures** — she reads a buyer's photo and matches it to a product, and she
   can send one back. A picture goes out through the same single send path and
   the same gate as any reply, and an image whose photo cannot be carried is
-  refused rather than quietly sent as its caption alone.
+  refused rather than quietly sent as its caption alone. A photo she cannot read,
+  or that sits between two of the owner's products, goes to the owner rather
+  than being answered from its caption.
+- **Voice notes** — she hears them, and the words she heard are shown to the
+  owner beside her reply and can be corrected. A voice note she cannot make out
+  is refused and handed over, never treated as silence; and a QUANTITY she heard
+  that would set a price waits for the owner however her autonomy is set.
 
 Not done, and the only external dependency: **Meta / WhatsApp Cloud**. Business
 verification, phone provisioning, credentials, message-template approval, webhook

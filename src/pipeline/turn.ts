@@ -7,6 +7,7 @@ import type { ConversationState } from '../core/types/conversation.js';
 import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
 import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
 import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
+import { quantityWasHeardNotTyped, type TextProvenance } from '../core/safety/heardNumbers.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
@@ -58,6 +59,13 @@ export type TurnRequest = {
   conversationId: ConversationId;
   messageId: string;
   text: string;
+  /**
+   * M34.5 — where `text` came from. Absent means typed, which is what every
+   * turn was before voice notes existed. A transcript is a reading of what the
+   * buyer said, and a NUMBER inside one is the machine's guess at a figure that
+   * moves a price — see core/safety/heardNumbers.ts.
+   */
+  provenance?: TextProvenance;
 };
 
 /**
@@ -531,7 +539,14 @@ export async function commitTurn(
     } else {
       const capability = capabilityOf(r.decision, r.quote !== null);
       const grants = await tenant.autonomy.grants();
-      const mode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
+      const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
+      // M34.5 — a quantity she HEARD, which then set the tier and the price,
+      // does not auto-send however the owner has set her autonomy. This never
+      // widens permission: auto becomes draft, draft stays draft.
+      const heardPrice = quantityWasHeardNotTyped({
+        provenance: req.provenance ?? 'typed', quote: r.quote, turnText: req.text,
+      });
+      const mode = heardPrice ? 'draft' : policyMode;
       if (mode === 'auto') {
         outbound = { conversationId: req.conversationId, reply };
       } else {
@@ -540,7 +555,12 @@ export async function commitTurn(
           draftText: reply, turnMessageId: req.messageId,
         });
         draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
-        await tenant.events.append(req.conversationId, 'draft_pending', { draftId: d.draftId, capability });
+        await tenant.events.append(req.conversationId, 'draft_pending', {
+          draftId: d.draftId, capability,
+          // The audit trail says WHY this one waited, so a draft the owner did
+          // not ask for is explicable rather than mysterious.
+          ...(heardPrice ? { heldBecause: 'quantity_heard_not_typed' } : {}),
+        });
       }
     }
   }

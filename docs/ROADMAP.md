@@ -62,6 +62,14 @@ recorded, reversible in one tap — the M20 pattern applied to outreach.
 *Four features that make her more sure. Build these first: they are what the
 outbound engine will be selling.*
 
+> **Status note (2026-08-11).** M34 is built. M4's vision pipeline turned out to
+> have the same defect this roadmap identified in the audio path — written,
+> tested, and called by nothing — so it was wired in the same pass (M4.5), and
+> `tools/check-reachable.mjs` now fails the build when any module under
+> `src/pipeline`, `src/outbound` or `src/channels` is reachable only from tests.
+> That check found one more orphan, `src/channels/testflow.ts`, awaiting a
+> decision. Everything below M34 is unstarted.
+
 ### M34 — She can hear ★ highest-value gap
 
 **The finding.** `src/channels/whatsapp/parse.ts:90` already recognises

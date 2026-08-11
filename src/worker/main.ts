@@ -141,6 +141,12 @@ export async function startWorker(env: {
         text: heard?.kind === 'heard' ? heard.transcript
           : seen?.kind === 'words' ? seen.text
           : job.data.text,
+        // M34.5 — a figure inside a transcript is the machine's reading of a
+        // number that moves a price. If it drove the quote, the reply waits for
+        // the owner however her autonomy is set.
+        provenance: heard?.kind === 'heard' ? 'transcribed' as const
+          : seen?.kind === 'words' ? 'photo' as const
+          : 'typed' as const,
       };
       const result = await computeTurn(ports, req);
       const fx = await commitTurn(ports, req, result, started);
