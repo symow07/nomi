@@ -302,6 +302,7 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(t(locale, 'login.title'))}</title>
+<link rel="icon" href="${faviconDataUri()}">
 <style>${STYLE}
   .login { max-width: 360px; margin: 12vh auto; padding: 0 20px; }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:14px; }

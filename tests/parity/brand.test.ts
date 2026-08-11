@@ -83,6 +83,10 @@ describe('M30 · the favicon', () => {
     expect(page()).not.toContain('apple-touch-icon');   // no manifest, nothing installable
   });
 
+  it('the login page carries it too — it has its own head, which is how it got missed', () => {
+    expect(loginPage({ locale: 'en', path: '/login' })).toContain('data:image/svg+xml;base64,');
+  });
+
   it('carries the SMALL cut — reversed, because a favicon is 16px', () => {
     const svg = decoded();
     expect(figureOf(svg)).toBe(MARK_FIGURE);
