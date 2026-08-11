@@ -3,11 +3,12 @@ import { createDb, lockConversation, withTenantTx } from '../db/client.js';
 import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
-import { anthropicAnalyzer, anthropicReplyWriter } from '../llm/anthropic.js';
+import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
 import { computeTurn, commitTurn, type TurnEffects } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
+import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { whisperTranscriber } from '../llm/transcribe.js';
-import { whatsappAudioFetcher } from '../channels/whatsapp/media.js';
+import { whatsappAudioFetcher, whatsappMediaFetcher } from '../channels/whatsapp/media.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
@@ -50,8 +51,15 @@ export async function startWorker(env: {
   const audio = env.MEDIA_BASE_URL && env.MEDIA_API_KEY
     ? whatsappAudioFetcher({ baseUrl: env.MEDIA_BASE_URL, apiKey: env.MEDIA_API_KEY })
     : undefined;
+  // M4.5 — photos share the audio path's credential: the same media endpoint
+  // downloads both. Absent means she cannot see, and every photo then refuses
+  // rather than being answered from its caption.
+  const mediaFetcher = env.MEDIA_BASE_URL && env.MEDIA_API_KEY
+    ? whatsappMediaFetcher({ baseUrl: env.MEDIA_BASE_URL, apiKey: env.MEDIA_API_KEY })
+    : undefined;
   const analyzer = anthropicAnalyzer(anthropic);
   const replyWriter = anthropicReplyWriter(anthropic);
+  const vision = anthropicVision(anthropic);
 
   await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
     if (!job) return;
@@ -67,6 +75,20 @@ export async function startWorker(env: {
     // buyer behind one slow provider.
     const heard = job.data.messageType === 'audio'
       ? await hearVoiceNote({ transcriber, audio }, job.data.mediaId)
+      : null;
+
+    // M4.5 — the same treatment for a photo, and for the same reason. This
+    // branch is what M4 never had: `computeImageInquiry` was correct and
+    // unreachable, so a buyer's picture was answered from its caption or from
+    // nothing at all.
+    const seen = job.data.messageType === 'image'
+      ? await seeImage({
+          image: mediaFetcher
+            ? productionImageDeps({ media: mediaFetcher, vision, db, businessId: businessId.value })
+            : undefined,
+        }, {
+          mediaId: job.data.mediaId, caption: job.data.text || null,
+        })
       : null;
 
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
@@ -92,12 +114,33 @@ export async function startWorker(env: {
         } satisfies TurnEffects;
       }
 
+      if (seen) await recordImageMessage(tx, conversationId.value, job.data.messageId, job.data.text || null, seen);
+
+      // FAIL CLOSED, for the same reason and in the same shape. She could not
+      // tell what the photo was — either the bytes never arrived, or two
+      // catalogue products were within a hair of each other and MATCH_MIN_MARGIN
+      // exists precisely so she does not pick one. `low_confidence_image` has
+      // been in the vocabulary and rendered by the inbox since M4; until this
+      // commit nothing ever wrote it, because nothing ever ran.
+      if (seen?.kind === 'refused') {
+        await tenant.signals.record(conversationId.value, { kind: 'low_confidence_image' });
+        await tenant.events.append(conversationId.value, 'handoff', {});
+        return {
+          outbound: null, draftCreated: null, hotLeadAlert: false,
+          handoffAlert: true, orderCreated: null,
+        } satisfies TurnEffects;
+      }
+
       const req = {
         conversationId: conversationId.value,
         messageId: job.data.messageId,
         // The transcript IS the message from here on — same pipeline, same
-        // gate, same price rules. Only its provenance differs.
-        text: heard?.kind === 'heard' ? heard.transcript : job.data.text,
+        // gate, same price rules. Only its provenance differs. A photo becomes
+        // words the same way: his caption as his, the description as a
+        // description, never as something he said.
+        text: heard?.kind === 'heard' ? heard.transcript
+          : seen?.kind === 'words' ? seen.text
+          : job.data.text,
       };
       const result = await computeTurn(ports, req);
       const fx = await commitTurn(ports, req, result, started);

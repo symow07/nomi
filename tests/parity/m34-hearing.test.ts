@@ -115,7 +115,14 @@ describe('M34 · the pipeline is CALLED, not merely built', () => {
 
   it('the transcript becomes the turn text — one pipeline, not two', async () => {
     const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/heard\?\.kind === 'heard' \? heard\.transcript : job\.data\.text/);
+    // Assert the SHAPE, not the exact expression: this originally pinned the
+    // literal ternary and broke the moment M4.5 added the photo branch beside
+    // it — pinned source text, the brittleness this repo keeps paying for.
+    // What matters is that the turn's text can come from a transcript and
+    // falls back to what the buyer typed.
+    const req = src.slice(src.indexOf('const req = {'), src.indexOf('const result = await computeTurn'));
+    expect(req).toContain('heard.transcript');
+    expect(req).toContain('job.data.text');
   });
 
   it('the ingress carries what the parser already knew', async () => {
