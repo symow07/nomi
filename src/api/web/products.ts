@@ -213,7 +213,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
   const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>`;
   if (items.length === 0) {
     return `${head}
-      <div class="card"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
+      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
       <div style="margin-top:16px"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
   }
   const cards = items.map((p) => {
@@ -248,7 +248,7 @@ export function renderProductDetail(
     errors[f] ? `<p class="perr">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   const val = (f: string, fallback: string): string =>
     esc(draft[f] !== undefined ? draft[f]! : fallback);
-  const editForm = `<div class="card">
+  const editForm = `<div class="block">
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
     <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
       <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
@@ -265,21 +265,21 @@ export function renderProductDetail(
   </div>`;
 
   const tiers = d.tiers.length
-    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
         `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatUsd(tr.unitPriceUsd))}</b></div>`).join('')}</div></div>`
-    : `<div class="card"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))} <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a></p></div>`;
+    : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))} <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a></p></div>`;
 
   const aliases = d.aliases.length
-    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
         <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: EMPLOYEE_NAME[locale] }))}</p></div>`
     : '';
 
   const images = d.images.length
-    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
     : '';
 
   const quotes = d.recentQuotes.length
-    ? `<div class="card"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
         `<div class="qrow muted">${esc(formatQty(locale, q.quantity))}${esc(u)} · ${esc(formatUsd(q.unitPriceUsd))}/${esc(u)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(q.totalUsd))}</div>`).join('')}</div>`
     : '';
 
@@ -288,7 +288,7 @@ export function renderProductDetail(
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.learned)}</div>
     ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
-    <div class="card"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
+    <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(formatQty(locale, d.moq))}${esc(u)}</div>
@@ -301,7 +301,7 @@ export function renderProductDetail(
 
 export function renderAddForm(locale: Locale): string {
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
-    <div class="card">
+    <div class="block">
       <p>${esc(t(locale, 'product.add.intro'))}</p>
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${esc(t(locale, 'product.add.example1'))}<br>${esc(t(locale, 'product.add.example2'))}</p>
       <form method="post" action="/app/products/add/review">
@@ -319,12 +319,12 @@ export function renderReview(v: ValidatedImport, rawText: string, locale: Locale
       ${p.priceUsd === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
     </div>`).join('');
   const rejected = v.rejected.length
-    ? `<div class="card"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}</div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}</div>`
     : '';
   return `<h1 class="page">${esc(t(locale, 'product.review.title'))}</h1>
     ${v.accepted.length
-      ? `<div class="card"><h2>${esc(t(locale, 'product.review.recognized', { count: v.accepted.length }))}</h2>${accepted}</div>`
-      : `<div class="card"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`}
+      ? `<div class="block"><h2>${esc(t(locale, 'product.review.recognized', { count: v.accepted.length }))}</h2>${accepted}</div>`
+      : `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`}
     ${rejected}
     ${v.accepted.length ? `<form method="post" action="/app/products/add/confirm">
       <input type="hidden" name="text" value="${esc(rawText)}" />

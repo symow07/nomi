@@ -346,7 +346,7 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
           <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
-    return `${title}${tabs}<div class="card">${body}</div>
+    return `${title}${tabs}<div class="block">${body}</div>
       ${data.filter === 'pending' ? deeper('/app/conversations', t(locale, 'buyers.all.link')) : ''}${INBOX_STYLE}`;
   }
 
@@ -382,7 +382,7 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
     return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
       ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
-      ${c.latestMessage ? `<div class="buyer-m"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
+      ${c.latestMessage ? `<div class="buyer-m voice"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
       <div class="buyer-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
     </a>`;
   };
@@ -498,12 +498,12 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
           <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
         </form>
       </div>`
-    : `<div class="card"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
+    : `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   // Phase D — "why did she say that?", from the stored usage audit. Shown only
   // while SHE is speaking: once a human takes over it is no longer the question.
   const knew = d.ownership === 'AI' && d.knowledgeUsed.length > 0
-    ? `<div class="card knew"><h2>${esc(t(locale, 'buyers.knew.title'))}</h2>
+    ? `<div class="block knew"><h2>${esc(t(locale, 'buyers.knew.title'))}</h2>
         <ul class="knewlist">${d.knowledgeUsed.map((k) => `<li>${esc(k)}</li>`).join('')}</ul></div>`
     : '';
 
@@ -522,7 +522,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${knew}
     ${context}
-    <div class="card"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
+    <div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
     ${INBOX_STYLE}`;
 }
 
@@ -552,7 +552,7 @@ const INBOX_STYLE = `<style>
   .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
   .review-intro { margin:0 0 12px; }
   .revoke-note { margin:8px 0 0; }
-  .knew { border-color:var(--color-highlight-line); }
+  .knew { /* provenance panel, not a state boundary — no card, no tinted border */ }
   .knewlist { list-style:none; margin:0; padding:0; }
   .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
   .knewlist li:last-child { border-bottom:0; }
@@ -575,20 +575,15 @@ const INBOX_STYLE = `<style>
   .subline { font-size:var(--font-size-caption); margin-bottom:12px; }
   .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:var(--font-size-note); display:flex; flex-direction:column; gap:6px; }
   .card.draft { border-color:var(--color-waiting-line); }
-  .proposed { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:14px; margin-bottom:12px; font-size:var(--font-size-small); white-space:pre-wrap; }
   .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .editform { display:flex; flex-direction:column; gap:8px; }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
-  .timeline { display:flex; flex-direction:column; gap:12px; }
-  .msg { max-width:82%; } .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
-  .bubble { padding:10px 14px; border-radius:14px; font-size:var(--font-size-small); white-space:pre-wrap; word-break:break-word; }
-  .msg.inbound .bubble { background:var(--color-paper-sunk); border-start-start-radius:4px; }
-  .msg.outbound .bubble { background:var(--color-highlight-line); border-start-end-radius:4px; }
-  .ts { font-size:var(--font-size-micro); margin-top:4px; }
+  /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
+     components live in one place so the two voices cannot fork per page. */
   .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
   .why { flex-basis:100%; font-size:var(--font-size-caption); }
   .lastact { flex-basis:100%; font-size:var(--font-size-micro); }
   .replyform { display:flex; flex-direction:column; gap:8px; }
-  @media (max-width:560px) { .conv, .card { border-radius:12px; } .msg { max-width:92%; } }
+  @media (max-width:560px) { .conv, .card { border-radius:12px; } }
 </style>`;

@@ -292,10 +292,9 @@ export function renderOperationsHome(
   ${activity}
   ${notLive}
   <style>
-    .block { padding:22px 0; border-top:1px solid var(--color-border); }
+    /* .block is the shell's now — Today is where the pattern came from. */
     /* Not-live is neutral, not celebratory: no tick, no green. */
     .calm.off .calm-h { color:var(--color-ink); }
-    .block:first-of-type { border-top:0; padding-top:6px; }
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
     .needs { display:flex; flex-direction:column; gap:10px; }
     a.need { display:flex; align-items:center; gap:14px; background:var(--color-surface);

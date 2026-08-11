@@ -190,7 +190,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
 
   const stat = (labelKey: MessageKey, n: number) =>
     `<div class="stat"><div class="v">${n}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
-  const report = `<div class="card"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod'))}</h2>
+  const report = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod'))}</h2>
     <div class="stats">
       ${stat('knowledge.report.facts', ops.report.factsAdded)}
       ${stat('knowledge.report.corrected', ops.report.answersCorrected)}
@@ -215,11 +215,11 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
         <a class="btn ghost" href="${testHref}">${esc(t(locale, 'knowledge.gap.test'))}</a></div>
     </div>`;
   };
-  const gaps = `<div class="card"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>
+  const gaps = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>
     ${ops.gaps.length ? ops.gaps.map(gapCard).join('') : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noGaps'))}</div>`}
   </div>`;
 
-  const activity = `<div class="card"><h2>${esc(t(locale, 'knowledge.ops.activity'))}</h2>
+  const activity = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.activity'))}</h2>
     ${ops.activity.length ? `<ul class="acts">${ops.activity.map((a) =>
       `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
         <span>${esc(a.label)}</span> <span class="muted">${esc(formatRelative(locale, a.at, now))}</span></li>`).join('')}</ul>`

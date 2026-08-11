@@ -231,6 +231,75 @@ describe('M30 · the emitter derives, it does not transcribe', () => {
   });
 });
 
+/* ── the two voices ──────────────────────────────────────────────────────── */
+
+/**
+ * M30 — anything a PERSON says is set in the voice serif; anything the PRODUCT
+ * says stays sans. This is the design's central claim — "she is a colleague,
+ * not a console" — made visible. The test is structural, in two halves:
+ * which selectors the shell gives the voice to, and which elements the
+ * renderers actually put speech inside.
+ */
+describe('M30 · two voices — a person is serif, the product is sans', () => {
+  const css = page.match(/<style>([\s\S]*?)<\/style>/)![1]!;
+  /** Selectors of every rule that sets the voice family. */
+  const voiced = [...css.matchAll(/([^{}]+)\{[^}]*font-family:\s*var\(--font-voice\)/g)]
+    .flatMap((m) => m[1]!.split(',').map((s) => s.trim()));
+
+  it('speech components carry the voice; product components never do', () => {
+    expect(voiced.some((s) => s.includes('.bubble')), '.bubble must be voiced').toBe(true);
+    expect(voiced.some((s) => s.includes('.proposed')), '.proposed must be voiced').toBe(true);
+    expect(voiced.some((s) => s.includes('.voice')), 'the .voice utility must exist').toBe(true);
+    // the product's own furniture must NOT inherit a human voice
+    for (const product of ['.btn', '.stat', '.pill', '.navlink', 'h1', 'h2', '.muted', '.empty']) {
+      expect(voiced.some((s) => s.includes(product)), `${product} must stay sans`).toBe(false);
+    }
+    // and body's base family is the sans stack, so sans is the DEFAULT
+    expect(css).toMatch(/body \{[^}]*var\(--font-family\)/);
+  });
+
+  it('a rendered draft sits in a voiced element; its buttons do not', async () => {
+    const { renderConversationDetail } = await import('../../src/api/web/inbox.js');
+    type Detail = Parameters<typeof renderConversationDetail>[0];
+    const detail: Detail = {
+      conversationId: 'c1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
+      product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
+      quote: null, order: null,
+      messages: [{ direction: 'inbound', text: 'BUYERWORDS-5000', at: new Date('2026-07-27T09:00:00Z') }],
+      pendingDraft: { draftId: 'd1', draftText: 'HERDRAFT-092', capability: 'quote' },
+      ownership: 'AI', refusals: [], handoffReasons: [], lastHumanAction: null, knowledgeUsed: [],
+    };
+    const html = renderConversationDetail(detail, 'en', new Date('2026-07-27T10:00:00Z'), null);
+    // her draft is inside .proposed (voiced); the buyer's words inside .bubble
+    expect(html).toMatch(/class="proposed"><bdi>HERDRAFT-092/);
+    expect(html).toMatch(/class="msg inbound">\s*<div class="bubble"><bdi>BUYERWORDS-5000/);
+    // the actions around the speech are the product speaking: plain .btn, no voice class
+    expect(html).toMatch(/class="btn send"[^>]*>Send/);
+    expect(html).not.toMatch(/class="[^"]*voice[^"]*"[^>]*>Send/);
+  });
+
+  /**
+   * Speech is other people's text in other people's scripts, so every speech
+   * element isolates its bidi. Found the hard way: sandbox's .proposed lacked
+   * <bdi>, and a Latin draft rendered with a displaced "?" on the Arabic page
+   * while inbox's identical component rendered correctly.
+   */
+  it('every speech element wraps its text in <bdi>', async () => {
+    const { readdir, readFile } = await import('node:fs/promises');
+    const dir = new URL('../../src/api/web/', import.meta.url);
+    const offences: string[] = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
+      const src = await readFile(new URL(f, dir), 'utf8');
+      for (const line of src.split('\n')) {
+        if (/class="(proposed|bubble)"/.test(line) && !line.includes('<bdi>')) {
+          offences.push(`${f}: ${line.trim().slice(0, 70)}`);
+        }
+      }
+    }
+    expect(offences, `speech without bidi isolation: ${offences.join(' · ')}`).toEqual([]);
+  });
+});
+
 describe('M2 · status chips stay keyed to the owner vocabulary', () => {
   it('cover exactly the five canonical statuses with valid color keys', () => {
     expect(Object.keys(DESIGN_TOKENS.statusChip).sort()).toEqual(

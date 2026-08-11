@@ -219,7 +219,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const detail = await loadConversationDetail(deps.db, s.businessId, conversationId);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="card"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
     }));
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
@@ -417,7 +417,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
     return d ? renderProductDetail(d, locale)
-      : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="card"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
+      : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
   }));
   app.post('/app/products/add/review', async (req, reply) => {
     const s = sessionOf(req);
@@ -549,7 +549,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
     if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'conv.title'), active: 'conversations',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="card"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
     }));
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
@@ -683,7 +683,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const d = await loadProductKnowledge(deps.db, s.businessId, id);
     if (!d) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="card"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
@@ -754,7 +754,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: renderPractice(practice, locale) + (view
           ? renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill })
-          : `<div class="card"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
+          : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
       }));
     });
 

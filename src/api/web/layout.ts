@@ -115,7 +115,8 @@ ${cssVariables()}
   /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
   header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
     color:var(--color-ink-secondary); font-size:var(--font-size-note); white-space:nowrap; }
-  header.top .logout:hover { color:var(--color-warn); }
+  /* Logging out is routine, not destructive — no warning colour on hover. */
+  header.top .logout:hover { color:var(--color-ink); }
   .langsw { display:inline-flex; gap:2px; background:var(--color-paper-sunk);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
@@ -199,6 +200,42 @@ ${cssVariables()}
   /* One empty state: calm, centred, and never louder than the page. */
   .empty { text-align:center; color:var(--color-ink-secondary);
     font-size:var(--font-size-note); padding:28px 16px; }
+
+  /* ── Speech: the two voices. ─────────────────────────────────────────────
+     Anything a PERSON says — the buyer's words, her drafts, her sent replies —
+     is set in the voice serif. Everything around the speech (labels,
+     timestamps, buttons, counts) is the product speaking, and stays sans.
+     One family per speaker, everywhere: these components are declared HERE and
+     owned by the shell, because inbox and sandbox each carrying a copy is how
+     the two drifted apart last time. */
+  .timeline { display:flex; flex-direction:column; gap:12px; }
+  .msg { max-width:82%; }
+  .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
+  .bubble { font-family:var(--font-voice); padding:10px 14px; border-radius:14px;
+    white-space:pre-wrap; word-break:break-word; }
+  /* The buyer's words are FULL SIZE; every reply is one step down. The page
+     belongs to the buyer's business — she works inside it. */
+  .msg.inbound .bubble { font-size:var(--font-size-base);
+    background:var(--color-paper-sunk); border-start-start-radius:4px; }
+  /* Her sent replies: neutral. These carried an amber fill — colour on every
+     message she ever sent, marking no state at all. */
+  .msg.outbound .bubble { font-size:var(--font-size-small);
+    background:var(--color-surface); border:1px solid var(--color-border);
+    border-start-end-radius:4px; }
+  .ts { font-size:var(--font-size-micro); margin-top:4px; }
+  /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
+     boxed rival: a quiet serif paragraph behind a jade hairline that means
+     "hers, awaiting your decision". border-inline-start keeps the hairline on
+     the reading edge in RTL with no override. */
+  .proposed { font-family:var(--font-voice); font-size:var(--font-size-small);
+    border-inline-start:2px solid var(--color-jade); padding:2px 14px;
+    margin-bottom:12px; white-space:pre-wrap; word-break:break-word; }
+
+  /* ── A plain section: air and a hairline. The DEFAULT grouping. ──────────
+     A card is reserved for a boundary that MEANS something — one buyer's
+     business, one verdict. A page of prose and counts is sections, not boxes. */
+  .block { padding:22px 0; border-top:1px solid var(--color-border); }
+  .block:first-of-type { border-top:0; padding-top:6px; }
   /* RTL needs NO override here: a grid's first track already sits on the
      inline-start edge, so the sidebar mirrors to the right on its own. The
      three rules that used to live here re-flipped it — putting the sidebar
@@ -217,6 +254,7 @@ ${cssVariables()}
     header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
     main { padding:var(--space-16); }
+    .msg { max-width:92%; }
     .stats { grid-template-columns: repeat(2,1fr); }
   }
 `;

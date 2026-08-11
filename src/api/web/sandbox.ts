@@ -486,7 +486,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
 
   const draftCard = view.pendingDraft
     ? `<div class="card draft" role="region">
-        <div class="proposed">${esc(view.pendingDraft.draftText)}</div>
+        <div class="proposed"><bdi>${esc(view.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/sandbox/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
           <input type="hidden" name="mode" value="${opts.mode}" />
@@ -516,7 +516,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     ${sandboxTakeoverCard(view, locale, opts.mode)}
     ${renderTrust(view.lastTurn, locale)}
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
-    <div class="card"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${timeline}</div>
+    <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${timeline}</div>
     ${SANDBOX_STYLE}`;
 }
 
@@ -555,17 +555,11 @@ const SANDBOX_STYLE = `<style>
   .chk .mk { font-weight:700; } .chk.ok .mk { color:var(--color-ok); } .chk.bad .mk { color:var(--color-warn); }
   .chk .lbl { font-size:var(--font-size-note); } .chk .dt { grid-column:2; font-size:var(--font-size-micro); word-break:break-word; }
   .card.draft { border-color:var(--color-waiting-line); }
-  .proposed { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:14px; margin-bottom:12px; font-size:var(--font-size-small); white-space:pre-wrap; }
   .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
   .editform { display:flex; flex-direction:column; gap:8px; }
-  .timeline { display:flex; flex-direction:column; gap:12px; }
-  .msg { max-width:82%; } .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
-  .bubble { padding:10px 14px; border-radius:14px; font-size:var(--font-size-small); white-space:pre-wrap; word-break:break-word; }
-  .msg.inbound .bubble { background:var(--color-paper-sunk); border-start-start-radius:4px; }
-  .msg.outbound .bubble { background:var(--color-highlight-line); border-start-end-radius:4px; }
-  .ts { font-size:var(--font-size-micro); margin-top:4px; }
+  /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
+     components live in one place so the two voices cannot fork per page. */
   .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .takeover.owner { flex-direction:column; align-items:stretch; }
   .replyform { display:flex; flex-direction:column; gap:8px; }
-  @media (max-width:560px) { .msg { max-width:92%; } }
 </style>`;

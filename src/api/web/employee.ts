@@ -140,11 +140,11 @@ const countRow = (value: number, label: string): string =>
 /** 1 · What does she know? Her learning, in her terms — never a "database". */
 function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
-    return `<div class="card"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+    return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
       <p class="muted empty-p">${esc(t(locale, 'her.knows.none'))}</p>
       <a class="btn" href="/app/knowledge">${esc(t(locale, 'knowledge.teach'))}</a></div>`;
   }
-  return `<div class="card"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
+  return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
     <div class="hrows">
       ${countRow(e.knows, t(locale, 'her.knows.count'))}
       ${c ? countRow(c.taughtRecently, t(locale, 'her.knows.recent')) : ''}
@@ -157,7 +157,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
 function recentSection(c: HerContext | undefined, locale: Locale): string {
   if (!c) return '';
   const quiet = c.handled === 0 && c.draftsPrepared === 0 && c.neededYou === 0;
-  return `<div class="card"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
+  return `<div class="block"><h2>${esc(t(locale, 'her.recent.title'))}</h2>
     ${quiet ? `<p class="muted empty-p">${esc(t(locale, 'her.recent.quiet'))} ${esc(t(locale, 'her.recent.noneWhy'))}</p>`
       : `<div class="hrows">
           ${countRow(c.handled, t(locale, 'ops.activity.handled'))}
@@ -174,11 +174,11 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
     // answered something. On a new account this rendered a green ✓ for work
     // that never happened — a fabricated success on the trust surface itself.
     const pristine = c.handled === 0;
-    return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
+    return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
       <p class="muted empty-p">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</p>
       ${pristine ? `<a class="btn send" href="/app/knowledge">${esc(t(locale, 'her.teach.go'))}</a>` : ''}</div>`;
   }
-  return `<div class="card"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
+  return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
     <div class="gaps">${c.gaps.map((g) => `
       <a class="gap" href="/app/knowledge?teach=${encodeURIComponent(g.question)}">
         <span class="gq">${esc(g.question)}</span>
@@ -204,7 +204,7 @@ export function renderEmployee(
   // 2 · What can she handle? Permission and trust boundaries — never a measure
   //     of how good she is. Promotion LOGIC is untouched; only the framing.
   const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
-  const duties = `<div class="card"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
+  const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
     ${e.canDo.length === 0 && e.needConfirm.length === 0
       ? `<p class="muted empty-p">${esc(t(locale, 'her.handles.none'))}</p>` : ''}
     ${list(t(locale, 'her.handles.alone'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
@@ -212,7 +212,7 @@ export function renderEmployee(
     ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
   </div>`;
 
-  const growth = `<div class="card"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
+  const growth = `<div class="block"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
     ${e.growth.length
       ? `<ul class="growth">${e.growth.map((g) => {
           const text = t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
@@ -221,7 +221,7 @@ export function renderEmployee(
       : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
   </div>`;
 
-  const promo = `<div class="card"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
+  const promo = `<div class="block"><h2>${esc(t(locale, 'employee.promo.title'))}</h2>
     <div class="pstage"><span class="muted">${esc(t(locale, 'employee.promo.current'))}</span> <b>${esc(stageLabel)}</b></div>
     ${e.promoted
       ? `<div class="muted">${esc(t(locale, 'employee.promo.done'))}</div>`
@@ -233,14 +233,14 @@ export function renderEmployee(
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
   const revocable = e.capabilities.filter((c) => c.mode === 'auto');
   const actions = (grantable.length || revocable.length)
-    ? `<div class="card"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
+    ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
         ${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
             <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
         ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
             <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
         <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'employee.actions.note'))}</p>
       </div>`
-    : `<div class="card"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
+    : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
   // Order answers "who is she today?": who she is → what she knows → what she is
   // trusted with → what she did → what she still needs from you. Promotion and

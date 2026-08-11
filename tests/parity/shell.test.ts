@@ -125,6 +125,45 @@ describe('Phase F · the shell is usable with a thumb', () => {
     expect(offences, `invisible text: ${offences.join(' · ')}`).toEqual([]);
   });
 
+  /**
+   * COLOUR CARRIES STATE OR IT DOES NOT APPEAR. The visual form of the
+   * no-invented-numbers rule: a colour that marks nothing is a metric nobody
+   * computed. Enforced by provenance, the way the percentage ban is — not by
+   * whitelisting hex values but by naming the components that ARE states.
+   * The state palette (ok / warn / waiting / highlight, their washes and
+   * lines) may be referenced only from a selector containing one of these
+   * state-bearing fragments. Jade is exempt: it is the single ACTION accent,
+   * bounded by its own rules (ground-vs-foreground above, one primary per
+   * screen by composition).
+   *
+   * Adding a name here is a reviewable act. Ask first whether the thing is a
+   * STATE the owner must react to; if it is decoration, it does not get in.
+   */
+  it('the state palette appears only on state-marking components', async () => {
+    const STATE_FRAGMENTS = [
+      'pill', 'tag', 'badge', 'flash', 'err', 'prob', 'need', 'knew',
+      'draft', 'refused', 'takeover', 'verdict', 'banner', 'chk', 'cert',
+      'cond', 'ditem', 'fconn', 'calm-mark', 'sbx-trust', '.ev', '.pr', '.mk',
+      '.ok', '.bad', 'warn', 'pass', 'fail', 'met', 'danger', 'blocked',
+      'chip',   // an authorised claim (.fchip) or a granted autonomy (.chip.auto)
+      '.rf',    // the refusal explanation panel — a refused send IS a state
+    ];
+    const { readdir, readFile } = await import('node:fs/promises');
+    const dir = new URL('../../src/api/web/', import.meta.url);
+    const offences: string[] = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith('.ts'))) {
+      const src = (await readFile(new URL(f, dir), 'utf8')).replace(cssVariables(), '');
+      for (const m of src.matchAll(/([^{};]+)\{([^}]*)\}/g)) {
+        const [, selector, body] = m as unknown as [string, string, string];
+        if (!/var\(--color-(ok|warn|waiting|highlight)[a-z-]*\)/.test(body)) continue;
+        if (!STATE_FRAGMENTS.some((frag) => selector.includes(frag))) {
+          offences.push(`${f}: ${selector.trim().slice(0, 60)}`);
+        }
+      }
+    }
+    expect(offences, `state colour on a non-state component: ${offences.join(' · ')}`).toEqual([]);
+  });
+
   it('no renderer references a custom property the tokens do not emit', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
     const declared = new Set([...cssVariables().matchAll(/^\s*--([a-z0-9-]+):/gm)].map((m) => m[1]));

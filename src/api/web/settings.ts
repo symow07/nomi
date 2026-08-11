@@ -178,7 +178,7 @@ export function renderSettings(
     <div class="langs">${LOCALES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> ${esc(LOCALE_LABEL[l])}</label>`).join('')}</div></div>`;
 
-  const form = `<div class="card"><h2>${esc(t(locale, 'settings.profile.title'))}</h2>
+  const form = `<div class="block"><h2>${esc(t(locale, 'settings.profile.title'))}</h2>
     <form method="post" action="/app/settings" class="pform">
       ${field('name', 'settings.field.name', 'name', p.name)}
       <label class="fld"><span class="muted">${esc(t(locale, 'settings.field.description'))}</span>
@@ -192,7 +192,7 @@ export function renderSettings(
     </form>
   </div>`;
 
-  const categories = `<div class="card"><h2>${esc(t(locale, 'settings.field.categories'))}</h2>
+  const categories = `<div class="block"><h2>${esc(t(locale, 'settings.field.categories'))}</h2>
     ${p.categories.length
       ? `<div class="cats">${p.categories.map((c) => `<span class="cat">${esc(c)}</span>`).join('')}</div>`
       : `<div class="muted empty">${esc(t(locale, 'settings.categories.empty'))}</div>`}

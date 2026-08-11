@@ -237,7 +237,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
       <div class="ch-acts">${actions}</div>
     </div>`;
 
-  const alertsCard = `<div class="card">
+  const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: EMPLOYEE_NAME[locale] }))}</p>
     <form method="post" action="/app/settings/owner-phone" class="ownerform">
@@ -248,7 +248,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
     <p class="muted" style="font-size:var(--font-size-micro)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
   </div>`;
 
-  const soon = `<div class="card">
+  const soon = `<div class="block">
     <h2>${esc(t(locale, 'channel.soon.title'))}</h2>
     <div class="soon">${COMING_SOON.map((c) => `<span class="soon-chip">${esc('literal' in c ? c.literal : t(locale, c.key))}</span>`).join('')}</div>
     <p class="muted">${esc(t(locale, 'channel.soon.note'))}</p>
@@ -266,7 +266,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
 export function renderConnectGuide(locale: Locale): string {
   const name = EMPLOYEE_NAME[locale];
   return `<h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
-    <div class="card">
+    <div class="block">
       <p>${esc(t(locale, 'channel.connect.intro', { name }))}</p>
       <ol class="guide">
         <li>${esc(t(locale, 'channel.connect.step1'))}</li>

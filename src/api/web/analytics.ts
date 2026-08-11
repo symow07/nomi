@@ -101,12 +101,12 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 
   if (!d.hasActivity) {
     return `${title}${tabs}
-      <div class="card"><div class="empty"><div class="big">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
+      <div class="block"><div class="empty"><div class="big">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
         <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: rangeLabel, name }))}</p></div></div>
       ${ANALYTICS_STYLE}`;
   }
 
-  const summary = `<div class="card"><h2>${esc(t(locale, 'analytics.section.summary'))}</h2>
+  const summary = `<div class="block"><h2>${esc(t(locale, 'analytics.section.summary'))}</h2>
     <div class="stats">
       ${stat(d.summary.newClients, 'analytics.summary.newClients')}
       ${stat(d.summary.activeConvos, 'analytics.summary.conversations')}
@@ -114,7 +114,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
       ${stat(d.summary.orders, 'analytics.summary.orders')}
     </div></div>`;
 
-  const activity = `<div class="card"><h2>${esc(t(locale, 'analytics.section.activity'))}</h2>
+  const activity = `<div class="block"><h2>${esc(t(locale, 'analytics.section.activity'))}</h2>
     <div class="stats">
       ${stat(d.activity.inbound, 'analytics.activity.inbound')}
       ${stat(d.activity.replied, 'analytics.activity.replied')}
@@ -127,14 +127,14 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
         ${d.commerce.totalValueUsd !== null ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', { value: formatUsdCompact(d.commerce.totalValueUsd) }))}</div>` : ''}
       </div>`
     : `<div class="muted empty-line">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
-  const commerce = `<div class="card"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
+  const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
     <div class="stats two">
       ${stat(d.commerce.quotes, 'analytics.commerce.quoteCount')}
       ${stat(d.commerce.orders, 'analytics.commerce.orderCount')}
     </div>
     <div class="sub">${esc(t(locale, 'analytics.commerce.deals'))}</div>${dealsHtml}</div>`;
 
-  const employee = `<div class="card"><h2>${esc(t(locale, 'analytics.section.employee', { name }))}</h2>
+  const employee = `<div class="block"><h2>${esc(t(locale, 'analytics.section.employee', { name }))}</h2>
     <div class="stats">
       ${stat(d.employee.handled, 'analytics.employee.handled')}
       ${stat(d.employee.waiting, 'analytics.employee.waiting')}

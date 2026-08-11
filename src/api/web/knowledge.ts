@@ -174,8 +174,8 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
   return `
     <h1 class="page">${esc(t(locale, 'knowledge.title'))}</h1>
     <p class="muted">${esc(t(locale, 'knowledge.intro'))}</p>
-    <div class="card"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
-    <div class="card"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
+    <div class="block"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
+    <div class="block"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
       ${biz || `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`}
       ${teachForm(locale, '', prefill)}
     </div>
@@ -248,12 +248,12 @@ export function renderProductKnowledge(
     <div class="dhead">${back('/app/knowledge', t(locale, 'knowledge.back'))}
       <h1 class="page">${esc(d.productName ?? '—')}</h1></div>
     ${flashHtml}
-    <div class="card"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
+    <div class="block"><h2>${esc(t(locale, 'knowledge.cert.title'))}</h2>
       <p class="scope">${esc(t(locale, 'knowledge.cert.scope', { n: d.appliesToProducts }))}</p>
       <p class="muted">${esc(t(locale, 'knowledge.cert.hint'))}</p>
       <div class="certs">${certs}</div>
     </div>
-    <div class="card">
+    <div class="block">
       <h2>${esc(t(locale, 'knowledge.taught.title'))}</h2>
       <p class="scope">${esc(t(locale, 'knowledge.taught.scope', { product: d.productName ?? '' }))}</p>
       ${items}${teachForm(locale, d.productId, opts.prefill ?? '')}</div>
@@ -262,7 +262,8 @@ export function renderProductKnowledge(
 
 const KNOWLEDGE_STYLE = `<style>
   /* The two scopes sit side by side, so each says which one it is. */
-  .scope { font-size:var(--font-size-caption); color:var(--color-highlight); margin:2px 0 10px; }
+  /* A scope caption explains; it is not a state, so it gets no colour. */
+  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:2px 0 10px; }
   .klist { display:flex; flex-direction:column; gap:8px; }
   .krow { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
   .krow:hover { border-color:var(--color-border); }

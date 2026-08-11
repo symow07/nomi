@@ -398,8 +398,8 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: s
     <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
     <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
     ${flashHtml}
-    <div class="card"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
-    <div class="card"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
+    <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
+    <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
       ${validate}
       ${attests}
     </div>
@@ -434,7 +434,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
       <h3 class="rbsub">${esc(t(locale, 'nav.knowledge'))}</h3>
       ${rbCount('knowledge.report.corrected', ops.knowledge.recentCorrections, null, locale)}
       ${rbCount('knowledge.report.facts', ops.knowledge.recentlyTaught, '/app/knowledge', locale)}`;
-  return `<div class="card"><h2>${esc(t(locale, 'runbook.during.title'))}</h2>${body}</div>`;
+  return `<div class="block"><h2>${esc(t(locale, 'runbook.during.title'))}</h2>${body}</div>`;
 }
 
 function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
@@ -449,7 +449,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
     mark('knowledgeCorrection', 'runbook.rehearse.correction'),
     mark('validationPassed', 'runbook.rehearse.validation'),
   ].join('');
-  return `<div class="card">
+  return `<div class="block">
     <h2>${esc(t(locale, 'runbook.practice.title'))} · ${r.completed}/${r.total}</h2>
     <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
     <ol class="rbsteps">${steps}</ol>
@@ -461,7 +461,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
 function afterSection(locale: Locale): string {
   const link = (label: MessageKey, href: string) =>
     `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span><a class="btn ghost rblink" href="${href}">${esc(t(locale, 'pilot.open'))}</a></div>`;
-  return `<div class="card">
+  return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>
     ${link('runbook.after.promotion', '/app/employee')}
@@ -477,7 +477,7 @@ function afterSection(locale: Locale): string {
  */
 function feedbackSection(f: PilotFeedback, locale: Locale): string {
   if (!f.hasActivity) {
-    return `<div class="card"><h2>${esc(t(locale, 'feedback.title'))}</h2>
+    return `<div class="block"><h2>${esc(t(locale, 'feedback.title'))}</h2>
       <div class="empty muted">${esc(t(locale, 'feedback.none'))}
         <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div></div>`;
   }
@@ -493,7 +493,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
     ? `<h3 class="rbsub">${esc(t(locale, 'feedback.actions'))}</h3>` +
       f.ownerActions.map((i) => row(t(locale, `feedback.action.${i.kind}` as MessageKey), i)).join('')
     : '';
-  return `<div class="card"><h2>${esc(t(locale, 'feedback.title'))}</h2>${reasons}${actions}</div>`;
+  return `<div class="block"><h2>${esc(t(locale, 'feedback.title'))}</h2>${reasons}${actions}</div>`;
 }
 
 /**
@@ -509,7 +509,7 @@ function deploymentSection(d: DeploymentInfo, locale: Locale, unauthoredPriceRul
   const messaging = d.provider === 'disabled'
     ? t(locale, 'runbook.deploy.providerDisabled')
     : d.provider;
-  return `<div class="card">
+  return `<div class="block">
     <h2>${esc(t(locale, 'runbook.deploy.title'))}</h2>
     ${row('runbook.deploy.version', version)}
     ${row('runbook.deploy.environment', d.environment)}
@@ -543,7 +543,7 @@ function metaSection(m: MetaReadiness, locale: Locale, templateState: TemplateSt
   }).join('');
   const blockers = m.blockers.map((b) =>
     `<li>${esc(t(locale, `meta.blocker.${b}` as MessageKey))}</li>`).join('');
-  return `<div class="card">
+  return `<div class="block">
     <h2>${esc(t(locale, 'meta.title'))}</h2>
     <p class="muted">${esc(t(locale, 'meta.intro'))}</p>
     ${rows}
@@ -582,10 +582,10 @@ function templateRow(locale: Locale, state: TemplateState): string {
  */
 function healthSection(r: Reliability, locale: Locale): string {
   if (r.stuckOutbound === 0) {
-    return `<div class="card"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
+    return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
       <div class="ok">✓ ${esc(t(locale, 'ops.health.ok'))}</div></div>`;
   }
-  return `<div class="card"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
+  return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
     <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${r.stuckOutbound}</b>
       <a class="rblink" href="/app/channels">${esc(t(locale, 'pilot.open'))}</a></div>
     ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(formatDate(locale, r.oldestQueuedAt))}</b></div>` : ''}
@@ -607,12 +607,12 @@ function healthSection(r: Reliability, locale: Locale): string {
  */
 function engineSection(r: RehearsalReport, locale: Locale): string {
   if (r.violations.length === 0) {
-    return `<div class="card">
+    return `<div class="block">
       <h2>${esc(t(locale, 'runbook.engine.title'))}</h2>
       <p class="muted">${esc(t(locale, 'runbook.engine.ok', { n: r.probesRun }))}</p>
     </div>`;
   }
-  return `<div class="card">
+  return `<div class="block">
     <h2>${esc(t(locale, 'runbook.engine.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.engine.bad'))}</p>
     ${r.violations.map((v) => `<div class="ev">

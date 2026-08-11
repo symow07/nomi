@@ -306,7 +306,7 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
       : `<div class="empty"><div class="big">${esc(t(locale, 'conv.empty.noneTitle'))}</div>
          <p class="muted">${esc(t(locale, 'conv.empty.noneBody'))}</p>
          ${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div>`;
-    return `${title}${search}<div class="card">${body}</div>${CONV_STYLE}`;
+    return `${title}${search}<div class="block">${body}</div>${CONV_STYLE}`;
   }
 
   const cards = list.customers.map((c) => {
@@ -345,10 +345,10 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${p.quoteCount}</b></div>` : '',
     p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${p.orderCount}</b></div>` : '',
   ].filter(Boolean).join('');
-  const profile = `<div class="card"><h2>${esc(t(locale, 'conv.file.title'))}</h2>
+  const profile = `<div class="block"><h2>${esc(t(locale, 'conv.file.title'))}</h2>
     ${profileRows || `<div class="empty muted">${esc(t(locale, 'conv.file.noMore'))}</div>`}</div>`;
 
-  const timeline = `<div class="card"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
+  const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
           <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>`
@@ -362,7 +362,7 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
     ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${esc(ctx.order.reference)} · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.totalUsd !== null ? ` · ${esc(formatUsd(ctx.order.totalUsd))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${ctx.corrections.map((c) => esc(capabilityName(locale, c))).join('、')}</div></div>` : '',
   ].filter(Boolean).join('');
-  const context = ctxParts ? `<div class="card"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
+  const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
 
   const actLink = f.needsOwner
     ? `<div class="card need-card"><span>${esc(t(locale, 'conv.needCard'))}</span>
@@ -403,7 +403,8 @@ const CONV_STYLE = `<style>
   .tl li { display:flex; gap:12px; padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:8px; padding-inline-start:16px; position:relative; }
   .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface); font-size:var(--font-size-small); line-height:1; }
   .tl .tx { font-size:var(--font-size-note); } .tl .ts { font-size:var(--font-size-micro); margin-top:3px; }
-  .tl-owner .tx { color:var(--color-highlight); } .tl-order .tx { color:var(--color-ok); } .tl-quote .tx { color:var(--color-highlight); }
+  /* Event TYPES are told apart by their icons; colouring the text per type was
+     colour carrying no state. The page's one state colour is the status pill. */
   .cx { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
   .need-card { display:flex; align-items:center; justify-content:space-between; gap:12px; border-color:var(--color-waiting-line); font-size:var(--font-size-note); }
