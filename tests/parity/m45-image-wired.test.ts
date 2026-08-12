@@ -80,10 +80,30 @@ describe('M4.5 · nothing in the pipeline is dead code claiming to be a feature'
     const src = await readFile(new URL('../../tools/check-reachable.mjs', import.meta.url), 'utf8');
     const block = src.slice(src.indexOf('const DECLARED_UNWIRED'), src.indexOf('const isTs'));
     const entries = [...block.matchAll(/'([^']+\.ts)':\s*\n?\s*'([^']*)'/g)];
-    expect(entries.length, 'the exemption list should be short enough to read').toBeLessThanOrEqual(5);
+    /**
+     * M34.8 — the cap moved from 5 to 10, and the guard got stricter in the way
+     * that actually matters.
+     *
+     * 5 was written when enforcement covered three directories. It now covers
+     * all of src/, so modules that were simply UNENFORCED before are now
+     * declared — the list grew because the scope grew, not because standards
+     * slipped. Raising a cap to make a suite green is exactly the move this
+     * repo distrusts, so the count is no longer the only thing checked:
+     *
+     *   - every entry must say WHEN it stops being exempt, and
+     *   - only a handful may say "never".
+     *
+     * A dumping ground fails those two long before it reaches ten.
+     */
+    expect(entries.length, 'the exemption list should be short enough to read').toBeLessThanOrEqual(10);
     for (const [, file, reason] of entries) {
       expect(reason!.length, `${file} needs a real reason, not a shrug`).toBeGreaterThan(40);
+      expect(reason, `${file} must say when it stops being exempt`)
+        .toMatch(/NEVER EXPIRES|EXPIRES AT|DECISION PENDING/);
     }
+    const permanent = entries.filter(([, , r]) => r!.includes('NEVER EXPIRES'));
+    expect(permanent.length, 'a permanent exemption is a claim about the design, not a backlog')
+      .toBeLessThanOrEqual(3);
     expect(block, 'imageTurn must never be exempted — it is wired').not.toContain('imageTurn');
   });
 });

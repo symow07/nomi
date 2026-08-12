@@ -32,19 +32,49 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';
 
-/** Where production starts. Nothing else counts as a root. */
-const ENTRYPOINTS = ['src/main.ts', 'src/worker/main.ts'];
+/** Where the servers start. */
+const SERVER_ENTRYPOINTS = ['src/main.ts', 'src/worker/main.ts'];
 
 /**
- * Directories whose modules must be reachable.
+ * The npm scripts are entrypoints too.
  *
- * `src/pipeline` is the one the bug lived in twice. `src/outbound` and
- * `src/channels` are included because they are the other two places where a
- * whole path can exist without a caller — but see OPTIONAL below: a channel
- * adapter that an installation may legitimately not use is a different thing
- * from a pipeline nobody calls.
+ * `npm run seed:demo` reaches src/demo/factory.ts and src/demo/trust.ts through
+ * a `tsx -e` snippet, which no import-graph walk can see. They were reported as
+ * dead for a whole inventory before anyone noticed — a checker with a blind spot
+ * is exactly what this checker exists to prevent — so the roots are DERIVED from
+ * the scripts rather than listed by hand.
+ *
+ * It matches an IMPORT of a src path, not a mention of one: the first version
+ * matched any quoted 'src/....ts' and read this file's own exemption list as
+ * entrypoints, declaring every exempt module reachable.
  */
-const WIRED_DIRS = ['src/pipeline', 'src/outbound', 'src/channels'];
+function scriptEntrypoints() {
+  if (!existsSync('tools')) return [];
+  const out = new Set();
+  for (const f of readdirSync('tools')) {
+    if (!f.endsWith('.mjs')) continue;
+    const src = readFileSync(join('tools', f), 'utf8');
+    for (const m of src.matchAll(/import\s*(?:\{[^}]*\}|[\w*\s,]+)\s*from\s*['"`][^'"`]*?(src\/[A-Za-z0-9_./-]+\.ts)['"`]/g)) {
+      if (existsSync(m[1])) out.add(m[1]);
+    }
+  }
+  return [...out];
+}
+
+/** Where production starts. Nothing else counts as a root. */
+const ENTRYPOINTS = [...SERVER_ENTRYPOINTS, ...scriptEntrypoints()];
+
+/**
+ * Directories whose modules must be reachable: ALL of src/, as of M34.8.
+ *
+ * It began as three, because that is where the bug had been caught twice. Then
+ * an inventory over the whole tree found 39 unreachable modules — a kill switch
+ * the incident runbook told operators to throw, a promotion ladder with no
+ * producer, and 27 modules superseded years ago and never deleted. Enforcing
+ * three directories while the other twelve rotted was itself a check pointed at
+ * the wrong artifact.
+ */
+const WIRED_DIRS = ['src'];
 
 /**
  * Declared gaps. Each is a decision someone made on purpose, with the reason
@@ -54,10 +84,29 @@ const WIRED_DIRS = ['src/pipeline', 'src/outbound', 'src/channels'];
  * when it becomes reachable or why it never will.
  */
 const DECLARED_UNWIRED = {
+  // ── Permanent, by construction ──────────────────────────────────────────
   'src/channels/whatsapp/simulator.ts':
-    'Local development only, by construction — its factory throws if NODE_ENV is production. Never reachable and never should be.',
-  'src/channels/testflow.ts':
-    'M4.5 FINDING, not a decision: the M3 five-check 测试连接 flow was superseded by testChannel() in api/web/channels.ts, which reads channel health instead and shares none of this code. Orphaned, still tested, sends to the owner\'s own number if ever revived. Delete it or wire it — do not leave it here indefinitely.',
+    'NEVER EXPIRES. Local development only, by construction — its factory throws if NODE_ENV is production, so being unreachable from production is the guarantee, not the gap.',
+  'src/core/ops/perf.ts':
+    'NEVER EXPIRES. A constants table whose only consumer is a test: m8-ops.test.ts measures quote-compute against it in CI. Not a module waiting to be wired — data the suite reads. The doc claim that a device enforces it was corrected in M34.8; there is no device build.',
+
+  // ── Expire at a named milestone ─────────────────────────────────────────
+  'src/core/commerce/invoice.ts':
+    'EXPIRES AT M46. docs/ROADMAP.md M46 ("After the order") names this file: "confirmable.ts and invoice.ts exist; the trail stops at confirmation". Built early, deliberately unwired until the milestone that needs it.',
+  'src/core/conversation/batching.ts':
+    'EXPIRES AT META GO-LIVE. docs/ASSUMPTIONS.md P1: buyers send four fragments in ten seconds, and debounce-and-batch must be built BEFORE shadow traffic. Messaging is off, so this is not yet a defect; the day real buyers arrive it is one. message_fragments (0009) exists with no writer.',
+
+  // ── Decisions not yet made. Each is a question with a deadline ──────────
+  'src/core/insights/questions.ts':
+    'DECISION PENDING (Part D). api/web/analytics.ts shows plain counts where this produces ranked, quantified drivers — the live page is WEAKER than the unwired module, which makes it a revival candidate rather than dead wood. Wire or delete; do not carry it past the next milestone.',
+  'src/core/insights/daily.ts':
+    'DECISION PENDING (Part D). The daily brief: one line, at most three insights, each ending in a one-tap action. Its own header says an insight that does not tell the owner what to tap is a vanity metric — which now describes the live analytics page. Same decision as questions.ts.',
+  'src/core/trust/editScope.ts':
+    'DECISION PENDING. Held to see whether it could weigh spot-check evidence by edit size; on inspection it classifies the SCOPE of what an edit teaches (one_time / buyer / product / style / policy), not the SIZE of an edit, and every input it needs is a signal nothing derives. drafts.status plus a draft_text/sent_text diff answers the size question directly. Wire it for edit LEARNING, or delete it.',
+  'src/core/ops/degrade.ts':
+    'DECISION PENDING. Two runbooks claimed this ladder engaged automatically during an LLM outage; M34.8 corrected them to what actually happens (SDK retries, the turn throws, pg-boss retries five times, dead-letters, alerts the owner). What it models — a night-shift hold ack, a five-minute owner alert — is better than what runs today. Wire it or delete it.',
+  'src/core/budget.ts':
+    'DECISION PENDING. The per-tenant budget gate was meant to run BEFORE the analyzer call, the expensive one. It never runs. Its pause rule is meanwhile re-implemented in SQL in db/channels.ts, whose own comment says so: the same rule in two places, one enforced and one merely tested. Wire the pre-call gate and delete the duplicate, or delete this and keep the SQL.',
 };
 
 const isTs = (p) => p.endsWith('.ts') && !p.endsWith('.d.ts');
