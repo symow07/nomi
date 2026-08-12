@@ -59,7 +59,13 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   });
 
   it('empty states are honest, never "no data"', () => {
-    expect(renderCustomerList({ query: '', customers: [] }, 'zh', NOW)).toContain('暂无客户记录');
+    // M34.8 — this pinned the literal string 暂无客户记录 while its own name
+    // forbade "no data". 暂无 IS the dead-end phrase M2 banned, so the test was
+    // holding the violation in place. It now asserts the RULE, in both
+    // directions, and the copy was fixed rather than the assertion relaxed.
+    const zh = renderCustomerList({ query: '', customers: [] }, 'zh', NOW);
+    expect(zh).toContain('还没有客户');
+    for (const dead of ['暂无', '无数据']) expect(zh).not.toContain(dead);
     const en = renderCustomerList({ query: '', customers: [] }, 'en', NOW);
     expect(en).toContain('No customers yet'); expect(en.toLowerCase()).not.toContain('no data');
     expect(renderCustomerList({ query: '张三', customers: [] }, 'zh', NOW)).toContain('没找到「张三」');

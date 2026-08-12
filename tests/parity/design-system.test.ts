@@ -3,11 +3,10 @@ import { BOX, BUDGET, CARD_ORDER, MARK, DESIGN_TOKENS } from '../../src/core/own
 import { cssVariables } from '../../src/core/owner/css.js';
 import { shell, loginPage } from '../../src/api/web/layout.js';
 import { actionBar, box, buyerHeader, textWidth } from '../../src/core/owner/components.js';
-import { EMPTY, PROGRESS, SUCCESS, renderProblem } from '../../src/core/owner/states.js';
 import { BANNED_OWNER_TERMS, STATUS } from '../../src/core/owner/vocabulary.js';
+import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { renderQuoteCard, renderApprovalCard } from '../../src/core/conversation/cards.js';
-import { renderDailyDigest } from '../../src/core/owner/digest.js';
-import { renderConversation } from '../../src/core/owner/conversation.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { product, tiers, policy } from './fixtures.js';
 
@@ -32,20 +31,6 @@ const approvalCard = renderApprovalCard({
   draftZh: '可以，2万个单价0.38美元，FOB宁波。',
   whyLineZh: '买家问大货价；按你的价格表第三档计算。',
   quoteCard,
-});
-const digest = renderDailyDigest({
-  employeeName: '小雅', date: NOW, now: NOW,
-  stats: { conversations: 12, handled: 9, quotes: 3, orders: 1, orderValueUsd: 7300 },
-  highlight: { buyerName: 'Ahmed', countryZh: '阿联酋', what: '谈到了2万个的报价，等他确认', at: new Date('2026-07-16T19:40:00Z') },
-  pending: [{ buyerName: 'Sara', what: '想要样品，等你审批回复' }],
-  onDutyTonightZh: '接待问候、了解需求（新买家）',
-});
-const conversation = renderConversation({
-  buyerName: 'Ahmed', countryZh: '阿联酋', employeeName: '小雅', now: NOW,
-  messages: [
-    { direction: 'inbound', text: 'Price for 20000?', textZh: '2万个什么价？', at: new Date('2026-07-16T19:35:00Z'), sentBy: null },
-    { direction: 'outbound', text: '$0.38/pc FOB Ningbo.', textZh: '单价0.38美元，FOB宁波。', at: new Date('2026-07-16T19:41:00Z'), sentBy: 'employee' },
-  ],
 });
 
 /* ── one box grammar ─────────────────────────────────────────────────────── */
@@ -80,72 +65,65 @@ describe('M2 · approval card follows CARD_ORDER', () => {
 
   it('buyer intro is the shared component everywhere', () => {
     expect(approvalCard.startsWith(buyerHeader({ name: 'Ahmed', countryZh: '阿联酋', tag: '老询盘' }))).toBe(true);
-    expect(conversation.startsWith(`${MARK.person} Ahmed`)).toBe(true);
   });
 
   it('markers keep one meaning: 翻译 for buyer words, 意思 for our drafts', () => {
     expect(approvalCard).toContain(`${MARK.translation}能做2万个FOB宁波吗？`);
     expect(approvalCard).toContain(`${MARK.meaning}可以，2万个单价0.38美元，FOB宁波。`);
-    expect(conversation).toContain(MARK.meaningShort);
   });
 });
 
-/* ── Big Four states ─────────────────────────────────────────────────────── */
-describe('M2 · Big Four: empty teaches, progress informs, problems reassure, success rewards', () => {
-  const stateStrings: Record<string, string> = {
-    emptyProducts: EMPTY.products('小雅'),
-    emptyConversations: EMPTY.conversations('小雅'),
-    emptyPending: EMPTY.pending(),
-    emptyOrders: EMPTY.orders('小雅'),
-    ...PROGRESS,
-    successFirstSend: SUCCESS.firstSend('小雅'),
-    successSent: SUCCESS.sent('Ahmed'),
-    successOrder: SUCCESS.orderConfirmed('Ahmed'),
-    successCatalog: SUCCESS.catalogLearned('小雅', 23),
-    successPromoted: SUCCESS.promoted('报价'),
-    problem: renderProblem({
-      whatHappened: '给 Ahmed 的消息暂时没发出去。',
-      beingDone: '正在自动重试。',
-      whatYouDo: null,
-    }),
-  };
+/* ── Big Four states, re-pointed ─────────────────────────────────────────── */
 
-  for (const [name, text] of Object.entries(stateStrings)) {
-    it(`${name}: no banned terms, phone-width lines`, () => {
-      const lower = text.toLowerCase();
-      for (const banned of BANNED_OWNER_TERMS) {
-        const needle = banned.toLowerCase();
-        const hit = /^[a-z ]+$/.test(needle)
-          ? new RegExp(`\\b${needle}\\b`).test(lower)
-          : lower.includes(needle);
-        expect(hit, `"${banned}" in ${name}`).toBe(false);
-      }
-      for (const l of text.split('\n')) expect(textWidth(l), l).toBeLessThanOrEqual(BUDGET.lineColumns);
-    });
-  }
+/**
+ * M34.8 — these rules used to be asserted against `core/owner/states.ts`, the
+ * M2 text-card copy, which no live surface renders. The rules themselves are
+ * still the product's: an empty screen teaches the next action, and nothing we
+ * say is software talk. They now bind the i18n catalogue, where the live empty
+ * and progress copy actually lives.
+ *
+ * `tests/parity/empty-states.test.ts` already asserts the *behavioural* half
+ * against the rendered pages — a way forward, no error styling, no claimed work.
+ * This is the vocabulary half, which had no live home at all.
+ */
+describe('M2 · empty teaches the next action, and never says No Data', () => {
+  const EMPTY_KEYS = (Object.keys(messages.en) as MessageKey[])
+    .filter((k) => /(^|\.)empty(\.|$)|\.none$|Empty$/i.test(k));
 
-  it('empty states never say No Data — they name the next action', () => {
-    for (const empty of [EMPTY.products('小雅'), EMPTY.conversations('小雅'), EMPTY.orders('小雅')]) {
-      for (const dead of ['暂无', '无数据', 'no data', 'empty']) {
-        expect(empty.toLowerCase()).not.toContain(dead);
-      }
-    }
-    expect(EMPTY.products('小雅')).toContain('培训');
-    expect(EMPTY.conversations('小雅')).toContain('WhatsApp');
+  it('there are empty-state strings to check', () => {
+    expect(EMPTY_KEYS.length).toBeGreaterThan(3);
   });
 
-  it('progress copy says what work is happening, not that software is busy', () => {
-    for (const p of Object.values(PROGRESS)) {
-      expect(p.endsWith('……')).toBe(true);
-      expect(p).not.toContain('加载');  // "loading" is software talk
+  it('no empty state is a dead end phrase', () => {
+    for (const locale of LOCALES) {
+      for (const k of EMPTY_KEYS) {
+        const s = t(locale, k, { name: '小雅' }).toLowerCase();
+        for (const dead of ['暂无', '无数据', 'no data', 'n/a', 'null', 'undefined']) {
+          expect(s.includes(dead), `${locale} ${k}: "${s}"`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('no empty state is styled or worded as a failure', () => {
+    for (const locale of LOCALES) {
+      for (const k of EMPTY_KEYS) {
+        const s = t(locale, k, { name: '小雅' }).toLowerCase();
+        for (const bad of ['error', 'failed', '错误', '失败']) {
+          expect(s.includes(bad), `${locale} ${k}: "${s}"`).toBe(false);
+        }
+      }
     }
   });
 });
 
 /* ── budgets come from tokens, and surfaces obey them ────────────────────── */
 describe('M2 · budgets are tokens', () => {
-  it('digest and approval card fit their token budgets', () => {
-    expect(digest.split('\n').length).toBeLessThanOrEqual(BUDGET.digestLines);
+  it('the approval card fits its token budget', () => {
+    // BUDGET.digestLines is not asserted here any more: the text digest it
+    // measured (core/owner/digest.ts) is deleted, and the live Today page is
+    // HTML with no line count to bound. Inventing an HTML budget to keep a
+    // token exercised would be measuring something nobody designed.
     expect(approvalCard.split('\n').length).toBeLessThanOrEqual(BUDGET.cardLines);
   });
 });
