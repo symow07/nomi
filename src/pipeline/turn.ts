@@ -231,7 +231,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         tenant.catalog.negotiationRules(),
       ]);
       quoteInputs = { tiers, policy, rules, quantity: decision.quantity.value };
-      const q = computeQuote({ product, tiers, policy, rules, quantity: decision.quantity.value });
+      // M36 — what she already told THIS buyer about THIS product. Empty for a
+      // new buyer, which is why a first quote is never refused by this guard.
+      const priorQuotes = await tenant.audit.priorQuotesForClient(state.clientId, product.id);
+      const q = computeQuote({
+        product, tiers, policy, rules, quantity: decision.quantity.value, priorQuotes,
+      });
       if (q.ok) quote = q.value;
       else quoteRefusal = q.error;
     }

@@ -362,6 +362,24 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
   // ── audit (replay records) ─────────────────────────────────────────────────
   const audit: AuditRepo = {
+    // M36 — the client's own price history for this product, newest first.
+    // Joined through conversations because quotes carry a conversation, not a
+    // client: the same buyer across two threads is one buyer.
+    async priorQuotesForClient(clientId, productId) {
+      const r = await sql<{ quantity: number; unit_price_usd: string; created_at: Date }>`
+        select q.quantity, q.unit_price_usd, q.created_at
+          from quotes q
+          join conversations c on c.id = q.conversation_id
+         where c.client_id = ${clientId} and q.product_id = ${productId}
+           and q.business_id = ${businessId}
+         order by q.created_at desc limit 10
+      `.execute(tx);
+      return r.rows.map((x) => ({
+        quantity: x.quantity,
+        unitPriceUsd: Number(x.unit_price_usd),
+        at: x.created_at,
+      }));
+    },
     async recordQuote(q) {
       const row = await tx.insertInto('quotes').values({
         business_id: businessId,

@@ -1,5 +1,6 @@
 import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/types/ids.js';
 import type { ConversationState } from '../core/types/conversation.js';
+import type { PriorQuote } from '../core/types/commerce.js';
 import type {
   BundleRule,
   ConfirmableOrder,
@@ -108,6 +109,14 @@ export interface ClientRepo {
  * computed quote is persisted with its full inputs — replay is the debugger.
  */
 export interface AuditRepo {
+  /**
+   * M36 — every price this CLIENT was already given for this product, so the
+   * consistency guard can see what she already told them. Scoped to the client,
+   * not the conversation: a returning buyer often starts a new thread, and that
+   * is exactly the case a human salesperson would remember and this must too.
+   */
+  priorQuotesForClient(clientId: ClientId, productId: string): Promise<readonly PriorQuote[]>;
+
   recordQuote(q: {
     conversationId: ConversationId;
     productId: string;

@@ -121,7 +121,10 @@ class HarnessTenant implements Tenant {
   };
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
-  audit: AuditRepo = { recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
+  /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
+  priorQuotes: Array<{ quantity: number; unitPriceUsd: number; at: Date }> = [];
+  audit: AuditRepo = {
+    priorQuotesForClient: async () => this.priorQuotes, recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
   selfDemoted: Array<{ capability: string; violations: number }> = [];

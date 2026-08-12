@@ -108,7 +108,10 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
+  priorQuotes: Array<{ quantity: number; unitPriceUsd: number; at: Date }> = [];
   audit: AuditRepo = {
+    priorQuotesForClient: async () => this.priorQuotes,
     recordQuote: async (q) => {
       this.quotesRecorded.push(q);
       return { quoteId: `quote-${this.quotesRecorded.length}` };

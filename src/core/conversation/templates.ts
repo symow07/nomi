@@ -54,6 +54,16 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
 
 export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allow: number[] } {
   switch (refusal.kind) {
+    // M36 — she does not quote past this; the owner decides. The note exists so
+    // the deterministic fallback says something true if it is ever reached, and
+    // the allowed numerals are the two REAL prices — nothing here may invent a
+    // third.
+    case 'contradicts_history':
+      return {
+        note: 'This buyer was already quoted a different price for this product. Do not state a new price.',
+        allow: [refusal.prior.unitPriceUsd, refusal.prior.quantity,
+                refusal.proposedUnitPriceUsd, refusal.proposedQuantity],
+      };
     case 'below_moq':
       return {
         note: `Quantity ${refusal.requested} is below the minimum of ${refusal.moq}.`,

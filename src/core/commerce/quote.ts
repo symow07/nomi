@@ -4,6 +4,7 @@ import type {
   PriceTier,
   PricingPolicy,
   Product,
+  PriorQuote,
   Quote,
   QuoteRefusal,
   RuleAction,
@@ -42,12 +43,45 @@ function matches(rule: NegotiationRule, product: Product, qty: number, gross: nu
  * however cleverly injected, can talk the system below the floor, because the
  * language model is never the thing deciding the price.
  */
+/**
+ * M36 — does this price contradict one this buyer already has? Pure.
+ *
+ * Compares against the MOST RECENT prior quote rather than the cheapest ever
+ * given: the buyer's expectation is set by the last thing they were told, and
+ * comparing against an all-time low would refuse every legitimate recovery from
+ * a one-off discount.
+ */
+export function contradictsHistory(
+  priors: readonly PriorQuote[],
+  quantity: number,
+  unitPriceUsd: number,
+): Extract<QuoteRefusal, { kind: 'contradicts_history' }> | null {
+  const prior = [...priors].sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+  if (!prior) return null;
+  if (unitPriceUsd <= prior.unitPriceUsd) return null;   // the same or cheaper is never a contradiction
+
+  const how = quantity > prior.quantity ? 'higher_at_larger_quantity' : 'higher_same_quantity';
+  return {
+    kind: 'contradicts_history',
+    prior,
+    proposedUnitPriceUsd: unitPriceUsd,
+    proposedQuantity: quantity,
+    how,
+  };
+}
+
 export function computeQuote(input: {
   product: Product;
   tiers: readonly PriceTier[];
   policy: PricingPolicy | null;
   rules: readonly NegotiationRule[];
   quantity: number;
+  /**
+   * M36 — what this buyer was already quoted for THIS product. Absent means a
+   * new buyer, and a new buyer cannot be contradicted. Optional so every
+   * existing caller keeps its behaviour exactly.
+   */
+  priorQuotes?: readonly PriorQuote[];
 }): Result<Quote, QuoteRefusal> {
   const { product, tiers, policy, rules, quantity } = input;
 
@@ -127,6 +161,32 @@ export function computeQuote(input: {
       return err({ kind: 'below_floor', floorPriceUsd: policy.floorPriceUsd });
     }
   }
+
+  // ── M36 · THE CONSISTENCY GUARD ─────────────────────────────────────────
+  //
+  // below_floor's sibling: same mechanic, same fail-closed posture, a different
+  // axis. below_floor asks "does this break the owner's POLICY"; this asks
+  // "does this break what she already TOLD this buyer".
+  //
+  // WHAT "CONTRADICTS" MEANS, and why there are two cases rather than one:
+  //
+  //   higher_same_quantity — $0.38 in March, $0.44 in May for the same 20,000.
+  //     The obvious case. A buyer who kept the first message reads the second
+  //     as either a mistake or an attempt.
+  //
+  //   higher_at_larger_quantity — $0.38 for 20,000 in March, $0.41 for 50,000
+  //     in May. WORSE, and easy to miss, because it inverts her own tier logic:
+  //     every price sheet in this product says more units cost less each. A
+  //     buyer who ordered more and was charged more per piece has been given a
+  //     reason to distrust the price list itself, not just this quote.
+  //
+  // A LOWER price is not a contradiction. Coming down is a concession the owner
+  // is free to make silently; going up is the thing that needs her signature.
+  //
+  // Absent history is not a contradiction either — `priorQuotes` empty means a
+  // new buyer, and refusing there would make a first quote impossible.
+  const contradiction = contradictsHistory(input.priorQuotes ?? [], quantity, unitPriceUsd);
+  if (contradiction) return err(contradiction);
 
   return ok({
     productId: product.id,

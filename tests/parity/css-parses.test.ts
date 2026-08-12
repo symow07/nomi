@@ -113,3 +113,57 @@ describe('M35.2 · every stylesheet we emit is valid CSS', () => {
     expect(missing, `referenced but never declared: ${missing.join(', ')}`).toEqual([]);
   });
 });
+
+/* ── the backtick ────────────────────────────────────────────────────────── */
+
+describe('M36.0 · no template literal is terminated by a stray backtick', () => {
+  /**
+   * An unescaped backtick inside a CSS comment has terminated a template
+   * literal TWICE in two days — once in proof.ts, once in layout.ts. Both times
+   * the habit was the same: writing prose the way it is written everywhere else
+   * in this repo, where `identifiers` are quoted with backticks, inside a
+   * string delimited by backticks.
+   *
+   * It fails loudly (the file stops parsing), so it is never shipped — but it
+   * costs a confusing debugging detour every time, and the second one was only
+   * noticed because a screenshot looked stale. It is mechanically detectable,
+   * so it is a check now rather than vigilance.
+   *
+   * The rule: inside a `<style>` block emitted from a template literal, a CSS
+   * comment may not contain a backtick. Nothing legitimate needs one there.
+   */
+  const RENDERERS = [
+    'src/api/web/layout.ts', 'src/api/web/proof.ts', 'src/api/web/operations.ts',
+    'src/api/web/inbox.ts', 'src/api/web/employee.ts', 'src/api/web/factory.ts',
+    'src/api/web/insights.ts', 'src/api/web/analytics.ts', 'src/api/web/products.ts',
+    'src/api/web/knowledge.ts', 'src/api/web/knowledge-insights.ts',
+    'src/api/web/channels.ts', 'src/api/web/conversations.ts', 'src/api/web/pilot.ts',
+    'src/api/web/settings.ts', 'src/api/web/sandbox.ts', 'src/api/web/refusals.ts',
+    'src/api/web/onboarding.ts', 'src/api/web/priceRules.ts', 'src/api/web/factory.ts',
+  ];
+
+  it.each([...new Set(RENDERERS)])('%s: no backtick inside a CSS comment', async (file) => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL(`../../${file}`, import.meta.url), 'utf8');
+    const offenders: string[] = [];
+    // CSS comments only exist meaningfully inside the <style> blocks we emit.
+    for (const m of src.matchAll(/<style[\s\S]*?<\/style>/g)) {
+      for (const c of m[0].matchAll(/\/\*[\s\S]*?\*\//g)) {
+        if (c[0].includes('`')) offenders.push(c[0].slice(0, 90).replace(/\s+/g, ' '));
+      }
+    }
+    expect(offenders,
+      `a backtick here ends the template literal:\n  ${offenders.join('\n  ')}`).toEqual([]);
+  });
+
+  it('the check itself would catch the two that actually happened', () => {
+    // Both real cases, reproduced as strings rather than trusted to memory.
+    const bad = '<style>/* see `tests/parity/shell.test.ts` */ body{}</style>';
+    const good = '<style>/* see tests/parity/shell.test.ts */ body{}</style>';
+    const hasBacktickComment = (s: string) =>
+      [...s.matchAll(/<style[\s\S]*?<\/style>/g)]
+        .some((m) => [...m[0].matchAll(/\/\*[\s\S]*?\*\//g)].some((c) => c[0].includes('`')));
+    expect(hasBacktickComment(bad)).toBe(true);
+    expect(hasBacktickComment(good)).toBe(false);
+  });
+});

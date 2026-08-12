@@ -107,11 +107,34 @@ export type Quote = {
   readonly appliedRules: readonly string[];
 };
 
+/** A price this buyer was already given for this product. M36. */
+export type PriorQuote = {
+  readonly quantity: number;
+  readonly unitPriceUsd: number;
+  readonly at: Date;
+};
+
 export type QuoteRefusal =
   | { readonly kind: 'below_moq'; readonly moq: number; readonly requested: number }
   | { readonly kind: 'below_floor'; readonly floorPriceUsd: number }
   | { readonly kind: 'no_price_tier'; readonly quantity: number }
-  | { readonly kind: 'no_price_configured' };
+  | { readonly kind: 'no_price_configured' }
+  /**
+   * M36 — this contradicts what she already told this buyer.
+   *
+   * Not a price error: the new number may be perfectly correct. It is a
+   * RELATIONSHIP error, and the owner is the only person who can decide whether
+   * to stand behind it. She sees both prices and both dates and may approve it;
+   * what she may not be is surprised by it in front of a buyer who remembers.
+   */
+  | {
+      readonly kind: 'contradicts_history';
+      readonly prior: PriorQuote;
+      readonly proposedUnitPriceUsd: number;
+      readonly proposedQuantity: number;
+      /** Which way it contradicts — the two cases are not equally bad. */
+      readonly how: 'higher_same_quantity' | 'higher_at_larger_quantity';
+    };
 
 /**
  * An order that has passed EVERY rule.
