@@ -25,6 +25,7 @@ import type {
 import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
+import { loadKillSwitches } from './opsFlags.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -415,6 +416,12 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
+  // M34.6 — ops_flags (migration 0014). The same loader the SEND gate uses, so
+  // "is she silenced?" has one answer and one query, not two that can drift.
+  const ops: import('./ports.js').OpsRepo = {
+    switches: () => loadKillSwitches(tx, businessId),
+  };
+
   const drafts: import('./ports.js').DraftRepo = {
     async create(input) {
       const r = await sql<{ id: string }>`
@@ -446,5 +453,5 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
-  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, drafts, knowledge };
+  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, ops, drafts, knowledge };
 }

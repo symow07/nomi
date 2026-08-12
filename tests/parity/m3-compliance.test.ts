@@ -113,21 +113,21 @@ describe('M3 · send gate (takeover / pause / window, at SEND time)', () => {
   const closedPlan = sendPlan('expired', 'reply', 'none');
 
   it('after owner takeover the employee is silent — even for queued messages', () => {
-    expect(gateOutbound({ pilotMode: false, activated: true, origin: 'employee', assignedTo: 'owner', paused: false, windowPlan: openPlan }))
+    expect(gateOutbound({ silenced: false, pilotMode: false, activated: true, origin: 'employee', assignedTo: 'owner', paused: false, windowPlan: openPlan }))
       .toEqual({ allow: false, reason: 'handed_off' });
-    expect(gateOutbound({ pilotMode: false, activated: true, origin: 'employee', assignedTo: 'unclaimed', paused: false, windowPlan: openPlan }))
+    expect(gateOutbound({ silenced: false, pilotMode: false, activated: true, origin: 'employee', assignedTo: 'unclaimed', paused: false, windowPlan: openPlan }))
       .toEqual({ allow: false, reason: 'handed_off' });
   });
 
   it('pause blocks the employee; the owner speaks for himself', () => {
-    expect(gateOutbound({ pilotMode: false, activated: true, origin: 'employee', assignedTo: null, paused: true, windowPlan: openPlan }))
+    expect(gateOutbound({ silenced: false, pilotMode: false, activated: true, origin: 'employee', assignedTo: null, paused: true, windowPlan: openPlan }))
       .toEqual({ allow: false, reason: 'paused' });
-    expect(gateOutbound({ pilotMode: false, activated: true, origin: 'owner', assignedTo: 'owner', paused: true, windowPlan: openPlan }))
+    expect(gateOutbound({ silenced: false, pilotMode: false, activated: true, origin: 'owner', assignedTo: 'owner', paused: true, windowPlan: openPlan }))
       .toEqual({ allow: true, viaTemplate: false });
   });
 
   it('the closed window binds everyone — the provider rejects violations anyway', () => {
-    expect(gateOutbound({ pilotMode: false, activated: true, origin: 'owner', assignedTo: null, paused: false, windowPlan: closedPlan }))
+    expect(gateOutbound({ silenced: false, pilotMode: false, activated: true, origin: 'owner', assignedTo: null, paused: false, windowPlan: closedPlan }))
       .toEqual({ allow: false, reason: 'window_closed' });
   });
 

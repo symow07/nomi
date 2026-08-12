@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { REFUSAL_REASONS, type Refusal } from '../../src/api/web/refusals.js';
-import { gateOutbound, type GateRefusal } from '../../src/core/channel/sendGate.js';
+import { gateOutbound, GATE_REFUSALS, type GateRefusal } from '../../src/core/channel/sendGate.js';
 import type { SendPlan } from '../../src/core/channel/window.js';
 import { renderConversationDetail, renderInboxList, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
@@ -57,10 +57,13 @@ const snapshot = (blockedMessages: number): OperationsSnapshot => ({
 // ── coverage: every refusal the gate can produce is explainable ──────────────
 
 describe('M22 · every refusal the gate can produce reaches the owner', () => {
-  /** The gate's own union, enumerated. Adding a reason breaks this on purpose. */
-  const GATE_REASONS: readonly GateRefusal[] = [
-    'handed_off', 'paused', 'window_closed', 'not_activated', 'not_allowlisted', 'daily_ceiling',
-  ];
+  /**
+   * The gate's own list, READ rather than restated. This used to be a second
+   * copy of the union that had to be edited in step with it; M34.6 made the
+   * gate export `GATE_REFUSALS` and derive its type from it, so this test now
+   * checks coverage instead of checking that someone updated two lists.
+   */
+  const GATE_REASONS: readonly GateRefusal[] = GATE_REFUSALS;
 
   it('the refusal vocabulary covers gateOutbound exactly, plus the template case', () => {
     for (const r of GATE_REASONS) expect(REFUSAL_REASONS, r).toContain(r);
@@ -254,19 +257,19 @@ describe('M22 · gateOutbound remains the only authority', () => {
   it('the gate itself is unchanged by this milestone', () => {
     // Its six reasons, its fail-closed defaults, its order. Asserted here so a
     // refusal SURFACE can never quietly become a refusal RULE.
-    expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false,
+    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false,
       windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_activated' });          // activation first
-    expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_allowlisted' });        // pilot mode assumed ON
-    expect(gateOutbound({ origin: 'employee', assignedTo: 'someone', paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: 'someone', paused: false, activated: true,
       pilotMode: false, windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'handed_off' });
-    expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: CLOSED }))
       .toEqual({ allow: false, reason: 'window_closed' });
-    expect(gateOutbound({ origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: TEMPLATE }))
       .toEqual({ allow: true, viaTemplate: true });
   });

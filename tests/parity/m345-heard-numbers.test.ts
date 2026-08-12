@@ -72,10 +72,11 @@ describe('M34.5 · a heard quantity that priced a quote does not auto-send', () 
 describe('M34.5 · the rule narrows permission and never widens it', () => {
   it('auto becomes draft; it can never turn a draft into an auto-send', async () => {
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    // `heardPrice ? 'draft' : policyMode` — the forced value is a constant
-    // 'draft', so there is no branch in which this rule grants a permission the
-    // owner's policy withheld.
-    expect(src).toMatch(/const mode = heardPrice \? 'draft' : policyMode/);
+    // The invariant is that the FORCED value is the constant 'draft' — not the
+    // shape of the statement it sits in. Pinning `const mode = ...` broke the
+    // moment M34.6 wrapped this in effectiveMode() without changing what the
+    // rule does, which is a test asserting the wrong thing about the right code.
+    expect(src).toMatch(/heardPrice \? 'draft' : policyMode/);
     expect(src).toMatch(/quantityWasHeardNotTyped\(\{/);
   });
 

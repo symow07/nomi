@@ -1,4 +1,5 @@
 import { isAllowlisted } from '../channels/allowlist.js';
+import { loadKillSwitches } from './opsFlags.js';
 import type { ChannelFacts } from '../core/channel/lifecycle.js';
 import type { TemplateState } from '../core/channel/window.js';
 import { DAILY_OUTBOUND_CEILING } from '../core/channel/limits.js';
@@ -114,6 +115,10 @@ export function channelStore(
       const recipientAllowed = pilotMode
         ? await isAllowlisted(tx, businessId, c?.buyer_wa_id ?? null)
         : true;
+      // M34.6 — the ops kill switch, resolved INSIDE this transaction like the
+      // allowlist, so the gate decides on the flag as it stands right now
+      // rather than as it stood when the message was queued.
+      const switches = await loadKillSwitches(tx, businessId);
 
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
@@ -129,6 +134,7 @@ export function channelStore(
         activated,
         pilotMode,
         recipientAllowed,
+        silenced: switches.globalSilence,
         // M18.5 — counts EMPLOYEE messages actually sent today, so an owner
         // reply is never blocked by the ceiling.
         dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,

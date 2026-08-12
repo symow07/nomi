@@ -1,11 +1,12 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
+import { NO_KILL_SWITCHES, type KillSwitches } from '../core/ops/killSwitch.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
-  EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant,
+  EventLog, KnowledgeRepo, OpsRepo, OrderRepo, SignalRepo, Tenant,
 } from '../db/ports.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { NegotiationRule, PriceTier, PricingPolicy, Product } from '../core/types/commerce.js';
@@ -122,6 +123,10 @@ class HarnessTenant implements Tenant {
   events: EventLog = { append: async () => {} };
   audit: AuditRepo = { recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
   autonomy: AutonomyRepo = { grants: async () => this.grantRows };
+  // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
+  // wants a switch thrown sets this and says so in its own name.
+  switches: KillSwitches = NO_KILL_SWITCHES;
+  ops: OpsRepo = { switches: async () => this.switches };
   drafts: DraftRepo = { create: async () => ({ draftId: `d-${++this.draftSeq}` }) };
   knowledge: KnowledgeRepo = {
     retrieve: async ({ query, productId, k }) => {

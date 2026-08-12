@@ -13,6 +13,7 @@ import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim } from '../core/safety/claims.js';
 import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
+import type { KillSwitches } from '../core/ops/killSwitch.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -40,8 +41,18 @@ export interface Tenant {
   readonly events: EventLog;
   readonly audit: AuditRepo;
   readonly autonomy: AutonomyRepo;
+  readonly ops: OpsRepo;
   readonly drafts: DraftRepo;
   readonly knowledge: KnowledgeRepo;
+}
+
+/**
+ * M34.6 — live ops_flags (migration 0014). Read-only by design: the app role
+ * may select these rows and nothing more, so the employee can be silenced by
+ * ops but can never silence — or un-silence — herself.
+ */
+export interface OpsRepo {
+  switches(): Promise<KillSwitches>;
 }
 
 /**

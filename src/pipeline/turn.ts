@@ -7,6 +7,7 @@ import type { ConversationState } from '../core/types/conversation.js';
 import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
 import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
 import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
+import { effectiveMode } from '../core/ops/killSwitch.js';
 import { quantityWasHeardNotTyped, type TextProvenance } from '../core/safety/heardNumbers.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
@@ -546,8 +547,22 @@ export async function commitTurn(
       const heardPrice = quantityWasHeardNotTyped({
         provenance: req.provenance ?? 'typed', quote: r.quote, turnText: req.text,
       });
-      const mode = heardPrice ? 'draft' : policyMode;
-      if (mode === 'auto') {
+      // M34.6 — ops kill switches, applied last because they must win. Only
+      // `forceDraft`/`silenceCapability` are resolved here; `globalSilence` is
+      // enforced at the SEND gate, where it also catches replies queued before
+      // the switch was thrown. `effectiveMode` is monotone by construction, so
+      // this rung, like the one above it, can only ever remove authority.
+      const mode = effectiveMode(heardPrice ? 'draft' : policyMode, capability, await tenant.ops.switches());
+      if (mode === 'silent') {
+        // The capability is switched off. She writes nothing and drafts
+        // nothing — but the refusal is RECORDED, because a buyer who hears
+        // nothing beside an owner who is told nothing is the silent failure
+        // this product treats as a defect. The message itself is already
+        // persisted and the conversation is still there to be answered by hand.
+        await tenant.events.append(req.conversationId, 'send_suppressed', {
+          capability, reason: 'ops_kill_switch',
+        });
+      } else if (mode === 'auto') {
         outbound = { conversationId: req.conversationId, reply };
       } else {
         const d = await tenant.drafts.create({

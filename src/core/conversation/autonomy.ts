@@ -6,9 +6,21 @@ import type { TurnDecision } from './decide.js';
  * night-shift window (值夜班)? Everything else stays a draft.
  */
 
-export type Capability =
-  | 'greet' | 'qualify' | 'recommend' | 'quote'
-  | 'negotiate' | 'confirm_order' | 'follow_up';
+/**
+ * The capability vocabulary, as data. The type DERIVES from this list, so the
+ * two cannot drift: adding a capability here is the only edit needed, and a
+ * runtime check against the list is checking the same thing the compiler is.
+ * (Transcribing a list beside its type is this repo's most repeated bug.)
+ *
+ * Must stay in step with the `capability` CHECK constraints in the schema —
+ * autonomy_policy (0009) and ops_flags (0014).
+ */
+export const CAPABILITIES = [
+  'greet', 'qualify', 'recommend', 'quote',
+  'negotiate', 'confirm_order', 'follow_up',
+] as const;
+
+export type Capability = (typeof CAPABILITIES)[number];
 
 export type AutonomyGrant = {
   readonly capability: Capability;

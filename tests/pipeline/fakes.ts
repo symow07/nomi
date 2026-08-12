@@ -1,10 +1,11 @@
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
-  EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant,
+  EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant, OpsRepo,
 } from '../../src/db/ports.js';
 import type { KnowledgeSnippet } from '../../src/core/types/knowledge.js';
 import { SOURCE_RANK } from '../../src/core/types/knowledge.js';
 import type { AutonomyGrant } from '../../src/core/conversation/autonomy.js';
+import { NO_KILL_SWITCHES, type KillSwitches } from '../../src/core/ops/killSwitch.js';
 import type { Retriever, RetrievedProduct } from '../../src/retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../../src/llm/ports.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
@@ -123,6 +124,13 @@ export class FakeTenant implements Tenant {
 
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
+  };
+
+  /** M34.6 — ops kill switches. None set is the normal state, so tests that do
+   *  not care read exactly as they did before. */
+  switches: KillSwitches = NO_KILL_SWITCHES;
+  ops: OpsRepo = {
+    switches: async () => this.switches,
   };
 
   drafts: DraftRepo = {

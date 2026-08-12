@@ -53,7 +53,7 @@ describe('M25 · the entry point is derived, and it is named', () => {
     // The whole chain, in the state production is actually in.
     const plan = sendPlan(windowState(THREE_DAYS_AGO, NOW), 'reply', NO_TEMPLATE);
     expect(plan.action).toBe('wait_for_buyer');
-    const gate = gateOutbound({
+    const gate = gateOutbound({ silenced: false,
       origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: plan,
     });
@@ -63,7 +63,7 @@ describe('M25 · the entry point is derived, and it is named', () => {
   it('with an approval, the SAME chain routes to the template branch — gate unchanged', () => {
     const plan = sendPlan(windowState(THREE_DAYS_AGO, NOW), 'reply', 'approved');
     expect(plan.action).toBe('send_template');
-    const gate = gateOutbound({
+    const gate = gateOutbound({ silenced: false,
       origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: plan,
     });
@@ -159,7 +159,7 @@ describe('M25 · template capability comes from the installation, not a constant
     const approved = templateState({ providerConfigured: true, approvedTemplates: ['reengage_v1'] });
     const plan = sendPlan(windowState(THREE_DAYS_AGO, NOW), 'reply', approved);
     expect(plan.action).toBe('send_template');
-    const gate = gateOutbound({
+    const gate = gateOutbound({ silenced: false,
       origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: true, recipientAllowed: true, windowPlan: plan,
     });

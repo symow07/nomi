@@ -5,15 +5,9 @@ language) → repair → record**. Owner copy already exists — never improvise
 
 ## Stopping her (verified 2026-08-12)
 
-**There is no platform-wide kill switch, and `ops_flags` is not one.** The table
-exists (migration 0014) and *nothing in `src/` reads it* — no import, no query.
-Inserting a `global_silence` row commits successfully and changes nothing; she
-keeps sending. `core/ops/killSwitch.ts` interprets those rows and is reached by
-no production path. Do not use it during an incident.
-
-What actually stops a message is `gateOutbound` (`core/channel/sendGate.ts`) —
-the single authority, evaluated at SEND time, so it also binds messages that were
-queued before you acted. Every control below works by changing one of its inputs.
+What stops a message is `gateOutbound` (`core/channel/sendGate.ts`) — the single
+authority, evaluated at SEND time, so it also binds messages that were queued
+before you acted. Every control below works by changing one of its inputs.
 
 | Blast radius | Do this | Why it stops her |
 |---|---|---|
@@ -41,6 +35,41 @@ and history all survive, so reactivating resumes rather than rebuilds.
 Under every control above, inbound messages still ingest and queue: the webhook
 persists the message *before* it enqueues the job, so containment never costs a
 buyer's message.
+
+### Ops kill switches (`ops_flags`, migration 0014) — for when the owner cannot act
+
+The controls above are the owner's, through his own screens, and are the right
+answer almost always. These are ours, for when the owner is asleep, unreachable,
+or the problem spans tenants. **Wired in M34.6** — until then this table was
+written by the runbook and read by nothing, so the rows committed and the
+employee kept sending. It is read now, on every send, by `db/opsFlags.ts`.
+
+```sql
+-- silence one tenant's employee entirely (business_id null = platform-wide)
+insert into ops_flags (business_id, flag, reason, set_by) values ($biz, 'global_silence', '...', 'simo');
+-- force one capability back to draft, platform-wide
+insert into ops_flags (flag, capability, reason, set_by) values ('force_draft', 'quote', '...', 'simo');
+-- clear
+update ops_flags set cleared_at = now() where id = $id;
+```
+
+- Effect is immediate — no deploy, no restart. `global_silence` is resolved at
+  SEND time, so replies already queued are refused too; `force_draft` and
+  `silence_capability` are resolved when a turn runs, so they bind the next turn.
+- A switch only ever REDUCES authority (`core/ops/killSwitch.ts` is monotone by
+  construction): auto → draft → silent, never the other way.
+- It silences the **employee**, not the owner. He can still reply to every buyer
+  from `/app/inbox`, and the refusal he sees says so in his own language.
+- Refusals are recorded as `silenced` and surfaced like every other refusal — a
+  silenced employee is visible, not mysteriously quiet.
+- Ops writes these rows as the table owner; the app role holds SELECT only, so a
+  compromised app can neither silence a tenant nor un-silence one.
+
+**Verify it took effect** rather than assuming, which is the whole lesson here:
+
+```sql
+select flag, capability, business_id, set_at from ops_flags where cleared_at is null;
+```
 
 ## Scenarios
 
@@ -96,7 +125,8 @@ buyer's message.
 ### 6. Employee said something wrong to a buyer
 - Contain first: **Take over** that conversation (`/app/inbox`) — she goes silent
   there immediately — or **Revoke** the capability (`/app/employee`) if the
-  mistake is systemic rather than one-off.
+  mistake is systemic rather than one-off. If it spans tenants, `force_draft` on
+  that capability platform-wide (§ Ops kill switches).
 - Correct it yourself in the same thread, through the same send path.
 - **None of this is automatic.** `core/trust/repair.ts` models the repair
   lifecycle and is wired to nothing: there is no repair record written, no owner
@@ -104,8 +134,8 @@ buyer's message.
   postmortem instead.
 
 ### 7. Meta quality rating drops
-- Stop proactive sends: **Revoke** `follow_up` at `/app/employee`, per tenant —
-  there is no platform-wide switch.
+- Stop proactive sends: `force_draft` on `follow_up` platform-wide (§ Ops kill
+  switches), or **Revoke** it at `/app/employee` for a single tenant.
 - Audit last 50 outbound for spam-feel; check opt-in records. Re-enable gradually.
 
 ### 8. Replies accepted but not going out (M17.4)

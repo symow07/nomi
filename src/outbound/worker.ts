@@ -41,6 +41,12 @@ export type ConversationSendContext = {
   readonly dailyCeilingReached?: boolean;
   /** M20.1 — the owner turned messaging on. Absent = not activated. */
   readonly activated?: boolean;
+  /**
+   * M34.6 — an ops `global_silence` flag is live (ops_flags, migration 0014).
+   * REQUIRED, like the gate field it feeds: the whole defect this closes was a
+   * kill switch nothing resolved, so no store gets to leave it unanswered.
+   */
+  readonly silenced: boolean;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -63,9 +69,11 @@ export type OutboundStore = {
 /**
  * M22 — every way a queued message can end without reaching the buyer.
  *
- * The six `GateRefusal` values are `gateOutbound`'s own, carried through
- * unchanged — this adds no reason of its own and makes no decision. The
- * seventh, `window_needs_owner`, is the case the gate ALLOWS but only through a
+ * Every `GateRefusal` value is `gateOutbound`'s own, carried through unchanged
+ * — this adds no reason of its own and makes no decision. (The count used to be
+ * written out here as "the six"; M34.6 added `silenced` and the sentence went
+ * stale on the spot, which is why it now names no number.) The one reason that
+ * is NOT the gate's, `window_needs_owner`, is the case the gate ALLOWS but only through a
  * template: `{ allow: true, viaTemplate: true }`. No template has been approved
  * with Meta, so the message cannot go, and calling that "allowed" in the
  * owner's audit trail would be the same lie this milestone exists to remove.
@@ -162,6 +170,9 @@ export async function driveConversationOutbound(
     // M20.1 — same fail-closed convention: a store that does not resolve
     // activation gets the safe answer.
     ...(ctx.activated !== undefined ? { activated: ctx.activated } : {}),
+    // M34.6 — no conditional spread: the ops kill switch is required all the
+    // way down, so there is no path on which it goes unresolved.
+    silenced: ctx.silenced,
   });
   if (!gate.allow) {
     await refuse(deps, candidate, gate.reason);

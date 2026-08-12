@@ -121,7 +121,7 @@ describe('M20.4 · F-09 · an owner is never told a blocked reply is on its way'
       [facts({ activatedAt: AT }), { recipientAllowed: false, pilotMode: true }],
     ] as const) {
       const pre = precheckOwnerSend(f, o);
-      const gate = gateOutbound({
+      const gate = gateOutbound({ silenced: false,
         origin: 'owner', assignedTo: 'owner', paused: false, windowPlan: plan,
         activated: channelLifecycle(f) === 'active', pilotMode: o.pilotMode,
         recipientAllowed: o.recipientAllowed,

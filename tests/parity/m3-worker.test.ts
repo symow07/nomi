@@ -39,6 +39,8 @@ function memStore(initial: readonly Partial<Row>[], ctx: Partial<ConversationSen
     // pilot context blocks everything — state the live conditions explicitly.
     pilotMode: false,
     activated: true,
+    // M34.6 — no ops kill switch in these fixtures; a test that wants one says so.
+    silenced: false,
     ...ctx,
   };
   const byId = (id: string) => rows.find((r) => r.id === id)!;

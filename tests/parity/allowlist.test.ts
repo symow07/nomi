@@ -14,7 +14,7 @@ const openPlan: SendPlan = { action: 'send_free', ownerNoteZh: '' };
 const closedPlan: SendPlan = { action: 'wait_for_buyer', ownerNoteZh: '' };
 // M20.1 — these cases are about the ALLOWLIST, so the channel is live; the
 // activation refusal has its own tests below.
-const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan, activated: true };
+const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan, activated: true, silenced: false };
 
 describe('M18.2 · phone normalization (the comparison key)', () => {
   it('an owner-typed number and a WhatsApp wa_id normalize to the same thing', () => {
@@ -132,8 +132,7 @@ describe('M20.1 · nothing goes out before the owner turns messaging on', () => 
   it('activation is checked FIRST — before the pilot is live nothing else matters', () => {
     // A message that would also fail the allowlist, the ceiling and the window
     // still reports the reason the owner can act on.
-    expect(gateOutbound({
-      ...base, activated: false, recipientAllowed: false, pilotMode: true,
+    expect(gateOutbound({ ...base, activated: false, recipientAllowed: false, pilotMode: true,
       dailyCeilingReached: true, windowPlan: closedPlan, assignedTo: 'owner', paused: true,
     })).toEqual({ allow: false, reason: 'not_activated' });
   });

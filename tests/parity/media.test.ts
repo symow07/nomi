@@ -53,7 +53,7 @@ function store(row: Partial<OutboundWorkRow>): OutboundStore & { statuses: strin
     load: async () => ({
       rows: [full],
       ctx: {
-        assignedTo: null, paused: false, lastInboundAt: RECENT, template: 'none',
+        assignedTo: null, paused: false, lastInboundAt: RECENT, template: 'none', silenced: false,
         pilotMode: true, recipientAllowed: true, dailyCeilingReached: false, activated: true,
       },
     }),

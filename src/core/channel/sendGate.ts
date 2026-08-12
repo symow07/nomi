@@ -37,13 +37,39 @@ export type GateInput = {
    * caller that forgets to resolve activation gets silence, not a live send.
    */
   readonly activated?: boolean;
+  /**
+   * M34.6 — an ops `global_silence` flag is live for this tenant (ops_flags,
+   * migration 0014), resolved by the caller via `switchesFrom`.
+   *
+   * REQUIRED, not optional like the rest. Every optional above defaults to its
+   * fail-closed value, which works because forgetting them only ever refuses.
+   * A kill switch is the opposite shape: the dangerous default is the permissive
+   * one, and this gate exists because that switch spent six months connected to
+   * nothing. A required field makes the compiler name every caller that has to
+   * resolve it — including the next one, written by someone who never read this.
+   */
+  readonly silenced: boolean;
 };
 
-export type GateRefusal =
-  | 'handed_off' | 'paused' | 'window_closed'
-  | 'not_activated'        // M20.1
-  | 'not_allowlisted'      // M18.2
-  | 'daily_ceiling';       // M18.5
+/**
+ * Every way this gate can refuse, as data. The type DERIVES from the list, so a
+ * reason cannot exist in one and not the other.
+ *
+ * It was a hand-written union with a hand-written copy in refusals.test.ts
+ * ("adding a reason breaks this on purpose"). It did break on purpose — twice —
+ * and a list that must be edited in two places to stay true is the transcription
+ * bug this repo keeps paying for. Now there is one list, and the owner-copy
+ * coverage test reads it instead of restating it.
+ */
+export const GATE_REFUSALS = [
+  'handed_off', 'paused', 'window_closed',
+  'not_activated',        // M20.1
+  'not_allowlisted',      // M18.2
+  'daily_ceiling',        // M18.5
+  'silenced',             // M34.6
+] as const;
+
+export type GateRefusal = (typeof GATE_REFUSALS)[number];
 
 export type GateDecision =
   | { readonly allow: true; readonly viaTemplate: boolean }
@@ -56,6 +82,12 @@ export function gateOutbound(g: GateInput): GateDecision {
   if (g.activated !== true) return { allow: false, reason: 'not_activated' };
 
   if (g.origin === 'employee') {
+    // M34.6 — the ops kill switch. Checked at SEND time like everything else
+    // here, which is the point: a reply queued a minute before the switch was
+    // thrown must not still leave the building. It binds the employee only —
+    // silencing the machine is not silencing the owner, who may well be
+    // silencing it in order to answer the buyer himself.
+    if (g.silenced) return { allow: false, reason: 'silenced' };
     if (g.assignedTo !== null) return { allow: false, reason: 'handed_off' };
     if (g.paused) return { allow: false, reason: 'paused' };
   }
