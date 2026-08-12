@@ -68,6 +68,19 @@ export interface KnowledgeRepo {
 /** autonomy_policy rows for this business — the draft/auto routing (migration 0009). */
 export interface AutonomyRepo {
   grants(): Promise<readonly AutonomyGrant[]>;
+  /**
+   * M34.9 — a guard fired while this capability was unsupervised. Records the
+   * violation as evidence and drops the capability to draft if it was in auto.
+   *
+   * On the tenant repo rather than a free function because it must write inside
+   * the turn's own transaction: a violation recorded without the demotion it
+   * caused, or the reverse, is worse than either alone.
+   */
+  selfDemote(input: {
+    readonly capability: string;
+    readonly conversationId: string;
+    readonly violations: number;
+  }): Promise<{ readonly demoted: boolean; readonly action: string }>;
 }
 
 /**

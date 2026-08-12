@@ -122,7 +122,16 @@ class HarnessTenant implements Tenant {
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
   audit: AuditRepo = { recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
-  autonomy: AutonomyRepo = { grants: async () => this.grantRows };
+  /** M34.9 — recorded, so a test can assert the production caller reached it.
+   *  The REAL behaviour is proved against Postgres in tests/integration. */
+  selfDemoted: Array<{ capability: string; violations: number }> = [];
+  autonomy: AutonomyRepo = {
+    grants: async () => this.grantRows,
+    selfDemote: async ({ capability, violations }) => {
+      this.selfDemoted.push({ capability, violations });
+      return { demoted: false, action: 'none' };
+    },
+  };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.
   switches: KillSwitches = NO_KILL_SWITCHES;

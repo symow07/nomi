@@ -122,8 +122,15 @@ export class FakeTenant implements Tenant {
   draftsCreated: Array<{ draftId: string; conversationId: string; capability: string; draftText: string }> = [];
   private draftSeq = 0;
 
+  /** M34.9 — recorded, so a test can assert the production caller reached it.
+   *  The REAL behaviour is proved against Postgres in tests/integration. */
+  selfDemoted: Array<{ capability: string; violations: number }> = [];
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
+    selfDemote: async ({ capability, violations }) => {
+      this.selfDemoted.push({ capability, violations });
+      return { demoted: false, action: 'none' };
+    },
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do

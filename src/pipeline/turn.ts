@@ -553,6 +553,30 @@ export async function commitTurn(
       // the switch was thrown. `effectiveMode` is monotone by construction, so
       // this rung, like the one above it, can only ever remove authority.
       const mode = effectiveMode(heardPrice ? 'draft' : policyMode, capability, await tenant.ops.switches());
+
+      // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
+      //
+      // guardNumerals or guardClaims refused her draft, and the capability that
+      // produced it is in auto: nobody was going to see this. TRUST-PLAYBOOK
+      // describes exactly this case — the capability drops to draft and she says
+      // so — and until now nothing implemented it.
+      //
+      // The violation is recorded whatever the mode (it is evidence either way),
+      // but the demotion only fires from auto: `autoDemote` refuses to act on a
+      // capability already at the floor.
+      if (r.guardViolations > 0) {
+        await tenant.events.append(req.conversationId, 'guard_violation', {
+          capability, count: r.guardViolations,
+        });
+        if (policyMode === 'auto') {
+          await tenant.autonomy.selfDemote({
+            capability,
+            conversationId: req.conversationId,
+            violations: r.guardViolations,
+          });
+        }
+      }
+
       if (mode === 'silent') {
         // The capability is switched off. She writes nothing and drafts
         // nothing — but the refusal is RECORDED, because a buyer who hears

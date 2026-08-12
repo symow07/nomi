@@ -18,13 +18,19 @@ import { esc, deeper } from './layout.js';
  */
 
 type Stage = 'probation' | 'partial';
-type GrowthKind = 'promote' | 'revoke' | 'spotcheck_pass' | 'spotcheck_improve' | 'spotcheck_issue' | 'learned_edit';
+type GrowthKind = 'promote' | 'revoke' | 'self_demote' | 'spotcheck_pass' | 'spotcheck_improve' | 'spotcheck_issue' | 'learned_edit';
 type ConditionCode = 'passed_spotcheck' | 'learned_correction';
 
 const NEVER_ALLOWED: readonly MessageKey[] = ['neverAllowed.promise_stock', 'neverAllowed.change_payment', 'neverAllowed.promise_leadtime'];
 
 export type CapabilityRow = { readonly capability: string; readonly mode: 'auto' | 'draft'; readonly promotable: boolean };
-export type GrowthEvent = { readonly kind: GrowthKind; readonly capability: string | null; readonly at: Date };
+export type GrowthEvent = {
+  readonly kind: GrowthKind;
+  readonly capability: string | null;
+  readonly at: Date;
+  /** M34.9 — the DemotionReason code, for a self-demotion only. */
+  readonly why?: string | null;
+};
 
 export type EmployeeProfile = {
   readonly hireDate: Date | null;
@@ -84,19 +90,27 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     const needConfirm = capabilities.filter((c) => c.mode === 'draft' && c.capability !== 'confirm_order').map((c) => c.capability);
 
     // Growth timeline — neutral event kinds; the renderer localizes. Most recent 8.
-    const growth = (await sql<{ kind: string; capability: string | null; at: Date }>`
-      (select case when action = 'promote' then 'promote' else 'revoke' end as kind, capability, at
+    const growth = (await sql<{ kind: string; capability: string | null; at: Date; why: string | null }>`
+      -- M34.9 — a demotion SHE made reads differently from one the owner made.
+      -- Collapsing both into 'revoke' would let the owner think he had pulled
+      -- a capability back when in fact she stepped back on her own.
+      (select case when action = 'promote' then 'promote'
+                   when actor = 'system_self_demoted' then 'self_demote'
+                   else 'revoke' end as kind,
+              capability, at, reasons[1] as why
          from capability_events where business_id = ${bid.value})
       union all
       (select case when verdict = 'correct' then 'spotcheck_pass'
                    when verdict = 'needs_improvement' then 'spotcheck_improve'
-                   else 'spotcheck_issue' end, null::text, answered_at
+                   else 'spotcheck_issue' end, null::text, answered_at, null::text
          from spot_checks where business_id = ${bid.value} and answered_at is not null)
       union all
-      (select 'learned_edit', capability, decided_at
+      (select 'learned_edit', capability, decided_at, null::text
          from drafts where business_id = ${bid.value} and status = 'edited' and decided_at is not null)
       order by at desc limit 8
-    `.execute(tx)).rows.map((r): GrowthEvent => ({ kind: r.kind as GrowthKind, capability: r.capability, at: r.at }));
+    `.execute(tx)).rows.map((r): GrowthEvent => ({
+      kind: r.kind as GrowthKind, capability: r.capability, at: r.at, why: r.why,
+    }));
 
     const passed = (await sql<{ n: number }>`select count(*)::int as n from spot_checks where verdict='correct'`.execute(tx)).rows[0]!.n;
     const learned = (await sql<{ n: number }>`select count(*)::int as n from drafts where status='edited'`.execute(tx)).rows[0]!.n;
@@ -119,7 +133,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
 const GROWTH_ICON: Record<GrowthKind, string> = {
-  promote: '⭐', revoke: '⚠️', spotcheck_pass: '✓', spotcheck_improve: '⚠️', spotcheck_issue: '⚠️', learned_edit: '⭐',
+  promote: '⭐', revoke: '⚠️', self_demote: '○', spotcheck_pass: '✓', spotcheck_improve: '⚠️', spotcheck_issue: '⚠️', learned_edit: '⭐',
 };
 
 const list = (title: string, mark: string, items: readonly string[], cls: string, emptyLabel: string): string =>
@@ -254,7 +268,12 @@ export function renderEmployee(
   const growth = `<div class="block"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
     ${e.growth.length
       ? `<ul class="growth">${e.growth.map((g) => {
-          const text = t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
+          const text = g.kind === 'self_demote'
+            ? t(locale, 'employee.growth.self_demote', {
+                cap: capName(g.capability ?? ''),
+                why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
+              })
+            : t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
           return `<li>${GROWTH_ICON[g.kind]} ${esc(text)}<span class="muted"> · ${esc(formatDate(locale, g.at))}</span></li>`;
         }).join('')}</ul>`
       : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}

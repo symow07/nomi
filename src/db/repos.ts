@@ -404,6 +404,20 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   // autonomy_policy + drafts (migration 0009) — raw SQL, like db/channels.ts,
   // since they sit outside the typed core schema. Both are existing tables.
   const autonomy: import('./ports.js').AutonomyRepo = {
+    // M34.9 — the decision is core (demotionDecision), the write is here, and
+    // the evidence load is the SAME one promotion uses. Three call sites, one
+    // definition of what the evidence is: the alternative was a second copy of
+    // that query, which is the bug this repo pays for most often.
+    async selfDemote({ capability, violations }) {
+      const { loadCapabilityEvidence, autoDemote } = await import('../pipeline/capability.js');
+      const { demotionDecision } = await import('../core/trust/evidence.js');
+      const base = await loadCapabilityEvidence(tx, capability);
+      // The violation this turn produced is not yet queryable — commitTurn
+      // appends the event in the same transaction — so it is added here rather
+      // than read back, which also keeps the decision on THIS turn's facts.
+      const evidence = { ...base, policyViolations: base.policyViolations + violations };
+      return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
+    },
     async grants() {
       const r = await sql<{ capability: string; mode: string; time_window: string | null }>`
         select capability, mode, time_window from autonomy_policy where business_id = ${businessId}

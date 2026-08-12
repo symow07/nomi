@@ -4,6 +4,8 @@ import {
   selectSpotChecks, parseSpotCheckReply, SPOT_CHECKS_PER_WEEK,
   type CompletedWork, type SpotCheckVerdict,
 } from '../core/trust/spotCheck.js';
+import { applySpotCheck, demotionDecision } from '../core/trust/evidence.js';
+import { loadCapabilityEvidence, autoDemote } from './capability.js';
 
 /**
  * M34.7 — the producer for 抽查.
@@ -164,15 +166,31 @@ export async function loadPendingSpotChecks(
  */
 export async function answerSpotCheck(
   tx: Tx, businessId: string, spotCheckId: string, rawReply: string,
-): Promise<{ answered: boolean; verdict: SpotCheckVerdict | null }> {
+): Promise<{ answered: boolean; verdict: SpotCheckVerdict | null; demoted: boolean }> {
   const { verdict, correction } = parseSpotCheckReply(rawReply);
-  const r = await sql<{ id: string }>`
+  const r = await sql<{ id: string; capability: string }>`
     update spot_checks
        set verdict = ${verdict}, correction = ${correction}, answered_at = now()
      where id = ${spotCheckId}::uuid
        and business_id = ${businessId}::uuid
        and answered_at is null
-    returning id
+    returning id, capability
   `.execute(tx);
-  return r.rows[0] ? { answered: true, verdict } : { answered: false, verdict: null };
+  const row = r.rows[0];
+  if (!row) return { answered: false, verdict: null, demoted: false };
+
+  // M34.9 — a bad verdict is evidence, and evidence can take authority away.
+  //
+  // `applySpotCheck` folds this verdict into the counts BEFORE the decision, so
+  // the demotion is made on the answer the owner just gave rather than on the
+  // state of the table a moment ago. That function existed since M5 with no
+  // caller; this is it.
+  //
+  // Only ever downward: `autoDemote` writes the literal 'draft' and refuses a
+  // capability that is not currently in auto, so a "correct" verdict cannot
+  // promote anything. Promotion stays the owner's tap.
+  const base = await loadCapabilityEvidence(tx, row.capability);
+  const evidence = applySpotCheck(base, verdict);
+  const d = await autoDemote(tx, businessId, row.capability, demotionDecision(evidence), evidence);
+  return { answered: true, verdict, demoted: d.demoted };
 }
