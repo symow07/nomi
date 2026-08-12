@@ -80,41 +80,73 @@ Exit 0 = all checks passed; exit 1 = first failure, with detail.
 
 ## Deploy
 
-1. Merge to `main` → Railway builds and redeploys.
-2. **Apply migrations BEFORE the new build boots.** Not "before/with" — before.
-   `assertSchemaCurrent` refuses to start on a database behind the build, so a
-   push that lands first takes production down until the migration runs.
+1. Merge to `main` → Railway builds, **runs the migrator, then redeploys.**
+2. **Migrations apply automatically, before the new build boots.** `railway.json`
+   sets a pre-deploy command:
 
-   ```bash
-   # what this build requires, read from the code — never from a number in a doc
-   REQUIRED=$(grep -oE 'REQUIRED_SCHEMA_VERSION = [0-9]+' src/db/schemaVersion.ts | grep -oE '[0-9]+')
-   ACTUAL=$(psql "$MIGRATE_DATABASE_URL" -tAc "select max(version) from _migrations;")
-   echo "database $ACTUAL, build needs $REQUIRED"
-
-   MIGRATE_DATABASE_URL='<admin url>' node tools/migrate.mjs
+   ```json
+   { "deploy": { "preDeployCommand": ["node tools/migrate.mjs"] } }
    ```
 
-   Migrations are additive and forward-only (ADR-0007), so applying them while
-   the OLD build is still serving is safe — it ignores what it does not know
-   about. That is what makes this order possible, and rollback safe.
+   It runs between build and deploy, inside Railway's private network, with the
+   service's own variables — so it reaches `postgres.railway.internal` directly
+   and needs no TCP proxy. **A non-zero exit aborts the deploy**: Railway does
+   not retry it and does not start the new build, so a failed migration leaves
+   the PREVIOUS build serving rather than a crashed one.
 
-   **If the build already crashed on the guard, the migration alone does not
-   bring it back.** Railway does not retry a crashed deployment when the cause
-   is fixed outside it. The schema reaches the required version and the service
-   stays down, still serving 502, for as long as nobody redeploys. A correct
-   database and a down service is the expected intermediate state here, not a
-   second fault — do not go looking for a new problem.
+   You do not apply migrations by hand any more. That instruction lived here
+   from M19 to M34.12 and took production down twice — 0025 and 0027 — because a
+   step a human must remember is a step a human eventually forgets. The rule is
+   the same; what changed is that the deploy enforces it instead of the runbook
+   asking for it.
 
-   ```bash
-   railway redeploy -s <service> -y      # same commit; the DB is what changed
-   ```
+   `assertSchemaCurrent` STAYS as the backstop. It has now fired correctly twice
+   and is the reason both outages were a refusal to boot rather than a service
+   running against a schema it did not understand.
 
-   Or Deployments → the crashed deployment → Redeploy. Observed 2026-08-08:
-   `0025` applied cleanly and `max(version)` read 25 while `/health` stayed 502
-   until the redeploy was issued by hand.
+   **This is a real change to the deploy contract**, made deliberately: a bad
+   migration now applies without a human in the loop. That is acceptable because
+   migrations are additive and forward-only (ADR-0007) — an older build runs
+   fine against a newer schema — and the runtime role holds no DDL, so nothing
+   the application does can alter the schema afterwards.
 
    Back up first, both parts (`BACKUP-RESTORE.md`): a dump without its roles
    file restores with RLS enabled and zero policies.
+
+### When the pre-deploy fails
+
+The deploy stops and the previous build keeps serving. `/health` stays 200 — the
+failure is in the deploy log, not in the service, so nothing pages you.
+
+```bash
+railway logs --deployment       # the migrator's own output: which file, which error
+```
+
+The migrator runs each file in a transaction and rolls back on error, so a
+failed run leaves the schema where it was. Confirm before retrying:
+
+```bash
+node tools/migrate.mjs --status  # applied vs pending; expect the failed one still pending
+```
+
+Fix the migration, push again. Do not apply it by hand to "unblock" the deploy —
+that puts the schema ahead of what any build has been tested against, and it is
+how this file accumulated the manual step in the first place.
+
+### If a deployment is CRASHED for some other reason
+
+Railway does not retry a crashed deployment when the cause is fixed outside it.
+The service stays down, still serving 502, until something pushes it:
+
+```bash
+railway redeploy -s <service> -y      # same commit; the environment is what changed
+```
+
+Observed 2026-08-08 with `0025`, and again 2026-08-12 with `0027`: the schema
+reached the required version and `/health` stayed 502 until the redeploy was
+issued by hand. A correct database and a down service is the expected
+intermediate state there, not a second fault.
+
 3. Verify: `verify-remote.sh https://<host> <code>` and confirm *Running version*
    on `/app/onboarding` matches the commit you just shipped.
 
