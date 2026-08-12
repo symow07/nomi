@@ -3,24 +3,61 @@
 One person ops. Every scenario: **detect → contain → tell the owner (in owner
 language) → repair → record**. Owner copy already exists — never improvise it.
 
-## Kill switches (migration 0014, `ops_flags`)
+## Stopping her (verified 2026-08-12)
+
+**There is no platform-wide kill switch, and `ops_flags` is not one.** The table
+exists (migration 0014) and *nothing in `src/` reads it* — no import, no query.
+Inserting a `global_silence` row commits successfully and changes nothing; she
+keeps sending. `core/ops/killSwitch.ts` interprets those rows and is reached by
+no production path. Do not use it during an incident.
+
+What actually stops a message is `gateOutbound` (`core/channel/sendGate.ts`) —
+the single authority, evaluated at SEND time, so it also binds messages that were
+queued before you acted. Every control below works by changing one of its inputs.
+
+| Blast radius | Do this | Why it stops her |
+|---|---|---|
+| The whole factory | `/app/factory` → **Stop messaging** (停止发消息) | `not_activated` — binds the employee *and* the owner |
+| One conversation | `/app/inbox` → the conversation → **Take over** | `handed_off` — employee only; you keep replying as yourself |
+| One capability | `/app/employee` → the capability → **Revoke** | drops it to draft. This is the real "force_draft", per tenant |
+| One buyer | `/app/factory` → allowlist → remove the number | `not_allowlisted` — binds everyone, owner included |
+| The connection | `/app/channels` → **Disconnect** | queued employee messages are canceled at send time, by design |
+
+If the app itself is unreachable, this is **Stop messaging** straight against the
+database — the same two statements `deactivate()` runs:
+
 ```sql
--- silence one tenant's employee entirely
-insert into ops_flags (business_id, flag, reason, set_by) values ($biz, 'global_silence', '...', 'simo');
--- force a capability back to draft, platform-wide
-insert into ops_flags (flag, capability, reason, set_by) values ('force_draft', 'quote', '...', 'simo');
--- clear
-update ops_flags set cleared_at = now() where id = $id;
+update channels set activated_at = null, status = 'disconnected',
+                    disconnected_at = now(), updated_at = now()
+ where business_id = $biz and kind = 'whatsapp';
+insert into channel_audit (business_id, action, actor, detail)
+values ($biz, 'deactivate', 'ops', '{"reason":"incident"}'::jsonb);
 ```
-Switches only reduce authority (monotone by construction). Messages still
-ingest and queue under every switch — nothing is dropped.
+
+It works because the send path resolves `activated` from `channels.activated_at`
+on every send (`db/channels.ts`). Nothing is deleted — allowlist, conversations
+and history all survive, so reactivating resumes rather than rebuilds.
+
+Under every control above, inbound messages still ingest and queue: the webhook
+persists the message *before* it enqueues the job, so containment never costs a
+buyer's message.
 
 ## Scenarios
 
 ### 1. LLM outage (Anthropic down/degraded)
-- Detect: consecutive analyzer/replyWriter failures; ladder in `core/ops/degrade.ts` engages automatically.
-- Behavior: ≤3 bounded retries silently → after 5 min, owner gets `needManualReply` copy; night shift sends the one-time hold ack instead. Messages hold, never drop.
-- You: watch recovery; nothing else needed. Postmortem if >30 min.
+- Detect: `notify.dead_letter` alerts reaching the owner ("有条消息可能没送达，麻烦你看一下。"), plus repeated analyzer/replyWriter failures in worker logs.
+- What actually happens: the Anthropic SDK retries internally; if the call still
+  fails, the turn throws, the tenant transaction rolls back (nothing half-written),
+  and pg-boss retries the inbound job 5× with backoff (10s, doubling). Exhausted →
+  the job dead-letters → the `.dead` handler alerts the owner.
+- The buyer's message is not lost: ingress persists it before enqueueing, and
+  wamid dedup makes replay safe.
+- **There is no degradation ladder.** `core/ops/degrade.ts` is reached by no
+  production path: no 5-minute threshold, no `needManualReply` alert, no
+  night-shift hold ack. (A malformed *response* to a successful call does fall
+  back safely — unknown intent, stay in phase — which is a different thing.)
+- You: watch recovery; if it runs long, **Stop messaging** (§ above) so retries
+  stop reaching a live buyer. Postmortem if >30 min.
 
 ### 2. WhatsApp/360dialog outage
 - Detect: send failures spike / webhook silence. Channel health flips to 暂时异常 automatically (`consecutive_send_failures ≥ 3`).
@@ -57,11 +94,18 @@ ingest and queue under every switch — nothing is dropped.
   pasted into a chat transcript and are still un-rotated. Treat as compromised.
 
 ### 6. Employee said something wrong to a buyer
-- This is a REPAIR, not an incident: open a repair record (`core/trust/repair.ts` lifecycle), the owner card and containment are automatic.
-- If capability-systemic: platform `force_draft` switch + fix + new spot checks.
+- Contain first: **Take over** that conversation (`/app/inbox`) — she goes silent
+  there immediately — or **Revoke** the capability (`/app/employee`) if the
+  mistake is systemic rather than one-off.
+- Correct it yourself in the same thread, through the same send path.
+- **None of this is automatic.** `core/trust/repair.ts` models the repair
+  lifecycle and is wired to nothing: there is no repair record written, no owner
+  repair card, and no containment that happens by itself. Record it in a
+  postmortem instead.
 
 ### 7. Meta quality rating drops
-- Stop all template/proactive sends (`force_draft` on follow_up).
+- Stop proactive sends: **Revoke** `follow_up` at `/app/employee`, per tenant —
+  there is no platform-wide switch.
 - Audit last 50 outbound for spam-feel; check opt-in records. Re-enable gradually.
 
 ### 8. Replies accepted but not going out (M17.4)

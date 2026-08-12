@@ -36,14 +36,18 @@ migration between hosts: POSTGRES-MIGRATION-RUNBOOK.md.
 | Provider send (`whatsapp/client`) | 429/5xx/network retryable → worker backoff (2s→4min, 6 attempts) → dead-letter |
 | Media download (`whatsapp/media`) | same classification; 4xx = ask buyer to resend |
 | Webhook ingress | provider retries ≤7 days; wamid dedup makes replays no-ops |
-| LLM calls (`llm/anthropic`) | SDK retries + degradation ladder (`core/ops/degrade.ts`) |
+| LLM calls (`llm/anthropic`) | SDK retries → the turn throws → pg-boss retry ×5 with backoff → dead-letter → owner alert. **No degradation ladder is wired** — see INCIDENT-PLAYBOOK §1 |
 | DB | pg pool reconnect; jobs are transactional; ingress 5xx → provider retry |
 | Owner notifications | pg-boss `notify.team` retries ×5 → dead-letter |
 
-Offline/poor-connection queueing on the owner side is a PWA concern: the shell
-must queue taps (发送/不回) locally and replay — spec'd for the PWA build,
-enforced there.
+Offline/poor-connection queueing on the owner side is **not built**. There is no
+PWA: the owner surface is server-rendered HTML, so a tap made with no connection
+is lost, not queued and replayed. Treat it as an open gap, not a solved one.
 
-## Performance budgets (as data in `core/ops/perf.ts`, PWA enforces on device)
-approval card open < 1000ms · quote compute < 50ms (pure SQL+arithmetic — no
-LLM in the loop, which is why "instant" is honest) · digest render < 16ms.
+## Performance budgets (`core/ops/perf.ts` — enforced by tests, not on device)
+`perf.ts` is a constants table read only by `tests/parity/m8-ops.test.ts`, which
+measures the two compute budgets in CI: **quote compute < 50ms** (pure
+SQL+arithmetic — no LLM in the loop, which is why "instant" is honest) and
+render < 16ms. Nothing enforces **approval card open < 1000ms**: that is an
+on-device budget and there is no device build. The render budget is also
+measured against `core/owner/digest.ts`, a renderer no live surface uses.
