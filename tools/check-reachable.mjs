@@ -23,6 +23,11 @@
  * list is reviewable rather than a place things quietly accumulate.
  *
  * Run: node tools/check-reachable.mjs
+ *      node tools/check-reachable.mjs --inventory   (report all of src/, exit 0)
+ *
+ * INVENTORY MODE reports every unreachable module in the whole tree without
+ * enforcing anything. Enforcement covers WIRED_DIRS; the inventory exists to
+ * find out what enforcement SHOULD cover, before deciding module by module.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';
@@ -104,6 +109,27 @@ if (missingRoot) {
 }
 
 const reachable = reachableFrom(ENTRYPOINTS);
+
+// ── Inventory mode: report the whole tree, enforce nothing, exit 0. ──────────
+if (process.argv.includes('--inventory')) {
+  const all = walk('src').map((f) => relative('.', f)).sort();
+  const dead = all.filter((f) => !reachable.has(normalize(f)));
+  const byDir = new Map();
+  for (const f of dead) {
+    const d = dirname(f);
+    byDir.set(d, [...(byDir.get(d) ?? []), f]);
+  }
+  console.log(`INVENTORY — ${all.length} modules under src/, ${all.length - dead.length} reachable, ${dead.length} NOT reachable\n`);
+  for (const [dir, files] of [...byDir].sort()) {
+    console.log(`${dir}/`);
+    for (const f of files) {
+      const declared = Object.hasOwn(DECLARED_UNWIRED, f) ? '  [declared]' : '';
+      const enforced = WIRED_DIRS.some((d) => f.startsWith(`${d}/`)) ? ' [enforced dir]' : '';
+      console.log(`  ${f.slice(dir.length + 1)}${declared}${enforced}`);
+    }
+  }
+  process.exit(0);
+}
 
 let violations = 0;
 const declaredButReachable = [];
