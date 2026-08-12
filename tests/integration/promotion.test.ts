@@ -160,7 +160,10 @@ d('M34.7 · promotion is reachable by a real tenant (requires DATABASE_URL)', ()
 
     for (const check of pending.slice(0, 2)) {
       const r = await withBiz((tx) => answerSpotCheck(tx, BIZ, check.id, '好'));
-      expect(r).toEqual({ answered: true, verdict: 'correct' });
+      // M34.9 added `demoted` to this result. Stated in full rather than
+      // loosened to toMatchObject: a good verdict must never demote, and that
+      // is worth asserting here as well as in demotion.test.ts.
+      expect(r).toEqual({ answered: true, verdict: 'correct', demoted: false });
     }
 
     const e = await refreshEvidence();

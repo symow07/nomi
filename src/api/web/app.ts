@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
+import { loadInsights, renderInsights } from './insights.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
   defaultFilter, type InboxFilter,
@@ -186,11 +187,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app', authed('home', async (_s, _req, locale) => {
     // Phase B: Today composes two EXISTING read models — the operations snapshot
     // and the pilot feedback loop. No new query, no new storage.
-    const [snapshot, feedback] = await Promise.all([
+    // M34.10 — plus the insights, which are the only part of this page that
+    // tells the owner what to DO rather than what happened.
+    const [snapshot, feedback, insights] = await Promise.all([
       loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider),
       loadPilotFeedback(deps.db, deps.businessId, 'today'),
+      loadInsights(deps.db, deps.businessId),
     ]);
-    return renderOperationsHome(snapshot, locale, {
+    return renderInsights(insights, locale) + renderOperationsHome(snapshot, locale, {
       conversationsNeedingYou: feedback.conversationsNeedingYou,
       reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
     });

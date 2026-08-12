@@ -97,10 +97,6 @@ const DECLARED_UNWIRED = {
     'EXPIRES AT META GO-LIVE. docs/ASSUMPTIONS.md P1: buyers send four fragments in ten seconds, and debounce-and-batch must be built BEFORE shadow traffic. Messaging is off, so this is not yet a defect; the day real buyers arrive it is one. message_fragments (0009) exists with no writer.',
 
   // ── Decisions not yet made. Each is a question with a deadline ──────────
-  'src/core/insights/questions.ts':
-    'DECISION PENDING (Part D). api/web/analytics.ts shows plain counts where this produces ranked, quantified drivers — the live page is WEAKER than the unwired module, which makes it a revival candidate rather than dead wood. Wire or delete; do not carry it past the next milestone.',
-  'src/core/insights/daily.ts':
-    'DECISION PENDING (Part D). The daily brief: one line, at most three insights, each ending in a one-tap action. Its own header says an insight that does not tell the owner what to tap is a vanity metric — which now describes the live analytics page. Same decision as questions.ts.',
   'src/core/trust/editScope.ts':
     'DECISION PENDING. Held to see whether it could weigh spot-check evidence by edit size; on inspection it classifies the SCOPE of what an edit teaches (one_time / buyer / product / style / policy), not the SIZE of an edit, and every input it needs is a signal nothing derives. drafts.status plus a draft_text/sent_text diff answers the size question directly. Wire it for edit LEARNING, or delete it.',
   'src/core/ops/degrade.ts':

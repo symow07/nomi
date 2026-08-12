@@ -201,8 +201,18 @@ DATABASE_URL='postgresql://…' npx vitest run tests/integration/
 | `tests/harness/` | The trust harness — scripted safety scenarios |
 
 The suite treats certain things as facts about the product rather than
-implementation details: the send gate's fail-closed behaviour, tenant isolation,
-the banned owner-facing vocabulary, and the absence of invented metrics.
+implementation details:
+
+- the send gate's fail-closed behaviour, and tenant isolation;
+- the banned owner-facing vocabulary, and the absence of invented metrics;
+- **a module is not built until a production entrypoint reaches it.** A passing
+  test proves a function works; it never proved anything called it. `npm run
+  check` now fails when a module in `src/` is reachable only from tests;
+- **an insight that does not tell the owner what to tap does not render.** The
+  same principle as "no invented metrics", one step on: a number with nothing to
+  do about it is a vanity metric wearing a fact's clothes. It is why the Today
+  page states findings with actions rather than counts alone — the shape that
+  the analytics page had drifted into while a better implementation sat unwired.
 
 ---
 

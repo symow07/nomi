@@ -285,6 +285,21 @@ every month. **Do it the product's way: the owner states the rate she will
 honour, or Nomi refuses to convert.** Never a live rate she did not approve —
 that is a number from outside her rules.
 
+### M43.5 — Why did this month change
+
+`core/insights/questions.ts` answered exactly this and was deleted in M34.10
+rather than wired: it ranked its drivers BY PERCENTAGE ("询盘多了67%",
+"报价成单率升到23%"), and the product banned percentages and conversion rates
+afterwards. Strip them and the ranking mechanism goes with them, so there was
+nothing left to port.
+
+The QUESTION is still worth answering — an owner who can see that orders fell
+because fewer buyers wrote, not because she priced badly, makes a different
+decision. **Rendered without rates:** name the driver and give the two counts
+("询盘从 40 变成 25"), rank by the size of the change, and end each line in
+something to tap, per the insight rule. Nothing else on this list needs it
+first.
+
 ### M44 — The factory closure calendar
 Nothing knows about Chinese New Year. Every lead time quoted in January is a lie
 stated with confidence. Ramadan matters symmetrically for Gulf buyers.
