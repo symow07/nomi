@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizePhone, samePhone, displayPhone } from '../../src/core/channel/phone.js';
+import { normalizePhone, displayPhone, maskPhone } from '../../src/core/channel/phone.js';
 import { gateOutbound } from '../../src/core/channel/sendGate.js';
 import { DAILY_OUTBOUND_CEILING } from '../../src/core/channel/limits.js';
 import type { SendPlan } from '../../src/core/channel/window.js';
@@ -22,7 +22,9 @@ describe('M18.2 · phone normalization (the comparison key)', () => {
     for (const written of ['+971 50 000 1234', '+971-50-000-1234', '00971500001234', '971500001234', ' +971 (50) 000.1234 ']) {
       expect(normalizePhone(written), written).toBe('971500001234');
     }
-    expect(samePhone('+971 50 000 1234', '971500001234')).toBe(true);
+    // samePhone was deleted in M34.10 — a wrapper nothing called. The rule it
+    // asserted is the one that matters and is stated directly:
+    expect(normalizePhone('+971 50 000 1234')).toBe(normalizePhone('971500001234'));
   });
 
   it('rejects anything that is not a phone number — never falls open', () => {
@@ -30,7 +32,7 @@ describe('M18.2 · phone normalization (the comparison key)', () => {
       expect(normalizePhone(bad as string), String(bad)).toBeNull();
     }
     // and a rejected number is never "equal" to anything
-    expect(samePhone('garbage', 'garbage')).toBe(false);
+    expect(normalizePhone('garbage')).toBeNull();   // two nulls are not a match
   });
 
   it('display form is for showing only', () => {
@@ -151,5 +153,29 @@ describe('M20.1 · nothing goes out before the owner turns messaging on', () => 
     // channel is silent by construction.
     const connectedNotActivated = { ...live, pilotMode: true, recipientAllowed: true, activated: false };
     expect(gateOutbound(connectedNotActivated).allow).toBe(false);
+  });
+});
+
+/* ── M34.10 · the masked number is masked HERE, not hopefully at write ────── */
+
+describe('M34.10 · a phone shown to the owner is never a whole number', () => {
+  it('keeps enough to recognise, hides the rest', () => {
+    expect(maskPhone('971500001234')).toBe('+9715****1234');
+    expect(maskPhone('+86 138 0000 1234')).toBe('+8613****1234');
+  });
+
+  it('renders nothing rather than fall back to an unmasked number', () => {
+    // The fail-open branch would be "too short to mask, so show it whole".
+    expect(maskPhone('1234567')).toBeNull();
+    expect(maskPhone(null)).toBeNull();
+    expect(maskPhone('not a phone')).toBeNull();
+  });
+
+  it('the channels page masks at render, whatever the column holds', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
+    expect(src).toContain('maskPhone(row.display_phone)');
+    expect(src, 'no raw display_phone may reach the view')
+      .not.toMatch(/displayId:\s*row\.display_phone/);
   });
 });

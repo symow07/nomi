@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { maskPhone } from '../../core/channel/phone.js';
 import { deriveHealth, type ChannelStatus } from '../../core/channel/health.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -38,7 +39,9 @@ export type ChannelView = {
   readonly connected: boolean;
   readonly status: WebChannelStatus;
   readonly healthOk: boolean;
-  readonly displayId: string | null;          // masked phone only — never a secret
+  /** M34.10 — masked at RENDER by `maskPhone`, not trusted to have been
+   *  masked at write. Never a full number, whatever the column holds. */
+  readonly displayId: string | null;
   readonly lastActivityAt: Date | null;
   readonly problem: ChannelProblem;
 };
@@ -81,7 +84,7 @@ export async function loadChannels(
       return {
         whatsapp: {
           kind: KIND, connected: false, status: health.status, healthOk: false,
-          displayId: row.display_phone, lastActivityAt: null, problem: problemFor(health.status),
+          displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
         ownerPhone,
       };
@@ -101,7 +104,7 @@ export async function loadChannels(
         connected: health.status === 'connected' || health.status === 'degraded',
         status: health.status,
         healthOk: health.inboundOk && health.outboundOk,
-        displayId: row.display_phone,
+        displayId: maskPhone(row.display_phone),
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },

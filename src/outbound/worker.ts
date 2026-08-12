@@ -2,7 +2,7 @@ import { nextToSend, type OutboundRow } from './sequencer.js';
 import {
   onSendFailure, shouldReclaim,
 } from '../core/channel/delivery.js';
-import { gateOutbound, type GateRefusal } from '../core/channel/sendGate.js';
+import { gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
 import { sendPlan, windowState, type TemplateState } from '../core/channel/window.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
@@ -134,9 +134,15 @@ export async function driveConversationOutbound(
   const suppressReason = humanOwns ? 'handed_off' as const : ctx.paused ? 'paused' as const : null;
   let active = live;
   if (suppressReason) {
+    // M34.10 — WHICH rows are cancelable is `cancelableOnTakeover`'s decision,
+    // not this loop's. The predicate was written twice — once there, once
+    // inline here — and only this copy ran, so the tested one could have
+    // drifted from the shipped one without a single failure. One rule, one
+    // definition; this function decides what to DO about it.
+    const doomed = new Set(cancelableOnTakeover(live));
     active = [];
     for (const r of live) {
-      if (r.status === 'queued' && r.origin === 'employee') {
+      if (doomed.has(r.id)) {
         await refuse(deps, r, suppressReason);
         effects.push({ kind: 'canceled', id: r.id, reason: suppressReason });
       } else {

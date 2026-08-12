@@ -75,15 +75,10 @@ export async function resumeAi(deps: TakeoverDeps, input: { businessId: Business
   });
 }
 
-/**
- * "Why was this handed over?" — the stored, unresolved PROBLEM signals only.
- * Reuses existing signal data; no classifier, no inference, no new storage.
+/*
+ * M34.10 — `takeoverContext` was deleted here. It was exported, referenced by
+ * nothing at all — not even a test — and answered "why was this handed over?"
+ * from unresolved problem signals. api/web/inbox.ts answers the same question
+ * from the same rows, in the read model the page actually uses
+ * (`handoffReason`), so this was a second implementation nobody ran.
  */
-export async function takeoverContext(deps: TakeoverDeps, input: { businessId: BusinessId; conversationId: string }): Promise<{ ownership: ConversationOwnership | null; reasons: readonly Signal['kind'][] }> {
-  return withTenantTx(deps.db, input.businessId, async (tx) => {
-    const ownership = await currentOwnership(tx, input.businessId, input.conversationId);
-    if (ownership === null) return { ownership: null, reasons: [] };
-    const unresolved = await tenantRepos(tx, input.businessId).signals.unresolved(input.conversationId as ConversationId);
-    return { ownership, reasons: unresolved.filter(isProblemSignal).map((s) => s.kind) };
-  });
-}

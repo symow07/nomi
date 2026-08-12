@@ -40,16 +40,40 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   return s;
 }
 
-/** True iff both normalize to the same canonical number. */
-export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
-  const na = normalizePhone(a);
-  const nb = normalizePhone(b);
-  return na !== null && na === nb;
+/**
+ * M34.10 — the MASKED display form, and the reason this function exists.
+ *
+ * `api/web/channels.ts` promised "masked phone only — never a secret" and then
+ * rendered `channels.display_phone` verbatim, so the promise held only if
+ * whatever wrote the column had already masked it. Nothing in production writes
+ * that column yet, which means the promise was true by luck and would have
+ * stopped being true the moment a connect flow stored a full number.
+ *
+ * Masking at RENDER makes it true regardless of what is stored: the country
+ * prefix and the last four digits are enough for an owner to recognise her own
+ * number, and the middle is never shown.
+ *
+ *   '971500001234' → '+9715****1234'
+ *
+ * A number too short to mask is not rendered at all. Returning it unmasked
+ * "because it is short" would be the fail-open branch.
+ */
+export function maskPhone(raw: string | null | undefined): string | null {
+  const n = normalizePhone(raw);
+  if (n === null) return null;
+  const KEEP_TAIL = 4;
+  const KEEP_HEAD = 4;
+  if (n.length < KEEP_HEAD + KEEP_TAIL + 1) return null;
+  return `+${n.slice(0, KEEP_HEAD)}****${n.slice(-KEEP_TAIL)}`;
 }
 
 /**
  * Display form for the owner: the canonical digits with a leading '+'. Used
  * only for showing a number back; never for comparison.
+ *
+ * `samePhone` used to live here too — a two-line wrapper over `normalizePhone`
+ * that nothing called. The allowlist compares normalized values directly, which
+ * is the same thing with one fewer name to keep true.
  */
 export function displayPhone(normalized: string): string {
   return `+${normalized}`;
