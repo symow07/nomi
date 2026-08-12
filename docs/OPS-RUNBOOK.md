@@ -49,5 +49,6 @@ is lost, not queued and replayed. Treat it as an open gap, not a solved one.
 measures the two compute budgets in CI: **quote compute < 50ms** (pure
 SQL+arithmetic — no LLM in the loop, which is why "instant" is honest) and
 render < 16ms. Nothing enforces **approval card open < 1000ms**: that is an
-on-device budget and there is no device build. The render budget is also
-measured against `core/owner/digest.ts`, a renderer no live surface uses.
+on-device budget and there is no device build. `PERF_BUDGETS.rendererMs` now
+measures nothing at all — the renderer it was pointed at (`core/owner/digest.ts`)
+was deleted in M34.8 and the live pages are HTML with no line budget.

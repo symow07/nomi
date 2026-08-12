@@ -5,11 +5,7 @@ import {
 } from '../../src/core/trust/evidence.js';
 import { classifyEditScope, learningAck, type EditSignals } from '../../src/core/trust/editScope.js';
 import { selectSpotChecks, parseSpotCheckReply, type CompletedWork } from '../../src/core/trust/spotCheck.js';
-import { nextRepairStep, canClose, type RepairRecord } from '../../src/core/trust/repair.js';
-import { computeReview, type ReviewStats } from '../../src/core/trust/review.js';
-import { FIRST_WEEK, nextJourneyBeat, journeyInOrder } from '../../src/core/trust/journey.js';
-import { PilotEntry, triageOrder, renderTriage, PILOT_EVENT_KINDS } from '../../src/pilot/log.js';
-import { DEMO_JOURNEY, DEMO_MONTH_STATS, DEMO_PROMOTED_EVIDENCE, DEMO_PAUSED_EVIDENCE, DEMO_REPAIR, demoTrustSeedSql } from '../../src/demo/trust.js';
+import { DEMO_PROMOTED_EVIDENCE, DEMO_PAUSED_EVIDENCE, demoTrustSeedSql } from '../../src/demo/trust.js';
 
 const evidence = (over: Partial<CapabilityEvidence> = {}): CapabilityEvidence => ({
   capability: 'greet', handled: 20, approvedNoEdit: 18, edited: 2,
@@ -157,121 +153,35 @@ describe('M5 · spot checks', () => {
 });
 
 /* ── Repair lifecycle: completeness before closure ───────────────────────── */
-describe('M5 · repair protocol', () => {
-  const base: RepairRecord = { ...DEMO_REPAIR, id: 'r1' };
-
-  it('a buyer-facing mistake demands containment before anything else', () => {
-    expect(nextRepairStep({ ...base, status: 'open', containment: 'none_needed' })).toBe('stop_auto');
-  });
-
-  it('the full path: prepare → owner → send → confirm → learn → verify → done', () => {
-    let r: RepairRecord = { ...base, status: 'open', correctedDraft: null,
-      correctionApproved: false, correctionSent: false, correctionDelivered: false,
-      learnedZh: null, verifiedAt: null };
-    expect(nextRepairStep(r)).toBe('prepare_correction');
-    r = { ...r, correctedDraft: 'fix' };
-    expect(nextRepairStep(r)).toBe('await_owner');
-    r = { ...r, correctionApproved: true };
-    expect(nextRepairStep(r)).toBe('send_correction');
-    r = { ...r, correctionSent: true };
-    expect(nextRepairStep(r)).toBe('confirm_delivery');
-    r = { ...r, correctionDelivered: true };
-    expect(nextRepairStep(r)).toBe('record_learning');
-    r = { ...r, learnedZh: '学到了' };
-    expect(nextRepairStep(r)).toBe('verify');
-    r = { ...r, verifiedAt: new Date() };
-    expect(nextRepairStep(r)).toBe('done');
-    expect(canClose(r)).toBe(true);
-  });
-
-  it('cannot close with missing steps — completeness is structural', () => {
-    expect(canClose({ ...base, status: 'open', learnedZh: null })).toBe(false);
-    expect(canClose({ ...base, status: 'open', correctionDelivered: false })).toBe(false);
-  });
-});
-
-/* ── Monthly review: arithmetic + fixed outcomes ─────────────────────────── */
-describe('M5 · monthly review calculations', () => {
-  it('demo month: edit ratio, auto share, hours, improving, outcome', () => {
-    const c = computeReview(DEMO_MONTH_STATS);
-    expect(c.editRatio).toBeCloseTo(6 / 37, 5);
-    expect(c.autoShare).toBeCloseTo(22 / 59, 5);
-    expect(c.improving).toBe(true);              // 0.162 < 0.24
-    expect(c.minutesSavedEstimate).toBe((31 + 22) * 3);
-    expect(c.outcome).toBe('有进步，建议继续观察');
-  });
-
-  it('open repairs or failed-heavy spot checks force the withdrawal outcome', () => {
-    const c = computeReview({ ...DEMO_MONTH_STATS, repairsClosed: 0 });
-    expect(c.outcome).toBe('某项职责建议暂时收回');
-  });
-
-  it('high edit ratio → 需要加强培训; stable clean month → 表现稳定', () => {
-    expect(computeReview({ ...DEMO_MONTH_STATS, draftsEdited: 20, previousEditRatio: null }).outcome)
-      .toBe('需要加强培训');
-    expect(computeReview({ ...DEMO_MONTH_STATS, previousEditRatio: null }).outcome)
-      .toBe('表现稳定，可以继续');
-  });
-});
-
-/* ── First-week journey ──────────────────────────────────────────────────── */
-describe('M5 · first-week journey', () => {
-  it('seven days, seven beats, in the defined order', () => {
-    expect(FIRST_WEEK).toHaveLength(7);
-    expect(FIRST_WEEK.map((d) => d.day)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-  });
-
-  it('the demo journey is complete and correctly sequenced', () => {
-    expect(journeyInOrder(DEMO_JOURNEY)).toBe(true);
-    expect(nextJourneyBeat(DEMO_JOURNEY)).toBeNull();
-  });
-
-  it('beats are event-driven: the next beat waits for its real event', () => {
-    const partial = DEMO_JOURNEY.slice(0, 2);
-    expect(nextJourneyBeat(partial)?.beat).toBe('first_night_shift');
-    expect(journeyInOrder([...partial].reverse())).toBe(true);   // order by time, not array
-  });
-});
-
-/* ── Pilot log ───────────────────────────────────────────────────────────── */
-describe('M5 · pilot log system', () => {
-  const entry = (over: object) => PilotEntry.parse({
-    at: '2026-07-20T10:00:00Z', owner: '王老板', surface: '审批卡',
-    kind: 'hesitated_before_approval', event: '盯着卡片12秒才点发送',
-    severity: 2, trustImpact: -1, ...over,
-  });
-
-  it('covers all 19 observation kinds from the spec', () => {
-    expect(PILOT_EVENT_KINDS).toHaveLength(19);
-    for (const k of PILOT_EVENT_KINDS) expect(() => entry({ kind: k })).not.toThrow();
-  });
-
-  it('triage: blockers first, then severity, then trust damage', () => {
-    const list = [
-      entry({ event: 'minor', severity: 1, trustImpact: 1 }),
-      entry({ event: 'blocker', severity: 1, trustImpact: 0, blocksLaunch: true }),
-      entry({ event: 'severe', severity: 3, trustImpact: -2 }),
-    ];
-    const order = triageOrder(list).map((e) => e.event);
-    expect(order).toEqual(['blocker', 'severe', 'minor']);
-    expect(renderTriage(list)).toContain('[BLOCKER]');
-  });
-});
-
-/* ── Demo trust seed ─────────────────────────────────────────────────────── */
+/*
+ * M34.8 — the repair-protocol, monthly-review, first-week-journey and pilot-log
+ * blocks were deleted with their modules. Each modelled a ritual that no
+ * production path ever ran: no repair record was ever written, no review ever
+ * rendered, no journey beat ever fired, no pilot entry ever logged.
+ *
+ * What remains here is what is REACHED: promotion evidence and withdrawal
+ * (core/trust/evidence.ts, read by pipeline/capability.ts), the spot-check
+ * selector and reply parser (wired in M34.7), and edit scope, which is held
+ * pending a decision.
+ */
 describe('M5 · demo trust scenarios', () => {
   it('is deterministic and idempotent by construction', () => {
     const sql = demoTrustSeedSql();
     expect(sql).toBe(demoTrustSeedSql());
-    // identity-PK inserts are guarded; uuid inserts use on conflict
-    expect(sql.match(/where not exists/g)!.length).toBe(2);
-    expect(sql.match(/on conflict \(id\) do nothing/g)!.length).toBe(4);
+    // EVERY insert is guarded, derived rather than counted: this asserted a
+    // literal 4 and broke when the repairs seed was deleted, which is a test
+    // measuring the size of the seed instead of the property that matters.
+    const inserts = sql.match(/insert into \w+/g) ?? [];
+    expect(inserts.length).toBeGreaterThan(0);
+    const guards = (sql.match(/where not exists/g) ?? []).length
+      + (sql.match(/on conflict \(id\) do nothing/g) ?? []).length;
+    expect(guards, 'every seeded insert must be idempotent').toBe(inserts.length);
   });
 
-  it('the demo employee is not perfect: a pause, a failed check, a repair', () => {
+  it('the demo employee is not perfect: a pause and a failed check', () => {
     expect(demotionDecision(DEMO_PAUSED_EVIDENCE).action).toBe('pause');
     expect(promotionDecision(DEMO_PROMOTED_EVIDENCE).eligible).toBe(true);
-    expect(DEMO_REPAIR.buyerReceivedMistake).toBe(true);
-    expect(canClose(DEMO_REPAIR)).toBe(true);
+    // The repair half went with core/trust/repair.ts — nothing wrote a repair
+    // record in production, so the demo no longer seeds one either.
   });
 });

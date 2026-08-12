@@ -4,13 +4,9 @@ import {
   whySalesChanged, bestCountries, objectionProducts, repeatedEdits, followUpToday,
   REPEATED_EDIT_THRESHOLD,
 } from '../../src/core/insights/questions.js';
-import { knowledgeLineZh, knowledgeDeltaZh } from '../../src/core/trust/knowledge.js';
-import { renderShareableWeekly, SHARE_MARK_ZH } from '../../src/core/owner/weeklyShare.js';
-import { computeReview } from '../../src/core/trust/review.js';
 import { DESIGN_TOKENS, MOTION_SPECS, KEYBOARD_SHORTCUTS, BOX } from '../../src/core/owner/tokens.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
-import { DEMO_MONTH_STATS } from '../../src/demo/trust.js';
 
 const daily = (over: Partial<DailyData> = {}): DailyData => ({
   handled: 12, waitingApproval: 3,
@@ -118,69 +114,17 @@ describe('M7 · answerable questions', () => {
   });
 });
 
-/* ── Knowledge counter ───────────────────────────────────────────────────── */
-describe('M7 · knowledge counter', () => {
-  const now = { products: 340, buyers: 85, corrections: 210, rules: 12 };
-
-  it('reads like the spec: products, buyers, corrections', () => {
-    const line = knowledgeLineZh('小雅', now);
-    expect(line).toContain('340 个产品');
-    expect(line).toContain('85 位买家');
-    expect(line).toContain('你的 210 条改法');
-    expect(line).toContain('12 条规矩');
-  });
-
-  it('delta shows growth only — no growth, no line', () => {
-    expect(knowledgeDeltaZh(now, { products: 320, buyers: 80, corrections: 200, rules: 12 }))
-      .toBe('这个月：新认识 20 个产品、5 位买家、新记住 10 条改法');
-    expect(knowledgeDeltaZh(now, now)).toBeNull();
-  });
-
-});
-
-/* ── Shareable weekly card ───────────────────────────────────────────────── */
-describe('M7 · shareable 员工周报', () => {
-  const card = renderShareableWeekly({
-    employeeName: '小雅', avatar: '👩‍💼', weekZh: '7月13日–7月19日',
-    conversations: 47, nightShiftHandled: 9, quotes: 14, orderValueUsd: 7300,
-    highlightZh: '凌晨2点接住了俄罗斯买家的询盘',
-    knowledgeZh: knowledgeLineZh('小雅', { products: 12, buyers: 6, corrections: 9, rules: 2 }),
-  });
-
-  it('uses the box grammar and carries the referral mark', () => {
-    expect(card.split('\n')[0]).toBe(BOX.top('👩‍💼 小雅的一周'));
-    expect(card).toContain(SHARE_MARK_ZH);
-    expect(SHARE_MARK_ZH).toContain('Nomi');
-  });
-
-  it('brags honestly: real numbers, one story, zero-value lines omitted', () => {
-    expect(card).toContain('接待 47 个询盘');
-    expect(card).toContain('夜班独立接待 9 次');
-    expect(card).toContain('$7,300');
-    expect(card).toContain('凌晨2点');
-    const zeroOrders = renderShareableWeekly({
-      employeeName: '小雅', avatar: '👩‍💼', weekZh: 'x', conversations: 5,
-      nightShiftHandled: 0, quotes: 2, orderValueUsd: 0, highlightZh: 'y', knowledgeZh: null,
-    });
-    expect(zeroOrders).not.toContain('谈成');
-    expect(zeroOrders).not.toContain('夜班');
-  });
-
-  it('passes the owner test: banned terms + screenshot-width lines', () => {
-    const lower = card.toLowerCase();
-    for (const banned of BANNED_OWNER_TERMS) {
-      const needle = banned.toLowerCase();
-      const hit = /^[a-z ]+$/.test(needle)
-        ? new RegExp(`\\b${needle}\\b`).test(lower)
-        : lower.includes(needle);
-      expect(hit, `"${banned}" in weekly card`).toBe(false);
-    }
-    for (const l of card.split('\n')) {
-      if ((l.match(/[A-Za-z]/g)?.length ?? 0) >= 15) continue;
-      expect(textWidth(l), l).toBeLessThanOrEqual(48);
-    }
-  });
-});
+/*
+ * M34.8 — the knowledge-counter and shareable-weekly blocks went with
+ * core/trust/knowledge.ts and core/owner/weeklyShare.ts. Neither had a live
+ * surface: api/web/knowledge-insights.ts renders gaps and activity but no
+ * counter line, and no page produces a shareable card.
+ *
+ * daily.ts and questions.ts are still exercised above. They are UNWIRED and
+ * held back from deletion deliberately: the live analytics page shows plain
+ * counts where these produce ranked drivers and one-tap actions, which makes
+ * them revival candidates rather than dead wood. The decision is open.
+ */
 
 /* ── PWA polish as data ──────────────────────────────────────────────────── */
 describe('M7 · premium feel tokens', () => {

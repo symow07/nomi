@@ -1,8 +1,5 @@
 import { DEMO_BUSINESS, DEMO_BUYERS, DEMO_NAMESPACE } from './factory.js';
 import type { CapabilityEvidence } from '../core/trust/evidence.js';
-import type { RepairRecord } from '../core/trust/repair.js';
-import type { ReviewStats } from '../core/trust/review.js';
-import type { JourneyEvent } from '../core/trust/journey.js';
 
 /**
  * M5 — Deterministic trust history for 义乌宏发日用品厂. The demo employee is
@@ -36,20 +33,12 @@ export const DEMO_PAUSED_EVIDENCE: CapabilityEvidence = {
   daysSupervised: 9, recentCorrections: 2, trainingExamples: 5,
 };
 
-/** The repaired mistake: wrong lead time reached Ahmed; corrected + learned. */
-export const DEMO_REPAIR: RepairRecord = {
-  id: sid(1), capability: 'quote',
-  whatHappenedZh: '给 Ahmed 报的交期写成了15天，实际是20天',
-  buyerReceivedMistake: true,
-  containment: 'auto_replies_stopped',
-  correctedDraft: 'Correction: lead time for ZX-200 is 20 days, not 15. Apologies for the confusion.',
-  correctionApproved: true, correctionSent: true, correctionDelivered: true,
-  learnedZh: '保温杯交期按产品表20天，不再手写',
-  authorityChanged: false,
-  verifiedAt: daysAgo(2),
-  status: 'closed',
-};
-
+/*
+ * M34.8 — DEMO_REPAIR and the `repairs` seed went with core/trust/repair.ts.
+ * No surface reads that table: the repair protocol was modelled, never wired,
+ * and the incident playbook now says so plainly. Seeding rows nothing renders
+ * is how the demo factory hid the promotion defect for a year.
+ */
 export const DEMO_SPOT_CHECKS = [
   { id: sid(2), capability: 'greet', verdict: 'correct' as const, correction: null, daysAgo: 4 },
   { id: sid(3), capability: 'greet', verdict: 'correct' as const, correction: null, daysAgo: 2 },
@@ -63,29 +52,9 @@ export const DEMO_BUYER_PREFERENCE = {
   noteZh: '只发英文，不发语音；付款只走TT',
 };
 
-export const DEMO_MONTH_STATS: ReviewStats = {
-  conversations: 47, draftsApproved: 31, draftsEdited: 6, autoReplies: 22,
-  buyerReplies: 38, quotes: 14, ordersProgressed: 2, nightShiftHandled: 9,
-  escalations: 2, repairsOpened: 1, repairsClosed: 1,
-  spotChecksPassed: 3, spotChecksFailed: 1, trainingExamplesAdded: 9,
-  capabilitiesPromoted: ['接待问候'], capabilitiesLimited: [],
-  previousEditRatio: 0.24,
-};
-
-/** First-week journey, as it actually unfolded for the demo factory. */
-export const DEMO_JOURNEY: readonly JourneyEvent[] = [
-  { beat: 'introduction', at: daysAgo(7) },
-  { beat: 'first_correction', at: daysAgo(6) },
-  { beat: 'first_night_shift', at: daysAgo(5) },
-  { beat: 'first_spot_check', at: daysAgo(4) },
-  { beat: 'buyer_memory', at: daysAgo(3) },
-  { beat: 'progress_update', at: daysAgo(2) },
-  { beat: 'weekly_summary', at: daysAgo(1) },
-];
-
+/** Single-quote escaping for the generated SQL literals. */
 const esc = (s: string): string => s.replace(/'/g, "''");
 
-/** Idempotent: identity-PK tables guard with not-exists; uuid tables on-conflict. */
 export function demoTrustSeedSql(namespace: string = DEMO_NAMESPACE): string {
   const ev = (capability: string, action: string, fromMode: string, toMode: string,
     reasons: string, evidence: object, dAgo: number) =>
@@ -103,9 +72,6 @@ select '${B}', '${capability}', '${action}', '${fromMode}', '${toMode}', array[$
       `insert into spot_checks (id, business_id, capability, verdict, correction, asked_at, answered_at)
 values ('${s.id}', '${B}', '${s.capability}', '${s.verdict}', ${s.correction ? `'${esc(s.correction)}'` : 'null'}, now() - interval '${s.daysAgo} days', now() - interval '${s.daysAgo} days')
 on conflict (id) do nothing;`),
-    `insert into repairs (id, business_id, capability, record, status, opened_at, closed_at)
-values ('${DEMO_REPAIR.id}', '${B}', 'quote', '${esc(JSON.stringify(DEMO_REPAIR))}'::jsonb, 'closed', now() - interval '3 days', now() - interval '2 days')
-on conflict (id) do nothing;`,
     `update clients set notes = '${esc(DEMO_BUYER_PREFERENCE.noteZh)}' where id = '${DEMO_BUYER_PREFERENCE.buyer.id}' and (notes is null or notes = '');`,
   ].join('\n');
   // Same substitution as demoSeedSql: every id here derives from the namespace.
