@@ -3,6 +3,14 @@
  * representative completed work; verdicts feed promotion/demotion evidence
  * (evidence.ts applySpotCheck). No spam: a fixed weekly budget, results
  * summarized in the review, never pushed one by one.
+ *
+ * M34.7 — WIRED. Until now this module selected work nobody offered and parsed
+ * replies nobody sent: the only INSERT into spot_checks in the entire repo was
+ * the demo seed. Since PROMOTION_REQUIREMENTS demands 2–4 passed checks for
+ * every capability, `spotChecksPassed` was permanently 0 in a real tenant and
+ * no capability could ever be promoted. "Autonomy is earned" had no earning
+ * step. The demo factory seeded its own history, which is exactly how it stayed
+ * hidden. The producer is `pipeline/spotChecks.ts`.
  */
 
 export type CompletedWork = {
@@ -10,7 +18,6 @@ export type CompletedWork = {
   readonly capability: string;
   readonly buyerMessage: string;
   readonly reply: string;
-  readonly replyZh: string;          // back-translation — owner judges what he can read
   readonly wasAuto: boolean;         // auto work is what spot checks exist for
   readonly at: Date;
 };

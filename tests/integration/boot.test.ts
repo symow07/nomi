@@ -662,7 +662,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('New customers');
     expect(res.body).toContain('Activity');
     expect(res.body).toContain("Lily's work");
-    expect(res.body).not.toContain('<svg');    // no fabricated chart
+    // No fabricated chart. Scoped to <main> because the shell's own header
+    // inlines the brand mark as an <svg>: this assertion read the WHOLE page
+    // and silently became false the moment the real logo landed, which nobody
+    // saw because the integration suite does not run without DATABASE_URL.
+    // The rule is unchanged — the page still may not draw a chart.
+    const main = res.body.slice(res.body.indexOf('<main>'), res.body.indexOf('</main>'));
+    expect(main.length).toBeGreaterThan(0);
+    expect(main).not.toContain('<svg');
     expect(res.body).not.toContain('<table');  // mobile: no wide tables
     // Visible content (styles + hrefs stripped) carries no rate/score vocabulary.
     // A percentage rate reads as <digit>% — URL-encoded %2F in the locale switcher

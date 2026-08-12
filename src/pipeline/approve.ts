@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db } from '../db/client.js';
 import { parseOwnerReply } from '../core/conversation/cards.js';
 import type { BusinessId } from '../core/types/ids.js';
+import { ensureSpotChecks } from './spotChecks.js';
 
 /**
  * M9.3 (Option B) — the ONE draft-resolution service. Completes the trust
@@ -90,10 +91,16 @@ export async function applyOwnerCommand(
     switch (cmd.kind) {
       case 'approve':
         await resolve('approved', draft.draft_text);
+        // M34.7 — completed work becomes checkable work. This is the producer
+        // for 抽查: until it existed, spot_checks had no writer outside the demo
+        // seed and no capability in a real tenant could ever be promoted.
+        // Capped at three a week and silent — nothing is pushed to the owner.
+        await ensureSpotChecks(tx, input.businessId);
         return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text };
       case 'edit':
         // sent_text ≠ draft_text is exactly what the training_examples view reads.
         await resolve('edited', cmd.text);
+        await ensureSpotChecks(tx, input.businessId);
         return { outcome: 'edited_sent', conversationId: draft.conversation_id, sendText: cmd.text };
       case 'skip':
         await resolve('rejected', null);

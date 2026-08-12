@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spotChecks.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -41,13 +42,19 @@ export type EmployeeProfile = {
   readonly growth: readonly GrowthEvent[];
   readonly promoted: boolean;
   readonly conditions: readonly { readonly cond: ConditionCode; readonly met: boolean }[];
+  /**
+   * M34.7 — 抽查 waiting for the owner. This page is a READ MODEL and creates
+   * none of them: they are written when work completes (pipeline/approve.ts),
+   * so viewing this page stays free of side effects.
+   */
+  readonly spotChecks: readonly PendingSpotCheck[];
 };
 
 export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
   const bid = parseBusinessId(businessIdRaw);
   const empty: EmployeeProfile = {
     hireDate: null, knows: 0, stage: 'probation', canDo: [], needConfirm: [], capabilities: [],
-    growth: [], promoted: false, conditions: [],
+    growth: [], promoted: false, conditions: [], spotChecks: [],
   };
   if (!bid.ok) return empty;
 
@@ -98,6 +105,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     return {
       hireDate: onboard?.signup_at ?? null,
       knows,
+      spotChecks: await loadPendingSpotChecks(tx, bid.value),
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
       conditions: promoted ? [] : [
@@ -212,6 +220,37 @@ export function renderEmployee(
     ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
   </div>`;
 
+  // M34.7 — 抽查. Placed right after what she is trusted with, because that is
+  // the question it answers: is the trust warranted? It is the one thing on
+  // this page that asks the owner to act, so it does not sit under the
+  // mechanics. Absent when there is nothing to check — an empty ritual is worse
+  // than none, and the page already says enough about her without it.
+  const spotChecks = e.spotChecks.length
+    ? `<div class="block"><h2>${esc(t(locale, 'spotcheck.title'))}</h2>
+        <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
+        ${e.spotChecks.map((s) => {
+          const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
+          return `<div class="scheck">
+            <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
+            <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
+            <div class="muted sclabel">${esc(t(locale, 'spotcheck.sheReplied', { name }))}</div>
+            <div class="proposed"><bdi>${esc(s.reply)}</bdi></div>
+            <form method="post" action="${act}" class="acts">
+              <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
+              <button class="btn danger" name="answer" value="有问题">${esc(t(locale, 'spotcheck.problem'))}</button>
+            </form>
+            <details class="scfix"><summary>${esc(t(locale, 'spotcheck.fix'))}</summary>
+              <form method="post" action="${act}">
+                <textarea name="answer" rows="2" required
+                  placeholder="${esc(t(locale, 'spotcheck.fixPlaceholder'))}"></textarea>
+                <button class="btn" type="submit">${esc(t(locale, 'spotcheck.fixSave'))}</button>
+              </form>
+            </details>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
   const growth = `<div class="block"><h2>${esc(t(locale, 'employee.growth.title'))}</h2>
     ${e.growth.length
       ? `<ul class="growth">${e.growth.map((g) => {
@@ -251,12 +290,20 @@ export function renderEmployee(
     ${card}
     ${knowsSection(e, ctx, locale)}
     ${duties}
+    ${spotChecks}
     ${recentSection(ctx, locale)}
     ${teachSection(ctx, locale)}
     ${growth}${promo}${actions}${EMP_STYLE}`;
 }
 
 const EMP_STYLE = `<style>
+  /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
+  .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
+  .scheck:last-child { border-bottom:0; }
+  .sclabel { font-size:var(--font-size-micro); margin-top:8px; }
+  .scsaid { padding:6px 0; }
+  .scfix summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; padding:6px 0; }
+  .scfix textarea { width:100%; }
   /* Phase C: plain count rows and tappable gap rows — no matrix, no dense table. */
   .hrows { display:flex; flex-direction:column; gap:2px; }
   .hrow { display:flex; align-items:baseline; gap:12px; padding:8px 0; border-bottom:1px solid var(--color-border); }

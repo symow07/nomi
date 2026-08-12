@@ -44,6 +44,7 @@ import {
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
+import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { takeOver, resumeAi } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
@@ -586,6 +587,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   capAction('promote', (b, c) => promoteCapability(deps.db, b, c, 'owner'));
   capAction('revoke', (b, c) => revokeCapability(deps.db, b, c, 'owner'));
+
+  // ── M34.7 抽查: the owner answers a spot check ────────────────────────────
+  // The buttons post the wire words parseSpotCheckReply already understands
+  // (好 / 有问题) and the correction box posts whatever she typed — the same
+  // shape as the inbox's draft actions, and the reason that parser needed no
+  // change to become reachable.
+  app.post('/app/employee/spot-check/:id', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const answer = String((req.body as { answer?: string } | undefined)?.answer ?? '');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/employee');
+    const r = await withTenantTx(deps.db, bid.value, (tx) => answerSpotCheck(tx, bid.value, id, answer));
+    const key = !r.answered ? 'spotcheck.flash.gone'
+      : r.verdict === 'correct' ? 'spotcheck.flash.ok'
+      : r.verdict === 'serious' ? 'spotcheck.flash.problem'
+      : 'spotcheck.flash.fixed';
+    return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, key as MessageKey))}`);
+  });
 
   // ── M9.7 Conversations: customer memory over existing activity ────────────
   app.get('/app/conversations', authed('conversations', async (s, req, locale) => {

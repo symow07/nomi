@@ -36,11 +36,12 @@ export default class SkippedReporter implements Reporter {
     if (skipped === 0) return;
 
     // Only the database-gated suites get the DATABASE_URL advice, because only
-    // they are unlocked by it. A test skipped for any other reason is somebody
-    // else's message to write, and claiming a variable would run it would be
-    // the same false instruction as the incident runbook's kill switch.
+    // they are unlocked by it — and only when the variable is actually missing.
+    // Telling someone to set it when it is already set (the case where an
+    // integration suite skipped because its own setup threw) is the same false
+    // instruction as a runbook pointing at a table nothing reads.
     const dbGated = [...files].some((f) => f.includes('/tests/integration/'));
-    const hint = dbGated
+    const hint = dbGated && !process.env['DATABASE_URL']
       ? ' — set DATABASE_URL to include them'
       : '';
     const noun = skipped === 1 ? 'assertion' : 'assertions';

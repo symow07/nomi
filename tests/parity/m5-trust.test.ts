@@ -133,7 +133,7 @@ describe('M5 · edit-learning scope', () => {
 /* ── Spot checks: deterministic selection, low-friction verdicts ─────────── */
 describe('M5 · spot checks', () => {
   const work = (id: string, capability: string, wasAuto = true): CompletedWork => ({
-    id, capability, buyerMessage: 'q', reply: 'a', replyZh: '答', wasAuto,
+    id, capability, buyerMessage: 'q', reply: 'a', wasAuto,
     at: new Date('2026-07-17T00:00:00Z'),
   });
 
