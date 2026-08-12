@@ -8,7 +8,6 @@ import {
 } from '../../src/outbound/worker.js';
 import { whatsappSimulator, SIMULATOR_SECRET, type SendBehavior } from '../../src/channels/whatsapp/simulator.js';
 import { buildIngressApp } from '../../src/api/ingress.js';
-import { runTestConnection } from '../../src/channels/testflow.js';
 import { applyStatus } from '../../src/core/channel/delivery.js';
 import { verifySignature, signBody, isStaleEvent } from '../../src/channels/whatsapp/signature.js';
 import {
@@ -240,33 +239,12 @@ describe('M3 · webhook ingress', () => {
   });
 });
 
-/* ── 测试连接 against the simulator ──────────────────────────────────────── */
-describe('M3 · test-connection flow (simulator)', () => {
-  const ports = (script: readonly SendBehavior[], inbound: boolean) => {
-    const sim = whatsappSimulator(script);
-    return {
-      adapter: sim.adapter, ownerPhone: '8613800001234',
-      waitForStatus: async () => script[0] === 'ok',
-      hasInboundEvents: async () => inbound,
-      checkOrdering: async () => true,
-      checkPersistence: async () => true,
-    };
-  };
-
-  it('everything works → 连接正常', async () => {
-    const r = await runTestConnection(ports(['ok'], true));
-    expect(r.verdict).toBe('all_good');
-  });
-  it('send rejected → 可以收到消息但暂时无法发送', async () => {
-    const r = await runTestConnection(ports(['http401'], true));
-    expect(r.verdict).toBe('inbound_only');
-    expect(r.checks.outboundAccepted).toBe(false);
-  });
-  it('no inbound yet → 可以发送但还没收到客户消息', async () => {
-    const r = await runTestConnection(ports(['ok'], false));
-    expect(r.verdict).toBe('outbound_only');
-  });
-});
+/*
+ * M34.8 — the 测试连接 flow block was deleted with src/channels/testflow.ts.
+ * Its five probes were superseded by testChannel(), which reads stored channel
+ * health; its one surviving rule — a broken foundation never reads as
+ * "all good" — is ported to m3-compliance.test.ts against the live mapping.
+ */
 
 /* ── Security: encryption, redaction, no leakage ─────────────────────────── */
 describe('M3 · credential security', () => {

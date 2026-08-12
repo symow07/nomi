@@ -10,7 +10,6 @@ import { renderContactUs, KB_ARTICLES } from '../../src/core/owner/support.js';
 import { PERF_BUDGETS } from '../../src/core/ops/perf.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
-import { renderDailyDigest } from '../../src/core/owner/digest.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
 import { product, tiers, policy } from './fixtures.js';
@@ -181,15 +180,18 @@ describe('M8 · performance budgets', () => {
     expect(perQuoteMs).toBeLessThan(PERF_BUDGETS.quoteComputeMs);
   });
 
-  it('digest renders within a frame budget', () => {
+  it('quote compute is honestly instant: 1000 quotes well under budget, zero LLM', () => {
     const start = performance.now();
-    for (let i = 0; i < 100; i++) {
-      renderDailyDigest({
-        employeeName: '小雅', date: T0, now: T0,
-        stats: { conversations: 12, handled: 9, quotes: 3, orders: 1, orderValueUsd: 7300 },
-        highlight: null, pending: [], onDutyTonightZh: null,
-      });
+    for (let i = 0; i < 1000; i++) {
+      const r = computeQuote({ product: product(), tiers: tiers(), policy: policy(), rules: [], quantity: 5000 + i });
+      if (!r.ok) throw new Error('fixture');
     }
-    expect((performance.now() - start) / 100).toBeLessThan(PERF_BUDGETS.rendererMs);
+    const perQuoteMs = (performance.now() - start) / 1000;
+    expect(perQuoteMs).toBeLessThan(PERF_BUDGETS.quoteComputeMs);
   });
+
+  // M34.8 — the 'digest renders within a frame budget' case went with
+  // core/owner/digest.ts. PERF_BUDGETS.rendererMs now has no renderer to
+  // measure, and inventing an HTML equivalent would be measuring something
+  // nobody designed a budget for.
 });

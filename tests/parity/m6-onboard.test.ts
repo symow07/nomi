@@ -4,7 +4,6 @@ import {
   ONBOARD_ORDER, ACTIVATION_TARGET_MS, YIWU_DEFAULTS, type OnboardState,
 } from '../../src/core/onboard/flow.js';
 import { parsePriceLines, validateExtracted } from '../../src/core/onboard/catalogImport.js';
-import { ONBOARD_STEP_COPY, renderCatalogConfirm, renderActivation } from '../../src/core/owner/onboarding.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
 
@@ -101,54 +100,14 @@ describe('M6 · tolerant catalog import', () => {
   });
 });
 
-/* ── Onboarding surfaces ─────────────────────────────────────────────────── */
-describe('M6 · onboarding copy', () => {
-  const confirmCard = renderCatalogConfirm(validateExtracted([
-    { sku: null, name: '帆布袋', nameZh: '帆布袋', priceUsd: 1.05, moq: 500, unit: 'pcs' },
-    { sku: null, name: '保温杯', nameZh: '保温杯', priceUsd: null, moq: null, unit: 'pcs' },
-    { sku: null, name: 'x', nameZh: null, priceUsd: 1, moq: 1, unit: 'pcs' },
-  ]), '小雅');
-  const activation = renderActivation('小雅', 7);
-  const stepCopy = Object.values(ONBOARD_STEP_COPY).map((s) => `${s.title}\n${s.prompt}`).join('\n');
-
-  it('confirm card proposes, never silently saves', () => {
-    expect(confirmCard).toContain('小雅认出了 2 个产品');
-    expect(confirmCard).toContain('价格待补');
-    expect(confirmCard).toContain('没认出来');
-    expect(confirmCard).toContain('回复「对」入册');
-  });
-
-  it('activation moment names the time and the working pattern', () => {
-    expect(activation).toContain('7 分钟');
-    expect(activation).toContain('她起草，你审批');
-  });
-
-  for (const [name, text] of Object.entries({ confirmCard, activation, stepCopy })) {
-    it(`${name}: banned-term scan + width budget`, () => {
-      const lower = text.toLowerCase();
-      for (const banned of BANNED_OWNER_TERMS) {
-        const needle = banned.toLowerCase();
-        const hit = /^[a-z ]+$/.test(needle)
-          ? new RegExp(`\\b${needle}\\b`).test(lower)
-          : lower.includes(needle);
-        expect(hit, `"${banned}" in ${name}`).toBe(false);
-      }
-      for (const l of text.split('\n')) {
-        if ((l.match(/[A-Za-z]/g)?.length ?? 0) >= 15) continue;
-        expect(textWidth(l), `${name}: ${l}`).toBeLessThanOrEqual(48);
-      }
-    });
-  }
-});
-
-/**
- * M22 (F-02) — the owner's article number survives the import.
- *
- * It did not. `confirmImport` generated `NEW-<timestamp>-<i>` for every row and
- * threw away whatever she had typed, so she could not find her own goods by the
- * number she and her buyers use, and every re-import silently duplicated her
- * whole catalogue under fresh ids.
+/*
+ * M34.8 — the onboarding copy block was deleted with
+ * src/core/owner/onboarding.js. The live guided onboarding is
+ * api/web/onboarding.ts (M11.2), whose own header records that it re-implements
+ * nothing and deep-links to the page that completes each step; its copy is in
+ * the i18n catalogue and scanned there by owner-language.test.ts.
  */
+
 describe('M22 (F-02) · product import preserves the owner’s own article number', () => {
   const one = (line: string) => parsePriceLines(line)[0]!;
 

@@ -232,3 +232,49 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(html).toContain('@media (max-width:560px)');
   });
 });
+
+/* ── 抽查, ported from the deleted M5 text card ──────────────────────────── */
+
+describe('M34.8 · a spot check shows the owner the work itself', () => {
+  /**
+   * PORTED CHECK, not a ported module. `core/owner/trustCards.ts` rendered a
+   * 抽查 card asserting it showed the capability, both messages and the words
+   * to reply with. That card is deleted; the live section is on this page. The
+   * rule survives because it is a product rule: asking the owner to judge a
+   * reply she cannot see would be asking her to guess.
+   */
+  const withCheck: EmployeeProfile = {
+    ...base,
+    spotChecks: [{
+      id: 's1', capability: 'quote', conversationId: 'c1',
+      askedAt: new Date('2026-08-12T02:00:00Z'),
+      buyerMessage: 'Can you do 20000 pcs FOB Ningbo?',
+      reply: 'Yes — for 20,000 pcs the unit price is $0.38 FOB Ningbo.',
+    }],
+  };
+
+  it('renders the buyer message and her reply, not a reference to them', () => {
+    const html = renderEmployee(withCheck, 'en', null);
+    expect(html).toContain('Can you do 20000 pcs FOB Ningbo?');
+    expect(html).toContain('$0.38 FOB Ningbo');
+    // The id belongs in the form action; it must not appear in anything the
+    // owner READS. (The first version of this asserted against the whole
+    // document and failed on its own action URL.)
+    const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]*>/g, ' ');
+    expect(visible).not.toContain('s1');
+  });
+
+  it('offers a way to answer in every locale, and posts to the one action', () => {
+    for (const l of LOCALES) {
+      const html = renderEmployee(withCheck, l, null);
+      expect(html).toContain('/app/employee/spot-check/s1');
+      expect(html).toContain('value="好"');       // the wire word parseSpotCheckReply reads
+      expect(html).toContain('value="有问题"');
+    }
+  });
+
+  it('renders nothing at all when there is nothing to check', () => {
+    const html = renderEmployee(base, 'en', null);
+    expect(html).not.toContain('/app/employee/spot-check/');
+  });
+});

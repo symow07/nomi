@@ -3,7 +3,6 @@ import { recallLineZh, recallContextEn, RETURNING_AFTER_MS, type BuyerHistory } 
 import { renderApprovalCard } from '../../src/core/conversation/cards.js';
 import { buildInvoice, renderInvoiceEn } from '../../src/core/commerce/invoice.js';
 import { renderInvoiceCardZh, renderPricingZh, renderPricingEn, renderPaymentInstructionsZh, FAPIAO_ANSWER_ZH, DATA_PROMISE_ZH } from '../../src/core/owner/commerce.js';
-import { renderBusinessProfile, renderEmployeeProfile } from '../../src/core/owner/profile.js';
 import { PLANS, planById, startTrial, confirmPayment, subscriptionStatus, computeCosts, TOKEN_PRICE_USD } from '../../src/core/billing/plans.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
@@ -161,16 +160,6 @@ describe('M6 · commercial copy passes the owner test', () => {
     paymentBank: renderPaymentInstructionsZh('bank', planById('pro')),
     fapiao: FAPIAO_ANSWER_ZH,
     dataPromise: DATA_PROMISE_ZH,
-    businessProfile: renderBusinessProfile({
-      companyName: '义乌宏发日用品厂', incotermZh: 'FOB 宁波',
-      currencyZh: '人民币记账，美元报价', languagesZh: ['中文', '英文', '阿拉伯文'],
-      paymentTermsZh: 'TT 30% 定金', catalogCount: 12,
-    }),
-    employeeProfile: renderEmployeeProfile({
-      employeeName: '小雅', avatar: '👩‍💼', hireDate: daysAgo(9),
-      roleZh: '外贸销售助理（试用期）', languagesZh: ['中文', '英文'],
-      promotedCount: 1, learningCount: 5,
-    }),
   };
 
   for (const [name, text] of Object.entries(surfaces)) {

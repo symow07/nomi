@@ -5,7 +5,6 @@ import {
   REPEATED_EDIT_THRESHOLD,
 } from '../../src/core/insights/questions.js';
 import { knowledgeLineZh, knowledgeDeltaZh } from '../../src/core/trust/knowledge.js';
-import { renderMonthlyReview } from '../../src/core/owner/reviewReport.js';
 import { renderShareableWeekly, SHARE_MARK_ZH } from '../../src/core/owner/weeklyShare.js';
 import { computeReview } from '../../src/core/trust/review.js';
 import { DESIGN_TOKENS, MOTION_SPECS, KEYBOARD_SHORTCUTS, BOX } from '../../src/core/owner/tokens.js';
@@ -137,17 +136,6 @@ describe('M7 · knowledge counter', () => {
     expect(knowledgeDeltaZh(now, now)).toBeNull();
   });
 
-  it('appears in the monthly review between quality and authority', () => {
-    const review = renderMonthlyReview({
-      employeeName: '小雅', monthZh: '7月',
-      stats: DEMO_MONTH_STATS, computed: computeReview(DEMO_MONTH_STATS),
-      knowledgeZh: knowledgeLineZh('小雅', now),
-      knowledgeDeltaZh: knowledgeDeltaZh(now, { products: 320, buyers: 80, corrections: 200, rules: 12 }),
-    });
-    expect(review).toContain('340 个产品');
-    expect(review).toContain('这个月：新认识 20 个产品');
-    expect(review.split('\n').length).toBeLessThanOrEqual(30);
-  });
 });
 
 /* ── Shareable weekly card ───────────────────────────────────────────────── */

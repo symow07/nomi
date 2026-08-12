@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { detectClaims, guardClaims, type AllowedClaim } from '../../src/core/safety/claims.js';
-import { claim, release, slaCheck, type Handoff } from '../../src/inbox/transitions.js';
 import { checkBudget } from '../../src/core/budget.js';
 import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from '../pipeline/fakes.js';
@@ -85,41 +84,15 @@ describe('claims guard wired into the pipeline', () => {
 });
 
 /* ─────────────────────────── INBOX (P3) ─────────────────────────── */
-describe('inbox transitions', () => {
-  const now = new Date('2026-07-15T10:00:00Z');
-  const open = (over: Partial<Handoff> = {}): Handoff => ({
-    id: 'h1', conversationId: 'd1', requestedAt: new Date('2026-07-15T09:50:00Z'),
-    slaDeadlineAt: new Date('2026-07-15T10:05:00Z'),
-    holdingSentAt: null, claimedAt: null, claimedBy: null, releasedAt: null, ...over,
-  });
-
-  it('claim: first agent wins, second is refused', () => {
-    expect(claim(open(), 'agent-a', now).ok).toBe(true);
-    const second = claim(open({ claimedBy: 'agent-a', claimedAt: now }), 'agent-b', now);
-    expect(second.ok).toBe(false);
-    if (!second.ok) expect(second.error).toBe('already_claimed');
-  });
-
-  it('release: requires the claimer AND a real summary', () => {
-    const h = open({ claimedBy: 'agent-a', claimedAt: now });
-    expect(release(h, 'agent-b', 'agreed 5% discount on 10k units', now).ok).toBe(false);
-    expect(release(h, 'agent-a', 'ok', now).ok).toBe(false); // summary too short
-    const good = release(h, 'agent-a', 'Agreed 5% discount at 10k units, quote issued; client will confirm email tomorrow.', now);
-    expect(good.ok).toBe(true);
-  });
-
-  it('SLA: holding message exactly once, then re-alerts only', () => {
-    const before = new Date('2026-07-15T10:04:00Z');
-    const after = new Date('2026-07-15T10:06:00Z');
-    expect(slaCheck(open(), before)).toEqual({ kind: 'none' });
-    expect(slaCheck(open(), after)).toEqual({ kind: 'send_holding_and_realert' });
-    expect(slaCheck(open({ holdingSentAt: after }), new Date('2026-07-15T10:30:00Z')))
-      .toEqual({ kind: 'realert_only' });
-    expect(slaCheck(open({ claimedBy: 'agent-a', claimedAt: after }), after)).toEqual({ kind: 'none' });
-  });
-});
-
-/* ─────────────────────────── BUDGETS (P5) ─────────────────────────── */
+/*
+ * M34.8 — the 'inbox transitions' block was deleted with src/inbox/transitions.ts.
+ * That state machine (a Handoff record with claim/release/slaCheck) was
+ * superseded by the ONE ownership model: conversations.assigned_to, read by
+ * api/web/inbox.ts and enforced at send time by gateOutbound's `handed_off`.
+ * The live rules are asserted where they live — refusals.test.ts for the gate,
+ * empty-states and inbox tests for the surface — not here against a parallel
+ * machine nothing ran.
+ */
 describe('tenant budgets', () => {
   const budget = { dailyLlmCalls: 1000, dailyTokens: 1_000_000, softWarnPct: 80, onExceeded: 'throttle' as const };
 

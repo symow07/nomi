@@ -3,7 +3,6 @@ import {
   computeImageInquiry, parseCaptionQuantity, MATCH_MIN_RELEVANCE,
   type ImageTurnDeps,
 } from '../../src/pipeline/imageTurn.js';
-import { renderImageApprovalCard, IMAGE_FALLBACK_REPLY } from '../../src/core/owner/imageMatch.js';
 import { renderQuoteCard } from '../../src/core/conversation/cards.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { renderDemoScript, demoSeedSql, DEMO_PRODUCTS, DEMO_BUYERS, DEMO_CONVERSATIONS } from '../../src/demo/factory.js';
@@ -122,76 +121,13 @@ describe('M4 · image inquiry decisions', () => {
   });
 });
 
-/* ── Owner surface for the wow moment ────────────────────────────────────── */
-describe('M4 · image approval card', () => {
-  const quoteResult = (() => {
-    const r = computeQuote({ product: product(), tiers: tiers(), policy: policy(), rules: [], quantity: 5000 });
-    if (!r.ok) throw new Error('fixture');
-    return r.value;
-  })();
-
-  const card = renderImageApprovalCard({
-    buyerName: 'Fatima', buyerCountryHint: '摩洛哥', isReturning: false,
-    caption: 'need 5000 pcs like this', captionZh: '要5000个这样的',
-    matchedNameZh: '帆布袋', matchedSku: 'ZX-100', quantityFromCaption: true,
-    draft: 'Thanks for the photo! For 5,000 pcs of our canvas tote: $0.45/pc FOB Ningbo.',
-    draftZh: '谢谢发图！帆布袋5000个，单价0.45美元FOB宁波。',
-    quoteCard: renderQuoteCard(quoteResult, product().name),
-  });
-
-  const moqCard = renderImageApprovalCard({
-    buyerName: null, buyerCountryHint: null, isReturning: false,
-    caption: null, captionZh: null,
-    matchedNameZh: '保温杯', matchedSku: 'ZX-200', quantityFromCaption: false,
-    draft: 'Thanks for the photo! Our 500ml thermos starts at 1,000 pcs.',
-    draftZh: '谢谢发图！保温杯1000个起订。',
-    quoteCard: null,
-  });
-
-  it('shows photo context, the match, and one-tap actions in canonical order', () => {
-    const order = ['👤 Fatima', '买家发来一张产品图', '〔翻译〕', '认出了：帆布袋（ZX-100）', '我想回', '〔意思是〕', '报价卡', '为什么', '发送'];
-    let last = -1;
-    for (const needle of order) {
-      const at = card.indexOf(needle);
-      expect(at, needle).toBeGreaterThan(last);
-      last = at;
-    }
-  });
-
-  it('assumed-MOQ quotes carry the warning; unknown buyer degrades gracefully', () => {
-    expect(moqCard).toContain('买家没说数量');
-    expect(moqCard).toContain('未知买家');
-    expect(card).not.toContain('买家没说数量');
-  });
-
-  it('owner surfaces pass banned-term scan and width budgets', () => {
-    for (const text of [card, moqCard, renderDemoScript()]) {
-      const lower = text.toLowerCase();
-      for (const banned of BANNED_OWNER_TERMS) {
-        const needle = banned.toLowerCase();
-        const hit = /^[a-z ]+$/.test(needle)
-          ? new RegExp(`\\b${needle}\\b`).test(lower)
-          : lower.includes(needle);
-        expect(hit, `"${banned}" in surface`).toBe(false);
-      }
-    }
-    // Width budget on AUTHORED lines (content-carrying lines are governed by
-    // the card's line budget, same as the M1 approval card).
-    const authored = moqCard.split('\n').filter((l) =>
-      l.startsWith('⚠️') || l.startsWith('为什么') || l.startsWith('👤') ||
-      l.startsWith('买家发来') || l.startsWith('认出了'));
-    expect(authored.length).toBeGreaterThanOrEqual(3);
-    for (const l of authored) expect(textWidth(l), l).toBeLessThanOrEqual(BUDGET.lineColumns);
-    expect(card.split('\n').length).toBeLessThanOrEqual(BUDGET.cardLines);
-  });
-
-  it('fallback drafts never invent product names', () => {
-    const which = IMAGE_FALLBACK_REPLY.whichOne('Canvas Tote Bag', 'Travel Cosmetic Bag');
-    expect(which).toContain('Canvas Tote Bag');
-    expect(IMAGE_FALLBACK_REPLY.noMatch()).toContain('size and material');
-    expect(IMAGE_FALLBACK_REPLY.resend()).toContain('send it again');
-  });
-});
+/*
+ * M34.8 — the 'image approval card' block was deleted with
+ * src/core/owner/imageMatch.js, the M4 text card. The live owner surface for a
+ * photo inquiry is api/web/inbox.ts, which renders the draft and its refusal
+ * from stored rows; its rules are asserted in refusals.test.ts and
+ * owner-language.test.ts against what that page actually renders.
+ */
 
 /* ── Media fetcher against the wire shape ────────────────────────────────── */
 describe('M4 · media download', () => {

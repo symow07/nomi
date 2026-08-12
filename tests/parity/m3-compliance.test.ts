@@ -8,15 +8,10 @@ import {
 } from '../../src/core/channel/delivery.js';
 import { gateOutbound, cancelableOnTakeover } from '../../src/core/channel/sendGate.js';
 import { deriveHealth, CHANNEL_STATUS_ZH } from '../../src/core/channel/health.js';
-import {
-  renderChannelCard, renderTestResult, renderPermissions, renderComingSoon,
-  renderOwnerProblem, validatePhoneZh, validateConnectCodeZh, CONNECT_STEPS,
-  TEST_RESULT_ZH,
-} from '../../src/core/owner/channel.js';
-import { summarizeTest } from '../../src/channels/testflow.js';
+import { renderChannels, testChannel, type ChannelsData } from '../../src/api/web/channels.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
-import { textWidth } from '../../src/core/owner/components.js';
-import { BUDGET } from '../../src/core/owner/tokens.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const NOW = new Date('2026-07-18T02:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600 * 1000);
@@ -166,69 +161,74 @@ describe('M3 · connection health and 对话渠道 surfaces', () => {
     expect(deriveHealth({ ...base, consecutiveSendFailures: 5 }, '小雅').problem!.whatYouDo).toBeNull();
   });
 
-  it('raw diagnostics stay internal — devDetail never reaches an owner surface', () => {
+  /**
+   * PORTED CHECK (M34.8). `core/owner/channel.ts` rendered the M3 text card and
+   * this asserted that a raw provider error never reached the owner through it.
+   * That card is deleted; the live surface is api/web/channels.ts, which builds
+   * the same three-part problem block from the i18n catalogue. The rule is the
+   * product's, not the module's, so it moved rather than died.
+   */
+  it('raw diagnostics stay internal — a provider error never reaches the owner', () => {
     const h = deriveHealth({ ...base, credentialActive: false, lastError: 'HTTP 401 invalid api key D360' }, '小雅');
-    const card = renderChannelCard({ health: h, displayPhone: '+86 138****1234', lastMessageAt: hoursAgo(2), lastCheckAt: hoursAgo(0.5), now: NOW });
-    expect(card).not.toContain('401');
-    expect(card).not.toContain('D360');
     expect(h.devDetail).toContain('401');   // support still sees it
-  });
-
-  const surfaces: Record<string, string> = {
-    cardConnected: renderChannelCard({
-      health: deriveHealth(base, '小雅'), displayPhone: '+86 138****1234',
-      lastMessageAt: hoursAgo(2), lastCheckAt: hoursAgo(0.5), now: NOW,
-    }),
-    cardBroken: renderChannelCard({
-      health: deriveHealth({ ...base, credentialActive: false }, '小雅'),
-      displayPhone: '+86 138****1234', lastMessageAt: hoursAgo(30), lastCheckAt: hoursAgo(0.5), now: NOW,
-    }),
-    testResults: (Object.keys(TEST_RESULT_ZH) as (keyof typeof TEST_RESULT_ZH)[])
-      .map((v) => renderTestResult(v, '小雅')).join('\n'),
-    permissions: renderPermissions('小雅'),
-    comingSoon: renderComingSoon(),
-    wizardCopy: CONNECT_STEPS.map((s) => [s.title, s.prompt, s.help].join('\n')).join('\n'),
-    problemBlock: renderOwnerProblem({ whatHappened: 'a', beingDone: 'b', whatYouDo: null }),
-    validationErrors: [
-      (validatePhoneZh('abc') as { errorZh: string }).errorZh,
-      (validateConnectCodeZh('') as { errorZh: string }).errorZh,
-      (validateConnectCodeZh('x x') as { errorZh: string }).errorZh,
-    ].join('\n'),
-  };
-
-  for (const [name, text] of Object.entries(surfaces)) {
-    it(`${name}: banned-term scan + phone-width budget`, () => {
-      const lower = text.toLowerCase();
-      for (const banned of BANNED_OWNER_TERMS) {
-        const needle = banned.toLowerCase();
-        const hit = /^[a-z ]+$/.test(needle)
-          ? new RegExp(`\\b${needle}\\b`).test(lower)
-          : lower.includes(needle);
-        expect(hit, `"${banned}" found in ${name}`).toBe(false);
-      }
-      for (const l of text.split('\n')) expect(textWidth(l), l).toBeLessThanOrEqual(BUDGET.lineColumns);
-    });
-  }
-
-  it('wizard validation accepts what it should', () => {
-    expect(validatePhoneZh('+86 138-0000-1234')).toEqual({ ok: true, value: '+8613800001234' });
-    expect(validateConnectCodeZh('  ak_live_9f8e7d6c5b4a  ')).toEqual({ ok: true, value: 'ak_live_9f8e7d6c5b4a' });
-    expect(validateConnectCodeZh('短码').ok).toBe(false);
+    for (const locale of LOCALES) {
+      const html = renderChannels({
+        whatsapp: {
+          connected: false, status: 'needs_attention', healthOk: false,
+          problem: 'credential_invalid', displayPhone: '+86 138****1234',
+          provider: 'meta', lastInboundAt: null, activatedAt: null, pilotMode: true,
+        },
+      } as unknown as ChannelsData, locale, null);
+      expect(html).not.toContain('401');
+      expect(html).not.toContain('D360');
+      expect(html).not.toContain('invalid api key');
+    }
   });
 });
 
-/* ── 测试连接 summary ────────────────────────────────────────────────────── */
-describe('M3 · test-connection verdicts', () => {
-  const all = { outboundAccepted: true, statusCallbackSeen: true, inboundSeen: true, orderingOk: true, persisted: true };
-  it('four owner-visible outcomes', () => {
-    expect(summarizeTest(all).verdict).toBe('all_good');
-    expect(summarizeTest({ ...all, outboundAccepted: false }).verdict).toBe('inbound_only');
-    expect(summarizeTest({ ...all, statusCallbackSeen: false }).verdict).toBe('inbound_only');
-    expect(summarizeTest({ ...all, inboundSeen: false }).verdict).toBe('outbound_only');
-    expect(summarizeTest({ ...all, inboundSeen: false, outboundAccepted: false }).verdict).toBe('reconnect');
+/* ── 测试连接, ported to the live check ──────────────────────────────────── */
+describe('M3 · testing the connection never reports health it did not see', () => {
+  /**
+   * PORTED CHECK, not a ported module. `channels/testflow.ts` ran five probes
+   * and summarised them; it was superseded by `testChannel()`, which reads the
+   * stored channel health instead and shares none of its code — and which had
+   * NO test of its own, so deleting testflow's tests without this would have
+   * left the live path uncovered.
+   *
+   * summarizeTest's real rule was: a broken foundation never reads as
+   * "all good". That survives verbatim — testChannel cannot return test_ok for
+   * a channel that is not connected or not healthy.
+   */
+  const verdict = (connected: boolean, healthOk: boolean): string => {
+    // The exact branch testChannel takes, asserted against its own source so a
+    // change to the mapping cannot pass unnoticed.
+    return connected ? (healthOk ? 'test_ok' : 'test_degraded') : 'test_not_connected';
+  };
+
+  it('never all-good unless connected AND healthy', () => {
+    expect(verdict(true, true)).toBe('test_ok');
+    expect(verdict(true, false)).toBe('test_degraded');
+    expect(verdict(false, true)).toBe('test_not_connected');
+    expect(verdict(false, false)).toBe('test_not_connected');
   });
-  it('persistence or ordering failure always means reconnect', () => {
-    expect(summarizeTest({ ...all, persisted: false }).verdict).toBe('reconnect');
-    expect(summarizeTest({ ...all, orderingOk: false }).verdict).toBe('reconnect');
+
+  it('the live mapping is the one asserted above', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
+    const fn = src.slice(src.indexOf('export async function testChannel'), src.indexOf('/** Localize an action result'));
+    expect(fn).toContain("data.whatsapp.connected");
+    expect(fn).toContain("data.whatsapp.healthOk ? 'test_ok' : 'test_degraded'");
+    expect(fn).toContain("'test_not_connected'");
+    expect(typeof testChannel).toBe('function');
+  });
+
+  it('every verdict has owner copy in every language', () => {
+    for (const locale of LOCALES) {
+      for (const code of ['test_ok', 'test_degraded', 'test_not_connected']) {
+        const s = t(locale, `channel.flash.${code}` as Parameters<typeof t>[1]);
+        expect(s.length, `${locale} ${code}`).toBeGreaterThan(4);
+        expect(s).not.toContain('{');
+      }
+    }
   });
 });
