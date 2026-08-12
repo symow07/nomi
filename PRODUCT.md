@@ -13,8 +13,7 @@ business hires a digital employee who answers buyer enquiries on WhatsApp —
 identifies the product, quotes within the owner's rules, and never states a
 price, specification, or certification the owner has not given her.
 
-Product name is **Nomi**, and it is now the only name. The split this document
-once argued for — `yiwuflow` inside, Nomi outside — is reversed; see Constraints.
+Product name is **Nomi** — inside and out, one name everywhere.
 
 ## Primary user
 
@@ -75,25 +74,12 @@ implementation detail, not a design hierarchy.
 - **Archive, never erase.** The application role holds no DELETE anywhere.
 - **Pilot safety**: an allowlist gates who can be messaged; activation is explicit and
   refuses on unmet preconditions.
-- **One name.** This section previously argued the opposite: that the repository,
-  database, migrations, i18n keys and role should keep the name `yiwuflow` while
-  only the owner-facing brand said Nomi, on the grounds that renaming them was
-  risk without user-visible benefit. That is reversed. The split cost more than
-  it saved — two vocabularies for one thing, in a codebase whose whole
-  discipline is that a name means what it says — and no owner-facing copy ever
-  contained `yiwuflow`, so nothing she reads changed.
+- **One name.** Nomi, everywhere: repository, database, migrations, i18n keys,
+  runtime role, and the product the owner sees. A name means what it says.
 
-  What deliberately keeps the old name: migrations 0001–0022 (applied history,
-  forward-only per ADR-0007), and `docs/adr/` and `docs/archive/` (the record of
-  decisions taken under it). The runtime role moved in migration 0026, across
-  three releases so an older build still runs against the newer schema.
-
-  The database is not on that list, because it never carried the old name. It is
-  called `railway` — the name Railway gives a Postgres it provisions — so the
-  name is historical in the sense that nobody chose it, not in the sense that it
-  preserves anything. There is no `yiwuflow` database, and this section and
-  DEPLOYMENT.md both once described one, along with the `ALTER DATABASE` dance
-  needed to rename it. See DEPLOYMENT.md for what the cluster actually holds.
+  Applied history keeps what it was applied under — the early migrations,
+  `docs/adr/` and `docs/archive/` — because rewriting a record of what happened
+  is not renaming, it is falsifying. Everything else is Nomi.
 
 ## Accessibility
 

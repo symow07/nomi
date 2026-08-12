@@ -178,10 +178,13 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
     // Taught facts actually used in this conversation, in the owner's words.
     const taught = r.conversation_id
       ? (await sql<{ label: string; content: string }>`
+          -- The id list is a jsonb array on the event. A set-returning function
+          -- cannot live in a JOIN condition (Postgres 0A000), so it is expanded
+          -- in a LATERAL first and joined on the expanded value.
           select distinct pk.label, pk.content
             from conversation_events e
-            join product_knowledge pk
-              on pk.id = (jsonb_array_elements_text(e.payload->'ids'))::uuid
+            cross join lateral jsonb_array_elements_text(coalesce(e.payload->'ids', '[]'::jsonb)) as kid(id)
+            join product_knowledge pk on pk.id = kid.id::uuid
            where e.conversation_id = ${r.conversation_id}::uuid
              and e.type = 'knowledge_used'
              and pk.status = 'active'
@@ -372,6 +375,26 @@ ${cssVariables()}
   .foot p { margin:0 0 var(--space-4); }
   .muted { color:var(--color-ink-secondary); }
 </style>`;
+
+/**
+ * M35.1 — what the OWNER needs to see beside a quote: is there a live link, and
+ * which quote would one be issued for. Read-only.
+ */
+export type ProofLinkState = {
+  readonly quoteId: string | null;
+  readonly token: string | null;
+};
+
+export async function loadProofLinkState(tx: Tx, conversationId: string): Promise<ProofLinkState> {
+  const q = (await sql<{ id: string }>`
+    select id from quotes where conversation_id = ${conversationId}::uuid
+     order by created_at desc limit 1`.execute(tx)).rows[0];
+  if (!q) return { quoteId: null, token: null };
+  const link = (await sql<{ token: string }>`
+    select token from quote_proofs
+     where quote_id = ${q.id}::uuid and revoked_at is null limit 1`.execute(tx)).rows[0];
+  return { quoteId: q.id, token: link?.token ?? null };
+}
 
 /**
  * The 404 body. Says nothing: not whether the link ever existed, not whether it

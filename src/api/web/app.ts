@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
-import { loadProof, renderProof, notFoundPage } from './proof.js';
+import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { loadInsights, renderInsights } from './insights.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
@@ -633,6 +634,51 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.verdict === 'serious' ? 'spotcheck.flash.problem'
       : 'spotcheck.flash.fixed';
     return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, key as MessageKey))}`);
+  });
+
+  // ── M35.1 · the owner issues and revokes the buyer's proof link ───────────
+  //
+  // It lives on the conversation because that is where the quote lives. Both
+  // actions are audited on the conversation like every other owner action, and
+  // both go through the same session guard as the rest of /app.
+  const proofAction = (
+    verb: string,
+    run: (biz: string, cid: string) => Promise<{ code: 'issued' | 'revoked' | 'failed' }>,
+  ) =>
+    app.post(`/app/inbox/:conversationId/proof${verb}`, async (req, reply) => {
+      const sess = sessionOf(req);
+      if (!sess) return reply.redirect('/login');
+      const locale = localeOf(req);
+      const cid = (req.params as { conversationId: string }).conversationId;
+      const r = await run(sess.businessId, cid);
+      const flash = t(locale, `proof.owner.flash.${r.code}` as MessageKey);
+      return reply.redirect(
+        `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(flash)}`);
+    });
+
+  proofAction('', async (biz, cid) => {
+    const bid = parseBusinessId(biz);
+    if (!bid.ok) return { code: 'failed' as const };
+    const quoteId = await withTenantTx(deps.db, bid.value, (tx) =>
+      loadProofLinkState(tx, cid).then((p) => p.quoteId));
+    if (!quoteId) return { code: 'failed' as const };
+    const issued = await issueProofLink(deps.db, biz, quoteId);
+    if (!issued) return { code: 'failed' as const };
+    await withTenantTx(deps.db, bid.value, (tx) =>
+      tenantRepos(tx, bid.value).events.append(cid as never, 'proof_issued', { quoteId }));
+    return { code: 'issued' as const };
+  });
+
+  proofAction('/revoke', async (biz, cid) => {
+    const bid = parseBusinessId(biz);
+    if (!bid.ok) return { code: 'failed' as const };
+    const state = await withTenantTx(deps.db, bid.value, (tx) => loadProofLinkState(tx, cid));
+    if (!state.token) return { code: 'failed' as const };
+    const r = await revokeProofLink(deps.db, biz, state.token);
+    if (!r.revoked) return { code: 'failed' as const };
+    await withTenantTx(deps.db, bid.value, (tx) =>
+      tenantRepos(tx, bid.value).events.append(cid as never, 'proof_revoked', { quoteId: state.quoteId }));
+    return { code: 'revoked' as const };
   });
 
   // ── M9.7 Conversations: customer memory over existing activity ────────────

@@ -42,7 +42,7 @@ const detail = (refusals: readonly Refusal[]): ConversationDetail => ({
   product: { name: 'Canvas tote', nameZh: null }, quantity: 5000, quote: null, order: null,
   messages: [{ direction: 'inbound', text: 'what is your price?', at: NOW }],
   pendingDraft: null, ownership: 'AI', refusals, handoffReasons: [], unheardReason: null,
-  lastHumanAction: null, knowledgeUsed: [],
+  lastHumanAction: null, knowledgeUsed: [], proof: { quoteId: null, token: null },
 });
 
 const snapshot = (blockedMessages: number): OperationsSnapshot => ({
@@ -173,8 +173,12 @@ describe('M22 · Today reports it, with a real count', () => {
   it('a blocked message alone is enough to break "all clear"', () => {
     // Today used to say "you are all caught up" while a buyer waited on a reply
     // that was never sent. One refusal must be enough to contradict that.
-    expect(renderOperationsHome(snapshot(1), 'en')).not.toContain(t('en', 'ops.attention.allClear'));
-    expect(renderOperationsHome(snapshot(0), 'en')).toContain(t('en', 'ops.attention.allClear'));
+    // M35.5 — the calm state is now one sentence rather than a heading plus a
+    // body, so the assertion moved from the heading to the sentence. The RULE is
+    // unchanged: one refusal must be enough to contradict "all is well".
+    const calm = t('en', 'today.calm.body', { name: 'Lily' });
+    expect(renderOperationsHome(snapshot(1), 'en')).not.toContain(calm);
+    expect(renderOperationsHome(snapshot(0), 'en')).toContain(calm);
   });
 });
 

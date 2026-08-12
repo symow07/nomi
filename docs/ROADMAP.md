@@ -121,6 +121,29 @@ earns its keep.
 
 ---
 
+### M37.5 — The words she may never say
+
+The owner flags terms 小雅 must never use with a buyer, from her own settings.
+This is `claims_policy` for LANGUAGE: she already controls what may be CLAIMED,
+and this adds what may be SAID — same shape, same default-deny posture, same
+"absence is a refusal, not a default" rule.
+
+A FLOOR SHE CAN EXTEND BUT NEVER REMOVE: never curse, never disrespect a buyer.
+The owner adds to that floor; she cannot delete it. A tenant that could switch
+off "do not insult the customer" is a tenant that will, by accident, on the day
+someone pastes a competitor's phrasing into the catalogue.
+
+**NOT `BANNED_OWNER_TERMS`, and whoever builds this will conflate the two.**
+`BANNED_OWNER_TERMS` (core/owner/vocabulary.ts) governs what the PRODUCT shows
+the OWNER — no "model", no "confidence", no "系统". It is about our register when
+we speak to her. This governs what SHE says to a BUYER, in the buyer's language,
+and the two lists share neither contents nor purpose. They will want to be one
+function; they must not be.
+
+Enforcement belongs beside `guardClaims` in the reply path, not in the prompt: a
+prompt is a request and a guard is a refusal, and this repo has been paying for
+that distinction all year.
+
 ### M36 — The consistency guard
 
 She refuses to quote a returning buyer a price that contradicts what she already

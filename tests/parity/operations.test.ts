@@ -73,8 +73,11 @@ describe('M16.2a · operations snapshot (pure)', () => {
     const s = emptyFactory;
     expect(needsOwnerAttention(s)).toBe(false);
     // M22 (F-01): with messaging LIVE, a quiet day is genuinely all-clear.
+    // M35.5 — that used to be a heading above a sentence. The calm state is now
+    // ONE sentence, so this asserts the sentence rather than the heading that
+    // repeated it.
     expect(renderOperationsHome({ ...s, channel: { status: 'connected', provider: 'meta' } }, 'en'))
-      .toContain("You're all caught up");
+      .toContain('Lily is looking after your buyers');
   });
 
   it('ownership mapping is the M16.1 one (handoffs vs owner-handling)', () => {
@@ -140,14 +143,23 @@ describe('Nomi Phase B · Today (render)', () => {
     { ...emptyFactory, channel: { status: 'connected', provider: 'meta' } };
 
   it('a quiet day is a designed state, not an empty grid', () => {
-    for (const [l, phrase] of [['en', "You're all caught up"], ['zh', '都处理完了'], ['ar', 'أنجزت كل شيء']] as const) {
+    // M35.5 — the calm state IS the page now: a rule, one sentence, air. Not a
+    // card among cards, and not a heading plus a body saying the same thing
+    // twice. What must hold is that it is DESIGNED and that it says WHY.
+    for (const [l, phrase] of [['en', 'Lily is looking after your buyers'],
+                               ['zh', '在照看你的买家'], ['ar', 'تعتني بمشتريك']] as const) {
       const html = renderOperationsHome(liveQuiet, l);
       expect(html).toContain(phrase);
-      expect(html).toContain('class="block calm"');
+      expect(html).toContain('class="calm-page"');
+      expect(html).toContain('class="calm-rule"');
+      // Her words, in her voice — the same second voice she speaks in elsewhere.
+      expect(html).toMatch(/class="calm-say voice"/);
     }
     const en = renderOperationsHome(liveQuiet, 'en');
-    expect(en).toContain('Lily is looking after your buyers');   // says WHY it is calm
     expect(en).not.toContain('class="need"');                    // no attention rows at all
+    // AND NOTHING ELSE. A quiet day renders no count sections whatever.
+    expect(en).not.toContain("What Lily did");
+    expect(en).not.toContain('href="/app/analytics"');
   });
 
   it('M22 (F-01) · a quiet day with messaging OFF is not the same quiet day', () => {
@@ -157,8 +169,14 @@ describe('Nomi Phase B · Today (render)', () => {
     const html = renderOperationsHome(emptyFactory, 'en');
     expect(html).not.toContain('Lily is looking after your buyers');
     expect(html).not.toContain("You're all caught up");
+    // M35.5 — the not-live state is ONE sentence now, and it is the title
+    // ("No buyer can reach Lily yet"), which states the consequence rather than
+    // the mechanism. The body that said "Messaging is not on." was the second
+    // sentence saying the same thing.
     expect(html).toContain('No buyer can reach Lily yet');
-    expect(html).toContain('Messaging is not on.');
+    // The two quiet days remain visibly different: the live one gets the jade
+    // rule, this one does not, and only this one offers a way forward.
+    expect(html).toContain('class="calm-page off"');
     expect(html).toContain('href="/app/factory"');               // and a way forward
     // Asserted on the MARKUP: 'calm-mark' also appears in the stylesheet, which
     // ships on every render, so matching the bare string would always pass.

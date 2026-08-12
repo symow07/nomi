@@ -12,7 +12,7 @@ deploy without changing anything.
 | Deploy trigger | push to `main` |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
-| Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`; there is no `yiwuflow` database and there never was one here. Earlier revisions of this row described one, and a rename procedure for it. |
+| Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`. |
 | Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,

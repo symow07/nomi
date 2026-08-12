@@ -1,13 +1,13 @@
 {
   "name": "nomi",
   "version": "1.0.0",
-  "description": "An AI sales employee a factory can trust in front of a real buyer. Answers WhatsApp enquiries in English, 中文 and العربية — quotes only from the owner's own price rules, never states a price, spec or certification she was not given, and hands the conversation to a person when she cannot answer safely.",
+  "description": "An AI sales employee a factory can trust in front of a real buyer. Answers WhatsApp enquiries in English, \u4e2d\u6587 and \u0627\u0644\u0639\u0631\u0628\u064a\u0629 \u2014 quotes only from the owner's own price rules, never states a price, spec or certification she was not given, and hands the conversation to a person when she cannot answer safely.",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "boundaries": "node tools/check-boundaries.mjs && node tools/check-reachable.mjs",
+    "boundaries": "node tools/check-boundaries.mjs && node tools/check-reachable.mjs && node tools/check-reachable.mjs --symbols --ratchet",
     "test": "vitest run",
     "test:parity": "vitest run tests/parity",
     "trust": "vitest run tests/harness/trust-harness.test.ts --disable-console-intercept",

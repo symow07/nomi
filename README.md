@@ -10,14 +10,6 @@ person.
 
 The owner runs it themselves. There is no operator between them and the product.
 
-> There was once a split: internal identifiers named `yiwuflow`, the product
-> named **Nomi**. It is reversed — one name, everywhere. Migrations 0001–0022,
-> `docs/adr/` and `docs/archive/` still carry the old name, because they are
-> applied history and the record of decisions taken under it. See
-> [ADR-0010](docs/adr/0010-open-questions.md).
-
----
-
 ## 1. What it is
 
 The product is not "an AI that replies to customers". It is a control system

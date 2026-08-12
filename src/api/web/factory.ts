@@ -375,9 +375,21 @@ function rehearsalBlock(r: RehearsalReport, locale: Locale, name: string): strin
 const fact = (label: string, value: string | null): string =>
   value ? `<div class="frow"><span class="flabel">${esc(label)}</span><bdi class="fval">${esc(value)}</bdi></div>` : '';
 
+/**
+ * M35.5 — the design-language pass this file was left out of.
+ *
+ * 8c32469 gave every other surface two voices; factory.ts is simply absent from
+ * that commit's file list, so it kept the tokens and none of the language.
+ *
+ * The QUESTION under each heading is the owner's own — "What do we sell?",
+ * "What should she never get wrong?" — which is a person speaking, so it takes
+ * the second voice. The headings and values are the interface speaking and stay
+ * in the interface voice. That is the whole rule, applied here for the first
+ * time.
+ */
 const section = (title: string, question: string, body: string, href: string, more: string): string =>
   `<section class="fblock">
-    <div class="fhead"><h2>${esc(title)}</h2><p class="fq">${esc(question)}</p></div>
+    <div class="fhead"><h2>${esc(title)}</h2><p class="fq voice">${esc(question)}</p></div>
     ${body}
     ${deeper(href, more)}
   </section>`;

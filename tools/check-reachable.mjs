@@ -282,6 +282,42 @@ if (process.argv.includes('--symbols')) {
   console.log('that no other src/ file imports. Types and declared modules excluded.');
   show('REFERENCED BY tests/ OR tools/ ONLY  (the credentials.ts shape)', testsOnly);
   show('REFERENCED BY NOTHING AT ALL', nothing);
+
+  /**
+   * M35.3 — A RATCHET, NOT A ZERO.
+   *
+   * Zero is not reachable and pretending otherwise would make this unusable:
+   * much of the tests-only list is legitimate test-consumed DATA
+   * (BANNED_OWNER_TERMS, PROMOTION_REQUIREMENTS, the design budgets). What must
+   * not happen is silent GROWTH, which is what a report-only mode allows.
+   *
+   * The ceiling lives in a committed baseline file rather than a number typed
+   * into this script, so lowering it is a visible, reviewable edit — and the
+   * numbers cannot drift from what was actually measured.
+   */
+  if (process.argv.includes('--ratchet')) {
+    const baselinePath = 'tools/symbol-baseline.json';
+    if (!existsSync(baselinePath)) {
+      console.error(`\n  ✗ ${baselinePath} is missing — refusing to pass without a ceiling`);
+      process.exit(1);
+    }
+    const base = JSON.parse(readFileSync(baselinePath, 'utf8'));
+    let bad = 0;
+    const check = (name, actual, ceiling) => {
+      if (actual > ceiling) {
+        console.error(`\n  ✗ ${name}: ${actual}, ceiling ${ceiling} — this list may shrink, never grow.`);
+        console.error('    Wire the symbol, delete it, or lower the ceiling deliberately in ' + baselinePath);
+        bad++;
+      } else if (actual < ceiling) {
+        console.log(`\n  ✓ ${name}: ${actual}, below the ceiling of ${ceiling} — lower it in ${baselinePath}`);
+      } else {
+        console.log(`\n  ✓ ${name}: ${actual}, at the ceiling`);
+      }
+    };
+    check('referenced by tests/tools only', testsOnly.length, base.testsOnly);
+    check('referenced by nothing', nothing.length, base.nothing);
+    process.exit(bad ? 1 : 0);
+  }
   process.exit(0);
 }
 

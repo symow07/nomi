@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { loadProofLinkState } from './proof.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
@@ -247,6 +248,12 @@ export type ConversationDetail = {
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
   readonly quote: { unitPriceUsd: number; totalUsd: number; quantity: number } | null;
+  /**
+   * M35.1 — the buyer proof link for this conversation's quote. `quoteId` is
+   * null when there is nothing to prove yet; `token` is null until the owner
+   * issues one. She is the only person who can create or revoke it.
+   */
+  readonly proof: { readonly quoteId: string | null; readonly token: string | null };
   readonly order: { status: string; reference: string; totalUsd: number | null } | null;
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
@@ -380,6 +387,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
       product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
       quote: q ? { unitPriceUsd: Number(q.unit_price_usd), totalUsd: Number(q.total_usd), quantity: q.quantity } : null,
+      proof: await loadProofLinkState(tx, conversationId),
       order: o ? { status: o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
       messages,
       pendingDraft: draft
@@ -547,12 +555,41 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date): string 
   }
 }
 
+/**
+ * M35.1 — the owner's control over the buyer-facing link.
+ *
+ * It lives beside the quote, because that is the thing being proved. Issuing is
+ * one tap; the URL is shown so she can paste it anywhere; revoking is one tap
+ * and makes the page a 404 — indistinguishable from a link that never existed.
+ */
+function proofRow(d: ConversationDetail, locale: Locale): string {
+  if (!d.proof.quoteId) return '';
+  const cid = encodeURIComponent(d.conversationId);
+  if (!d.proof.token) {
+    return `<form method="post" action="/app/inbox/${cid}/proof" class="proofrow">
+      <span class="muted">${esc(t(locale, 'proof.owner.none'))}</span>
+      <button class="btn" type="submit">${esc(t(locale, 'proof.owner.issue'))}</button>
+    </form>`;
+  }
+  return `<div class="proofrow">
+    <span class="muted">${esc(t(locale, 'proof.owner.live'))}</span>
+    <code class="prooflink">/p/${esc(d.proof.token)}</code>
+    <form method="post" action="/app/inbox/${cid}/proof/revoke" class="inline">
+      <button class="btn danger" type="submit"
+        onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'proof.owner.revokeConfirm'))}"
+      >${esc(t(locale, 'proof.owner.revoke'))}</button>
+    </form>
+  </div>`;
+}
+
 export function renderConversationDetail(d: ConversationDetail, locale: Locale, now: Date, flash: string | null): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatUsd(d.quote.unitPriceUsd))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(d.quote.totalUsd))}</div>` : ''}
       ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.totalUsd !== null ? ` · ${esc(formatUsd(d.order.totalUsd))}` : ''}</div>` : ''}
+      ${proofRow(d, locale)}
     </div>` : '';
 
   const timeline = d.messages.length

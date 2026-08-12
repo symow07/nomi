@@ -70,8 +70,10 @@ d('M35 · every route that is not deliberately public refuses a stranger', () =>
       db: createDb(DATABASE_URL!),
       businessId: RUN_BIZ,
       accessCode: 'not-the-code-under-test',
-      provider: 'disabled',
-      messagingEnabled: false,
+      sessionSecret: 'a-test-session-secret-of-sufficient-length',
+      employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
+      secureCookie: false, messagingEnabled: false,
+      kickOutbound: async () => {}, kickDrive: async () => {},
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
   }, 60_000);

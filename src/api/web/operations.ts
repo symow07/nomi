@@ -213,21 +213,26 @@ export function renderOperationsHome(
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="needs">${rows}</div></section>`
     : live
-    ? `<section class="block calm">
-        <div class="calm-mark" aria-hidden="true">✓</div>
-        <div>
-          <h2 class="calm-h">${esc(t(locale, 'ops.attention.allClear'))}</h2>
-          <p class="calm-b">${esc(t(locale, 'today.calm.body', { name }))}</p>
-        </div>
+    // M35.5 — when nothing needs her, this IS the page: a rule, one sentence,
+    // and air. Not a card among cards. Saying less is the whole argument, and it
+    // was buried under three sections of zeroes.
+    //
+    // NOTE for whoever edits the stylesheet below: CSS comments SHIP. They are
+    // scanned for banned owner vocabulary exactly like visible copy, and two of
+    // them here tripped that rule while this was being written. Explanations
+    // belong in TypeScript comments like this one, which never reach a browser.
+    ? `<section class="calm-page">
+        <div class="calm-rule" aria-hidden="true"></div>
+        <p class="calm-say voice">${esc(t(locale, 'today.calm.body', { name }))}</p>
       </section>`
     // Not a ✓: nothing has been achieved. Nobody can reach her yet, and the
     // way forward is stated instead of implied.
-    : `<section class="block calm off">
-        <div>
-          <h2 class="calm-h">${esc(t(locale, 'today.calm.notLive.title', { name }))}</h2>
-          <p class="calm-b">${esc(t(locale, 'today.calm.notLive.body', { name }))}</p>
-          ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
-        </div>
+    // Not a ✓ and not calm: nothing has been achieved, nobody can reach her,
+    // and the way forward is stated rather than implied.
+    : `<section class="calm-page off">
+        <div class="calm-rule" aria-hidden="true"></div>
+        <p class="calm-say voice">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>
+        ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
       </section>`;
 
   // 2 · How often you stepped in — two real counts as a fraction, never a rate.
@@ -270,8 +275,14 @@ export function renderOperationsHome(
   </section>`;
 
   // 4 · What she did — plain counts. No comparison, no ranking, no percentage.
+  //
+  // M35.5 — AND A QUIET BRANCH, which `stepIn` and `learning` above already
+  // had. Three zeros and a link into a grid of more zeros is the page inventing
+  // a reason to exist: on a day nothing happened, nothing happened is the whole
+  // answer, and saying it in three rows makes it smaller rather than clearer.
   const a = s.activity;
-  const activity = `<section class="block">
+  const didNothing = a.handled === 0 && a.draftsCreated === 0 && a.corrections === 0;
+  const activity = didNothing ? '' : `<section class="block">
     <h2>${esc(t(locale, 'ops.activity.title', { name }))}</h2>
     <div class="counts">
       ${countLine(a.handled, t(locale, 'ops.activity.handled'))}
@@ -294,7 +305,6 @@ export function renderOperationsHome(
   <style>
     /* .block is the shell's now — Today is where the pattern came from. */
     /* Not-live is neutral, not celebratory: no tick, no green. */
-    .calm.off .calm-h { color:var(--color-ink); }
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
     .needs { display:flex; flex-direction:column; gap:10px; }
     a.need { display:flex; align-items:center; gap:14px; background:var(--color-surface);
@@ -304,11 +314,15 @@ export function renderOperationsHome(
               font-variant-numeric:tabular-nums; }
     .need-l { flex:1; font-size:var(--font-size-small); color:var(--color-ink); }
     .need-go { color:var(--color-ink-secondary); font-size:var(--font-size-base); }
-    /* Calm state: a destination, not a void. */
-    .calm { display:flex; gap:16px; align-items:flex-start; }
-    .calm-mark { color:var(--color-ok); font-size:var(--font-size-display); line-height:1.2; }
-    .calm-h { font-size:var(--font-size-title); text-transform:none; letter-spacing:0; color:var(--color-ink); margin:0 0 6px; }
-    .calm-b { color:var(--color-ink-secondary); margin:0; font-size:var(--font-size-small); }
+    /* M35.5 — the calm state IS the page: a rule, one sentence, air. */
+    .calm-page { padding:var(--space-48) 0 var(--space-64); }
+    .calm-rule { height:2px; width:3.5rem; background:var(--color-jade);
+                 border-radius:2px; margin-bottom:var(--space-24); }
+    /* Her voice — the second voice, as everywhere she speaks. */
+    .calm-say { font-family:var(--font-voice); font-size:var(--font-size-title);
+                line-height:1.45; color:var(--color-ink); margin:0; max-width:22em; }
+    /* Not live is not an achievement: the rule is quiet, not jade. */
+    .calm-page.off .calm-rule { background:var(--color-border); }
     /* Plain count lines — no tiles, no grid, no colour coding. */
     .counts { display:flex; flex-direction:column; gap:2px; }
     .tline { display:flex; align-items:baseline; gap:12px; padding:7px 0;

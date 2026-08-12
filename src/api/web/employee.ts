@@ -163,7 +163,7 @@ const countRow = (value: number, label: string): string =>
 function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Locale): string {
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
     return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
-      <p class="muted empty-p">${esc(t(locale, 'her.knows.none'))}</p>
+      <p class="muted empty-p voice">${esc(t(locale, 'her.knows.none'))}</p>
       <a class="btn" href="/app/knowledge">${esc(t(locale, 'knowledge.teach'))}</a></div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
@@ -228,7 +228,7 @@ export function renderEmployee(
   const cannotDo = [capName('confirm_order'), ...NEVER_ALLOWED.map((k) => t(locale, k))];
   const duties = `<div class="block"><h2>${esc(t(locale, 'her.handles.title'))}</h2>
     ${e.canDo.length === 0 && e.needConfirm.length === 0
-      ? `<p class="muted empty-p">${esc(t(locale, 'her.handles.none'))}</p>` : ''}
+      ? `<p class="muted empty-p voice">${esc(t(locale, 'her.handles.none'))}</p>` : ''}
     ${list(t(locale, 'her.handles.alone'), '✓', e.canDo.map(capName), 'ok', t(locale, 'employee.duties.none'))}
     ${list(t(locale, 'her.handles.waits'), '○', e.needConfirm.map(capName), 'warn', t(locale, 'employee.duties.none'))}
     ${list(t(locale, 'her.handles.always'), '○', cannotDo, 'no', t(locale, 'employee.duties.none'))}
@@ -241,7 +241,7 @@ export function renderEmployee(
   // than none, and the page already says enough about her without it.
   const spotChecks = e.spotChecks.length
     ? `<div class="block"><h2>${esc(t(locale, 'spotcheck.title'))}</h2>
-        <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
+        <p class="muted review-intro voice">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
         ${e.spotChecks.map((s) => {
           const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
           return `<div class="scheck">

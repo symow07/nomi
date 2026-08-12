@@ -299,8 +299,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // that is the one it lands on. Before the per-run tenant, this assertion
     // passed because leftover state from earlier runs kept work on the page.
     expect(home.body).toMatch(/Needs your attention|Nothing needs you|No buyer can reach/);
-    expect(home.body).toContain('What Lily did');        // Phase B activity section
-    expect(home.body).toMatch(/Buyers she talked to/);    // M16.2b employee-activity fact
+    // M35.5 — on a tenant where NOTHING has happened, the activity section no
+    // longer renders. Three zeros and a link into a grid of more zeros was the
+    // page inventing a reason to exist; `stepIn` and `learning` had always known
+    // how to be silent and this is the third making it match. These two used to
+    // assert 'What Lily did' and 'Buyers she talked to' were present, which now
+    // means the quiet branch has stopped working.
+    expect(home.body).not.toContain('What Lily did');
+    expect(home.body).not.toContain('href="/app/analytics"');
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.body).toContain('Buyers');            // English default

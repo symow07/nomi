@@ -243,7 +243,12 @@ ${cssVariables()}
      against DOM order, pushing the whole content column into grid row 2 behind
      a screen-height gap. Every page was affected at desktop width. */
   @media (max-width: 720px) {
-    .layout { grid-template-columns: 1fr; }
+    /* Rows matter here. .layout carries min-height:100vh, and with one column
+       and no declared rows the nav and the content shared that height evenly:
+       the nav row grew to half the viewport and, because a flex row stretches
+       its children by default, the ACTIVE tab's background filled all of it —
+       a jade slab down the page, on every surface, at phone width. */
+    .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     /* Four destinations fit one row on a phone: an equal-width bottom-style bar
        at the top, each a full-height target, no wrapping to three ragged rows. */
     nav.side { display:flex; gap:6px; padding:10px 12px; border-inline-end:none;
