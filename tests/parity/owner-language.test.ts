@@ -3,8 +3,8 @@ import { STATUS, TERM, BANNED_OWNER_TERMS, capabilityStatus } from '../../src/co
 import { formatRmb, formatUsd, formatQtyZh, formatDateZh, formatWhenZh } from '../../src/core/owner/format.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { renderQuoteCard, renderApprovalCard } from '../../src/core/conversation/cards.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
+import { parseOwnerReply } from '../../src/core/conversation/cards.js';
 import { renderInboxList, renderConversationDetail } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
@@ -36,22 +36,13 @@ import { product, tiers, policy } from './fixtures.js';
 
 const NOW = new Date('2026-07-17T11:30:00Z'); // 19:30 Beijing
 
-const quote = (() => {
-  const r = computeQuote({ product: product(), tiers: tiers(), policy: policy(), rules: [], quantity: 20000 });
-  if (!r.ok) throw new Error('fixture');
-  return r.value;
-})();
-
-const quoteCard = renderQuoteCard(quote, product().name);
-
-const approvalCard = renderApprovalCard({
-  buyerName: 'Ahmed', buyerCountryHint: '阿联酋', isReturning: true,
-  buyerMessage: 'Can you do 20000 pcs FOB Ningbo?', buyerMessageZh: '能做2万个FOB宁波吗？',
-  draft: 'Yes — for 20,000 pcs the unit price is $0.38 FOB Ningbo.',
-  draftZh: '可以，2万个单价0.38美元，FOB宁波。',
-  whyLineZh: '买家问大货价；按你的价格表第三档计算。',
-  quoteCard,
-});
+/*
+ * M34.11 — the quoteCard / approvalCard fixtures went with their renderers.
+ * They were the last two text cards in LIVE_SURFACES; what remains there is
+ * what an owner actually opens. The catalogue scan below is unaffected and is
+ * the stronger half of this rule anyway: it covers every string the product can
+ * emit, including the ones these cards never contained.
+ */
 
 /** Whole-word for Latin terms, substring for CJK — unchanged from M1. */
 const containsBanned = (text: string, banned: string): boolean => {
@@ -152,8 +143,6 @@ const LIVE_SURFACES: Record<string, string> = {
   inboxList,
   conversationDetail,
   analytics,
-  quoteCard,          // still reachable: core/conversation/cards.ts
-  approvalCard,
 };
 
 describe('M1 · no live surface renders software talk', () => {
@@ -229,8 +218,13 @@ describe('M1 · locked vocabulary', () => {
     expect(capabilityStatus('auto', true)).toBe('夜班中');
   });
 
-  it('glossary terms appear where they should (发送 on the card)', () => {
-    expect(approvalCard).toContain('发送');
+  it('the wire words the owner presses are the ones the parser reads', () => {
+    // Was asserted against the deleted approval card. The live inbox posts the
+    // same words as button VALUES, and parseOwnerReply reads them back — which
+    // is the coupling that actually has to hold.
+    expect(parseOwnerReply('发送').kind).toBe('approve');
+    expect(parseOwnerReply('不回').kind).toBe('skip');
+    expect(parseOwnerReply('收回').kind).toBe('revoke');
     expect(TERM.nightShift.length).toBeGreaterThan(0);
   });
 });
@@ -252,15 +246,10 @@ describe('M1 · ￥, 万, GMT+8', () => {
     expect(formatWhenZh(new Date('2026-07-17T01:15:00Z'), NOW)).toBe('今天09:15');
     expect(formatWhenZh(new Date('2026-07-16T15:40:00Z'), NOW)).toBe('昨晚23:40');
   });
-  it('the quote card speaks 万 and 个', () => {
-    expect(quoteCard).toContain('2万 个');
-    expect(quoteCard).toContain('最低起订：1000 个');
-  });
-});
-
-/* ── M1: the approval card still fits one screen (cards.ts is reachable) ─── */
-describe('M1 · one screen, one thumb', () => {
-  it('approval card (with quote card) fits one screen: ≤24 lines', () => {
-    expect(approvalCard.split('\n').length).toBeLessThanOrEqual(24);
+  it('quantities render the way owners say them, wherever they appear', () => {
+    // The 报价卡 assertions went with renderQuoteCard. formatQtyZh above is the
+    // rule those lines were checking; the live inbox formats its quote line
+    // through the i18n formatter, covered in inbox and locale tests.
+    expect(formatQtyZh(20000)).toBe('2万');
   });
 });

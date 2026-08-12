@@ -1,3 +1,4 @@
+import { aiMaySpeak, ownershipOf } from '../conversation/ownership.js';
 import type { SendPlan } from './window.js';
 import type { OutboundRow } from '../../outbound/sequencer.js';
 
@@ -88,7 +89,7 @@ export function gateOutbound(g: GateInput): GateDecision {
     // silencing the machine is not silencing the owner, who may well be
     // silencing it in order to answer the buyer himself.
     if (g.silenced) return { allow: false, reason: 'silenced' };
-    if (g.assignedTo !== null) return { allow: false, reason: 'handed_off' };
+    if (!aiMaySpeak(ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
     if (g.paused) return { allow: false, reason: 'paused' };
   }
 

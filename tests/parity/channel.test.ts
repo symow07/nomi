@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseWebhook } from '../../src/channels/whatsapp/parse.js';
 import { nextToSend, DELIVERY_WAIT_CAP_MS, type OutboundRow } from '../../src/outbound/sequencer.js';
-import { renderQuoteCard, renderApprovalCard, parseOwnerReply } from '../../src/core/conversation/cards.js';
+import { parseOwnerReply } from '../../src/core/conversation/cards.js';
 import { capabilityOf, resolveMode, withinWindow } from '../../src/core/conversation/autonomy.js';
 import { whatsappClient } from '../../src/channels/whatsapp/client.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
@@ -139,26 +139,13 @@ describe('quote card + approval card + owner commands', () => {
     return r.value;
   })();
 
-  it('quote card is an invoice, not prose — every number from SQL', () => {
-    const card = renderQuoteCard(quote, product().name);
-    expect(card).toContain('报价卡');
-    expect(card).toContain('$0.45');
-    expect(card).toContain('2,250.00');
-    expect(card).toContain('地板价检查：✓');
-  });
-
-  it('approval card carries both back-translations and the why-line', () => {
-    const card = renderApprovalCard({
-      buyerName: 'Ahmed', buyerCountryHint: '阿联酋', isReturning: false,
-      buyerMessage: 'Can you quote 5000 pcs?', buyerMessageZh: '能报5000个的价吗？',
-      draft: 'For 5,000 pcs the unit price is $0.45.', draftZh: '5000个单价0.45美元。',
-      whyLineZh: '买家问价；按你的价格表算。', quoteCard: renderQuoteCard(quote, product().name),
-    });
-    expect(card).toContain('〔翻译〕');
-    expect(card).toContain('〔意思是〕');
-    expect(card).toContain('为什么：');
-    expect(card).toContain('发送');
-  });
+  /*
+   * M34.11 — the quote-card and approval-card blocks went with their renderers.
+   * api/web/inbox.ts shows the live equivalents from stored rows: the quote line
+   * (quantity · unit price · total) and the draft card whose buttons post the
+   * SAME wire words asserted just below — which is the part that has to keep
+   * working, and does.
+   */
 
   it.each([
     ['发送', 'approve'], ['好', 'approve'], ['不回', 'skip'], ['收回', 'revoke'],

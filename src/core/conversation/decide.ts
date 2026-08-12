@@ -1,6 +1,7 @@
 import type { ConversationState, PendingQuestion, Phase, ProductMatch } from '../types/conversation.js';
 import type { Quote } from '../types/commerce.js';
 import { advance } from './phase.js';
+import { aiMaySpeak, ownershipOf } from './ownership.js';
 import { detectFastPath } from './fastpath.js';
 import { detectInjection, SAFE_FALLBACK_REPLY } from '../safety/injection.js';
 import { computeScores, needsHandoff, isHotLead, type Signal } from '../scoring/signals.js';
@@ -75,7 +76,7 @@ export function decideTurn(input: TurnInput): TurnDecision {
   // ── Gate 0: a human owns this conversation. THE AI DOES NOT SPEAK. ──────────
   // This gate did not exist in n8n: escalation notified a human and the AI kept
   // replying to the customer anyway. (ADR-0003 §2)
-  if (state.assignedTo !== null) {
+  if (!aiMaySpeak(ownershipOf(state.assignedTo))) {
     return {
       ...base,
       action: { kind: 'silent' },

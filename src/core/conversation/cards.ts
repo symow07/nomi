@@ -18,64 +18,19 @@ const money = (n: number): string =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** 报价卡 — the invoice-style quote card. */
-export function renderQuoteCard(q: Quote, productName: string): string {
-  return box('报价卡', [
-    labeled('产品', productName),
-    labeled('数量', `${formatQtyZh(q.quantity.value)} ${unitZh(q.quantity.unit)}`),
-    labeled('单价', `$${money(q.unitPriceUsd)} USD`),
-    q.discountPct > 0 ? labeled('折扣', `${q.discountPct}%（按你的规则）`) : null,
-    labeled('总价', `$${money(q.totalUsd)} USD`),
-    q.leadTimeDays !== null ? labeled('交期', `${q.leadTimeDays} 天`) : null,
-    labeled('最低起订', `${formatQtyZh(q.moq)} ${unitZh(q.quantity.unit)}`),
-    `地板价检查：${MARK.ok} 通过`,
-    q.requiresHuman ? `${MARK.warn} 折扣超出授权，需要你批准` : null,
-  ]);
-}
 
-export type ApprovalCardInput = {
-  readonly buyerName: string | null;
-  readonly buyerCountryHint: string | null;   // from phone prefix, e.g. '阿联酋'
-  readonly isReturning: boolean;
-  /** M6 buyer memory, in context: 这是Ahmed，3月询过保温杯（ZX-200）… */
-  readonly recallZh?: string | null;
-  readonly buyerMessage: string;
-  readonly buyerMessageZh: string;            // back-translation of buyer text
-  readonly draft: string;                     // what we propose to send
-  readonly draftZh: string;                   // back-translation — 他看不懂就不能批
-  readonly whyLineZh: string;                 // one line. More is homework.
-  readonly quoteCard: string | null;          // rendered by renderQuoteCard
-};
-
-/**
- * The approval card. Everything the owner needs to decide in ≤10 seconds,
- * in the language he reads. Section order is CARD_ORDER (tokens.ts):
- * who → what → proposal → computed → why → actions.
+/*
+ * M34.11 — `renderQuoteCard` and `renderApprovalCard` were deleted here.
+ *
+ * They were the M1 text cards: a boxed quote and the approval card that wrapped
+ * it, both written for a chat interface. api/web/inbox.ts renders the live
+ * equivalents from stored rows — the quote line (quantity · unit price · total)
+ * in the conversation context, and the draft card with the 发送 / 不回 / 收回
+ * actions that post to the one approval path. Neither renderer had a production
+ * caller; only `parseOwnerReply` below does, and it is what reads those same
+ * wire words back.
  */
-export function renderApprovalCard(c: ApprovalCardInput): string {
-  return joinSections([
-    joinLines([
-      buyerHeader({
-        name: c.buyerName,
-        countryZh: c.buyerCountryHint,
-        tag: c.isReturning ? '老询盘' : '新询盘',
-      }),
-      c.recallZh ?? null,
-    ]),
-    joinLines([
-      labeled('买家说', c.buyerMessage),
-      `${MARK.translation}${c.buyerMessageZh}`,
-    ]),
-    joinLines([
-      labeled('我想回', c.draft),
-      `${MARK.meaning}${c.draftZh}`,
-    ]),
-    c.quoteCard,
-    labeled('为什么', c.whyLineZh),
-    actionBar(),
-  ]);
-}
 
-/** Owner reply → command. Deterministic; voice notes are transcribed upstream. */
 export type OwnerCommand =
   | { readonly kind: 'approve' }
   | { readonly kind: 'edit'; readonly text: string }

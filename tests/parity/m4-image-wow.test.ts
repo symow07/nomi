@@ -3,7 +3,6 @@ import {
   computeImageInquiry, parseCaptionQuantity, MATCH_MIN_RELEVANCE,
   type ImageTurnDeps,
 } from '../../src/pipeline/imageTurn.js';
-import { renderQuoteCard } from '../../src/core/conversation/cards.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { renderDemoScript, demoSeedSql, DEMO_PRODUCTS, DEMO_BUYERS, DEMO_CONVERSATIONS } from '../../src/demo/factory.js';
 import { whatsappSimulator } from '../../src/channels/whatsapp/simulator.js';

@@ -6,7 +6,6 @@ import { actionBar, box, buyerHeader, textWidth } from '../../src/core/owner/com
 import { BANNED_OWNER_TERMS, STATUS } from '../../src/core/owner/vocabulary.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { renderQuoteCard, renderApprovalCard } from '../../src/core/conversation/cards.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { product, tiers, policy } from './fixtures.js';
 
@@ -18,60 +17,19 @@ import { product, tiers, policy } from './fixtures.js';
 
 const NOW = new Date('2026-07-17T11:30:00Z');
 
-const quote = (() => {
-  const r = computeQuote({ product: product(), tiers: tiers(), policy: policy(), rules: [], quantity: 20000 });
-  if (!r.ok) throw new Error('fixture');
-  return r.value;
-})();
-const quoteCard = renderQuoteCard(quote, product().name);
-const approvalCard = renderApprovalCard({
-  buyerName: 'Ahmed', buyerCountryHint: '阿联酋', isReturning: true,
-  buyerMessage: 'Can you do 20000 pcs FOB Ningbo?', buyerMessageZh: '能做2万个FOB宁波吗？',
-  draft: 'Yes — for 20,000 pcs the unit price is $0.38 FOB Ningbo.',
-  draftZh: '可以，2万个单价0.38美元，FOB宁波。',
-  whyLineZh: '买家问大货价；按你的价格表第三档计算。',
-  quoteCard,
-});
-
-/* ── one box grammar ─────────────────────────────────────────────────────── */
-describe('M2 · every boxed surface uses the token border', () => {
-  it('quote card opens and closes with BOX tokens', () => {
-    const lines = quoteCard.split('\n');
-    expect(lines[0]).toBe(BOX.top('报价卡'));
-    expect(lines.at(-1)).toBe(BOX.bottom);
-    for (const l of lines.slice(1, -1)) expect(l.startsWith(BOX.side), l).toBe(true);
-  });
-
-  it('box() is the only way box grammar appears (component output matches)', () => {
-    expect(box('报价卡', ['a']).split('\n')).toEqual([BOX.top('报价卡'), `${BOX.side}a`, BOX.bottom]);
-  });
-});
-
-/* ── one section grammar ─────────────────────────────────────────────────── */
-describe('M2 · approval card follows CARD_ORDER', () => {
-  it('sections appear in canonical order: who → what → proposal → computed → why → actions', () => {
-    const anchors: Record<(typeof CARD_ORDER)[number], string> = {
-      who: MARK.person,
-      what: '买家说：',
-      proposal: '我想回：',
-      computed: BOX.top('报价卡'),
-      why: '为什么：',
-      actions: actionBar(),
-    };
-    const positions = CARD_ORDER.map((s) => approvalCard.indexOf(anchors[s]));
-    for (const p of positions) expect(p).toBeGreaterThanOrEqual(0);
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-  });
-
-  it('buyer intro is the shared component everywhere', () => {
-    expect(approvalCard.startsWith(buyerHeader({ name: 'Ahmed', countryZh: '阿联酋', tag: '老询盘' }))).toBe(true);
-  });
-
-  it('markers keep one meaning: 翻译 for buyer words, 意思 for our drafts', () => {
-    expect(approvalCard).toContain(`${MARK.translation}能做2万个FOB宁波吗？`);
-    expect(approvalCard).toContain(`${MARK.meaning}可以，2万个单价0.38美元，FOB宁波。`);
-  });
-});
+/*
+ * M34.11 — the box-grammar and CARD_ORDER blocks went with renderQuoteCard and
+ * renderApprovalCard, the last two M1/M2 text cards. Both were reached by no
+ * production path: the live approval surface is api/web/inbox.ts, which renders
+ * HTML from stored rows, and BOX / MARK / CARD_ORDER describe a chat card that
+ * no owner is shown.
+ *
+ * `box()` and `buyerHeader()` remain exercised below through the components the
+ * shell still uses. What is NOT re-pointed is the section ORDER — who → what →
+ * proposal → computed → why → actions. That was a grammar for a text card; the
+ * live page has its own layout, asserted in inbox tests, and inventing an HTML
+ * equivalent to keep a token alive would be measuring something nobody designed.
+ */
 
 /* ── Big Four states, re-pointed ─────────────────────────────────────────── */
 
@@ -119,12 +77,14 @@ describe('M2 · empty teaches the next action, and never says No Data', () => {
 
 /* ── budgets come from tokens, and surfaces obey them ────────────────────── */
 describe('M2 · budgets are tokens', () => {
-  it('the approval card fits its token budget', () => {
-    // BUDGET.digestLines is not asserted here any more: the text digest it
-    // measured (core/owner/digest.ts) is deleted, and the live Today page is
-    // HTML with no line count to bound. Inventing an HTML budget to keep a
-    // token exercised would be measuring something nobody designed.
-    expect(approvalCard.split('\n').length).toBeLessThanOrEqual(BUDGET.cardLines);
+  it('the token budgets are defined and orderable', () => {
+    // BUDGET.cardLines and BUDGET.digestLines no longer have surfaces to
+    // measure — both text cards are deleted and the live pages are HTML with no
+    // line count to bound. The tokens stay because tokens.ts is the design
+    // system's vocabulary; what is gone is the pretence that something enforces
+    // them. Inventing an HTML equivalent would measure something nobody designed.
+    expect(BUDGET.cardLines).toBeGreaterThan(0);
+    expect(BUDGET.lineColumns).toBeGreaterThan(0);
   });
 });
 

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { renderApprovalCard } from '../../src/core/conversation/cards.js';
 import { buildInvoice, renderInvoiceEn } from '../../src/core/commerce/invoice.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';

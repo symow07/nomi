@@ -2,11 +2,23 @@
  * M16.1 — Conversation ownership: the safety boundary for human takeover.
  *
  * `conversations.assigned_to` carries the truth; this module is the ONLY place
- * its string sentinels are interpreted, so the AI-silent gate (decideTurn),
- * the takeover services, and the inbox UI can never disagree. Pure: no I/O.
+ * its string sentinels are interpreted, so the AI-silent gate (decideTurn), the
+ * takeover services, and the inbox UI can never disagree. Pure: no I/O.
  *
  * There is exactly one ownership model. This file does not store anything new —
  * it names what `assigned_to` already means.
+ *
+ * M34.11 — THAT PARAGRAPH WAS AN ASPIRATION, NOT A FACT. `aiMaySpeak` had no
+ * caller: decideTurn's Gate 0, the turn pipeline's cheap gate and the send
+ * gate each wrote `assignedTo !== null` themselves. Three copies of the
+ * predicate and a fourth here, with only the copies running — the same shape as
+ * the pause rule and cancelableOnTakeover, in the place the README names as an
+ * invariant.
+ *
+ * The four were checked against each other across every value assigned_to can
+ * hold, including '' and unknown agent ids. THEY AGREED — this was a latent
+ * duplication, not a live defect — and all three gates now call the predicate,
+ * so the paragraph above is true rather than hopeful.
  */
 
 /** Written to assigned_to when the AI has handed off and a human is needed. */
@@ -24,14 +36,13 @@ export function ownershipOf(assignedTo: string | null): ConversationOwnership {
   return 'OWNER_CONTROLLED';
 }
 
-/** The assigned_to value a target ownership maps to (AI → null). */
-export function agentFor(o: ConversationOwnership): string | null {
-  switch (o) {
-    case 'AI': return null;
-    case 'WAITING_HUMAN': return WAITING_HUMAN_AGENT;
-    case 'OWNER_CONTROLLED': return OWNER_AGENT;
-  }
-}
+/*
+ * `agentFor` (ownership → assigned_to) was deleted in M34.11. It had no caller:
+ * takeover.ts writes OWNER_AGENT and null directly, which already goes through
+ * this module's sentinels and reads more plainly at the two sites that do it
+ * than an enum round-trip would. A second mapping nobody used is a second thing
+ * that can drift from the first.
+ */
 
 /** The AI may speak only when it owns the conversation. */
 export const aiMaySpeak = (o: ConversationOwnership): boolean => o === 'AI';

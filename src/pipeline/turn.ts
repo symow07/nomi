@@ -15,7 +15,7 @@ import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
-import { WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
+import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
@@ -143,7 +143,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const preScore = computeScores([...historicEarly, ...textOnlySignals]);
 
   const gated =
-    state.assignedTo !== null ||
+    !aiMaySpeak(ownershipOf(state.assignedTo)) ||
     preScore.problem >= PROBLEM_HANDOFF_THRESHOLD ||
     detectInjection(req.text).detected ||
     detectFastPath(req.text, state).matched;
