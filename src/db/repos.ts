@@ -230,6 +230,15 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       }));
     },
 
+    // M37.5 — live rows only; archived terms are history, not policy.
+    async forbiddenTerms() {
+      const r = await sql<{ term: string }>`
+        select term from forbidden_terms
+         where business_id = ${businessId} and archived_at is null
+         order by created_at`.execute(tx);
+      return r.rows.map((x) => x.term);
+    },
+
     async claimsPolicy() {
       const rows = await sql<{ kind: string; claim_key: string; allowed: boolean }>`
         select kind, claim_key, allowed from claims_policy`.execute(tx);

@@ -67,11 +67,14 @@ export class FakeTenant implements Tenant {
     touchLastSeen: async () => {},
   };
 
+  /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
+  forbidden: string[] = [];
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
+    forbiddenTerms: async () => this.forbidden,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],

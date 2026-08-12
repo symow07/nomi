@@ -2,9 +2,10 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, type MessageKey, EMPLOYEE_NAME } from '../../core/owner/i18n/messages.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
-import { esc } from './layout.js';
+import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
+import { deeper, esc } from './layout.js';
 
 /**
  * M11.1 — Business Profile & Owner Settings. A VIEW + edit over the EXISTING
@@ -200,7 +201,10 @@ export function renderSettings(
 
   return `<h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
-    ${form}${categories}${SETTINGS_STYLE}`;
+    ${form}${categories}
+    ${deeper('/app/settings/forbidden',
+      t(locale, 'forbidden.title', { name: EMPLOYEE_NAME[locale] }))}
+    ${SETTINGS_STYLE}`;
 }
 
 const SETTINGS_STYLE = `<style>
@@ -215,4 +219,101 @@ const SETTINGS_STYLE = `<style>
   .cats { display:flex; flex-wrap:wrap; gap:8px; }
   .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   
-</style>`;
+</style>
+  `;
+
+/* ── M37.5 · the words she may never say ─────────────────────────────────── */
+
+/**
+ * The owner's own forbidden list, plus the floor she cannot remove.
+ *
+ * The floor is RENDERED, not hidden: she should be able to see that "never
+ * curse at a buyer" is enforced without her having typed it, and that she
+ * cannot switch it off. A guarantee the owner cannot see is a guarantee she
+ * cannot rely on.
+ */
+export type ForbiddenView = {
+  readonly own: readonly { readonly id: string; readonly term: string }[];
+  readonly floor: readonly string[];
+};
+
+export async function loadForbidden(db: Db, businessIdRaw: string): Promise<ForbiddenView> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { own: [], floor: FORBIDDEN_FLOOR };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string; term: string }>`
+      select id, term from forbidden_terms
+       where business_id = ${bid.value}::uuid and archived_at is null
+       order by created_at desc`.execute(tx);
+    return { own: r.rows, floor: FORBIDDEN_FLOOR };
+  });
+}
+
+export async function addForbidden(
+  db: Db, businessIdRaw: string, term: string,
+): Promise<{ code: 'added' | 'empty' | 'duplicate' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const clean = term.trim();
+  if (!clean) return { code: 'empty' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const existing = await sql<{ id: string }>`
+      select id from forbidden_terms
+       where business_id = ${bid.value}::uuid and lower(btrim(term)) = lower(btrim(${clean}))
+         and archived_at is null`.execute(tx);
+    if (existing.rows[0]) return { code: 'duplicate' as const };
+    await sql`insert into forbidden_terms (business_id, term)
+              values (${bid.value}::uuid, ${clean})`.execute(tx);
+    return { code: 'added' as const };
+  });
+}
+
+/** Archive, never erase — the record of what was once forbidden survives. */
+export async function removeForbidden(
+  db: Db, businessIdRaw: string, id: string,
+): Promise<{ code: 'removed' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update forbidden_terms set archived_at = now()
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid and archived_at is null
+      returning id`.execute(tx);
+    return { code: r.rows[0] ? 'removed' as const : 'failed' as const };
+  });
+}
+
+export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string | null): string {
+  const name = EMPLOYEE_NAME[locale];
+  return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
+      <form method="post" action="/app/settings/forbidden" class="fld">
+        <label><span class="muted">${esc(t(locale, 'forbidden.add.label'))}</span>
+          <input name="term" required maxlength="80"
+            placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" /></label>
+        <button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>
+      </form>
+      ${v.own.length === 0
+        ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
+        : `<ul class="fterms">${v.own.map((x) => `<li>
+            <bdi>${esc(x.term)}</bdi>
+            <form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
+              <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
+            </form></li>`).join('')}</ul>`}
+    </section>
+    <section class="block">
+      <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
+      <ul class="fterms floor">${v.floor.map((x) => `<li><bdi>${esc(x)}</bdi></li>`).join('')}</ul>
+    </section>
+    <style>
+      .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+      .fterms li { display:flex; align-items:center; justify-content:space-between;
+                   gap:var(--space-12); padding:var(--space-8) 0;
+                   border-bottom:1px solid var(--color-border); }
+      .fterms li:last-child { border-bottom:0; }
+      .fterms.floor li { color:var(--color-ink-secondary); }
+    </style>`;
+}

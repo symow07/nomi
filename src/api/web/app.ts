@@ -23,7 +23,7 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { loadBusinessProfile, renderSettings, saveBusinessProfile } from './settings.js';
+import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
@@ -779,6 +779,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderSettings(profile, locale, flash),
     }));
   });
+  // ── M37.5 · the words she may never say ───────────────────────────────────
+  // Reached from settings. Without this surface the guard would be M35 again:
+  // something buyers are subject to that no owner can configure.
+  app.get('/app/settings/forbidden', authed('settings', async (sess, req, locale) =>
+    renderForbidden(await loadForbidden(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null)));
+
+  app.post('/app/settings/forbidden', async (req, reply) => {
+    const sess = sessionOf(req);
+    if (!sess) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const term = String((req.body as { term?: string } | undefined)?.term ?? '');
+    const r = await addForbidden(deps.db, sess.businessId, term);
+    return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
+      t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
+  });
+
+  app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {
+    const sess = sessionOf(req);
+    if (!sess) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const r = await removeForbidden(deps.db, sess.businessId, id);
+    return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
+      t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
+  });
+
   app.post('/app/settings', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');

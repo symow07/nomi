@@ -13,6 +13,7 @@ import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
+import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
@@ -115,6 +116,12 @@ export type TurnResult = {
   stateBefore: ConversationState;
   provenance: { promptVersion: string | null; modelId: string | null };
   guardViolations: number;
+  /**
+   * M37.5 — the forbidden terms that stopped a draft, if any. The owner is told
+   * WHICH word, because "she said something she should not have" is not
+   * actionable and "she used 傻逼" is.
+   */
+  forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[];
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
@@ -262,6 +269,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let reply: string | null = null;
   let replyDeterministic = false;
   let guardViolations = 0;
+  /** M37.5 — which forbidden terms stopped a draft, so the owner is told WHICH. */
+  let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
   let confirmBlockedReasons: readonly string[] = [];
   let knowledge: readonly KnowledgeSnippet[] = [];
   let knowledgeUsed: readonly string[] = [];
@@ -303,6 +312,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
 
     case 'generate_reply': {
       const claimsPolicy = await tenant.catalog.claimsPolicy();
+      const forbiddenTerms = await tenant.catalog.forbiddenTerms();
       const refusalCtx = quoteRefusal ? quoteRefusalContext(quoteRefusal) : null;
       const replyLanguage =
         analysis?.language.replyIn ?? state.preferredLanguage ?? 'en';
@@ -329,9 +339,15 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       if (faq) {
         const answerAllow = [...numeralAllow, ...extractNumerals(faq.content).map((n) => n.value)];
         const claimed = guardClaims({ reply: faq.content, policy: claimsPolicy });
-        const guarded = claimed.ok
-          ? guardNumerals({ reply: claimed.value, quote, state: newState, clientText: req.text, allow: answerAllow })
+        // A TAUGHT answer is not exempt: the owner may have typed something in
+        // her catalogue that she later forbade, and shipping it verbatim
+        // because "she wrote it" is how the floor gets bypassed.
+        const wordSafe = claimed.ok
+          ? guardForbidden({ reply: claimed.value, ownerTerms: forbiddenTerms }) : claimed;
+        const guarded = wordSafe.ok
+          ? guardNumerals({ reply: wordSafe.value, quote, state: newState, clientText: req.text, allow: answerAllow })
           : null;
+        if (!wordSafe.ok && wordSafe.error.kind === 'forbidden_word') forbiddenHits = wordSafe.error.terms;
         if (guarded?.ok) {
           reply = guarded.value;
           replyDeterministic = true;
@@ -370,7 +386,16 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         // as prices, and default-deny against claims_policy. (Priority 4)
         const claimed = guardClaims({ reply: guarded.value, policy: claimsPolicy });
         if (!claimed.ok) { guardViolations++; continue; }
-        reply = claimed.value;
+        // M37.5 — and the words she has forbidden. Runs beside the other two
+        // guards, in the same retry loop, for the same reason: a regeneration
+        // is cheap and an insult in writing is not.
+        const clean = guardForbidden({ reply: claimed.value, ownerTerms: forbiddenTerms });
+        if (!clean.ok) {
+          guardViolations++;
+          forbiddenHits = clean.error.terms;
+          continue;
+        }
+        reply = clean.value;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
       if (reply === null) {
@@ -412,6 +437,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     stateBefore: state,
     provenance: { promptVersion, modelId },
     guardViolations,
+    forbiddenHits,
     timings, usage,
     fingerprint,
   };
@@ -572,6 +598,12 @@ export async function commitTurn(
       if (r.guardViolations > 0) {
         await tenant.events.append(req.conversationId, 'guard_violation', {
           capability, count: r.guardViolations,
+          // M37.5 — name the words. A refusal the owner cannot act on is a
+          // complaint; naming the term tells her whether it was her own rule or
+          // the floor, and lets her fix her list if it was hers.
+          ...(r.forbiddenHits.length
+            ? { forbidden: r.forbiddenHits.map((t) => ({ term: t.term, source: t.source })) }
+            : {}),
         });
         if (policyMode === 'auto') {
           await tenant.autonomy.selfDemote({

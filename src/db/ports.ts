@@ -168,6 +168,12 @@ export interface CatalogRepo {
   negotiationRules(): Promise<NegotiationRule[]>;
   /** claims_policy rows — the claims guard's allowlist (default-deny). */
   claimsPolicy(): Promise<AllowedClaim[]>;
+  /**
+   * M37.5 — terms this owner has forbidden her employee from saying to a buyer.
+   * Her list only; the immutable floor lives in core and is added there, so no
+   * row and no repo can remove it.
+   */
+  forbiddenTerms(): Promise<readonly string[]>;
   bundleRules(): Promise<BundleRule[]>;
   substitutions(productId: string): Promise<SubstitutionRule[]>;
 }
