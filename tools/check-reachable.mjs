@@ -180,6 +180,115 @@ if (process.argv.includes('--inventory')) {
   process.exit(0);
 }
 
+
+// ── Symbol mode: which EXPORTS has nothing called? Report only, exit 0. ─────
+//
+// The last hole in "nothing half-wired", and the one every instance so far has
+// slipped through: this checker measures MODULES. `security/credentials.ts` is
+// reachable — the worker imports `redactSecrets` — while `encryptSecret` and
+// `decryptSecret` have no caller anywhere in src/. channel_credentials is
+// written and never read, and CREDENTIAL_KEY guards data nothing decrypts. A
+// module-level walk cannot see that by construction.
+//
+// References are resolved from IMPORT BINDINGS, not by grepping for names: a
+// name that merely appears in another file proves nothing, and this repo has
+// been bitten by text-matching checks before.
+if (process.argv.includes('--symbols')) {
+  const files = walk('src').map((f) => relative('.', f));
+
+  /** Named exports of a file, with their kind. Types are collected to be excluded. */
+  const exportsOf = (file) => {
+    const src = readFileSync(file, 'utf8');
+    const out = [];
+    const re = /^export\s+(?:declare\s+)?(async\s+)?(function|const|let|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)/gm;
+    for (const m of src.matchAll(re)) out.push({ name: m[3], kind: m[2] });
+    // `export { a, b as c }` — the re-export/aggregate form.
+    for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+      for (const part of m[1].split(',')) {
+        const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+        if (name && /^[A-Za-z_$][\w$]*$/.test(name)) out.push({ name, kind: 'const' });
+      }
+    }
+    return out;
+  };
+
+  /** Every named binding a file imports, keyed by the resolved source file. */
+  const importBindings = (file) => {
+    const src = readFileSync(file, 'utf8');
+    const pairs = [];
+    const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"`](?:\$\{root\})?([^'"`]+)['"`]/g;
+    for (const m of src.matchAll(re)) {
+      const raw = m[2];
+      if (!raw.startsWith('.') && !raw.includes('src/')) continue;
+      const spec = raw.replace(/\.js$/, '.ts');
+      let target = raw.includes('src/')
+        ? normalize(spec.slice(spec.indexOf('src/')))
+        : normalize(join(dirname(file), spec));
+      if (!existsSync(target)) {
+        const asIndex = normalize(join(dirname(file), m[2].replace(/\.js$/, ''), 'index.ts'));
+        target = existsSync(asIndex) ? asIndex : target;
+      }
+      for (const part of m[1].split(',')) {
+        const name = part.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]?.trim();
+        if (name) pairs.push([relative('.', target), name]);
+      }
+    }
+    return pairs;
+  };
+
+  // walk() is .ts-only, and tools/ is .mjs — scanning it with walk() would have
+  // reported `sandboxSeedSql` as called by nothing when seed-sandbox.mjs calls
+  // it. A blind spot in the tool that hunts blind spots.
+  const walkAny = (dir) =>
+    readdirSync(dir).flatMap((f) => {
+      const q = join(dir, f);
+      return statSync(q).isDirectory() ? walkAny(q) : /\.(ts|mjs|js)$/.test(q) ? [q] : [];
+    });
+
+  const usedBy = (roots) => {
+    const seen = new Set();
+    for (const dir of roots) {
+      if (!existsSync(dir)) continue;
+      for (const f of walkAny(dir)) for (const [target, name] of importBindings(f)) seen.add(`${target}::${name}`);
+    }
+    return seen;
+  };
+
+  const fromSrc = new Set();
+  for (const f of files) for (const [t, n] of importBindings(f)) fromSrc.add(`${t}::${n}`);
+  const fromTestsTools = usedBy(['tests', 'tools']);
+
+  const testsOnly = [];
+  const nothing = [];
+  for (const file of files) {
+    if (Object.hasOwn(DECLARED_UNWIRED, file)) continue;   // already declared, module-level
+    if (!reachable.has(normalize(file))) continue;         // module-level check owns these
+    for (const { name, kind } of exportsOf(file)) {
+      if (kind === 'type' || kind === 'interface') continue;   // signatures dominate and mean nothing
+      const key = `${file}::${name}`;
+      if (fromSrc.has(key)) continue;
+      // A symbol its OWN module still uses is internal machinery that happens to
+      // be exported so a test can reach it — `PROMOTION_REQUIREMENTS` is read by
+      // `promotionDecision` three lines down. That is not dead behaviour, and
+      // including it buries the signal under eighty rows of noise.
+      const body = readFileSync(file, 'utf8');
+      const uses = [...body.matchAll(new RegExp(`\\b${name}\\b`, 'g'))].length;
+      if (uses > 1) continue;
+      (fromTestsTools.has(key) ? testsOnly : nothing).push(`${file}  ${name}  (${kind})`);
+    }
+  }
+
+  const show = (title, rows) => {
+    console.log(`\n${title} — ${rows.length}`);
+    for (const r of rows.sort()) console.log(`  ${r}`);
+  };
+  console.log('SYMBOL REACHABILITY — exported functions/consts inside REACHABLE modules');
+  console.log('that no other src/ file imports. Types and declared modules excluded.');
+  show('REFERENCED BY tests/ OR tools/ ONLY  (the credentials.ts shape)', testsOnly);
+  show('REFERENCED BY NOTHING AT ALL', nothing);
+  process.exit(0);
+}
+
 let violations = 0;
 const declaredButReachable = [];
 
