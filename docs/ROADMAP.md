@@ -62,15 +62,18 @@ recorded, reversible in one tap — the M20 pattern applied to outreach.
 *Four features that make her more sure. Build these first: they are what the
 outbound engine will be selling.*
 
-> **Status note (2026-08-11).** M34 is built. M4's vision pipeline turned out to
-> have the same defect this roadmap identified in the audio path — written,
-> tested, and called by nothing — so it was wired in the same pass (M4.5), and
-> `tools/check-reachable.mjs` now fails the build when any module under
-> `src/pipeline`, `src/outbound` or `src/channels` is reachable only from tests.
-> That check found one more orphan, `src/channels/testflow.ts`, awaiting a
-> decision. Everything below M34 is unstarted.
+> **Status, 2026-08-12.** M34 (voice), M34.5–M34.11, M35 (proof link) and M36
+> (consistency guard) are BUILT and deployed. So are the structural checks the
+> work kept needing: module reachability over all of `src/`, symbol reachability
+> as a ratchet, CSS that must parse, a populated-tenant surface walk, and a
+> CI gate that fails when the integration suite is skipped rather than run.
+>
+> The remaining work is sequenced in five blocks below. **One milestone at a
+> time, and every migration is reviewed before it goes near a push** — the
+> Railway pre-deploy command now applies migrations automatically, so an
+> unfinished migration is a production change rather than a local mistake.
 
-### M34 — She can hear ★ highest-value gap
+### M34 — She can hear ✅ BUILT (2026-08-11)
 
 **The finding.** `src/channels/whatsapp/parse.ts:90` already recognises
 `'audio' | 'voice'` and captures the `mediaId`. Grep the pipeline, ingress and
@@ -96,7 +99,7 @@ answer to a question she invented.
 
 ---
 
-### M35 — The proof link ★ the differentiator
+### M35 — The proof link ✅ BUILT (2026-08-12)
 
 Every quote she sends carries a link. The buyer opens it and sees the price, the
 tier, the MOQ, the lead time — **and where each fact came from**: the owner's
@@ -121,7 +124,7 @@ earns its keep.
 
 ---
 
-### M37.5 — The words she may never say
+### M37.5 — The words she may never say  (Block A2)
 
 The owner flags terms 小雅 must never use with a buyer, from her own settings.
 This is `claims_policy` for LANGUAGE: she already controls what may be CLAIMED,
@@ -144,7 +147,7 @@ Enforcement belongs beside `guardClaims` in the reply path, not in the prompt: a
 prompt is a request and a guard is a refusal, and this repo has been paying for
 that distinction all year.
 
-### M36 — The consistency guard
+### M36 — The consistency guard ✅ BUILT (2026-08-12)
 
 She refuses to quote a returning buyer a price that contradicts what she already
 gave them, without telling the owner first. Quoting $0.38 in March and $0.44 in
@@ -159,7 +162,7 @@ she may not be surprised by it.
 
 ---
 
-### M37 — Photograph the price list
+### M37 — Photograph the price list  ← NEXT (Block A1)
 
 The owner points her phone at her printed price sheet and the catalogue is
 built. Both halves exist and nothing joins them: M4 vision for image analysis,
@@ -301,14 +304,37 @@ decision is made — not buried in terms.
 ## PHASE 3 · DEPTH
 *Real gaps. Each becomes urgent the moment the pilot succeeds.*
 
-### M43 — Multi-currency
-`unitPriceUsd`, `floorPriceUsd`, `orderValueUsd` — USD is baked into type names
-throughout `core/commerce`. A schema and type change, so it gets more expensive
-every month. **Do it the product's way: the owner states the rate she will
-honour, or Nomi refuses to convert.** Never a live rate she did not approve —
-that is a number from outside her rules.
+### M43a — Money becomes a pair
 
-### M43.5 — Why did this month change
+`{ amount, currency }` replacing bare numbers; additive columns; types renamed
+off `Usd`. **USD stays the only currency** — this milestone changes no
+behaviour. Mechanical and compiler-guided: rename the type, follow the errors.
+
+**Measured, 2026-08-12:** 30 files touch a `*Usd` identifier — `unitPriceUsd`
+(32 uses), `totalUsd` (16), `floorUsd` (11), `floorPriceUsd` (9) — while only
+THREE schema columns do: `unit_price_usd`, `total_usd`, `floor_price_usd`. That
+asymmetry is the whole reason this splits from M43b. The type churn is large and
+safe; the product decision is small and delicate, and combining them puts a
+refactor and a feature in one migration — which is how M35's LATERAL defect got
+through.
+
+**Do this BEFORE any further pricing work.** Every milestone that adds a `*Usd`
+identifier makes it bigger. M36 already added three.
+
+### M43b — The owner's rate
+
+She states the rate she will honour, per currency, with the date she set it.
+Nomi converts at that rate or refuses. **Never a live rate she did not approve** —
+that is a number from outside her rules, and the whole engine exists to stop
+those. Small once M43a has landed.
+
+### M43.5 — Why did this month change  ⚠ NOT IN ANY BLOCK
+
+> This entry predates the block plan and appears in none of A–E. It is the
+> deferred half of Part D (M34.10): `core/insights/questions.ts` was deleted
+> rather than wired because its ranked drivers were percentages, which the
+> product bans. The QUESTION is still worth answering. It needs a block or a
+> decision to drop it — it should not sit here unassigned indefinitely.
 
 `core/insights/questions.ts` answered exactly this and was deleted in M34.10
 rather than wired: it ranked its drivers BY PERCENTAGE ("询盘多了67%",
@@ -351,25 +377,122 @@ single point of failure for a business built on messaging.
 
 ---
 
+## PHASE 4 · THE THINGS THAT MAKE IT SELLABLE
+
+### M49 — The design pass
+
+Diagnosed from live screenshots, not from taste. The product reads as
+unpolished, and the cause is structural: **restraint without alignment reads as
+unfinished, not confident.**
+
+1. **One content measure.** Four unrelated widths currently share one page —
+   rules to ~1650px, text wrapping ~1030px, inputs at 455px, `main` capped at
+   1040px in a 2000px viewport. Pick ONE column; rules, cards, inputs, buttons
+   and prose all align to it. Prose may be narrower *within* that column, but
+   nothing gets its own arbitrary max-width.
+2. **Decide where the column sits** — centred beside the nav, or left-aligned
+   with an intentional right rail. Either is defensible; the accidental middle
+   is not.
+3. **One vertical rhythm**, from the spacing scale only. Today's section gaps
+   are ~100px, ~40px, ~180px.
+4. **The two-voice rule is on the wrong axis.** Serif is landing on PRODUCT
+   headings — "No buyer can reach Lily yet", "Lily is learning from your
+   corrections", "Before she talks to real buyers". Serif is for what a PERSON
+   says: her drafts, a buyer's words. Everything else is sans. Inconsistent
+   serif/sans is the loudest unpolished signal on these pages. **A test must pin
+   it**, because the current rule was applied by hand and drifted immediately.
+5. **Colour once or twice per screen.** My factory currently spends green on the
+   nav slab, a panel, every link, the language pill and the button. Desaturate,
+   and spend it only on state. The nav's active item needs weight and a
+   background change, not a saturated slab.
+6. **Buttons sized to their content**, not to the input above them.
+7. **Empty states align like everything else** — they are centred while the page
+   around them is left-aligned.
+
+Add a LAYOUT test that catches what typography tests cannot: one measure, one
+alignment, spacing drawn from the scale. Screenshots at three widths, three
+locales, reviewed by eye — five defects in this project have now been caught by
+a screenshot and missed by a green suite.
+
+### M50 — The connect surface
+
+One settings page where every account links: WhatsApp, Google/Microsoft,
+Instagram, Facebook, Apollo. Each shows connected / not connected / needs
+attention, **and what that channel can actually do** (M39's registry, rendered).
+
+This is the page the whole niche rests on, so it gets designed, not assembled.
+The owner is not technical and may have no IT support: she connects everything
+with a few clicks. Built against dev-mode platform apps with test accounts;
+paste-credentials stays as the fallback path for factory #1.
+
+---
+
 ## 2. Order, and why
+
+Five blocks. Platform-app **registration and review are deliberately last**:
+Meta and Google review the working product, and submitting a half-built one
+invites a rejection that makes resubmission harder.
+
+Two clarifications that sharpen that sequencing rather than change it:
+
+- **Creating a platform app is not submitting it.** Both are free and instant,
+  and you need one to build against — a connect flow needs a client ID. The
+  OAuth code is built and tested in dev mode during Block C. Only the REVIEW
+  waits.
+- **The pilot does not need review.** Factory #1 completes its own WhatsApp
+  business verification and hands over credentials, which the operator pastes.
+  Tech Provider review only buys self-serve onboarding for factory #2 onward.
+  A real pilot can run — and teach you things — before anything is submitted.
+
+### BLOCK A · Finish the certainty features
 
 | # | Milestone | Why here |
 |---|---|---|
-| 1 | **M34 voice** | She is deaf on her own channel; half is built. |
-| 2 | **M35 proof link** | Turns the moat into something a buyer can see. Mostly rendering. |
-| 3 | **M37 photograph catalogue** | Removes the biggest barrier for every future customer. |
-| 4 | **M36 consistency guard** | Cheap; prevents the failure that loses a repeat buyer. |
-| 5 | **M38 contacts & consent** | Foundation. Nothing in Phase 2 is safe without it. |
-| 6 | **M39 capability registry** | Tells the owner the truth per channel before she connects. |
-| 7 | **M40 email** | The real cold engine, and the mechanism that earns WhatsApp consent. |
-| 8 | **M41 Apollo** | Enrichment first (zero risk), then lists, then sequences. |
-| 9 | **M42 outreach gate** | Ships with, not after, the first outbound send. |
-| 10 | **M43 currency** | Calcifies further every month. |
-| 11 | **M44 closure calendar** | Ship before December. |
-| 12–14 | **M45–M48** | Urgent the moment the pilot succeeds, not before. |
+| A1 | **M37 photograph the price list** | Collapses the largest friction in the product. Both halves already exist and nothing joins them. |
+| A2 | **M37.5 the words she may never say** | Ships WITH its owner surface, or it is M35 again. |
+| A3 | **M43a money becomes a pair** | **Before any further pricing work.** Every milestone that adds a `*Usd` identifier makes it bigger. |
+| A4 | **M43b the owner's rate** | Small once A3 is done, and it is where the product rule lives. |
+| A5 | **M44 closure calendar** | Seasonal: worthless in June, essential by December. |
 
-**M34 and M35 before any outbound work.** The outbound engine sells certainty;
-build the certainty first, or you are scaling a promise you have not yet kept.
+### BLOCK B · The design pass
+
+| # | Milestone | Why here |
+|---|---|---|
+| B1 | **M49 design pass** | The product reads as unpolished, and the cause is structural rather than decorative. Diagnosed from live screenshots. |
+
+### BLOCK C · The outbound engine
+
+| # | Milestone | Why here |
+|---|---|---|
+| C1 | **M38 contacts, consent, suppression** | Foundation. Nothing else in this block is safe without it. |
+| C2 | **M39 channel capability registry** | Tells the owner the truth per channel BEFORE she links an account. |
+| C3 | **M40 email from her own address** | The only true cold channel, and the mechanism that legitimately earns WhatsApp consent. |
+| C4 | **M41 Apollo behind a connector** | Enrichment on inbound first (zero risk), then lists, then sequences. |
+| C5 | **M42 the outreach gate** | Ships WITH the first outbound send, not after it. |
+| C6 | **M50 the connect surface** | The page the whole niche rests on, so it is designed rather than assembled. |
+
+### BLOCK D · Depth
+
+**M45 samples · M46 after the order · M47 more than one human · M48 WeChat.**
+
+Honestly: these are the four where watching one real factory changes what you
+build. Sample handling, production and shipment states, and how a boss and two
+salespeople actually divide conversations are things a pilot teaches in a week.
+Building them blind is possible; building them right is easier after. If factory
+#1 goes live on pasted credentials during Block C, this block gets much cheaper.
+
+### BLOCK E · The applications, and go-live
+
+1. **Meta app review** — one app covers WhatsApp, Instagram and Messenger.
+   Business verification, App Review for the messaging permissions, Embedded
+   Signup live.
+2. **Google OAuth verification** — `gmail.send` is a sensitive scope. Verify the
+   current requirements at submission time rather than trusting this line.
+3. **The pilot factory's own WhatsApp signup** — theirs, 1–5 days plus
+   display-name review, and the only clock nobody here controls. **Start it
+   whenever you like; it depends on nothing above it.**
+4. **Go-live** — `FIRST-FACTORY-WORKFLOW.md` §4 onward: rotate secrets, prove the
+   backup restores, allowlist, activation.
 
 ---
 
