@@ -36,10 +36,16 @@ jobs:
       - run: npm run check      # typecheck + core purity + the full unit suite
       - run: npm run trust      # the 23 scripted trust scenarios
 
-  # The 214 integration tests, which have never run automatically. 189 of them
-  # are boot.test.ts: it builds the REAL production composition against a real
-  # Postgres, so it is the only thing here that proves RLS, the boot guards, the
-  # send path and the owner routes actually hold.
+  # The integration suite: everything that needs a real Postgres, and the only
+  # place several product invariants can be proved at all. Most of it is
+  # boot.test.ts, which builds the REAL production composition against a real
+  # database — so RLS, the boot guards, the send path, activation and the owner
+  # routes are proved here or nowhere.
+  #
+  # Deliberately not counted. This comment said "214 tests, 189 of them
+  # boot.test.ts" and was wrong within a week; a number in prose is a number
+  # nobody updates. `run-integration.mjs` derives the count and asserts none
+  # were skipped, which is the part that actually needed guarding.
   integration:
     name: integration (real Postgres)
     runs-on: ubuntu-latest
@@ -88,8 +94,9 @@ jobs:
             "alter role nomi_app login password 'nomi_app';"
 
       - name: Confirm the runtime role is subject to RLS
-        # Fail here, loudly, rather than let 214 tests pass against a connection
-        # that ignores every policy they assert.
+        # Fail here, loudly, rather than let the tenant-isolation suite pass
+        # against a connection that ignores every policy it asserts. A superuser
+        # makes every RLS assertion green while proving nothing.
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc \
             "select case when rolsuper or rolbypassrls
@@ -101,11 +108,17 @@ jobs:
           npm run seed:demo
           npm run seed:sandbox
 
+      # `vitest run` EXITS 0 WHEN EVERYTHING IS SKIPPED, and every file in
+      # tests/integration/ self-skips on a missing DATABASE_URL. Unset or rename
+      # that variable and this job went green having run none of it: RLS
+      # isolation, the boot guards, the send path, activation, promotion,
+      # demotion. run-integration.mjs asserts ZERO skipped — not a minimum
+      # count, which would be a transcribed number that drifts.
       - name: Integration suite
-        run: npx vitest run tests/integration/
+        run: node tools/run-integration.mjs
 
       # Proves the suite is repeatable (M22). It mutates the database it asserts
       # against, so a second pass is the only thing that catches an ordering
       # dependency — and a green-then-red pair used to look like a regression.
       - name: Integration suite, again
-        run: npx vitest run tests/integration/
+        run: node tools/run-integration.mjs
