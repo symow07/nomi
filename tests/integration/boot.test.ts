@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { DEMO_NAMESPACE, demoPhone } from '../../src/demo/factory.js';
+import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant } from './tenant.js';
 import { sql } from 'kysely';
 
 /**
@@ -29,18 +29,17 @@ const d = DATABASE_URL ? describe : describe.skip;
  * so it happens only when MIGRATE_DATABASE_URL is available. Without it the run
  * falls back to the shared demo tenant — the old behaviour, now named.
  */
+// M34.8 — the per-run namespace this file pioneered now lives in ./tenant.ts,
+// so approve.test.ts and db.test.ts get the same isolation instead of sharing
+// the demo tenant. One implementation, three callers.
 const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
-const RUN_NS = MIGRATE_URL
-  ? `f${Date.now().toString(16).slice(-7)}`      // 8 hex chars, unique per run
-  : DEMO_NAMESPACE;
-const DEMO_BIZ = `${RUN_NS}-0000-4000-8000-0000000000b1`;
-const nsId = (suffix: string) => `${RUN_NS}-0000-4000-8000-${suffix}`;
+const DEMO_BIZ = RUN_BIZ;
 /** channel_credentials.external_ref is unique across ALL tenants, like the
  *  simulator's phone-number id — so a fixture ref is run-scoped too. */
 const M203_REF = `m203-ref-${RUN_NS}`;
 /** A test phone number in this run's own block, so client_channels — UNIQUE on
  *  (channel, channel_user_id) GLOBALLY — cannot collide with a previous run. */
-const ph = (n: string) => demoPhone(n, RUN_NS);
+const ph = runPhone;
 
 beforeAll(async () => {
   if (!DATABASE_URL || !MIGRATE_URL) return;
@@ -49,18 +48,7 @@ beforeAll(async () => {
   // web surfaces would otherwise operate on the shared demo while the direct
   // database assertions looked at this run's tenant.
   process.env['PILOT_BUSINESS_ID'] = DEMO_BIZ;
-  const { demoSeedSql } = await import('../../src/demo/factory.js');
-  const { demoTrustSeedSql } = await import('../../src/demo/trust.js');
-  const pg = (await import('pg')).default;
-  const client = new pg.Client({ connectionString: MIGRATE_URL });
-  await client.connect();
-  try {
-    await client.query('begin');
-    await client.query(demoSeedSql(RUN_NS));
-    await client.query(demoTrustSeedSql(RUN_NS));
-    await client.query('commit');
-  } catch (e) { await client.query('rollback'); throw e; }
-  finally { await client.end(); }
+  await seedRunTenant();
 }, 60_000);
 
 d('production boot-and-probe (requires DATABASE_URL)', () => {

@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { RUN_BIZ, seedRunTenant } from './tenant.js';
+import { describe, it, expect, beforeAll } from 'vitest';
 
 /**
  * Integration tests — real Postgres, no mocks. (ADR-0013 §3)
@@ -56,7 +57,8 @@ d('RLS tenant isolation (requires DATABASE_URL)', () => {
  * policy denial, not an FK error.
  */
 d('M17.3 · RLS denial — knowledge, claims, pilot state (requires DATABASE_URL)', () => {
-  const TENANT_A = 'de300000-0000-4000-8000-0000000000b1';   // the seeded demo factory
+  beforeAll(async () => { await seedRunTenant(); }, 60_000);
+  const TENANT_A = RUN_BIZ;   // this run's own seeded factory (M34.8)
   const FOREIGN = '99999999-9999-4999-8999-999999999999';    // never this tenant
 
   // Minimal valid rows: enough columns to satisfy NOT NULL + CHECK, so the ONLY

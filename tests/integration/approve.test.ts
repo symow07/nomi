@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
+import { RUN_BIZ, nsId, seedRunTenant } from './tenant.js';
 
 /**
  * The full trust loop, proven against real Postgres: computeTurn creates a
@@ -12,8 +13,11 @@ import { sql } from 'kysely';
 const DATABASE_URL = process.env['DATABASE_URL'];
 const d = DATABASE_URL ? describe : describe.skip;
 
-const BIZ_A = 'de300000-0000-4000-8000-0000000000b1';   // demo business
-const CONV_A = 'de300000-0000-4000-8000-000000000302';  // demo conversation
+// M34.8 — this run's OWN tenant, not the shared demo. These tests approve and
+// edit drafts, which mutates whatever tenant they touch; pointing them at the
+// shared one made a second run fail in ways indistinguishable from a regression.
+const BIZ_A = RUN_BIZ;
+const CONV_A = nsId('000000000302');
 const BIZ_B = 'bb000000-0000-4000-8000-0000000000b2';
 const CLIENT_B = 'bb000000-0000-4000-8000-0000000000c2';
 const CONV_B = 'bb000000-0000-4000-8000-0000000000d2';
@@ -57,6 +61,7 @@ d('applyOwnerCommand — the full approval loop (requires DATABASE_URL)', () => 
   beforeAll(async () => {
     ({ applyOwnerCommand } = await import('../../src/pipeline/approve.js'));
     ({ parseBusinessId } = await import('../../src/core/types/ids.js'));
+    await seedRunTenant();
     const clientMod = await import('../../src/db/client.js');
     withTenantTx = clientMod.withTenantTx;
     db = clientMod.createDb(DATABASE_URL!);
