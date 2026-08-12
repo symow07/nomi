@@ -7,9 +7,10 @@ deploy without changing anything.
 
 | | |
 |---|---|
-| Host | Railway |
+| Host | Railway. Project `nomi`, service `nomi` (renamed from `Flower` on 2026-08-12; the service ID is unchanged, so the GitHub trigger and every variable that is not derived from the name were unaffected). |
 | Repo | `git@github.com:symow07/nomi.git`, branch `main` |
 | Deploy trigger | push to `main` |
+| Generated domain | **Does not follow the service name.** Renaming the service left the generated `*.up.railway.app` host exactly as it was — it is a separate resource, minted once at creation. `RAILWAY_SERVICE_NAME` and the derived `RAILWAY_SERVICE_<NAME>_URL` changed; `RAILWAY_PUBLIC_DOMAIN`, `RAILWAY_STATIC_URL` and `RAILWAY_PRIVATE_DOMAIN` did not. Nothing in this repo reads any of them. |
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
 | Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`. |
