@@ -49,12 +49,17 @@ for (const file of walk(CORE)) {
   lines.forEach((line, i) => {
     const n = i + 1;
 
+    // Comments first. This skip used to sit BELOW the import check, so any
+    // prose containing the words `from 'x'` was reported as a forbidden import
+    // — a comment reading "distinct from 'revoke'" failed the build. A guard
+    // that fires on prose teaches people to word their comments around it,
+    // which is the opposite of what it is for.
+    if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
+
     const imp = line.match(/from\s+['"]([^'"]+)['"]/);
     if (imp?.[1] && !ALLOWED_IMPORT.test(imp[1])) {
       fail(file, n, `core/ must not import "${imp[1]}" — it would stop being pure`);
     }
-
-    if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
     for (const [re, msg] of BANNED) {
       if (re.test(line)) fail(file, n, msg);
     }
