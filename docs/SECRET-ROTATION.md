@@ -26,16 +26,42 @@ planned, no-surprise procedure and, critically, the blast radius of each key.
 | `OWNER_ACCESS_CODE` | Command Center login | Old code stops working; existing cookies stay valid to TTL. | Set a new value → redeploy. Always set it explicitly (else it is generated and logged once at boot). |
 | **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of `channel_credentials` | **(a)** all owner sessions invalidated → re-login. **(b)** existing encrypted credentials become undecryptable unless re-encrypted. | See below — do NOT rotate blind. |
 
-## Rotating `CREDENTIAL_KEY` (the dangerous one)
-`src/security/credentials.ts` encrypts channel credentials with a `keyVersion`.
-A naive swap breaks messaging. Procedure:
+## Rotating `CREDENTIAL_KEY` (verified 2026-08-12)
 
-1. Keep the **old** key available. Set the **new** key as a second value.
-2. For each stored secret: `decryptSecret(packed, oldKey)` → `encryptSecret(plain, newKey, keyVersion+1)` → write back. (Decrypt-with-old / re-encrypt-with-new; the packed format carries `keyVersion` so a read-miss is detectable.)
-3. Only after every row is re-encrypted, swap `CREDENTIAL_KEY` to the new value and redeploy.
-4. Owners re-login (session HMAC changed) — expected.
+**Today, rotation is a one-liner, because nothing is encrypted with this key.**
 
-If there are **no** live channel credentials yet (pilot pre-onboarding), rotation is safe: only sessions reset. That is the current pilot state.
+`src/security/credentials.ts` can encrypt and decrypt channel credentials, and
+`CREDENTIAL_KEY` is also the web-session HMAC. But **no application code calls
+`encryptSecret` or `decryptSecret`, and no application code writes
+`channel_credentials`** — the only INSERT anywhere is the demo seed, and the
+live channel routes only flip `is_active`. So the key currently protects exactly
+one thing: owner sessions.
+
+```bash
+# Verify the premise rather than trusting this document.
+psql "$MIGRATE_DATABASE_URL" -tAc "select count(*) from channel_credentials;"
+```
+
+- **Count is 0** — set the new `CREDENTIAL_KEY` and redeploy. Owners re-login,
+  because the session HMAC changed. Nothing else happens. This is the current
+  pilot state.
+- **Count is non-zero** — STOP. Those rows were written by something outside the
+  application (a seed, or a hand-run script). Find out what wrote them and
+  whether the ciphertext matters before touching the key.
+
+### What this section used to say, and why it was wrong
+
+It gave a four-step re-encryption procedure whose second step was
+`decryptSecret(packed, oldKey)` → `encryptSecret(plain, newKey, keyVersion+1)`.
+Both functions exist; neither has a caller. There is no re-encryption tool, no
+script, and no route that writes an encrypted credential — so an operator
+following those steps during an incident would have been searching for a program
+that was never written, at the worst possible moment.
+
+**When a credential-writing path lands (Embedded Signup / per-tenant outbound —
+the same milestone `security/credentials.ts` is exempted for), the re-encryption
+tool ships WITH it, and this section gets rewritten around a command that
+exists.** A procedure is not a plan until something runs it.
 
 ## Immediate rotation owed (from build history)
 The temporary `ANTHROPIC_API_KEY` and the Railway admin `DATABASE_URL` were pasted

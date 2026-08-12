@@ -1,8 +1,18 @@
 /**
  * M5 — 抽查: the two-minute management ritual. Deterministic selection of
- * representative completed work; verdicts feed promotion/demotion evidence
- * (evidence.ts applySpotCheck). No spam: a fixed weekly budget, results
+ * representative completed work. No spam: a fixed weekly budget, results
  * summarized in the review, never pushed one by one.
+ *
+ * HOW VERDICTS REACH THE EVIDENCE. They are COUNTED, not applied: a verdict is
+ * a row in `spot_checks`, and `loadCapabilityEvidence` (pipeline/capability.ts)
+ * counts those rows into `spotChecksPassed` / `spotChecksFailed` /
+ * `spotChecksSerious` each time promotion is considered.
+ *
+ * This header used to say verdicts fed evidence "via evidence.ts
+ * applySpotCheck". That was written as a plan and never became true —
+ * `applySpotCheck` has no caller — and the sentence pointed whoever came next
+ * at a function that does nothing, which is how a wrong comment costs more than
+ * a missing one.
  *
  * M34.7 — WIRED. Until now this module selected work nobody offered and parsed
  * replies nobody sent: the only INSERT into spot_checks in the entire repo was
