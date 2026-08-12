@@ -51,12 +51,33 @@ case "$(printf '%s' "$HEALTH" | tr 'A-Z' 'a-z')" in
   *) ok "/health leaks no build information" ;;
 esac
 
-# ── 2. auth gate ─────────────────────────────────────────────────────────────
-for p in /app /app/onboarding /app/inbox /app/factory /app/sandbox; do
+# ── 2. auth gate — INVERTED (M35) ────────────────────────────────────────────
+#
+# This used to probe five NAMED surfaces. That proves the five we remembered are
+# protected and says nothing about a sixth — and once the buyer proof link made
+# one page genuinely public, adding an exception to a list of known-protected
+# pages would have turned the exception into the hole.
+#
+# So the list is DERIVED from the deployed code (tools/list-routes.mjs reads the
+# Fastify route table) and inverted: everything that is not on the short public
+# list must refuse a stranger. A route added without thought fails this check
+# instead of going unprobed.
+ROUTES="$(cd "$(dirname "$0")/../../.." && npx --yes tsx tools/list-routes.mjs 2>/dev/null)"
+[ -n "$ROUTES" ] || fail "could not derive the route table — refusing to fall back to a hand-written list"
+N=0
+while IFS= read -r p; do
+  [ -z "$p" ] && continue
   c="$(code_of "$BASE$p")"
   [ "$c" = "302" ] || [ "$c" = "301" ] || fail "$p returned $c for an anonymous visitor (expected a redirect to /login)"
-done
-ok "every owner surface redirects when signed out"
+  N=$((N+1))
+done <<< "$ROUTES"
+ok "all $N non-public routes redirect when signed out (list derived, not transcribed)"
+
+# The proof link is the ONE public page inside the app. An unissued token must
+# be 404 — never 403, which would confirm the quote exists.
+c="$(code_of "$BASE/p/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")"
+[ "$c" = "404" ] || fail "an unissued proof token returned $c (expected 404; 403 would be an oracle)"
+ok "an unissued proof link is 404, not 403"
 
 c="$(code_of -X POST "$BASE/app/inbox/00000000-0000-0000-0000-000000000000/takeover")"
 [ "$c" = "302" ] || fail "an unauthenticated owner ACTION returned $c (expected 302)"

@@ -45,7 +45,7 @@ import type { Db } from './client.js';
  *      verb. Against a 26 database either write is rejected exactly when a
  *      buyer or an owner is waiting on it.
  */
-export const REQUIRED_SCHEMA_VERSION = 27;
+export const REQUIRED_SCHEMA_VERSION = 28;
 
 export type SchemaState = {
   readonly required: number;

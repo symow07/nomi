@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
+import { loadProof, renderProof, notFoundPage } from './proof.js';
 import { loadInsights, renderInsights } from './insights.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
@@ -131,6 +132,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         page(req, { title: t(locale, `nav.${active}` as MessageKey), active, bodyHtml: body }),
       );
     };
+
+  // ── M35 · the proof link: the ONE public page inside the app ─────────────
+  //
+  // No session, no login, and deliberately no way back into the app: a buyer
+  // who tapped one would meet a login screen and learn there is an app here.
+  // It must survive being forwarded and read on a stranger's phone.
+  //
+  // 404 — NEVER 403 — for unknown, revoked, or deleted. A 403 confirms the
+  // quote exists, which tells whoever is guessing that they guessed right and
+  // were merely unauthorised. `loadProof` returns null for every failure so
+  // this handler cannot accidentally distinguish them.
+  app.get('/p/:token', async (req, reply) => {
+    const token = String((req.params as { token: string }).token ?? '');
+    const view = token.length >= 32 ? await loadProof(deps.db, token) : null;
+    if (!view) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    return reply.type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .send(renderProof(view));
+  });
 
   // ── Auth ────────────────────────────────────────────────────────────────
   app.get('/', async (req, reply) =>
