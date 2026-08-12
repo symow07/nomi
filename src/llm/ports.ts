@@ -66,3 +66,43 @@ export interface ReplyWriter {
   }): Promise<{ reply: string; promptVersion: string; modelId: string;
     usage: { inputTokens: number; outputTokens: number } }>;
 }
+
+/**
+ * M37 — reading a PAGE, which is not the same job as describing an IMAGE.
+ *
+ * A SEPARATE PORT ON PURPOSE. `VisionDescriber` describes a photo so retrieval
+ * can match it against the owner's catalogue, and its containment rule is that
+ * it must NEVER name a product — the catalogue decides what the photo is.
+ * This transcribes a printed price sheet, and its containment rule is the
+ * opposite: it must never INVENT a line, and the page decides what the
+ * catalogue becomes.
+ *
+ * One interface serving both contracts is how those leak into each other: a
+ * describer that has learned to read prices starts naming products, and a
+ * transcriber that has learned to describe starts filling in the blurred row.
+ *
+ * ABSENT IS A LEGITIMATE STATE, exactly as with M34's transcriber. If no page
+ * reader is configured, photographing a price list refuses honestly and says
+ * why; image MATCHING keeps working, because it is a different port.
+ */
+export interface PageTranscriber {
+  /**
+   * Photograph → the lines that are on it, verbatim, one per line.
+   *
+   * Returns null when the page cannot be read at all. It never returns a
+   * partial page: half a price sheet is worse than none, because the owner
+   * cannot tell which half she is missing.
+   */
+  transcribe(input: {
+    imageBase64: string;
+    mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+  }): Promise<{
+    /** The page's text, newline-separated, in reading order. */
+    text: string;
+    /** The model's own statement that it could not read the page. */
+    unreadable: boolean;
+    promptVersion: string;
+    modelId: string;
+    usage: { inputTokens: number; outputTokens: number };
+  }>;
+}

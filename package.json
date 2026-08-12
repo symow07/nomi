@@ -1,7 +1,7 @@
 {
   "name": "nomi",
   "version": "1.0.0",
-  "description": "An AI sales employee a factory can trust in front of a real buyer. Answers WhatsApp enquiries in English, \u4e2d\u6587 and \u0627\u0644\u0639\u0631\u0628\u064a\u0629 \u2014 quotes only from the owner's own price rules, never states a price, spec or certification she was not given, and hands the conversation to a person when she cannot answer safely.",
+  "description": "An AI sales employee a factory can trust in front of a real buyer. Answers WhatsApp enquiries in English, 中文 and العربية — quotes only from the owner's own price rules, never states a price, spec or certification she was not given, and hands the conversation to a person when she cannot answer safely.",
   "directories": {
     "doc": "docs"
   },
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
+    "@fastify/multipart": "^10.1.0",
     "fastify": "^5.10.0",
     "kysely": "^0.29.3",
     "pg": "^8.22.0",

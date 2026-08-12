@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
@@ -16,6 +17,7 @@ import {
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
   renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
+  importFromPhoto, renderPhotoRefusal,
 } from './products.js';
 import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
 import { loadEmployee, renderEmployee } from './employee.js';
@@ -52,7 +54,7 @@ import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { takeOver, resumeAi } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import type { Analyzer, ReplyWriter } from '../../llm/ports.js';
+import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
 import { shell, loginPage, esc } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
@@ -93,10 +95,59 @@ export type WebDeps = {
   /** Live-AI ports for the sandbox. Absent → scripted mode only. */
   readonly analyzer?: Analyzer;
   readonly replyWriter?: ReplyWriter;
+  /**
+   * M37 — reads a photographed price sheet. ABSENT IS A LEGITIMATE STATE:
+   * without it, photographing a page refuses honestly and says so, while
+   * everything else — including image MATCHING, which is a different port —
+   * keeps working.
+   */
+  readonly pageTranscriber?: PageTranscriber;
 };
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const codec = makeSessionCodec(deps.sessionSecret);
+
+  /**
+   * M37 — multipart, from the maintainers of the framework already here.
+   *
+   * NOT HAND-ROLLED, on purpose. A multipart parser is a parser over untrusted
+   * input with a known catalogue of DoS vectors — unbounded parts, filename
+   * traversal, boundary confusion — and this repo declines to hand-roll that
+   * class of thing everywhere else. The five-dependency discipline is about
+   * frameworks, not about a first-party parser for a framework already in use.
+   *
+   * EVERY LIMIT IS SET EXPLICITLY, with the inherited default named, because
+   * two of them are unbounded and one is too small for the actual photograph:
+   *
+   *   fileSize      8 MB   RAISED. The plugin falls back to Fastify's
+   *                        bodyLimit, 1 MB — smaller than a phone photo of a
+   *                        page, so the feature would refuse every real one.
+   *                        Set here rather than left to bodyLimit, which is a
+   *                        different setting someone will change for another
+   *                        reason and silently move this.
+   *   files         1      NO DEFAULT — unlimited. One page per review; a
+   *                        second file is a request no form of ours makes.
+   *   fields        4      NO DEFAULT — unlimited. This form posts none.
+   *   parts         6      Down from 1000.
+   *   fieldSize     1 KB   Down from 1 MB.
+   *   fieldNameSize 100    The busboy default, stated so a change is visible.
+   *   headerPairs   200    Down from 2000 — part headers are three or four in
+   *                        every real request.
+   *
+   * The filename is never used: the upload becomes base64 in memory and is
+   * never written to disk, so path traversal has nothing to traverse.
+   */
+  void app.register(multipart, {
+    limits: {
+      fileSize: 8 * 1024 * 1024,
+      files: 1,
+      parts: 6,
+      fields: 4,
+      fieldSize: 1024,
+      fieldNameSize: 100,
+      headerPairs: 200,
+    },
+  });
 
   // Owner login posts a form; parse urlencoded bodies (dependency-free).
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' },
@@ -508,6 +559,52 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderReview(reviewImport(text), text, locale),
     }));
   });
+  /**
+   * M37 — she photographs the printed price sheet instead of typing it.
+   *
+   * REUSES THE PASTE FLOW ENTIRELY. The transcriber turns a page into TEXT; the
+   * same `reviewImport` parser turns text into products; the same confirm form
+   * writes them. So the photo path has no second parser, no second writer, and
+   * no migration — the staged text round-trips through the hidden field exactly
+   * as a paste does.
+   *
+   * MULTIPART LIMITS ARE SET EXPLICITLY below, at registration.
+   */
+  app.post('/app/products/add/photo', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const refuse = (reason: Parameters<typeof renderPhotoRefusal>[0]) =>
+      reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'product.photo.refusedTitle'), active: 'products',
+        bodyHtml: renderPhotoRefusal(reason, locale),
+      }));
+
+    let imageBase64 = '';
+    let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg';
+    try {
+      const file = await req.file();
+      if (!file) return refuse('unreadable');
+      const mt = file.mimetype;
+      if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('unreadable');
+      mediaType = mt;
+      imageBase64 = (await file.toBuffer()).toString('base64');
+    } catch {
+      // The parser throws on a file over the limit. Over-size is its own
+      // refusal because "too big" and "unreadable" ask her to do different
+      // things — retake smaller, versus retake in better light.
+      return refuse('too_large');
+    }
+    if (!imageBase64) return refuse('unreadable');
+
+    const out = await importFromPhoto({ transcriber: deps.pageTranscriber }, { imageBase64, mediaType });
+    if (out.kind === 'refused') return refuse(out.reason);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'product.review.title'), active: 'products',
+      bodyHtml: renderReview(out.review, out.text, locale),
+    }));
+  });
+
   // M29 — the owner edits her own product. Archive-never-erase: "stop offering
   // this" is is_active=false, and every changed field is audited old → new.
   app.post('/app/products/:id/edit', async (req, reply) => {

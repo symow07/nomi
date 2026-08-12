@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { startWorker } from './worker/main.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
-import { anthropicAnalyzer, anthropicReplyWriter } from './llm/anthropic.js';
+import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
@@ -317,9 +317,14 @@ export async function buildProduction(
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
     ? ((c) => ({ analyzer: anthropicAnalyzer(c), replyWriter: anthropicReplyWriter(c) }))(new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY }))
     : {};
+  // M37 — the page reader, wired at the production entrypoint. A feature whose
+  // tests pass is not built; a feature a route reaches is. Absent key → absent
+  // port → the photo path refuses and says so, which is the designed state.
+  const pageTranscriber = anthropicPageTranscriber(new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY }));
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,
+      pageTranscriber,
       sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,

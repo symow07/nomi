@@ -21,6 +21,18 @@ export type ExtractedProduct = {
   readonly nameZh: string | null;
   readonly priceUsd: number | null;    // null = owner must fill at confirm
   readonly moq: number | null;
+  /**
+   * M37 — the line this was read from, verbatim.
+   *
+   * Shown beside the extracted product so the owner checks a TRANSCRIPTION
+   * rather than approving a list. That is M34's "Heard as" pattern applied to a
+   * page: she can see that "ZX-100 帆布袋 $0.85 起订500" became those four
+   * fields, and catch the one that did not.
+   *
+   * Optional so every existing caller is unchanged; the paste flow fills it too
+   * because the same review screen serves both.
+   */
+  readonly sourceLine?: string;
   readonly unit: string;               // default 'pcs'
 };
 
@@ -100,13 +112,14 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       priceUsd: price ? Number(price) : null,
       moq: moq ? Number(moq.replace(/,/g, '')) : null,
       unit: 'pcs',
+      sourceLine: line,
     });
   }
   return out;
 }
 
 /** Neutral reject code (ADR-0008); reasonZh is kept for the P3 onboarding flow. */
-export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq';
+export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq' | 'no_price_on_page';
 
 export type ValidatedImport = {
   readonly accepted: readonly ExtractedProduct[];
@@ -134,6 +147,35 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
       seen.add(key);
       accepted.push(p);
     }
+  }
+  return { accepted, rejected };
+}
+
+/**
+ * M37 — the same validator, for a page she PHOTOGRAPHED rather than pasted.
+ *
+ * One rule differs, and it exists because the two inputs differ in what they
+ * contain. A paste is what the owner CHOSE to paste, so a line without a price
+ * is a product she means to price later — accepted, marked "Needs a price".
+ * A photograph contains the WHOLE page: the letterhead, the address, the
+ * "Thank you for your order", the column headings. Under the paste rule every
+ * one of those becomes a priceless product in her catalogue.
+ *
+ * So on a page, a line without a price is not imported — and it is not dropped
+ * silently either. It is REJECTED, with a reason, into the list the review
+ * already shows, because a line the page had and the catalogue did not get is
+ * exactly the thing she needs to see.
+ *
+ * It is not a threshold and it guesses nothing: no line is judged by how much
+ * it looks like a heading, only by whether it carries a price.
+ */
+export function validatePage(products: readonly ExtractedProduct[]): ValidatedImport {
+  const base = validateExtracted(products);
+  const accepted: ExtractedProduct[] = [];
+  const rejected = [...base.rejected];
+  for (const p of base.accepted) {
+    if (p.priceUsd === null) rejected.push({ product: p, reason: 'no_price_on_page', reasonZh: '这行没有价格' });
+    else accepted.push(p);
   }
   return { accepted, rejected };
 }

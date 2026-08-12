@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { parsePriceLines, validateExtracted, type ValidatedImport } from '../../core/onboard/catalogImport.js';
+import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport } from '../../core/onboard/catalogImport.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatQty, formatUsd } from '../../core/owner/i18n/format.js';
+import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
 
 /**
@@ -309,14 +310,29 @@ export function renderAddForm(locale: Locale): string {
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'product.add.note'))}</p>
+    </div>
+    <div class="block">
+      <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
+      <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
+      <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
+        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp" capture="environment" required />
+        <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
+      </form>
+      <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>${PRODUCT_STYLE}`;
 }
 
 export function renderReview(v: ValidatedImport, rawText: string, locale: Locale): string {
+  // M37 — THE SOURCE LINE, beside every product, in BOTH flows.
+  // What she confirms is a TRANSCRIPTION, not a list: the line she can compare
+  // against the page in her hand sits under the product it produced. A price
+  // that no line contains has nowhere to hide, because every price is shown
+  // next to the text it came out of.
   const accepted = v.accepted.map((p) => `
     <div class="rev"><b>${esc(p.name)}</b>
       <span class="muted">${p.priceUsd !== null ? esc(formatUsd(p.priceUsd)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
       ${p.priceUsd === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
+      ${p.sourceLine ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : ''}
     </div>`).join('');
   const rejected = v.rejected.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}</div>`
@@ -355,6 +371,8 @@ const PRODUCT_STYLE = `<style>
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); } .qrow:last-child { border-bottom:none; }
   .rev { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); flex-wrap:wrap; }
   .rev:last-child { border-bottom:none; }
+  .rev-src { flex-basis:100%; font-size:var(--font-size-micro); }
+  .photo-in { display:block; width:100%; margin:10px 0; font:inherit; color:var(--color-ink); min-height:44px; }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:10px 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
 </style>`;
@@ -475,4 +493,89 @@ export async function updateProduct(
 
     return { ok: true, changed };
   });
+}
+
+/* ── M37 · photograph the price list ─────────────────────────────────────── */
+
+/**
+ * The outcome of pointing a phone at a printed price sheet.
+ *
+ * REFUSED IS WHOLE. A page that cannot be read produces no products at all —
+ * never "we got some of them". A half-read price sheet is worse than none,
+ * because the owner cannot tell WHICH half is missing and will assume the
+ * catalogue is complete.
+ */
+export type PhotoImport =
+  | {
+      readonly kind: 'read';
+      /**
+       * THE STAGED TEXT — the lines that became products, not the whole page.
+       *
+       * It round-trips through the confirm form's hidden field, and `confirmImport`
+       * re-parses it. So it must contain exactly what the review showed as
+       * accepted: staging the whole page instead would let confirm write rows the
+       * review never displayed, which is this repo's recurring bug in its purest
+       * form — two paths deriving the same list by different rules.
+       */
+      readonly text: string;
+      readonly review: ValidatedImport;
+    }
+  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'too_large' };
+
+/**
+ * Vision DESCRIBES; the parser EXTRACTS. This joins them and does neither.
+ *
+ * The transcriber returns TEXT. `parsePriceLines` — deterministic, no model —
+ * turns text into products. So a price the model invented cannot become a
+ * product unless it also appears as a line, and the line is shown to the owner
+ * beside the product it produced.
+ */
+export async function importFromPhoto(
+  deps: { transcriber?: PageTranscriber | undefined },
+  input: { imageBase64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp' },
+): Promise<PhotoImport> {
+  // Absent is a legitimate state, like M34's transcriber: she is told the truth
+  // rather than shown an empty result she would read as "nothing on the page".
+  if (!deps.transcriber) return { kind: 'refused', reason: 'not_configured' };
+
+  const page = await deps.transcriber.transcribe(input);
+  if (page.unreadable || !page.text.trim()) return { kind: 'refused', reason: 'unreadable' };
+
+  // The PAGE rule, not the paste rule: a photograph carries the letterhead and
+  // the column headings too, and under the paste rule every one of those would
+  // become a priceless product in her catalogue.
+  const review = validatePage(parsePriceLines(page.text));
+  // Text came back, but nothing on the page parsed as a product. Refusing here
+  // rather than showing an empty review with reject codes is the same rule:
+  // she learns the page was not a price list, instead of reading a screenful of
+  // "not recognized" and concluding her products vanished.
+  //
+  // NOT a threshold. Lines that are not products — a letterhead, a phone
+  // number, a column heading — are on every real price sheet, and refusing a
+  // page because it has a header would make this useless. The rule is
+  // structural: nothing recognized is not an import.
+  if (review.accepted.length === 0) return { kind: 'refused', reason: 'no_lines' };
+  // Stage the lines that became products, so what confirm writes is what the
+  // review showed. Every accepted product has a source line, because the parser
+  // only produces one from a line.
+  const staged = review.accepted.map((p) => p.sourceLine ?? '').filter((l) => l !== '').join('\n');
+  return { kind: 'read', text: staged, review };
+}
+
+/**
+ * The page she cannot read.
+ *
+ * A refusal, rendered whole: no partial list, no "here is what we got". It
+ * names the reason in her language and names the next action — take another
+ * photo, or paste the text, which is the path that always works.
+ */
+export function renderPhotoRefusal(
+  reason: 'not_configured' | 'unreadable' | 'no_lines' | 'too_large', locale: Locale,
+): string {
+  return `<h1 class="page">${esc(t(locale, 'product.photo.refusedTitle'))}</h1>
+    <div class="block">
+      <p>${esc(t(locale, `product.photo.refused.${reason}` as MessageKey))}</p>
+      <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
+      <p><a class="btn" href="/app/products/add">${esc(t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}</a></p>
+    </div>${PRODUCT_STYLE}`;
 }

@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
-import type { Analyzer, ReplyWriter, VisionDescriber } from './ports.js';
+import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber } from './ports.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { Phase, ProductMatch } from '../core/types/conversation.js';
 import { parseProductId } from '../core/types/ids.js';
@@ -242,6 +242,55 @@ export function anthropicVision(client: Anthropic): VisionDescriber {
 
       return { searchText, attributes, promptVersion: prompt.version, modelId: MODEL,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
+    },
+  };
+}
+
+/**
+ * M37 — the page transcriber.
+ *
+ * TRANSCRIBE, DO NOT INTERPRET. The prompt asks for the lines that are on the
+ * page and nothing else: no summarising, no tidying, no filling a blurred row
+ * from what the surrounding rows suggest. A price the model completed from
+ * context, confirmed by a tired owner at the end of a long import, becomes her
+ * catalogue and then her quotes.
+ *
+ * The extraction happens afterwards, in `parsePriceLines`, over the text this
+ * returns. That split is the containment rule: the model produces TEXT, and a
+ * deterministic parser produces PRODUCTS. No price can exist that no line
+ * contains, because the parser only ever reads lines.
+ */
+export function anthropicPageTranscriber(client: Anthropic): PageTranscriber {
+  const PROMPT_VERSION = 'page-transcribe-1';
+  return {
+    async transcribe({ imageBase64, mediaType }) {
+      const res = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2000,
+        system:
+          'You transcribe printed pages. Output ONLY the text that is visibly ' +
+          'printed on the page, one line per printed line, in reading order. ' +
+          'Do NOT summarise, reformat, translate, correct, or complete anything. ' +
+          'If a value is blurred, cut off, or unreadable, write the rest of the ' +
+          'line and omit that value — never guess it from the other rows. ' +
+          'If you cannot read the page at all, reply with exactly: UNREADABLE',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: 'Transcribe this page.' },
+          ],
+        }],
+      });
+      const block = res.content[0];
+      const text = block?.type === 'text' ? block.text.trim() : '';
+      return {
+        text: text === 'UNREADABLE' ? '' : text,
+        unreadable: text === 'UNREADABLE' || text.length === 0,
+        promptVersion: PROMPT_VERSION,
+        modelId: MODEL,
+        usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
+      };
     },
   };
 }
