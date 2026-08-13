@@ -42,7 +42,7 @@ const detail = (refusals: readonly Refusal[]): ConversationDetail => ({
   product: { name: 'Canvas tote', nameZh: null }, quantity: 5000, quote: null, order: null,
   messages: [{ direction: 'inbound', text: 'what is your price?', at: NOW }],
   pendingDraft: null, ownership: 'AI', refusals, handoffReasons: [], unheardReason: null,
-  lastHumanAction: null, knowledgeUsed: [], rate: null, proof: { quoteId: null, token: null },
+  lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, proof: { quoteId: null, token: null },
 });
 
 const snapshot = (blockedMessages: number): OperationsSnapshot => ({

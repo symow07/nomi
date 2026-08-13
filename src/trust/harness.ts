@@ -1,4 +1,5 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import type { FactoryClosure } from '../core/commerce/closures.js';
 import { type Money, usd } from '../core/types/money.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
 import { NO_KILL_SWITCHES, type KillSwitches } from '../core/ops/killSwitch.js';
@@ -110,12 +111,16 @@ class HarnessTenant implements Tenant {
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {} };
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
   forbidden: string[] = [];
+  /** M44 — days the factory is shut, as the owner stated them. */
+  closures: FactoryClosure[] = [];
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
     forbiddenTerms: async () => this.forbidden,
+    /** M44 — closures the owner stated. Empty unless a scenario sets them. */
+    factoryClosures: async () => this.closures,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],

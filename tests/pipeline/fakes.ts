@@ -1,4 +1,5 @@
 import type { Money } from '../../src/core/types/money.js';
+import type { FactoryClosure } from '../../src/core/commerce/closures.js';
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
   EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant, OpsRepo,
@@ -70,12 +71,15 @@ export class FakeTenant implements Tenant {
 
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
   forbidden: string[] = [];
+  /** M44 — days the factory is shut, as the owner stated them. */
+  closures: FactoryClosure[] = [];
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
     pricingPolicy: async (id) => (id ? this.policies.get(id) ?? null : null),
     negotiationRules: async () => this.rules,
     forbiddenTerms: async () => this.forbidden,
+    factoryClosures: async () => this.closures,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],

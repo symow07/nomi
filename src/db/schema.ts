@@ -89,6 +89,15 @@ export interface Database {
     customizable: boolean;
     is_active: boolean;
   };
+  factory_closures: {
+    id: Generated<string>;
+    business_id: string;
+    label: string;
+    starts_on: string;
+    ends_on: string;
+    created_at: Generated<Timestamp>;
+    archived_at: Timestamp | null;
+  };
   price_tiers: {
     product_id: string;
     min_qty: number;

@@ -1,5 +1,6 @@
 import type { Brand } from './brand.js';
 import type { Money } from './money.js';
+import type { LeadTimeBlocked } from '../commerce/closures.js';
 import type { BusinessId, Email, ProductId } from './ids.js';
 import type { Quantity } from './conversation.js';
 
@@ -101,7 +102,19 @@ export type Quote = {
   readonly discountPct: number;
   readonly total: Money;
   readonly moq: number;
+  /**
+   * null when the product has none — and, since M44, null when a closure the
+   * owner stated falls inside the window it would promise. That is the
+   * enforcement: a number absent from the quote cannot be stated in a reply,
+   * because `guardNumerals` sources every figure from here.
+   */
   readonly leadTimeDays: number | null;
+  /**
+   * M44 — why there is no date, when there is a product lead time but no
+   * promise. For the OWNER: she is told which of her own closures blocked it.
+   * The buyer is told nothing about her calendar.
+   */
+  readonly leadTimeBlocked: LeadTimeBlocked | null;
   /** Discount exceeds the AI's authority → route to a human before sending. */
   readonly requiresHuman: boolean;
   /** Which rules fired. For audit, and for explaining the price to the client. */

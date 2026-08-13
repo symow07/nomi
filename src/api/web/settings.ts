@@ -6,6 +6,7 @@ import { t, type MessageKey, EMPLOYEE_NAME } from '../../core/owner/i18n/message
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
+import { type FactoryClosure, type ClosureError, validateClosure, closureDate } from '../../core/commerce/closures.js';
 import { parseCurrency } from '../../core/types/money.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
@@ -208,6 +209,7 @@ export function renderSettings(
     ${deeper('/app/settings/forbidden',
       t(locale, 'forbidden.title', { name: EMPLOYEE_NAME[locale] }))}
     ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
+    ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${SETTINGS_STYLE}`;
 }
 
@@ -421,5 +423,102 @@ export function renderRate(v: RateView, locale: Locale, flash: string | null): s
       .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border);
                       color:var(--color-ink-secondary); font-size:var(--font-size-note); }
       .rate-hist li:last-child { border-bottom:0; }
+    </style>`;
+}
+
+/* ── M44 · the days the factory is shut ──────────────────────────────────── */
+
+/**
+ * Her closures, as she stated them.
+ *
+ * There is no built-in holiday calendar behind this and there must never be
+ * one: the dates are lunar and move, and the LENGTH is a business decision one
+ * factory makes differently from the next. What is shown here is what she
+ * typed, and it is the only thing that blocks a delivery promise.
+ */
+export type ClosureRow = FactoryClosure & { readonly id: string };
+export type ClosureView = { readonly closures: readonly ClosureRow[] };
+
+export async function loadClosures(db: Db, businessIdRaw: string): Promise<ClosureView> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { closures: [] };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string; label: string; starts_on: Date; ends_on: Date }>`
+      select id, label, starts_on, ends_on from factory_closures
+       where business_id = ${bid.value}::uuid and archived_at is null
+       order by starts_on`.execute(tx);
+    return {
+      closures: r.rows.map((x) => ({
+        id: x.id, label: x.label, from: closureDate(x.starts_on), to: closureDate(x.ends_on),
+      })),
+    };
+  });
+}
+
+export async function addClosure(
+  db: Db, businessIdRaw: string,
+  input: { label?: string | null; from?: string | null; to?: string | null },
+): Promise<{ code: 'added'; label: string } | { code: ClosureError | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const v = validateClosure({ label: input.label, from: input.from, to: input.to });
+  if (!v.ok) return { code: v.error };
+  return withTenantTx(db, bid.value, async (tx) => {
+    await sql`insert into factory_closures (business_id, label, starts_on, ends_on)
+              values (${bid.value}::uuid, ${v.value.label},
+                      ${v.value.from.toISOString().slice(0, 10)},
+                      ${v.value.to.toISOString().slice(0, 10)})`.execute(tx);
+    return { code: 'added' as const, label: v.value.label };
+  });
+}
+
+/** Archive, never erase — a past closure still explains a quote that promised
+ *  no date in January. */
+export async function removeClosure(
+  db: Db, businessIdRaw: string, id: string,
+): Promise<{ code: 'removed' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update factory_closures set archived_at = now()
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid and archived_at is null
+      returning id`.execute(tx);
+    return { code: r.rows[0] ? 'removed' as const : 'failed' as const };
+  });
+}
+
+export function renderClosures(v: ClosureView, locale: Locale, flash: string | null): string {
+  const name = EMPLOYEE_NAME[locale];
+  const range = (c: FactoryClosure) =>
+    t(locale, 'closures.range', { from: formatDate(locale, c.from), to: formatDate(locale, c.to) });
+  return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
+      <form method="post" action="/app/settings/closures" class="pform">
+        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.label'))}</span>
+          <input name="label" required maxlength="80"
+            placeholder="${esc(t(locale, 'closures.add.placeholder'))}" /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.from'))}</span>
+          <input name="from" type="date" required /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.to'))}</span>
+          <input name="to" type="date" required /></label>
+        <button class="btn send" type="submit">${esc(t(locale, 'closures.add.button'))}</button>
+      </form>
+      ${v.closures.length === 0
+        ? `<p class="muted empty-p">${esc(t(locale, 'closures.empty', { name }))}</p>`
+        : `<ul class="closures">${v.closures.map((c) => `<li>
+            <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
+            <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
+              <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
+            </form></li>`).join('')}</ul>`}
+    </section>
+    <style>
+      .closures { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+      .closures li { display:flex; align-items:center; justify-content:space-between;
+                     gap:var(--space-12); padding:var(--space-8) 0;
+                     border-bottom:1px solid var(--color-border); }
+      .closures li:last-child { border-bottom:0; }
     </style>`;
 }

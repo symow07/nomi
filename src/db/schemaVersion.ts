@@ -57,8 +57,15 @@ import type { Db } from './client.js';
  *      database the read is a missing TABLE, so every conversation detail
  *      throws — and the write, which is the only way a rate can exist at all,
  *      has nowhere to go.
+ *
+ * 32 = the factory closure calendar (0032, M44). Every quote READS
+ *      `factory_closures` to decide whether it may promise a delivery date.
+ *      Against a 31 database that read is a missing table, so the quote path
+ *      throws — and the alternative, treating the failure as "no closures",
+ *      would quote a date through her shutdown, which is the exact lie this
+ *      milestone exists to stop.
  */
-export const REQUIRED_SCHEMA_VERSION = 31;
+export const REQUIRED_SCHEMA_VERSION = 32;
 
 export type SchemaState = {
   readonly required: number;

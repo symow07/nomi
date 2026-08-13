@@ -1,9 +1,11 @@
 import { sql } from 'kysely';
 import { type Money, usd } from '../../core/types/money.js';
-import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { loadCurrentRate } from './settings.js';
+import { blockingClosure } from '../../core/commerce/closures.js';
+import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -287,6 +289,14 @@ export type ConversationDetail = {
    * eventually show one without the other.
    */
   readonly rate: OwnerRate | null;
+  /**
+   * M44 — why the most recent quote promised no delivery date.
+   *
+   * The BUYER is told nothing about her calendar; this is the owner's own
+   * explanation, on the screen where she would otherwise wonder why a lead time
+   * she has always quoted went missing.
+   */
+  readonly leadTimeBlocked: { readonly label: string; readonly from: Date; readonly to: Date } | null;
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -334,8 +344,8 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
         };
       });
 
-    const q = (await sql<{ unit_price_usd: string; total_usd: string; quantity: number }>`
-      select unit_price_usd, total_usd, quantity from quotes
+    const q = (await sql<{ unit_price_usd: string; total_usd: string; quantity: number; product_id: string }>`
+      select unit_price_usd, total_usd, quantity, product_id from quotes
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
@@ -410,6 +420,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       handoffReasons,
       unheardReason,
       rate: await loadCurrentRate(tx, bid.value),
+      leadTimeBlocked: await blockedLeadTime(tx, bid.value, conversationId, q?.product_id ?? null),
       lastHumanAction,
       knowledgeUsed,
     };
@@ -597,6 +608,28 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
 }
 
 /**
+ * M44 — did a closure she stated block the date this quote would have promised?
+ *
+ * DERIVED, not stored. The quote row records what was computed; the closures
+ * are hers and may have changed since. Re-running the same pure check over the
+ * same rows is the repo's rule — a transcribed "we refused a date" flag would
+ * be a second source of truth that drifts the moment she edits her calendar.
+ */
+async function blockedLeadTime(
+  tx: Tx, businessId: BusinessId, conversationId: string, productId: string | null,
+): Promise<{ label: string; from: Date; to: Date } | null> {
+  if (!productId) return null;
+  const lead = (await sql<{ lead_time_days: number | null }>`
+    select lead_time_days from products where id = ${productId} limit 1`.execute(tx)).rows[0];
+  if (!lead?.lead_time_days) return null;
+  const closures = await tenantRepos(tx, businessId).catalog.factoryClosures();
+  const blocked = blockingClosure({ now: new Date(), leadTimeDays: lead.lead_time_days, closures });
+  return blocked
+    ? { label: blocked.closure.label, from: blocked.closure.from, to: blocked.closure.to }
+    : null;
+}
+
+/**
  * M43b — the same total, in the money she thinks in. Or nothing at all.
  *
  * ABSENT WHEN SHE HAS NOT STATED A RATE. Not "approximately", not a live rate,
@@ -680,6 +713,26 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
       </div>`
     : '';
 
+  /**
+   * M44 — she promised no date, and this says which of her own closures is the
+   * reason. Same three-part shape as the refusal and unheard cards: what
+   * happened, why, and what she can go and do about it.
+   */
+  const closedCard = d.leadTimeBlocked
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'closures.blocked.title'))}</h3>
+        <div class="rf">
+          <div class="rf-y muted">${esc(t(locale, 'closures.blocked.body', {
+            label: d.leadTimeBlocked.label,
+            from: formatDate(locale, d.leadTimeBlocked.from),
+            to: formatDate(locale, d.leadTimeBlocked.to),
+          }))}</div>
+          <div class="rf-d"><a href="/app/settings/closures">${
+            esc(t(locale, 'closures.blocked.action'))}</a></div>
+        </div>
+      </div>`
+    : '';
+
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
 
   return `
@@ -691,6 +744,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
     ${unheardCard}
+    ${closedCard}
     ${refusalCard(d.refusals, locale, now)}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}

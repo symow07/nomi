@@ -233,10 +233,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   if (decision.product && decision.quantity) {
     product = await tenant.catalog.product(decision.product.productId);
     if (product) {
-      const [tiers, policy, rules] = await Promise.all([
+      const [tiers, policy, rules, closures] = await Promise.all([
         tenant.catalog.priceTiers(product.id),
         tenant.catalog.pricingPolicy(product.id),
         tenant.catalog.negotiationRules(),
+        // M44 — the days she said her factory is shut.
+        tenant.catalog.factoryClosures(),
       ]);
       quoteInputs = { tiers, policy, rules, quantity: decision.quantity.value };
       // M36 — what she already told THIS buyer about THIS product. Empty for a
@@ -244,6 +246,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const priorQuotes = await tenant.audit.priorQuotesForClient(state.clientId, product.id);
       const q = computeQuote({
         product, tiers, policy, rules, quantity: decision.quantity.value, priorQuotes,
+        closures, now: ports.now(),
       });
       if (q.ok) quote = q.value;
       else quoteRefusal = q.error;

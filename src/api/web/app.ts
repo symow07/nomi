@@ -25,7 +25,7 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate } from './settings.js';
+import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
@@ -910,6 +910,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? t(locale, 'rate.flash.set', { name: deps.employeeName, rate: r.rate.rate })
       : t(locale, `rate.flash.${r.code}` as MessageKey);
     return reply.redirect(`/app/settings/rate?flash=${encodeURIComponent(flash)}`);
+  });
+
+  // M44 — the days her factory is shut. She states them; nothing is assumed.
+  app.get('/app/settings/closures', authed('settings', async (sess, req, locale) =>
+    renderClosures(await loadClosures(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null)));
+
+  app.post('/app/settings/closures', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await addClosure(deps.db, s.businessId, {
+      label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
+    });
+    const flash = r.code === 'added'
+      ? t(locale, 'closures.flash.added', { name: deps.employeeName, label: r.label })
+      : t(locale, `closures.flash.${r.code}` as MessageKey);
+    return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(flash)}`);
+  });
+
+  app.post('/app/settings/closures/:id/remove', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const r = await removeClosure(deps.db, s.businessId, (req.params as { id: string }).id);
+    return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(
+      t(locale, `closures.flash.${r.code}` as MessageKey))}`);
   });
 
   app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {

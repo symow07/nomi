@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { closureDate } from '../core/commerce/closures.js';
 import { moneyFromRow, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
@@ -251,6 +252,19 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
          where business_id = ${businessId} and archived_at is null
          order by created_at`.execute(tx);
       return r.rows.map((x) => x.term);
+    },
+
+    // M44 — live rows only; an archived closure is history, not a calendar.
+    async factoryClosures() {
+      const r = await sql<{ label: string; starts_on: Date; ends_on: Date }>`
+        select label, starts_on, ends_on from factory_closures
+         where business_id = ${businessId} and archived_at is null
+         order by starts_on`.execute(tx);
+      return r.rows.map((x) => ({
+        label: x.label,
+        from: closureDate(x.starts_on),
+        to: closureDate(x.ends_on),
+      }));
     },
 
     async claimsPolicy() {

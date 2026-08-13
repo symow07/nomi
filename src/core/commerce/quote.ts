@@ -1,7 +1,8 @@
 import { type Result, ok, err } from '../types/result.js';
 import {
-  type Money, usd, scaleMoney, roundMoney, isBelow, isAbove, compareMoney,
+  type Money, scaleMoney, roundMoney, isBelow, isAbove, compareMoney,
 } from '../types/money.js';
+import { blockingClosure, type FactoryClosure } from './closures.js';
 import type {
   NegotiationRule,
   PriceTier,
@@ -90,6 +91,15 @@ export function computeQuote(input: {
    * existing caller keeps its behaviour exactly.
    */
   priorQuotes?: readonly PriorQuote[];
+  /**
+   * M44 — the days her factory is shut, as she stated them. Absent means she
+   * has stated none, which is not the same as "open": it is "she has not told
+   * us", and the lead time is quoted exactly as it always was. Adding a
+   * calendar of our own would be inventing her shutdown.
+   */
+  closures?: readonly FactoryClosure[];
+  /** Today, injected — core is pure and owns no clock (ADR-0002). */
+  now?: Date;
 }): Result<Quote, QuoteRefusal> {
   const { product, tiers, policy, rules, quantity } = input;
 
@@ -196,6 +206,17 @@ export function computeQuote(input: {
   const contradiction = contradictsHistory(input.priorQuotes ?? [], quantity, unitPrice);
   if (contradiction) return err(contradiction);
 
+  // ── M44 · SHE DOES NOT PROMISE A DATE THE FACTORY CANNOT HIT ────────────
+  //
+  // Not rescheduled — REFUSED. Adding the closed days and quoting the later
+  // date would be a promise she never made: a factory does not resume at full
+  // rate the morning it reopens. So the number goes away, and with it every
+  // reply's ability to state one: `guardNumerals` sources figures from the
+  // quote, so a lead time that is null cannot appear in a sentence.
+  const blocked = leadTimeDays !== null && input.now
+    ? blockingClosure({ now: input.now, leadTimeDays, closures: input.closures ?? [] })
+    : null;
+
   return ok({
     productId: product.id,
     quantity: { value: quantity, unit: product.unit },
@@ -203,7 +224,8 @@ export function computeQuote(input: {
     discountPct,
     total: roundMoney(scaleMoney(unitPrice, quantity)),
     moq: product.moq,
-    leadTimeDays,
+    leadTimeDays: blocked ? null : leadTimeDays,
+    leadTimeBlocked: blocked,
     requiresHuman,
     appliedRules: applied,
   });
