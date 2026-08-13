@@ -174,6 +174,45 @@ describe('M49 · colour once or twice per screen', () => {
   });
 });
 
+describe('M49 · shared components are declared ONCE, in the shell', () => {
+  /**
+   * The defect this catches, found by a screenshot after M45: three pages used
+   * `.pform` and `.fld` while emitting no rule for them, so their fields
+   * rendered as inline labels strung across the page. It is the same shape as
+   * a renderer reaching for a token nobody emits — and equally invisible to
+   * every test that reads strings rather than boxes.
+   */
+  const SHARED = ['.pform', '.fld', '.chkbox', '.stated-now', '.empty', '.card', '.block'];
+
+  it('the shell defines every shared component', async () => {
+    const css = await shellCss();
+    for (const c of SHARED) {
+      expect(css, `${c} is used across pages and must live in the shell`)
+        .toMatch(new RegExp(`\\${c}[ ,{]`));
+    }
+  });
+
+  it('and no page redefines one', async () => {
+    const files = (await readdir(WEB_DIR)).filter((f) => f.endsWith('.ts') && f !== 'layout.ts');
+    const dupes: string[] = [];
+    for (const f of files) {
+      const src = await readFile(new URL(f, WEB_DIR), 'utf8');
+      for (const [i, line] of src.split('\n').entries()) {
+        // Only a rule whose selector IS the bare class. A descendant refinement
+        // (`.alform .fld`) or a responsive tweak inside a media query
+        // (`.conv, .card { border-radius }`) is a page adjusting a shared
+        // component, not declaring a second one.
+        if (line.includes('@media')) continue;
+        const m = /^\s*([^{}]+?)\s*\{/.exec(line);
+        if (!m) continue;
+        const selectors = m[1]!.split(',').map((x) => x.trim());
+        for (const c of SHARED) if (selectors.includes(c)) dupes.push(`${f}:${i + 1}  ${c}`);
+      }
+    }
+    expect(dupes, `a second definition drifts from the first:\n  ${dupes.join('\n  ')}`).toEqual([]);
+  });
+});
+
 describe('M49 · buttons and empty states', () => {
   it('a button is as wide as its word, not as wide as the input above it', async () => {
     const css = await shellCss();

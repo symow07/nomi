@@ -79,16 +79,35 @@ export async function personForCode(
   });
 }
 
-/** The owner's own person row — her name, for `assigned_to`. */
+/**
+ * The owner's own person row — her name, for `assigned_to`.
+ *
+ * CREATED IF MISSING, on her first login. 0035 backfills a row for every
+ * business that existed when it ran; a business created AFTERWARDS — a new
+ * tenant, a freshly seeded demo — has none, and would have shown a generic
+ * word where her name belongs. Idempotent against the one-owner index, and it
+ * is only her NAME: her way in is still the environment's code, so this write
+ * failing cannot keep her out (the caller catches).
+ */
 export async function ownerPerson(db: Db, businessIdRaw: string): Promise<Person | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return null;
   return withTenantTx(db, bid.value, async (tx) => {
-    const r = await sql<{ id: string; name: string }>`
+    const read = async () => (await sql<{ id: string; name: string }>`
       select id::text as id, name from people
-       where business_id = ${bid.value}::uuid and is_owner and archived_at is null limit 1`.execute(tx);
-    const row = r.rows[0];
-    return row ? { id: row.id, name: row.name, isOwner: true } : null;
+       where business_id = ${bid.value}::uuid and is_owner and archived_at is null limit 1`
+      .execute(tx)).rows[0];
+
+    const existing = await read();
+    if (existing) return { id: existing.id, name: existing.name, isOwner: true };
+
+    await sql`
+      insert into people (business_id, name, is_owner)
+      select ${bid.value}::uuid, coalesce(nullif(btrim(b.name), ''), 'Owner'), true
+        from businesses b where b.id = ${bid.value}::uuid
+      on conflict do nothing`.execute(tx);
+    const made = await read();
+    return made ? { id: made.id, name: made.name, isOwner: true } : null;
   });
 }
 

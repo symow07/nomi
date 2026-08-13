@@ -186,6 +186,27 @@ ${cssVariables()}
      it, which made "Save" a 455px slab. A button is as wide as its word. */
   form .btn, form button:not(.full) { align-self:start; }
 
+  /* ── The form. ONE definition, in the shell, because five pages use it.
+     Three of them (the rate, the closures, the samples) referenced these
+     classes while emitting no rule for them, so their fields rendered as
+     inline labels strung across the page — the same failure as a renderer
+     reaching for a token nobody emits, and invisible to every test that reads
+     strings rather than boxes. Caught by a screenshot. */
+  .pform { display:flex; flex-direction:column; gap:var(--space-16);
+           max-width:var(--measure-form); margin-top:var(--space-12); }
+  .fld { display:flex; flex-direction:column; gap:var(--space-4);
+         font-size:var(--font-size-note); color:var(--color-ink); }
+  .pform input, .pform textarea, .pform select {
+    background:var(--color-paper-sunk); border:1px solid var(--color-border);
+    border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
+    min-height:44px; resize:vertical; }
+  .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
+            font-size:var(--font-size-note); color:var(--color-ink); min-height:44px; }
+  .chkbox input { min-height:0; }
+  /* One figure, stated large: the rate she set, the sample price, the state an
+     order is in. It is a READING, not a KPI tile. */
+  .stated-now { font-size:var(--font-size-numeral); margin:var(--space-12) 0; }
+
   /* One notice. */
   .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
     border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);

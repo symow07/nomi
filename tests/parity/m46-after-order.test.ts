@@ -147,6 +147,7 @@ describe('M46 · the owner page', () => {
     buyer: 'Ahmed', productName: 'Vacuum cup', productSku: 'ZX-200',
     quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600,
     currency: 'USD', email: 'a@example.com', paymentTerms: '30% deposit',
+    sellerName: '义乌宏发日用品厂',
     confirmedAt: new Date('2026-08-01T00:00:00Z'),
     history: [update({ state: 'in_production', note: 'chase the dye lot' })],
     ...over,
@@ -163,6 +164,12 @@ describe('M46 · the owner page', () => {
   it('THE PROFORMA IS REACHABLE — invoice.ts is wired, not exempt', () => {
     const html = renderOrder(view(), 'en', null);
     expect(html).toContain('PROFORMA INVOICE');
+    // ONE identifier: the proforma's number IS the order's reference, not a
+    // second one derived beside it.
+    expect(html).toContain('PROFORMA INVOICE PI-HF-20260803-0301');
+    // and the seller is HER factory, from the row — not a placeholder that
+    // would go out on paperwork a buyer reads.
+    expect(html).toContain('义乌宏发日用品厂');
     expect(html).toContain('Qty: 5,000 pcs');
     // Its figures are the order's own; this page does no arithmetic.
     expect(html).toContain('$0.92');

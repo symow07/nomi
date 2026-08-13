@@ -221,11 +221,8 @@ const SETTINGS_STYLE = `<style>
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
   .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:10px; }
-  .pform { display:flex; flex-direction:column; gap:var(--space-16); max-width:var(--measure-form); }
-  .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
   .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
   .langs { display:flex; flex-wrap:wrap; gap:14px; padding-top:2px; }
-  .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
   .cats { display:flex; flex-wrap:wrap; gap:8px; }
   .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   
@@ -407,7 +404,7 @@ export function renderRate(v: RateView, locale: Locale, flash: string | null): s
     <section class="block">
       <p class="muted">${esc(t(locale, 'rate.intro', { name }))}</p>
       ${v.current
-        ? `<p class="rate-now"><bdi>${stated(v.current)}</bdi></p>`
+        ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
         : `<p class="muted empty-p">${esc(t(locale, 'rate.empty'))}</p>`}
       <form method="post" action="/app/settings/rate" class="fld">
         <label><span class="muted">${esc(t(locale, 'rate.add.label'))}</span>
@@ -422,7 +419,6 @@ export function renderRate(v: RateView, locale: Locale, flash: string | null): s
          </section>`
       : ''}
     <style>
-      .rate-now { font-size:var(--font-size-numeral); margin:var(--space-12) 0; }
       .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
       .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border);
                       color:var(--color-ink-secondary); font-size:var(--font-size-note); }
@@ -633,7 +629,7 @@ export async function markSampleHandled(
 export function renderSamples(v: SamplesView, locale: Locale, flash: string | null, now: Date): string {
   const name = EMPLOYEE_NAME[locale];
   const stated = v.policy
-    ? `<p class="rate-now">${
+    ? `<p class="stated-now">${
         v.policy.price.amount === 0
           ? esc(t(locale, 'samples.current.free'))
           : esc(t(locale, 'samples.current.paid', { price: formatMoney(v.policy.price) }))

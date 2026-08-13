@@ -560,7 +560,6 @@ const SANDBOX_STYLE = `<style>
   select { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:8px; }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  .chkbox { display:inline-flex; align-items:center; gap:6px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .sbx-trust { border-color:var(--color-highlight-line); }
   .sbx-trust.pass { border-color:var(--color-jade-line); } .sbx-trust.fail { border-color:var(--color-warn-line); }

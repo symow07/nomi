@@ -38,6 +38,7 @@ export type OrderView = {
   readonly currency: string;
   readonly email: string | null;
   readonly paymentTerms: string | null;
+  readonly sellerName: string;
   readonly confirmedAt: Date | null;
   /** Newest first. Append-only: this is what she said, not what was computed. */
   readonly history: readonly OrderUpdate[];
@@ -48,7 +49,7 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
   if (!bid.ok) return null;
   return withTenantTx(db, bid.value, async (tx) => {
     const o = (await sql<{
-      id: string; reference: string; conversation_id: string; buyer: string | null;
+      id: string; reference: string; conversation_id: string; buyer: string | null; seller: string;
       name: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
       client_email: string | null; payment_terms: string | null; confirmed_at: Date | null;
@@ -56,8 +57,9 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
              cl.display_name as buyer, p.name, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
-             o.client_email, o.payment_terms, o.confirmed_at
+             o.client_email, o.payment_terms, o.confirmed_at, b.name as seller
         from orders o
+        join businesses b on b.id = o.business_id
         left join clients cl on cl.id = o.client_id
         left join products p on p.id = o.product_id
        where o.business_id = ${bid.value} and o.id = ${orderId}
@@ -77,7 +79,8 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       unitPriceAmount: o.unit_price === null ? null : Number(o.unit_price),
       totalAmount: o.total === null ? null : Number(o.total),
       currency: o.currency,
-      email: o.client_email, paymentTerms: o.payment_terms, confirmedAt: o.confirmed_at,
+      email: o.client_email, paymentTerms: o.payment_terms,
+      sellerName: o.seller, confirmedAt: o.confirmed_at,
       history: h.rows.flatMap((r): OrderUpdate[] => isOrderState(r.state) ? [{
         state: r.state, at: r.at, note: r.note,
         trackingReference: r.tracking_reference, by: r.by_actor,
@@ -154,7 +157,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
   const proforma = v.unitPriceAmount !== null && v.totalAmount !== null && v.currency === 'USD'
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}</p>
-        <pre>${esc(renderInvoiceEn(buildInvoice({
+        <pre>${esc(renderInvoiceEn({ ...buildInvoice({
           quote: {
             productId: '' as never,
             quantity: { value: v.quantity, unit: v.unit },
@@ -162,7 +165,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
             moq: v.quantity, leadTimeDays: null, leadTimeBlocked: null,
             requiresHuman: false, appliedRules: [],
           },
-          sellerName: t(locale, 'order.invoice.seller'),
+          sellerName: v.sellerName,
           sellerPrefix: 'PI',
           buyerName: v.buyer ?? '',
           productName: v.productName ?? v.productSku,
@@ -172,14 +175,14 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
           paymentTermsEn: v.paymentTerms ?? '',
           conversationRef: v.conversationId,
           now: v.confirmedAt ?? v.history[v.history.length - 1]?.at ?? new Date(0),
-        })))}</pre></section>`
+        }), piNumber: v.reference }))}</pre></section>`
     : '';
 
   return `<div class="dhead">${back(`/app/inbox/${esc(v.conversationId)}`, t(locale, 'order.back'))}</div>
     <h1 class="page"><bdi>${esc(v.reference)}</bdi></h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <section class="block">
-      ${latest ? `<p class="rate-now">${esc(stateName(latest.state))} <span class="muted">${
+      ${latest ? `<p class="stated-now">${esc(stateName(latest.state))} <span class="muted">${
         esc(t(locale, 'order.since', { date: formatDate(locale, latest.at) }))}</span></p>` : ''}
       <div class="facts">${facts}</div>
     </section>
@@ -210,7 +213,5 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
       .facts { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
       .frow { display:flex; gap:var(--space-16); font-size:var(--font-size-note); }
       .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
-      .pform select { background:var(--color-paper-sunk); border:1px solid var(--color-border);
-        border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
     </style>`;
 }

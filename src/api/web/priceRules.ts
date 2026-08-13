@@ -287,7 +287,6 @@ export function renderPriceRules(
 }
 
 const PRICES_STYLE = `<style>
-  .pform { display:flex; flex-direction:column; gap:14px; max-width:var(--measure-form); margin-top:12px; }
   .pq { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }

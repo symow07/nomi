@@ -61,11 +61,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     convId = await tx(async (t) => {
       await sql`insert into businesses (id, name) values (${BIZ}, 'People Test Factory')
                 on conflict (id) do nothing`.execute(t);
-      // The owner row the migration backfills for an existing business.
-      await sql`insert into people (business_id, name, is_owner)
-                select ${BIZ}::uuid, 'Mei', true
-                 where not exists (select 1 from people p
-                    where p.business_id = ${BIZ}::uuid and p.is_owner and p.archived_at is null)`.execute(t);
+      // NO owner row is inserted here, on purpose: this business is created
+      // AFTER 0035 ran, exactly like a new tenant or a freshly seeded demo.
+      // Her first login is what creates it.
       const client = (await sql<{ id: string }>`
         insert into clients (business_id, phone, display_name)
         values (${BIZ}, ${`+8613${RUN}`}, 'Ahmed') returning id::text as id`.execute(t)).rows[0]!.id;
@@ -202,6 +200,17 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(await tx((t) => sql<{ archived_at: Date | null }>`
       select archived_at from people where id = ${ownerId}::uuid
     `.execute(t).then((r) => r.rows[0]!.archived_at))).toBeNull();
+  });
+
+  it('HER ROW IS CREATED ON FIRST LOGIN — a business made after the migration has one', async () => {
+    // The backfill covers businesses that existed when it ran. This one did
+    // not, and the owner would otherwise have shown as a generic word on the
+    // page that names who holds what.
+    const owner = await tx((t) => sql<{ name: string }>`
+      select name from people where business_id = ${BIZ} and is_owner and archived_at is null
+    `.execute(t).then((r) => r.rows));
+    expect(owner).toHaveLength(1);
+    expect(owner[0]!.name).toBe('People Test Factory');
   });
 
   it('and HER login never depended on any of it', async () => {
