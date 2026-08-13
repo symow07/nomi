@@ -3,9 +3,11 @@ import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
+import { loadCurrentRate } from './settings.js';
+import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatMoney, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, type Refusal } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
@@ -276,6 +278,15 @@ export type ConversationDetail = {
    * empty when she answered without leaning on anything taught.
    */
   readonly knowledgeUsed: readonly string[];
+  /**
+   * M43b — the rate SHE stated, or null.
+   *
+   * Carried on the read model rather than fetched by the renderer, because the
+   * DATE has to travel with the converted figure: a rate is only trustworthy
+   * beside the day she set it, and a renderer that had to look it up would
+   * eventually show one without the other.
+   */
+  readonly rate: OwnerRate | null;
 };
 
 export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
@@ -398,6 +409,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       refusals,
       handoffReasons,
       unheardReason,
+      rate: await loadCurrentRate(tx, bid.value),
       lastHumanAction,
       knowledgeUsed,
     };
@@ -584,11 +596,31 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
   </div>`;
 }
 
+/**
+ * M43b — the same total, in the money she thinks in. Or nothing at all.
+ *
+ * ABSENT WHEN SHE HAS NOT STATED A RATE. Not "approximately", not a live rate,
+ * not last month's: a figure in ￥ that she did not authorise the arithmetic
+ * for is a number from outside her rules, which is the one thing this product
+ * refuses everywhere else. She sets a rate on the settings page and it appears.
+ *
+ * When it does appear, the DATE appears with it, because a rate she set in
+ * January is her decision to keep or change and she cannot make that decision
+ * without seeing it.
+ */
+function inHerMoney(total: Money, rate: OwnerRate | null, locale: Locale): string {
+  if (!rate) return '';
+  const c = convertMoney(total, rate.to, [rate]);
+  if (!c.ok) return '';
+  return ` · <span class="her-money">${esc(formatMoney(c.value.money))} <span class="muted">${
+    esc(t(locale, 'rate.at', { date: formatDate(locale, rate.statedAt) }))}</span></span>`;
+}
+
 export function renderConversationDetail(d: ConversationDetail, locale: Locale, now: Date, flash: string | null): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
-      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}</div>` : ''}
+      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
       ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}` : ''}</div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';

@@ -25,7 +25,7 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden } from './settings.js';
+import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
@@ -892,6 +892,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await addForbidden(deps.db, sess.businessId, term);
     return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
       t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
+  });
+
+  // M43b — the rate SHE will honour. Never a live rate she did not approve.
+  app.get('/app/settings/rate', authed('settings', async (sess, req, locale) =>
+    renderRate(await loadRates(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null)));
+
+  app.post('/app/settings/rate', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
+    const r = await setRate(deps.db, s.businessId, raw, new Date());
+    const flash = r.code === 'set'
+      ? t(locale, 'rate.flash.set', { name: deps.employeeName, rate: r.rate.rate })
+      : t(locale, `rate.flash.${r.code}` as MessageKey);
+    return reply.redirect(`/app/settings/rate?flash=${encodeURIComponent(flash)}`);
   });
 
   app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {

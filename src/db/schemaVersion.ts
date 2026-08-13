@@ -51,8 +51,14 @@ import type { Db } from './client.js';
  *      recorded quote. Against a 29 database the read is a missing column, so
  *      the tier query throws — which is the entire pricing path. It refuses at
  *      boot rather than at the first buyer.
+ *
+ * 31 = the rate she stated (0031, M43b). The build READS `owner_rates` on the
+ *      conversation surface and WRITES it from her settings page. Against a 30
+ *      database the read is a missing TABLE, so every conversation detail
+ *      throws — and the write, which is the only way a rate can exist at all,
+ *      has nowhere to go.
  */
-export const REQUIRED_SCHEMA_VERSION = 30;
+export const REQUIRED_SCHEMA_VERSION = 31;
 
 export type SchemaState = {
   readonly required: number;

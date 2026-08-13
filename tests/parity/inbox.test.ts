@@ -30,7 +30,7 @@ const detailWithDraft: ConversationDetail = {
     { direction: 'outbound', text: 'Checking for you.', at: new Date('2026-07-27T09:01:00Z') },
   ],
   pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },
-  ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], proof: { quoteId: null, token: null },
+  ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, proof: { quoteId: null, token: null },
 };
 
 // M16.2c — a conversation detail in a given ownership state (draft omitted for

@@ -26,13 +26,18 @@
  */
 
 /**
- * The currencies this product can hold. One member, today.
+ * The currencies this product can hold.
  *
  * Adding a member is not a type change — it is a promise that every conversion
- * has an owner-stated rate behind it (M43b) and that every comparison in
+ * has an owner-stated rate behind it and that every comparison in
  * `core/commerce` has been re-read. Do not add one to make a screen render.
+ *
+ * CNY joined in M43b, and the promise is kept there: `convertMoney` refuses
+ * unless the owner has stated the rate herself, with the date she stated it.
+ * A buyer pays dollars; a Yiwu factory owner thinks in ￥; nothing crosses
+ * between them except through a number she wrote down.
  */
-export type Currency = 'USD';
+export type Currency = 'USD' | 'CNY';
 
 /** An amount and the currency it is denominated in. Never one without the other. */
 export type Money = {
@@ -43,9 +48,11 @@ export type Money = {
 /** The common constructor, and the only one most callers need. */
 export const usd = (amount: number): Money => ({ amount, currency: 'USD' });
 
+const CURRENCIES: readonly Currency[] = ['USD', 'CNY'];
+
 /** A currency read from a row, checked. Unknown text is not silently accepted. */
 export function parseCurrency(raw: string): Currency | null {
-  return raw === 'USD' ? 'USD' : null;
+  return (CURRENCIES as readonly string[]).includes(raw) ? (raw as Currency) : null;
 }
 
 /**
@@ -102,6 +109,10 @@ export const isAbove = (a: Money, b: Money): boolean => compareMoney(a, b) > 0;
 export const roundMoney = (m: Money, places = 2): Money =>
   ({ amount: Number(m.amount.toFixed(places)), currency: m.currency });
 
-/** The symbol a buyer reads. Not a translation — USD is $ in all three locales. */
-const SYMBOL: Record<Currency, string> = { USD: '$' };
+/**
+ * The symbol a reader sees. NOT a translation — $ is $ and ￥ is ￥ in all
+ * three locales, because a currency sign is part of the number, not of the
+ * language around it.
+ */
+const SYMBOL: Record<Currency, string> = { USD: '$', CNY: '￥' };
 export const currencySymbol = (c: Currency): string => SYMBOL[c];

@@ -1,10 +1,13 @@
 import { sql } from 'kysely';
-import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey, EMPLOYEE_NAME } from '../../core/owner/i18n/messages.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
+import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
+import { parseCurrency } from '../../core/types/money.js';
+import { formatDate } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
 
 /**
@@ -204,6 +207,7 @@ export function renderSettings(
     ${form}${categories}
     ${deeper('/app/settings/forbidden',
       t(locale, 'forbidden.title', { name: EMPLOYEE_NAME[locale] }))}
+    ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
     ${SETTINGS_STYLE}`;
 }
 
@@ -315,5 +319,107 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string 
                    border-bottom:1px solid var(--color-border); }
       .fterms li:last-child { border-bottom:0; }
       .fterms.floor li { color:var(--color-ink-secondary); }
+    </style>`;
+}
+
+/* ── M43b · the rate she will honour ─────────────────────────────────────── */
+
+/**
+ * Her stated rate, and the ones she stated before it.
+ *
+ * The DATE is not decoration. A rate she set eight months ago is a real risk
+ * and it is still her rate; refusing it would mean inventing a staleness
+ * threshold, which is an invented number wearing a responsible-looking hat. So
+ * the date is shown wherever the rate is, and she decides.
+ */
+export type RateView = {
+  readonly current: OwnerRate | null;
+  /** Previously stated rates, newest first. History, never overwritten. */
+  readonly previous: readonly OwnerRate[];
+};
+
+const toRate = (r: { from_currency: string; to_currency: string; rate: string; stated_at: Date }): OwnerRate | null => {
+  const from = parseCurrency(r.from_currency);
+  const to = parseCurrency(r.to_currency);
+  // A pair this build cannot price is not shown as one it can. Same rule as
+  // every other currency read: drop it, never default it.
+  return from === null || to === null
+    ? null
+    : { from, to, rate: Number(r.rate), statedAt: r.stated_at };
+};
+
+/**
+ * The one rate in force, inside a transaction the caller already has.
+ *
+ * Shaped like `loadProofLinkState`: any surface that shows a figure in her
+ * money needs the rate AND its date, and neither should cost a second
+ * connection or arrive without the other.
+ */
+export async function loadCurrentRate(tx: Tx, businessId: BusinessId): Promise<OwnerRate | null> {
+  const r = await sql<{ from_currency: string; to_currency: string; rate: string; stated_at: Date }>`
+    select from_currency, to_currency, rate, stated_at from owner_rates
+     where business_id = ${businessId}::uuid and from_currency = 'USD' and to_currency = 'CNY'
+     order by stated_at desc limit 1`.execute(tx);
+  return r.rows[0] ? toRate(r.rows[0]) : null;
+}
+
+export async function loadRates(db: Db, businessIdRaw: string): Promise<RateView> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { current: null, previous: [] };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ from_currency: string; to_currency: string; rate: string; stated_at: Date }>`
+      select from_currency, to_currency, rate, stated_at from owner_rates
+       where business_id = ${bid.value}::uuid and from_currency = 'USD' and to_currency = 'CNY'
+       order by stated_at desc limit 20`.execute(tx);
+    const all = r.rows.map(toRate).filter((x): x is OwnerRate => x !== null);
+    return { current: all[0] ?? null, previous: all.slice(1) };
+  });
+}
+
+/** Stating a rate INSERTS. It never updates: a quote given in March was
+ *  converted at March's rate, and the row that did it stays to say so. */
+export async function setRate(
+  db: Db, businessIdRaw: string, raw: string | null | undefined, now: Date,
+): Promise<{ code: 'set'; rate: OwnerRate } | { code: RateError | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const v = validateRate({ from: 'USD', to: 'CNY', rate: raw, now });
+  if (!v.ok) return { code: v.error };
+  return withTenantTx(db, bid.value, async (tx) => {
+    await sql`insert into owner_rates (business_id, from_currency, to_currency, rate, stated_at)
+              values (${bid.value}::uuid, 'USD', 'CNY', ${v.value.rate}, ${v.value.statedAt})`.execute(tx);
+    return { code: 'set' as const, rate: v.value };
+  });
+}
+
+export function renderRate(v: RateView, locale: Locale, flash: string | null): string {
+  const name = EMPLOYEE_NAME[locale];
+  const stated = (r: OwnerRate): string =>
+    `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: formatDate(locale, r.statedAt) }))}</span>`;
+  return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'rate.intro', { name }))}</p>
+      ${v.current
+        ? `<p class="rate-now"><bdi>${stated(v.current)}</bdi></p>`
+        : `<p class="muted empty-p">${esc(t(locale, 'rate.empty'))}</p>`}
+      <form method="post" action="/app/settings/rate" class="fld">
+        <label><span class="muted">${esc(t(locale, 'rate.add.label'))}</span>
+          <input name="rate" inputmode="decimal" required
+            placeholder="${esc(t(locale, 'rate.add.placeholder'))}" /></label>
+        <button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>
+      </form>
+    </section>
+    ${v.previous.length
+      ? `<section class="block"><h2>${esc(t(locale, 'rate.history.title'))}</h2>
+         <ul class="rate-hist">${v.previous.map((r) => `<li><bdi>${stated(r)}</bdi></li>`).join('')}</ul>
+         </section>`
+      : ''}
+    <style>
+      .rate-now { font-size:var(--font-size-numeral); margin:var(--space-12) 0; }
+      .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+      .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border);
+                      color:var(--color-ink-secondary); font-size:var(--font-size-note); }
+      .rate-hist li:last-child { border-bottom:0; }
     </style>`;
 }
