@@ -297,6 +297,14 @@ export type ConversationDetail = {
    * she has always quoted went missing.
    */
   readonly leadTimeBlocked: { readonly label: string; readonly from: Date; readonly to: Date } | null;
+  /**
+   * M45 — this buyer asked for a sample, and whether she has stated a policy.
+   *
+   * `policyStated: false` is the case worth showing: Nomi said nothing about
+   * samples because there was nothing of hers to say, and the buyer is
+   * waiting. The card names the next thing to tap.
+   */
+  readonly sampleAsked: { readonly policyStated: boolean } | null;
 };
 
 export async function loadConversationDetail(
@@ -430,6 +438,7 @@ export async function loadConversationDetail(
       unheardReason,
       rate: await loadCurrentRate(tx, bid.value),
       leadTimeBlocked: await blockedLeadTime(tx, bid.value, q?.product_id ?? null, now),
+      sampleAsked: await sampleAsk(tx, bid.value, conversationId),
       lastHumanAction,
       knowledgeUsed,
     };
@@ -639,6 +648,23 @@ async function blockedLeadTime(
 }
 
 /**
+ * M45 — did this buyer ask for a sample, and could she be answered?
+ *
+ * Two rows, no inference: the request exists because the buyer's own words
+ * matched, and the policy exists because the owner wrote it.
+ */
+async function sampleAsk(
+  tx: Tx, businessId: BusinessId, conversationId: string,
+): Promise<{ policyStated: boolean } | null> {
+  const asked = (await sql<{ id: string }>`
+    select id from sample_requests
+     where business_id = ${businessId} and conversation_id = ${conversationId}
+       and handled_at is null limit 1`.execute(tx)).rows[0];
+  if (!asked) return null;
+  return { policyStated: (await tenantRepos(tx, businessId).catalog.samplePolicy()) !== null };
+}
+
+/**
  * M43b — the same total, in the money she thinks in. Or nothing at all.
  *
  * ABSENT WHEN SHE HAS NOT STATED A RATE. Not "approximately", not a live rate,
@@ -742,6 +768,21 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
       </div>`
     : '';
 
+  /**
+   * M45 — she is told that a sample was asked for, and when she has stated
+   * nothing, that THAT is why Nomi did not answer. Same three-part shape as
+   * every other card here: what happened, why, what to do about it.
+   */
+  const sampleCard = d.sampleAsked
+    ? `<div class="card${d.sampleAsked.policyStated ? '' : ' refused'}">
+        <h3 class="rf-h">${esc(t(locale, 'samples.asked.title'))}</h3>
+        ${d.sampleAsked.policyStated ? '' : `<div class="rf">
+          <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-d"><a href="/app/settings/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
+        </div>`}
+      </div>`
+    : '';
+
   const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
 
   return `
@@ -754,6 +795,7 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${flashHtml}
     ${unheardCard}
     ${closedCard}
+    ${sampleCard}
     ${refusalCard(d.refusals, locale, now)}
     ${takeoverCard(d, locale, now)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}

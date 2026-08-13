@@ -267,6 +267,24 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       }));
     },
 
+    // M45 — the most recently stated policy is the one in force. A currency
+    // this build cannot price is not a policy it can quote: dropped, not
+    // defaulted, exactly as every other money read here.
+    async samplePolicy() {
+      const r = await sql<{ price_amount: string; currency: string; credited_on_first_order: boolean; stated_at: Date }>`
+        select price_amount, currency, credited_on_first_order, stated_at
+          from sample_policy where business_id = ${businessId}
+         order by stated_at desc limit 1`.execute(tx);
+      const row = r.rows[0];
+      if (!row) return null;
+      const price = moneyFromRow(Number(row.price_amount), row.currency);
+      return price === null ? null : {
+        price,
+        creditedOnFirstOrder: row.credited_on_first_order,
+        statedAt: row.stated_at,
+      };
+    },
+
     async claimsPolicy() {
       const rows = await sql<{ kind: string; claim_key: string; allowed: boolean }>`
         select kind, claim_key, allowed from claims_policy`.execute(tx);
@@ -513,6 +531,20 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
+  // ── samples (M45) ────────────────────────────────────────────────────────
+  const samples: import('./ports.js').SampleRepo = {
+    async record(conversationId, askedText) {
+      // ON CONFLICT DO NOTHING against the one-per-conversation index: the
+      // FIRST time he asked is the fact worth keeping, and a re-ask must not
+      // reset the clock on a request she has been sitting on for two days.
+      await sql`
+        insert into sample_requests (business_id, conversation_id, asked_text)
+        values (${businessId}, ${conversationId}, ${askedText})
+        on conflict (conversation_id) do nothing
+      `.execute(tx);
+    },
+  };
+
   // ── knowledge (M13) ──────────────────────────────────────────────────────
   // Read-only in the turn: the identified product's active rows + business-level,
   // ranked by relevance then confidence tier. retrieve_knowledge runs under RLS.
@@ -532,5 +564,5 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
-  return { businessId, conversations, clients, catalog, orders, signals, events, audit, autonomy, ops, drafts, knowledge };
+  return { businessId, conversations, clients, catalog, orders, samples, signals, events, audit, autonomy, ops, drafts, knowledge };
 }

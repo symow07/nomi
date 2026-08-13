@@ -25,7 +25,8 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
-import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures } from './settings.js';
+import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
+  loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
@@ -942,6 +943,46 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await removeClosure(deps.db, s.businessId, (req.params as { id: string }).id);
     return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(
       t(locale, `closures.flash.${r.code}` as MessageKey))}`);
+  });
+
+  // M45 — samples. Her two facts, and the buyers waiting on them.
+  app.get('/app/settings/samples', authed('settings', async (sess, req, locale) =>
+    renderSamples(await loadSamples(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null,
+      new Date())));
+
+  app.post('/app/settings/samples', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveSamplePolicy(deps.db, s.businessId, {
+      price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
+    });
+    const flash = r.code === 'saved'
+      ? t(locale, 'samples.flash.saved', { name: deps.employeeName })
+      : t(locale, `samples.flash.${r.code}` as MessageKey);
+    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(flash)}`);
+  });
+
+  app.post('/app/settings/samples/:id/address', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const address = String((req.body as { address?: string } | undefined)?.address ?? '');
+    const r = await saveSampleAddress(deps.db, s.businessId, (req.params as { id: string }).id, address);
+    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(
+      t(locale, r.code === 'saved' ? 'samples.flash.address' : 'samples.flash.failed'))}`);
+  });
+
+  app.post('/app/settings/samples/:id/handled', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const r = await markSampleHandled(deps.db, s.businessId, (req.params as { id: string }).id, 'owner', new Date());
+    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(
+      t(locale, r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed'))}`);
   });
 
   app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {

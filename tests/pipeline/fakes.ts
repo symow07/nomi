@@ -1,8 +1,9 @@
 import type { Money } from '../../src/core/types/money.js';
+import type { SamplePolicy } from '../../src/core/commerce/samples.js';
 import type { FactoryClosure } from '../../src/core/commerce/closures.js';
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
-  EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant, OpsRepo,
+  EventLog, KnowledgeRepo, OrderRepo, SampleRepo, SignalRepo, Tenant, OpsRepo,
 } from '../../src/db/ports.js';
 import type { KnowledgeSnippet } from '../../src/core/types/knowledge.js';
 import { SOURCE_RANK } from '../../src/core/types/knowledge.js';
@@ -73,6 +74,8 @@ export class FakeTenant implements Tenant {
   forbidden: string[] = [];
   /** M44 — days the factory is shut, as the owner stated them. */
   closures: FactoryClosure[] = [];
+  /** M45 — what she has said about samples. Null unless a test sets it. */
+  sample: SamplePolicy | null = null;
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
@@ -80,6 +83,7 @@ export class FakeTenant implements Tenant {
     negotiationRules: async () => this.rules,
     forbiddenTerms: async () => this.forbidden,
     factoryClosures: async () => this.closures,
+    samplePolicy: async () => this.sample,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],
@@ -113,6 +117,16 @@ export class FakeTenant implements Tenant {
   events: EventLog = {
     append: async (conversationId, type) => {
       this.eventRows.push({ conversationId: conversationId as string, type });
+    },
+  };
+
+  /** M45 — sample requests recorded, so a test can assert one reached her. */
+  samplesRecorded: Array<{ conversationId: string; askedText: string }> = [];
+  samples: SampleRepo = {
+    record: async (conversationId, askedText) => {
+      // Idempotent, like the unique index it stands in for.
+      if (this.samplesRecorded.some((x) => x.conversationId === (conversationId as string))) return;
+      this.samplesRecorded.push({ conversationId: conversationId as string, askedText });
     },
   };
 

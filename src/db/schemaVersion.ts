@@ -64,8 +64,15 @@ import type { Db } from './client.js';
  *      throws — and the alternative, treating the failure as "no closures",
  *      would quote a date through her shutdown, which is the exact lie this
  *      milestone exists to stop.
+ *
+ * 33 = samples (0033, M45). The turn READS `sample_policy` to decide whether a
+ *      sample price may enter the numeral allow-set, and WRITES
+ *      `sample_requests` the moment a buyer asks. Against a 32 database the
+ *      write is a missing table on the exact turn a buyer is waiting, and the
+ *      read failing would look like "she has stated no policy" — a refusal
+ *      caused by a stale schema rather than by her.
  */
-export const REQUIRED_SCHEMA_VERSION = 32;
+export const REQUIRED_SCHEMA_VERSION = 33;
 
 export type SchemaState = {
   readonly required: number;

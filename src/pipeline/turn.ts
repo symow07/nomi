@@ -1,4 +1,5 @@
 import type { Tenant } from '../db/ports.js';
+import { asksForSample, sampleAnswerContext } from '../core/commerce/samples.js';
 import type { Money } from '../core/types/money.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
@@ -123,6 +124,15 @@ export type TurnResult = {
    * actionable and "she used 傻逼" is.
    */
   forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[];
+  /**
+   * M45 — this buyer asked for a sample.
+   *
+   * Decided once per turn, from the buyer's own words, by a deterministic
+   * matcher — and recorded whether or not Nomi could answer. Whether she could
+   * depends on the owner having stated a policy; that a buyer ASKED is a fact
+   * about the buyer, and the owner needs to see it either way.
+   */
+  sampleRequested: boolean;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
@@ -139,6 +149,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   if (!state) throw new Error(`conversation not found: ${req.conversationId}`);
 
   const email = extractEmail(req.text);
+  // M45 — decided here, once, for every action kind. A buyer who asks for a
+  // sample in the same message that triggers a handoff has still asked.
+  const sampleRequested = asksForSample(req.text);
 
   // ── Cheap gates first: don't pay for analysis we won't use. ────────────────
   // Text-only signal detection runs BEFORE the analyzer: "I want to speak to a
@@ -333,7 +346,28 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const knowledgeNumbers = identifiedProductId === null ? [] : knowledge
         .filter((s) => s.productId === identifiedProductId)
         .flatMap((s) => extractNumerals(`${s.label} ${s.content}`).map((n) => n.value));
-      const numeralAllow = [...(refusalCtx?.allow ?? []), ...knowledgeNumbers];
+      /**
+       * M45 — "can you send a sample?"
+       *
+       * The sample price enters the allow-set ONLY from a row she wrote. If she
+       * has stated no policy, `sampleAnswerContext` refuses, nothing is added,
+       * and `guardNumerals` then makes it impossible for any reply to name a
+       * sample price — the same mechanic as M44's blocked lead time. There is
+       * no fallback policy and no "usually free" to fall back to.
+       *
+       * The detection is deterministic (`asksForSample`) because it decides
+       * whether the OWNER sees a request in her inbox: a model deciding it
+       * would make sample requests appear and disappear between two identical
+       * messages.
+       */
+      const sampleCtx = sampleRequested
+        ? sampleAnswerContext(await tenant.catalog.samplePolicy())
+        : null;
+      const numeralAllow = [
+        ...(refusalCtx?.allow ?? []),
+        ...knowledgeNumbers,
+        ...(sampleCtx?.ok ? sampleCtx.allow : []),
+      ];
 
       // Deterministic answer path: a strong FAQ / buyer_answer match ships the
       // owner's authored answer (claims-guarded — an unauthorised cert in the
@@ -371,6 +405,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           nextQuestion,
           retryAfterViolation: attempt > 0,
           knowledge,
+          // Absent when she has stated nothing: the model is told nothing to
+          // work from rather than being asked to be careful about samples.
+          ...(sampleCtx?.ok ? { sampleNote: sampleCtx.note } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
@@ -442,6 +479,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     provenance: { promptVersion, modelId },
     guardViolations,
     forbiddenHits,
+    sampleRequested,
     timings, usage,
     fingerprint,
   };
@@ -499,6 +537,13 @@ export async function commitTurn(
         await tenant.conversations.close(req.conversationId);
       }
     }
+  }
+
+  // M45 — the request reaches the owner even when the reply could not answer
+  // it. Idempotent at the database, so a buyer who asks three times is one row.
+  if (r.sampleRequested) {
+    await tenant.samples.record(req.conversationId, req.text);
+    await tenant.events.append(req.conversationId, 'sample_requested', {});
   }
 
   // Quote audit record (reproducibility).

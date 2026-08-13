@@ -63,6 +63,14 @@ export interface ReplyWriter {
      *  FROM. Prose only — numbers are still gated by guardNumerals (which now
      *  sources the identified product's knowledge numbers). */
     knowledge?: readonly KnowledgeSnippet[];
+    /**
+     * M45 — what the OWNER said about samples, already turned into a sentence
+     * by `sampleAnswerContext`. ABSENT when she has stated nothing, so the
+     * model is given nothing to work from rather than being asked to be careful
+     * — and `guardNumerals` refuses any sample price either way, because the
+     * allow-set only grows from a row she wrote.
+     */
+    sampleNote?: string;
   }): Promise<{ reply: string; promptVersion: string; modelId: string;
     usage: { inputTokens: number; outputTokens: number } }>;
 }

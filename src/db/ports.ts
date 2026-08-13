@@ -1,6 +1,7 @@
 import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/types/ids.js';
 import type { Money } from '../core/types/money.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
+import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { PriorQuote } from '../core/types/commerce.js';
 import type {
@@ -40,6 +41,7 @@ export interface Tenant {
   readonly clients: ClientRepo;
   readonly catalog: CatalogRepo;
   readonly orders: OrderRepo;
+  readonly samples: SampleRepo;
   readonly signals: SignalRepo;
   readonly events: EventLog;
   readonly audit: AuditRepo;
@@ -182,8 +184,28 @@ export interface CatalogRepo {
    * us", and the lead time is quoted exactly as before.
    */
   factoryClosures(): Promise<readonly FactoryClosure[]>;
+  /**
+   * M45 — what she has said about samples, or null. Null is "she has not
+   * said", which is why a sample price cannot reach a reply: the numerals a
+   * reply may contain come from what she wrote down.
+   */
+  samplePolicy(): Promise<SamplePolicy | null>;
   bundleRules(): Promise<BundleRule[]>;
   substitutions(productId: string): Promise<SubstitutionRule[]>;
+}
+
+/**
+ * M45 — a buyer asked for a sample. One row per conversation.
+ *
+ * Recorded whatever the reply turned out to be: whether Nomi could answer
+ * depends on the owner having stated a policy, but the REQUEST is a fact about
+ * a buyer and she needs to see it either way. That is the point of the
+ * milestone — a request that reaches her beats an automated flow built on
+ * guesses about how she ships.
+ */
+export interface SampleRepo {
+  /** Idempotent: a buyer who asks twice is one buyer waiting for one sample. */
+  record(conversationId: ConversationId, askedText: string): Promise<void>;
 }
 
 export interface OrderRepo {

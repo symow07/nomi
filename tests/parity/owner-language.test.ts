@@ -105,7 +105,7 @@ const conversationDetail = renderConversationDetail({
   messages: [{ direction: 'inbound', text: 'Can you quote 20000 pcs?', at: NOW }],
   pendingDraft: { draftId: 'd1', draftText: 'For 20,000 pcs: $0.38/pc FOB Ningbo.', capability: 'quote' },
   ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null,
-  lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, proof: { quoteId: null, token: null },
+  lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
 }, 'zh', NOW, null);
 
 const analytics = renderAnalytics({

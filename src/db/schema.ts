@@ -89,6 +89,25 @@ export interface Database {
     customizable: boolean;
     is_active: boolean;
   };
+  sample_policy: {
+    id: Generated<string>;
+    business_id: string;
+    price_amount: Numeric;
+    currency: Generated<string>;
+    credited_on_first_order: boolean;
+    stated_at: Generated<Timestamp>;
+    stated_by: Generated<string>;
+  };
+  sample_requests: {
+    id: Generated<string>;
+    business_id: string;
+    conversation_id: string;
+    asked_text: string;
+    requested_at: Generated<Timestamp>;
+    address: string | null;
+    handled_at: Timestamp | null;
+    handled_by: string | null;
+  };
   factory_closures: {
     id: Generated<string>;
     business_id: string;

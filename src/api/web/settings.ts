@@ -7,8 +7,10 @@ import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
 import { type FactoryClosure, type ClosureError, validateClosure, closureDate } from '../../core/commerce/closures.js';
+import { type SamplePolicy, type SamplePolicyError, validateSamplePolicy } from '../../core/commerce/samples.js';
+import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
 
 /**
@@ -210,6 +212,7 @@ export function renderSettings(
       t(locale, 'forbidden.title', { name: EMPLOYEE_NAME[locale] }))}
     ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
+    ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
     ${SETTINGS_STYLE}`;
 }
 
@@ -520,5 +523,170 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: string | n
                      gap:var(--space-12); padding:var(--space-8) 0;
                      border-bottom:1px solid var(--color-border); }
       .closures li:last-child { border-bottom:0; }
+    </style>`;
+}
+
+/* ── M45 · samples ───────────────────────────────────────────────────────── */
+
+/**
+ * What she has said about samples, and who is waiting for one.
+ *
+ * ONE PAGE, TWO HALVES, on purpose. The policy without the requests is a
+ * setting nobody visits; the requests without the policy are a list she cannot
+ * act on. A buyer waiting for a sample is the reason to state the price, and
+ * the price is what lets Nomi answer the next one.
+ */
+export type SampleRequestRow = {
+  readonly id: string;
+  readonly conversationId: string;
+  readonly buyer: string | null;
+  readonly askedText: string;
+  readonly requestedAt: Date;
+  readonly address: string | null;
+};
+export type SamplesView = {
+  readonly policy: SamplePolicy | null;
+  /** Open requests, oldest first — the one waiting longest is the one to do. */
+  readonly waiting: readonly SampleRequestRow[];
+};
+
+export async function loadSamples(db: Db, businessIdRaw: string): Promise<SamplesView> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { policy: null, waiting: [] };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const policy = await tenantRepos(tx, bid.value).catalog.samplePolicy();
+    const r = await sql<{
+      id: string; conversation_id: string; buyer: string | null;
+      asked_text: string; requested_at: Date; address: string | null;
+    }>`
+      select sr.id, sr.conversation_id, cl.display_name as buyer,
+             sr.asked_text, sr.requested_at, sr.address
+        from sample_requests sr
+        join conversations c on c.id = sr.conversation_id
+        left join clients cl on cl.id = c.client_id
+       where sr.business_id = ${bid.value}::uuid and sr.handled_at is null
+       order by sr.requested_at asc limit 50`.execute(tx);
+    return {
+      policy,
+      waiting: r.rows.map((x) => ({
+        id: x.id, conversationId: x.conversation_id, buyer: x.buyer,
+        askedText: x.asked_text, requestedAt: x.requested_at, address: x.address,
+      })),
+    };
+  });
+}
+
+/** Stating a policy INSERTS: what she promised in March is still on the record. */
+export async function saveSamplePolicy(
+  db: Db, businessIdRaw: string,
+  input: { price?: string | null; credited: boolean; now: Date },
+): Promise<{ code: 'saved' | SamplePolicyError | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const v = validateSamplePolicy({
+    price: input.price, creditedOnFirstOrder: input.credited,
+    // One tenant currency today, named where the pair is assembled rather than
+    // assumed at the row.
+    currency: 'USD', now: input.now,
+  });
+  if (!v.ok) return { code: v.error };
+  return withTenantTx(db, bid.value, async (tx) => {
+    await sql`insert into sample_policy (business_id, price_amount, currency, credited_on_first_order, stated_at)
+              values (${bid.value}::uuid, ${v.value.price.amount}, ${v.value.price.currency},
+                      ${v.value.creditedOnFirstOrder}, ${v.value.statedAt})`.execute(tx);
+    return { code: 'saved' as const };
+  });
+}
+
+/** The address SHE captured. Never inferred from a message. */
+export async function saveSampleAddress(
+  db: Db, businessIdRaw: string, id: string, address: string,
+): Promise<{ code: 'saved' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const clean = address.trim();
+  if (!clean) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update sample_requests set address = ${clean}
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid returning id`.execute(tx);
+    return { code: r.rows[0] ? 'saved' as const : 'failed' as const };
+  });
+}
+
+/** Dealt with. What that means is hers — this product does not model a courier. */
+export async function markSampleHandled(
+  db: Db, businessIdRaw: string, id: string, actor: string, now: Date,
+): Promise<{ code: 'done' | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update sample_requests set handled_at = ${now}, handled_by = ${actor}
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid and handled_at is null
+      returning id`.execute(tx);
+    return { code: r.rows[0] ? 'done' as const : 'failed' as const };
+  });
+}
+
+export function renderSamples(v: SamplesView, locale: Locale, flash: string | null, now: Date): string {
+  const name = EMPLOYEE_NAME[locale];
+  const stated = v.policy
+    ? `<p class="rate-now">${
+        v.policy.price.amount === 0
+          ? esc(t(locale, 'samples.current.free'))
+          : esc(t(locale, 'samples.current.paid', { price: formatMoney(v.policy.price) }))
+      } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
+        ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
+      <p class="muted">${esc(t(locale, 'samples.setOn', { date: formatDate(locale, v.policy.statedAt) }))}</p>`
+    : `<p class="muted empty-p">${esc(t(locale, 'samples.empty', { name }))}</p>`;
+
+  const waiting = v.waiting.length === 0
+    ? `<p class="muted empty-p">${esc(t(locale, 'samples.requests.empty'))}</p>`
+    : `<ul class="sreqs">${v.waiting.map((r) => `<li>
+        <div class="sreq-h"><b><bdi>${esc(r.buyer ?? t(locale, 'common.buyer'))}</bdi></b>
+          <span class="muted">${esc(t(locale, 'samples.requests.asked', { when: formatRelative(locale, r.requestedAt, now) }))}</span></div>
+        <div class="muted sreq-q"><bdi>${esc(r.askedText.slice(0, 160))}</bdi></div>
+        <form method="post" action="/app/settings/samples/${esc(r.id)}/address" class="sreq-a">
+          <label class="fld"><span class="muted">${esc(t(locale, 'samples.requests.address.label'))}</span>
+            <textarea name="address" rows="2" placeholder="${esc(t(locale, 'samples.requests.address.placeholder'))}">${esc(r.address ?? '')}</textarea></label>
+          <button class="btn" type="submit">${esc(t(locale, 'samples.requests.address.save'))}</button>
+        </form>
+        <div class="sreq-do">
+          <a class="deeper" href="/app/inbox/${esc(r.conversationId)}">${esc(t(locale, 'samples.requests.open'))}<span class="go" aria-hidden="true">›</span></a>
+          <form method="post" action="/app/settings/samples/${esc(r.id)}/handled" class="inline">
+            <button class="btn" type="submit">${esc(t(locale, 'samples.requests.handled'))}</button>
+          </form>
+        </div>
+      </li>`).join('')}</ul>`;
+
+  return `<h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
+      ${stated}
+      <form method="post" action="/app/settings/samples" class="pform">
+        <label class="fld"><span class="muted">${esc(t(locale, 'samples.price.label'))}</span>
+          <input name="price" inputmode="decimal" required
+            value="${v.policy ? esc(String(v.policy.price.amount)) : ''}" /></label>
+        <label class="chkbox"><input type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />
+          ${esc(t(locale, 'samples.credited.label'))}</label>
+        <button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>
+      </form>
+    </section>
+    <section class="block">
+      <h2>${esc(t(locale, 'samples.requests.title'))}</h2>
+      ${waiting}
+    </section>
+    <style>
+      .sreqs { list-style:none; margin:var(--space-12) 0 0; padding:0;
+               display:flex; flex-direction:column; gap:var(--space-24); }
+      .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
+      .sreq-q { font-size:var(--font-size-note); margin-top:var(--space-4); max-width:var(--measure-prose); }
+      .sreq-a { display:flex; flex-direction:column; gap:var(--space-8);
+                margin-top:var(--space-8); max-width:var(--measure-form); }
+      .sreq-a textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border);
+                border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+      .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
     </style>`;
 }

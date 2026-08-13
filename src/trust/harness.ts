@@ -1,4 +1,5 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
 import { type Money, usd } from '../core/types/money.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
@@ -113,6 +114,8 @@ class HarnessTenant implements Tenant {
   forbidden: string[] = [];
   /** M44 — days the factory is shut, as the owner stated them. */
   closures: FactoryClosure[] = [];
+  /** M45 — what she has said about samples. Null unless a test sets it. */
+  sample: SamplePolicy | null = null;
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
@@ -121,6 +124,7 @@ class HarnessTenant implements Tenant {
     forbiddenTerms: async () => this.forbidden,
     /** M44 — closures the owner stated. Empty unless a scenario sets them. */
     factoryClosures: async () => this.closures,
+    samplePolicy: async () => this.sample,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],
@@ -130,6 +134,15 @@ class HarnessTenant implements Tenant {
   };
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
+  /** M45 — sample requests recorded, so a test can assert one reached her. */
+  samplesRecorded: Array<{ conversationId: string; askedText: string }> = [];
+  samples: import('../db/ports.js').SampleRepo = {
+    record: async (conversationId, askedText) => {
+      // Idempotent, like the unique index it stands in for.
+      if (this.samplesRecorded.some((x) => x.conversationId === (conversationId as string))) return;
+      this.samplesRecorded.push({ conversationId: conversationId as string, askedText });
+    },
+  };
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
   priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {

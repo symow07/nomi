@@ -248,3 +248,56 @@ describe('audit trail', () => {
     expect(r.fingerprint.quote?.unitPrice).toEqual(usd(0.45));
   });
 });
+
+describe('M45 · a sample request reaches the owner through the production caller', () => {
+  /**
+   * The parity suite proves the matcher and the policy; the integration suite
+   * proves the row. Neither proves that a TURN records one — and a feature is
+   * built when a production entrypoint reaches it, not when its parts pass.
+   */
+  it('commitTurn records it, with the buyer’s own words', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    const text = 'Hello, can you send a sample first?';
+    const r = await computeTurn(p, req(text));
+    await commitTurn(p, req(text), r, Date.now());
+
+    expect(r.sampleRequested).toBe(true);
+    expect(p.tenant.samplesRecorded).toEqual([{ conversationId: CONVERSATION, askedText: text }]);
+    expect(p.tenant.eventRows.some((e) => e.type === 'sample_requested')).toBe(true);
+  });
+
+  it('EVEN WHEN SHE HAS STATED NOTHING — that a buyer asked is a fact about the buyer', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    p.tenant.sample = null;
+    const text = 'do you have samples?';
+    const r = await computeTurn(p, req(text));
+    await commitTurn(p, req(text), r, Date.now());
+    expect(p.tenant.samplesRecorded).toHaveLength(1);
+  });
+
+  it('and an ordinary message records nothing', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    const text = 'what is your price for 5000 pcs?';
+    const r = await computeTurn(p, req(text));
+    await commitTurn(p, req(text), r, Date.now());
+    expect(r.sampleRequested).toBe(false);
+    expect(p.tenant.samplesRecorded).toEqual([]);
+  });
+
+  it('asking twice is ONE obligation', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    for (const text of ['can you send a sample?', 'any update on the sample?']) {
+      const r = await computeTurn(p, req(text));
+      await commitTurn(p, req(text), r, Date.now());
+    }
+    expect(p.tenant.samplesRecorded).toHaveLength(1);
+  });
+});
