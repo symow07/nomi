@@ -1,4 +1,5 @@
 import type { Analysis } from '../core/conversation/decide.js';
+import { type Money, usd } from '../core/types/money.js';
 import type { ConversationState, Phase, ProductMatch } from '../core/types/conversation.js';
 import type { NegotiationRule } from '../core/types/commerce.js';
 import type { AllowedClaim } from '../core/safety/claims.js';
@@ -81,8 +82,8 @@ export type CatalogEntry = {
   readonly moq: number;
   readonly unit: string;
   readonly leadTimeDays?: number | null;
-  readonly tiers: ReadonlyArray<{ minQty: number; maxQty: number | null; unitPriceUsd: number }>;
-  readonly policy?: { floorPriceUsd: number; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
+  readonly tiers: ReadonlyArray<{ minQty: number; maxQty: number | null; unitPrice: Money }>;
+  readonly policy?: { floorPrice: Money; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
   readonly negotiationRules?: readonly NegotiationRule[];
 };
 
@@ -126,8 +127,8 @@ export function bags(over: Partial<CatalogEntry> = {}): CatalogEntry {
     moq: 1000,
     unit: 'pcs',
     leadTimeDays: 25,
-    tiers: [{ minQty: 1000, maxQty: null, unitPriceUsd: 0.45 }],
-    policy: { floorPriceUsd: 0.35, maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+    tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
+    policy: { floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
     ...over,
   };
 }
@@ -199,8 +200,8 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: 'We can commit to 5000 units. What is the very best price you can do?' },
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
-      tiers: [{ minQty: 1000, maxQty: null, unitPriceUsd: 0.45 }],
-      policy: { floorPriceUsd: 0.42, maxDiscountPct: 20, humanRequiredAbovePct: 15 },
+      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.45) }],
+      policy: { floorPrice: usd(0.42), maxDiscountPct: 20, humanRequiredAbovePct: 15 },
       negotiationRules: [discountRule(25)],   // asks for 25% — authority is 20%, floor bites first
     })],
     candidates: [candidate(bags())],
@@ -221,8 +222,8 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: '5000 pieces please — what is the price?' },
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
-      tiers: [{ minQty: 1000, maxQty: null, unitPriceUsd: 0.30 }],   // list < floor
-      policy: { floorPriceUsd: 0.35, maxDiscountPct: 10, humanRequiredAbovePct: 7 },
+      tiers: [{ minQty: 1000, maxQty: null, unitPrice: usd(0.30) }],   // list < floor
+      policy: { floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 },
     })],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
@@ -241,9 +242,9 @@ export const SCENARIOS: readonly Scenario[] = [
     state: { phase: 'commercial_discussion' },
     catalog: [bags({
       tiers: [
-        { minQty: 1000, maxQty: 4999, unitPriceUsd: 0.5 },
-        { minQty: 5000, maxQty: 19999, unitPriceUsd: 0.45 },
-        { minQty: 20000, maxQty: null, unitPriceUsd: 0.38 },
+        { minQty: 1000, maxQty: 4999, unitPrice: usd(0.5) },
+        { minQty: 5000, maxQty: 19999, unitPrice: usd(0.45) },
+        { minQty: 20000, maxQty: null, unitPrice: usd(0.38) },
       ],
     })],
     candidates: [candidate(bags())],

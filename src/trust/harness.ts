@@ -1,4 +1,5 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import { type Money, usd } from '../core/types/money.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
 import { NO_KILL_SWITCHES, type KillSwitches } from '../core/ops/killSwitch.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
@@ -79,8 +80,8 @@ class HarnessTenant implements Tenant {
   constructor(s: Scenario) {
     const pid = TRUST_PRODUCT_ID as string;
     this.products.set(pid, { id: TRUST_PRODUCT_ID, businessId: TRUST_BUSINESS_ID, sku: 'BAG-NW-001', name: 'Non-woven shopping bag', moq: 1000, unit: 'pcs', leadTimeDays: 25, customizable: true });
-    this.tiers.set(pid, [{ productId: TRUST_PRODUCT_ID, minQty: 1000, maxQty: null, unitPriceUsd: 0.45 }]);
-    this.policies.set(pid, { businessId: TRUST_BUSINESS_ID, productId: TRUST_PRODUCT_ID, floorPriceUsd: 0.35, maxDiscountPct: 10, humanRequiredAbovePct: 7 });
+    this.tiers.set(pid, [{ productId: TRUST_PRODUCT_ID, minQty: 1000, maxQty: null, unitPrice: usd(0.45) }]);
+    this.policies.set(pid, { businessId: TRUST_BUSINESS_ID, productId: TRUST_PRODUCT_ID, floorPrice: usd(0.35), maxDiscountPct: 10, humanRequiredAbovePct: 7 });
     if (s.catalog) {
       this.products.clear(); this.tiers.clear(); this.policies.clear(); this.rules = [];
       for (const e of s.catalog) {
@@ -96,7 +97,7 @@ class HarnessTenant implements Tenant {
     this.state = emptyState(s.state);
   }
 
-  floorFor(productId: string): number | null { return this.policies.get(productId)?.floorPriceUsd ?? null; }
+  floorFor(productId: string): number | null { return this.policies.get(productId)?.floorPrice.amount ?? null; }
 
   conversations: ConversationRepo = {
     loadState: async () => this.state,
@@ -125,7 +126,7 @@ class HarnessTenant implements Tenant {
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
-  priorQuotes: Array<{ quantity: number; unitPriceUsd: number; at: Date }> = [];
+  priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {
     priorQuotesForClient: async () => this.priorQuotes, recordQuote: async () => ({ quoteId: 'q-1' }), recordTurn: async () => {} };
   /** M34.9 — recorded, so a test can assert the production caller reached it.

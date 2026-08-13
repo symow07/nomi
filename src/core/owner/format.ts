@@ -1,3 +1,4 @@
+import { type Money, currencySymbol } from '../types/money.js';
 /**
  * M1 — Chinese business formatting. ￥, 万, GMT+8. Pure; clock injected.
  */
@@ -8,13 +9,13 @@ const TZ = 'Asia/Shanghai';
 export const formatRmb = (n: number): string =>
   `￥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Trade money stays USD — buyers pay dollars — but grouped normally. */
-export const formatUsd = (n: number): string =>
-  `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Trade money, grouped normally. M43a — the symbol comes from the currency. */
+export const formatMoney = (m: Money): string =>
+  `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Summary money: whole dollars — cents are noise on a phone digest line. */
-export const formatUsdCompact = (n: number): string =>
-  `$${Math.round(n).toLocaleString('en-US')}`;
+/** Summary money: whole units — minor units are noise on a phone digest line. */
+export const formatMoneyCompact = (m: Money): string =>
+  `${currencySymbol(m.currency)}${Math.round(m.amount).toLocaleString('en-US')}`;
 
 /**
  * Quantities the way a Yiwu owner says them: ≥10,000 in 万.

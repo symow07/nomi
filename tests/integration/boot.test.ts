@@ -524,7 +524,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       sql<{ id: string }>`select id from products where business_id=${bidv} and name='独家测试杯'
         order by created_at desc limit 1`.execute(tx).then((r) => r.rows[0]!.id));
     const saved = await savePriceRules(prod.db, DEMO_BIZ, 'owner',
-      { productId: pid, floorUsd: '3.50', maxDiscountPct: '10', askAbovePct: '7' });
+      { productId: pid, floor: '3.50', maxDiscountPct: '10', askAbovePct: '7' });
     expect(saved.ok).toBe(true);
     expect(await activeOf('独家测试杯')).toBe(true);      // her answer, not ours
 
@@ -2319,19 +2319,19 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const f = await view();
 
       if (applies.length === 0) {
-        expect(f.promises.floorLowUsd).toBeNull();
+        expect(f.promises.floorLow).toBeNull();
         expect(await html()).not.toContain('never quotes below');
         return;
       }
       const floors = applies.map((r) => Number(r.floor));
-      expect(f.promises.floorLowUsd).toBe(Math.min(...floors));
-      expect(f.promises.floorHighUsd).toBe(Math.max(...floors));
+      expect(f.promises.floorLow?.amount).toBe(Math.min(...floors));
+      expect(f.promises.floorHigh?.amount).toBe(Math.max(...floors));
       expect(f.promises.ceilingPct).toBe(Math.min(...applies.map((r) => Number(r.ceiling))));
 
       // and it must NOT be the fallback row when per-product rules exist
       const fallback = rows.find((r) => r.pid === null);
-      if (perProduct.length > 0 && fallback && Number(fallback.floor) !== f.promises.floorLowUsd)
-        expect(f.promises.floorLowUsd).not.toBe(Number(fallback.floor));
+      if (perProduct.length > 0 && fallback && Number(fallback.floor) !== f.promises.floorLow?.amount)
+        expect(f.promises.floorLow?.amount).not.toBe(Number(fallback.floor));
 
       const page = await html();
       expect(page).toContain('never discounts more than');

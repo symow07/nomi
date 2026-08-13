@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { computeTurn, commitTurn, UNCLAIMED_AGENT, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import { emptyState, CONVERSATION, PRODUCT } from '../parity/fixtures.js';
@@ -244,6 +245,6 @@ describe('audit trail', () => {
     expect(p.tenant.quotesRecorded).toHaveLength(1);
     const quoteRec = p.tenant.quotesRecorded[0] as { inputs: { tiers: unknown[] } };
     expect(quoteRec.inputs.tiers).toHaveLength(3);  // reproducible from snapshot
-    expect(r.fingerprint.quote?.unitPriceUsd).toBe(0.45);
+    expect(r.fingerprint.quote?.unitPrice).toEqual(usd(0.45));
   });
 });

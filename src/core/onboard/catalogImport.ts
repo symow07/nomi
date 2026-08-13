@@ -1,3 +1,4 @@
+import { type Money, usd } from '../types/money.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
  * price-list photos (via the M4 vision path) — anything goes in; what comes
@@ -19,7 +20,8 @@ export type ExtractedProduct = {
   readonly sku: string | null;
   readonly name: string;
   readonly nameZh: string | null;
-  readonly priceUsd: number | null;    // null = owner must fill at confirm
+  /** null = owner must fill at confirm. M43a — a Money once it has one. */
+  readonly price: Money | null;
   readonly moq: number | null;
   /**
    * M37 — the line this was read from, verbatim.
@@ -109,7 +111,7 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       sku: article,
       name: finalName,
       nameZh: zh ? finalName : null,
-      priceUsd: price ? Number(price) : null,
+      price: price ? usd(Number(price)) : null,
       moq: moq ? Number(moq.replace(/,/g, '')) : null,
       unit: 'pcs',
       sourceLine: line,
@@ -139,7 +141,7 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
       rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });
-    } else if (p.priceUsd !== null && (p.priceUsd <= 0 || p.priceUsd > 100_000)) {
+    } else if (p.price !== null && (p.price.amount <= 0 || p.price.amount > 100_000)) {
       rejected.push({ product: p, reason: 'bad_price', reasonZh: '价格看着不对' });
     } else if (p.moq !== null && (!Number.isInteger(p.moq) || p.moq <= 0)) {
       rejected.push({ product: p, reason: 'bad_moq', reasonZh: '起订量看着不对' });
@@ -174,7 +176,7 @@ export function validatePage(products: readonly ExtractedProduct[]): ValidatedIm
   const accepted: ExtractedProduct[] = [];
   const rejected = [...base.rejected];
   for (const p of base.accepted) {
-    if (p.priceUsd === null) rejected.push({ product: p, reason: 'no_price_on_page', reasonZh: '这行没有价格' });
+    if (p.price === null) rejected.push({ product: p, reason: 'no_price_on_page', reasonZh: '这行没有价格' });
     else accepted.push(p);
   }
   return { accepted, rejected };

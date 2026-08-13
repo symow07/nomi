@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   renderProductList, renderProductDetail, renderAddForm, renderReview, reviewImport,
   type ProductListItem, type ProductDetail,
@@ -6,17 +7,17 @@ import {
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const items: ProductListItem[] = [
-  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPriceUsd: 0.92, learned: true, imageMatchable: true, isActive: true },
-  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPriceUsd: null, learned: false, imageMatchable: false, isActive: true },
+  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd(0.92), learned: true, imageMatchable: true, isActive: true },
+  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPrice: null, learned: false, imageMatchable: false, isActive: true },
 ];
 
 const detail: ProductDetail = {
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, isActive: true, imageMatchable: true,
-  tiers: [{ minQty: 500, maxQty: 2000, unitPriceUsd: 1.05 }, { minQty: 2000, maxQty: null, unitPriceUsd: 0.92 }],
+  tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) }],
   aliases: ['canvas bag', 'tote bag', '帆布包'],
   images: [],
-  recentQuotes: [{ quantity: 5000, unitPriceUsd: 0.92, totalUsd: 4600 }],
+  recentQuotes: [{ quantity: 5000, unitPrice: usd(0.92), total: usd(4600) }],
 };
 
 describe('M9.5 · product list (localized)', () => {
@@ -78,7 +79,7 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
     const v = reviewImport('帆布袋 1.05美元 500个起\n保温杯 $2.60 MOQ 1000\n随便聊两句');
     expect(v.accepted.length).toBeGreaterThanOrEqual(2);
     expect(v.accepted[0]!.name).toContain('帆布袋');
-    expect(v.accepted[0]!.priceUsd).toBe(1.05);
+    expect(v.accepted[0]!.price).toEqual(usd(1.05));
   });
 
   it('a price-less line is "Needs a price" in the review, never auto-priced', () => {

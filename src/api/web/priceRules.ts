@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
+import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd } from '../../core/owner/i18n/format.js';
+import { formatMoney } from '../../core/owner/i18n/format.js';
 import { esc, back } from './layout.js';
 import { productName } from './inbox.js';
 import {
@@ -30,7 +31,7 @@ export type ProductRules = {
   readonly name: string;
   readonly nameZh: string | null;
   /** The entry price the owner listed, when she has one. */
-  readonly listPriceUsd: number | null;
+  readonly listPrice: Money | null;
   /** Her answers for THIS product, or null when she has not given any. */
   readonly own: PriceRules | null;
   /** Whether the business-wide default would apply in their absence. */
@@ -46,8 +47,15 @@ export type PriceRulesView = {
   readonly unanswered: number;
 };
 
-const toRules = (r: { floor: string; max: string; ask: string } | undefined): PriceRules | null =>
-  r ? { floorUsd: Number(r.floor), maxDiscountPct: Number(r.max), askAbovePct: Number(r.ask) } : null;
+// M43a — the currency comes from the ROW, and a policy this build cannot price
+// reads as no policy rather than as a dollar floor.
+const toRules = (
+  r: { floor: string; max: string; ask: string; currency?: string } | undefined,
+): PriceRules | null => {
+  if (!r) return null;
+  const floor = moneyFromRow(Number(r.floor), r.currency ?? 'USD');
+  return floor === null ? null : { floor, maxDiscountPct: Number(r.max), askAbovePct: Number(r.ask) };
+};
 
 export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<PriceRulesView> {
   const empty: PriceRulesView = { businessDefault: null, products: [], unanswered: 0 };
@@ -90,7 +98,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
         sku: r.sku ?? '',
         name: r.name ?? '',
         nameZh: r.name_zh,
-        listPriceUsd: r.list_price === null ? null : Number(r.list_price),
+        listPrice: r.list_price === null ? null : usd(Number(r.list_price)),
         own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask! }) : null,
         inheritsDefault: r.floor === null && businessDefault !== null,
         isActive: r.is_active ?? false,
@@ -101,7 +109,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
       products,
       // What she cannot sell yet: a price, but no rule of her own and no default
       // to fall back on. This is a real count of rows, not a score.
-      unanswered: products.filter((p) => p.listPriceUsd !== null && p.own === null && !p.inheritsDefault).length,
+      unanswered: products.filter((p) => p.listPrice !== null && p.own === null && !p.inheritsDefault).length,
     };
   });
 }
@@ -127,13 +135,13 @@ export async function savePriceRules(
   db: Db, businessIdRaw: string, actor: string,
   input: {
     readonly productId: string | null;
-    readonly floorUsd: string | null | undefined;
+    readonly floor: string | null | undefined;
     readonly maxDiscountPct: string | null | undefined;
     readonly askAbovePct: string | null | undefined;
   },
 ): Promise<SaveRulesResult> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { ok: false, errors: { floorUsd: 'missing' } };
+  if (!bid.ok) return { ok: false, errors: { floor: 'missing' } };
 
   return withTenantTx(db, bid.value, async (tx) => {
     // The list price is needed to reject a floor above it, so read it first.
@@ -143,17 +151,17 @@ export async function savePriceRules(
            where business_id = ${bid.value} and id = ${input.productId} limit 1
         `.execute(tx)).rows[0]
       : undefined;
-    if (input.productId && !product) return { ok: false, errors: { floorUsd: 'missing' } };
+    if (input.productId && !product) return { ok: false, errors: { floor: 'missing' } };
 
-    const listPriceUsd = product?.price != null ? Number(product.price) : null;
+    const listPrice = product?.price != null ? usd(Number(product.price)) : null;
     const v = validatePriceRules({
-      floorUsd: input.floorUsd, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
-      ...(input.productId ? { listPriceUsd } : {}),
+      floor: input.floor, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
+      ...(input.productId ? { listPrice } : {}),
     });
     if (!v.ok) return v;
 
-    const before = (await sql<{ floor: string; max: string; ask: string }>`
-      select floor_price_usd as floor, max_discount_pct as max, human_required_above_pct as ask
+    const before = (await sql<{ floor: string; max: string; ask: string; currency: string }>`
+      select floor_price_usd as floor, max_discount_pct as max, human_required_above_pct as ask, currency
         from pricing_policy
        where business_id = ${bid.value}
          and product_id is not distinct from ${input.productId}
@@ -161,11 +169,12 @@ export async function savePriceRules(
 
     await sql`
       insert into pricing_policy
-        (business_id, product_id, floor_price_usd, max_discount_pct, human_required_above_pct)
-      values (${bid.value}, ${input.productId}, ${v.value.floorUsd},
+        (business_id, product_id, floor_price_usd, currency, max_discount_pct, human_required_above_pct)
+      values (${bid.value}, ${input.productId}, ${v.value.floor.amount}, ${v.value.floor.currency},
               ${v.value.maxDiscountPct}, ${v.value.askAbovePct})
       on conflict (business_id, product_id) do update
         set floor_price_usd = excluded.floor_price_usd,
+            currency = excluded.currency,
             max_discount_pct = excluded.max_discount_pct,
             human_required_above_pct = excluded.human_required_above_pct
     `.execute(tx);
@@ -175,7 +184,7 @@ export async function savePriceRules(
     // A priced product with a stated floor is sellable. This is the ONLY place
     // that turns one on, and it is an owner action, never an inference.
     let activated = false;
-    if (input.productId && listPriceUsd !== null && product && !product.is_active) {
+    if (input.productId && listPrice !== null && product && !product.is_active) {
       await sql`update products set is_active = true, updated_at = now()
                  where business_id = ${bid.value} and id = ${input.productId}`.execute(tx);
       activated = true;
@@ -222,8 +231,8 @@ export function renderPriceRules(
       <h3 class="sub3">${esc(title)}</h3>
       <p class="fdesc">${esc(sub)}</p>
       <label class="pq"><span>${esc(t(locale, 'prices.q.floor', { name }))}</span>
-        <input name="floorUsd" inputmode="decimal" required
-               value="${current ? esc(String(current.floorUsd)) : ''}" />${err('floorUsd')}</label>
+        <input name="floor" inputmode="decimal" required
+               value="${current ? esc(String(current.floor.amount)) : ''}" />${err('floor')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.q.maxDiscount', { name }))}</span>
         <input name="maxDiscountPct" inputmode="decimal" required
                value="${current ? esc(String(current.maxDiscountPct)) : ''}" />${err('maxDiscountPct')}</label>
@@ -234,7 +243,7 @@ export function renderPriceRules(
     </form>`;
 
   // Products she cannot sell yet come first — they are the reason to be here.
-  const needing = v.products.filter((p) => p.listPriceUsd !== null && p.own === null && !p.inheritsDefault);
+  const needing = v.products.filter((p) => p.listPrice !== null && p.own === null && !p.inheritsDefault);
   const answered = v.products.filter((p) => p.own !== null);
 
   const productRow = (p: ProductRules): string => {
@@ -242,10 +251,10 @@ export function renderPriceRules(
     const open = draft.productId === p.productId;
     return `<li class="prow">
       <div class="phead"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
-        ${p.listPriceUsd !== null ? `<span class="muted">${esc(formatUsd(p.listPriceUsd))}</span>` : ''}</div>
+        ${p.listPrice !== null ? `<span class="muted">${esc(formatMoney(p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
-             floor: formatUsd(p.own.floorUsd), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
+             floor: formatMoney(p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
         : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
       ${open || p.own === null
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '')

@@ -1,4 +1,5 @@
 import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/types/ids.js';
+import type { Money } from '../core/types/money.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { PriorQuote } from '../core/types/commerce.js';
 import type {
@@ -122,9 +123,9 @@ export interface AuditRepo {
     productId: string;
     quantity: number;
     inputs: unknown;          // { tiers, policy, rules } snapshot
-    unitPriceUsd: number;
+    unitPrice: Money;
     discountPct: number;
-    totalUsd: number;
+    total: Money;
     requiresHuman: boolean;
     appliedRules: readonly string[];
   }): Promise<{ quoteId: string }>;

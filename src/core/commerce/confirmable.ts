@@ -1,4 +1,5 @@
 import { type Result, ok, err } from '../types/result.js';
+import { scaleMoney, subMoney } from '../types/money.js';
 import type { BlockingReason, ConfirmableOrder, Product, Quote } from '../types/commerce.js';
 import type { ConversationState } from '../types/conversation.js';
 import { PROBLEM_HANDOFF_THRESHOLD } from '../scoring/signals.js';
@@ -55,12 +56,14 @@ export function toConfirmableOrder(input: {
   }
 
   // Rule 5: we have a price.
-  if (!quote || quote.unitPriceUsd <= 0) reasons.push('price_missing');
+  if (!quote || quote.unitPrice.amount <= 0) reasons.push('price_missing');
 
   // Rule 6: the arithmetic is right. (An LLM was doing this.)
   if (quote && state.quantity) {
-    const expected = quote.unitPriceUsd * state.quantity.value;
-    if (Math.abs(quote.totalUsd - expected) > CENT) reasons.push('total_mismatch');
+    // Both sides of this check are in the quote's own currency, so the
+    // subtraction is between comparable amounts by construction.
+    const expected = scaleMoney(quote.unitPrice, state.quantity.value);
+    if (Math.abs(subMoney(quote.total, expected).amount) > CENT) reasons.push('total_mismatch');
   }
 
   // Rule 7: a validated email. Nothing in the old system ever captured one.
@@ -88,8 +91,8 @@ export function toConfirmableOrder(input: {
   return ok({
     productId: p.id,
     quantity: qty,
-    unitPriceUsd: q.unitPriceUsd,
-    totalUsd: q.totalUsd,
+    unitPrice: q.unitPrice,
+    total: q.total,
     email,
     paymentTerms,
   } as ConfirmableOrder);

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { STATUS, TERM, BANNED_OWNER_TERMS, capabilityStatus } from '../../src/core/owner/vocabulary.js';
-import { formatRmb, formatUsd, formatQtyZh, formatDateZh, formatWhenZh } from '../../src/core/owner/format.js';
+import { formatRmb, formatMoney, formatQtyZh, formatDateZh, formatWhenZh } from '../../src/core/owner/format.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
@@ -94,7 +95,7 @@ const inboxList = renderInboxList({
     conversationId: 'c1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
     needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you quote 20000 pcs?', latestAt: NOW,
-    product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPriceUsd: 0.38,
+    product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPrice: usd(0.38),
   }],
 }, 'zh', NOW);
 
@@ -111,7 +112,7 @@ const analytics = renderAnalytics({
   range: 'month', hasActivity: true,
   summary: { newClients: 4, activeConvos: 12, quotes: 3, orders: 1 },
   activity: { inbound: 12, replied: 9, waiting: 2 },
-  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValueUsd: 7300 },
+  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValue: usd(7300) },
   employee: { handled: 9, waiting: 2, edits: 1 },
 }, 'zh');
 
@@ -233,7 +234,7 @@ describe('M1 · locked vocabulary', () => {
 describe('M1 · ￥, 万, GMT+8', () => {
   it('currency', () => {
     expect(formatRmb(1234.5)).toBe('￥1,234.50');
-    expect(formatUsd(7300)).toBe('$7,300.00');
+    expect(formatMoney(usd(7300))).toBe('$7,300.00');
   });
   it('万-quantities the way owners say them', () => {
     expect(formatQtyZh(5000)).toBe('5000');

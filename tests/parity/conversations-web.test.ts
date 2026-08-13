@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   renderCustomerList, renderCustomerFile, type CustomerList, type CustomerFile, type Milestone,
 } from '../../src/api/web/conversations.js';
@@ -6,7 +7,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const NOW = new Date('2026-07-27T02:30:00Z'); // 10:30 Beijing
 const m = (o: Partial<Milestone> & Pick<Milestone, 'kind' | 'at'>): Milestone =>
-  ({ text: null, qty: null, unitUsd: null, orderStatus: null, ...o });
+  ({ text: null, qty: null, unitPrice: null, orderStatus: null, ...o });
 
 const list: CustomerList = {
   query: '',
@@ -26,13 +27,13 @@ const file: CustomerFile = {
   profile: { firstContact: new Date('2026-07-01T00:00:00Z'), products: [{ name: 'Vacuum cup', nameZh: '保温杯' }], quoteCount: 3, orderCount: 1 },
   timeline: [
     m({ kind: 'buyer_image', at: new Date('2026-07-10T02:00:00Z') }),
-    m({ kind: 'quote', at: new Date('2026-07-10T03:00:00Z'), qty: 5000, unitUsd: 0.92 }),
+    m({ kind: 'quote', at: new Date('2026-07-10T03:00:00Z'), qty: 5000, unitPrice: usd(0.92) }),
     m({ kind: 'owner_approved', at: new Date('2026-07-10T04:00:00Z') }),
   ],
   context: {
     products: [{ sku: 'ZX-100', name: 'Canvas bag', nameZh: '帆布袋' }],
-    latestQuote: { qty: 5000, unitUsd: 0.92, totalUsd: 4600 },
-    order: { status: 'confirmed', reference: 'ORD-1', qty: 5000, totalUsd: 4600 },
+    latestQuote: { qty: 5000, unitPrice: usd(0.92), total: usd(4600) },
+    order: { status: 'confirmed', reference: 'ORD-1', qty: 5000, total: usd(4600) },
     corrections: ['quote'],   // capability code
   },
 };

@@ -1,4 +1,5 @@
 import type { AllowedClaim } from '../core/safety/claims.js';
+import type { Money } from '../core/types/money.js';
 import type { KnowledgeKind, KnowledgeSource } from '../core/types/knowledge.js';
 import { ANSWER_KINDS } from '../core/types/knowledge.js';
 import type { ProductId } from '../core/types/ids.js';
@@ -58,8 +59,8 @@ export type FactoryProduct = {
   readonly moq: number;
   readonly unit: string;
   readonly leadTimeDays: number | null;
-  readonly tiers: readonly { readonly minQty: number; readonly maxQty: number | null; readonly unitPriceUsd: number }[];
-  readonly policy: { readonly floorPriceUsd: number; readonly maxDiscountPct: number; readonly humanRequiredAbovePct: number } | null;
+  readonly tiers: readonly { readonly minQty: number; readonly maxQty: number | null; readonly unitPrice: Money }[];
+  readonly policy: { readonly floorPrice: Money; readonly maxDiscountPct: number; readonly humanRequiredAbovePct: number } | null;
   /**
    * Her ACTIVE, product-scoped taught rows. Business-level rows are deliberately
    * excluded: the harness tenant cannot represent them (a null productId is
@@ -154,7 +155,7 @@ const entryOf = (p: FactoryProduct): CatalogEntry => ({
   moq: p.moq,
   unit: p.unit,
   leadTimeDays: p.leadTimeDays,
-  tiers: p.tiers.map((t) => ({ minQty: t.minQty, maxQty: t.maxQty, unitPriceUsd: t.unitPriceUsd })),
+  tiers: p.tiers.map((t) => ({ minQty: t.minQty, maxQty: t.maxQty, unitPrice: t.unitPrice })),
   policy: p.policy,
 });
 
@@ -321,7 +322,7 @@ function fixtureLine(probe: FactoryProbe): string {
   const parts = [`buyer=${JSON.stringify(s.buyer.text)}`];
   if (cat) {
     parts.push(`sku=${cat.sku}`, `moq=${cat.moq}`, `tiers=${cat.tiers.length}`,
-      `floor=${cat.policy ? `$${cat.policy.floorPriceUsd}` : 'none'}`);
+      `floor=${cat.policy ? `${cat.policy.floorPrice.currency} ${cat.policy.floorPrice.amount}` : 'none'}`);
   }
   if (s.knowledge?.length) parts.push(`taught=${s.knowledge.length}`);
   parts.push(`claims=[${(s.allowedClaims ?? []).filter((c) => c.allowed).map((c) => c.claimKey).join(',') || 'none'}]`);
@@ -334,7 +335,7 @@ function engineLine(o: TurnOutcome): string {
   const r = o.result;
   return [
     `action=${r.decision.action.kind}`,
-    `quote=${r.quote ? `$${r.quote.unitPriceUsd}` : 'null'}`,
+    `quote=${r.quote ? `${r.quote.unitPrice.currency} ${r.quote.unitPrice.amount}` : 'null'}`,
     `refusal=${r.quoteRefusal?.kind ?? 'none'}`,
     `guardViolations=${r.guardViolations}`,
     `deterministic=${r.replyDeterministic}`,

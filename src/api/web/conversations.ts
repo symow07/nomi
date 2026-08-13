@@ -1,9 +1,10 @@
 import { sql } from 'kysely';
+import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
 import { esc, deeper, back } from './layout.js';
 
@@ -129,7 +130,7 @@ export type Milestone = {
   readonly at: Date | null;
   readonly text: string | null;
   readonly qty: number | null;
-  readonly unitUsd: number | null;
+  readonly unitPrice: Money | null;
   readonly orderStatus: string | null;
 };
 
@@ -150,14 +151,14 @@ export type CustomerFile = {
   readonly timeline: readonly Milestone[];
   readonly context: {
     readonly products: readonly { readonly sku: string | null; readonly name: string | null; readonly nameZh: string | null }[];
-    readonly latestQuote: { readonly qty: number; readonly unitUsd: number; readonly totalUsd: number } | null;
-    readonly order: { readonly status: string; readonly reference: string; readonly qty: number; readonly totalUsd: number | null } | null;
+    readonly latestQuote: { readonly qty: number; readonly unitPrice: Money; readonly total: Money } | null;
+    readonly order: { readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
     readonly corrections: readonly string[];   // capability codes
   };
 };
 
 const mile = (kind: MilestoneKind, at: Date | null, extra: Partial<Milestone> = {}): Milestone =>
-  ({ kind, at, text: null, qty: null, unitUsd: null, orderStatus: null, ...extra });
+  ({ kind, at, text: null, qty: null, unitPrice: null, orderStatus: null, ...extra });
 
 export async function loadCustomerFile(db: Db, businessIdRaw: string, conversationId: string): Promise<CustomerFile | null> {
   const bid = parseBusinessId(businessIdRaw);
@@ -224,9 +225,9 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       }
     });
 
-    (await sql<{ quantity: number; unit_price_usd: string; created_at: Date }>`
-      select quantity, unit_price_usd, created_at from quotes where conversation_id = ${conversationId}`.execute(tx)).rows
-      .forEach((q) => timeline.push(mile('quote', q.created_at, { qty: q.quantity, unitUsd: Number(q.unit_price_usd) })));
+    (await sql<{ quantity: number; unit_price_usd: string; currency: string; created_at: Date }>`
+      select quantity, unit_price_usd, currency, created_at from quotes where conversation_id = ${conversationId}`.execute(tx)).rows
+      .forEach((q) => timeline.push(mile('quote', q.created_at, { qty: q.quantity, unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency) })));
 
     (await sql<{ status: string; quantity: number; created_at: Date; confirmed_at: Date | null }>`
       select status, quantity, created_at, confirmed_at from orders where conversation_id = ${conversationId}`.execute(tx)).rows
@@ -260,10 +261,10 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       context: {
         products,
         latestQuote: latestQuoteRow
-          ? { qty: latestQuoteRow.quantity, unitUsd: Number(latestQuoteRow.unit_price_usd), totalUsd: Number(latestQuoteRow.total_usd) }
+          ? { qty: latestQuoteRow.quantity, unitPrice: usd(Number(latestQuoteRow.unit_price_usd)), total: usd(Number(latestQuoteRow.total_usd)) }
           : null,
         order: orderRow
-          ? { status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity, totalUsd: orderRow.total_value_usd !== null ? Number(orderRow.total_value_usd) : null }
+          ? { status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity, total: orderRow.total_value_usd !== null ? usd(Number(orderRow.total_value_usd)) : null }
           : null,
         corrections,
       },
@@ -329,7 +330,7 @@ function milestoneText(locale: Locale, m: Milestone): string {
     case 'buyer_text': return t(locale, 'conv.tl.buyer_text', { text: m.text ?? '' });
     case 'buyer_image': return t(locale, 'conv.tl.buyer_image');
     case 'reply': return t(locale, 'conv.tl.reply', { name, text: m.text ?? '' });
-    case 'quote': return t(locale, 'conv.tl.quote', { name, detail: `${formatQty(locale, m.qty ?? 0)}${pcs} · ${formatUsd(m.unitUsd ?? 0)}/${pcs}` });
+    case 'quote': return t(locale, 'conv.tl.quote', { name, detail: `${formatQty(locale, m.qty ?? 0)}${pcs} · ${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}` });
     case 'order': return t(locale, 'conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? ''), qty: `${formatQty(locale, m.qty ?? 0)}${pcs}` });
     default: return t(locale, `conv.tl.${m.kind}` as MessageKey);
   }
@@ -358,8 +359,8 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
   const ctxParts = [
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
       `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${pr.sku ? `<span class="muted"> · ${esc(pr.sku)}</span>` : ''}`).join('<br>')}</div></div>` : '',
-    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${esc(formatQty(locale, ctx.latestQuote.qty))}${esc(pcs)} · ${esc(formatUsd(ctx.latestQuote.unitUsd))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(ctx.latestQuote.totalUsd))}</div></div>` : '',
-    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${esc(ctx.order.reference)} · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.totalUsd !== null ? ` · ${esc(formatUsd(ctx.order.totalUsd))}` : ''}</div></div>` : '',
+    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${esc(formatQty(locale, ctx.latestQuote.qty))}${esc(pcs)} · ${esc(formatMoney(ctx.latestQuote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(ctx.latestQuote.total))}</div></div>` : '',
+    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${esc(ctx.order.reference)} · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(formatMoney(ctx.order.total))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${ctx.corrections.map((c) => esc(capabilityName(locale, c))).join('、')}</div></div>` : '',
   ].filter(Boolean).join('');
   const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';

@@ -260,7 +260,7 @@ describe('M2 · status chips stay keyed to the owner vocabulary', () => {
  * make about it, and this repo has paid for that twice in one week:
  *
  *   - `empty-states.test.ts` carried Phase-E's pre-rename field names, so
- *     `formatUsd(undefined)` threw at module load and NONE of its six tests ran
+ *     `formatMoney(undefined)` threw at module load and NONE of its six tests ran
  *     for weeks while `npm run check` reported "1 failed | 819 passed".
  *   - `refusals.test.ts` asserted against `{ action: 'send_free_form' }`, a
  *     SendPlan action that does not exist. `gateOutbound` falls through on

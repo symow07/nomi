@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
 import type { ActivationRefusal } from '../../src/channels/activation.js';
@@ -22,13 +23,13 @@ const complete: FactoryView = {
   products: { total: 12, needPrice: 0, names: [
     { name: 'Vacuum cup', nameZh: '保温杯' }, { name: 'Lunch box', nameZh: '饭盒' },
     { name: 'Thermos', nameZh: '热水瓶' }, { name: 'Kettle', nameZh: '水壶' }] },
-  promises: { certs: ['food_grade', 'BPA_free'], floorLowUsd: 0.75, floorHighUsd: 0.75, ceilingPct: 8, ceilingVaries: false },
+  promises: { certs: ['food_grade', 'BPA_free'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
-  prices: { businessDefault: { floorUsd: 0.35, maxDiscountPct: 10, askAbovePct: 7 },
+  prices: { businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 },
     products: [], unanswered: 0 },
 };
 
@@ -39,7 +40,7 @@ const fresh: FactoryView = {
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [],
   },
   products: { total: 0, needPrice: 0, names: [] },
-  promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
+  promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: channel(false), ownerPhone: null },
   nextStep: 'profile',
   readiness: { canActivate: false, blockers: ['no_channel', 'no_allowlist'], recipients: [], lifecycle: 'not_connected',
@@ -114,7 +115,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // The guard reads the PER-PRODUCT policy; quoting a single business-wide
     // floor described numbers no quote had ever used.
     const html = renderFactory({ ...complete, promises: {
-      ...complete.promises, floorLowUsd: 0.30, floorHighUsd: 2.40, ceilingVaries: true } }, 'en');
+      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } }, 'en');
     expect(html).toContain('$0.30');
     expect(html).toContain('$2.40');
     expect(html).toContain('less on some products');
@@ -122,7 +123,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('price rules appear only when the owner actually has them', () => {
-    const none = renderFactory({ ...complete, promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false } }, 'en');
+    const none = renderFactory({ ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } }, 'en');
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
     expect(none).toContain('You have not confirmed anything');
@@ -299,29 +300,29 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     // A catalogue with two products on DIFFERENT rules — the shape that broke it.
     // (Floors sit under the fixture's $0.38 tier price so both quotes are real.)
     const policies = [
-      policy({ floorPriceUsd: 0.30, maxDiscountPct: 8, humanRequiredAbovePct: 5 }),
-      policy({ floorPriceUsd: 0.36, maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
+      policy({ floorPrice: usd(0.30), maxDiscountPct: 8, humanRequiredAbovePct: 5 }),
+      policy({ floorPrice: usd(0.36), maxDiscountPct: 12, humanRequiredAbovePct: 5 }),
     ];
-    const floors = policies.map((p) => p.floorPriceUsd);
+    const floors = policies.map((p) => p.floorPrice.amount);
     const view: FactoryView = {
       ...complete,
       promises: {
-        certs: [], floorLowUsd: Math.min(...floors), floorHighUsd: Math.max(...floors),
+        certs: [], floorLow: usd(Math.min(...floors)), floorHigh: usd(Math.max(...floors)),
         ceilingPct: Math.min(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
       },
     };
     const html = renderFactory(view, 'en');
 
     // 1. Every floor the page states must bound every real quote.
-    // (Typing this fixture surfaced the assumption: floorLowUsd is nullable,
+    // (Typing this fixture surfaced the assumption: floorLow is nullable,
     // and comparing a price against `null` would have compared against 0.)
-    const stated = view.promises.floorLowUsd;
+    const stated = view.promises.floorLow;
     expect(stated, 'the page states no floor at all').not.toBeNull();
     for (const policy of policies) {
       const r = computeQuote({ product: product(), tiers: tiers(), policy, rules: [], quantity: 20000 });
       expect(r.ok).toBe(true);
       if (!r.ok) return;
-      expect(r.value.unitPriceUsd).toBeGreaterThanOrEqual(stated!);
+      expect(r.value.unitPrice.amount).toBeGreaterThanOrEqual(stated!.amount);
     }
 
     // 2. The page must show the RANGE, never one product's number as "the" floor.

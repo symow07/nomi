@@ -458,7 +458,7 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
       `.execute(tx as never).then((x) => x.rows[0]!.id));
 
       const saved = await savePriceRules(db, bid, 'owner', {
-        productId: id, floorUsd: '2.00', maxDiscountPct: '10', askAbovePct: '7',
+        productId: id, floor: '2.00', maxDiscountPct: '10', askAbovePct: '7',
       });
       expect(saved.ok).toBe(true);
       if (saved.ok) expect(saved.activated).toBe(true);      // her answer turned it on
@@ -478,7 +478,7 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
       // The view reports her own answers back, not an inherited default.
       const view = await loadPriceRules(db, bid);
       const mine = view.products.find((x) => x.productId === id);
-      expect(mine?.own).toEqual({ floorUsd: 2, maxDiscountPct: 10, askAbovePct: 7 });
+      expect(mine?.own).toEqual({ floor: 2, maxDiscountPct: 10, askAbovePct: 7 });
 
       // Audited, with the verb migration 0025 added and from → to.
       const audit = await withTenantTx(db, p.value, (tx) => sql<{ detail: unknown }>`
@@ -488,7 +488,7 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
       `.execute(tx as never).then((x) => x.rows[0]!));
       const d0 = audit.detail as { productId: string; changes: Record<string, { from: unknown; to: unknown }> };
       expect(d0.productId).toBe(id);
-      expect(d0.changes['floorUsd']).toEqual({ from: null, to: 2 });
+      expect(d0.changes['floor']).toEqual({ from: null, to: 2 });
     } finally { await db.destroy(); }
   });
 
@@ -507,9 +507,9 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
         select id from products where business_id = ${bid} and sku = ${sku}
       `.execute(tx as never).then((x) => x.rows[0]!.id));
 
-      const r = await updateProduct(db, bid, id, 'owner', { priceUsd: '3.50' });
+      const r = await updateProduct(db, bid, id, 'owner', { price: '3.50' });
       expect(r.ok).toBe(true);
-      if (r.ok) expect(r.changed).toContain('priceUsd');
+      if (r.ok) expect(r.changed).toContain('price');
 
       const after = await withTenantTx(db, p.value, (tx) => sql<{ price: string; tier: string }>`
         select pr.price_usd_per_unit as price, pt.unit_price_usd as tier
@@ -528,7 +528,7 @@ d('M29 · owner-authored price rules (requires DATABASE_URL)', () => {
       `.execute(tx as never).then((x) => x.rows[0]!));
       const d0 = audit.detail as { changes: Record<string, { from: unknown; to: unknown }> };
       // The change is legible as a change: 4 → 3.5, not just "3.5".
-      expect(d0.changes['priceUsd']).toEqual({ from: 4, to: 3.5 });
+      expect(d0.changes['price']).toEqual({ from: 4, to: 3.5 });
     } finally { await db.destroy(); }
   });
 
@@ -596,7 +596,7 @@ d('M29 · unauthored price rules are reported, not migrated (requires DATABASE_U
       // The owner answering the three questions is what clears it — her write
       // leaves the audit entry the importer never could.
       const saved = await savePriceRules(db, bid, 'owner',
-        { productId: id, floorUsd: '7.00', maxDiscountPct: '10', askAbovePct: '5' });
+        { productId: id, floor: '7.00', maxDiscountPct: '10', askAbovePct: '5' });
       expect(saved.ok).toBe(true);
       expect(await countUnauthoredPriceRules(db, bid)).toBe(before);
 

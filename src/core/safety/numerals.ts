@@ -93,8 +93,8 @@ export function guardNumerals(input: {
 
   if (quote) {
     sourced.push(
-      quote.unitPriceUsd,
-      quote.totalUsd,
+      quote.unitPrice.amount,
+      quote.total.amount,
       quote.discountPct,
       quote.moq,
       quote.quantity.value,

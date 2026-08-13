@@ -1,3 +1,4 @@
+import type { Money } from '../../src/core/types/money.js';
 import type {
   AuditRepo, AutonomyRepo, CatalogRepo, ClientRepo, ConversationRepo, DraftRepo,
   EventLog, KnowledgeRepo, OrderRepo, SignalRepo, Tenant, OpsRepo,
@@ -112,7 +113,7 @@ export class FakeTenant implements Tenant {
   };
 
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
-  priorQuotes: Array<{ quantity: number; unitPriceUsd: number; at: Date }> = [];
+  priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {
     priorQuotesForClient: async () => this.priorQuotes,
     recordQuote: async (q) => {

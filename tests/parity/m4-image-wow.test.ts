@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   computeImageInquiry, parseCaptionQuantity, MATCH_MIN_RELEVANCE,
   type ImageTurnDeps,
@@ -112,7 +113,7 @@ describe('M4 · image inquiry decisions', () => {
   it('quote engine refusal (below floor) still matches — owner decides', async () => {
     const r = await computeImageInquiry(deps({
       loadQuoteInputs: async () => ({
-        product: product(), tiers: [{ ...tiers()[0]!, unitPriceUsd: 0.01 }], policy: policy(), rules: [],
+        product: product(), tiers: [{ ...tiers()[0]!, unitPrice: usd(0.01) }], policy: policy(), rules: [],
       }),
     }), { mediaId: 'm1', caption: null });
     if (r.kind === 'matched') expect(r.quote).toBeNull();
@@ -171,7 +172,7 @@ describe('M4 · demo factory', () => {
     expect(DEMO_CONVERSATIONS).toHaveLength(5);
     for (const p of DEMO_PRODUCTS) {
       expect(p.tiers.length).toBeGreaterThanOrEqual(3);
-      expect(p.floorUsd).toBeLessThan(p.tiers.at(-1)![1]);   // floor below best tier
+      expect(p.floor.amount).toBeLessThan(p.tiers.at(-1)![1]);   // floor below best tier
       expect(p.aliases.length).toBeGreaterThanOrEqual(3);
     }
   });

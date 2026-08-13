@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { renderAnalytics, parseRange, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -6,7 +7,7 @@ const active: AnalyticsData = {
   range: 'week', hasActivity: true,
   summary: { newClients: 6, activeConvos: 5, quotes: 2, orders: 1 },
   activity: { inbound: 6, replied: 3, waiting: 4 },
-  commerce: { quotes: 2, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValueUsd: 4600 },
+  commerce: { quotes: 2, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValue: usd(4600) },
   employee: { handled: 8, waiting: 4, edits: 2 },
 };
 
@@ -14,7 +15,7 @@ const empty: AnalyticsData = {
   range: 'today', hasActivity: false,
   summary: { newClients: 0, activeConvos: 0, quotes: 0, orders: 0 },
   activity: { inbound: 0, replied: 0, waiting: 0 },
-  commerce: { quotes: 0, orders: 0, deals: [], totalValueUsd: null },
+  commerce: { quotes: 0, orders: 0, deals: [], totalValue: null },
   employee: { handled: 0, waiting: 0, edits: 0 },
 };
 
@@ -55,7 +56,7 @@ describe('M9.8 · business review (localized)', () => {
     expect(renderAnalytics(active, 'en')).toContain('Confirmed 1');
     expect(renderAnalytics(active, 'en')).toContain('Deal value $4,600');
     expect(renderAnalytics(active, 'zh')).toContain('已成交 1');
-    const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totalValueUsd: null } }, 'en');
+    const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totalValue: null } }, 'en');
     expect(noOrders).not.toContain('Deal value');
     expect(noOrders).toContain('No deals yet.');
   });

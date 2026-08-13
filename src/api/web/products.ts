@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
+import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport } from '../../core/onboard/catalogImport.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatQty, formatUsd } from '../../core/owner/i18n/format.js';
+import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
 
@@ -32,7 +33,7 @@ export type ProductListItem = {
   readonly moq: number;
   readonly unit: string;
   readonly entryQty: number | null;
-  readonly entryPriceUsd: number | null;
+  readonly entryPrice: Money | null;
   readonly learned: boolean;
   readonly imageMatchable: boolean;
   /** Deactivated products stay in the list but are not something you sell. */
@@ -61,7 +62,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
     return {
       id: r.id, name: r.name, nameZh: r.name_zh, sku: r.sku, moq: r.moq, unit: r.unit,
       entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq : null),
-      entryPriceUsd: entryPrice,
+      entryPrice: entryPrice === null ? null : usd(entryPrice),
       learned: r.is_active && entryPrice !== null,
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
@@ -83,10 +84,10 @@ export type ProductDetail = {
   readonly imageMatchable: boolean;
   /** M29 — whether she offers it to buyers. Archive-never-erase: false, not gone. */
   readonly isActive: boolean;
-  readonly tiers: readonly { minQty: number; maxQty: number | null; unitPriceUsd: number }[];
+  readonly tiers: readonly { minQty: number; maxQty: number | null; unitPrice: Money }[];
   readonly aliases: readonly string[];
   readonly images: readonly string[];
-  readonly recentQuotes: readonly { quantity: number; unitPriceUsd: number; totalUsd: number }[];
+  readonly recentQuotes: readonly { quantity: number; unitPrice: Money; total: Money }[];
 };
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
@@ -103,7 +104,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
 
     const tiers = (await sql<{ min_qty: number; max_qty: number | null; unit_price_usd: string }>`
       select min_qty, max_qty, unit_price_usd from price_tiers where product_id = ${productId} order by min_qty asc`
-      .execute(tx)).rows.map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPriceUsd: Number(tr.unit_price_usd) }));
+      .execute(tx)).rows.map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPrice: usd(Number(tr.unit_price_usd)) }));
     const aliases = (await sql<{ alias: string }>`
       select distinct alias from product_aliases where product_id = ${productId} order by alias limit 40`
       .execute(tx)).rows.map((a) => a.alias);
@@ -112,7 +113,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       .execute(tx)).rows.map((i) => i.url);
     const recentQuotes = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string }>`
       select quantity, unit_price_usd, total_usd from quotes where product_id = ${productId} order by created_at desc limit 5`
-      .execute(tx)).rows.map((q) => ({ quantity: q.quantity, unitPriceUsd: Number(q.unit_price_usd), totalUsd: Number(q.total_usd) }));
+      .execute(tx)).rows.map((q) => ({ quantity: q.quantity, unitPrice: usd(Number(q.unit_price_usd)), total: usd(Number(q.total_usd)) }));
 
     const learned = p.is_active && (tiers.length > 0 || p.price !== null);
     return {
@@ -167,15 +168,17 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
       // know it. So nothing imported is sellable on arrival. The owner answers
       // three questions (savePriceRules) and that is what turns it on.
       const ins = await sql<{ id: string }>`
-        insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, is_active)
-        values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq}, ${p.priceUsd}, false)
+        insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, currency, is_active)
+        values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq},
+                ${p.price?.amount ?? null}, ${p.price?.currency ?? 'USD'}, false)
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
       if (!id) { alreadyHere++; continue; }        // her sku is already in the catalogue
       added++;
-      if (p.priceUsd !== null) {
+      if (p.price !== null) {
         withPrice++;
-        await sql`insert into price_tiers (product_id, min_qty, unit_price_usd) values (${id}, 1, ${p.priceUsd}) on conflict do nothing`.execute(tx);
+        await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
+                  values (${id}, 1, ${p.price.amount}, ${p.price.currency}) on conflict do nothing`.execute(tx);
         // NO pricing_policy row. This used to write
         //   floor = the list price, maxDiscount = 0, askAbove = 0
         // which is not a cautious default but a fabricated one: it asserts she
@@ -223,7 +226,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
       <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(locale, p.learned)}</div>
       <div class="prod-b muted">
-        ${p.entryPriceUsd !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatUsd(p.entryPriceUsd))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
+        ${p.entryPrice !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatMoney(p.entryPrice))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
         ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
       </div>
       ${p.imageMatchable ? `<div class="tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
@@ -253,8 +256,8 @@ export function renderProductDetail(
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
     <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
       <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
-        <input name="priceUsd" inputmode="decimal"
-               value="${val('priceUsd', d.tiers[0] ? String(d.tiers[0].unitPriceUsd) : '')}" />${ferr('priceUsd')}</label>
+        <input name="price" inputmode="decimal"
+               value="${val('price', d.tiers[0] ? String(d.tiers[0].unitPrice.amount) : '')}" />${ferr('price')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.moq'))}</span>
         <input name="moq" inputmode="numeric" value="${val('moq', String(d.moq))}" />${ferr('moq')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>
@@ -267,7 +270,7 @@ export function renderProductDetail(
 
   const tiers = d.tiers.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
-        `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatUsd(tr.unitPriceUsd))}</b></div>`).join('')}</div></div>`
+        `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatMoney(tr.unitPrice))}</b></div>`).join('')}</div></div>`
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))} <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a></p></div>`;
 
   const aliases = d.aliases.length
@@ -281,7 +284,7 @@ export function renderProductDetail(
 
   const quotes = d.recentQuotes.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
-        `<div class="qrow muted">${esc(formatQty(locale, q.quantity))}${esc(u)} · ${esc(formatUsd(q.unitPriceUsd))}/${esc(u)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(q.totalUsd))}</div>`).join('')}</div>`
+        `<div class="qrow muted">${esc(formatQty(locale, q.quantity))}${esc(u)} · ${esc(formatMoney(q.unitPrice))}/${esc(u)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(q.total))}</div>`).join('')}</div>`
     : '';
 
   return `
@@ -330,8 +333,8 @@ export function renderReview(v: ValidatedImport, rawText: string, locale: Locale
   // next to the text it came out of.
   const accepted = v.accepted.map((p) => `
     <div class="rev"><b>${esc(p.name)}</b>
-      <span class="muted">${p.priceUsd !== null ? esc(formatUsd(p.priceUsd)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
-      ${p.priceUsd === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
+      <span class="muted">${p.price !== null ? esc(formatMoney(p.price)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
+      ${p.price === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
       ${p.sourceLine ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : ''}
     </div>`).join('');
   const rejected = v.rejected.length
@@ -396,13 +399,13 @@ const PRODUCT_STYLE = `<style>
  * comes out at a price the owner never set.
  */
 export type ProductEdit = {
-  readonly priceUsd?: string | null;
+  readonly price?: string | null;
   readonly moq?: string | null;
   readonly unit?: string | null;
   readonly isActive?: boolean;
 };
 
-export type ProductEditField = 'priceUsd' | 'moq' | 'unit' | 'isActive';
+export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive';
 export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor';
 
 export type EditResult =
@@ -433,14 +436,14 @@ export async function updateProduct(
     let moq = cur.moq;
     let unit = cur.unit;
 
-    if (edit.priceUsd !== undefined && edit.priceUsd !== null && edit.priceUsd.trim() !== '') {
-      const n = Number(edit.priceUsd.trim());
-      if (!Number.isFinite(n)) errors.priceUsd = 'not_a_number';
-      else if (!(n > 0)) errors.priceUsd = 'not_positive';
+    if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
+      const n = Number(edit.price.trim());
+      if (!Number.isFinite(n)) errors.price = 'not_a_number';
+      else if (!(n > 0)) errors.price = 'not_positive';
       // A new list price BELOW her own floor would make the product silently
       // unquotable — quote.ts refuses `below_floor` rather than selling at a
       // loss. She is told now, not by a buyer's silence later.
-      else if (cur.floor !== null && n < Number(cur.floor)) errors.priceUsd = 'below_floor';
+      else if (cur.floor !== null && n < Number(cur.floor)) errors.price = 'below_floor';
       else price = Number(n.toFixed(4));
     }
     if (edit.moq !== undefined && edit.moq !== null && edit.moq.trim() !== '') {
@@ -462,7 +465,7 @@ export async function updateProduct(
     const note = (f: ProductEditField, from: unknown, to: unknown) => {
       if (from !== to) { changed.push(f); detail[f] = { from, to }; }
     };
-    note('priceUsd', cur.price === null ? null : Number(cur.price), price);
+    note('price', cur.price === null ? null : Number(cur.price), price);
     note('moq', cur.moq, moq);
     note('unit', cur.unit, unit);
     note('isActive', cur.is_active, isActive);
@@ -477,7 +480,7 @@ export async function updateProduct(
 
     // The entry tier is the same fact as the list price. Letting them drift is
     // how a quote comes out at a number the owner never set.
-    if (detail['priceUsd'] && price !== null) {
+    if (detail['price'] && price !== null) {
       await sql`
         insert into price_tiers (product_id, min_qty, unit_price_usd)
         values (${productId}, 1, ${price})

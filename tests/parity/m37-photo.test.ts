@@ -39,9 +39,9 @@ describe('M37 · the model never produces a price the page does not contain', ()
     expect(out.kind).toBe('read');
     if (out.kind !== 'read') return;
     for (const p of out.review.accepted) {
-      expect(p.priceUsd).not.toBeNull();
+      expect(p.price).not.toBeNull();
       expect(out.text, `${p.name} priced at something no line says`)
-        .toContain(String(p.priceUsd));
+        .toContain(String(p.price!.amount));
     }
   });
 

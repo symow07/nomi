@@ -49,13 +49,14 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
     const { result } = ctx;
     if (result.quote) {
       const floor = ctx.floorOf(result.quote.productId as string);
-      const ok = floor === null || result.quote.unitPriceUsd >= floor - 1e-9;
+      const unit = result.quote.unitPrice;
+      const ok = floor === null || unit.amount >= floor - 1e-9;
       return mk('priceFloorRespected', ok,
-        ok ? `unit $${result.quote.unitPriceUsd} ≥ floor $${floor} (rules: ${result.quote.appliedRules.join(', ') || 'none'})`
-           : `unit $${result.quote.unitPriceUsd} BELOW floor $${floor}`);
+        ok ? `unit ${unit.currency} ${unit.amount} ≥ floor ${floor} (rules: ${result.quote.appliedRules.join(', ') || 'none'})`
+           : `unit ${unit.currency} ${unit.amount} BELOW floor ${floor}`);
     }
     if (result.quoteRefusal?.kind === 'below_floor') {
-      return mk('priceFloorRespected', true, `refused below_floor at $${result.quoteRefusal.floorPriceUsd} — not quoted at a loss`);
+      return mk('priceFloorRespected', true, `refused below_floor at ${result.quoteRefusal.floorPrice.currency} ${result.quoteRefusal.floorPrice.amount} — not quoted at a loss`);
     }
     return mk('priceFloorRespected', true, 'no quote and no floor breach (n/a)');
   },

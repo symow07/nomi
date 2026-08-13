@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   LOCALES, DEFAULT_LOCALE, isRtl, dirOf, parseLocale, fromAcceptLanguage, resolveLocale,
 } from '../../src/core/owner/i18n/locale.js';
 import { messages, t, countryName, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
-import { formatQty, formatUsd, formatDate, formatTime } from '../../src/core/owner/i18n/format.js';
+import { formatQty, formatMoney, formatDate, formatTime } from '../../src/core/owner/i18n/format.js';
 
 describe('ADR-0008 · locale resolution', () => {
   it('default is English', () => expect(DEFAULT_LOCALE).toBe('en'));
@@ -132,8 +133,8 @@ describe('ADR-0008 · localized formatting', () => {
   });
 
   it('currency is never localized away from USD', () => {
-    expect(formatUsd(0.92)).toBe('$0.92');
-    expect(formatUsd(4600)).toBe('$4,600.00');
+    expect(formatMoney(usd(0.92))).toBe('$0.92');
+    expect(formatMoney(usd(4600))).toBe('$4,600.00');
   });
 
   it('dates/times render per locale without throwing', () => {

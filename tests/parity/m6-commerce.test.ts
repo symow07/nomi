@@ -33,8 +33,8 @@ describe('M6 · instant invoice', () => {
 
   it('every number is the quote\'s number — zero new arithmetic', () => {
     expect(inv.quantity).toBe(quote.quantity.value);
-    expect(inv.unitPriceUsd).toBe(quote.unitPriceUsd);
-    expect(inv.totalUsd).toBe(quote.totalUsd);
+    expect(inv.unitPrice).toBe(quote.unitPrice);
+    expect(inv.total).toBe(quote.total);
     expect(inv.leadTimeDays).toBe(quote.leadTimeDays);
   });
 
@@ -52,7 +52,7 @@ describe('M6 · instant invoice', () => {
     const en = renderInvoiceEn(inv);
     const moneyFigures = [...en.matchAll(/\$([\d,]+\.\d{2})/g)].map((m) => Number(m[1]!.replace(/,/g, '')));
     for (const f of moneyFigures) {
-      expect([quote.unitPriceUsd, quote.totalUsd]).toContain(f);
+      expect([quote.unitPrice.amount, quote.total.amount]).toContain(f);
     }
     expect(en).toContain(`Qty: ${quote.quantity.value.toLocaleString('en-US')}`);
   });

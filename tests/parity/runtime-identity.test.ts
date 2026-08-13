@@ -122,6 +122,34 @@ describe('Release hardening · a stale database refuses to serve', () => {
     expect(REQUIRED_SCHEMA_VERSION).toBe(highest);
   });
 
+  it('EVERY migration records itself, with its own file number', async () => {
+    /**
+     * The defect this catches, found the day it was written: 0030 shipped
+     * without its `insert into _migrations` line. The runner applied it and
+     * reported success, `max(version)` stayed at 29, and the boot guard then
+     * refused the build that needed 30 — a database that IS current, refusing
+     * to serve, with a message saying to run the migration it already ran.
+     * It also re-applies on every deploy, which is only survivable because
+     * these are written idempotently.
+     *
+     * The version must match the FILENAME, or the guard is comparing the build
+     * against a number that means something else.
+     */
+    const { readdir, readFile } = await import('node:fs/promises');
+    const dir = new URL('../../migrations/', import.meta.url);
+    const files = (await readdir(dir)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
+    const missing: string[] = [];
+    for (const f of files) {
+      const sql = await readFile(new URL(f, dir), 'utf8');
+      const n = Number(f.slice(0, 4));
+      // The values clause may sit on the next line — 0001 writes it that way.
+      const m = new RegExp(`insert into _migrations \\(version, name\\)\\s*values \\(${n},`).test(sql);
+      if (!m) missing.push(f);
+    }
+    expect(missing, `these do not record themselves at their own version:\n  ${missing.join('\n  ')}`)
+      .toEqual([]);
+  });
+
   it('the guard is wired into the production boot path, not just exported', async () => {
     // The defect was a guard nobody called. Prove main.ts calls it.
     const { readFile } = await import('node:fs/promises');

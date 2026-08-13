@@ -1,4 +1,5 @@
 import type { Locale } from './locale.js';
+import { type Money, currencySymbol } from '../../types/money.js';
 
 /**
  * ADR-0008 — Locale-aware formatting. Pure (Intl only; clock/date injected).
@@ -21,9 +22,16 @@ export function formatQty(locale: Locale, n: number): string {
   return n.toLocaleString('en-US');
 }
 
-/** Trade money stays USD, grouped the same way everywhere. */
-export const formatUsd = (n: number): string =>
-  `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/**
+ * Trade money, grouped the same way everywhere.
+ *
+ * M43a — takes a Money, and the symbol comes from its currency. Before, the
+ * function was named for the currency and the symbol was a literal, so every
+ * screen in this product would have rendered "$" beside a non-dollar amount and
+ * been correct in its own terms.
+ */
+export const formatMoney = (m: Money): string =>
+  `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** A localized calendar date in the business timezone. */
 export function formatDate(locale: Locale, d: Date): string {

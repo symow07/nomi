@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { parsePriceLines, validateExtracted } from '../../src/core/onboard/catalogImport.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { textWidth } from '../../src/core/owner/components.js';
@@ -22,23 +23,23 @@ describe('M6 · tolerant catalog import', () => {
       '随便聊两句，这行不是产品',
       '',
     ].join('\n'));
-    expect(parsed[0]).toMatchObject({ sku: null, name: '帆布袋', nameZh: '帆布袋', priceUsd: 1.05, moq: 500 });
-    expect(parsed[1]).toMatchObject({ priceUsd: 2.6, moq: 1000 });
+    expect(parsed[0]).toMatchObject({ sku: null, name: '帆布袋', nameZh: '帆布袋', price: usd(1.05), moq: 500 });
+    expect(parsed[1]).toMatchObject({ price: usd(2.6), moq: 1000 });
     expect(parsed[1]!.name).toContain('Thermos');
-    expect(parsed[2]).toMatchObject({ sku: null, name: '保温杯', priceUsd: 2.6, moq: 1000 });
+    expect(parsed[2]).toMatchObject({ sku: null, name: '保温杯', price: usd(2.6), moq: 1000 });
   });
 
   it('missing price/moq is allowed — the confirm card asks, import never blocks', () => {
     const parsed = parsePriceLines('新款化妆包');
-    expect(parsed[0]).toMatchObject({ sku: null, name: '新款化妆包', priceUsd: null, moq: null });
+    expect(parsed[0]).toMatchObject({ sku: null, name: '新款化妆包', price: null, moq: null });
   });
 
   it('validation rejects duplicates and nonsense with owner-readable reasons', () => {
     const v = validateExtracted([
-      { sku: null, name: '帆布袋', nameZh: '帆布袋', priceUsd: 1.05, moq: 500, unit: 'pcs' },
-      { sku: null, name: '帆布袋', nameZh: '帆布袋', priceUsd: 1.05, moq: 500, unit: 'pcs' },
-      { sku: null, name: '保温杯', nameZh: '保温杯', priceUsd: -3, moq: 1000, unit: 'pcs' },
-      { sku: null, name: '吸管杯', nameZh: '吸管杯', priceUsd: 2, moq: 2.5, unit: 'pcs' },
+      { sku: null, name: '帆布袋', nameZh: '帆布袋', price: usd(1.05), moq: 500, unit: 'pcs' },
+      { sku: null, name: '帆布袋', nameZh: '帆布袋', price: usd(1.05), moq: 500, unit: 'pcs' },
+      { sku: null, name: '保温杯', nameZh: '保温杯', price: usd(-3), moq: 1000, unit: 'pcs' },
+      { sku: null, name: '吸管杯', nameZh: '吸管杯', price: usd(2), moq: 2.5, unit: 'pcs' },
     ]);
     expect(v.accepted).toHaveLength(1);
     expect(v.rejected.map((r) => r.reasonZh)).toEqual(['重复了', '价格看着不对', '起订量看着不对']);
@@ -61,7 +62,7 @@ describe('M22 (F-02) · product import preserves the owner’s own article numbe
     expect(p.sku).toBe('ZX-200');
     expect(p.name).not.toContain('ZX-200');
     expect(p.name).toContain('Thermos');
-    expect(p.priceUsd).toBe(2.6);
+    expect(p.price).toEqual(usd(2.6));
     expect(p.moq).toBe(1000);
   });
 

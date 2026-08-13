@@ -1,3 +1,13 @@
+import { type Money, type Currency } from '../types/money.js';
+
+/**
+ * The currency the owner's boxes are denominated in.
+ *
+ * ONE, today, and named rather than assumed: when a tenant can choose, this is
+ * the line that becomes a lookup — and every caller already passes through it.
+ */
+const TENANT_CURRENCY: Currency = 'USD';
+
 /**
  * M29 — the owner's own price rules. PURE: validation and nothing else.
  *
@@ -12,7 +22,7 @@
  * THE THREE QUESTIONS, in the order an owner can actually answer them
  * (docs/GTM-READINESS.md §2, stage S2 — six questions, not a form):
  *
- *   floorUsd       "What is the least you would ever accept for one of these?"
+ *   floor          "What is the least you would ever accept for one of these?"
  *   maxDiscountPct "How much can she take off without asking you?"
  *   askAbovePct    "Above how much off do you want to be asked first?"
  *
@@ -27,15 +37,21 @@
  */
 
 export type PriceRules = {
-  /** The least the owner would ever accept, per unit, in USD. */
-  readonly floorUsd: number;
+  /**
+   * The least the owner would ever accept, per unit.
+   *
+   * M43a — a Money, not a number: the floor is the one figure in this product
+   * that a wrong currency would turn into a loss rather than an error, because
+   * it is the guard the quote engine clamps against.
+   */
+  readonly floor: Money;
   /** How much she may take off on her own, as a percentage. */
   readonly maxDiscountPct: number;
   /** Above this percentage off, the owner is asked first. */
   readonly askAbovePct: number;
 };
 
-export type PriceRuleField = 'floorUsd' | 'maxDiscountPct' | 'askAbovePct';
+export type PriceRuleField = 'floor' | 'maxDiscountPct' | 'askAbovePct';
 
 export type PriceRuleError =
   | 'missing'
@@ -46,13 +62,14 @@ export type PriceRuleError =
   | 'floor_above_list';
 
 export type PriceRulesInput = {
-  readonly floorUsd: string | number | null | undefined;
+  /** Raw, as she typed it into the box. */
+  readonly floor: string | number | null | undefined;
   readonly maxDiscountPct: string | number | null | undefined;
   readonly askAbovePct: string | number | null | undefined;
   /** The product's current list price, when there is one. Enables the
    *  floor-above-list check, which is the mistake that silently stops her
    *  quoting at all. */
-  readonly listPriceUsd?: number | null;
+  readonly listPrice?: Money | null;
 };
 
 export type PriceRulesResult =
@@ -79,12 +96,12 @@ function num(raw: string | number | null | undefined): number | 'missing' | 'not
 export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
   const errors: Partial<Record<PriceRuleField, PriceRuleError>> = {};
 
-  const floor = num(input.floorUsd);
+  const floor = num(input.floor);
   const max = num(input.maxDiscountPct);
   const ask = num(input.askAbovePct);
 
-  if (typeof floor === 'string') errors.floorUsd = floor;
-  else if (!(floor > 0)) errors.floorUsd = 'floor_not_positive';
+  if (typeof floor === 'string') errors.floor = floor;
+  else if (!(floor > 0)) errors.floor = 'floor_not_positive';
 
   for (const [field, v] of [['maxDiscountPct', max], ['askAbovePct', ask]] as const) {
     if (typeof v === 'string') errors[field] = v;
@@ -100,20 +117,23 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
     errors.askAbovePct = 'ask_above_max';
   }
 
-  if (errors.floorUsd === undefined && typeof floor === 'number'
-      && input.listPriceUsd != null && floor > input.listPriceUsd) {
+  if (errors.floor === undefined && typeof floor === 'number'
+      && input.listPrice != null && floor > input.listPrice.amount) {
     // The quote engine refuses `below_floor` rather than quoting at a loss, so a
     // floor above the list price means she silently cannot quote this product at
     // all. M20.5's factory rehearsal surfaces it after the fact; catching it here
     // means the owner never creates it.
-    errors.floorUsd = 'floor_above_list';
+    errors.floor = 'floor_above_list';
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {
     ok: true,
     value: {
-      floorUsd: round(floor as number, 4),
+      // She typed a number into a box that is denominated in the tenant's
+      // currency; the pair is assembled HERE, once, rather than by whichever
+      // caller happens to write the row.
+      floor: { amount: round(floor as number, 4), currency: TENANT_CURRENCY },
       maxDiscountPct: round(max as number, 2),
       askAbovePct: round(ask as number, 2),
     },
@@ -128,7 +148,13 @@ export function priceRuleChanges(
   before: PriceRules | null, after: PriceRules,
 ): Partial<Record<PriceRuleField, { readonly from: number | null; readonly to: number }>> {
   const out: Partial<Record<PriceRuleField, { from: number | null; to: number }>> = {};
-  for (const f of ['floorUsd', 'maxDiscountPct', 'askAbovePct'] as const) {
+  // The audit records amounts, because that is what changed: the currency of a
+  // tenant does not move, and a row that did change currency would be a
+  // different fact needing its own entry rather than a from/to on this one.
+  if ((before ? before.floor.amount : null) !== after.floor.amount) {
+    out.floor = { from: before ? before.floor.amount : null, to: after.floor.amount };
+  }
+  for (const f of ['maxDiscountPct', 'askAbovePct'] as const) {
     const from = before ? before[f] : null;
     if (from !== after[f]) out[f] = { from, to: after[f] };
   }

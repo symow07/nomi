@@ -1,7 +1,8 @@
 import { sql } from 'kysely';
+import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { formatUsdCompact } from '../../core/owner/format.js';
+import { formatMoneyCompact } from '../../core/owner/format.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { esc } from './layout.js';
@@ -26,7 +27,7 @@ export type AnalyticsData = {
     readonly quotes: number;
     readonly orders: number;
     readonly deals: readonly { readonly status: string; readonly n: number }[];
-    readonly totalValueUsd: number | null;
+    readonly totalValue: Money | null;
   };
   readonly employee: { readonly handled: number; readonly waiting: number; readonly edits: number };
 };
@@ -36,7 +37,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     range, hasActivity: false,
     summary: { newClients: 0, activeConvos: 0, quotes: 0, orders: 0 },
     activity: { inbound: 0, replied: 0, waiting: 0 },
-    commerce: { quotes: 0, orders: 0, deals: [], totalValueUsd: null },
+    commerce: { quotes: 0, orders: 0, deals: [], totalValue: null },
     employee: { handled: 0, waiting: 0, edits: 0 },
   };
   const bid = parseBusinessId(businessIdRaw);
@@ -71,7 +72,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
             from orders where created_at >= ${cutoff} group by status order by status`.execute(tx)).rows
       : [];
     const deals = dealsRows.map((r) => ({ status: r.status, n: r.n }));
-    const totalValueUsd = dealsRows.length ? dealsRows.reduce((s, r) => s + Number(r.val), 0) : null;
+    const totalValue = dealsRows.length ? dealsRows.reduce((s, r) => s + Number(r.val), 0) : null;
 
     const hasActivity =
       c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + c.handled > 0;
@@ -80,7 +81,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       range, hasActivity,
       summary: { newClients: c.new_clients, activeConvos: c.active_convos, quotes: c.quotes, orders: c.orders },
       activity: { inbound: c.inbound, replied: c.replied, waiting: c.waiting },
-      commerce: { quotes: c.quotes, orders: c.orders, deals, totalValueUsd: totalValueUsd && totalValueUsd > 0 ? totalValueUsd : null },
+      commerce: { quotes: c.quotes, orders: c.orders, deals, totalValue: totalValue !== null && totalValue > 0 ? usd(totalValue) : null },
       employee: { handled: c.handled, waiting: c.waiting, edits: c.edits },
     };
   });
@@ -124,7 +125,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const dealsHtml = d.commerce.orders > 0
     ? `<div class="deals">
         ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${x.n}</span>`).join('')}
-        ${d.commerce.totalValueUsd !== null ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', { value: formatUsdCompact(d.commerce.totalValueUsd) }))}</div>` : ''}
+        ${d.commerce.totalValue !== null ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', { value: formatMoneyCompact(d.commerce.totalValue) }))}</div>` : ''}
       </div>`
     : `<div class="muted empty-line">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>

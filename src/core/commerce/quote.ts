@@ -1,4 +1,7 @@
 import { type Result, ok, err } from '../types/result.js';
+import {
+  type Money, usd, scaleMoney, roundMoney, isBelow, isAbove, compareMoney,
+} from '../types/money.js';
 import type {
   NegotiationRule,
   PriceTier,
@@ -10,8 +13,8 @@ import type {
   RuleAction,
 } from '../types/commerce.js';
 
-/** Round money to cents. Floating point must never leak into a quoted price. */
-const money = (n: number): number => Math.round(n * 100) / 100;
+/** Round to cents. Floating point must never leak into a quoted price. */
+const cents = (n: number): number => Math.round(n * 100) / 100;
 
 /** Select the volume tier for a quantity. Tiers are half-open: [minQty, maxQty]. */
 export function selectTier(tiers: readonly PriceTier[], qty: number): PriceTier | null {
@@ -23,12 +26,14 @@ export function selectTier(tiers: readonly PriceTier[], qty: number): PriceTier 
   return matches.reduce((best, t) => (t.minQty > best.minQty ? t : best));
 }
 
-function matches(rule: NegotiationRule, product: Product, qty: number, gross: number): boolean {
+function matches(rule: NegotiationRule, product: Product, qty: number, gross: Money): boolean {
   const c = rule.condition;
   if (c.qtyGte !== undefined && qty < c.qtyGte) return false;
   if (c.qtyLte !== undefined && qty > c.qtyLte) return false;
   if (c.productId !== undefined && c.productId !== product.id) return false;
-  if (c.totalValueGte !== undefined && gross < c.totalValueGte) return false;
+  // The rule's threshold is written in the quote's own currency — there is
+  // one, and M43b is where a second one gets a rate she stated.
+  if (c.totalValueGte !== undefined && isBelow(gross, { amount: c.totalValueGte, currency: gross.currency })) return false;
   return true;
 }
 
@@ -54,17 +59,20 @@ function matches(rule: NegotiationRule, product: Product, qty: number, gross: nu
 export function contradictsHistory(
   priors: readonly PriorQuote[],
   quantity: number,
-  unitPriceUsd: number,
+  unitPrice: Money,
 ): Extract<QuoteRefusal, { kind: 'contradicts_history' }> | null {
   const prior = [...priors].sort((a, b) => b.at.getTime() - a.at.getTime())[0];
   if (!prior) return null;
-  if (unitPriceUsd <= prior.unitPriceUsd) return null;   // the same or cheaper is never a contradiction
+  // The same or cheaper is never a contradiction. `compareMoney` refuses to
+  // order two currencies rather than comparing their bare amounts, so a prior
+  // quote in another currency cannot silently look cheap.
+  if (!isAbove(unitPrice, prior.unitPrice)) return null;
 
   const how = quantity > prior.quantity ? 'higher_at_larger_quantity' : 'higher_same_quantity';
   return {
     kind: 'contradicts_history',
     prior,
-    proposedUnitPriceUsd: unitPriceUsd,
+    proposedUnitPrice: unitPrice,
     proposedQuantity: quantity,
     how,
   };
@@ -95,8 +103,8 @@ export function computeQuote(input: {
   const tier = selectTier(tiers, quantity);
   if (!tier) return err({ kind: 'no_price_tier', quantity });
 
-  const listUnit = tier.unitPriceUsd;
-  const gross = listUnit * quantity;
+  const listUnit = tier.unitPrice;
+  const gross = scaleMoney(listUnit, quantity);
 
   // Apply negotiation rules in priority order. Discounts do not stack blindly:
   // we take the single best discount, which is how humans actually negotiate and
@@ -146,19 +154,19 @@ export function computeQuote(input: {
     }
   }
 
-  let unitPriceUsd = money(listUnit * (1 - discountPct / 100));
+  let unitPrice = roundMoney(scaleMoney(listUnit, 1 - discountPct / 100));
 
   // 3. The floor. Absolute. Nothing crosses it.
-  if (policy && unitPriceUsd < policy.floorPriceUsd) {
+  if (policy && isBelow(unitPrice, policy.floorPrice)) {
     // Prefer degrading the discount to refusing the sale entirely...
-    if (listUnit >= policy.floorPriceUsd) {
-      unitPriceUsd = policy.floorPriceUsd;
-      discountPct = money(((listUnit - unitPriceUsd) / listUnit) * 100);
-      applied.push(`clamped_to_floor:${policy.floorPriceUsd}`);
+    if (compareMoney(listUnit, policy.floorPrice) >= 0) {
+      unitPrice = policy.floorPrice;
+      discountPct = cents(((listUnit.amount - unitPrice.amount) / listUnit.amount) * 100);
+      applied.push(`clamped_to_floor:${policy.floorPrice.amount}`);
     } else {
       // ...but if even the list price is below the floor, the catalog is
       // misconfigured. Refuse rather than quote a loss.
-      return err({ kind: 'below_floor', floorPriceUsd: policy.floorPriceUsd });
+      return err({ kind: 'below_floor', floorPrice: policy.floorPrice });
     }
   }
 
@@ -185,15 +193,15 @@ export function computeQuote(input: {
   //
   // Absent history is not a contradiction either — `priorQuotes` empty means a
   // new buyer, and refusing there would make a first quote impossible.
-  const contradiction = contradictsHistory(input.priorQuotes ?? [], quantity, unitPriceUsd);
+  const contradiction = contradictsHistory(input.priorQuotes ?? [], quantity, unitPrice);
   if (contradiction) return err(contradiction);
 
   return ok({
     productId: product.id,
     quantity: { value: quantity, unit: product.unit },
-    unitPriceUsd,
+    unitPrice,
     discountPct,
-    totalUsd: money(unitPriceUsd * quantity),
+    total: roundMoney(scaleMoney(unitPrice, quantity)),
     moq: product.moq,
     leadTimeDays,
     requiresHuman,

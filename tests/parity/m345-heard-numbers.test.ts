@@ -53,7 +53,7 @@ describe('M34.5 · a heard quantity that priced a quote does not auto-send', () 
     // and the unit price both move. Before this rule that reply could auto-send.
     const misheard = quoteFor(20000);
     const actual = quoteFor(2000);
-    expect(misheard.unitPriceUsd).not.toBe(actual.unitPriceUsd);
+    expect(misheard.unitPrice).not.toBe(actual.unitPrice);
     expect(quantityWasHeardNotTyped({
       provenance: 'transcribed', quote: misheard, turnText: 'twenty thousand pieces please',
     })).toBe(false);   // words, not digits — the pipeline's numeral extractor sees none

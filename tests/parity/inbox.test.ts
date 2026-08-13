@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   renderInboxList, renderConversationDetail, defaultFilter,
   type InboxList, type ConversationDetail, type HumanActionType,
@@ -15,14 +16,14 @@ const listWithWork: InboxList = {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE',
     status: 'awaiting', needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you do 5000 pcs?', latestAt: NOW,
-    product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPriceUsd: 0.92,
+    product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd(0.92),
   }],
 };
 
 const detailWithDraft: ConversationDetail = {
   conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
-  quote: { unitPriceUsd: 0.92, totalUsd: 4600, quantity: 5000 },
+  quote: { unitPrice: usd(0.92), total: usd(4600), quantity: 5000 },
   order: null,
   messages: [
     { direction: 'inbound', text: 'Price for 5000?', at: new Date('2026-07-27T09:00:00Z') },
@@ -223,7 +224,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     conversationId: id, buyer: `B-${id}`, country: 'AE' as string | null,
     status: 'awaiting' as const, needsAction: false, ownership: 'AI' as ConversationOwnership,
     awaitingReview: false, handoffReason: null as string | null, latestMessage: 'hi', latestAt: NOW,
-    product: { name: null, nameZh: null }, quantity: null, unitPriceUsd: null, ...over,
+    product: { name: null, nameZh: null }, quantity: null, unitPrice: null, ...over,
   });
   const list = (cs: InboxList['conversations']): InboxList =>
     ({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: cs });
@@ -400,7 +401,7 @@ describe('Release hardening · the handoff badge states the stored reason', () =
       conversationId: 'c1', buyer: 'B', country: 'AE', status: 'awaiting', needsAction: false,
       ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason,
       latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
-      quantity: null, unitPriceUsd: null,
+      quantity: null, unitPrice: null,
     }],
   }, 'en', NOW);
 
@@ -426,7 +427,7 @@ describe('Release hardening · the handoff badge states the stored reason', () =
       conversationId: 'c1', buyer: 'B', country: null, status: 'awaiting', needsAction: false,
       ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason: 'complaint',
       latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
-      quantity: null, unitPriceUsd: null }] }, 'zh', NOW);
+      quantity: null, unitPrice: null }] }, 'zh', NOW);
     expect(zh).toContain('有投诉');
     expect(zh).not.toContain('complaint');
   });

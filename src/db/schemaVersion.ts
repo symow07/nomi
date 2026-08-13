@@ -44,8 +44,15 @@ import type { Db } from './client.js';
  *      heard records the signal, the first transcript correction records the
  *      verb. Against a 26 database either write is rejected exactly when a
  *      buyer or an owner is waiting on it.
+ *
+ * 30 = money carries its currency (0030, M43a). This build READS `currency`
+ *      from price_tiers, pricing_policy, quotes, orders and products on every
+ *      quote it computes, and WRITES it on every price rule, import and
+ *      recorded quote. Against a 29 database the read is a missing column, so
+ *      the tier query throws — which is the entire pricing path. It refuses at
+ *      boot rather than at the first buyer.
  */
-export const REQUIRED_SCHEMA_VERSION = 29;
+export const REQUIRED_SCHEMA_VERSION = 30;
 
 export type SchemaState = {
   readonly required: number;

@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
+import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatRelative } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, type Refusal } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
@@ -61,7 +62,7 @@ export type ConversationSummary = {
   readonly latestAt: Date | null;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
-  readonly unitPriceUsd: number | null;
+  readonly unitPrice: Money | null;
 };
 
 export type InboxList = {
@@ -132,7 +133,7 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
         handoffReason: r.handoff_reason,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
-        unitPriceUsd: r.unit_price !== null ? Number(r.unit_price) : null,
+        unitPrice: r.unit_price !== null ? usd(Number(r.unit_price)) : null,
       };
     });
     // Phase D — "needs you" is an ownership question, not a drafts count. A buyer
@@ -247,14 +248,14 @@ export type ConversationDetail = {
   readonly status: InboxStatus;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
-  readonly quote: { unitPriceUsd: number; totalUsd: number; quantity: number } | null;
+  readonly quote: { unitPrice: Money; total: Money; quantity: number } | null;
   /**
    * M35.1 — the buyer proof link for this conversation's quote. `quoteId` is
    * null when there is nothing to prove yet; `token` is null until the owner
    * issues one. She is the only person who can create or revoke it.
    */
   readonly proof: { readonly quoteId: string | null; readonly token: string | null };
-  readonly order: { status: string; reference: string; totalUsd: number | null } | null;
+  readonly order: { status: string; reference: string; total: Money | null } | null;
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
   readonly ownership: ConversationOwnership;
@@ -386,9 +387,9 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
       product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
-      quote: q ? { unitPriceUsd: Number(q.unit_price_usd), totalUsd: Number(q.total_usd), quantity: q.quantity } : null,
+      quote: q ? { unitPrice: usd(Number(q.unit_price_usd)), total: usd(Number(q.total_usd)), quantity: q.quantity } : null,
       proof: await loadProofLinkState(tx, conversationId),
-      order: o ? { status: o.status, reference: o.order_reference, totalUsd: o.total_value_usd !== null ? Number(o.total_value_usd) : null } : null,
+      order: o ? { status: o.status, reference: o.order_reference, total: o.total_value_usd !== null ? usd(Number(o.total_value_usd)) : null } : null,
       messages,
       pendingDraft: draft
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability }
@@ -472,7 +473,7 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
     const detail = [
       prod ?? '',
       c.quantity !== null ? `${formatQty(locale, c.quantity)}${pcs}` : '',
-      c.unitPriceUsd !== null ? formatUsd(c.unitPriceUsd) : '',
+      c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
     ].filter(Boolean).join(' · ');
     return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
@@ -587,8 +588,8 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
-      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatUsd(d.quote.unitPriceUsd))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatUsd(d.quote.totalUsd))}</div>` : ''}
-      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.totalUsd !== null ? ` · ${esc(formatUsd(d.order.totalUsd))}` : ''}</div>` : ''}
+      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}</div>` : ''}
+      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}` : ''}</div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';
 

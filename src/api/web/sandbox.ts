@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
 import { hybridRetriever } from '../../retrieval/hybrid.js';
@@ -13,7 +14,7 @@ import { parseBusinessId, parseConversationId } from '../../core/types/ids.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd } from '../../core/owner/i18n/format.js';
+import { formatMoney } from '../../core/owner/i18n/format.js';
 import {
   SCENARIOS, analysis as buildAnalysis, candidate as toCandidate,
   type Expectation, type Scenario,
@@ -161,7 +162,7 @@ export async function runSandboxTurn(deps: SandboxDeps, input: SandboxTurnInput)
     const trust = evaluateTrust({
       mode: input.mode, scenario,
       expectations: scenario && scenarioExp.length > 0 ? scenarioExp : DEFAULT_INVARIANTS,
-      result, effects, grants, now: deps.now(), floorPriceUsd: policy?.floorPriceUsd ?? null,
+      result, effects, grants, now: deps.now(), floorPrice: policy?.floorPrice ?? null,
     });
     await sql`
       insert into conversation_events (business_id, conversation_id, type, payload)
@@ -202,14 +203,14 @@ export function evaluateTrust(input: {
   readonly effects: TurnEffects;
   readonly grants: readonly AutonomyGrant[];
   readonly now: Date;
-  readonly floorPriceUsd: number | null;
+  readonly floorPrice: Money | null;
 }): SandboxTrust {
   const { result, effects } = input;
   const capability = capabilityOf(result.decision, result.quote !== null);
   const requestedMode = resolveMode({ capability, grants: input.grants, now: input.now, timeZone: BUSINESS_TZ });
   const appliedMode: SandboxTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (pid: string): number | null =>
-    result.quote && pid === (result.quote.productId as string) ? input.floorPriceUsd : null;
+    result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
   const ctx: TurnOutcome = { scenario: input.scenario, result, effects, floorOf, capability, requestedMode, appliedMode };
   const checks = input.expectations.map((e) => runCheck(e, ctx));
   return {
@@ -219,9 +220,21 @@ export function evaluateTrust(input: {
     capability, appliedMode,
     guardViolations: result.guardViolations,
     handoff: effects.handoffAlert,
-    quote: result.quote ? { unitPriceUsd: result.quote.unitPriceUsd, totalUsd: result.quote.totalUsd } : null,
+    quote: result.quote ? { unitPrice: result.quote.unitPrice, total: result.quote.total } : null,
     checks,
   };
+}
+
+/**
+ * A recorded practice quote's unit price, from a payload of either vintage.
+ *
+ * Rows written before M43a carry `unitPriceUsd: number`; rows written after
+ * carry `unitPrice: Money`. Both were USD, and the older shape says so by its
+ * name — which is the last useful thing that name does.
+ */
+export function quoteUnit(q: NonNullable<SandboxTrust['quote']>): Money {
+  const legacy = (q as unknown as { unitPriceUsd?: number }).unitPriceUsd;
+  return q.unitPrice ?? usd(legacy ?? 0);
 }
 
 /** The outbound sink for applyOwnerCommand in the sandbox: record, never transmit. */
@@ -242,7 +255,15 @@ export type SandboxTrust = {
   readonly scenarioTitle: string | null;
   readonly capability: string; readonly appliedMode: 'auto' | 'draft' | 'none';
   readonly guardViolations: number; readonly handoff: boolean;
-  readonly quote: { readonly unitPriceUsd: number; readonly totalUsd: number } | null;
+  /**
+   * M43a — the amount and its currency. The KEYS changed, and this payload is
+   * written to `conversation_events`, so a row from before this milestone has
+   * `unitPriceUsd` instead. The renderer below reads either, exactly as it
+   * already does for `scenarioTitle`: a practice run recorded last week must
+   * still render, and the sandbox is where an operator looks when something
+   * looks wrong.
+   */
+  readonly quote: { readonly unitPrice: Money; readonly total: Money } | null;
   readonly checks: readonly CheckResult[];
 };
 /**
@@ -381,7 +402,7 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
   const chips = [
     `<span class="chip">${esc(t(locale, 'sandbox.xray.skill'))}: ${esc(capabilityName(locale, trust.capability))}</span>`,
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(t(locale, 'sandbox.xray.delivery'))}: ${esc(t(locale, deliveryKey as MessageKey))}</span>`,
-    trust.quote ? `<span class="chip">${esc(formatUsd(trust.quote.unitPriceUsd))}/pc</span>` : '',
+    trust.quote ? `<span class="chip">${esc(formatMoney(quoteUnit(trust.quote)))}/pc</span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
     trust.scenarioId
       ? `<span class="chip badge">${esc(t(locale, 'sandbox.scenario.badge'))}: ${esc(caseName(locale, trust.scenarioId))}</span>`

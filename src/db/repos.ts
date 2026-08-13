@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { moneyFromRow, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
   AuditRepo,
@@ -193,11 +194,18 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async priceTiers(productId) {
       const rows = await tx.selectFrom('price_tiers').selectAll()
         .where('product_id', '=', productId).orderBy('min_qty').execute();
-      return rows.map((r): PriceTier => ({
-        productId: r.product_id as PriceTier['productId'],
-        minQty: r.min_qty, maxQty: r.max_qty,
-        unitPriceUsd: num(r.unit_price_usd),
-      }));
+      // M43a — a tier whose currency this build cannot price is DROPPED, never
+      // defaulted to USD. Defaulting is how a row in another currency becomes a
+      // dollar quote; dropping it makes the quote refuse for want of a tier,
+      // which is the fail-closed answer.
+      return rows.flatMap((r): PriceTier[] => {
+        const unitPrice = moneyFromRow(num(r.unit_price_usd), r.currency);
+        return unitPrice === null ? [] : [{
+          productId: r.product_id as PriceTier['productId'],
+          minQty: r.min_qty, maxQty: r.max_qty,
+          unitPrice,
+        }];
+      });
     },
 
     async pricingPolicy(productId) {
@@ -210,10 +218,16 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .limit(1)
         .executeTakeFirst();
       if (!r) return null;
+      const floorPrice = moneyFromRow(num(r.floor_price_usd), r.currency);
+      // A floor this build cannot read is not "no floor" — it is a policy row
+      // that exists and cannot be enforced. Returning null here means the quote
+      // engine applies NO floor, so this must not be reached: the currency
+      // check constraint in 0030 refuses the write in the first place.
+      if (floorPrice === null) return null;
       return {
         businessId: r.business_id as BusinessId,
         productId: r.product_id as PricingPolicy['productId'],
-        floorPriceUsd: num(r.floor_price_usd),
+        floorPrice,
         maxDiscountPct: num(r.max_discount_pct),
         humanRequiredAbovePct: num(r.human_required_above_pct),
       };
@@ -272,8 +286,9 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           product_id: order.productId,
           quantity: order.quantity.value,
           unit: order.quantity.unit,
-          agreed_unit_price_usd: order.unitPriceUsd,
-          total_value_usd: order.totalUsd,
+          agreed_unit_price_usd: order.unitPrice.amount,
+          total_value_usd: order.total.amount,
+          currency: order.total.currency,
           client_email: order.email,
           payment_terms: order.paymentTerms,
           status: 'confirmed',
@@ -319,8 +334,14 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         switch (r.kind) {
           case 'repeated_ambiguity':
             return { kind: 'repeated_ambiguity', turns: Number(p['turns'] ?? 2) } as Signal;
-          case 'high_value':
-            return { kind: 'high_value', totalUsd: Number(p['totalUsd'] ?? 0) } as Signal;
+          case 'high_value': {
+            // M43a — a stored signal keeps the currency it was raised in. Rows
+            // written before 0030 carry none; they were all USD, and saying so
+            // here is a statement about history rather than a default applied
+            // to new data.
+            const total = moneyFromRow(Number(p['total'] ?? p['totalUsd'] ?? 0), String(p['currency'] ?? 'USD'));
+            return { kind: 'high_value', total: total ?? usd(0) } as Signal;
+          }
           case 'audio_unheard':
             return { kind: 'audio_unheard', reason: String(p['reason'] ?? 'transcription_failed') } as Signal;
           default:
@@ -375,19 +396,21 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     // Joined through conversations because quotes carry a conversation, not a
     // client: the same buyer across two threads is one buyer.
     async priorQuotesForClient(clientId, productId) {
-      const r = await sql<{ quantity: number; unit_price_usd: string; created_at: Date }>`
-        select q.quantity, q.unit_price_usd, q.created_at
+      const r = await sql<{ quantity: number; unit_price_usd: string; currency: string; created_at: Date }>`
+        select q.quantity, q.unit_price_usd, q.currency, q.created_at
           from quotes q
           join conversations c on c.id = q.conversation_id
          where c.client_id = ${clientId} and q.product_id = ${productId}
            and q.business_id = ${businessId}
          order by q.created_at desc limit 10
       `.execute(tx);
-      return r.rows.map((x) => ({
-        quantity: x.quantity,
-        unitPriceUsd: Number(x.unit_price_usd),
-        at: x.created_at,
-      }));
+      // A prior quote in a currency this build cannot price is dropped rather
+      // than compared: M36's consistency guard would otherwise order two
+      // amounts that were never comparable.
+      return r.rows.flatMap((x) => {
+        const unitPrice = moneyFromRow(Number(x.unit_price_usd), x.currency);
+        return unitPrice === null ? [] : [{ quantity: x.quantity, unitPrice, at: x.created_at }];
+      });
     },
     async recordQuote(q) {
       const row = await tx.insertInto('quotes').values({
@@ -396,9 +419,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         product_id: q.productId,
         quantity: q.quantity,
         inputs: JSON.stringify(q.inputs),
-        unit_price_usd: q.unitPriceUsd,
+        unit_price_usd: q.unitPrice.amount,
         discount_pct: q.discountPct,
-        total_usd: q.totalUsd,
+        total_usd: q.total.amount,
+        currency: q.total.currency,
         requires_human: q.requiresHuman,
         applied_rules: [...q.appliedRules],
         engine_version: ENGINE_VERSION,

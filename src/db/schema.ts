@@ -84,6 +84,7 @@ export interface Database {
     unit: string;
     moq: number;
     price_usd_per_unit: Numeric | null; // legacy scalar — n8n still reads it
+    currency: Generated<string>;   // M43a — the amount's currency, beside the amount
     lead_time_days: number | null;
     customizable: boolean;
     is_active: boolean;
@@ -93,12 +94,14 @@ export interface Database {
     min_qty: number;
     max_qty: number | null;
     unit_price_usd: Numeric;
+    currency: Generated<string>;   // M43a
   };
   pricing_policy: {
     id: Generated<string>;
     business_id: string;
     product_id: string | null;
     floor_price_usd: Numeric;
+    currency: Generated<string>;   // M43a
     max_discount_pct: Numeric;
     human_required_above_pct: Numeric;
   };
@@ -129,6 +132,7 @@ export interface Database {
     unit: string;
     agreed_unit_price_usd: Numeric | null;
     total_value_usd: Numeric | null;
+    currency: Generated<string>;   // M43a
     client_email: string | null;
     payment_terms: string | null;
     status: string;
@@ -180,6 +184,7 @@ export interface Database {
     unit_price_usd: Numeric;
     discount_pct: Numeric;
     total_usd: Numeric;
+    currency: Generated<string>;   // M43a
     requires_human: boolean;
     applied_rules: string[];
     engine_version: string;

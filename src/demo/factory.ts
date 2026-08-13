@@ -1,3 +1,4 @@
+import { type Money, usd } from '../core/types/money.js';
 /**
  * M4 — The demo factory: 义乌宏发日用品厂, a fully populated fake company.
  * One deterministic source used three ways:
@@ -42,8 +43,8 @@ export const DEMO_BUSINESS = {
 export type DemoProduct = {
   readonly id: string; readonly sku: string; readonly name: string; readonly nameZh: string;
   readonly category: string; readonly unit: string; readonly moq: number;
-  readonly leadTimeDays: number; readonly floorUsd: number;
-  /** [minQty, unitPriceUsd] ascending */
+  readonly leadTimeDays: number; readonly floor: Money;
+  /** [minQty, unit price amount] ascending, in the product's own currency */
   readonly tiers: readonly (readonly [number, number])[];
   readonly aliases: readonly (readonly [string, string])[];  // [alias, language]
 };
@@ -52,7 +53,7 @@ const P = (n: number, sku: string, name: string, nameZh: string, category: strin
   moq: number, lead: number, floor: number,
   tiers: readonly (readonly [number, number])[],
   aliases: readonly (readonly [string, string])[]): DemoProduct =>
-  ({ id: pid(n), sku, name, nameZh, category, unit: 'pcs', moq, leadTimeDays: lead, floorUsd: floor, tiers, aliases });
+  ({ id: pid(n), sku, name, nameZh, category, unit: 'pcs', moq, leadTimeDays: lead, floor: usd(floor), tiers, aliases });
 
 export const DEMO_PRODUCTS: readonly DemoProduct[] = [
   P(1, 'ZX-100', 'Canvas Tote Bag 38x40cm', '帆布袋', 'bags', 500, 15, 0.72,
@@ -161,8 +162,8 @@ export function demoSeedSql(namespace: string = DEMO_NAMESPACE): string {
       `insert into products (id, business_id, sku, name, name_zh, category, unit, moq, lead_time_days, price_usd_per_unit) values`,
       `  ('${p.id}', '${B}', '${p.sku}', '${esc(p.name)}', '${esc(p.nameZh)}', '${p.category}', '${p.unit}', ${p.moq}, ${p.leadTimeDays}, ${p.tiers[0]![1]})`,
       `  on conflict (business_id, sku) do nothing;`,
-      `insert into pricing_policy (business_id, product_id, floor_price_usd, max_discount_pct, human_required_above_pct) values`,
-      `  ('${B}', '${p.id}', ${p.floorUsd}, 8, 5) on conflict (business_id, product_id) do nothing;`,
+      `insert into pricing_policy (business_id, product_id, floor_price_usd, currency, max_discount_pct, human_required_above_pct) values`,
+      `  ('${B}', '${p.id}', ${p.floor.amount}, '${p.floor.currency}', 8, 5) on conflict (business_id, product_id) do nothing;`,
     );
     for (const [minQty, price] of p.tiers) {
       out.push(`insert into price_tiers (product_id, min_qty, unit_price_usd) values ('${p.id}', ${minQty}, ${price}) on conflict (product_id, min_qty) do nothing;`);

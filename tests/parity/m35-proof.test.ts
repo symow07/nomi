@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { readFile } from 'node:fs/promises';
 import { renderProof, notFoundPage, mintToken, type ProofView } from '../../src/api/web/proof.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -24,8 +25,8 @@ const VIEW: ProofView = {
   sku: 'ZX-100',
   quantity: 20000,
   unit: 'pcs',
-  unitPriceUsd: 0.38,
-  totalUsd: 7600,
+  unitPrice: usd(0.38),
+  total: usd(7600),
   tier: { minQty: 10000, maxQty: 50000 },
   moq: 1000,
   leadTimeDays: 25,

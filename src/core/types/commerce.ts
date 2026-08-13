@@ -1,4 +1,5 @@
 import type { Brand } from './brand.js';
+import type { Money } from './money.js';
 import type { BusinessId, Email, ProductId } from './ids.js';
 import type { Quantity } from './conversation.js';
 
@@ -28,13 +29,13 @@ export type PriceTier = {
   readonly productId: ProductId;
   readonly minQty: number;
   readonly maxQty: number | null;
-  readonly unitPriceUsd: number;
+  readonly unitPrice: Money;
 };
 
 /**
  * The guardrail the AI may never cross.
  *
- * `floorPriceUsd` is enforced in CODE, so no prompt — however cleverly injected
+ * `floorPrice` is enforced in CODE, so no prompt — however cleverly injected
  * — can discount below it. This is what makes "negotiate within business rules"
  * a real constraint rather than a polite request to a language model.
  */
@@ -42,7 +43,7 @@ export type PricingPolicy = {
   readonly businessId: BusinessId;
   /** null = business-wide default */
   readonly productId: ProductId | null;
-  readonly floorPriceUsd: number;
+  readonly floorPrice: Money;
   /** The AI's own authority, in percent. */
   readonly maxDiscountPct: number;
   /** Beyond this, a human must approve. Triggers handoff, not refusal. */
@@ -96,9 +97,9 @@ export type SubstitutionRule = {
 export type Quote = {
   readonly productId: ProductId;
   readonly quantity: Quantity;
-  readonly unitPriceUsd: number;
+  readonly unitPrice: Money;
   readonly discountPct: number;
-  readonly totalUsd: number;
+  readonly total: Money;
   readonly moq: number;
   readonly leadTimeDays: number | null;
   /** Discount exceeds the AI's authority → route to a human before sending. */
@@ -110,13 +111,13 @@ export type Quote = {
 /** A price this buyer was already given for this product. M36. */
 export type PriorQuote = {
   readonly quantity: number;
-  readonly unitPriceUsd: number;
+  readonly unitPrice: Money;
   readonly at: Date;
 };
 
 export type QuoteRefusal =
   | { readonly kind: 'below_moq'; readonly moq: number; readonly requested: number }
-  | { readonly kind: 'below_floor'; readonly floorPriceUsd: number }
+  | { readonly kind: 'below_floor'; readonly floorPrice: Money }
   | { readonly kind: 'no_price_tier'; readonly quantity: number }
   | { readonly kind: 'no_price_configured' }
   /**
@@ -130,7 +131,7 @@ export type QuoteRefusal =
   | {
       readonly kind: 'contradicts_history';
       readonly prior: PriorQuote;
-      readonly proposedUnitPriceUsd: number;
+      readonly proposedUnitPrice: Money;
       readonly proposedQuantity: number;
       /** Which way it contradicts — the two cases are not equally bad. */
       readonly how: 'higher_same_quantity' | 'higher_at_larger_quantity';
@@ -153,8 +154,8 @@ export type ConfirmableOrder = Brand<
   {
     readonly productId: ProductId;
     readonly quantity: Quantity;
-    readonly unitPriceUsd: number;
-    readonly totalUsd: number;
+    readonly unitPrice: Money;
+    readonly total: Money;
     readonly email: Email;
     readonly paymentTerms: string;
   },

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { usd } from '../../src/core/types/money.js';
 import { unsafeBrand } from '../../src/core/types/brand.js';
 import type {
   BusinessId,
@@ -60,15 +61,15 @@ export const product = (over: Partial<Product> = {}): Product => ({
 });
 
 export const tiers = (): PriceTier[] => [
-  { productId: PRODUCT, minQty: 1000, maxQty: 4999, unitPriceUsd: 0.5 },
-  { productId: PRODUCT, minQty: 5000, maxQty: 19999, unitPriceUsd: 0.45 },
-  { productId: PRODUCT, minQty: 20000, maxQty: null, unitPriceUsd: 0.38 },
+  { productId: PRODUCT, minQty: 1000, maxQty: 4999, unitPrice: usd(0.5) },
+  { productId: PRODUCT, minQty: 5000, maxQty: 19999, unitPrice: usd(0.45) },
+  { productId: PRODUCT, minQty: 20000, maxQty: null, unitPrice: usd(0.38) },
 ];
 
 export const policy = (over: Partial<PricingPolicy> = {}): PricingPolicy => ({
   businessId: BUSINESS,
   productId: PRODUCT,
-  floorPriceUsd: 0.35,
+  floorPrice: usd(0.35),
   maxDiscountPct: 10,
   humanRequiredAbovePct: 7,
   ...over,

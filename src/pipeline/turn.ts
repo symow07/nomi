@@ -1,4 +1,5 @@
 import type { Tenant } from '../db/ports.js';
+import type { Money } from '../core/types/money.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
 import type { ConversationId, Email } from '../core/types/ids.js';
@@ -92,9 +93,9 @@ export type DecisionFingerprint = {
   readonly pendingQuestion: string | null;
   readonly phaseAction: 'maintain' | 'advance' | 'confirm_order' | 'handoff' | 'silent';
   readonly quote: {
-    readonly unitPriceUsd: number;
+    readonly unitPrice: Money;
     readonly discountPct: number;
-    readonly totalUsd: number;
+    readonly total: Money;
   } | null;
 };
 
@@ -144,7 +145,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // human" must trigger the handoff without first paying for (and waiting on)
   // an LLM analysis of a message whose outcome is already determined.
   const textOnlySignals = detectSignals({
-    text: req.text, state, analysis: null, unitPriceUsd: null,
+    text: req.text, state, analysis: null, unitPrice: null,
   });
   const historicEarly = await tenant.signals.unresolved(req.conversationId);
   const preScore = computeScores([...historicEarly, ...textOnlySignals]);
@@ -200,13 +201,13 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const qtyForPrice =
     analysis?.intent.quantityMentioned?.value ?? state.quantity?.value ?? 0;
 
-  let indicativePrice: number | null = null;
+  let indicativePrice: Money | null = null;
   if (productIdForPrice && qtyForPrice > 0) {
     const tiers = await tenant.catalog.priceTiers(productIdForPrice);
-    indicativePrice = selectTier(tiers, qtyForPrice)?.unitPriceUsd ?? null;
+    indicativePrice = selectTier(tiers, qtyForPrice)?.unitPrice ?? null;
   }
 
-  const fresh = detectSignals({ text: req.text, state, analysis, unitPriceUsd: indicativePrice });
+  const fresh = detectSignals({ text: req.text, state, analysis, unitPrice: indicativePrice });
   const historic = historicEarly;
   const byKind = new Map<Signal['kind'], Signal>();
   for (const s of historic) byKind.set(s.kind, s);
@@ -424,9 +425,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           ? decision.nextPhase !== state.phase ? 'advance' : 'maintain'
           : decision.action.kind,
     quote: quote && {
-      unitPriceUsd: quote.unitPriceUsd,
+      unitPrice: quote.unitPrice,
       discountPct: quote.discountPct,
-      totalUsd: quote.totalUsd,
+      total: quote.total,
     },
   };
 
@@ -505,9 +506,9 @@ export async function commitTurn(
       productId: r.decision.product.productId,
       quantity: r.quote.quantity.value,
       inputs: r.quoteInputs,
-      unitPriceUsd: r.quote.unitPriceUsd,
+      unitPrice: r.quote.unitPrice,
       discountPct: r.quote.discountPct,
-      totalUsd: r.quote.totalUsd,
+      total: r.quote.total,
       requiresHuman: r.quote.requiresHuman,
       appliedRules: r.quote.appliedRules,
     });

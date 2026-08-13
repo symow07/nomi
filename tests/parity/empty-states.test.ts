@@ -40,14 +40,14 @@ const emptyBuyers = (filter: 'pending' | 'all') =>
 
 // M22 — TYPED, not `as never`. It was cast, so nothing checked it, and it
 // drifted twice behind the real FactoryView: `promises` still carried Phase-E's
-// pre-rename field names, `floorLowUsd` was undefined, `undefined !== null` was
-// true, and formatUsd(undefined) threw before a single assertion in this file
+// pre-rename field names, `floorLow` was undefined, `undefined !== null` was
+// true, and formatMoney(undefined) threw before a single assertion in this file
 // ran. Typing it is the fix; the comment was only a warning.
 const emptyFactoryView: FactoryView = {
   profile: { name: '', description: null, location: null, workingHours: null,
     contactEmail: null, contactPhone: null, languagesServed: [], categories: [] },
   products: { total: 0, needPrice: 0, names: [] },
-  promises: { certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false },
+  promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null }, ownerPhone: null },
   nextStep: 'profile',

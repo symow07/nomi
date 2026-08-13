@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import { decideTurn, type Analysis } from '../../src/core/conversation/decide.js';
 import { extractEmail } from '../../src/core/types/ids.js';
 import { emptyState, PRODUCT } from './fixtures.js';
@@ -55,7 +56,7 @@ describe('decideTurn — the engine front door', () => {
       analysis: analysis({}, 'commercial_discussion'),
       extractedEmail: null,
       signals: [
-        { kind: 'high_value', totalUsd: 20_000 },
+        { kind: 'high_value', total: usd(20_000) },
         { kind: 'logistics_discussed' },
       ],
       quote: null,

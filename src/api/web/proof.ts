@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
+import { type Money, usd } from '../../core/types/money.js';
 import { randomBytes } from 'node:crypto';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd } from '../../core/owner/i18n/format.js';
+import { formatMoney } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 import { cssVariables } from '../../core/owner/css.js';
 
@@ -55,8 +56,8 @@ export type ProofView = {
   readonly sku: string;
   readonly quantity: number;
   readonly unit: string;
-  readonly unitPriceUsd: number;
-  readonly totalUsd: number;
+  readonly unitPrice: Money;
+  readonly total: Money;
   /** The band this quantity fell in. Quantities and prices only. */
   readonly tier: { readonly minQty: number; readonly maxQty: number | null } | null;
   readonly moq: number;
@@ -201,8 +202,8 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       sku: q.sku,
       quantity: q.quantity,
       unit: q.unit,
-      unitPriceUsd: Number(q.unit_price_usd),
-      totalUsd: Number(q.total_usd),
+      unitPrice: usd(Number(q.unit_price_usd)),
+      total: usd(Number(q.total_usd)),
       tier: tier ? { minQty: tier.min_qty, maxQty: tier.max_qty } : null,
       moq: q.moq,
       leadTimeDays: q.lead_time_days,
@@ -272,8 +273,8 @@ export function renderProof(v: ProofView): string {
   // owner's surfaces spent this month removing.
   const facts = [
     fact(t(l, 'proof.fact.quantity'), qty),
-    fact(t(l, 'proof.fact.unitPrice'), formatUsd(v.unitPriceUsd)),
-    fact(t(l, 'proof.fact.total'), formatUsd(v.totalUsd)),
+    fact(t(l, 'proof.fact.unitPrice'), formatMoney(v.unitPrice)),
+    fact(t(l, 'proof.fact.total'), formatMoney(v.total)),
     ...(tierText ? [fact(t(l, 'proof.fact.tier'), tierText)] : []),
     fact(t(l, 'proof.fact.moq'), `${v.moq.toLocaleString('en-US')} ${v.unit}`),
     ...(v.leadTimeDays !== null

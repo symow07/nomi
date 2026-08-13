@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 
 import { detectInjection } from '../../src/core/safety/injection.js';
 import { guardNumerals } from '../../src/core/safety/numerals.js';
@@ -98,7 +99,7 @@ describe('scoring: problem vs lead', () => {
   // NEVER be confirmed. The system blocked its own best deals.
   it('a $20k order is a HOT LEAD, not a problem — and does not block the close', () => {
     const signals: Signal[] = [
-      { kind: 'high_value', totalUsd: 20_000 },
+      { kind: 'high_value', total: usd(20_000) },
       { kind: 'logistics_discussed' },
       { kind: 'customization_requested' },
     ];
@@ -138,9 +139,9 @@ describe('scoring: problem vs lead', () => {
  * ──────────────────────────────────────────────────────────────────────────── */
 describe('quote', () => {
   it('selects the volume tier', () => {
-    expect(selectTier(tiers(), 5_000)?.unitPriceUsd).toBe(0.45);
-    expect(selectTier(tiers(), 1_500)?.unitPriceUsd).toBe(0.5);
-    expect(selectTier(tiers(), 50_000)?.unitPriceUsd).toBe(0.38);
+    expect(selectTier(tiers(), 5_000)?.unitPrice).toEqual(usd(0.45));
+    expect(selectTier(tiers(), 1_500)?.unitPrice).toEqual(usd(0.5));
+    expect(selectTier(tiers(), 50_000)?.unitPrice).toEqual(usd(0.38));
   });
 
   it('refuses below MOQ', () => {
@@ -157,8 +158,10 @@ describe('quote', () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.unitPriceUsd).toBe(0.45);
-      expect(r.value.totalUsd).toBe(2_250);
+      // M43a — the amount AND its currency, because a quote that lost the
+      // second half is exactly what this type exists to prevent.
+      expect(r.value.unitPrice).toEqual(usd(0.45));
+      expect(r.value.total).toEqual(usd(2_250));
     }
   });
 
@@ -168,12 +171,12 @@ describe('quote', () => {
     const r = computeQuote({
       product: product(),
       tiers: tiers(),
-      policy: policy({ floorPriceUsd: 0.44, maxDiscountPct: 90 }),
+      policy: policy({ floorPrice: usd(0.44), maxDiscountPct: 90 }),
       rules: [{ businessId: policy().businessId, priority: 1, condition: {}, action: { kind: 'discount_pct', value: 80 } }],
       quantity: 5_000,
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.unitPriceUsd).toBeGreaterThanOrEqual(0.44);
+    if (r.ok) expect(r.value.unitPrice.amount).toBeGreaterThanOrEqual(0.44);
   });
 
   it('clamps a discount to the AI’s authority and flags human approval', () => {
@@ -218,7 +221,7 @@ describe('order confirmation (deterministic — replaces an LLM call)', () => {
       paymentTerms: '30% deposit, 70% before shipment',
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.totalUsd).toBe(2_250);
+    if (r.ok) expect(r.value.total).toEqual(usd(2_250));
   });
 
   it('a HOT LEAD does not block its own close', () => {
@@ -342,7 +345,7 @@ describe('numeral guard: commercial positions are never safe-small', () => {
     expect(q.ok).toBe(true);
     if (!q.ok) return;
     const r = guardNumerals({
-      reply: `With your volume I can apply 5% off — unit price $${q.value.unitPriceUsd}.`,
+      reply: `With your volume I can apply 5% off — unit price $${q.value.unitPrice}.`,
       quote: q.value, state, clientText: '',
     });
     expect(r.ok).toBe(true);

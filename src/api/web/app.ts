@@ -613,7 +613,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const id = (req.params as { id: string }).id;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await updateProduct(deps.db, s.businessId, id, 'owner', {
-      priceUsd: b['priceUsd'] ?? null,
+      price: b['price'] ?? null,
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
       isActive: b['isActive'] === 'on',
@@ -647,7 +647,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const productId = (b['productId'] ?? '').trim() || null;
     const r = await savePriceRules(deps.db, s.businessId, 'owner', {
       productId,
-      floorUsd: b['floorUsd'] ?? null,
+      floor: b['floor'] ?? null,
       maxDiscountPct: b['maxDiscountPct'] ?? null,
       askAbovePct: b['askAbovePct'] ?? null,
     });

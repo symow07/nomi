@@ -159,9 +159,12 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
         // The ONLY numbers the model ever sees are the quote's + the identified
         // product's taught facts. (ADR-0006 + M13; guardNumerals enforces it.)
         quote: quote && {
-          unit_price_usd: quote.unitPriceUsd,
+          // The currency is named for the model rather than implied by a key,
+          // so a reply cannot be written in dollars because the field said so.
+          currency: quote.unitPrice.currency,
+          unit_price: quote.unitPrice.amount,
           discount_pct: quote.discountPct,
-          total_usd: quote.totalUsd,
+          total: quote.total.amount,
           moq: quote.moq,
           lead_time_days: quote.leadTimeDays,
         },

@@ -159,8 +159,8 @@ async function runFake(s: FakeSetup) {
   const req = { conversationId: CONVERSATION, messageId: 'm-1', text: s.text };
   const result = await computeTurn(ports, req);
   const effects = await commitTurn(ports, req, result, Date.now());
-  const floorPriceUsd = result.quote ? (await tenant.catalog.pricingPolicy(result.quote.productId))?.floorPriceUsd ?? null : null;
-  return { result, effects, grants: tenant.grantRows, floorPriceUsd };
+  const floorPrice = result.quote ? (await tenant.catalog.pricingPolicy(result.quote.productId))?.floorPrice ?? null : null;
+  return { result, effects, grants: tenant.grantRows, floorPrice };
 }
 
 describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTenant', () => {
@@ -172,7 +172,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
         { invariant: 'noFabricatedPrice' },
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified'] },
       ],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPriceUsd: r.floorPriceUsd,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
     });
     expect(out.mode).toBe('scripted');
     expect(out.scenarioTitle).toBeNull();
@@ -184,7 +184,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
     const r = await runFake({ text: 'I want to speak to a real person now', state: { phase: 'qualification' } });
     const out = evaluateTrust({
       mode: 'scripted', expectations: [{ invariant: 'escalatesToHuman' }],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPriceUsd: r.floorPriceUsd,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
     });
     expect(out.handoff).toBe(true);
     expect(out.checks[0]!.pass).toBe(true);
@@ -206,7 +206,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved'] },
         { invariant: 'priceFloorRespected' },
       ],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPriceUsd: r.floorPriceUsd,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
     });
     expect(out.guardViolations).toBeGreaterThan(0);
     expect(out.checks.every((c) => c.pass)).toBe(true);   // claim stripped, floor respected

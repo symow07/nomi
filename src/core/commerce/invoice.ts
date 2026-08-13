@@ -1,4 +1,5 @@
 import type { Quote } from '../types/commerce.js';
+import { type Money, currencySymbol } from '../types/money.js';
 
 /**
  * M6 — Wow #3: negotiation → formatted proforma invoice in one tap (开票).
@@ -16,8 +17,8 @@ export type InvoiceData = {
   readonly productSku: string;
   readonly quantity: number;
   readonly unit: string;
-  readonly unitPriceUsd: number;
-  readonly totalUsd: number;
+  readonly unitPrice: Money;
+  readonly total: Money;
   readonly incoterm: string;                 // e.g. FOB Ningbo
   readonly leadTimeDays: number | null;
   readonly paymentTermsZh: string;           // from business policy, owner-set
@@ -49,8 +50,8 @@ export function buildInvoice(input: {
     productSku: input.productSku,
     quantity: q.quantity.value,
     unit: q.quantity.unit,
-    unitPriceUsd: q.unitPriceUsd,
-    totalUsd: q.totalUsd,
+    unitPrice: q.unitPrice,
+    total: q.total,
     incoterm: input.incoterm,
     leadTimeDays: q.leadTimeDays,
     paymentTermsZh: input.paymentTermsZh,
@@ -60,7 +61,10 @@ export function buildInvoice(input: {
 
 /** Buyer-facing proforma text (English). Numbers verbatim from the invoice. */
 export function renderInvoiceEn(inv: InvoiceData): string {
-  const money = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // The symbol comes from the money, not from a literal in the template: a
+  // line reading "$" beside an amount that is not dollars is the exact defect
+  // M43a exists to make impossible.
+  const money = (m: Money) => `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return [
     `PROFORMA INVOICE ${inv.piNumber}`,
     `Seller: ${inv.seller}`,
@@ -68,8 +72,8 @@ export function renderInvoiceEn(inv: InvoiceData): string {
     ``,
     `${inv.productName} (${inv.productSku})`,
     `Qty: ${inv.quantity.toLocaleString('en-US')} ${inv.unit}`,
-    `Unit price: $${money(inv.unitPriceUsd)} ${inv.incoterm}`,
-    `Total: $${money(inv.totalUsd)}`,
+    `Unit price: ${money(inv.unitPrice)} ${inv.incoterm}`,
+    `Total: ${money(inv.total)}`,
     inv.leadTimeDays !== null ? `Lead time: ${inv.leadTimeDays} days` : null,
     `Payment: ${inv.paymentTermsEn}`,
   ].filter((l): l is string => l !== null).join('\n');

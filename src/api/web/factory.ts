@@ -14,13 +14,14 @@
  * /app/channels) stay exactly as they are and are linked, not replaced.
  */
 import { sql } from 'kysely';
+import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatUsd, formatDate } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
@@ -59,8 +60,8 @@ export type FactoryPromises = {
    * — it lands in the quote audit and never decides draft-vs-send — so it is not
    * presented to the owner as a rule.
    */
-  readonly floorLowUsd: number | null;
-  readonly floorHighUsd: number | null;
+  readonly floorLow: Money | null;
+  readonly floorHigh: Money | null;
   readonly ceilingPct: number | null;
   /** true when different products carry different ceilings. */
   readonly ceilingVaries: boolean;
@@ -119,7 +120,7 @@ export type FactoryView = {
 async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromises> {
   const bid = parseBusinessId(businessIdRaw);
   const none: FactoryPromises = {
-    certs: [], floorLowUsd: null, floorHighUsd: null, ceilingPct: null, ceilingVaries: false,
+    certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false,
   };
   if (!bid.ok) return none;
 
@@ -142,8 +143,8 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
       certs: claims
         .filter((c) => c.allowed && (c.kind === 'certification' || c.kind === 'compliance'))
         .map((c) => c.claimKey),
-      floorLowUsd: floors.length ? Math.min(...floors) : null,
-      floorHighUsd: floors.length ? Math.max(...floors) : null,
+      floorLow: floors.length ? usd(Math.min(...floors)) : null,
+      floorHigh: floors.length ? usd(Math.max(...floors)) : null,
       ceilingPct: ceilings.length ? Math.min(...ceilings) : null,
       ceilingVaries: ceilings.length > 1,
     };
@@ -167,8 +168,8 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
 
   type Row = {
     id: string; sku: string; name: string; moq: number; unit: string; lead_time_days: number | null;
-    tiers: { minQty: number; maxQty: number | null; unitPriceUsd: number }[];
-    policy: { floorPriceUsd: number; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
+    tiers: { minQty: number; maxQty: number | null; unitPrice: number; currency: string }[];
+    policy: { floorPrice: number; currency: string; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
     knowledge: { kind: string; label: string; content: string; source: string }[];
   };
 
@@ -185,18 +186,19 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
         )
         select k.id, k.sku, k.name, k.moq, k.unit, k.lead_time_days,
           coalesce((select json_agg(json_build_object(
-                      'minQty', t.min_qty, 'maxQty', t.max_qty, 'unitPriceUsd', t.unit_price_usd)
+                      'minQty', t.min_qty, 'maxQty', t.max_qty,
+                      'unitPrice', t.unit_price_usd, 'currency', t.currency)
                       order by t.min_qty)
                       from price_tiers t where t.product_id = k.id), '[]'::json) as tiers,
           -- The policy the QUOTE ENGINE would use: the per-product row wins, and
           -- the business-wide row is the fallback (repos.pricingPolicy, M9.5).
           coalesce(
-            (select json_build_object('floorPriceUsd', pp.floor_price_usd,
+            (select json_build_object('floorPrice', pp.floor_price_usd, 'currency', pp.currency,
                                       'maxDiscountPct', pp.max_discount_pct,
                                       'humanRequiredAbovePct', pp.human_required_above_pct)
                from pricing_policy pp
               where pp.business_id = ${bid.value} and pp.product_id = k.id),
-            (select json_build_object('floorPriceUsd', pp.floor_price_usd,
+            (select json_build_object('floorPrice', pp.floor_price_usd, 'currency', pp.currency,
                                       'maxDiscountPct', pp.max_discount_pct,
                                       'humanRequiredAbovePct', pp.human_required_above_pct)
                from pricing_policy pp
@@ -222,16 +224,26 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
       moq: Number(r.moq),
       unit: r.unit,
       leadTimeDays: r.lead_time_days === null ? null : Number(r.lead_time_days),
-      tiers: (r.tiers ?? []).map((t) => ({
-        minQty: Number(t.minQty),
-        maxQty: t.maxQty === null ? null : Number(t.maxQty),
-        unitPriceUsd: Number(t.unitPriceUsd),
-      })),
-      policy: r.policy === null ? null : {
-        floorPriceUsd: Number(r.policy.floorPriceUsd),
-        maxDiscountPct: Number(r.policy.maxDiscountPct),
-        humanRequiredAbovePct: Number(r.policy.humanRequiredAbovePct),
-      },
+      // M43a — a tier the build cannot price is dropped, exactly as in the
+      // repos: the rehearsal must show what the ENGINE would do, and the engine
+      // never sees such a row.
+      tiers: (r.tiers ?? []).flatMap((t) => {
+        const unitPrice = moneyFromRow(Number(t.unitPrice), t.currency);
+        return unitPrice === null ? [] : [{
+          minQty: Number(t.minQty),
+          maxQty: t.maxQty === null ? null : Number(t.maxQty),
+          unitPrice,
+        }];
+      }),
+      policy: (() => {
+        if (r.policy === null) return null;
+        const floorPrice = moneyFromRow(Number(r.policy.floorPrice), r.policy.currency);
+        return floorPrice === null ? null : {
+          floorPrice,
+          maxDiscountPct: Number(r.policy.maxDiscountPct),
+          humanRequiredAbovePct: Number(r.policy.humanRequiredAbovePct),
+        };
+      })(),
       knowledge: (r.knowledge ?? []).map((k) => ({
         kind: k.kind as FactoryProduct['knowledge'][number]['kind'],
         label: k.label,
@@ -442,14 +454,14 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
   //     Everything not listed is refused; that rule is stated, never implied.
   // Only the two things the guard actually enforces, and only in the shape the
   // owner's own data takes: one floor, or a range across her products.
-  const lo = f.promises.floorLowUsd;
-  const hi = f.promises.floorHighUsd;
+  const lo = f.promises.floorLow;
+  const hi = f.promises.floorHigh;
   const ceil = f.promises.ceilingPct;
   const priceRules = [
     lo !== null && hi !== null
-      ? (lo === hi
-        ? t(locale, 'factory.promise.floor', { price: formatUsd(lo), name })
-        : t(locale, 'factory.promise.floorRange', { low: formatUsd(lo), high: formatUsd(hi), name }))
+      ? (lo.amount === hi.amount && lo.currency === hi.currency
+        ? t(locale, 'factory.promise.floor', { price: formatMoney(lo), name })
+        : t(locale, 'factory.promise.floorRange', { low: formatMoney(lo), high: formatMoney(hi), name }))
       : null,
     ceil !== null
       ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
@@ -473,7 +485,7 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ? `<p class="fwarn">${esc(t(locale, 'factory.prices.none', { name }))}</p>`
     : `<div class="fprices">${pr.businessDefault
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
-            floor: formatUsd(pr.businessDefault.floorUsd), max: pr.businessDefault.maxDiscountPct,
+            floor: formatMoney(pr.businessDefault.floor), max: pr.businessDefault.maxDiscountPct,
             ask: pr.businessDefault.askAbovePct, name }))}</p>`
         : ''}
        ${pr.unanswered > 0

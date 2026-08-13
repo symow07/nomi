@@ -1,4 +1,5 @@
 import type { Scores } from '../types/conversation.js';
+import { type Money, usd, isAbove } from '../types/money.js';
 
 /**
  * Observations about a conversation. Scores are DERIVED from these, never
@@ -27,7 +28,7 @@ export type Signal =
    */
   | { readonly kind: 'audio_unheard'; readonly reason: string }
   // --- lead signals: the client is BUYING. These never gate anything. ---
-  | { readonly kind: 'high_value'; readonly totalUsd: number }
+  | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
   | { readonly kind: 'logistics_discussed' }
   | { readonly kind: 'moq_accepted' }
@@ -57,7 +58,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   repeated_ambiguity: { kind: 'repeated_ambiguity', turns: 2 },
   low_confidence_image: { kind: 'low_confidence_image' },
   audio_unheard: { kind: 'audio_unheard', reason: 'transcription_failed' },
-  high_value: { kind: 'high_value', totalUsd: 1 },
+  high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
   moq_accepted: { kind: 'moq_accepted' },
@@ -143,7 +144,7 @@ export function computeScores(signals: readonly Signal[]): Scores {
 
       // --- lead: the client is buying. NEVER add these to `problem`. ---
       case 'high_value':
-        lead += s.totalUsd > 10_000 ? 60 : 40;
+        lead += isAbove(s.total, { amount: 10_000, currency: s.total.currency }) ? 60 : 40;
         break;
       case 'customization_requested':
         lead += 30;

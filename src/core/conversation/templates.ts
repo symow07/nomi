@@ -1,4 +1,5 @@
 import type { BlockingReason, Quote, QuoteRefusal } from '../types/commerce.js';
+import { currencySymbol } from '../types/money.js';
 
 /**
  * Deterministic outbound templates.
@@ -61,8 +62,8 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
     case 'contradicts_history':
       return {
         note: 'This buyer was already quoted a different price for this product. Do not state a new price.',
-        allow: [refusal.prior.unitPriceUsd, refusal.prior.quantity,
-                refusal.proposedUnitPriceUsd, refusal.proposedQuantity],
+        allow: [refusal.prior.unitPrice.amount, refusal.prior.quantity,
+                refusal.proposedUnitPrice.amount, refusal.proposedQuantity],
       };
     case 'below_moq':
       return {
@@ -85,8 +86,10 @@ export function guardFallbackReply(quote: Quote | null, nextQuestion: string | n
   if (quote) {
     return (
       `For ${quote.quantity.value.toLocaleString('en-US')} ${quote.quantity.unit}, ` +
-      `the unit price is $${quote.unitPriceUsd.toFixed(2)} USD — ` +
-      `$${quote.totalUsd.toLocaleString('en-US')} in total` +
+      // Symbol and code both come from the quote's currency. A hardcoded "$"
+      // beside an amount that is not dollars is the defect M43a removes.
+      `the unit price is ${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)} ${quote.unitPrice.currency} — ` +
+      `${currencySymbol(quote.total.currency)}${quote.total.amount.toLocaleString('en-US')} in total` +
       (quote.leadTimeDays ? `, with a lead time of ${quote.leadTimeDays} days.` : '.')
     );
   }
