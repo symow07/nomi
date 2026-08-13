@@ -295,7 +295,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId);
+    // ONE clock for the request: the loader decides whether a closure blocks a
+    // date with the same "now" the renderer uses for its timestamps.
+    const now = new Date();
+    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
@@ -304,7 +307,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? (req.query as { flash: string }).flash : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: renderConversationDetail(detail, locale, new Date(), flash),
+      bodyHtml: renderConversationDetail(detail, locale, now, flash),
     }));
   });
 

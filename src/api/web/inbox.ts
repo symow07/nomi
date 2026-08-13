@@ -299,7 +299,16 @@ export type ConversationDetail = {
   readonly leadTimeBlocked: { readonly label: string; readonly from: Date; readonly to: Date } | null;
 };
 
-export async function loadConversationDetail(db: Db, businessIdRaw: string, conversationId: string): Promise<ConversationDetail | null> {
+export async function loadConversationDetail(
+  db: Db, businessIdRaw: string, conversationId: string,
+  /**
+   * Injected, like every other clock on this surface. It was `new Date()`
+   * inside the loader, which is the shape that produces a test passing all day
+   * and failing once at a boundary — and the shape this repo already avoids
+   * everywhere else: the ROUTE reads the clock, the loader is given it.
+   */
+  now: Date = new Date(),
+): Promise<ConversationDetail | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return null;
 
@@ -420,7 +429,7 @@ export async function loadConversationDetail(db: Db, businessIdRaw: string, conv
       handoffReasons,
       unheardReason,
       rate: await loadCurrentRate(tx, bid.value),
-      leadTimeBlocked: await blockedLeadTime(tx, bid.value, conversationId, q?.product_id ?? null),
+      leadTimeBlocked: await blockedLeadTime(tx, bid.value, q?.product_id ?? null, now),
       lastHumanAction,
       knowledgeUsed,
     };
@@ -616,14 +625,14 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
  * be a second source of truth that drifts the moment she edits her calendar.
  */
 async function blockedLeadTime(
-  tx: Tx, businessId: BusinessId, conversationId: string, productId: string | null,
+  tx: Tx, businessId: BusinessId, productId: string | null, now: Date,
 ): Promise<{ label: string; from: Date; to: Date } | null> {
   if (!productId) return null;
   const lead = (await sql<{ lead_time_days: number | null }>`
     select lead_time_days from products where id = ${productId} limit 1`.execute(tx)).rows[0];
   if (!lead?.lead_time_days) return null;
   const closures = await tenantRepos(tx, businessId).catalog.factoryClosures();
-  const blocked = blockingClosure({ now: new Date(), leadTimeDays: lead.lead_time_days, closures });
+  const blocked = blockingClosure({ now, leadTimeDays: lead.lead_time_days, closures });
   return blocked
     ? { label: blocked.closure.label, from: blocked.closure.from, to: blocked.closure.to }
     : null;

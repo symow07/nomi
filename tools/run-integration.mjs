@@ -35,15 +35,34 @@ const run = spawnSync(
   { stdio: 'inherit', encoding: 'utf8' },
 );
 
+/**
+ * THE REPORT SURVIVES A FAILURE. It is deleted on SUCCESS only.
+ *
+ * THE BUG THIS EXISTS FOR, and it is this file's own. The report was deleted
+ * unconditionally, before the exit code was even decided. A run during M43b
+ * printed `1 failed of 283` and the record of WHICH test failed was gone by the
+ * time the message reached the screen. Three later runs were green; the failure
+ * has never been explained and now cannot be.
+ *
+ * It is the same shape as the `>/dev/null 2>&1` that hid a render script's
+ * failure last week, and as the skipped-suite defect this tool was written to
+ * catch: something configured not to look, at the exact moment there was
+ * something to see. A tool that destroys its own evidence on the one run that
+ * produced any is worse than no tool, because it looks like diligence.
+ */
+const keep = (why) => {
+  console.error(`\n    the report was KEPT so this can be read:\n      ${out}\n      (${why})`);
+};
+
 let report;
 try {
   report = JSON.parse(readFileSync(out, 'utf8'));
 } catch {
-  rmSync(dir, { recursive: true, force: true });
   console.error('\n  ✗ the integration suite produced no report — treating as a failure');
+  // Nothing parseable to keep, but the directory may hold a partial write.
+  keep('unparseable or absent — the raw file, if vitest wrote one');
   process.exit(1);
 }
-rmSync(dir, { recursive: true, force: true });
 
 const total = report.numTotalTests ?? 0;
 const passed = report.numPassedTests ?? 0;
@@ -52,10 +71,22 @@ const skipped = (report.numPendingTests ?? 0) + (report.numTodoTests ?? 0);
 
 if (failed > 0 || run.status !== 0) {
   console.error(`\n  ✗ integration: ${failed} failed of ${total}`);
+  // Name them here too. The console output above scrolls; this does not, and a
+  // CI log is often all anyone has.
+  for (const file of report.testResults ?? []) {
+    for (const t of file.assertionResults ?? []) {
+      if (t.status !== 'failed') continue;
+      console.error(`      ${file.name?.split('/').slice(-2).join('/') ?? '?'} › ${t.fullName ?? t.title}`);
+      const first = (t.failureMessages ?? [])[0];
+      if (first) console.error(`        ${first.split('\n')[0]}`);
+    }
+  }
+  keep('failed tests, with their messages');
   process.exit(1);
 }
 
 if (skipped > 0) {
+  keep('skipped tests');
   console.error(
     `\n  ✗ integration: ${skipped} of ${total} tests were SKIPPED — this is a failure, not a pass.\n` +
     '    These files self-skip when DATABASE_URL is missing or unusable, so a skipped\n' +
@@ -68,7 +99,10 @@ if (skipped > 0) {
 // A suite that ran nothing at all is the same failure wearing a different hat.
 if (total === 0 || passed === 0) {
   console.error('\n  ✗ integration: no tests ran at all');
+  keep('a report with no tests in it');
   process.exit(1);
 }
 
+// The only path that deletes it: everything ran and everything passed.
+rmSync(dir, { recursive: true, force: true });
 console.log(`\n  ✓ integration: ${passed} of ${total} ran, none skipped`);
