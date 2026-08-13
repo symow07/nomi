@@ -152,8 +152,12 @@ describe('Nomi Phase B · Today (render)', () => {
       expect(html).toContain(phrase);
       expect(html).toContain('class="calm-page"');
       expect(html).toContain('class="calm-rule"');
-      // Her words, in her voice — the same second voice she speaks in elsewhere.
-      expect(html).toMatch(/class="calm-say voice"/);
+      // M49 — NOT the voice serif. "Lily is looking after your buyers" is the
+      // PRODUCT reporting on her, not Lily speaking, and serif on product text
+      // was the loudest unpolished signal on these pages. The calm state keeps
+      // its own composition — a rule and one large line — and stays sans.
+      expect(html).toMatch(/class="calm-say"/);
+      expect(html).not.toMatch(/calm-say[^"]*voice/);
     }
     const en = renderOperationsHome(liveQuiet, 'en');
     expect(en).not.toContain('class="need"');                    // no attention rows at all

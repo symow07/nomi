@@ -346,7 +346,7 @@ ${cssVariables()}
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
          font: var(--font-size-base)/var(--line-height) var(--font-family);
          -webkit-text-size-adjust:100%; }
-  .proof { max-width:34rem; margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
+  .proof { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
   .head { padding-bottom:var(--space-16); border-bottom:1px solid var(--color-border);
           margin-bottom:var(--space-24); }
   .seller { color:var(--color-ink-secondary); font-size:var(--font-size-note);

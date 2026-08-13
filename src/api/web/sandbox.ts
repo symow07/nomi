@@ -548,7 +548,7 @@ const SANDBOX_STYLE = `<style>
   .pcase:last-child { border-bottom:0; }
   .pcase.ok .pmark { color:var(--color-ok); } .pcase.bad .pmark { color:var(--color-warn); }
   .ptitle { color:var(--color-ink-secondary); }
-  .pproves { margin:12px 0 0; max-width:62ch; line-height:1.6; }
+  .pproves { margin:12px 0 0; max-width:var(--measure-prose); line-height:1.6; }
   .dhead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-note); margin:6px 0 12px; }
   .sbx-intro { margin:0 0 16px; }

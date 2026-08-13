@@ -38,7 +38,7 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
 export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { font, color, colorDark, spacingPx, radiusPx, shadow, motionMs } = tokens;
+  const { font, color, colorDark, spacingPx, radiusPx, shadow, motionMs, measure } = tokens;
 
   const lines: string[] = [
     // `light dark` lets form controls, scrollbars and the caret follow the
@@ -53,6 +53,9 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     // grows, where `--space-5` would silently shift under everything using it.
     ...spacingPx.map((v) => decl(`space-${v}`, `${v}px`)),
     ...Object.entries(radiusPx).map(([k, v]) => decl(`radius-${kebab(k)}`, `${v}px`)),
+    // M49 — one column, one prose measure, one form measure. Every width in
+    // the product derives from these three; nothing declares its own.
+    ...Object.entries(measure).map(([k, v]) => decl(`measure-${kebab(k)}`, v)),
     ...Object.entries(shadow).map(([k, v]) => decl(`shadow-${kebab(k)}`, v)),
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
   ];

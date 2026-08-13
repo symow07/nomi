@@ -90,19 +90,28 @@ ${cssVariables()}
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
   .voice { font-family: var(--font-voice); }
   .layout { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  /* A grid child does not shrink below its own content unless told to: its
+     default min-width is auto, so one unbreakable string — a long sku, a URL a
+     buyer pasted — widens the content track and scrolls the whole page
+     sideways. Nothing in the product does that today; this is the guard, not a
+     repair. */
+  .layout > * { min-width: 0; }
   nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
     padding: var(--space-16) var(--space-12); }
   .brand { display:flex; align-items:center; gap:10px; font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
-    font-size:var(--font-size-micro); letter-spacing:0; margin-top:2px; }
+    font-size:var(--font-size-micro); letter-spacing:0; margin-top:var(--space-4); }
   nav.side a.navlink { display: flex; align-items: center; gap: 10px; padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
-    font-size: var(--font-size-small); margin-bottom: 2px; }
+    font-size: var(--font-size-small); margin-bottom: var(--space-4); }
   nav.side a.navlink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
-  /* The active destination is the one accent on this screen. */
-  nav.side a.navlink.active { background: var(--color-jade-wash); color: var(--color-jade-deep); font-weight:600; }
+  /* M49 — the active destination reads by WEIGHT and a recess, not by colour.
+     Green was being spent five times on one screen: this slab, a panel, every
+     link, the language pill and the button. Colour that appears everywhere
+     marks nothing; jade now means only "this sends" and "this is a state". */
+  nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
   header.top { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 8px 12px; padding: var(--space-16) var(--space-24);
     border-bottom: 1px solid var(--color-border); }
@@ -122,9 +131,20 @@ ${cssVariables()}
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
     border-radius:var(--radius-chip); font-size:var(--font-size-caption);
     color:var(--color-ink-secondary); white-space:nowrap; }
-  .langsw a.on { background:var(--color-jade); color:var(--color-surface); }
-  main { padding: var(--space-24); max-width: 1040px; }
-  h1.page { font-size: var(--font-size-title); margin: 0 0 18px; }
+  /* The switcher is chrome. A solid jade fill made it the loudest object
+     on a page whose subject was somebody's business. */
+  .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
+  /* M49 — THE COLUMN. One measure for the whole product, centred in the space
+     beside the nav rather than stuck against it. At 2000px the old page put a
+     1040px block hard left and left 700px of nothing to its right, which reads
+     as a window that failed to fill rather than a sheet placed on a desk.
+     Centred is a decision; the accidental middle was not. */
+  main { padding: var(--space-24); max-width: var(--measure-column); margin-inline: auto; width: 100%; }
+  /* Prose is allowed to be narrower INSIDE the column. It may not be a
+     different number: these two classes are the only prose measures there are. */
+  .measure-prose { max-width: var(--measure-prose); }
+  .measure-form { max-width: var(--measure-form); }
+  h1.page { font-size: var(--font-size-title); margin: 0 0 var(--space-16); }
   /* The hairline in --shadow-lift1 does what a 1px border used to; two would
      read as a double rule at the same edge. */
   .card { background:var(--color-surface); border:0; border-radius:var(--radius-card);
@@ -132,7 +152,7 @@ ${cssVariables()}
   /* Phase F: section headings speak to the owner in her own sentence case.
      The 13px tracked-uppercase eyebrow was the one SaaS tell the product had. */
   .card h2, .block h2, main h2 { font-size:var(--font-size-base); font-weight:600;
-    color:var(--color-ink); margin:0 0 14px; text-transform:none; letter-spacing:0; }
+    color:var(--color-ink); margin:0 0 var(--space-12); text-transform:none; letter-spacing:0; }
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
@@ -146,7 +166,7 @@ ${cssVariables()}
   /* One pill. It marks STATE — never decoration, never a label wearing a costume. */
   .pill { display:inline-block; padding:4px 10px; border-radius:var(--radius-chip);
     font-size:var(--font-size-micro); font-weight:600;
-    margin-inline-end:8px; margin-block-end:8px; white-space:nowrap; }
+    margin-inline-end:var(--space-8); margin-block-end:var(--space-8); white-space:nowrap; }
   .pill.ok { background:var(--color-ok-wash); color:var(--color-ok); }
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .pill.warn { background:var(--color-waiting-wash); color:var(--color-waiting); }
@@ -162,32 +182,40 @@ ${cssVariables()}
   .btn.danger { background:var(--color-warn-wash); color:var(--color-warn); }
   .btn.ghost { background:transparent; border:1px solid var(--color-border); color:var(--color-ink-secondary); }
   .inline { display:inline; }
+  /* M49 — a button in a column form stretched to the width of the input above
+     it, which made "Save" a 455px slab. A button is as wide as its word. */
+  form .btn, form button:not(.full) { align-self:start; }
 
   /* One notice. */
   .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
-    border-radius:var(--radius-card); padding:10px 14px;
-    margin-bottom:14px; font-size:var(--font-size-note); }
+    border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
+    margin-bottom:var(--space-16); font-size:var(--font-size-note); }
 
   /* One tab row. */
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs { display:flex; gap:var(--space-8); margin-bottom:var(--space-16); }
   .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px;
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
     font-size:var(--font-size-note); }
-  .tab.on { background:var(--color-jade-wash); border-color:var(--color-jade-line); color:var(--color-jade-deep); }
+  .tab.on { background:var(--color-paper-sunk); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
 
-  .list { display:flex; flex-direction:column; gap:10px; }
+  .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:6px; min-height:44px;
-    color:var(--color-jade); font-size:var(--font-size-note); }
+    color:var(--color-ink); font-size:var(--font-size-note); }
   pre { background:var(--color-paper-sunk); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-note)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
-  .deeper { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:10px 0;
-    font-size:var(--font-size-note); color:var(--color-jade); }
+  /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
+     line on the settings page, where they read as one run-on sentence with
+     chevrons in it rather than three separate doors. fit-content keeps the
+     target the width of its words, not the width of the column. */
+  .deeper { display:flex; width:fit-content; align-items:center; gap:6px; min-height:44px;
+    padding:var(--space-8) 0; font-size:var(--font-size-note); color:var(--color-ink); }
   .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
-  .go { font-size:var(--font-size-base); color:var(--color-jade); }
+  /* The chevron carries the affordance now that the label does not shout. */
+  .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an
@@ -197,9 +225,12 @@ ${cssVariables()}
   a:focus-visible, button:focus-visible, input:focus-visible,
   textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-jade); outline-offset:2px; }
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
-  /* One empty state: calm, centred, and never louder than the page. */
-  .empty { text-align:center; color:var(--color-ink-secondary);
-    font-size:var(--font-size-note); padding:28px 16px; }
+  /* M49 — one empty state, aligned like everything else. It was centred while
+     the page around it was left-aligned, which is the single clearest way to
+     make a considered page look like an accident. It mirrors in RTL on its own. */
+  .empty { text-align:start; color:var(--color-ink-secondary);
+    font-size:var(--font-size-note); padding:var(--space-24) 0;
+    max-width:var(--measure-prose); }
 
   /* ── Speech: the two voices. ─────────────────────────────────────────────
      Anything a PERSON says — the buyer's words, her drafts, her sent replies —
@@ -208,7 +239,7 @@ ${cssVariables()}
      One family per speaker, everywhere: these components are declared HERE and
      owned by the shell, because inbox and sandbox each carrying a copy is how
      the two drifted apart last time. */
-  .timeline { display:flex; flex-direction:column; gap:12px; }
+  .timeline { display:flex; flex-direction:column; gap:var(--space-12); }
   .msg { max-width:82%; }
   .msg.inbound { align-self:flex-start; } .msg.outbound { align-self:flex-end; }
   .bubble { font-family:var(--font-voice); padding:10px 14px; border-radius:14px;
@@ -222,20 +253,22 @@ ${cssVariables()}
   .msg.outbound .bubble { font-size:var(--font-size-small);
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
-  .ts { font-size:var(--font-size-micro); margin-top:4px; }
+  .ts { font-size:var(--font-size-micro); margin-top:var(--space-4); }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on
      the reading edge in RTL with no override. */
   .proposed { font-family:var(--font-voice); font-size:var(--font-size-small);
     border-inline-start:2px solid var(--color-jade); padding:2px 14px;
-    margin-bottom:12px; white-space:pre-wrap; word-break:break-word; }
+    margin-bottom:var(--space-12); white-space:pre-wrap; word-break:break-word; }
 
   /* ── A plain section: air and a hairline. The DEFAULT grouping. ──────────
      A card is reserved for a boundary that MEANS something — one buyer's
      business, one verdict. A page of prose and counts is sections, not boxes. */
-  .block { padding:22px 0; border-top:1px solid var(--color-border); }
-  .block:first-of-type { border-top:0; padding-top:6px; }
+  /* M49 — one gap between sections, from the scale. It was 22px here and
+     anything from 40 to 180 once each page had added its own margins. */
+  .block { padding:var(--space-24) 0; border-top:1px solid var(--color-border); }
+  .block:first-of-type { border-top:0; padding-top:var(--space-4); }
   /* RTL needs NO override here: a grid's first track already sits on the
      inline-start edge, so the sidebar mirrors to the right on its own. The
      three rules that used to live here re-flipped it — putting the sidebar
@@ -309,18 +342,18 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
 <title>Nomi · ${esc(t(locale, 'login.title'))}</title>
 <link rel="icon" href="${faviconDataUri()}">
 <style>${STYLE}
-  .login { max-width: 360px; margin: 12vh auto; padding: 0 20px; }
-  .login .top-sw { display:flex; justify-content:center; margin-bottom:14px; }
+  .login { max-width: var(--measure-form); margin: 12vh auto; padding: 0 var(--space-16); }
+  .login .top-sw { display:flex; justify-content:center; margin-bottom:var(--space-16); }
   .login .card { padding: var(--space-24); }
-  .login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:8px; padding:0; }
+  .login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }
   input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
     border:1px solid var(--color-border); background:var(--color-paper-sunk);
-    color:var(--color-ink); font-size:var(--font-size-small); margin:8px 0 14px; }
+    color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-16); }
   button { width:100%; padding:12px; border:0; border-radius:var(--radius-card);
     background:var(--color-jade); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { background:var(--color-jade-deep); }
-  .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:8px; }
+  .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .login .foot { text-align:center; font-size:var(--font-size-micro); }
 </style></head>

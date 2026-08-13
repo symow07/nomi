@@ -401,7 +401,7 @@ const fact = (label: string, value: string | null): string =>
  */
 const section = (title: string, question: string, body: string, href: string, more: string): string =>
   `<section class="fblock">
-    <div class="fhead"><h2>${esc(title)}</h2><p class="fq voice">${esc(question)}</p></div>
+    <div class="fhead"><h2>${esc(title)}</h2><p class="fq">${esc(question)}</p></div>
     ${body}
     ${deeper(href, more)}
   </section>`;
@@ -606,26 +606,30 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
 }
 
 const FACTORY_STYLE = `<style>
-  .lede { color:var(--color-ink-secondary); margin:-6px 0 22px; font-size:var(--font-size-small); max-width:60ch; }
+  .lede { color:var(--color-ink-secondary); margin:0 0 var(--space-24); font-size:var(--font-size-small); max-width:var(--measure-prose); }
 
   /* The next step is a door, not a checklist row. It vanishes when done. */
+/* M49 — the next step is an ACTION, not a state. Filled in jade it was the
+     loudest object on a page about somebody's factory, and it competed with the
+     two lines that actually report how her business stands. A raised sheet
+     says "start here" without spending the one colour that means something. */
   .fnext { display:flex; align-items:center; justify-content:space-between; gap:12px;
-           background:var(--color-jade-wash); border:1px solid var(--color-jade-line); border-radius:14px;
-           padding:16px 18px; margin-bottom:26px; }
-  .fnext:hover, .fnext:focus-visible { border-color:var(--color-jade-line); }
-  .fnext-t { color:var(--color-jade-deep); font-size:var(--font-size-small); }
+           background:var(--color-paper); border:1px solid var(--color-border); border-radius:14px;
+           padding:var(--space-16); margin-bottom:var(--space-24); }
+  .fnext:hover, .fnext:focus-visible { border-color:var(--color-ink-secondary); }
+  .fnext-t { color:var(--color-ink); font-size:var(--font-size-small); font-weight:600; }
 
   /* Sections are grouped decisions, not settings panels. */
-  .fblock { border-top:1px solid var(--color-paper-sunk); padding:24px 0 26px; }
+  .fblock { border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
   .fblock:first-of-type { border-top:0; padding-top:0; }
-  .fhead { margin-bottom:14px; }
+  .fhead { margin-bottom:var(--space-12); }
   .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
   .fq { margin:4px 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
 
   .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
-  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:8px 0 0; max-width:62ch; }
+  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:8px 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 12px; }
-  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:0; max-width:62ch; }
+  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:0; max-width:var(--measure-prose); }
   .facts { margin-top:14px; display:flex; flex-direction:column; gap:9px; }
   .frow { display:flex; gap:14px; font-size:var(--font-size-note); }
   .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
@@ -641,19 +645,20 @@ const FACTORY_STYLE = `<style>
 
   .fchips { display:flex; flex-wrap:wrap; gap:8px; }
   .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px;
-           background:var(--color-jade-wash); color:var(--color-ok); border:1px solid var(--color-jade-line); }
+           background:var(--color-paper-sunk); color:var(--color-ink); border:1px solid var(--color-border); }
   .frules { margin:14px 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-note); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
-  .fnever { margin:16px 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-jade-deep); max-width:62ch;
-            border-inline-start:2px solid var(--color-jade-line); padding-inline-start:14px; }
+  .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6;
+            color:var(--color-ink); max-width:var(--measure-prose);
+            border-inline-start:2px solid var(--color-jade); padding-inline-start:14px; }
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
   .fsteps li { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
-  .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:22px 0 4px; }
+  .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:12px; display:flex; flex-direction:column; gap:14px; }
   .fgap .fnames { margin-top:3px; }
-  .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:34ch; }
+  .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
   .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
     color:var(--color-ink); padding:10px 14px; font:inherit; }

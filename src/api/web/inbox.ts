@@ -762,7 +762,7 @@ const INBOX_STYLE = `<style>
   .rf { padding:10px 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
   .rf-w { font-size:var(--font-size-note); color:var(--color-highlight); }
-  .rf-y { font-size:var(--font-size-caption); margin-top:3px; line-height:1.55; max-width:62ch; }
+  .rf-y { font-size:var(--font-size-caption); margin-top:3px; line-height:1.55; max-width:var(--measure-prose); }
   .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:6px; }
   .rf-t { font-size:var(--font-size-micro); margin-top:4px; }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */

@@ -145,6 +145,26 @@ export const DESIGN_TOKENS = {
     highlightLine: '#43391C',
   },
   spacingPx: [4, 8, 12, 16, 24, 32, 48, 64] as const,
+  /**
+   * M49 — THE MEASURES. Three, and every width in the product is one of them.
+   *
+   * Before this there were four unrelated widths on one page: rules running to
+   * one edge, prose wrapping at another, inputs at a third, and `main` capped
+   * at a fourth. None of them agreed, and the effect was not minimalism — it
+   * was the page looking unfinished. Restraint without alignment reads as
+   * unfinished, not confident.
+   *
+   *   column — the content sheet. Everything sits inside it: rules, cards,
+   *            forms, prose, buttons. Nothing gets its own arbitrary cap.
+   *   prose  — a comfortable reading line WITHIN the column. Narrower is
+   *            allowed; a different number is not.
+   *   form   — an input is a target, not a canvas. A 40ch box is wide enough
+   *            for a price, a rate, a term, and a factory name.
+   *
+   * `ch` for the inner two on purpose: they follow the type scale, so raising
+   * the base size does not silently make a line of prose longer to read.
+   */
+  measure: { column: '1040px', prose: '62ch', form: '40ch' },
   radiusPx: { card: 12, chip: 999 },
   /**
    * One shadow is a box; three are a surface. Each lift is a contact shadow, a

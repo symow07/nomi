@@ -223,7 +223,7 @@ export function renderOperationsHome(
     // belong in TypeScript comments like this one, which never reach a browser.
     ? `<section class="calm-page">
         <div class="calm-rule" aria-hidden="true"></div>
-        <p class="calm-say voice">${esc(t(locale, 'today.calm.body', { name }))}</p>
+        <p class="calm-say">${esc(t(locale, 'today.calm.body', { name }))}</p>
       </section>`
     // Not a ✓: nothing has been achieved. Nobody can reach her yet, and the
     // way forward is stated instead of implied.
@@ -231,7 +231,7 @@ export function renderOperationsHome(
     // and the way forward is stated rather than implied.
     : `<section class="calm-page off">
         <div class="calm-rule" aria-hidden="true"></div>
-        <p class="calm-say voice">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>
+        <p class="calm-say">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>
         ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
       </section>`;
 
@@ -315,12 +315,14 @@ export function renderOperationsHome(
     .need-l { flex:1; font-size:var(--font-size-small); color:var(--color-ink); }
     .need-go { color:var(--color-ink-secondary); font-size:var(--font-size-base); }
     /* M35.5 — the calm state IS the page: a rule, one sentence, air. */
-    .calm-page { padding:var(--space-48) 0 var(--space-64); }
+    .calm-page { padding:var(--space-32) 0 var(--space-48); }
     .calm-rule { height:2px; width:3.5rem; background:var(--color-jade);
                  border-radius:2px; margin-bottom:var(--space-24); }
-    /* Her voice — the second voice, as everywhere she speaks. */
-    .calm-say { font-family:var(--font-voice); font-size:var(--font-size-title);
-                line-height:1.45; color:var(--color-ink); margin:0; max-width:22em; }
+    /* M49 — the PRODUCT reporting that nothing needs her. Not her voice: the
+       serif is for what a person says, and this sentence is about her. Size and
+       a rule carry the calm; the family does not have to. */
+    .calm-say { font-size:var(--font-size-title);
+                line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
     /* Not live is not an achievement: the rule is quiet, not jade. */
     .calm-page.off .calm-rule { background:var(--color-border); }
     /* Plain count lines — no tiles, no grid, no colour coding. */

@@ -217,7 +217,7 @@ const SETTINGS_STYLE = `<style>
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
   .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:10px; }
-  .pform { display:flex; flex-direction:column; gap:14px; }
+  .pform { display:flex; flex-direction:column; gap:var(--space-16); max-width:var(--measure-form); }
   .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
   .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
   .langs { display:flex; flex-wrap:wrap; gap:14px; padding-top:2px; }
