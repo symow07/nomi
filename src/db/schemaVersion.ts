@@ -77,8 +77,14 @@ import type { Db } from './client.js';
  *      surface WRITES it. Against a 33 database the read throws on the exact
  *      turn a buyer is asking, and the write — the only way a state can change
  *      at all — has nowhere to go.
+ *
+ * 35 = more than one human (0035, M47). Login READS `people` to resolve a
+ *      staff code, and the Buyers list reads it to name who holds what.
+ *      Against a 34 database no staff member can log in at all — and the
+ *      OWNER still can, deliberately: her code is the environment's and her
+ *      row is only her name.
  */
-export const REQUIRED_SCHEMA_VERSION = 34;
+export const REQUIRED_SCHEMA_VERSION = 35;
 
 export type SchemaState = {
   readonly required: number;

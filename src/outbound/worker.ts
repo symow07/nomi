@@ -1,4 +1,5 @@
 import { nextToSend, type OutboundRow } from './sequencer.js';
+import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
   onSendFailure, shouldReclaim,
 } from '../core/channel/delivery.js';
@@ -130,7 +131,11 @@ export async function driveConversationOutbound(
   // 2. Send-time suppression: takeover/pause cancels queued employee messages
   //    outright — a buyer must never hear from the employee after a human
   //    took over or the owner hit pause.
-  const humanOwns = ctx.assignedTo !== null;
+  // M47 — through the ONE predicate. This was a fourth inline copy of it,
+  // written before M34.11 unified the other three and missed by that sweep.
+  // It agreed for every value assigned_to can hold — a latent duplication, not
+  // a live defect — and now there is nothing left to drift from.
+  const humanOwns = !aiMaySpeak(ownershipOf(ctx.assignedTo));
   const suppressReason = humanOwns ? 'handed_off' as const : ctx.paused ? 'paused' as const : null;
   let active = live;
   if (suppressReason) {

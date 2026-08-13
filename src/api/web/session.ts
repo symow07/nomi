@@ -8,7 +8,19 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * testable; the HTTP glue lives in app.ts.
  */
 
-export type OwnerSession = { readonly businessId: string; readonly exp: number };
+export type OwnerSession = {
+  readonly businessId: string;
+  readonly exp: number;
+  /**
+   * M47 — WHO is signed in.
+   *
+   * Optional so a cookie signed before this milestone still verifies: an
+   * absent person is the OWNER, which is what a session could only have been
+   * when the access code was a single owner. Extending the payload rather than
+   * changing it means nobody is logged out by a deploy.
+   */
+  readonly person?: { readonly id: string; readonly name: string; readonly isOwner: boolean };
+};
 
 export const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;
 

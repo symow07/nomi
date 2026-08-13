@@ -93,7 +93,7 @@ const inboxList = renderInboxList({
   filter: 'all', waitingCount: 2, blockedCount: 1,
   conversations: [{
     conversationId: 'c1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
-    needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
+    needsAction: true, ownership: 'AI', heldBy: null, awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you quote 20000 pcs?', latestAt: NOW,
     product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPrice: usd(0.38),
   }],

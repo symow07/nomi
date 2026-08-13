@@ -213,6 +213,7 @@ export function renderSettings(
     ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
+    ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${SETTINGS_STYLE}`;
 }
 

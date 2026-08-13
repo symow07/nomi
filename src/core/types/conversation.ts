@@ -1,3 +1,4 @@
+import { ownershipOf, aiMaySpeak } from '../conversation/ownership.js';
 import type {
   AgentId,
   BusinessId,
@@ -99,5 +100,9 @@ export type ConversationState = {
 export type HandedOff = ConversationState & { readonly assignedTo: AgentId };
 
 export function isHandedOff(s: ConversationState): s is HandedOff {
-  return s.assignedTo !== null;
+  // M47 — the TYPE-LEVEL statement of the one predicate, and it delegates to
+  // it rather than restating it. The three behavioural copies were re-pointed
+  // in this milestone; this is the fourth and last place the column's meaning
+  // was written out by hand.
+  return !aiMaySpeak(ownershipOf(s.assignedTo));
 }

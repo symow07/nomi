@@ -89,6 +89,15 @@ export interface Database {
     customizable: boolean;
     is_active: boolean;
   };
+  people: {
+    id: Generated<string>;
+    business_id: string;
+    name: string;
+    code_hash: string | null;
+    is_owner: Generated<boolean>;
+    created_at: Generated<Timestamp>;
+    archived_at: Timestamp | null;
+  };
   order_updates: {
     id: Generated<string>;
     business_id: string;

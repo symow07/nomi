@@ -1,4 +1,5 @@
 import { type Result, ok, err } from '../types/result.js';
+import { ownershipOf, aiMaySpeak } from '../conversation/ownership.js';
 import { scaleMoney, subMoney } from '../types/money.js';
 import type { BlockingReason, ConfirmableOrder, Product, Quote } from '../types/commerce.js';
 import type { ConversationState } from '../types/conversation.js';
@@ -37,7 +38,9 @@ export function toConfirmableOrder(input: {
 
   // Rule 0 (new): a human owns this conversation. The AI does not close deals
   // behind a human's back. This did not exist in the n8n system.
-  if (state.assignedTo !== null) reasons.push('conversation_handed_off');
+  // M47 — through the ONE predicate, for the same reason as the send path:
+  // "a human owns this" has one definition, in core/conversation/ownership.
+  if (!aiMaySpeak(ownershipOf(state.assignedTo))) reasons.push('conversation_handed_off');
 
   // Rule 1: product identified.
   if (!state.product || !product) reasons.push('missing_product');

@@ -21,6 +21,10 @@ import {
 } from './products.js';
 import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
+import {
+  loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
+} from './people.js';
+import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
@@ -161,6 +165,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const sessionOf = (req: FastifyRequest): OwnerSession | null =>
     codec.verify(parseCookies(req.headers.cookie)[COOKIE], Date.now());
 
+  /**
+   * M47 — WHO is this request, for the four things only the owner may do.
+   *
+   * A session signed before this milestone carries no person, and that is
+   * read as the OWNER — which is what it could only have been when the access
+   * code was a single owner. Nobody is logged out by a deploy, and nobody is
+   * silently demoted either.
+   */
+  const personOf = (s: OwnerSession): Person =>
+    s.person ?? { id: 'owner', name: 'Owner', isOwner: true };
+
+  /**
+   * The owner-only gate. One predicate (`mayDo`), one distinction, called at
+   * every route in `OWNER_ONLY` — and a test walks those routes to prove none
+   * of them forgot. It refuses with a redirect and a sentence rather than a
+   * 403, because a sales assistant who taps the wrong thing is not an attacker.
+   */
+  const ownerOnly = async (
+    req: FastifyRequest, reply: FastifyReply, action: OwnerOnlyAction, back: string,
+  ): Promise<OwnerSession | null> => {
+    const s = sessionOf(req);
+    if (!s) { await reply.redirect('/login'); return null; }
+    if (!mayDo(personOf(s), action)) {
+      await reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'people.notAllowed'))}`);
+      return null;
+    }
+    return s;
+  };
+
   const setCookie = (reply: FastifyReply, token: string, maxAgeSec: number) => {
     const flags = ['HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAgeSec}`];
     if (deps.secureCookie) flags.push('Secure');
@@ -219,11 +252,45 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/login', async (req, reply) => {
     const code = String((req.body as { code?: string } | undefined)?.code ?? '');
-    if (!codeMatches(code, deps.accessCode)) {
-      return reply.code(401).type('text/html; charset=utf-8')
-        .send(loginPage({ locale: localeOf(req), path: '/login', error: true }));
+
+    /**
+     * M47 — TWO WAYS IN, AND THE OWNER'S IS UNCHANGED.
+     *
+     * Her code is still the environment's, compared the way it always was, so
+     * a staff table can never become a way to impersonate her and losing that
+     * table cannot lock her out of her own business. Staff codes are rows.
+     *
+     * The owner is tried FIRST: if the same string ever matched both, hers
+     * wins, and the more privileged answer is the one that does not depend on
+     * a query.
+     */
+    let person: OwnerSession['person'];
+    if (codeMatches(code, deps.accessCode)) {
+      /**
+       * HER LOGIN NEVER DEPENDS ON A QUERY. The row is only her NAME; if the
+       * database is unreachable, or `people` is empty, or the read throws, she
+       * still gets in with the sentinel that has always meant her. A person
+       * table that can lock the owner out of her own business is a worse
+       * failure than an unnamed takeover.
+       */
+      const owner = await ownerPerson(deps.db, deps.businessId).catch(() => null);
+      person = owner ?? { id: 'owner', name: 'Owner', isOwner: true };
+    } else {
+      /**
+       * A STAFF CODE FAILS CLOSED, for the opposite reason: a code that cannot
+       * be verified must not be accepted. An unreachable database means nobody
+       * new gets in, which is the safe direction.
+       */
+      const staff = await personForCode(deps.db, deps.businessId, deps.sessionSecret, code)
+        .catch(() => null);
+      if (!staff) {
+        return reply.code(401).type('text/html; charset=utf-8')
+          .send(loginPage({ locale: localeOf(req), path: '/login', error: true }));
+      }
+      person = staff;
     }
-    const token = codec.sign({ businessId: deps.businessId, exp: Date.now() + SESSION_TTL_MS });
+
+    const token = codec.sign({ businessId: deps.businessId, exp: Date.now() + SESSION_TTL_MS, person });
     setCookie(reply, token, Math.floor(SESSION_TTL_MS / 1000));
     return reply.redirect('/app');
   });
@@ -288,7 +355,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
-      bodyHtml: renderInboxList(data, locale, new Date()),
+      // M47 — so the list can name WHICH human holds each conversation.
+      bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
     }));
   });
 
@@ -350,7 +418,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cid = (req.params as { conversationId: string }).conversationId;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/inbox');
-    const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: 'owner' });
+    // M47 — whoever is signed in takes it, by name.
+    const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
 
@@ -494,8 +563,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     `/app/factory?flash=${encodeURIComponent(t(localeOf(req), key, params))}`;
 
   app.post('/app/factory/activate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // OWNER ONLY: the one step that cannot be undone — a buyer who has been
+    // written to has been written to.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const r = await activate(deps.db, bid.value, 'owner', { providerConfigured: messagingEnabled });
@@ -536,8 +607,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/factory/deactivate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // OWNER ONLY: the one step that cannot be undone — a buyer who has been
+    // written to has been written to.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     await deactivate(deps.db, bid.value, 'owner', 'owner stopped messaging');
@@ -645,8 +718,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     );
   }));
   app.post('/app/factory/prices', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // OWNER ONLY: the floor, the discount authority, the ask-above threshold.
+    // Staff negotiate INSIDE her rules; they do not move them.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const productId = (b['productId'] ?? '').trim() || null;
@@ -707,8 +782,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
+      // OWNER ONLY: deciding what Nomi may do unsupervised is the trust ladder
+      // itself, and it is her judgement about her own business risk.
+      const s = await ownerOnly(req, reply, 'capability_grant', '/app/employee');
+      if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
       const r = await run(s.businessId, cap);
@@ -969,6 +1046,42 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     return reply.redirect(`/app/orders/${encodeURIComponent(id)}?flash=${encodeURIComponent(
       t(locale, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey))}`);
+  });
+
+  // M47 — who works here. OWNER ONLY: handing someone a way in is hers.
+  app.get('/app/settings/people', authed('settings', async (sess, req, locale) =>
+    renderPeople({
+      people: await loadPeople(deps.db, sess.businessId),
+      // A code is shown ONCE, on the redirect that follows creating someone —
+      // it is carried in the query string and never stored anywhere.
+      justIssued: typeof (req.query as { code?: string }).code === 'string'
+        ? { name: String((req.query as { who?: string }).who ?? ''), code: String((req.query as { code: string }).code) }
+        : null,
+    }, locale, typeof (req.query as { flash?: string }).flash === 'string'
+      ? (req.query as { flash: string }).flash : null)));
+
+  app.post('/app/settings/people', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const name = String((req.body as { name?: string } | undefined)?.name ?? '');
+    const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name);
+    if (r.code !== 'added') {
+      return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
+        t(locale, `people.flash.${r.code}` as MessageKey))}`);
+    }
+    return reply.redirect('/app/settings/people?'
+      + `code=${encodeURIComponent(r.accessCode)}&who=${encodeURIComponent(r.name)}`
+      + `&flash=${encodeURIComponent(t(locale, 'people.flash.added', { name: r.name }))}`);
+  });
+
+  app.post('/app/settings/people/:id/remove', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const r = await removePerson(deps.db, s.businessId, (req.params as { id: string }).id);
+    return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
+      t(locale, r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed'))}`);
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.

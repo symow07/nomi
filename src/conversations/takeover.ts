@@ -42,7 +42,16 @@ export async function takeOver(deps: TakeoverDeps, input: { businessId: Business
 
     await lockConversation(tx, input.conversationId);
     const repos = tenantRepos(tx, input.businessId);
-    await repos.conversations.assign(cid, OWNER_AGENT);
+    /**
+     * M47 — `assigned_to` names WHICH human, not just "a human".
+     *
+     * `actor` is a person id now; it was the 'owner' sentinel before, and both
+     * still read as OWNER_CONTROLLED through the same unchanged `ownershipOf`.
+     * That is the extension: the column's own documentation always allowed "a
+     * future human id", and this is it. Rows written before today keep meaning
+     * exactly what they meant.
+     */
+    await repos.conversations.assign(cid, input.actor || OWNER_AGENT);
     await repos.events.append(cid, 'takeover', { actor: input.actor });
     return { outcome: 'taken_over', ownership: 'OWNER_CONTROLLED' };
   });

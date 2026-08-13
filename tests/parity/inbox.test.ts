@@ -14,7 +14,7 @@ const listWithWork: InboxList = {
   filter: 'pending', waitingCount: 1, blockedCount: 0,
   conversations: [{
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE',
-    status: 'awaiting', needsAction: true, ownership: 'AI', awaitingReview: true, handoffReason: null,
+    status: 'awaiting', needsAction: true, ownership: 'AI', heldBy: null, awaitingReview: true, handoffReason: null,
     latestMessage: 'Can you do 5000 pcs?', latestAt: NOW,
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000, unitPrice: usd(0.92),
   }],
@@ -224,14 +224,15 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     conversationId: id, buyer: `B-${id}`, country: 'AE' as string | null,
     status: 'awaiting' as const, needsAction: false, ownership: 'AI' as ConversationOwnership,
     awaitingReview: false, handoffReason: null as string | null, latestMessage: 'hi', latestAt: NOW,
-    product: { name: null, nameZh: null }, quantity: null, unitPrice: null, ...over,
+    product: { name: null, nameZh: null }, quantity: null, unitPrice: null,
+    heldBy: null as string | null, ...over,
   });
   const list = (cs: InboxList['conversations']): InboxList =>
     ({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: cs });
 
   const mixed = list([
     conv('c-ai'),
-    conv('c-wait', { ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' }),
+    conv('c-wait', { ownership: 'WAITING_HUMAN', heldBy: null, handoffReason: 'human_requested' }),
     conv('c-owner', { ownership: 'OWNER_CONTROLLED' }),
     conv('c-review', { awaitingReview: true }),
   ]);
@@ -399,7 +400,7 @@ describe('Release hardening · the handoff badge states the stored reason', () =
     filter: 'all', waitingCount: 1, blockedCount: 0,
     conversations: [{
       conversationId: 'c1', buyer: 'B', country: 'AE', status: 'awaiting', needsAction: false,
-      ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason,
+      ownership: 'WAITING_HUMAN', heldBy: null, awaitingReview: false, handoffReason,
       latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
       quantity: null, unitPrice: null,
     }],
@@ -425,7 +426,7 @@ describe('Release hardening · the handoff badge states the stored reason', () =
   it('localizes the reason in zh and ar', () => {
     const zh = renderInboxList({ filter: 'all', waitingCount: 1, blockedCount: 0, conversations: [{
       conversationId: 'c1', buyer: 'B', country: null, status: 'awaiting', needsAction: false,
-      ownership: 'WAITING_HUMAN', awaitingReview: false, handoffReason: 'complaint',
+      ownership: 'WAITING_HUMAN', heldBy: null, awaitingReview: false, handoffReason: 'complaint',
       latestMessage: null, latestAt: NOW, product: { name: null, nameZh: null },
       quantity: null, unitPrice: null }] }, 'zh', NOW);
     expect(zh).toContain('有投诉');

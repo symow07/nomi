@@ -5,6 +5,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { loadCurrentRate } from './settings.js';
 import { blockingClosure } from '../../core/commerce/closures.js';
+import { type Person, heldByName } from '../../core/conversation/people.js';
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -58,6 +59,12 @@ export type ConversationSummary = {
    *  was already selected; this stops the list collapsing "a human is waited on"
    *  and "you are handling it" into one grey status. */
   readonly ownership: ConversationOwnership;
+  /**
+   * M47 — the raw `assigned_to`, so the renderer can name WHICH human holds
+   * it. The ownership model is unchanged and still decides whether she may
+   * speak; this is only the label beside it.
+   */
+  readonly heldBy: string | null;
   /** Phase D — her reply is written and waiting for you to review it. */
   readonly awaitingReview: boolean;
   /** The stored problem-signal that caused the handoff. Never inferred. */
@@ -79,7 +86,9 @@ export type InboxList = {
 
 function statusOf(row: { pending: number; assigned_to: string | null; closed_at: Date | null }): { status: InboxStatus; needs: boolean } {
   if (row.pending > 0) return { status: 'awaiting', needs: true };
-  if (row.assigned_to !== null) return { status: 'paused', needs: false };
+  // M47 — the ownership module is "the ONLY place its string sentinels are
+  // interpreted", and this line was interpreting them.
+  if (ownershipOf(row.assigned_to) !== 'AI') return { status: 'paused', needs: false };
   if (row.closed_at !== null) return { status: 'done', needs: false };
   return { status: 'handled', needs: false };
 }
@@ -133,6 +142,7 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
         conversationId: r.id, buyer: r.buyer, country: r.country,
         status: st.status, needsAction: st.needs,
         ownership: ownershipOf(r.assigned_to),
+        heldBy: r.assigned_to,
         awaitingReview: r.pending > 0,
         handoffReason: r.handoff_reason,
         latestMessage: r.last_text, latestAt: r.last_at,
@@ -459,7 +469,15 @@ const who = (locale: Locale, buyer: string | null, country: string | null): stri
   return `${flag(country)} <b>${esc(name)}</b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
 };
 
-export function renderInboxList(data: InboxList, locale: Locale, now: Date): string {
+export function renderInboxList(
+  data: InboxList, locale: Locale, now: Date,
+  /**
+   * M47 — the people who can hold a conversation, for naming WHO holds each
+   * one. Absent (the default) reads exactly as it did before this milestone:
+   * "yours". A single-owner installation sees no change at all.
+   */
+  people: readonly Person[] = [],
+): string {
   const name = EMPLOYEE_NAME[locale];
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
@@ -505,7 +523,15 @@ export function renderInboxList(data: InboxList, locale: Locale, now: Date): str
       return `<span class="tag now">${esc(label)}</span>`;
     }
     if (c.awaitingReview) return `<span class="tag now">${esc(t(locale, 'buyers.badge.review'))}</span>`;
-    if (c.ownership === 'OWNER_CONTROLLED') return `<span class="tag you">${esc(t(locale, 'buyers.badge.yours'))}</span>`;
+    if (c.ownership === 'OWNER_CONTROLLED') {
+      // WHICH human. With nobody added, `heldByName` resolves the old sentinel
+      // and the label is the one this page always showed.
+      const who = people.length === 0 ? null : heldByName(c.heldBy, people, {
+        ai: EMPLOYEE_NAME[locale], waiting: t(locale, 'people.held.waiting'),
+        owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+      });
+      return `<span class="tag you">${esc(who ? t(locale, 'people.holding', { who }) : t(locale, 'buyers.badge.yours'))}</span>`;
+    }
     return '';
   };
 
