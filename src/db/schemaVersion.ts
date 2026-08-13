@@ -71,8 +71,14 @@ import type { Db } from './client.js';
  *      write is a missing table on the exact turn a buyer is waiting, and the
  *      read failing would look like "she has stated no policy" — a refusal
  *      caused by a stale schema rather than by her.
+ *
+ * 34 = after the order (0034, M46). The turn READS `order_updates` to answer
+ *      "where is my order?" from a row rather than from a model, and the owner
+ *      surface WRITES it. Against a 33 database the read throws on the exact
+ *      turn a buyer is asking, and the write — the only way a state can change
+ *      at all — has nowhere to go.
  */
-export const REQUIRED_SCHEMA_VERSION = 33;
+export const REQUIRED_SCHEMA_VERSION = 34;
 
 export type SchemaState = {
   readonly required: number;

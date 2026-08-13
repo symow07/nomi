@@ -259,7 +259,7 @@ export type ConversationDetail = {
    * issues one. She is the only person who can create or revoke it.
    */
   readonly proof: { readonly quoteId: string | null; readonly token: string | null };
-  readonly order: { status: string; reference: string; total: Money | null } | null;
+  readonly order: { status: string; reference: string; total: Money | null; id: string } | null;
   readonly messages: readonly TimelineMessage[];
   readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
   readonly ownership: ConversationOwnership;
@@ -366,8 +366,8 @@ export async function loadConversationDetail(
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
-    const o = (await sql<{ status: string; order_reference: string; total_value_usd: string | null }>`
-      select status, order_reference, total_value_usd from orders
+    const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null }>`
+      select id::text as id, status, order_reference, total_value_usd from orders
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
@@ -427,7 +427,7 @@ export async function loadConversationDetail(
       product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
       quote: q ? { unitPrice: usd(Number(q.unit_price_usd)), total: usd(Number(q.total_usd)), quantity: q.quantity } : null,
       proof: await loadProofLinkState(tx, conversationId),
-      order: o ? { status: o.status, reference: o.order_reference, total: o.total_value_usd !== null ? usd(Number(o.total_value_usd)) : null } : null,
+      order: o ? { id: o.id, status: o.status, reference: o.order_reference, total: o.total_value_usd !== null ? usd(Number(o.total_value_usd)) : null } : null,
       messages,
       pendingDraft: draft
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability }
@@ -689,7 +689,8 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
-      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}` : ''}</div>` : ''}
+      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}` : ''}
+        <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}<span class="go" aria-hidden="true">›</span></a></div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';
 

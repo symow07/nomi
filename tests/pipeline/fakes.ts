@@ -1,4 +1,5 @@
 import type { Money } from '../../src/core/types/money.js';
+import type { OrderUpdate } from '../../src/core/commerce/orderState.js';
 import type { SamplePolicy } from '../../src/core/commerce/samples.js';
 import type { FactoryClosure } from '../../src/core/commerce/closures.js';
 import type {
@@ -100,6 +101,8 @@ export class FakeTenant implements Tenant {
       this.ordersByConversation.set(conversationId, created);
       return { ...created, alreadyExisted: false } as never;
     },
+    /** M46 — no order in the harness unless a test sets one. */
+    latestForConversation: async () => this.latestOrder,
   };
 
   signals: SignalRepo = {
@@ -120,6 +123,8 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  /** M46 — the order behind this conversation, if a test set one. */
+  latestOrder: { orderId: string; reference: string; update: OrderUpdate } | null = null;
   /** M45 — sample requests recorded, so a test can assert one reached her. */
   samplesRecorded: Array<{ conversationId: string; askedText: string }> = [];
   samples: SampleRepo = {

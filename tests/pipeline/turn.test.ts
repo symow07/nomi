@@ -301,3 +301,53 @@ describe('M45 · a sample request reaches the owner through the production calle
     expect(p.tenant.samplesRecorded).toHaveLength(1);
   });
 });
+
+describe('M46 · "where is my order?" is answered from the row', () => {
+  const order = (over: Partial<import('../../src/core/commerce/orderState.js').OrderUpdate> = {}) => ({
+    orderId: 'o1', reference: 'PI-T-0001',
+    update: {
+      state: 'in_production' as const, at: new Date('2026-08-03T02:00:00Z'),
+      note: null, trackingReference: null, by: 'owner', ...over,
+    },
+  });
+
+  it('the reply is deterministic — no model is asked', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    p.tenant.latestOrder = order();
+    const r = await computeTurn(p, req('where is my order?'));
+    expect(r.replyDeterministic).toBe(true);
+    expect(p.replyWriter.calls).toBe(0);
+    expect(r.reply).toContain('PI-T-0001');
+    expect(r.reply).toContain('in production');
+  });
+
+  it('AND IT NEVER ESTIMATES A DELIVERY DATE', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    p.tenant.latestOrder = order({ state: 'shipped', trackingReference: 'SF1234567890' });
+    const r = await computeTurn(p, req('has it shipped yet?'));
+    expect(r.reply).toContain('SF1234567890');
+    expect((r.reply ?? '').toLowerCase()).not.toMatch(/should|around|estimate|eta|expect/);
+  });
+
+  it('her private note never reaches the buyer', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    p.tenant.latestOrder = order({ note: 'chase the dye lot' });
+    const r = await computeTurn(p, req('any update on my order'));
+    expect(r.reply).not.toContain('dye lot');
+  });
+
+  it('with NO order, nothing is invented — it falls through to the ordinary path', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState());
+    p.analyzer.next = analysis();
+    p.tenant.latestOrder = null;
+    const r = await computeTurn(p, req('where is my order?'));
+    expect(r.reply ?? '').not.toContain('PI-T-0001');
+  });
+});

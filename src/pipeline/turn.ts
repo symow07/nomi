@@ -1,5 +1,7 @@
 import type { Tenant } from '../db/ports.js';
 import { asksForSample, sampleAnswerContext } from '../core/commerce/samples.js';
+import { asksOrderStatus, orderStatusReply } from '../core/commerce/orderState.js';
+import { formatDate } from '../core/owner/i18n/format.js';
 import type { Money } from '../core/types/money.js';
 import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
@@ -368,6 +370,42 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         ...knowledgeNumbers,
         ...(sampleCtx?.ok ? sampleCtx.allow : []),
       ];
+
+      /**
+       * M46 — "where is my order?"
+       *
+       * Answered from the ROW, deterministically, before any model is asked.
+       * The sentence names the state and the day SHE set it, and stops: an
+       * estimate assembled from a state and a lead time is a delivery promise
+       * made by arithmetic, and the buyer holds HER to it.
+       *
+       * This is the only path that can answer the question, which is what
+       * makes "she never estimates a date" a property of the code rather than
+       * an instruction in a prompt.
+       */
+      if (asksOrderStatus(req.text)) {
+        const order = await tenant.orders.latestForConversation(req.conversationId);
+        if (order) {
+          const said = orderStatusReply({
+            reference: order.reference,
+            update: order.update,
+            // The business timezone, so "as of the 3rd" means her 3rd.
+            formatDate: (d) => formatDate('en', d),
+          });
+          const clean = guardForbidden({ reply: said.reply, ownerTerms: forbiddenTerms });
+          const guarded = clean.ok
+            ? guardNumerals({ reply: clean.value, quote, state: newState, clientText: req.text, allow: said.allow })
+            : null;
+          if (!clean.ok && clean.error.kind === 'forbidden_word') forbiddenHits = clean.error.terms;
+          if (guarded?.ok) {
+            reply = guarded.value;
+            replyDeterministic = true;
+            break;
+          }
+        }
+        // No order, or a guard refused it: fall through. Nothing here invents
+        // an answer to a question about an order that does not exist.
+      }
 
       // Deterministic answer path: a strong FAQ / buyer_answer match ships the
       // owner's authored answer (claims-guarded — an unauthorised cert in the

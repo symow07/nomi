@@ -20,6 +20,7 @@ import {
   importFromPhoto, renderPhotoRefusal,
 } from './products.js';
 import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
+import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
@@ -943,6 +944,31 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await removeClosure(deps.db, s.businessId, (req.params as { id: string }).id);
     return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(
       t(locale, `closures.flash.${r.code}` as MessageKey))}`);
+  });
+
+  // M46 — one order: what she recorded, the proforma, and the form that
+  // records the next thing. Reached from the conversation it came out of.
+  app.get('/app/orders/:id', authed('inbox', async (sess, req, locale) => {
+    const id = (req.params as { id: string }).id;
+    const v = await loadOrder(deps.db, sess.businessId, id);
+    if (!v) return `<h1 class="page">${esc(t(locale, 'order.notFound'))}</h1>`
+      + `<div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`;
+    return renderOrder(v, locale, typeof (req.query as { flash?: string }).flash === 'string'
+      ? (req.query as { flash: string }).flash : null);
+  }));
+
+  app.post('/app/orders/:id/update', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await recordOrderUpdate(deps.db, s.businessId, id, {
+      state: b['state'] ?? '', note: b['note'] ?? null, trackingReference: b['tracking'] ?? null,
+      actor: 'owner', now: new Date(),
+    });
+    return reply.redirect(`/app/orders/${encodeURIComponent(id)}?flash=${encodeURIComponent(
+      t(locale, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey))}`);
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.

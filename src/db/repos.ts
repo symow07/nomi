@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { closureDate } from '../core/commerce/closures.js';
+import { isOrderState } from '../core/commerce/orderState.js';
 import { moneyFromRow, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
@@ -350,6 +351,37 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         }
         throw e;
       }
+    },
+    // M46 — the latest thing SHE recorded. The log is the history; this reads
+    // its newest row rather than `orders.status`, so the answer a buyer gets
+    // and the record she keeps cannot disagree.
+    async latestForConversation(conversationId) {
+      const r = await sql<{
+        order_id: string; reference: string; state: string; at: Date;
+        note: string | null; tracking_reference: string | null; by_actor: string;
+      }>`
+        select o.id as order_id, o.order_reference as reference,
+               u.state, u.at, u.note, u.by_actor,
+               -- THE ONE ON FILE, not the one on this update row. She typed the
+               -- courier's number once; a later note that did not repeat it
+               -- must not tell a waiting buyer there is no tracking.
+               o.tracking_reference
+          from orders o
+          join order_updates u on u.order_id = o.id
+         where o.business_id = ${businessId} and o.conversation_id = ${conversationId}
+         order by u.at desc, u.id desc
+         limit 1
+      `.execute(tx);
+      const row = r.rows[0];
+      if (!row || !isOrderState(row.state)) return null;
+      return {
+        orderId: row.order_id,
+        reference: row.reference,
+        update: {
+          state: row.state, at: row.at, note: row.note,
+          trackingReference: row.tracking_reference, by: row.by_actor,
+        },
+      };
     },
   };
 

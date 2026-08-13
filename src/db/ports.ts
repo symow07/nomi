@@ -2,6 +2,7 @@ import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/type
 import type { Money } from '../core/types/money.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
+import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { PriorQuote } from '../core/types/commerce.js';
 import type {
@@ -223,6 +224,17 @@ export interface OrderRepo {
     orderReference: string;
     alreadyExisted: boolean;
   }>;
+
+  /**
+   * M46 — the order behind this conversation, and the last thing SHE recorded
+   * about it. Null when there is no order yet; that is the ordinary case for
+   * most of a conversation's life.
+   */
+  latestForConversation(conversationId: ConversationId): Promise<{
+    readonly orderId: string;
+    readonly reference: string;
+    readonly update: OrderUpdate;
+  } | null>;
 }
 
 export interface SignalRepo {

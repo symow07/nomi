@@ -1,4 +1,5 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
 import { type Money, usd } from '../core/types/money.js';
@@ -131,9 +132,13 @@ class HarnessTenant implements Tenant {
   };
   orders: OrderRepo = {
     create: async () => ({ orderId: `o-${++this.orderSeq}`, orderReference: `YW-${this.orderSeq}` }) as never,
+    /** M46 — no order in the harness unless a test sets one. */
+    latestForConversation: async () => this.latestOrder,
   };
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
+  /** M46 — the order behind this conversation, if a test set one. */
+  latestOrder: { orderId: string; reference: string; update: OrderUpdate } | null = null;
   /** M45 — sample requests recorded, so a test can assert one reached her. */
   samplesRecorded: Array<{ conversationId: string; askedText: string }> = [];
   samples: import('../db/ports.js').SampleRepo = {

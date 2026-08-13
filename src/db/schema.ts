@@ -89,6 +89,16 @@ export interface Database {
     customizable: boolean;
     is_active: boolean;
   };
+  order_updates: {
+    id: Generated<string>;
+    business_id: string;
+    order_id: string;
+    state: string;
+    note: string | null;
+    tracking_reference: string | null;
+    at: Generated<Timestamp>;
+    by_actor: Generated<string>;
+  };
   sample_policy: {
     id: Generated<string>;
     business_id: string;
@@ -161,6 +171,7 @@ export interface Database {
     agreed_unit_price_usd: Numeric | null;
     total_value_usd: Numeric | null;
     currency: Generated<string>;   // M43a
+    tracking_reference: string | null;   // M46
     client_email: string | null;
     payment_terms: string | null;
     status: string;
