@@ -566,13 +566,18 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   // ── samples (M45) ────────────────────────────────────────────────────────
   const samples: import('./ports.js').SampleRepo = {
     async record(conversationId, askedText) {
-      // ON CONFLICT DO NOTHING against the one-per-conversation index: the
-      // FIRST time he asked is the fact worth keeping, and a re-ask must not
+      // ON CONFLICT DO NOTHING against the one-OPEN-per-conversation index: the
+      // first time he asked is the fact worth keeping, and a re-ask must not
       // reset the clock on a request she has been sitting on for two days.
+      //
+      // The predicate is repeated in the conflict target because Postgres
+      // matches a partial index by its predicate as well as its columns — and
+      // that is the behaviour we want: once she has handled the last request,
+      // there is no conflict and a buyer asking again raises a new one.
       await sql`
         insert into sample_requests (business_id, conversation_id, asked_text)
         values (${businessId}, ${conversationId}, ${askedText})
-        on conflict (conversation_id) do nothing
+        on conflict (conversation_id) where handled_at is null do nothing
       `.execute(tx);
     },
   };

@@ -218,4 +218,42 @@ d('M45 · samples (requires DATABASE_URL)', () => {
       select count(*)::int as n from sample_policy where business_id = ${BIZ}
     `.execute(t).then((r) => r.rows[0]!.n))).toBe(before);
   });
+
+  it('SHE HANDLES IT, AND HE MAY ASK AGAIN — a repeat customer is not one sample', async () => {
+    /**
+     * The case the FIRST version of this index forbade. It was
+     * `unique (conversation_id)`, which dedups on the wrong axis: it stopped a
+     * buyer nagging while a request sat open — correct — and also stopped him
+     * asking for a second sample after she had shipped the first, which is
+     * exactly what a repeat customer does. A constraint is a poor place to
+     * decide, silently, that a factory only ever sends one sample per buyer.
+     *
+     * Runs LAST because it deliberately leaves an open request behind; every
+     * test above it reads the one the suite opened at the start.
+     */
+    const { bid, tenantRepos } = await repos();
+    const before = await requests();
+    expect(before.every((r) => r.handled_at !== null), 'the suite left one open').toBe(true);
+
+    // Months later he asks for another one. That is a new obligation, and the
+    // old index would have swallowed it.
+    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'can you send one more sample?'));
+    const raised = await requests();
+    expect(raised).toHaveLength(before.length + 1);
+    expect(raised.filter((r) => r.handled_at === null)).toHaveLength(1);
+    expect(raised.at(-1)!.asked_text).toContain('one more sample');
+
+    // And the nagging rule applies to the new one exactly as it did the first.
+    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'any news?'));
+    expect(await requests()).toHaveLength(raised.length);
+
+    // Handle it, and a third is allowed again — there is no ceiling, only the
+    // rule that one is open at a time.
+    const open = await tx((t) => sql<{ id: string }>`
+      select id from sample_requests where business_id = ${BIZ} and handled_at is null limit 1
+    `.execute(t).then((r) => r.rows[0]!.id));
+    expect((await post(`/app/settings/samples/${open}/handled`)).statusCode).toBe(302);
+    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'and one in blue?'));
+    expect(await requests()).toHaveLength(raised.length + 1);
+  });
 });

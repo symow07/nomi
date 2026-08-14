@@ -120,14 +120,18 @@ describe('M46 · nothing is inferred', () => {
     expect(isOrderState('almost_ready')).toBe(false);
   });
 
-  it('ONE FUNCTION writes both the log and the current state', async () => {
+  it('ONE FUNCTION writes both the log and the current state, and it names the authority', async () => {
     // Two representations that can drift is worse than one materialised in the
-    // same transaction by the same writer.
-    const src = await readFile(new URL('../../src/api/web/orders.ts', import.meta.url), 'utf8');
-    expect(src).toContain('THE ONLY WRITER');
+    // same transaction by the same writer — and WHICH of the two is the record
+    // is stated where the writing happens, not only in a commit message.
+    const src = await readFile(new URL('../../src/db/orders.ts', import.meta.url), 'utf8');
+    expect(src).toContain('THE ONE WRITER OF ORDER STATE');
+    expect(src).toContain('`order_updates` IS THE RECORD');
+    expect(src).toContain('`orders.status` IS A CACHE OF ITS HEAD');
+    // The log row and the column move together, in that order, in one function.
     expect(src).toMatch(/insert into order_updates[\s\S]{0,600}update orders set status/);
     // and a tracking reference she did not repeat is not erased
-    expect(src).toContain('coalesce(${tracking}, tracking_reference)');
+    expect(src).toContain('coalesce(${input.trackingReference}, tracking_reference)');
   });
 
   it('THE PRODUCTION CALLER answers from the row, before any model is asked', async () => {

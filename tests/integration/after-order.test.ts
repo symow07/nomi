@@ -134,6 +134,50 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
     expect(wrong, `status disagrees with the log: ${JSON.stringify(wrong)}`).toEqual([]);
   });
 
+  it('THE CACHE FOLLOWS THE HEAD OF THE LOG THROUGH EVERY STATE IN THE CHECK', async () => {
+    /**
+     * `orders.status` is a CACHE of `order_updates`' head, maintained in the
+     * same transaction by the one writer. This walks every state the column is
+     * constrained to — including back to a state it already held — and asserts
+     * the two agree after each one.
+     *
+     * It goes red the moment a second writer appears, which is the point: a
+     * cache nobody maintains goes stale and starts lying, and 'confirmed'
+     * sitting on an order that shipped three weeks ago looks authoritative to
+     * whoever finds it next.
+     */
+    const { ORDER_STATES } = await import('../../src/core/commerce/orderState.js');
+    // Every state the owner can set, then one repeat and one step backwards —
+    // there is no state machine here, because she is the state machine.
+    const walk = [...ORDER_STATES, 'in_production', 'shipped', 'confirmed'] as const;
+    for (const state of walk) {
+      const res = await post(`/app/orders/${orderId}/update`, `state=${state}`);
+      expect(res.statusCode, state).toBe(302);
+
+      const [o, u] = [await order(), await updates()];
+      expect(o.status, `after ${state}, the column`).toBe(state);
+      expect(u.at(-1)!.state, `after ${state}, the log head`).toBe(state);
+      expect(o.status, `after ${state}, the two`).toBe(u.at(-1)!.state);
+    }
+    // Back where the rest of this file expects it.
+    await post(`/app/orders/${orderId}/update`, 'state=in_production');
+  });
+
+  it('THERE IS ONE WRITER, and nothing else in src touches either', async () => {
+    // The invariant above holds only while `writeOrderState` is the only thing
+    // that writes. Asserted structurally, because a second writer added
+    // tomorrow would pass every behavioural test until the day it disagreed.
+    const { execSync } = await import('node:child_process');
+    const root = new URL('../../', import.meta.url).pathname;
+    const inserts = execSync('grep -rn "insert into order_updates" src || true',
+      { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => l.trim() !== '');
+    expect(inserts.map((l) => l.split(':')[0])).toEqual(['src/db/orders.ts']);
+
+    const statusWrites = execSync('grep -rn "update orders set status" src || true',
+      { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => l.trim() !== '');
+    expect(statusWrites.map((l) => l.split(':')[0])).toEqual(['src/db/orders.ts']);
+  });
+
   it('A TRACKING REFERENCE TYPED ONCE SURVIVES A LATER STATE CHANGE', async () => {
     await post(`/app/orders/${orderId}/update`, 'state=shipped&tracking=SF1234567890');
     expect((await order()).tracking_reference).toBe('SF1234567890');

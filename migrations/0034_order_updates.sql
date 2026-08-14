@@ -10,20 +10,35 @@
 -- when she says it is. Deriving it from a schedule would be a promise made by
 -- arithmetic, and the buyer holds HER to it.
 --
--- HISTORY, NOT JUST STATE. `order_updates` is append-only and is the record of
--- what she said and when. `orders.status` remains the CURRENT state, written in
--- the same transaction by the same function, because five read models already
--- read it and two sources that can drift is worse than one that is
--- materialised. `recordOrderUpdate` is the only writer of either; a test
--- asserts the two agree for every order.
+-- WHICH OF THE TWO IS THE RECORD.
+--
+--   order_updates IS THE RECORD. Append-only, the app role cannot UPDATE it,
+--     and every read that can reach it reads it — the buyer-facing state comes
+--     from its head so the answer he gets and the record she keeps cannot
+--     disagree.
+--   orders.status IS A CACHE OF ITS HEAD, maintained in the same transaction
+--     and never read where the log is available. It stays maintained rather
+--     than abandoned because a column you stop writing goes stale and starts
+--     LYING: 'confirmed' on an order that shipped three weeks ago looks
+--     authoritative to whoever finds it next.
+--
+-- `db/orders.ts writeOrderState` is the only thing in the product that writes
+-- either, and an integration test asserts they agree for every order after
+-- every transition — it goes red the moment a second writer appears.
 
 create table if not exists order_updates (
   id           uuid primary key default gen_random_uuid(),
   business_id  uuid not null references businesses(id) on delete cascade,
   order_id     uuid not null references orders(id) on delete cascade,
-  -- The same four words orders.status is constrained to. A state she invents
-  -- cannot be reported to a buyer in his language; what she calls it in her
-  -- own words goes in `note`, which is never sent.
+  -- The same FIVE words orders.status is constrained to
+  -- (supabase/schema.sql: pending_confirmation, confirmed, in_production,
+  -- shipped, cancelled). The owner is only ever OFFERED four of them —
+  -- 'pending_confirmation' is a state the engine writes, not one she sets —
+  -- but the column accepts what the column it caches accepts, so the backfill
+  -- of an older order cannot be refused by its own log.
+  --
+  -- A state she invents cannot be reported to a buyer in his language; what
+  -- she calls it in her own words goes in `note`, which is never sent.
   state        text not null check (state in ('pending_confirmation','confirmed','in_production','shipped','cancelled')),
   -- Hers. A note to herself, never sent to a buyer.
   note         text,

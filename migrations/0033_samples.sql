@@ -58,10 +58,27 @@ create index if not exists sample_requests_open
   on sample_requests (business_id, requested_at desc)
   where handled_at is null;
 
--- One request per conversation: a buyer who asks twice is still one buyer
--- waiting for one sample, and two rows would read as two obligations.
-create unique index if not exists sample_requests_one_per_conversation
-  on sample_requests (conversation_id);
+-- ONE OPEN REQUEST AT A TIME, not one request ever.
+--
+-- The first version of this index was `unique (conversation_id)`, which dedups
+-- on the wrong axis. What it should prevent is a buyer nagging three times
+-- while one request sits open. What it ALSO prevented was a buyer asking for a
+-- second sample after she had shipped the first — a genuinely distinct
+-- request, and exactly what a repeat customer does. A constraint is a poor
+-- place to decide, silently, that a factory only ever sends one sample per
+-- buyer.
+--
+-- Partial, on the same predicate `sample_requests_open` already uses: while a
+-- request is open a re-ask changes nothing, and once she has handled it a new
+-- one may be raised.
+--
+-- The drop is here because this migration was amended after being applied to a
+-- development database; on a fresh one it is a no-op. Dropping an INDEX takes
+-- no data with it, which is why it is allowed in a forward-only regime that
+-- never drops a column.
+drop index if exists sample_requests_one_per_conversation;
+create unique index if not exists sample_requests_one_open_per_conversation
+  on sample_requests (conversation_id) where handled_at is null;
 
 alter table sample_policy enable row level security;
 alter table sample_requests enable row level security;

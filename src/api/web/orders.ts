@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { writeOrderState } from '../../db/orders.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import {
   ORDER_STATES, isOrderState, type OrderState, type OrderUpdate,
@@ -90,13 +91,13 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
 }
 
 /**
- * THE ONLY WRITER of an order's state, and it writes both representations in
- * one transaction.
+ * The owner's route into the one writer.
  *
- * `order_updates` is the history and `orders.status` is the materialised
- * current state. Two things that can disagree is worse than one that is
- * derived — so there is exactly one function that touches either, and a test
- * asserts every order's status equals its newest update.
+ * This function validates and owns the transaction; `writeOrderState` (db/
+ * orders.ts) does the writing, and it is the only thing in the product that
+ * writes either representation. The split matters: a future caller — a worker,
+ * the pipeline, a bulk import — reaches for the primitive rather than writing
+ * its own two statements and getting one of them wrong.
  */
 export async function recordOrderUpdate(
   db: Db, businessIdRaw: string, orderId: string,
@@ -104,7 +105,11 @@ export async function recordOrderUpdate(
 ): Promise<{ code: 'recorded' | 'unknown_state' | 'failed' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
-  if (!isOrderState(input.state)) return { code: 'unknown_state' };
+  const state = input.state;
+  // The narrowing survives into the closure: `writeOrderState` takes an
+  // OrderState, never a string, so a state that is not one of the four cannot
+  // reach the insert even if this check were moved.
+  if (!isOrderState(state)) return { code: 'unknown_state' };
   const note = (input.note ?? '').trim() || null;
   const tracking = (input.trackingReference ?? '').trim() || null;
 
@@ -114,18 +119,10 @@ export async function recordOrderUpdate(
     `.execute(tx)).rows[0];
     if (!owned) return { code: 'failed' as const };
 
-    await sql`
-      insert into order_updates (business_id, order_id, state, note, tracking_reference, at, by_actor)
-      values (${bid.value}::uuid, ${orderId}::uuid, ${input.state}, ${note}, ${tracking},
-              ${input.now}, ${input.actor})`.execute(tx);
-
-    // The materialised current state, in the same transaction. A tracking
-    // reference she did not repeat is not erased: pasting a state twice must
-    // not lose the number she typed once.
-    await sql`
-      update orders set status = ${input.state},
-                        tracking_reference = coalesce(${tracking}, tracking_reference)
-       where id = ${orderId}::uuid and business_id = ${bid.value}::uuid`.execute(tx);
+    await writeOrderState(tx, bid.value, orderId, {
+      state, note, trackingReference: tracking,
+      actor: input.actor, at: input.now,
+    });
     return { code: 'recorded' as const };
   });
 }
