@@ -116,6 +116,77 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect(r[0]!.asked_text).toContain('can you send a sample first');
   });
 
+  it('SHE HANDLES IT, AND HE MAY ASK AGAIN — a repeat customer is not one sample', async () => {
+    /**
+     * The case the FIRST version of this index forbade. It was
+     * `unique (conversation_id)`, which dedups on the wrong axis: it stopped a
+     * buyer nagging while a request sat open — correct — and also stopped him
+     * asking for a second sample after she had shipped the first, which is
+     * exactly what a repeat customer does. A constraint is a poor place to
+     * decide, silently, that a factory only ever sends one sample per buyer.
+     *
+     * ITS OWN TENANT AND ITS OWN CONVERSATION. This test handles a request and
+     * raises another, which is state the rest of this file's narrative reads.
+     * It was first made to work by moving it last — a workaround that traded a
+     * position for a property, and the position is the thing that rots. A
+     * second business costs one insert and the test can now sit anywhere.
+     */
+    const { bid, tenantRepos } = await repos();
+    const BIZ2 = `dd450000-0000-4000-8000-${RUN}0002`;
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid2 = parseBusinessId(BIZ2); if (!bid2.ok) throw new Error('fixture');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const tx2 = <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>) =>
+      withTenantTx(db, bid2.value, fn);
+
+    const conv2 = await tx2(async (t) => {
+      await sql`insert into businesses (id, name) values (${BIZ2}, 'Repeat Buyer Factory')
+                on conflict (id) do nothing`.execute(t);
+      const client = (await sql<{ id: string }>`
+        insert into clients (business_id, phone, display_name)
+        values (${BIZ2}, ${`+8613${RUN}2`}, 'Ravi') returning id::text as id`.execute(t)).rows[0]!.id;
+      return (await sql<{ id: string }>`
+        insert into conversations (business_id, client_id, channel, phase)
+        values (${BIZ2}, ${client}::uuid, 'whatsapp', 'warm_intake') returning id::text as id
+      `.execute(t)).rows[0]!.id;
+    });
+    const mine = () => tx2((t) => sql<{ asked_text: string; handled_at: Date | null }>`
+      select asked_text, handled_at from sample_requests
+       where business_id = ${BIZ2} order by requested_at
+    `.execute(t).then((r) => r.rows));
+
+    // He asks, and asks again while it is open: one obligation.
+    await tx2((t) => tenantRepos(t, bid2.value).samples.record(conv2 as never, 'can you send a sample?'));
+    await tx2((t) => tenantRepos(t, bid2.value).samples.record(conv2 as never, 'still waiting?'));
+    expect(await mine()).toHaveLength(1);
+    expect((await mine())[0]!.asked_text).toContain('can you send a sample?');
+
+    // She deals with it. NOT through the HTTP route: that route is scoped to
+    // the signed-in owner's tenant, which is this file's first business — the
+    // same isolation the rest of the suite relies on. The service the route
+    // calls takes the tenant as an argument, so the real path still runs.
+    const { markSampleHandled } = await import('../../src/api/web/settings.js');
+    const open = await tx2((t) => sql<{ id: string }>`
+      select id from sample_requests where business_id = ${BIZ2} and handled_at is null limit 1
+    `.execute(t).then((r) => r.rows[0]!.id));
+    expect((await markSampleHandled(db, BIZ2, open, 'owner', new Date())).code).toBe('done');
+
+    // Months later he asks for another. That is a new obligation, and the old
+    // index would have swallowed it.
+    await tx2((t) => tenantRepos(t, bid2.value).samples.record(conv2 as never, 'can you send one more sample?'));
+    const after = await mine();
+    expect(after).toHaveLength(2);
+    expect(after.filter((r) => r.handled_at === null)).toHaveLength(1);
+    expect(after.at(-1)!.asked_text).toContain('one more sample');
+
+    // And the nagging rule applies to the new one exactly as it did the first.
+    await tx2((t) => tenantRepos(t, bid2.value).samples.record(conv2 as never, 'any news?'));
+    expect(await mine()).toHaveLength(2);
+
+    // The file's own tenant is untouched by any of it.
+    expect((await requests()).every((r) => !r.asked_text.includes('one more sample'))).toBe(true);
+  });
+
   it('the page shows the waiting buyer, and says she has stated nothing', async () => {
     const res = await app.inject({ method: 'GET', url: '/app/settings/samples', headers: { cookie } });
     expect(res.statusCode).toBe(200);
@@ -217,43 +288,5 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect(await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from sample_policy where business_id = ${BIZ}
     `.execute(t).then((r) => r.rows[0]!.n))).toBe(before);
-  });
-
-  it('SHE HANDLES IT, AND HE MAY ASK AGAIN — a repeat customer is not one sample', async () => {
-    /**
-     * The case the FIRST version of this index forbade. It was
-     * `unique (conversation_id)`, which dedups on the wrong axis: it stopped a
-     * buyer nagging while a request sat open — correct — and also stopped him
-     * asking for a second sample after she had shipped the first, which is
-     * exactly what a repeat customer does. A constraint is a poor place to
-     * decide, silently, that a factory only ever sends one sample per buyer.
-     *
-     * Runs LAST because it deliberately leaves an open request behind; every
-     * test above it reads the one the suite opened at the start.
-     */
-    const { bid, tenantRepos } = await repos();
-    const before = await requests();
-    expect(before.every((r) => r.handled_at !== null), 'the suite left one open').toBe(true);
-
-    // Months later he asks for another one. That is a new obligation, and the
-    // old index would have swallowed it.
-    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'can you send one more sample?'));
-    const raised = await requests();
-    expect(raised).toHaveLength(before.length + 1);
-    expect(raised.filter((r) => r.handled_at === null)).toHaveLength(1);
-    expect(raised.at(-1)!.asked_text).toContain('one more sample');
-
-    // And the nagging rule applies to the new one exactly as it did the first.
-    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'any news?'));
-    expect(await requests()).toHaveLength(raised.length);
-
-    // Handle it, and a third is allowed again — there is no ceiling, only the
-    // rule that one is open at a time.
-    const open = await tx((t) => sql<{ id: string }>`
-      select id from sample_requests where business_id = ${BIZ} and handled_at is null limit 1
-    `.execute(t).then((r) => r.rows[0]!.id));
-    expect((await post(`/app/settings/samples/${open}/handled`)).statusCode).toBe(302);
-    await tx((t) => tenantRepos(t, bid.value).samples.record(convId as never, 'and one in blue?'));
-    expect(await requests()).toHaveLength(raised.length + 1);
   });
 });
