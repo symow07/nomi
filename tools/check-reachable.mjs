@@ -97,8 +97,6 @@ const DECLARED_UNWIRED = {
     'DECISION PENDING. Held to see whether it could weigh spot-check evidence by edit size; on inspection it classifies the SCOPE of what an edit teaches (one_time / buyer / product / style / policy), not the SIZE of an edit, and every input it needs is a signal nothing derives. drafts.status plus a draft_text/sent_text diff answers the size question directly. Wire it for edit LEARNING, or delete it.',
   'src/core/ops/degrade.ts':
     'DECISION PENDING. Two runbooks claimed this ladder engaged automatically during an LLM outage; M34.8 corrected them to what actually happens (SDK retries, the turn throws, pg-boss retries five times, dead-letters, alerts the owner). What it models — a night-shift hold ack, a five-minute owner alert — is better than what runs today. Wire it or delete it.',
-  'src/core/budget.ts':
-    'DECISION PENDING. The per-tenant budget gate was meant to run BEFORE the analyzer call, the expensive one. It never runs. Its pause rule is meanwhile re-implemented in SQL in db/channels.ts, whose own comment says so: the same rule in two places, one enforced and one merely tested. Wire the pre-call gate and delete the duplicate, or delete this and keep the SQL.',
 };
 
 const isTs = (p) => p.endsWith('.ts') && !p.endsWith('.d.ts');

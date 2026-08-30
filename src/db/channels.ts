@@ -1,4 +1,5 @@
 import { isAllowlisted } from '../channels/allowlist.js';
+import { checkBudget } from '../core/budget.js';
 import { loadKillSwitches } from './opsFlags.js';
 import type { ChannelFacts } from '../core/channel/lifecycle.js';
 import type { TemplateState } from '../core/channel/window.js';
@@ -59,12 +60,16 @@ export function channelStore(
       `.execute(tx);
 
       const ctxRes = await sql<{
-        assigned_to: string | null; paused: boolean; last_inbound_at: Date | null;
+        assigned_to: string | null; last_inbound_at: Date | null;
+        daily_llm_calls: number | null; daily_tokens: string | null;
+        soft_warn_pct: number | null; on_exceeded: string | null;
+        used_calls: number | null; used_tokens: string | null;
         pilot_mode: boolean | null; activated_at: Date | null;
         buyer_wa_id: string | null; sent_today: number;
       }>`
         select c.assigned_to,
-               coalesce(tb.paused, false) as paused,
+               tb.daily_llm_calls, tb.daily_tokens, tb.soft_warn_pct, tb.on_exceeded,
+               tb.used_calls, tb.used_tokens,
                ch.last_inbound_at,
                ch.pilot_mode, ch.activated_at,
                cc.channel_user_id as buyer_wa_id,
@@ -77,16 +82,17 @@ export function channelStore(
           -- BUGFIX (found in M18.2): this compared a column named status,
           -- which tenant_budgets does not have, so the query threw on EVERY
           -- call and this whole load() path had never run against a real
-          -- database (the M3 worker tests use an in-memory store, and in
-          -- disabled mode no outbound ever drives). on_exceeded is the POLICY;
-          -- a tenant is actually paused only when today's usage has exceeded
-          -- its budget AND that policy is pause — the same rule that
-          -- core/budget.ts checkBudget applies.
+          -- database.
+          --
+          -- M51.2 — AND IT USED TO DECIDE. It re-implemented, in SQL, the rule
+          -- that core/budget.ts checkBudget already states: the same policy
+          -- in two places, one enforced and one merely tested. This query now
+          -- reads the NUMBERS and core makes the judgement, so there is one
+          -- rule and the tested copy is the one that runs.
           left join lateral (
-            select (b.on_exceeded = 'pause'
-                    and (coalesce(u.llm_calls, 0) >= b.daily_llm_calls
-                      or coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) >= b.daily_tokens)
-                   ) as paused
+            select b.daily_llm_calls, b.daily_tokens, b.soft_warn_pct, b.on_exceeded,
+                   coalesce(u.llm_calls, 0) as used_calls,
+                   coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) as used_tokens
               from tenant_budgets b
               left join usage_ledger u
                 on u.business_id = b.business_id
@@ -122,7 +128,19 @@ export function channelStore(
 
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
-        paused: c?.paused ?? false,
+        // M51.2 — ONE rule, applied here. A tenant with no budget row is not
+        // paused: absence is "she has set no ceiling", never "stop".
+        paused: c?.daily_llm_calls != null && c.on_exceeded != null
+          ? checkBudget(
+              { llmCalls: Number(c.used_calls ?? 0), tokens: Number(c.used_tokens ?? 0) },
+              {
+                dailyLlmCalls: Number(c.daily_llm_calls),
+                dailyTokens: Number(c.daily_tokens ?? 0),
+                softWarnPct: Number(c.soft_warn_pct ?? 80),
+                onExceeded: c.on_exceeded === 'pause' ? 'pause' : 'throttle',
+              },
+            ).kind === 'pause'
+          : false,
         lastInboundAt: c?.last_inbound_at ?? null,
         // M25 — THE template entry point (TEMPLATE_ENTRY_POINT in
         // core/channel/templateReadiness.ts names it). No longer a literal: it
