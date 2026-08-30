@@ -62,16 +62,21 @@ recorded, reversible in one tap — the M20 pattern applied to outreach.
 *Four features that make her more sure. Build these first: they are what the
 outbound engine will be selling.*
 
-> **Status, 2026-08-12.** M34 (voice), M34.5–M34.11, M35 (proof link) and M36
-> (consistency guard) are BUILT and deployed. So are the structural checks the
-> work kept needing: module reachability over all of `src/`, symbol reachability
-> as a ratchet, CSS that must parse, a populated-tenant surface walk, and a
-> CI gate that fails when the integration suite is skipped rather than run.
+> **Status, 2026-08-18.** Blocks A, B and D are BUILT and deployed — fourteen
+> milestones, M34 through M49, plus the structural checks the work kept
+> needing: module and symbol reachability, CSS that must parse, a
+> populated-tenant surface walk, a CI gate that fails on a skipped integration
+> suite, and an integration runner that keeps its evidence when it fails.
 >
-> The remaining work is sequenced in five blocks below. **One milestone at a
-> time, and every migration is reviewed before it goes near a push** — the
-> Railway pre-deploy command now applies migrations automatically, so an
-> unfinished migration is a production change rather than a local mistake.
+> What remains is **M51** (everything that was held rather than decided), then
+> **Block C built offline**, then **M52** — the accounts and keys only the
+> owner can create, deliberately last, so that reviewers see a finished product
+> and the build never waits on a credential.
+>
+> **One milestone at a time, and every migration is reviewed before it goes
+> near a push** — the Railway pre-deploy command applies migrations
+> automatically, so an unfinished migration is a production change rather than
+> a local mistake.
 
 ### M34 — She can hear ✅ BUILT (2026-08-11)
 
@@ -124,7 +129,7 @@ earns its keep.
 
 ---
 
-### M37.5 — The words she may never say  (Block A2)
+### M37.5 — The words she may never say ✅ BUILT (2026-08-13)
 
 The owner flags terms 小雅 must never use with a buyer, from her own settings.
 This is `claims_policy` for LANGUAGE: she already controls what may be CLAIMED,
@@ -162,7 +167,7 @@ she may not be surprised by it.
 
 ---
 
-### M37 — Photograph the price list  ← NEXT (Block A1)
+### M37 — Photograph the price list ✅ BUILT (2026-08-13)
 
 The owner points her phone at her printed price sheet and the catalogue is
 built. Both halves exist and nothing joins them: M4 vision for image analysis,
@@ -215,7 +220,7 @@ and it is what stops the product promising something an API cannot do.
 | **WhatsApp** | ⚠️ template + opt-in | Approved template AND recorded opt-in. Business Verification and a published privacy-policy URL are required before any template sends at all (Meta, Jan 2026). |
 | **Instagram DM** | ❌ impossible | The API can only reply within 24h of a user-initiated message. Message tags are non-promotional only; one-time notifications do not exist for Instagram. |
 | **Messenger** | ❌ impossible | Same 24-hour window. Human-agent tag extends replies to 7 days, still not cold. |
-| **WeChat** | later | See M47. |
+| **WeChat** | later | See M48. |
 
 **This is not a policy preference, it is what the APIs permit.** Any tool that
 appears to cold-DM on Instagram is automating the consumer app, and the accounts
@@ -304,7 +309,7 @@ decision is made — not buried in terms.
 ## PHASE 3 · DEPTH
 *Real gaps. Each becomes urgent the moment the pilot succeeds.*
 
-### M43a — Money becomes a pair
+### M43a — Money becomes a pair ✅ BUILT (2026-08-13)
 
 `{ amount, currency }` replacing bare numbers; additive columns; types renamed
 off `Usd`. **USD stays the only currency** — this milestone changes no
@@ -321,20 +326,18 @@ through.
 **Do this BEFORE any further pricing work.** Every milestone that adds a `*Usd`
 identifier makes it bigger. M36 already added three.
 
-### M43b — The owner's rate
+### M43b — The owner's rate ✅ BUILT (2026-08-13)
 
 She states the rate she will honour, per currency, with the date she set it.
 Nomi converts at that rate or refuses. **Never a live rate she did not approve** —
 that is a number from outside her rules, and the whole engine exists to stop
 those. Small once M43a has landed.
 
-### M43.5 — Why did this month change  ⚠ NOT IN ANY BLOCK
+### M43.5 — Why did this month change  → M51.5
 
-> This entry predates the block plan and appears in none of A–E. It is the
-> deferred half of Part D (M34.10): `core/insights/questions.ts` was deleted
-> rather than wired because its ranked drivers were percentages, which the
-> product bans. The QUESTION is still worth answering. It needs a block or a
-> decision to drop it — it should not sit here unassigned indefinitely.
+> Assigned, 2026-08-18. It sat unassigned for six weeks with a note saying it
+> should not; it is now part of M51, which is where everything that was in
+> limbo goes to be decided one way or the other.
 
 `core/insights/questions.ts` answered exactly this and was deleted in M34.10
 rather than wired: it ranked its drivers BY PERCENTAGE ("询盘多了67%",
@@ -349,23 +352,23 @@ decision. **Rendered without rates:** name the driver and give the two counts
 something to tap, per the insight rule. Nothing else on this list needs it
 first.
 
-### M44 — The factory closure calendar
+### M44 — The factory closure calendar ✅ BUILT (2026-08-13)
 Nothing knows about Chinese New Year. Every lead time quoted in January is a lie
 stated with confidence. Ramadan matters symmetrically for Gulf buyers.
 **A refusal feature: she declines to promise a date the factory cannot hit, and
 says why.** Seasonal — worthless in June, essential in December.
 
-### M45 — Samples
+### M45 — Samples ✅ BUILT (2026-08-14)
 "Can you send a sample?" is the second question in nearly every Yiwu
 conversation. Sample cost, whether it is credited against the first order,
 courier account, address collection. She meets this on day one of the pilot.
 
-### M46 — After the order
+### M46 — After the order ✅ BUILT (2026-08-14)
 `confirmable.ts` and `invoice.ts` exist; the trail stops at confirmation. Three
 weeks later "where is my order?" is unanswerable. Production state, shipment,
 tracking. For a Yiwu supplier this is the half that produces repeat business.
 
-### M47 — More than one human
+### M47 — More than one human ✅ BUILT (2026-08-14)
 The access code is a single owner. Real factories have a boss and two or three
 sales staff. `ownershipOf(assigned_to)` handles "a human holds this" but not
 *which* human, so takeover cannot be routed. First thing that breaks on success.
@@ -377,9 +380,51 @@ single point of failure for a business built on messaging.
 
 ---
 
+### M51 — Nothing left in limbo  ← the whole of Phase 3.5
+
+Four things have been held rather than decided, and holding is what makes a
+codebase feel unfinished long after the features are done. Each has a note in
+`tools/check-reachable.mjs` explaining why it was held; none of them has a
+reason that still applies.
+
+**M51.1 — debounce-and-batch.** The one with a deadline. `batching.ts` is
+exempted as EXPIRES AT META GO-LIVE, and ASSUMPTIONS P1 says plainly: buyers
+send four fragments in ten seconds — "hello" / "price?" / "the bags" /
+"5000pcs" — each analysed alone is meaningless, **build before shadow.** 92
+lines of core exist; `message_fragments` has existed since 0009 with no writer.
+This bites on the first real buyer, and the pilot is the next thing that
+happens.
+
+**M51.2 — the budget gate.** `budget.ts` was meant to run BEFORE the analyzer
+call, the expensive one. It never runs. Its pause rule is meanwhile
+re-implemented in SQL in `db/channels.ts` — the same rule in two places, one
+enforced and one merely tested. That is this repository's most expensive
+recurring defect, and it is sitting in the open.
+
+**M51.3 — the degrade ladder.** `degrade.ts` models a night-shift hold ack and
+a five-minute owner alert. What runs today is: the turn throws, pg-boss retries
+five times, dead-letters, alerts the owner. The modelled behaviour is better
+than the running behaviour. Wire it or delete it — a module that is better than
+production and not in production is a lie about what the product does.
+
+**M51.4 — `editScope.ts`.** Held to see whether it could weigh spot-check
+evidence by edit size. It classifies the SCOPE of what an edit teaches, not the
+SIZE of one, and every input it needs is a signal nothing derives.
+
+**M51.5 — why did this month change.** Formerly M43.5, unassigned. Name the
+driver and give the two counts ("询盘从 40 变成 25"), rank by the size of the
+change, end each line in something to tap. No percentages — that is why the
+first version was deleted rather than wired.
+
+**M51.6 — the map matches the ground.** This file said M37 was NEXT after it
+shipped, carried no status on eight built milestones, and pointed WeChat at
+M47. A roadmap that lies about the past cannot be trusted about the future.
+
+---
+
 ## PHASE 4 · THE THINGS THAT MAKE IT SELLABLE
 
-### M49 — The design pass
+### M49 — The design pass ✅ BUILT (2026-08-13)
 
 Diagnosed from live screenshots, not from taste. The product reads as
 unpolished, and the cause is structural: **restraint without alignment reads as
@@ -427,6 +472,37 @@ paste-credentials stays as the fallback path for factory #1.
 
 ---
 
+### M52 — The things only the owner can provide  ⛔ LAST, ALWAYS
+
+Every account, credential and external review, in one place, so that the build
+never waits on one and the owner is never asked for them piecemeal.
+
+**Nothing in this milestone is code.** It is the list of what must exist in the
+world before what is already built can reach a buyer. It is deliberately LAST:
+every milestone before it is written so that an absent credential is a
+first-class state — "not configured", said honestly — exactly as M34's
+transcriber and M37's page reader already are. Nothing is blocked on this; it
+is what turns built into live.
+
+| # | What | Who creates it | What it unblocks |
+|---|---|---|---|
+| 1 | **Meta app** (one app covers WhatsApp, Instagram, Messenger) | Owner | M50's connect flow, M39's live capability probe |
+| 2 | **The pilot factory's own WhatsApp Business signup** | Factory #1 | Going live at all. 1–5 days plus display-name review, and the only clock nobody here controls. **Start it first; it depends on nothing.** |
+| 3 | **Google Cloud project + OAuth client** (`gmail.send`) | Owner | M40's send path on a Gmail domain |
+| 4 | **Microsoft Entra app** (Graph `Mail.Send`) | Owner | M40's send path on an Outlook domain |
+| 5 | **Her own sending domain, SPF/DKIM/DMARC** | Owner | M40. The domain's reputation is hers, which is the point |
+| 6 | **Apollo API key** | Owner | M41's live enrichment. The connector runs against a fake without it |
+| 7 | **WeChat Official Account** (verified business) | Owner | M48 |
+| 8 | **Meta App Review** | Owner, after the build | Self-serve onboarding for factory #2 onward. NOT needed for the pilot |
+| 9 | **Google OAuth verification** | Owner, after the build | Same: `gmail.send` is a sensitive scope |
+
+**Creating an app is not submitting it.** Both are free and instant, and the
+OAuth code is built and tested in dev mode long before review. Only the REVIEW
+waits — and reviewers see a finished product, which is the whole reason this
+milestone is last.
+
+---
+
 ## 2. Order, and why
 
 Five blocks. Platform-app **registration and review are deliberately last**:
@@ -444,55 +520,49 @@ Two clarifications that sharpen that sequencing rather than change it:
   Tech Provider review only buys self-serve onboarding for factory #2 onward.
   A real pilot can run — and teach you things — before anything is submitted.
 
-### BLOCK A · Finish the certainty features
+### BLOCK A · Finish the certainty features ✅ DONE (2026-08-13)
 
-| # | Milestone | Why here |
+M37 photograph · M37.5 forbidden words · M43a money becomes a pair ·
+M43b the owner's rate · M44 the closure calendar.
+
+### BLOCK B · The design pass ✅ DONE (2026-08-13)
+
+M49. One measure, one rhythm, one voice per speaker, colour spent only on
+state — with a layout test that catches what the typography tests cannot.
+
+### BLOCK D · Depth ✅ DONE except M48 (2026-08-14)
+
+M45 samples · M46 after the order · M47 more than one human. M48 WeChat waits
+on an Official Account (M52 #7).
+
+### BLOCK F · Nothing left in limbo  ← NEXT
+
+**M51.** Four held decisions, one unassigned insight, and a roadmap that had
+stopped matching the code. Small, and it is what stands between "the features
+are built" and "the build is finished".
+
+### BLOCK C · The outbound engine — BUILT OFFLINE, PLUGGED IN AT M52
+
+The correction that reshaped this plan: **most of Block C needs no credential
+at all.** It was deferred as "blocked", and it is not.
+
+| # | Milestone | Credential needed to BUILD |
 |---|---|---|
-| A1 | **M37 photograph the price list** | Collapses the largest friction in the product. Both halves already exist and nothing joins them. |
-| A2 | **M37.5 the words she may never say** | Ships WITH its owner surface, or it is M35 again. |
-| A3 | **M43a money becomes a pair** | **Before any further pricing work.** Every milestone that adds a `*Usd` identifier makes it bigger. |
-| A4 | **M43b the owner's rate** | Small once A3 is done, and it is where the product rule lives. |
-| A5 | **M44 closure calendar** | Seasonal: worthless in June, essential by December. |
+| C1 | **M38 contacts, consent, suppression** | None. Schema and owner surfaces. |
+| C2 | **M39 channel capability registry** | None — it is the thing that TELLS the owner what each channel can do. |
+| C3 | **M42 the outreach gate** | None. `gateOutbound` learns four refusals over C1 and C2. |
+| C4 | **M40 email from her own address** | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
+| C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 
-### BLOCK B · The design pass
+Built in that order, each one ships with "not configured" as an honest state —
+the same shape M34 and M37 already use. When M52's credentials arrive they are
+pasted into a product that already knows what to do with them.
 
-| # | Milestone | Why here |
-|---|---|---|
-| B1 | **M49 design pass** | The product reads as unpolished, and the cause is structural rather than decorative. Diagnosed from live screenshots. |
+### BLOCK E · Go-live
 
-### BLOCK C · The outbound engine
-
-| # | Milestone | Why here |
-|---|---|---|
-| C1 | **M38 contacts, consent, suppression** | Foundation. Nothing else in this block is safe without it. |
-| C2 | **M39 channel capability registry** | Tells the owner the truth per channel BEFORE she links an account. |
-| C3 | **M40 email from her own address** | The only true cold channel, and the mechanism that legitimately earns WhatsApp consent. |
-| C4 | **M41 Apollo behind a connector** | Enrichment on inbound first (zero risk), then lists, then sequences. |
-| C5 | **M42 the outreach gate** | Ships WITH the first outbound send, not after it. |
-| C6 | **M50 the connect surface** | The page the whole niche rests on, so it is designed rather than assembled. |
-
-### BLOCK D · Depth
-
-**M45 samples · M46 after the order · M47 more than one human · M48 WeChat.**
-
-Honestly: these are the four where watching one real factory changes what you
-build. Sample handling, production and shipment states, and how a boss and two
-salespeople actually divide conversations are things a pilot teaches in a week.
-Building them blind is possible; building them right is easier after. If factory
-#1 goes live on pasted credentials during Block C, this block gets much cheaper.
-
-### BLOCK E · The applications, and go-live
-
-1. **Meta app review** — one app covers WhatsApp, Instagram and Messenger.
-   Business verification, App Review for the messaging permissions, Embedded
-   Signup live.
-2. **Google OAuth verification** — `gmail.send` is a sensitive scope. Verify the
-   current requirements at submission time rather than trusting this line.
-3. **The pilot factory's own WhatsApp signup** — theirs, 1–5 days plus
-   display-name review, and the only clock nobody here controls. **Start it
-   whenever you like; it depends on nothing above it.**
-4. **Go-live** — `FIRST-FACTORY-WORKFLOW.md` §4 onward: rotate secrets, prove the
-   backup restores, allowlist, activation.
+`FIRST-FACTORY-WORKFLOW.md` §4 onward: rotate secrets, prove the backup
+restores, allowlist, activation. Everything here is procedure, not code.
 
 ---
 
