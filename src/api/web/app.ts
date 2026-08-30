@@ -24,6 +24,10 @@ import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
 } from './people.js';
+import {
+  type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
+  loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
+} from './contacts.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
@@ -1082,6 +1086,61 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await removePerson(deps.db, s.businessId, (req.params as { id: string }).id);
     return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
       t(locale, r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed'))}`);
+  });
+
+  /**
+   * M38 — who she may write to. The list, and the two decisions about it.
+   *
+   * NOT owner-only: an attestation carries the name of whoever made it, and the
+   * person who took the card is the person who knows. Suppressing is open in
+   * the safe direction — more hands able to stop a send is never the risk.
+   */
+  app.get('/app/contacts', authed('contacts', async (sess, req, locale) =>
+    renderContacts(await loadContacts(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null)));
+
+  const contactsBack = (locale: Locale, r: ContactsFlash) =>
+    `/app/contacts?flash=${encodeURIComponent(t(locale, `contacts.flash.${r}` as MessageKey))}`;
+
+  app.post('/app/contacts', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    return reply.redirect(contactsBack(localeOf(req), await addContactFrom(deps.db, s.businessId, {
+      channel: b['channel'], identity: b['identity'], name: b['name'], company: b['company'],
+      by: personOf(s).name,
+    })));
+  });
+
+  app.post('/app/contacts/consent', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    return reply.redirect(contactsBack(localeOf(req), await attestConsent(deps.db, s.businessId, {
+      channel: b['channel'], identity: b['identity'], note: b['note'], by: personOf(s).name,
+    })));
+  });
+
+  // Permanent, so it takes two presses. The row links here; this page posts.
+  app.get('/app/contacts/suppress', authed('contacts', async (sess, req, locale) => {
+    const q = req.query as { channel?: string; identity?: string };
+    const found = (await loadContacts(deps.db, sess.businessId)).contacts
+      .find((c) => c.channel === q.channel && c.identity === q.identity);
+    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId), locale, null);
+    return renderSuppressConfirm(found, locale);
+  }));
+
+  app.post('/app/contacts/suppress', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    return reply.redirect(contactsBack(localeOf(req), await suppressIdentity(deps.db, s.businessId, {
+      channel: b['channel'], identity: b['identity'], reason: b['reason'], detail: b['detail'],
+    })));
+  });
+
+  app.post('/app/contacts/:id/archive', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    return reply.redirect(contactsBack(localeOf(req),
+      await archiveContactById(deps.db, s.businessId, (req.params as { id: string }).id)));
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.

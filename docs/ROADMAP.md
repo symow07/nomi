@@ -187,25 +187,59 @@ product still needs her price rules before 小雅 may quote it.
 *The outbound engine. Built on Phase 1, and gated so it can never spend the
 trust Phase 1 creates.*
 
-### M38 — Contacts, consent, and suppression
+### M38 — Contacts, consent, and suppression ✅ BUILT
 
 The foundation for everything after it. No outreach until this exists.
+Migration 0036; `src/core/outreach/consent.ts`, `src/db/contacts.ts`,
+`/app/contacts`. `REQUIRED_SCHEMA_VERSION` 36.
 
-**Schema.**
-- `contacts` — identity per channel (email, phone, IG handle), the company,
-  where the record came from (`apollo`, `csv`, `inbound`, `manual`), and when.
-- `contact_consent` — how consent was obtained, when, and the evidence
-  (`replied_to_email`, `inbound_message`, `form_submission`,
-  `owner_attestation`). **No row means no consent.** Absence is the only honest
-  representation, per M29.
-- `suppressions` — unsubscribed, bounced, complained. Permanent, archive-only,
-  and checked before every send regardless of channel.
-- `outreach_log` — every attempt, its channel, its outcome. The audit trail is
-  what keeps a WABA alive when Meta asks.
+**Schema, as built.**
+- `contacts` — one row per identity per channel, the company, where the record
+  came from, and when. `email` and `whatsapp`; `inbound` and `manual`. `csv` and
+  `apollo` arrive WITH their importers — M43a's rule, that a value nothing can
+  write is a value nothing can display honestly.
+- `contact_consent` — how consent was obtained, when, and who stands behind it.
+  `inbound_message` and `owner_attestation`; `replied_to_email` arrives with
+  M40 and `form_submission` with a form. **No row means no consent.** Absence is
+  the only honest representation, per M29. Append-only; the app role holds no
+  UPDATE.
+- `suppressions` — unsubscribed, bounced, complained. Permanent: the app role
+  holds neither UPDATE nor DELETE, and this is the one table in the product
+  where that is true.
 
-**Surfaces.** The owner sees her contact list, where each came from, who may be
-contacted and why, and who never may be again. Owner language throughout — no
-"lead", no "prospect", no score. A score is an invented number.
+**Two decisions that shape the rest of Block C.**
+
+1. **Consent and suppression are keyed on (channel, identity), never on a
+   contact row's id.** An unsubscribe therefore survives archiving the row and
+   re-importing the same address tomorrow — which is exactly how a suppressed
+   buyer gets written to again. `normalizeIdentity` delegates to M18.2's
+   `normalizePhone` so the key is a wa_id and not a second phone format.
+
+2. **A buyer who wrote first is DERIVED, never copied.** His consent is his own
+   message, found on every read from `clients.phone`. Copying it into a row
+   would create a second answer to "did he write to us" that goes stale. It
+   lands the legally correct answer for free: he messaged her on WhatsApp, so
+   the derivation only ever produces WhatsApp consent — his e-mail address is
+   untouched and needs its own evidence.
+
+   *The first version joined `client_channels`, which exists to hold exactly
+   this and is the wrong table: it is written `on conflict do nothing` against
+   an index unique GLOBALLY, so a number another business already claimed
+   silently produces no row. A screenshot of the seeded demo factory — six
+   buyers mid-conversation, an empty list — is what caught it. `clients.phone`
+   is written unconditionally and is tenant-scoped.*
+
+**Surfaces.** `/app/contacts`, reached from Buyers: her list, where each came
+from, who may be contacted and why, and who never may be again. Owner language
+throughout — no "lead", no "prospect", no score, asserted over the catalogue.
+Suppression takes two presses, on a page where going back is the primary
+button: it is the only permanent action in the product, and the first version
+put it one stray click away on every row of a list of live buyers.
+
+**NOT here: `outreach_log`.** It ships with M42, the thing that writes it.
+`message_fragments` sat in migration 0009 with no writer for eleven milestones
+and the batching it existed for was never wired; a table created ahead of its
+writer is that mistake with a schema attached.
 
 ---
 
@@ -543,7 +577,7 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
-### BLOCK C · The outbound engine — NEXT
+### BLOCK C · The outbound engine — IN PROGRESS (C1 built)
 
 #### Block C in detail — built offline, plugged in at M52
 
@@ -552,7 +586,7 @@ at all.** It was deferred as "blocked", and it is not.
 
 | # | Milestone | Credential needed to BUILD |
 |---|---|---|
-| C1 | **M38 contacts, consent, suppression** | None. Schema and owner surfaces. |
+| C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** | None. `gateOutbound` learns four refusals over C1 and C2. |
 | C4 | **M40 email from her own address** | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |

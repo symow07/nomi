@@ -103,6 +103,16 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     expect(hits, hits.join('\n')).toEqual([]);
   });
 
+  /**
+   * A platform's NAME is the same word in every language, and three prefixes
+   * hold nothing else: WhatsApp is WhatsApp in Chinese. Named once here rather
+   * than as a growing list of exemptions inside the assertion, so the next
+   * surface that has to label a channel does not need a fourth.
+   */
+  const isPlatformName = (k: string): boolean =>
+    k.startsWith('channel.platform.') || k.startsWith('conv.channel.')
+    || k.startsWith('contacts.channel.');
+
   it('every key exists in every locale, and nothing is left untranslated', () => {
     const en = new Set(Object.keys(messages.en));
     for (const l of LOCALES) {
@@ -111,7 +121,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       const untranslated = entries(l)
         .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s))
         .filter(([k, v]) => !k.startsWith('claim.') && !k.startsWith('country.')
-          && !k.includes('unit') && !isOperator(k) && !k.startsWith('channel.platform.') && !k.startsWith('conv.channel.') && k !== 'nav.channels')
+          && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && k !== 'nav.channels')
         .map(([k, s]) => `${l}/${k}: ${s}`);
       expect(untranslated, untranslated.join('\n')).toEqual([]);
     }

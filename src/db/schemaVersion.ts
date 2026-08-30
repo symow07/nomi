@@ -83,8 +83,14 @@ import type { Db } from './client.js';
  *      Against a 34 database no staff member can log in at all — and the
  *      OWNER still can, deliberately: her code is the environment's and her
  *      row is only her name.
+ *
+ * 36 = who may be written to (0036, M38). `/app/contacts` reads all three
+ *      tables and writes two of them, and every send in Block C will be gated
+ *      on `suppressions`. Against a 35 database the page throws — which is the
+ *      right failure, because the alternative shape of this bug is a gate that
+ *      cannot find the suppression list and treats an empty answer as consent.
  */
-export const REQUIRED_SCHEMA_VERSION = 35;
+export const REQUIRED_SCHEMA_VERSION = 36;
 
 export type SchemaState = {
   readonly required: number;

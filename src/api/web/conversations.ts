@@ -299,6 +299,9 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
       <button class="btn">${esc(t(locale, 'conv.search.go'))}</button>${list.query ? `<a class="clear muted" href="/app/conversations">${esc(t(locale, 'conv.search.clear'))}</a>` : ''}
     </form>`;
 
+  // M38 — the wider list: everyone she may write to, not only who wrote to her.
+  const toContacts = deeper('/app/contacts', t(locale, 'contacts.title'));
+
   if (list.customers.length === 0) {
     const body = list.query
       ? `<div class="empty">${esc(t(locale, 'conv.empty.noMatch', { q: list.query }))}<br><span class="muted">${esc(t(locale, 'conv.empty.noMatchBody'))}</span></div>`
@@ -307,7 +310,7 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
       : `<div class="empty"><div class="big">${esc(t(locale, 'conv.empty.noneTitle'))}</div>
          <p class="muted">${esc(t(locale, 'conv.empty.noneBody'))}</p>
          ${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div>`;
-    return `${title}${search}<div class="block">${body}</div>${CONV_STYLE}`;
+    return `${title}${search}<div class="block">${body}${toContacts}</div>${CONV_STYLE}`;
   }
 
   const cards = list.customers.map((c) => {
@@ -320,7 +323,7 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
     </a>`;
   }).join('');
 
-  return `${title}${search}<div class="list">${cards}</div>${CONV_STYLE}`;
+  return `${title}${search}<div class="list">${cards}</div>${toContacts}${CONV_STYLE}`;
 }
 
 function milestoneText(locale: Locale, m: Milestone): string {

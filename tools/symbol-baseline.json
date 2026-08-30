@@ -1,6 +1,6 @@
 {
   "_why": "M35.3 \u2014 the symbol-reachability CEILING. `npm run check` fails when either count RISES above these. Zero is not the target: much of the tests-only list is legitimate test-consumed data. Lowering a number here is the point; raising one should be argued for in the commit message.",
   "_measured": "2026-08-12",
-  "testsOnly": 25,
+  "testsOnly": 24,
   "nothing": 17
 }

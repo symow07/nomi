@@ -36,13 +36,29 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   { href: '/app/factory',   id: 'factory' },
 ];
 
-/** Reached from a surface above rather than the nav. Nothing here was removed. */
-export const CONTEXTUAL_ROUTES: readonly string[] = [
-  '/app/settings', '/app/products', '/app/knowledge', '/app/channels',   // in My factory
-  '/app/onboarding', '/app/sandbox',                                     // in My factory → going live
-  '/app/conversations',                                                  // in Buyers
-  '/app/analytics',                                                      // in Today
+/**
+ * Reached from a surface above rather than the nav. Nothing here was removed.
+ *
+ * EACH ROUTE NAMES THE PAGE THAT LINKS TO IT, and the integration walk asserts
+ * the link is actually there. It used to be a flat list with the hub written in
+ * a trailing comment and the walk hardcoding `r !== '/app/conversations' && r
+ * !== '/app/analytics'` — so a route reached from anywhere but My factory had
+ * to be added to an exclusion list by hand, and one that was forgotten would be
+ * asserted against the wrong page. The comment is now the data.
+ */
+export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
+  readonly hub: string; readonly routes: readonly string[];
+}[] = [
+  { hub: '/app/factory', routes: [
+    '/app/settings', '/app/products', '/app/knowledge', '/app/channels',
+    '/app/onboarding', '/app/sandbox',                      // → going live
+  ] },
+  { hub: '/app/conversations', routes: ['/app/contacts'] },
+  { hub: '/app', routes: ['/app/conversations', '/app/analytics'] },
 ];
+
+export const CONTEXTUAL_ROUTES: readonly string[] =
+  CONTEXTUAL_ROUTES_BY_HUB.flatMap((g) => g.routes);
 
 /**
  * The one "go deeper" link. Phase F: every surface used to grow its own — .more,

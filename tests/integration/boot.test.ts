@@ -2470,16 +2470,20 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await view(SANDBOX)).products.total).not.toBe(-1);   // RLS-scoped read, no leak
     });
 
-    it('the surfaces My factory folded in are still routed and still reachable', async () => {
-      const { CONTEXTUAL_ROUTES } = await import('../../src/api/web/layout.js');
+    it('every contextual surface is still routed, and still linked from its own hub', async () => {
+      const { CONTEXTUAL_ROUTES_BY_HUB } = await import('../../src/api/web/layout.js');
       const cookie = await login();
-      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
-      // everything My factory now contains — including the go-live runbook and
-      // Practice, which used to hold nav slots of their own
-      for (const route of CONTEXTUAL_ROUTES.filter((r) => r !== '/app/conversations' && r !== '/app/analytics')) {
-        expect(page.body, `${route} must stay linked from My factory`).toContain(`href="${route}"`);
-        const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
-        expect(r.statusCode, route).toBe(200);
+      // EVERY contextual route, against the page that declares it — not just
+      // the My-factory ones with the rest named in an exclusion list. A route
+      // added tomorrow is walked because it had to name its hub to exist.
+      for (const { hub, routes } of CONTEXTUAL_ROUTES_BY_HUB) {
+        const page = await prod.app.inject({ method: 'GET', url: hub, headers: { cookie } });
+        expect(page.statusCode, hub).toBe(200);
+        for (const route of routes) {
+          expect(page.body, `${route} must stay linked from ${hub}`).toContain(`href="${route}"`);
+          const r = await prod.app.inject({ method: 'GET', url: route, headers: { cookie } });
+          expect(r.statusCode, route).toBe(200);
+        }
       }
     });
   });
