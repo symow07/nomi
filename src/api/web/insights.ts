@@ -5,6 +5,7 @@ import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc } from './layout.js';
 
 /**
@@ -41,7 +42,10 @@ export type InsightAction =
   | { readonly kind: 'review_drafts'; readonly href: '/app/inbox' }
   | { readonly kind: 'follow_up'; readonly href: string; readonly buyer: string }
   | { readonly kind: 'consider_promotion'; readonly href: '/app/employee'; readonly capability: string }
-  | { readonly kind: 'fix_catalog'; readonly href: '/app/products' };
+  | { readonly kind: 'fix_catalog'; readonly href: '/app/products' }
+  /** M51.5 — a change in the month is a change in HER BUYERS. That is where
+   *  it is visible one conversation at a time, so that is where it points. */
+  | { readonly kind: 'seeBuyers'; readonly href: '/app/conversations' };
 
 export type Insight = {
   /** Language-NEUTRAL: the renderer localizes. Params are counts and names. */
@@ -122,6 +126,68 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
         key: 'insight.productsNoPrice',
         params: { count: noPrice },
         action: { kind: 'fix_catalog', href: '/app/products' },
+      });
+    }
+
+    /**
+     * 5. M51.5 — WHY DID THIS MONTH CHANGE?
+     *
+     * Last, and deliberately: the four above are things to DO, and this is
+     * something to KNOW. It appears only when there is something to say, and
+     * it says it as two counts — never a rate, which is the whole reason its
+     * first implementation was deleted rather than wired.
+     *
+     * A month boundary in HER timezone: "this month" for a Yiwu factory is not
+     * this month in UTC, and a driver that moved because of a date line is a
+     * fact about our servers rather than about her business.
+     */
+    const months = (await sql<{
+      driver: string; from_count: number; to_count: number;
+    }>`
+      with bounds as (
+        select date_trunc('month', (now() at time zone 'Asia/Shanghai')) as this_start,
+               date_trunc('month', (now() at time zone 'Asia/Shanghai') - interval '1 month') as last_start
+      ),
+      inquiries as (
+        select 'inquiries' as driver,
+               count(*) filter (where m.sent_at >= (b.last_start at time zone 'Asia/Shanghai')
+                                  and m.sent_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
+               count(*) filter (where m.sent_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+          from messages m
+          join conversations c on c.id = m.conversation_id
+          cross join bounds b
+         where c.business_id = ${bid.value} and m.direction = 'inbound'
+      ),
+      quoted as (
+        select 'quotes' as driver,
+               count(*) filter (where q.created_at >= (b.last_start at time zone 'Asia/Shanghai')
+                                  and q.created_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
+               count(*) filter (where q.created_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+          from quotes q cross join bounds b
+         where q.business_id = ${bid.value}
+      ),
+      ordered as (
+        select 'orders' as driver,
+               count(*) filter (where o.created_at >= (b.last_start at time zone 'Asia/Shanghai')
+                                  and o.created_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
+               count(*) filter (where o.created_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+          from orders o cross join bounds b
+         where o.business_id = ${bid.value}
+      )
+      select * from inquiries union all select * from quoted union all select * from ordered
+    `.execute(tx)).rows;
+
+    const counts = Object.fromEntries(MONTH_DRIVERS.map((d) => {
+      const row = months.find((r) => r.driver === d);
+      return [d, { from: Number(row?.from_count ?? 0), to: Number(row?.to_count ?? 0) }];
+    })) as Record<MonthDriver, { from: number; to: number }>;
+
+    const changed = biggestChange(counts);
+    if (changed) {
+      out.push({
+        key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
+        params: { from: changed.from, to: changed.to },
+        action: { kind: 'seeBuyers', href: '/app/conversations' },
       });
     }
 

@@ -333,7 +333,7 @@ Nomi converts at that rate or refuses. **Never a live rate she did not approve**
 that is a number from outside her rules, and the whole engine exists to stop
 those. Small once M43a has landed.
 
-### M43.5 — Why did this month change  → M51.5
+### M43.5 — Why did this month change ✅ BUILT as M51.5 (2026-08-18)
 
 > Assigned, 2026-08-18. It sat unassigned for six weeks with a note saying it
 > should not; it is now part of M51, which is where everything that was in
@@ -380,7 +380,7 @@ single point of failure for a business built on messaging.
 
 ---
 
-### M51 — Nothing left in limbo  ← the whole of Phase 3.5
+### M51 — Nothing left in limbo ✅ BUILT (2026-08-18)
 
 Four things have been held rather than decided, and holding is what makes a
 codebase feel unfinished long after the features are done. Each has a note in
@@ -535,13 +535,17 @@ state — with a layout test that catches what the typography tests cannot.
 M45 samples · M46 after the order · M47 more than one human. M48 WeChat waits
 on an Official Account (M52 #7).
 
-### BLOCK F · Nothing left in limbo  ← NEXT
+### BLOCK F · Nothing left in limbo ✅ DONE (2026-08-18)
 
-**M51.** Four held decisions, one unassigned insight, and a roadmap that had
-stopped matching the code. Small, and it is what stands between "the features
-are built" and "the build is finished".
+**M51.** Debounce-and-batch WIRED (ASSUMPTIONS P1 closed), the budget rule
+UNIFIED (it was enforced in SQL and tested in core — two copies, one running),
+the degrade ladder and editScope DELETED, the month-change insight BUILT
+without a single rate, and this file made honest. DECLARED_UNWIRED's
+"decisions not yet made" section is empty.
 
-### BLOCK C · The outbound engine — BUILT OFFLINE, PLUGGED IN AT M52
+### BLOCK C · The outbound engine — NEXT
+
+#### Block C in detail — built offline, plugged in at M52
 
 The correction that reshaped this plan: **most of Block C needs no credential
 at all.** It was deferred as "blocked", and it is not.

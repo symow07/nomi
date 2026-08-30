@@ -170,6 +170,18 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     expect(broken, `these threw on real data:\n  ${broken.join('\n  ')}`).toEqual([]);
   });
 
+  it('M51.5 · the month-change query runs against real rows', async () => {
+    // A three-way UNION with month bounds in her timezone is exactly the shape
+    // that passes a fixture and throws on a database — M35's LATERAL did.
+    const { loadInsights } = await import('../../src/api/web/insights.js');
+    const data = await loadInsights(db, RUN_BIZ);
+    expect(Array.isArray(data.insights)).toBe(true);
+    for (const i of data.insights) {
+      // The insight rule, over whatever the seeded tenant actually produced.
+      expect(i.action.href, JSON.stringify(i)).toMatch(/^\/app\//);
+    }
+  });
+
   it('the proof page specifically — the one that shipped broken', async () => {
     expect(real['token'], 'no proof link was issued, so this walk skipped it').toBeTruthy();
     const res = await app.inject({ method: 'GET', url: `/p/${real['token']}` });
