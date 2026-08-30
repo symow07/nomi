@@ -93,10 +93,12 @@ const DECLARED_UNWIRED = {
   // ── Expire at a named milestone ─────────────────────────────────────────
 
   // ── Decisions not yet made. Each is a question with a deadline ──────────
-  'src/core/trust/editScope.ts':
-    'DECISION PENDING. Held to see whether it could weigh spot-check evidence by edit size; on inspection it classifies the SCOPE of what an edit teaches (one_time / buyer / product / style / policy), not the SIZE of an edit, and every input it needs is a signal nothing derives. drafts.status plus a draft_text/sent_text diff answers the size question directly. Wire it for edit LEARNING, or delete it.',
-  'src/core/ops/degrade.ts':
-    'DECISION PENDING. Two runbooks claimed this ladder engaged automatically during an LLM outage; M34.8 corrected them to what actually happens (SDK retries, the turn throws, pg-boss retries five times, dead-letters, alerts the owner). What it models — a night-shift hold ack, a five-minute owner alert — is better than what runs today. Wire it or delete it.',
+  //
+  // EMPTY, as of M51 (2026-08-18). Three modules sat here: the budget gate was
+  // WIRED (its rule was being enforced twice, once in SQL), and the degrade
+  // ladder and editScope were DELETED. A module held pending a decision is a
+  // decision nobody is making, and this list is where that becomes visible —
+  // so it is worth keeping empty rather than deleting the heading.
 };
 
 const isTs = (p) => p.endsWith('.ts') && !p.endsWith('.d.ts');

@@ -3,7 +3,6 @@ import {
   promotionDecision, demotionDecision, applySpotCheck,
   PROMOTION_REQUIREMENTS, CORRECTIONS_THRESHOLD, type CapabilityEvidence,
 } from '../../src/core/trust/evidence.js';
-import { classifyEditScope, learningAck, type EditSignals } from '../../src/core/trust/editScope.js';
 import { selectSpotChecks, parseSpotCheckReply, type CompletedWork } from '../../src/core/trust/spotCheck.js';
 import { DEMO_PROMOTED_EVIDENCE, DEMO_PAUSED_EVIDENCE, demoTrustSeedSql } from '../../src/demo/trust.js';
 
@@ -81,50 +80,6 @@ describe('M5 · capability withdrawal triggers', () => {
 });
 
 /* ── Edit learning: honest scope, no global creep ────────────────────────── */
-describe('M5 · edit-learning scope', () => {
-  const signals = (over: Partial<EditSignals> = {}): EditSignals => ({
-    ownerMarkedBuyerOnly: false, ownerMarkedGlobal: false,
-    touchedCommercialTerms: false, phrasingOnly: true,
-    productBound: false, timesSeenAcrossBuyers: 1, ...over,
-  });
-
-  it('a first-time phrasing edit is one-time — nothing generalizes from one sample', () => {
-    expect(classifyEditScope(signals())).toEqual({ scope: 'one_time', needsOwnerConfirm: false });
-  });
-
-  it('buyer-specific stays buyer-specific; never global', () => {
-    const d = classifyEditScope(signals({ ownerMarkedBuyerOnly: true, timesSeenAcrossBuyers: 5 }));
-    expect(d.scope).toBe('buyer_specific');
-    expect(d.needsOwnerConfirm).toBe(false);
-  });
-
-  it('commercial terms always need the owner to confirm generalization', () => {
-    expect(classifyEditScope(signals({ touchedCommercialTerms: true })))
-      .toEqual({ scope: 'policy', needsOwnerConfirm: true });
-  });
-
-  it('repetition earns wider scope: style at 2, global candidate (confirmed) at 3', () => {
-    expect(classifyEditScope(signals({ timesSeenAcrossBuyers: 2 })).scope).toBe('style');
-    const g = classifyEditScope(signals({ timesSeenAcrossBuyers: 3 }));
-    expect(g.scope).toBe('global_candidate');
-    expect(g.needsOwnerConfirm).toBe(true);
-  });
-
-  it('the ack never claims learning that did not happen', () => {
-    const ctx = { employeeName: '小雅', buyerName: 'Ahmed' };
-    const oneTime = learningAck({ scope: 'one_time', needsOwnerConfirm: false }, ctx);
-    expect(oneTime).toBe('已按你的修改发送。');
-    expect(oneTime).not.toContain('培训');
-    expect(oneTime).not.toContain('学');
-
-    const buyerOnly = learningAck({ scope: 'buyer_specific', needsOwnerConfirm: false }, ctx);
-    expect(buyerOnly).toContain('只用于Ahmed');
-    expect(buyerOnly).toContain('不影响其他买家');
-
-    const confirm = learningAck({ scope: 'policy', needsOwnerConfirm: true }, ctx);
-    expect(confirm).toContain('都这样');   // asks, doesn't assume
-  });
-});
 
 /* ── Spot checks: deterministic selection, low-friction verdicts ─────────── */
 describe('M5 · spot checks', () => {

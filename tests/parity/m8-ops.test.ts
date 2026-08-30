@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync } from 'node:fs';
-import {
-  llmOutagePlan, LLM_RETRY_DELAYS_MS, OUTAGE_NOTIFY_AFTER_MIN, NIGHT_HOLD_ACK_EN,
-} from '../../src/core/ops/degrade.js';
 import { effectiveMode, NO_KILL_SWITCHES, type KillSwitches } from '../../src/core/ops/killSwitch.js';
 import { PERF_BUDGETS } from '../../src/core/ops/perf.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
@@ -15,36 +12,6 @@ const T0 = new Date('2026-07-18T08:00:00Z');
 const after = (h: number) => new Date(T0.getTime() + h * 3600 * 1000);
 
 /* ── LLM outage: hold, never drop ────────────────────────────────────────── */
-describe('M8 · graceful LLM degradation', () => {
-  it('the message is ALWAYS held — the type forbids dropping', () => {
-    for (const plan of [
-      llmOutagePlan({ consecutiveFailures: 1, outageMinutes: 0, onNightShift: false }),
-      llmOutagePlan({ consecutiveFailures: 10, outageMinutes: 60, onNightShift: true }),
-    ]) {
-      expect(plan.holdMessage).toBe(true);
-    }
-  });
-
-  it('transient failures retry with bounded backoff, silently', () => {
-    expect(llmOutagePlan({ consecutiveFailures: 1, outageMinutes: 0, onNightShift: false }))
-      .toEqual({ holdMessage: true, action: 'retry_soon', retryDelayMs: 5_000, buyerAckEn: null });
-    expect(llmOutagePlan({ consecutiveFailures: 3, outageMinutes: 2, onNightShift: false }).retryDelayMs)
-      .toBe(LLM_RETRY_DELAYS_MS[2]);
-  });
-
-  it('sustained outage: owner is told to reply manually — the honest worst case', () => {
-    const p = llmOutagePlan({ consecutiveFailures: 4, outageMinutes: OUTAGE_NOTIFY_AFTER_MIN, onNightShift: false });
-    expect(p.action).toBe('notify_owner_manual');
-    expect(p.buyerAckEn).toBeNull();          // the OWNER replies; we don't freelance
-  });
-
-  it('night shift: one polite hold ack to the buyer, no 3am owner wake-up', () => {
-    const p = llmOutagePlan({ consecutiveFailures: 4, outageMinutes: 10, onNightShift: true });
-    expect(p.action).toBe('night_hold_and_ack');
-    expect(p.buyerAckEn).toBe(NIGHT_HOLD_ACK_EN);
-    expect(p.buyerAckEn).not.toMatch(/\d/);   // no numbers — guard-safe by construction
-  });
-});
 
 /* ── Kill switches: monotone, capability-scoped ──────────────────────────── */
 describe('M8 · per-capability kill switches', () => {

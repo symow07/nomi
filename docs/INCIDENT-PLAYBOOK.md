@@ -81,10 +81,20 @@ select flag, capability, business_id, set_at from ops_flags where cleared_at is 
   the job dead-letters → the `.dead` handler alerts the owner.
 - The buyer's message is not lost: ingress persists it before enqueueing, and
   wamid dedup makes replay safe.
-- **There is no degradation ladder.** `core/ops/degrade.ts` is reached by no
-  production path: no 5-minute threshold, no `needManualReply` alert, no
-  night-shift hold ack. (A malformed *response* to a successful call does fall
-  back safely — unknown intent, stay in phase — which is a different thing.)
+- **There is no degradation ladder, and there is no module pretending to be
+  one either.** `core/ops/degrade.ts` was reached by no production path and was
+  DELETED in M51.3. What it modelled beyond the behaviour above was a
+  five-minute owner threshold and a night-shift hold line reading "we will get
+  back to you first thing in the morning" — a promise about her behaviour that
+  she never made, and the same reason `BUDGET_PAUSE_REPLY` went with it. The
+  buyer gets silence and the owner gets an alert, which is the honest pair.
+  (A malformed *response* to a successful call does fall back safely — unknown
+  intent, stay in phase — which is a different thing.)
+- **KNOWN GAP, recorded rather than fixed here:** a dead-lettered inbound job
+  is not replayed when the model comes back. The buyer's message is not lost —
+  ingress persisted it and wamid dedup makes a replay safe — but the replay is
+  a person's decision today, not an automatic one. If an outage dead-letters
+  jobs, re-enqueue them after recovery.
 - You: watch recovery; if it runs long, **Stop messaging** (§ above) so retries
   stop reaching a live buyer. Postmortem if >30 min.
 
