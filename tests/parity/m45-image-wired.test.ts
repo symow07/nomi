@@ -115,7 +115,7 @@ describe('M4.5 · the worker calls the picture path', () => {
     const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/messageType === 'image'/);
     expect(src).toContain('seeImage');
-    expect(src, 'a photo she could not read must not reach computeTurn').toMatch(/if \(seen\?\.kind === 'refused'\)/);
+    expect(src, 'a photo she could not read must not reach computeTurn').toMatch(/seen\?\.kind === 'refused'/);
     expect(src, 'and must tell the owner').toMatch(/kind: 'low_confidence_image'/);
   });
 
@@ -126,13 +126,22 @@ describe('M4.5 · the worker calls the picture path', () => {
 
   it('download and vision run OUTSIDE the tenant transaction', async () => {
     const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
-    const seeAt = src.indexOf('await seeImage(');
-    const txAt = src.indexOf('await withTenantTx(db, businessId.value');
+    // Read the HANDLER, not the file: M51.1 extracted the turn into `runTurn`
+    // above it, so a file-wide `indexOf` for the transaction now finds that
+    // definition rather than the call. The guarantee is about ORDER WITHIN THE
+    // JOB — see the photo, then open a transaction — and that is what this
+    // slice asserts.
+    const handler = src.slice(src.indexOf('await boss.work<InboundJob>'));
+    const seeAt = handler.indexOf('await seeImage(');
+    const txAt = handler.indexOf('await withTenantTx(db, businessId.value');
     expect(seeAt).toBeGreaterThan(0);
     // Holding a conversation lock across a media download and a vision call
     // would serialise every other buyer behind one slow provider — the same
     // reason M34 hears a voice note before opening the transaction.
     expect(seeAt, 'the photo is seen before the transaction opens').toBeLessThan(txAt);
+    // And before any turn runs at all, which is the same guarantee stated
+    // against the thing that now holds the lock.
+    expect(seeAt, 'and before any turn').toBeLessThan(handler.indexOf('await runTurn('));
   });
 
   it('no transaction is held across the network inside the deps either', async () => {

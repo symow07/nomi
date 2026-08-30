@@ -110,7 +110,7 @@ describe('M34 · the pipeline is CALLED, not merely built', () => {
     expect(src).toContain('hearVoiceNote');
     expect(src).toMatch(/messageType === 'audio'/);
     expect(src, 'an unheard note must record the signal').toMatch(/kind: 'audio_unheard'/);
-    expect(src, 'and must not reach computeTurn').toMatch(/if \(heard\?\.kind === 'unheard'\)/);
+    expect(src, 'and must not reach computeTurn').toMatch(/heard\?\.kind === 'unheard'/);
   });
 
   it('the transcript becomes the turn text — one pipeline, not two', async () => {
@@ -120,9 +120,15 @@ describe('M34 · the pipeline is CALLED, not merely built', () => {
     // it — pinned source text, the brittleness this repo keeps paying for.
     // What matters is that the turn's text can come from a transcript and
     // falls back to what the buyer typed.
-    const req = src.slice(src.indexOf('const req = {'), src.indexOf('const result = await computeTurn'));
-    expect(req).toContain('heard.transcript');
-    expect(req).toContain('job.data.text');
+    //
+    // M51.1 moved the CHOICE from inside the turn to the call site — one
+    // `runTurn` now serves a typed message, a merged batch, a voice note and a
+    // photo — so this reads the dispatch rather than the request literal. The
+    // guarantee is unchanged: a transcript becomes the turn's text, and typed
+    // text is the fallback.
+    const dispatch = src.slice(src.indexOf('const heard = job.data.messageType'));
+    expect(dispatch).toContain('heard.transcript');
+    expect(dispatch).toContain('job.data.text');
   });
 
   it('the ingress carries what the parser already knew', async () => {

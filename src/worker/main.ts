@@ -3,6 +3,11 @@ import { createDb, lockConversation, withTenantTx } from '../db/client.js';
 import { sql } from 'kysely';
 import { tenantRepos } from '../db/repos.js';
 import { hybridRetriever } from '../retrieval/hybrid.js';
+import type { BusinessId, ConversationId } from '../core/types/ids.js';
+import { decideBatch } from '../core/conversation/batching.js';
+import {
+  recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor,
+} from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
 import { computeTurn, commitTurn, type TurnEffects } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
@@ -61,6 +66,121 @@ export async function startWorker(env: {
   const replyWriter = anthropicReplyWriter(anthropic);
   const vision = anthropicVision(anthropic);
 
+  /**
+   * ONE TURN, whatever produced it: a typed message, a merged batch of
+   * fragments, a voice note, a photo.
+   *
+   * Extracted in M51.1 because a media message must be able to FLUSH a pending
+   * text batch before it answers — two turns in one job, in the order the
+   * buyer sent them. The body below is unchanged; only what decides its inputs
+   * is new.
+   */
+  const runTurn = async (input: {
+    businessId: BusinessId;
+    conversationId: ConversationId;
+    messageId: string;
+    text: string;
+    caption: string | null;
+    provenance: 'typed' | 'transcribed' | 'photo';
+    heard: Awaited<ReturnType<typeof hearVoiceNote>> | null;
+    seen: Awaited<ReturnType<typeof seeImage>> | null;
+    fragmentIds: readonly string[];
+    started: number;
+  }): Promise<void> => {
+    const businessId = { value: input.businessId };
+    const conversationId = { value: input.conversationId };
+    const started = input.started;
+    const effects = await withTenantTx(db, businessId.value, async (tx) => {
+      await lockConversation(tx, conversationId.value);
+      const tenant = tenantRepos(tx, businessId.value);
+      const retriever = hybridRetriever(tx, businessId.value);
+      const ports = { tenant, retriever, analyzer, replyWriter, now: () => new Date() };
+
+      if (input.heard) await recordVoiceMessage(tx, conversationId.value, input.messageId, input.heard);
+
+      // FAIL CLOSED. She could not hear the question, so she does not answer
+      // it: the signal flags the conversation for the owner and the turn ends
+      // here. Before M34 this same input reached computeTurn as empty text and
+      // produced a confident reply to a question nobody had asked.
+      if (input.heard?.kind === 'unheard') {
+        await tenant.signals.record(conversationId.value, {
+          kind: 'audio_unheard', reason: input.heard.reason,
+        });
+        await tenant.events.append(conversationId.value, 'handoff', {});
+        return {
+          outbound: null, draftCreated: null, hotLeadAlert: false,
+          handoffAlert: true, orderCreated: null,
+        } satisfies TurnEffects;
+      }
+
+      if (input.seen) await recordImageMessage(tx, conversationId.value, input.messageId, input.caption, input.seen);
+
+      // FAIL CLOSED, for the same reason and in the same shape. She could not
+      // tell what the photo was — either the bytes never arrived, or two
+      // catalogue products were within a hair of each other and MATCH_MIN_MARGIN
+      // exists precisely so she does not pick one. `low_confidence_image` has
+      // been in the vocabulary and rendered by the inbox since M4; until this
+      // commit nothing ever wrote it, because nothing ever ran.
+      if (input.seen?.kind === 'refused') {
+        await tenant.signals.record(conversationId.value, { kind: 'low_confidence_image' });
+        await tenant.events.append(conversationId.value, 'handoff', {});
+        return {
+          outbound: null, draftCreated: null, hotLeadAlert: false,
+          handoffAlert: true, orderCreated: null,
+        } satisfies TurnEffects;
+      }
+
+      const req = {
+        conversationId: conversationId.value,
+        messageId: input.messageId,
+        // The transcript IS the message from here on — same pipeline, same
+        // gate, same price rules. Only its provenance differs. A photo becomes
+        // words the same way: his caption as his, the description as a
+        // description, never as something he said.
+        text: input.text,
+        // M34.5 — a figure inside a transcript is the machine's reading of a
+        // number that moves a price. If it drove the quote, the reply waits for
+        // the owner however her autonomy is set.
+        provenance: input.provenance,
+      };
+      const result = await computeTurn(ports, req);
+      const fx = await commitTurn(ports, req, result, started);
+      // M51.1 — the fragments this turn answered stop being pending, in the
+      // SAME transaction as the answer. A rollback leaves them pending and the
+      // next wake retries: the whole reason they are rows and not a variable.
+      await markFragmentsProcessed(tx, input.fragmentIds, input.messageId);
+      // Budget dataset (P5) — atomic per-turn usage increment, same tx.
+      await sql`select record_usage(${businessId.value}::uuid,
+        ${result.usage.llmCalls}, ${result.usage.inputTokens}, ${result.usage.outputTokens})`.execute(tx);
+      return fx;
+    });
+
+    // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
+    // are idempotent (outbound keyed by messageId, notifications tolerated).
+    if (effects.outbound) {
+      await boss.send(QUEUES.outbound, {
+        businessId: input.businessId,
+        conversationId: input.conversationId,
+        reply: effects.outbound.reply,
+        channel: 'auto',
+      }, { singletonKey: input.messageId });
+    }
+    // P3: enqueue a language-NEUTRAL alert code; the notify consumer localizes.
+    // singletonKey dedups concurrent alerts for the same event.
+    const alertKind = alertKindFor(effects);
+    if (alertKind) {
+      await boss.send(QUEUES.notify, {
+        businessId: input.businessId, kind: alertKind, conversationId: input.conversationId,
+      } satisfies NotifyJob, { singletonKey: `${input.businessId}:${alertKind}:${input.conversationId}` });
+    }
+    // NOTE: an `order.effects` job used to be enqueued here. Nothing ever
+    // consumed it, so every confirmed order left a job to sit until pg-boss
+    // expired it — and an expired job is what the dead-letter handler turns
+    // into an owner alert. The producer went first; the queue itself was
+    // deleted in M28. The order is already persisted by commitTurn; when there
+    // are real post-order effects, add the consumer and the producer together.
+  };
+
   await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
@@ -77,10 +197,7 @@ export async function startWorker(env: {
       ? await hearVoiceNote({ transcriber, audio }, job.data.mediaId)
       : null;
 
-    // M4.5 — the same treatment for a photo, and for the same reason. This
-    // branch is what M4 never had: `computeImageInquiry` was correct and
-    // unreachable, so a buyer's picture was answered from its caption or from
-    // nothing at all.
+    // M4.5 — the same treatment for a photo, and for the same reason.
     const seen = job.data.messageType === 'image'
       ? await seeImage({
           image: mediaFetcher
@@ -91,95 +208,95 @@ export async function startWorker(env: {
         })
       : null;
 
-    const effects = await withTenantTx(db, businessId.value, async (tx) => {
-      await lockConversation(tx, conversationId.value);
-      const tenant = tenantRepos(tx, businessId.value);
-      const retriever = hybridRetriever(tx, businessId.value);
-      const ports = { tenant, retriever, analyzer, replyWriter, now: () => new Date() };
-
-      if (heard) await recordVoiceMessage(tx, conversationId.value, job.data.messageId, heard);
-
-      // FAIL CLOSED. She could not hear the question, so she does not answer
-      // it: the signal flags the conversation for the owner and the turn ends
-      // here. Before M34 this same input reached computeTurn as empty text and
-      // produced a confident reply to a question nobody had asked.
-      if (heard?.kind === 'unheard') {
-        await tenant.signals.record(conversationId.value, {
-          kind: 'audio_unheard', reason: heard.reason,
+    /**
+     * ── M51.1 · DEBOUNCE-AND-BATCH ──────────────────────────────────────
+     *
+     * ASSUMPTIONS P1, closed at last. A buyer sends "hello" / "price?" /
+     * "the bags" / "5000pcs" in ten seconds; pg-boss serialises those four
+     * jobs but does not merge them — verified against pg-boss 12 rather than
+     * assumed — so each was analysed alone: meaningless input, four replies,
+     * four times the tokens.
+     *
+     * A TEXT message now joins a batch instead of becoming a turn. The
+     * fragment is persisted FIRST, so nothing is lost if this process dies
+     * between recording it and deciding what to do with it.
+     */
+    if (heard === null && seen === null) {
+      const decision = await withTenantTx(db, businessId.value, async (tx) => {
+        await recordFragment(tx, businessId.value, conversationId.value, {
+          id: job.data.messageId, text: job.data.text, receivedAt: new Date(),
         });
-        await tenant.events.append(conversationId.value, 'handoff', {});
-        return {
-          outbound: null, draftCreated: null, hotLeadAlert: false,
-          handoffAlert: true, orderCreated: null,
-        } satisfies TurnEffects;
+        const pending = await pendingFragments(tx, conversationId.value);
+        // Another wake already merged and answered these. Not an error — and
+        // NOT a reason to schedule another wake, which is how a debounce turns
+        // into a loop that never empties.
+        if (pending.length === 0) return null;
+        return { pending, config: await batchConfigFor(tx, businessId.value) };
+      });
+      if (!decision) return;
+
+      const batch = decideBatch(decision.pending, new Date(), decision.config);
+      if (batch.action === 'wait') {
+        // He is still typing. Come back when the quiet would have elapsed, or
+        // when the hard window closes — `decideBatch` decides which, and this
+        // only carries its answer to the queue.
+        await boss.send(QUEUES.inbound, job.data, {
+          singletonKey: conversationId.value,
+          startAfter: batch.checkAgainAt,
+          retryLimit: 3,
+        });
+        return;
       }
 
-      if (seen) await recordImageMessage(tx, conversationId.value, job.data.messageId, job.data.text || null, seen);
+      // His whole thought, in the order he had it. The turn is attributed to
+      // the fragment that CLOSED the batch: that is the message being answered.
+      const closing = batch.fragmentIds[batch.fragmentIds.length - 1] as string;
+      await runTurn({
+        businessId: businessId.value, conversationId: conversationId.value,
+        messageId: closing, text: batch.mergedText, caption: null,
+        provenance: 'typed', heard: null, seen: null,
+        fragmentIds: batch.fragmentIds, started,
+      });
+      return;
+    }
 
-      // FAIL CLOSED, for the same reason and in the same shape. She could not
-      // tell what the photo was — either the bytes never arrived, or two
-      // catalogue products were within a hair of each other and MATCH_MIN_MARGIN
-      // exists precisely so she does not pick one. `low_confidence_image` has
-      // been in the vocabulary and rendered by the inbox since M4; until this
-      // commit nothing ever wrote it, because nothing ever ran.
-      if (seen?.kind === 'refused') {
-        await tenant.signals.record(conversationId.value, { kind: 'low_confidence_image' });
-        await tenant.events.append(conversationId.value, 'handoff', {});
-        return {
-          outbound: null, draftCreated: null, hotLeadAlert: false,
-          handoffAlert: true, orderCreated: null,
-        } satisfies TurnEffects;
-      }
-
-      const req = {
-        conversationId: conversationId.value,
-        messageId: job.data.messageId,
-        // The transcript IS the message from here on — same pipeline, same
-        // gate, same price rules. Only its provenance differs. A photo becomes
-        // words the same way: his caption as his, the description as a
-        // description, never as something he said.
-        text: heard?.kind === 'heard' ? heard.transcript
-          : seen?.kind === 'words' ? seen.text
-          : job.data.text,
-        // M34.5 — a figure inside a transcript is the machine's reading of a
-        // number that moves a price. If it drove the quote, the reply waits for
-        // the owner however her autonomy is set.
-        provenance: heard?.kind === 'heard' ? 'transcribed' as const
-          : seen?.kind === 'words' ? 'photo' as const
-          : 'typed' as const,
-      };
-      const result = await computeTurn(ports, req);
-      const fx = await commitTurn(ports, req, result, started);
-      // Budget dataset (P5) — atomic per-turn usage increment, same tx.
-      await sql`select record_usage(${businessId.value}::uuid,
-        ${result.usage.llmCalls}, ${result.usage.inputTokens}, ${result.usage.outputTokens})`.execute(tx);
-      return fx;
+    /**
+     * A voice note or a photo is NOT merged into a text batch. Provenance is
+     * the difference between a figure she typed and a figure a machine read
+     * out of audio, and M34.5 treats those differently on purpose.
+     *
+     * It does FLUSH one, though. Answering the photo while three unanswered
+     * lines sit in the queue — and replying to those six seconds later — reads
+     * as confusion to the owner watching. The text goes first, in the order he
+     * sent it, and the media turn follows.
+     */
+    const flush = await withTenantTx(db, businessId.value, async (tx) => {
+      const pending = await pendingFragments(tx, conversationId.value);
+      return pending.length === 0 ? null : pending;
     });
+    if (flush) {
+      const merged = flush.map((f) => f.text.trim()).filter(Boolean).join('\n');
+      if (merged) {
+        await runTurn({
+          businessId: businessId.value, conversationId: conversationId.value,
+          messageId: flush[flush.length - 1]!.id, text: merged, caption: null,
+          provenance: 'typed', heard: null, seen: null,
+          fragmentIds: flush.map((f) => f.id), started,
+        });
+      }
+    }
 
-    // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
-    // are idempotent (outbound keyed by messageId, notifications tolerated).
-    if (effects.outbound) {
-      await boss.send(QUEUES.outbound, {
-        businessId: job.data.businessId,
-        conversationId: job.data.conversationId,
-        reply: effects.outbound.reply,
-        channel: 'auto',
-      }, { singletonKey: job.data.messageId });
-    }
-    // P3: enqueue a language-NEUTRAL alert code; the notify consumer localizes.
-    // singletonKey dedups concurrent alerts for the same event.
-    const alertKind = alertKindFor(effects);
-    if (alertKind) {
-      await boss.send(QUEUES.notify, {
-        businessId: job.data.businessId, kind: alertKind, conversationId: job.data.conversationId,
-      } satisfies NotifyJob, { singletonKey: `${job.data.businessId}:${alertKind}:${job.data.conversationId}` });
-    }
-    // NOTE: an `order.effects` job used to be enqueued here. Nothing ever
-    // consumed it, so every confirmed order left a job to sit until pg-boss
-    // expired it — and an expired job is what the dead-letter handler turns
-    // into an owner alert. The producer went first; the queue itself was
-    // deleted in M28. The order is already persisted by commitTurn; when there
-    // are real post-order effects, add the consumer and the producer together.
+    await runTurn({
+      businessId: businessId.value, conversationId: conversationId.value,
+      messageId: job.data.messageId,
+      text: heard?.kind === 'heard' ? heard.transcript
+        : seen?.kind === 'words' ? seen.text
+        : job.data.text,
+      caption: job.data.text || null,
+      provenance: heard?.kind === 'heard' ? 'transcribed'
+        : seen?.kind === 'words' ? 'photo' : 'typed',
+      heard, seen, fragmentIds: [], started,
+    });
   });
 
   // Dead letters become alerts, not silence: an exhausted retry is a page.

@@ -91,8 +91,6 @@ const DECLARED_UNWIRED = {
     'NEVER EXPIRES. A constants table whose only consumer is a test: m8-ops.test.ts measures quote-compute against it in CI. Not a module waiting to be wired — data the suite reads. The doc claim that a device enforces it was corrected in M34.8; there is no device build.',
 
   // ── Expire at a named milestone ─────────────────────────────────────────
-  'src/core/conversation/batching.ts':
-    'EXPIRES AT META GO-LIVE. docs/ASSUMPTIONS.md P1: buyers send four fragments in ten seconds, and debounce-and-batch must be built BEFORE shadow traffic. Messaging is off, so this is not yet a defect; the day real buyers arrive it is one. message_fragments (0009) exists with no writer.',
 
   // ── Decisions not yet made. Each is a question with a deadline ──────────
   'src/core/trust/editScope.ts':

@@ -61,3 +61,79 @@ describe('inbound batching — the fragment problem (ASSUMPTIONS P1)', () => {
     expect(d.action).toBe('process');
   });
 });
+
+describe('M51.1 · the batch is REACHED, not merely decided', () => {
+  /**
+   * `decideBatch` has been correct and unreachable since it was written. The
+   * tests above prove the decision; these prove a production job asks for it.
+   *
+   * ASSUMPTIONS P1 said "build before shadow", and the reason it stayed open
+   * is the reason it matters: nothing failed. Four fragments became four
+   * turns, each analysed alone, and the suite was green throughout.
+   */
+  it('the worker records a fragment before deciding anything', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    const handler = src.slice(src.indexOf('await boss.work<InboundJob>'));
+    // Persisted FIRST: a crash between recording and deciding must lose
+    // nothing, which is why message_fragments is a table and not a variable.
+    expect(handler.indexOf('await recordFragment('))
+      .toBeLessThan(handler.indexOf('decideBatch('));
+  });
+
+  it('a WAIT re-enqueues at the time decideBatch chose — not a constant', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/startAfter: batch\.checkAgainAt/);
+    // A transcribed delay here would drift from the config the owner sets.
+    expect(src).not.toMatch(/startAfter: \d/);
+  });
+
+  it('an empty pending list does NOT schedule another wake', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    // Four fragments produce four jobs; the first wake to win merges them and
+    // the rest find nothing. Re-arming there is how a debounce becomes a loop
+    // that never empties.
+    expect(src).toContain('if (pending.length === 0) return null;');
+    expect(src).toMatch(/if \(!decision\) return;/);
+  });
+
+  it('the fragments are marked answered in the SAME transaction as the answer', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    const turn = src.slice(src.indexOf('const effects = await withTenantTx'),
+      src.indexOf('// Effects enqueue AFTER'));
+    expect(turn).toContain('await markFragmentsProcessed(');
+    expect(turn).toContain('await commitTurn(');
+  });
+
+  it('MEDIA IS NOT MERGED INTO TEXT — provenance is the reason', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    // The batch branch is entered only when nothing was heard and nothing was
+    // seen. A transcript merged into typed lines would make M34.5's rule —
+    // a figure a machine read is treated differently from one she typed —
+    // unenforceable, because the turn could no longer say which was which.
+    expect(src).toContain('if (heard === null && seen === null) {');
+  });
+
+  it('but media FLUSHES a pending batch first, so replies keep his order', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    const handler = src.slice(src.indexOf('await boss.work<InboundJob>'));
+    const flushAt = handler.indexOf('const flush = await withTenantTx');
+    const mediaTurnAt = handler.lastIndexOf('await runTurn({');
+    expect(flushAt).toBeGreaterThan(0);
+    expect(flushAt, 'the text he typed is answered before the photo').toBeLessThan(mediaTurnAt);
+  });
+
+  it('the config comes from HER row, and falls back to the defaults', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../src/db/fragments.ts', import.meta.url), 'utf8');
+    expect(src).toContain('batch_debounce_ms');
+    // The failure mode of an unreadable config must not be "no batching" —
+    // that is the behaviour this milestone exists to remove.
+    expect(src).toContain('if (!row) return DEFAULT_BATCH_CONFIG;');
+  });
+});

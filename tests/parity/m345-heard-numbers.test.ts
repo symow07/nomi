@@ -82,9 +82,10 @@ describe('M34.5 · the rule narrows permission and never widens it', () => {
 
   it('the worker marks a transcript as transcribed, and typed text as typed', async () => {
     const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
-    const req = src.slice(src.indexOf('const req = {'), src.indexOf('const result = await computeTurn'));
-    expect(req).toContain("'transcribed'");
-    expect(req).toContain("'typed'");
+    // M51.1 moved the choice to the call site; the rule did not move.
+    const dispatch = src.slice(src.indexOf('const heard = job.data.messageType'));
+    expect(dispatch).toContain("'transcribed'");
+    expect(dispatch).toContain("'typed'");
   });
 
   it('the audit trail says why a draft the owner did not ask for is waiting', async () => {
