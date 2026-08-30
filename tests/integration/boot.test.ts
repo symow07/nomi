@@ -421,6 +421,28 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     }
   });
 
+  it('M39 · the Channel Center tells her the truth about each channel BEFORE she connects', async () => {
+    /**
+     * Wired end to end, because the wiring is where this one fails silently:
+     * `deps.templateState` defaults to 'none', so a route that forgot to pass
+     * it would still render a plausible page — one that quietly under-reports
+     * readiness rather than over-reporting it, which is the harmless direction
+     * and therefore the one nobody notices.
+     */
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const cookie = await login();
+    const res = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(t('en', 'reach.title'));
+    // Instagram and Messenger, stated as impossible rather than discouraged.
+    expect(res.body).toContain(t('en', 'reach.cold.never'));
+    expect(res.body).toContain(t('en', 'reach.instead.comment_to_dm'));
+    // Email, the one channel that can genuinely be written to first.
+    expect(res.body).toContain(t('en', 'reach.cold.open'));
+    // and WhatsApp's outstanding conditions, named
+    expect(res.body).toContain(t('en', 'reach.req.business_verification'));
+  });
+
   it('M9.4 channels: disconnect toggles the credential + audits; reconnect restores', async () => {
     const { sql } = await import('kysely');
     const { withTenantTx } = await import('../../src/db/client.js');

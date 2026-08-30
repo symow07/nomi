@@ -243,7 +243,7 @@ writer is that mistake with a schema attached.
 
 ---
 
-### M39 — The channel capability registry
+### M39 — The channel capability registry ✅ BUILT
 
 Each channel declares what it can carry. This is the M25/M26 pattern generalised,
 and it is what stops the product promising something an API cannot do.
@@ -267,6 +267,33 @@ comment-to-DM and click-to-WhatsApp ads. The buyer initiates — a comment, an a
 tap — and 小雅 engages inside the window. That is inbound-triggered, which is
 precisely what this product is already built for. Ship that as the IG/FB story
 instead of a cold DM that cannot exist.
+
+**As built.** `src/core/channel/registry.ts` — the table above, plus
+`mayInitiate`, rendered on `/app/channels` above the alert number. Three
+properties hold it together:
+
+- **It names requirements and evaluates none of them.** `approved_template` has
+  exactly one answerer (`templateReadiness.ts`); business verification and the
+  privacy page are Meta's to confirm and hers to supply. And CONSENT is absent
+  entirely, though this section names it for WhatsApp: consent is universal, so
+  it belongs to M38's `mayContact` for every channel at once. A second place
+  deciding whether a buyer opted in would agree right up until it did not.
+- **`never` is not a very strict `conditional`.** No reply-only channel carries
+  a requirement today, so both orderings inside the predicate refuse and the
+  ordering cannot be tested against the real registry — `mayInitiateWith` exists
+  as the seam. What it protects is the SENTENCE, not the boolean: `unmet`
+  renders as "you can write first once these are in place", a promise no amount
+  of paperwork makes true on Instagram.
+- **What a channel allows is not what this product can do.** `availableHere` is
+  checked against the adapters on disk in both directions, so email flips when
+  its adapter lands rather than when someone remembers.
+
+*Two things the screenshot caught. The page said "Email · you can write first"
+beside a Connect button, when nothing here can send an email at all. And
+"Coming soon: Instagram, Messenger" sat eight lines under "you cannot write
+first, ever" — the exact dishonesty this milestone removes, on the same page as
+the fix. Both chips are gone; what is genuinely coming for those two is the
+inbound story, which the section now states in full.*
 
 ---
 
@@ -577,7 +604,7 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
-### BLOCK C · The outbound engine — IN PROGRESS (C1 built)
+### BLOCK C · The outbound engine — IN PROGRESS (C1, C2 built)
 
 #### Block C in detail — built offline, plugged in at M52
 
@@ -587,7 +614,7 @@ at all.** It was deferred as "blocked", and it is not.
 | # | Milestone | Credential needed to BUILD |
 |---|---|---|
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
-| C2 | **M39 channel capability registry** | None — it is the thing that TELLS the owner what each channel can do. |
+| C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** | None. `gateOutbound` learns four refusals over C1 and C2. |
 | C4 | **M40 email from her own address** | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |

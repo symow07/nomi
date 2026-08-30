@@ -3,6 +3,11 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { maskPhone } from '../../core/channel/phone.js';
 import { deriveHealth, type ChannelStatus } from '../../core/channel/health.js';
+import {
+  CHANNEL_REGISTRY, OUTREACH_CHANNELS, mayInitiate,
+  type OutreachChannel, type Requirement,
+} from '../../core/channel/registry.js';
+import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
@@ -46,17 +51,25 @@ export type ChannelView = {
   readonly problem: ChannelProblem;
 };
 
-export type ChannelsData = { readonly whatsapp: ChannelView; readonly ownerPhone: string | null };
+export type ChannelsData = {
+  readonly whatsapp: ChannelView;
+  readonly ownerPhone: string | null;
+  /** M39 — resolved at boot from the provider and the approved-template list. */
+  readonly templateState: TemplateState;
+};
 
 export async function loadChannels(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
+  // M39 — resolved at boot, not here: `templateState()` reads the provider and
+  // the approved-template list, and asking it twice is how two answers start.
+  templateState: TemplateState = 'none',
 ): Promise<ChannelsData> {
   const bid = parseBusinessId(businessIdRaw);
   const notConnected: ChannelView = {
     kind: KIND, connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
-  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null };
+  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const ownerPhone = (await sql<{ p: string | null }>`
@@ -74,7 +87,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -86,7 +99,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone,
+        ownerPhone, templateState,
       };
     }
 
@@ -108,7 +121,7 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
-      ownerPhone,
+      ownerPhone, templateState,
     };
   });
 }
@@ -200,8 +213,19 @@ export const channelFlash = (locale: Locale, code: ChannelFlash): string =>
 
 /** ── Renderers (pure, mobile-first, localized, no secrets) ────────────────── */
 
+/**
+ * M39 — Instagram and Messenger are NO LONGER HERE, and that is a correction.
+ *
+ * "Coming soon" sat eight lines under a section stating that neither can be
+ * written to first, ever. For those two the missing part is not time, and a
+ * chip promising otherwise is exactly the dishonesty this milestone exists to
+ * remove — sitting on the same page as the fix. What is genuinely coming for
+ * them is the inbound story, which the reach section states in full.
+ *
+ * The rest stay: for Telegram, WeCom and RED the missing part really is time.
+ */
 const COMING_SOON: readonly ({ literal: string } | { key: MessageKey })[] = [
-  { literal: 'Instagram' }, { literal: 'Messenger' }, { literal: 'Telegram' },
+  { literal: 'Telegram' },
   { key: 'channel.platform.wecom' }, { key: 'channel.platform.rednote' },
 ];
 
@@ -213,6 +237,86 @@ function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): stri
   const hasYou = code !== 'send_failing';
   const youDo = hasYou ? t(locale, youKey) : '';
   return `<div class="prob">${esc(what)}<br>${esc(doing)}${hasYou ? `<br><b>${esc(youDo)}</b>` : ''}</div>`;
+}
+
+/**
+ * M39 — which of the registry's named requirements are actually true here.
+ *
+ * `approved_template` has exactly one answerer (`templateReadiness.ts`) and it
+ * is asked, not re-derived. The other two are Meta's to confirm and hers to
+ * supply, and NOTHING in this product can observe them — so they are UNMET.
+ *
+ * That is the fail-closed direction and it is deliberate: an unobservable
+ * requirement reported as satisfied would put "you can write first" in front of
+ * an owner whose first template send would be rejected, or worse, accepted
+ * against an unverified business.
+ */
+export function satisfiedRequirements(templateState: TemplateState): ReadonlySet<Requirement> {
+  const s = new Set<Requirement>();
+  if (templateState === 'approved') s.add('approved_template');
+  return s;
+}
+
+/**
+ * M39 — the truth about each channel, BEFORE she connects one.
+ *
+ * Every row is derived by asking `mayInitiate`, never by reading the table
+ * beside it. That is what keeps the page and the gate the same answer: when
+ * M42 refuses a send it refuses for the reason printed here, because it is the
+ * same call.
+ */
+export function renderReach(locale: Locale, satisfied: ReadonlySet<Requirement>): string {
+  const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
+    const cap = CHANNEL_REGISTRY[channel];
+    const decision = mayInitiate(channel, satisfied);
+    const tone = decision.ok ? 'ok' : decision.error.kind === 'never' ? 'stop' : 'warn';
+    const headline = decision.ok
+      ? t(locale, 'reach.cold.open')
+      : decision.error.kind === 'never'
+        ? t(locale, 'reach.cold.never')
+        : t(locale, 'reach.cold.conditional');
+
+    // What is still outstanding, and what is already done — both, because a
+    // list of only the gaps reads as a wall and hides the progress she made.
+    const reqs = cap.requires.length === 0 ? '' : `<ul class="reqs">${cap.requires.map((r) => {
+      const done = satisfied.has(r);
+      return `<li><span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale,
+        done ? 'reach.req.ready' : 'reach.req.waiting'))}</span> ${esc(t(locale, `reach.req.${r}` as MessageKey))}</li>`;
+    }).join('')}</ul>`;
+
+    const instead = cap.instead.length === 0 ? '' : `
+      <div class="instead"><span class="muted">${esc(t(locale, 'reach.instead.title'))}</span>
+        <ul>${cap.instead.map((i) =>
+          `<li>${esc(t(locale, `reach.instead.${i}` as MessageKey))}</li>`).join('')}</ul></div>`;
+
+    // What the channel allows is not what this product can do yet.
+    const notHere = cap.availableHere ? '' :
+      `<div class="muted win">${esc(t(locale, 'reach.notHere'))}</div>`;
+
+    const window = cap.replyWindowHours === null ? '' :
+      `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
+
+    return `<div class="card reach">
+      <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
+        <span class="pill ${tone}">${esc(headline)}</span></div>
+      ${reqs}${notHere}${window}${instead}
+    </div>`;
+  }).join('');
+
+  return `<div class="block">
+    <h2>${esc(t(locale, 'reach.title'))}</h2>
+    <p class="muted ch-desc">${esc(t(locale, 'reach.intro'))}</p>
+    ${rows}
+    <style>
+      .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
+      .reach .reqs li, .reach .instead li { padding:var(--space-4) 0;
+        font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+      .reach .win { font-size:var(--font-size-note); margin-top:var(--space-8); }
+      .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8);
+        border-top:1px solid var(--color-border); }
+      .reach .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+    </style>
+  </div>`;
 }
 
 export function renderChannels(data: ChannelsData, locale: Locale, flash: string | null): string {
@@ -240,6 +344,9 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
       <div class="ch-acts">${actions}</div>
     </div>`;
 
+  // M39 — what each channel allows, before she connects one.
+  const reach = renderReach(locale, satisfiedRequirements(data.templateState));
+
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: EMPLOYEE_NAME[locale] }))}</p>
@@ -260,6 +367,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${whatsappCard}
+    ${reach}
     ${alertsCard}
     ${soon}
     <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'channel.footer'))}</p>

@@ -541,7 +541,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const data = await loadChannels(deps.db, s.businessId, messagingEnabled);
+    const data = await loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none');
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash),

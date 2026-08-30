@@ -111,7 +111,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
    */
   const isPlatformName = (k: string): boolean =>
     k.startsWith('channel.platform.') || k.startsWith('conv.channel.')
-    || k.startsWith('contacts.channel.');
+    || k.startsWith('contacts.channel.') || k.startsWith('reach.channel.');
 
   it('every key exists in every locale, and nothing is left untranslated', () => {
     const en = new Set(Object.keys(messages.en));
