@@ -139,6 +139,35 @@ export type WebDeps = {
   readonly pageTranscriber?: PageTranscriber;
 };
 
+/**
+ * NOTHING IS PUBLIC EXCEPT WHAT IS DECLARED HERE.
+ *
+ * ONE list, in the module that registers the routes. It used to be two — a
+ * `PUBLIC` array inside `tests/integration/public-routes.test.ts` and another
+ * inside `tools/list-routes.mjs`, which `verify-remote.sh` uses to probe a
+ * deployed host. M40.2 added two public routes, updated the first copy, and the
+ * DEPLOY failed on the second: the remote check reported `/u` answering a
+ * stranger with a 404 where it wanted a redirect.
+ *
+ * That is the transcription defect this repo keeps paying for, and the fix is
+ * the same one every time. Both consumers now read this.
+ *
+ * Every entry is an argument, not an exception. Adding one is a decision about
+ * what a stranger may reach.
+ */
+export const PUBLIC_ROUTES: readonly {
+  readonly method: 'GET' | 'POST'; readonly url: string; readonly why: string;
+}[] = [
+  { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way' },
+  { method: 'GET', url: '/login', why: 'the login form itself' },
+  { method: 'POST', url: '/login', why: 'submitting the access code' },
+  { method: 'GET', url: '/locale', why: 'switching language before signing in' },
+  { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
+  { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
+  { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
+  { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
+];
+
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const codec = makeSessionCodec(deps.sessionSecret);
 

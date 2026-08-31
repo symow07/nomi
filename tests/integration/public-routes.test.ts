@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { seedRunTenant, RUN_BIZ } from './tenant.js';
+import { PUBLIC_ROUTES } from '../../src/api/web/app.js';
 
 /**
  * M35 — NOTHING IS PUBLIC EXCEPT WHAT WE SAY IS PUBLIC.
@@ -30,22 +31,13 @@ const d = DATABASE_URL ? describe : describe.skip;
  * decision, and the test below fails if a route escapes this list — in either
  * direction.
  */
-const PUBLIC: readonly { readonly method: string; readonly url: string; readonly why: string }[] = [
-  { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way' },
-  { method: 'GET', url: '/login', why: 'the login form itself' },
-  { method: 'POST', url: '/login', why: 'submitting the access code' },
-  { method: 'GET', url: '/locale', why: 'switching language before signing in' },
-  { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. Unguessable token IS the credential' },
-  // M40.2 — the buyer must be able to leave without an account. A signed token
-  // IS the credential, and it authorises exactly one thing: suppressing the one
-  // address inside it. The GET only renders; the POST acts.
-  { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
-  { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
-  // Mounted only when a shared secret exists, and it verifies that secret in
-  // constant time before reading a byte of the body. It is public in the sense
-  // that the sending provider has no session — not in the sense of unguarded.
-  { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified' },
-];
+/**
+ * DERIVED from the app's own declaration, never transcribed. This file used to
+ * hold its own copy, and `tools/list-routes.mjs` — which `verify-remote.sh`
+ * probes a deployed host with — held a second. M40.2 added two public routes,
+ * updated this copy, and the deploy failed on the other one.
+ */
+const PUBLIC = PUBLIC_ROUTES;
 
 const isPublic = (method: string, url: string): boolean =>
   PUBLIC.some((p) => p.method === method && p.url === url);

@@ -12,7 +12,10 @@
  */
 import Fastify from 'fastify';
 
-const PUBLIC = ['/', '/login', '/locale', '/p/:token'];
+// DERIVED, never transcribed. A second copy of this list is how M40.2's deploy
+// broke: the test's copy was updated and this one was not.
+const { PUBLIC_ROUTES } = await import('../src/api/web/app.ts');
+const PUBLIC = PUBLIC_ROUTES.filter((r) => r.method === 'GET').map((r) => r.url);
 
 const app = Fastify({ logger: false });
 const routes = [];
