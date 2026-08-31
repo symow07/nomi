@@ -335,6 +335,9 @@ export async function buildProduction(
     // says so, which refuses rather than assumes.
     resolveDns: resolveSendingRecords,
     sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
+    // M40.2 — absent mounts no webhook, exactly as an absent WhatsApp provider
+    // mounts none. There is nothing to verify a caller with.
+    emailWebhookSecret: process.env['EMAIL_WEBHOOK_SECRET'] ?? null,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets

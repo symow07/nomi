@@ -395,6 +395,58 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     }
   });
 
+  it('M40.2 · A BUYER UNSUBSCRIBES HIMSELF, and it is permanent', async () => {
+    const { mintUnsubscribe } = await import('../../src/outbound/unsubscribe.js');
+    const token = mintUnsubscribe('a-test-session-secret-of-sufficient-length', {
+      businessId: BIZ, channel: 'email', identity: FRESH, locale: 'en',
+    });
+
+    // GET renders and writes NOTHING — a scanner fetching the link must not
+    // unsubscribe him.
+    const page = await app.inject({ method: 'GET', url: `/u?t=${encodeURIComponent(token)}` });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Stop sending to me');
+    expect((await state('email', FRESH)).suppression).toBeNull();
+
+    const done = await app.inject({ method: 'POST', url: `/u?t=${encodeURIComponent(token)}` });
+    expect(done.statusCode).toBe(200);
+    expect(done.body).toContain('Nothing more will be sent');
+
+    const after = await state('email', FRESH);
+    expect(after.suppression!.reason).toBe('unsubscribed');
+    // and his consent is still on file — it simply does not matter any more
+    expect(after.consent).not.toBeNull();
+  });
+
+  it('M40.2 · pressing it twice keeps the first fact', async () => {
+    const { mintUnsubscribe } = await import('../../src/outbound/unsubscribe.js');
+    const token = mintUnsubscribe('a-test-session-secret-of-sufficient-length', {
+      businessId: BIZ, channel: 'email', identity: FRESH, locale: 'en',
+    });
+    const before = await state('email', FRESH);
+    await app.inject({ method: 'POST', url: `/u?t=${encodeURIComponent(token)}` });
+    expect((await state('email', FRESH)).suppression!.at).toEqual(before.suppression!.at);
+  });
+
+  it('M40.2 · A FORGED LINK IS 404, NOT 403 — and suppresses nobody', async () => {
+    const { mintUnsubscribe } = await import('../../src/outbound/unsubscribe.js');
+    const real = mintUnsubscribe('a-test-session-secret-of-sufficient-length', {
+      businessId: BIZ, channel: 'email', identity: CARD, locale: 'en',
+    });
+    const forged = `${Buffer.from(JSON.stringify([BIZ, 'email', 'nobody@example.com', 'en']))
+      .toString('base64url')}.${real.split('.')[1]}`;
+    for (const url of [`/u?t=${encodeURIComponent(forged)}`, '/u?t=nonsense', '/u']) {
+      expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(404);
+      expect((await app.inject({ method: 'POST', url })).statusCode, url).toBe(404);
+    }
+    expect((await state('email', 'nobody@example.com')).suppression).toBeNull();
+  });
+
+  it('M40.2 · and the webhook is not mounted without a secret', async () => {
+    const res = await app.inject({ method: 'POST', url: '/hooks/email', payload: {} });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('what is not an address is refused, and nothing is stored', async () => {
     const before = (await list()).length;
     for (const [channel, bad] of [['email', 'mei at example'], ['whatsapp', 'call me']] as const) {

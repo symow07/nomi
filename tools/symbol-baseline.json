@@ -1,6 +1,7 @@
 {
   "_why": "M35.3 \u2014 the symbol-reachability CEILING. `npm run check` fails when either count RISES above these. Zero is not the target: much of the tests-only list is legitimate test-consumed data. Lowering a number here is the point; raising one should be argued for in the commit message.",
   "_measured": "2026-08-12",
-  "testsOnly": 24,
-  "nothing": 17
+  "testsOnly": 26,
+  "nothing": 17,
+  "_raised": "M40.2 raised tests-only 24 -> 26. `mintUnsubscribe` and `unsubscribeHeaders` are the half of one-click unsubscribe that a SENDER calls, and nothing sends yet: the route that VERIFIES a token is wired and public, the code that MINTS one is not. Deleting a correct minter to satisfy a counter would leave a verifier for tokens nothing can create, which is worse code and no more honest. M40's sender lowers this back to 24; if that milestone lands and this number has not moved, the sender is not calling them and the link at the bottom of her mail goes nowhere."
 }

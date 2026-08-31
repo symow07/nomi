@@ -338,6 +338,39 @@ e-mail card on `/app/channels`. `REQUIRED_SCHEMA_VERSION` 38.
 this one" sat AFTER the whole DNS form, so a page of work read as available and
 the line saying it was not landed under the Save button.*
 
+#### M40.2 — the two ways a suppression arrives from outside her hands ✅ BUILT
+
+`src/outbound/unsubscribe.ts`, `src/core/outreach/events.ts`, the public `/u`
+pages, and `/hooks/email`. No migration — both write M38's `suppressions`.
+
+- **One-click unsubscribe is STATELESS.** A stored token needs a row written
+  before the message goes out and read when it comes back; a send path that must
+  write before it sends can fail between the two, leaving a message in someone's
+  inbox whose unsubscribe link resolves to nothing. The token carries who it is
+  for and is signed, so it cannot be edited into somebody else's address.
+- **GET renders, POST acts.** Mail providers, link scanners and security proxies
+  fetch every URL in a message before a human sees it; a GET that unsubscribed
+  would empty her list on delivery, silently, permanently. RFC 8058's one-click
+  POST lands on the same route.
+- **A soft bounce is not a suppression.** "Mailbox full" is ordinary. Suppressing
+  on one would permanently remove a real buyer because his inbox was full on a
+  Tuesday. Only a hard bounce, an unsubscribe or a complaint suppresses, and an
+  event type we do not recognise does nothing rather than being guessed into the
+  nearest reason.
+- **The webhook is mounted only when a secret exists**, exactly as the WhatsApp
+  webhook is: an unverified endpoint that writes permanent suppressions is a way
+  for anyone to remove her buyers one address at a time. The tenant comes out of
+  the signed token the message carried, never out of the request.
+
+*Three invariants caught real mistakes on the way in: `core/` may not import
+`node:crypto` (the module moved to `src/outbound/`), a buyer-facing page may not
+hand-roll a palette (it now emits the same tokens as the proof page), and a route
+that answers a stranger must be DECLARED public — `/u` and `/hooks/email` are now
+on that list, and the webhook is mounted in that probe so the declaration is not
+dead documentation. A test also caught a `null` inside the events array taking
+the endpoint down with a 500, which would have made the provider replay a batch
+that had already written permanent rows.*
+
 **Still to build in M40:** `outreach_log` and the outreach ceiling counter
 (M42's `ceilingReached` is a required field precisely so this cannot be
 forgotten), the sequence engine with kill-conditions, one-click unsubscribe,
@@ -684,7 +717,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1 built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** — M40.1, M40.2 built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 

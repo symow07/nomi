@@ -28,6 +28,10 @@ import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { setOutreach } from '../../db/outreach.js';
 import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
 import { checkDomain } from '../../core/outreach/domain.js';
+import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { suppressionFor } from '../../core/outreach/events.js';
+import { suppress as suppressIdentityRow } from '../../db/contacts.js';
 import {
   type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
   loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
@@ -108,6 +112,12 @@ export type WebDeps = {
    * "cannot verify", which refuses. Absence of a confirmation is not one.
    */
   readonly sendingInclude?: string | null;
+  /**
+   * M40.2 — the sending provider's webhook secret. ABSENT MOUNTS NO WEBHOOK:
+   * an unverified endpoint that writes permanent suppressions is a way for
+   * anyone to remove her buyers one address at a time.
+   */
+  readonly emailWebhookSecret?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
@@ -249,6 +259,108 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // quote exists, which tells whoever is guessing that they guessed right and
   // were merely unauthorised. `loadProof` returns null for every failure so
   // this handler cannot accidentally distinguish them.
+  /**
+   * M40.2 — bounces and complaints, from the sending provider.
+   *
+   * MOUNTED ONLY WHEN CONFIGURED, exactly as the WhatsApp webhook is: without a
+   * shared secret there is nothing to verify a caller with, and an unverified
+   * endpoint that writes permanent suppressions is a way for anyone on the
+   * internet to remove her buyers one address at a time. Absent is 404.
+   *
+   * THE TENANT COMES FROM THE MESSAGE, NOT FROM THE URL. Each send carries the
+   * same signed token its unsubscribe link uses, the provider echoes it back on
+   * every event, and the webhook reads business, channel and address out of the
+   * signature. One mechanism, two uses — a second scheme for the same fact is
+   * a second thing to keep true.
+   */
+  if (deps.emailWebhookSecret) {
+    app.post('/hooks/email', async (req, reply) => {
+      const given = String(req.headers['x-webhook-signature'] ?? '');
+      const expected = createHmac('sha256', deps.emailWebhookSecret!)
+        .update(JSON.stringify(req.body ?? {})).digest('base64url');
+      const a = Buffer.from(given); const b = Buffer.from(expected);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(404).send();
+
+      const events = (req.body as { events?: unknown })?.events;
+      if (!Array.isArray(events)) return reply.code(200).send({ ok: true });
+
+      for (const raw of events) {
+        // A provider that adds a null, a number or a string to the array must
+        // not take the endpoint down: a 500 makes it replay a batch that has
+        // already written permanent rows.
+        if (typeof raw !== 'object' || raw === null) continue;
+        const e = raw as { type?: unknown; permanent?: unknown; tag?: unknown; detail?: unknown };
+        if (typeof e.type !== 'string' || typeof e.tag !== 'string') continue;
+        const claim = claimFrom(deps.sessionSecret, e.tag);
+        if (!claim) continue;
+        const reason = suppressionFor({
+          type: e.type,
+          permanent: e.permanent === true,
+          recipient: claim.identity,
+          detail: typeof e.detail === 'string' ? e.detail : null,
+        });
+        // An event we do not recognise, or a soft bounce, does NOTHING. The
+        // failure mode of guessing is a permanent suppression nobody asked for.
+        if (!reason) continue;
+        const bid = parseBusinessId(claim.businessId);
+        if (!bid.ok) continue;
+        await withTenantTx(deps.db, bid.value, (tx) => suppressIdentityRow(tx, bid.value, {
+          channel: claim.channel, identity: claim.identity, reason,
+          detail: typeof e.detail === 'string' ? e.detail.slice(0, 200) : null,
+        }));
+      }
+      // Always 200 once the signature is good: a provider that gets an error
+      // retries the batch, and a batch that half-succeeded would be replayed
+      // against rows that are already permanent.
+      return reply.code(200).send({ ok: true });
+    });
+  }
+
+  /**
+   * M40.2 — one-click unsubscribe.
+   *
+   * GET RENDERS, POST ACTS, and that split is not tidiness. Mail providers,
+   * link scanners and security proxies fetch every URL in a message before a
+   * human sees it; a GET that unsubscribed would empty her list on delivery,
+   * silently, and every suppression it wrote would be permanent.
+   *
+   * RFC 8058's one-click POST from the mail client lands on the same route.
+   *
+   * THE TOKEN IS A QUERY PARAMETER, NOT A PATH SEGMENT, and that is the router
+   * rather than a preference: Fastify caps a path parameter at 100 characters
+   * and these are longer. Raising the cap is a SERVER option, which every place
+   * that builds an app would have to remember to set — and forgetting it would
+   * turn every unsubscribe link into a 414 in production while the tests that
+   * set it stayed green. A query string has no such cap and no such footgun.
+   */
+  app.get('/u', async (req, reply) => {
+    const token = String((req.query as { t?: string }).t ?? '');
+    const claim = claimFrom(deps.sessionSecret, token);
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    return reply.type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .send(renderUnsubscribe(claim, token));
+  });
+
+  app.post('/u', async (req, reply) => {
+    const token = String((req.query as { t?: string }).t ?? '')
+      || String((req.body as { t?: string } | undefined)?.t ?? '');
+    const claim = claimFrom(deps.sessionSecret, token);
+    if (!claim) return reply.code(404).type('text/html; charset=utf-8').send(notFoundPage());
+    // The result is not shown to him. Whether the write succeeded or the
+    // database was unreachable, the page he sees is the same — an error here
+    // would tell a visitor something about a tenant he has no business knowing,
+    // and would invite him to try again on a link that already worked.
+    await applyUnsubscribe(deps.db, claim);
+    return reply.type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .header('x-robots-tag', 'noindex, nofollow')
+      .send(renderUnsubscribed(claim.locale));
+  });
+
   app.get('/p/:token', async (req, reply) => {
     const token = String((req.params as { token: string }).token ?? '');
     const view = token.length >= 32 ? await loadProof(deps.db, token) : null;

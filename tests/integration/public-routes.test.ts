@@ -36,6 +36,15 @@ const PUBLIC: readonly { readonly method: string; readonly url: string; readonly
   { method: 'POST', url: '/login', why: 'submitting the access code' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. Unguessable token IS the credential' },
+  // M40.2 — the buyer must be able to leave without an account. A signed token
+  // IS the credential, and it authorises exactly one thing: suppressing the one
+  // address inside it. The GET only renders; the POST acts.
+  { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
+  { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
+  // Mounted only when a shared secret exists, and it verifies that secret in
+  // constant time before reading a byte of the body. It is public in the sense
+  // that the sending provider has no session — not in the sense of unguarded.
+  { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified' },
 ];
 
 const isPublic = (method: string, url: string): boolean =>
@@ -74,6 +83,12 @@ d('M35 · every route that is not deliberately public refuses a stranger', () =>
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
       secureCookie: false, messagingEnabled: false,
       kickOutbound: async () => {}, kickDrive: async () => {},
+      // M40.2 — the webhook is mounted here ON PURPOSE. It is conditional in
+      // production, and a route declared public in the list above but absent
+      // from the app under test is dead documentation: the check below would
+      // pass while nothing ever probed the real thing.
+      emailWebhookSecret: 'an-email-webhook-shared-secret',
+      resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }),
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
   }, 60_000);

@@ -191,7 +191,11 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   it('and every surface returns 200, not merely "not 500"', async () => {
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {
-      if (url === '/p/:token' || url === '/') continue;   // public, or a redirect by design
+      // Skipped because this walk cannot mint the credential they carry in the
+      // URL, or because they are a redirect by design. Both are covered
+      // elsewhere: the proof page by the test directly above, `/u` by
+      // contacts.test.ts with a real signed token.
+      if (url === '/p/:token' || url === '/u' || url === '/') continue;
       let target = url; let skip = false;
       for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
         const v = real[m[1]!];

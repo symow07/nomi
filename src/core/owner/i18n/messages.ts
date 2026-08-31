@@ -1200,6 +1200,12 @@ const EN = {
   'outreach.title': 'Writing first',
   // M40.1 — the domain her mail leaves as.
   'domain.none': 'She sends from no address of yours yet.',
+  // M40.2 — the page a buyer reaches from the link at the bottom of a message.
+  'unsub.title': 'Stop hearing from us',
+  'unsub.body': 'Press the button and nothing will be sent to this address again.',
+  'unsub.button': 'Stop sending to me',
+  'unsub.done.title': 'Done',
+  'unsub.done.body': 'Nothing more will be sent to this address.',
   'domain.intro': 'Add these three at whoever holds your domain. Until all three are there, mail from you gets filed as junk — and that damage sticks to the address you have used with buyers for years.',
   'domain.ready': 'Ready to send from',
   'domain.neverChecked': 'Not looked at yet',
@@ -2385,6 +2391,12 @@ const ZH: Record<MessageKey, string> = {
   'outreach.title': '先开口',
   // M40.1
   'domain.none': '她还没有你的发件地址。',
+  // M40.2
+  'unsub.title': '不再收到我们的消息',
+  'unsub.body': '点一下，以后不会再往这个地址发任何东西。',
+  'unsub.button': '别再发给我',
+  'unsub.done.title': '好了',
+  'unsub.done.body': '以后不会再往这个地址发东西了。',
   'domain.intro': '在你域名的服务商那里加这三条。三条不齐，你发出去的信会被当成垃圾邮件——而这个坏印象会留在你用了多年的那个地址上。',
   'domain.ready': '可以用它发信了',
   'domain.neverChecked': '还没查过',
@@ -3568,6 +3580,12 @@ const AR: Record<MessageKey, string> = {
   'outreach.title': 'المبادرة بالكتابة',
   // M40.1
   'domain.none': 'لا ترسل بعد من عنوان يخصّكِ.',
+  // M40.2
+  'unsub.title': 'إيقاف الرسائل',
+  'unsub.body': 'اضغط الزر ولن يُرسَل شيء إلى هذا العنوان بعد الآن.',
+  'unsub.button': 'أوقفوا الإرسال إليّ',
+  'unsub.done.title': 'تم',
+  'unsub.done.body': 'لن يُرسَل شيء آخر إلى هذا العنوان.',
   'domain.intro': 'أضيفي هذه الثلاثة عند من يحتفظ بنطاقكِ. وما لم تكتمل، تُصنَّف رسائلكِ كمزعجة — ويلتصق ذلك بالعنوان الذي تستعملينه مع المشترين منذ سنوات.',
   'domain.ready': 'جاهز للإرسال منه',
   'domain.neverChecked': 'لم يُفحص بعد',
