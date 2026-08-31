@@ -13,6 +13,7 @@ import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { assertSchemaCurrent } from './db/schemaVersion.js';
 import { assertPilotTenant } from './db/pilotTenant.js';
 import { templateState, parseApprovedTemplates } from './core/channel/templateReadiness.js';
+import { resolveSendingRecords } from './outbound/dns.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -329,6 +330,11 @@ export async function buildProduction(
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
       templateState: TEMPLATE_STATE,
+    // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` arrives with the sending
+    // provider (M52); until then the SPF check cannot confirm authorisation and
+    // says so, which refuses rather than assumes.
+    resolveDns: resolveSendingRecords,
+    sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets

@@ -22,7 +22,11 @@ const all = new Set<Requirement>(REQUIREMENTS);
 describe('M39 · the registry states what the APIs permit', () => {
   it('email is the only true cold channel', () => {
     expect(CHANNEL_REGISTRY.email.coldInitiate).toBe('open');
-    expect(mayInitiate('email').ok).toBe(true);
+    // M40.1 added its one condition: mail leaves as HER domain, so the records
+    // that stop it being filed as junk must be in place first. The channel is
+    // still the only one that permits a first message at all.
+    expect(mayInitiate('email', new Set(['verified_sending_domain'])).ok).toBe(true);
+    expect(mayInitiate('email').ok).toBe(false);
   });
 
   it('WhatsApp is conditional, and its conditions are named', () => {
@@ -254,7 +258,7 @@ describe('M39 · what she reads', () => {
 
   it('and the Channel Center renders it', async () => {
     const src = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
-    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState), data.outreach)');
+    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain),');
     expect(src).toContain('${reach}');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none')");

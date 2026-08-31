@@ -96,8 +96,15 @@ import type { Db } from './client.js';
  *      failure. The other shape of this bug is a gate that cannot find her
  *      decision, reads the empty answer as "not enabled", and quietly refuses
  *      every message she believes she switched on.
+ *
+ * 38 = the sending domain (0038, M40.1). `/app/channels` reads
+ *      `sending_domains` on every render — the e-mail card is built from it —
+ *      and writes it when she names a domain or asks for another look. Against
+ *      a 37 database the connections page throws. The alternative shape is
+ *      worse than a throw: a check that cannot be stored is a check that
+ *      never goes stale, and stale is the one state this table exists to catch.
  */
-export const REQUIRED_SCHEMA_VERSION = 37;
+export const REQUIRED_SCHEMA_VERSION = 38;
 
 export type SchemaState = {
   readonly required: number;

@@ -7,7 +7,7 @@ const connected: ChannelsData = {
     kind: 'whatsapp', connected: true, status: 'connected', healthOk: true,
     displayId: '+86 579****0001', lastActivityAt: new Date(), problem: null,
   },
-  ownerPhone: '+8613800000000', templateState: 'none', outreach: new Map(),
+  ownerPhone: '+8613800000000', templateState: 'none', outreach: new Map(), domain: null,
 };
 
 const notConnected: ChannelsData = {
@@ -15,7 +15,7 @@ const notConnected: ChannelsData = {
     kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   },
-  ownerPhone: null, templateState: 'none', outreach: new Map(),
+  ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null,
 };
 
 const needsAttention: ChannelsData = {
@@ -23,7 +23,7 @@ const needsAttention: ChannelsData = {
     kind: 'whatsapp', connected: false, status: 'needs_attention', healthOk: false,
     displayId: '+86 579****0001', lastActivityAt: null, problem: 'needs_relogin',
   },
-  ownerPhone: null, templateState: 'none', outreach: new Map(),
+  ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null,
 };
 
 describe('M9.4 · channel center (localized)', () => {

@@ -109,6 +109,13 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
    * than as a growing list of exemptions inside the assertion, so the next
    * surface that has to label a channel does not need a fourth.
    */
+  /**
+   * A literal EXAMPLE shown inside a field — an address of the shape she should
+   * type. Domains are ASCII in every language, and a translated one would be an
+   * example that does not exist.
+   */
+  const isExample = (k: string): boolean => k === 'domain.field.placeholder';
+
   const isPlatformName = (k: string): boolean =>
     k.startsWith('channel.platform.') || k.startsWith('conv.channel.')
     || k.startsWith('contacts.channel.') || k.startsWith('reach.channel.');
@@ -121,7 +128,7 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       const untranslated = entries(l)
         .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s))
         .filter(([k, v]) => !k.startsWith('claim.') && !k.startsWith('country.')
-          && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && k !== 'nav.channels')
+          && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && !isExample(k) && k !== 'nav.channels')
         .map(([k, s]) => `${l}/${k}: ${s}`);
       expect(untranslated, untranslated.join('\n')).toEqual([]);
     }

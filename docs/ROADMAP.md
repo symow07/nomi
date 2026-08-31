@@ -307,6 +307,43 @@ unverified — a misconfigured domain burns her reputation permanently), sequenc
 with kill-conditions in code rather than judgement, one-click unsubscribe writing
 straight to `suppressions`, bounce and complaint handling.
 
+#### M40.1 — the sending domain ✅ BUILT
+
+`src/core/outreach/domain.ts`, `src/outbound/dns.ts`, migration 0038, and the
+e-mail card on `/app/channels`. `REQUIRED_SCHEMA_VERSION` 38.
+
+- **It is a REQUIREMENT of the channel, not a fourth gate.** `verified_sending_domain`
+  joined M39's `REQUIREMENTS` and sits in e-mail's `requires`, so the connections
+  page renders it in the same Done/Not-yet list as WhatsApp's approved template
+  and `mayInitiate` refuses without it. A separate gate would have been a second
+  place deciding whether e-mail may initiate.
+- **It fails closed in three directions** — never checked, checked too long ago,
+  and checked and found wanting. A check that never goes stale is a claim about
+  the past wearing the clothes of the present: records get removed, and a cached
+  pass from six weeks ago would keep sending into the damage.
+- **An SPF record that does not list our sender is `unauthorized`, not
+  `malformed`.** The fix differs — a typo versus a missing line — and a
+  well-formed record that omits us is worse than none: it publishes a list our
+  mail is not on. With no provider configured there is no `include:` to require,
+  so the shape alone proves nothing and the check refuses.
+- **Naming a new domain clears the old one's pass**, and so does changing only
+  the selector: the DKIM record lives at a host derived from it, so a different
+  selector is a different record.
+- **Every DNS failure returns nothing rather than throwing.** NXDOMAIN, a
+  timeout, a resolver that is down — all mean "we did not see it", which reads
+  as `missing`. A thrown error would tempt a caller into a catch that treats
+  "could not check" as "fine".
+
+*The screenshot caught the ordering: "Not set up here yet — she cannot send on
+this one" sat AFTER the whole DNS form, so a page of work read as available and
+the line saying it was not landed under the Save button.*
+
+**Still to build in M40:** `outreach_log` and the outreach ceiling counter
+(M42's `ceilingReached` is a required field precisely so this cannot be
+forgotten), the sequence engine with kill-conditions, one-click unsubscribe,
+bounce and complaint handling, the reply-as-opt-in, and the adapter itself —
+whose arrival is what flips e-mail's `availableHere`.
+
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
 works for replies today.
@@ -647,7 +684,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** — M40.1 built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 

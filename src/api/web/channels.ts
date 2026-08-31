@@ -9,6 +9,10 @@ import {
 } from '../../core/channel/registry.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { canBeEnabled, outreachEnabled, setOutreach } from '../../db/outreach.js';
+import { sendingDomain, type SendingDomain } from '../../db/sendingDomain.js';
+import {
+  DNS_RECORDS, mayUseDomain, recordHost, type DnsRecordKind,
+} from '../../core/outreach/domain.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
@@ -59,6 +63,8 @@ export type ChannelsData = {
   readonly templateState: TemplateState;
   /** M42 — her decision to write first, per channel. Absent means NOT enabled. */
   readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
+  /** M40.1 — the domain her mail leaves as, and the last look at its records. */
+  readonly domain: SendingDomain | null;
 };
 
 const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
@@ -74,10 +80,11 @@ export async function loadChannels(
     kind: KIND, connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
-  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH };
+  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH, domain: null };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const outreach = await outreachEnabled(tx, bid.value);
+    const domain = await sendingDomain(tx, bid.value);
     const ownerPhone = (await sql<{ p: string | null }>`
       select owner_phone as p from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.p ?? null;
     const row = (await sql<{
@@ -93,7 +100,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, domain };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -105,7 +112,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone, templateState, outreach,
+        ownerPhone, templateState, outreach, domain,
       };
     }
 
@@ -127,7 +134,7 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
-      ownerPhone, templateState, outreach,
+      ownerPhone, templateState, outreach, domain,
     };
   });
 }
@@ -257,9 +264,16 @@ function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): stri
  * an owner whose first template send would be rejected, or worse, accepted
  * against an unverified business.
  */
-export function satisfiedRequirements(templateState: TemplateState): ReadonlySet<Requirement> {
+export function satisfiedRequirements(
+  templateState: TemplateState, domain: SendingDomain | null = null, now: Date = new Date(),
+): ReadonlySet<Requirement> {
   const s = new Set<Requirement>();
   if (templateState === 'approved') s.add('approved_template');
+  // M40.1 — the SAME predicate the send path uses, TTL and all. A page that
+  // read the stored states directly would call a six-week-old pass a pass.
+  if (mayUseDomain({ check: domain?.check ?? null, checkedAt: domain?.checkedAt ?? null }, now).ok) {
+    s.add('verified_sending_domain');
+  }
   return s;
 }
 
@@ -271,9 +285,69 @@ export function satisfiedRequirements(templateState: TemplateState): ReadonlySet
  * M42 refuses a send it refuses for the reason printed here, because it is the
  * same call.
  */
+/**
+ * M40.1 — the exact records to add, and what we last saw at each host.
+ *
+ * The host is DERIVED from her domain and selector by the same `recordHost` the
+ * lookup uses, so what she is told to create and what we go looking for cannot
+ * be two different names.
+ */
+export function renderDomain(
+  locale: Locale, domain: SendingDomain | null, now: Date = new Date(),
+): string {
+  if (!domain) {
+    return `<div class="dom">
+      <p class="muted">${esc(t(locale, 'domain.none'))}</p>
+      ${domainForm(locale, null)}
+    </div>`;
+  }
+  const verdict = mayUseDomain({ check: domain.check, checkedAt: domain.checkedAt }, now);
+  const rows = DNS_RECORDS.map((kind: DnsRecordKind) => {
+    const state = domain.check?.[kind] ?? null;
+    const done = state === 'ok';
+    return `<li>
+      <span class="pill ${done ? 'ok' : 'warn'}">${esc(t(locale,
+        done ? 'reach.req.ready' : 'reach.req.waiting'))}</span>
+      <span class="k">${esc(t(locale, `domain.record.${kind}` as MessageKey))}</span>
+      <code class="host">${esc(recordHost(kind, domain.domain, domain.dkimSelector))}</code>
+      ${state && !done ? `<span class="muted">·&nbsp;${esc(t(locale, `domain.state.${state}` as MessageKey))}</span>` : ''}
+    </li>`;
+  }).join('');
+
+  const said = verdict.ok
+    ? t(locale, 'domain.ready')
+    : verdict.error.kind === 'never_checked' ? t(locale, 'domain.neverChecked')
+      : verdict.error.kind === 'stale' ? t(locale, 'domain.stale',
+        { date: formatRelative(locale, verdict.error.checkedAt, now) })
+        : t(locale, 'domain.incomplete');
+
+  return `<div class="dom">
+    <div class="dom-h"><code class="who"><bdi>${esc(domain.domain)}</bdi></code>
+      <span class="pill ${verdict.ok ? 'ok' : 'warn'}">${esc(said)}</span></div>
+    <p class="muted">${esc(t(locale, 'domain.intro'))}</p>
+    <ul class="dns">${rows}</ul>
+    <form method="post" action="/app/channels/domain/check" class="inline">
+      <button class="btn" type="submit">${esc(t(locale, 'domain.check'))}</button>
+    </form>
+    ${domainForm(locale, domain)}
+  </div>`;
+}
+
+function domainForm(locale: Locale, domain: SendingDomain | null): string {
+  return `<form method="post" action="/app/channels/domain" class="domform">
+    <label class="fld"><span class="muted">${esc(t(locale, 'domain.field.domain'))}</span>
+      <input name="domain" required maxlength="253" value="${esc(domain?.domain ?? '')}"
+        placeholder="${esc(t(locale, 'domain.field.placeholder'))}" /></label>
+    <label class="fld"><span class="muted">${esc(t(locale, 'domain.field.selector'))}</span>
+      <input name="selector" maxlength="63" value="${esc(domain?.dkimSelector ?? '')}" /></label>
+    <button class="btn send" type="submit">${esc(t(locale, 'domain.save'))}</button>
+  </form>`;
+}
+
 export function renderReach(
   locale: Locale, satisfied: ReadonlySet<Requirement>,
   enabled: ReadonlyMap<OutreachChannel, boolean> = new Map(),
+  domain: SendingDomain | null = null,
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -330,10 +404,17 @@ export function renderReach(
         </form>
       </div>`;
 
+    // M40.1 — the domain block sits under e-mail's requirement list, because
+    // that requirement is the only thing she can do anything about here.
+    const dom = channel === 'email' ? renderDomain(locale, domain) : '';
+
     return `<div class="card reach">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
         <span class="pill ${tone}">${esc(headline)}</span></div>
-      ${reqs}${notHere}${window}${instead}${toggle}
+      <!-- What this product can do comes FIRST. The e-mail card put it after
+           the whole DNS form, so a page of work read as available and the line
+           saying it was not landed under the Save button. -->
+      ${notHere}${reqs}${dom}${window}${instead}${toggle}
     </div>`;
   }).join('');
 
@@ -354,6 +435,14 @@ export function renderReach(
         align-items:center; gap:var(--space-12); }
       .reach .outreach .on { color:var(--color-ink); font-weight:600; }
       .reach .warn-line { flex-basis:100%; font-size:var(--font-size-note); margin:0; }
+      .dom { margin-top:var(--space-12); }
+      .dom-h { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; }
+      .dom .who { font-weight:600; }
+      .dns { list-style:none; margin:var(--space-8) 0; padding:0; }
+      .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
+        padding:var(--space-4) 0; font-size:var(--font-size-note); }
+      .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
+      .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
     </style>
   </div>`;
 }
@@ -384,7 +473,8 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
     </div>`;
 
   // M39 — what each channel allows, before she connects one.
-  const reach = renderReach(locale, satisfiedRequirements(data.templateState), data.outreach);
+  const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain),
+    data.outreach, data.domain);
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>

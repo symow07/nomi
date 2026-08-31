@@ -26,6 +26,8 @@ import {
 } from './people.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { setOutreach } from '../../db/outreach.js';
+import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
+import { checkDomain } from '../../core/outreach/domain.js';
 import {
   type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
   loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
@@ -95,6 +97,17 @@ export type WebDeps = {
   /** M25 — the installation's real template capability, derived at boot.
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
+  /**
+   * M40.1 — the DNS lookup, injected so a test can drive it without the
+   * network and so the resolver stays out of the web layer.
+   */
+  readonly resolveDns: import('../../outbound/dns.js').DnsLookup;
+  /**
+   * The `include:` mechanism her SPF record must carry — the sending provider's
+   * own. NULL until a provider is configured (M52), and the check reads that as
+   * "cannot verify", which refuses. Absence of a confirmation is not one.
+   */
+  readonly sendingInclude?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
@@ -1088,6 +1101,53 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await removePerson(deps.db, s.businessId, (req.params as { id: string }).id);
     return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
       t(locale, r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed'))}`);
+  });
+
+  /**
+   * M40.1 — the domain her mail leaves as.
+   *
+   * OWNER ONLY, on the same list as turning writing-first on: a wrong record
+   * here damages the address she has used with buyers for years, and the damage
+   * is silent. Setting it CLEARS any previous check — see `setSendingDomain`.
+   */
+  app.post('/app/channels/domain', async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const bid = parseBusinessId(sess.businessId);
+    const domain = String(b['domain'] ?? '').trim().toLowerCase();
+    const selector = String(b['selector'] ?? '').trim().toLowerCase() || 'nomi';
+    const shaped = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain)
+      && /^[a-z0-9][a-z0-9-]*$/.test(selector);
+    if (!bid.ok || !shaped) {
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale,
+        bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed'))}`);
+    }
+    await withTenantTx(deps.db, bid.value, (tx) =>
+      setSendingDomain(tx, bid.value, { domain, dkimSelector: selector, by: personOf(sess).name }));
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.saved'))}`);
+  });
+
+  app.post('/app/channels/domain/check', async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const bid = parseBusinessId(sess.businessId);
+    if (!bid.ok) {
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
+    }
+    const row = await withTenantTx(deps.db, bid.value, (tx) => sendingDomain(tx, bid.value));
+    if (!row) {
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
+    }
+    // The lookup is I/O and can fail; a failure returns empty lists, which read
+    // as 'missing'. It is never allowed to read as "fine".
+    const found = await deps.resolveDns(row.domain, row.dkimSelector);
+    const check = checkDomain(found, deps.sendingInclude ?? null);
+    await withTenantTx(deps.db, bid.value, (tx) =>
+      recordDomainCheck(tx, bid.value, check, new Date()));
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.checked'))}`);
   });
 
   /**

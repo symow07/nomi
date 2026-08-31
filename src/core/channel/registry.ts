@@ -21,9 +21,10 @@ import { type Result, ok, err } from '../types/result.js';
  * It names requirements. It does not evaluate them, because every one of them
  * already has exactly one answerer and a second would drift:
  *
- *   approved_template     → `templateReadiness.ts` (M22 §B)
- *   business_verification }
- *   privacy_policy_url    } → Meta's decision; the owner supplies the evidence
+ *   approved_template        → `templateReadiness.ts` (M22 §B)
+ *   verified_sending_domain  → `outreach/domain.ts` (M40.1)
+ *   business_verification    }
+ *   privacy_policy_url       } → Meta's decision; she supplies the evidence
  *
  * And CONSENT is not on the list at all, though the roadmap names it for
  * WhatsApp. Consent is universal — no channel may carry an uninvited message
@@ -58,6 +59,7 @@ export type ColdInitiate =
  */
 export const REQUIREMENTS = [
   'approved_template', 'business_verification', 'privacy_policy_url',
+  'verified_sending_domain',   // M40.1
 ] as const;
 export type Requirement = (typeof REQUIREMENTS)[number];
 
@@ -96,7 +98,12 @@ export type ChannelCapability = {
 
 export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapability>> = {
   email: {
-    availableHere: false, channel: 'email', coldInitiate: 'open', requires: [],
+    availableHere: false, channel: 'email', coldInitiate: 'open',
+    // M40.1 — mail leaves as HER domain, so a missing SPF/DKIM/DMARC record
+    // damages the address she has used with buyers for years. The damage is
+    // silent and gradual, which is exactly why it is a requirement here rather
+    // than a warning somewhere.
+    requires: ['verified_sending_domain'],
     replyWindowHours: null, instead: [],
   },
   whatsapp: {

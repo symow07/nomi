@@ -22,6 +22,7 @@ const appWith = (secureCookie: boolean) => {
     employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
     secureCookie,
     kickOutbound: async () => {},
+    resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }),
   });
   return app;
 };
