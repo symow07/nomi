@@ -3,7 +3,7 @@ import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
   onSendFailure, shouldReclaim,
 } from '../core/channel/delivery.js';
-import { gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
+import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
 import { sendPlan, windowState, type TemplateState } from '../core/channel/window.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
@@ -80,6 +80,23 @@ export type OutboundStore = {
  * owner's audit trail would be the same lie this milestone exists to remove.
  */
 export type RefusalReason = GateRefusal | 'window_needs_owner' | 'media_unsupported';
+
+/**
+ * The same union as a list, DERIVED not restated.
+ *
+ * M42 — this lived in `api/web/refusals.ts` as a hand-written copy of
+ * `GATE_REFUSALS` plus the two below, kept in step by a test asserting the two
+ * were equal. That test caught the drift twice, which is two times more than a
+ * transcription should ever be allowed to cost. It sits here because "every
+ * reason the worker can write" is a fact about the worker, and because the read
+ * model that renders it is forbidden from naming the gate at all.
+ */
+export const REFUSAL_REASONS: readonly RefusalReason[] = [
+  ...GATE_REFUSALS,
+  // From OUTSIDE the gate — both are ways a message the gate ALLOWED still did
+  // not reach the buyer, reported by the send path rather than decided by it.
+  'window_needs_owner', 'media_unsupported',
+];
 
 export type DriveEffect =
   | { readonly kind: 'reclaimed'; readonly id: string }

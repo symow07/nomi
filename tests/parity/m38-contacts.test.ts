@@ -4,7 +4,7 @@ import {
   CONSENT_EVIDENCE, CONTACT_CHANNELS, CONTACT_SOURCES, SUPPRESSION_REASONS,
   mayContact, normalizeIdentity, type Consent, type Suppression,
 } from '../../src/core/outreach/consent.js';
-import { renderContacts, renderSuppressConfirm } from '../../src/api/web/contacts.js';
+import { renderContacts, renderSuppressConfirm, type ContactsView } from '../../src/api/web/contacts.js';
 import type { ContactRow } from '../../src/db/contacts.js';
 import { normalizePhone } from '../../src/core/channel/phone.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -146,24 +146,28 @@ const row = (over: Partial<ContactRow> = {}): ContactRow => ({
   consent: null, suppression: null, ...over,
 });
 
+/** M42 added two fields to the view; the fixtures build through one place. */
+const view = (contacts: readonly ContactRow[], over: Partial<ContactsView> = {}): ContactsView =>
+  ({ contacts, outreach: new Map(), satisfied: new Set(), ...over });
+
 describe('M38 · her page', () => {
   it('says what she has not said yet, and offers the one thing that changes it', () => {
-    const html = renderContacts({ contacts: [row()] }, 'en', null);
+    const html = renderContacts(view([row()]), 'en', null);
     expect(html).toContain(t('en', 'contacts.consent.none'));
     expect(html).toContain(t('en', 'contacts.attest.button'));
     expect(html).toContain('/app/contacts/consent');
   });
 
   it('names the evidence when there is some, and stops offering to attest', () => {
-    const html = renderContacts({ contacts: [row({ consent: consent({ evidence: 'inbound_message' }) })] }, 'en', null);
+    const html = renderContacts(view([row({ consent: consent({ evidence: 'inbound_message' }) })]), 'en', null);
     expect(html).toContain(t('en', 'contacts.evidence.inbound_message'));
     expect(html).not.toContain(t('en', 'contacts.attest.button'));
   });
 
   it('A SUPPRESSED PERSON GETS NO ACTIONS AT ALL — there is no undo to offer', () => {
-    const html = renderContacts({ contacts: [row({
+    const html = renderContacts(view([row({
       consent: consent(), suppression: suppressed({ reason: 'complained' }),
-    })] }, 'en', null);
+    })]), 'en', null);
     expect(html).toContain(t('en', 'contacts.reason.complained'));
     expect(html).not.toContain('/app/contacts/consent');
     expect(html).not.toContain('/app/contacts/suppress');
@@ -173,7 +177,7 @@ describe('M38 · her page', () => {
   });
 
   it('the forms carry the ADDRESS, because half this list has no row', () => {
-    const html = renderContacts({ contacts: [row({ id: null, source: 'inbound' })] }, 'en', null);
+    const html = renderContacts(view([row({ id: null, source: 'inbound' })]), 'en', null);
     expect(html).toContain('name="identity" value="ahmed@example.com"');
     expect(html).toContain('name="channel" value="email"');
     // No row means nothing to archive, and nothing pretends otherwise.
@@ -181,14 +185,14 @@ describe('M38 · her page', () => {
   });
 
   it('a phone is shown to her in full — this is her own list, not a buyer’s view', () => {
-    const html = renderContacts({ contacts: [row({ channel: 'whatsapp', identity: '971500001234' })] }, 'en', null);
+    const html = renderContacts(view([row({ channel: 'whatsapp', identity: '971500001234' })]), 'en', null);
     expect(html).toContain('+971500001234');
     expect(html).not.toContain('****');
   });
 
   it('an empty list names the next action', () => {
     for (const locale of LOCALES) {
-      const html = renderContacts({ contacts: [] }, locale, null);
+      const html = renderContacts(view([]), locale, null);
       const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
       expect(visible, locale).toContain(t(locale, 'contacts.empty'));
       expect(visible, locale).toContain(t(locale, 'contacts.add.button'));
@@ -236,7 +240,7 @@ describe('M38 · her page', () => {
     // A one-click irreversible action on every row of a list of live buyers is
     // what the first screenshot of this page actually showed. The row links;
     // the second page posts.
-    const html = renderContacts({ contacts: [row({ consent: consent() })] }, 'en', null);
+    const html = renderContacts(view([row({ consent: consent() })]), 'en', null);
     expect(html).toContain('href="/app/contacts/suppress?channel=email&amp;identity=');
     expect(html).not.toMatch(/<form[^>]*action="\/app\/contacts\/suppress"/);
 
@@ -253,9 +257,9 @@ describe('M38 · her page', () => {
 
   it('the attest hint appears only where the attest button does', () => {
     // A sentence explaining a control she cannot see reads as a non-sequitur.
-    expect(renderContacts({ contacts: [row()] }, 'en', null))
+    expect(renderContacts(view([row()]), 'en', null))
       .toContain(t('en', 'contacts.attest.hint'));
-    expect(renderContacts({ contacts: [row({ consent: consent() })] }, 'en', null))
+    expect(renderContacts(view([row({ consent: consent() })]), 'en', null))
       .not.toContain(t('en', 'contacts.attest.hint'));
   });
 

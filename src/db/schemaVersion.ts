@@ -89,8 +89,15 @@ import type { Db } from './client.js';
  *      on `suppressions`. Against a 35 database the page throws — which is the
  *      right failure, because the alternative shape of this bug is a gate that
  *      cannot find the suppression list and treats an empty answer as consent.
+ *
+ * 37 = writing first (0037, M42). `/app/channels` reads `outreach_settings` to
+ *      show whether she has turned writing-first on, and writes it when she
+ *      does. Against a 36 database the read throws, which is the honest
+ *      failure. The other shape of this bug is a gate that cannot find her
+ *      decision, reads the empty answer as "not enabled", and quietly refuses
+ *      every message she believes she switched on.
  */
-export const REQUIRED_SCHEMA_VERSION = 36;
+export const REQUIRED_SCHEMA_VERSION = 37;
 
 export type SchemaState = {
   readonly required: number;

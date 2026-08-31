@@ -26,6 +26,9 @@ const OTHER = `dd380000-0000-4000-8000-${RUN}0002`;
 // GLOBALLY, so the run id keeps two runs from colliding.
 const WA = `8613${RUN.replace(/\D/g, '').padEnd(8, '7').slice(0, 8)}`;
 const CARD = `mei-${RUN}@example.com`;
+// A second person, added late, so the suppression the rest of this file records
+// against CARD does not take the only writable contact out of play.
+const FRESH = `yusuf-${RUN}@example.com`;
 
 d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
   let app: import('fastify').FastifyInstance;
@@ -313,6 +316,83 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     expect((await state('whatsapp', WA, OTHER)).suppression!.reason).toBe('complained');
     expect((await list()).some((c) => c.identity === CARD && c.suppression)).toBe(true);
     expect((await list(OTHER)).some((c) => c.identity === CARD)).toBe(false);
+  });
+
+  it('M42 · HER CONTACT LIST ANSWERS THE GATE, not a second opinion of it', async () => {
+    await post('/app/contacts', `channel=email&identity=${encodeURIComponent(FRESH)}&name=Yusuf`);
+    await post('/app/contacts/consent', `channel=email&identity=${encodeURIComponent(FRESH)}`);
+
+    const res = await app.inject({ method: 'GET', url: '/app/contacts', headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+
+    /**
+     * Both people are refused, for DIFFERENT reasons, and both are the truth:
+     *
+     *   the e-mail contact — consent is on file and e-mail allows a first
+     *     message, but nothing here can send one yet (M40).
+     *   the buyer who WhatsApped — no template is approved, so the channel
+     *     cannot carry a first message whatever she decides.
+     *
+     * Nothing in this product can cold-outreach today, and the page says so
+     * twice rather than showing a green state it cannot honour. It opens when
+     * the adapter lands and the conditions in M52 are met.
+     */
+    expect(res.body).toContain('does not allow a first message');
+    expect(res.body).not.toContain('She can write to him first.');
+    // And NOT "you have not said she may write first" — that would name a
+    // decision she cannot make yet, about a switch e-mail does not have.
+    expect(res.body).not.toContain('You have not said she may write first');
+  });
+
+  it('M42 · she turns writing-first on, and it is recorded with her name', async () => {
+    const on = await post('/app/channels/outreach', 'channel=whatsapp&enabled=true');
+    expect(on.statusCode).toBe(302);
+    expect(on.headers['location']).toContain(encodeURIComponent('may now write first'));
+
+    const rows = await tx((t) => sql<{ enabled: boolean; by_actor: string }>`
+      select enabled, by_actor from outreach_settings
+       where business_id = ${BIZ} and channel = 'whatsapp' order by at, id`
+      .execute(t).then((r) => r.rows));
+    expect(rows.map((r) => r.enabled)).toEqual([true]);
+    expect(rows[0]!.by_actor).not.toBe('');
+
+    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect(page.body).toContain('She may write first here');
+    expect(page.body).toContain('Stop writing first');
+  });
+
+  it('M42 · turning it off RECORDS a second row rather than erasing the first', async () => {
+    const off = await post('/app/channels/outreach', 'channel=whatsapp&enabled=false');
+    expect(off.statusCode).toBe(302);
+    const rows = await tx((t) => sql<{ enabled: boolean }>`
+      select enabled from outreach_settings
+       where business_id = ${BIZ} and channel = 'whatsapp' order by at, id`
+      .execute(t).then((r) => r.rows));
+    expect(rows.map((r) => r.enabled)).toEqual([true, false]);
+
+    const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
+    expect(page.body).toContain('She does not write first here');
+  });
+
+  it('M42 · and the record cannot be edited afterwards', async () => {
+    await expect(tx((t) => sql`
+      update outreach_settings set enabled = true where business_id = ${BIZ}
+    `.execute(t))).rejects.toThrow(/permission denied/i);
+  });
+
+  it('M42 · a decision that cannot take effect is refused, not stored', async () => {
+    // Instagram can never carry a first message; e-mail has no adapter yet.
+    // Neither is merely hidden from the page — the writer refuses both, so a
+    // hand-made request cannot create a setting with nothing behind it.
+    for (const channel of ['instagram', 'email']) {
+      const res = await post('/app/channels/outreach', `channel=${channel}&enabled=true`);
+      expect(res.statusCode, channel).toBe(302);
+      expect(res.headers['location'], channel).toContain(encodeURIComponent('did not save'));
+      const n = await tx((t) => sql<{ n: number }>`
+        select count(*)::int as n from outreach_settings
+         where business_id = ${BIZ} and channel = ${channel}`.execute(t).then((r) => r.rows[0]!.n));
+      expect(n, channel).toBe(0);
+    }
   });
 
   it('what is not an address is refused, and nothing is stored', async () => {

@@ -63,6 +63,10 @@ export const OWNER_ONLY = [
   'messaging_activation',
   'price_rules',
   'people',
+  // M42 — letting her write to someone who never wrote first. On WhatsApp it
+  // risks the number permanently, which is the same class of decision as
+  // turning messaging on at all.
+  'outreach',
 ] as const;
 export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
 

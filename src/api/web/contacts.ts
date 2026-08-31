@@ -9,6 +9,11 @@ import {
   type ContactRow,
 } from '../../db/contacts.js';
 import { displayPhone } from '../../core/channel/phone.js';
+import { gateOutreach } from '../../core/outreach/gate.js';
+import { CHANNEL_REGISTRY, type OutreachChannel, type Requirement } from '../../core/channel/registry.js';
+import { outreachEnabled } from '../../db/outreach.js';
+import { satisfiedRequirements } from './channels.js';
+import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
@@ -35,7 +40,12 @@ import { esc } from './layout.js';
  * safe direction: more hands able to stop a send is never the risk.
  */
 
-export type ContactsView = { readonly contacts: readonly ContactRow[] };
+export type ContactsView = {
+  readonly contacts: readonly ContactRow[];
+  /** M42 — her per-channel decision, so the list can say what would happen. */
+  readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
+  readonly satisfied: ReadonlySet<Requirement>;
+};
 
 export type ContactsFlash =
   | 'added' | 'attested' | 'suppressed' | 'archived' | 'failed' | IdentityError;
@@ -45,10 +55,17 @@ const asChannel = (v: unknown): ContactChannel | null =>
 const asReason = (v: unknown): SuppressionReason | null =>
   SUPPRESSION_REASONS.find((r) => r === v) ?? null;
 
-export async function loadContacts(db: Db, businessIdRaw: string): Promise<ContactsView> {
+export async function loadContacts(
+  db: Db, businessIdRaw: string, templateState: TemplateState = 'none',
+): Promise<ContactsView> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { contacts: [] };
-  return { contacts: await withTenantTx(db, bid.value, (tx) => listContacts(tx, bid.value)) };
+  const satisfied = satisfiedRequirements(templateState);
+  if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied };
+  return withTenantTx(db, bid.value, async (tx) => ({
+    contacts: await listContacts(tx, bid.value),
+    outreach: await outreachEnabled(tx, bid.value),
+    satisfied,
+  }));
 }
 
 export async function addContactFrom(db: Db, businessIdRaw: string, form: {
@@ -159,6 +176,33 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
         <button class="btn" type="submit">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
 
     const stopped = !decision.ok && decision.error.kind === 'suppressed';
+
+    /**
+     * M42 — WOULD A MESSAGE GO, IF SHE ASKED FOR ONE RIGHT NOW?
+     *
+     * The same `gateOutreach` the send path calls, so what she reads here and
+     * what happens there cannot disagree — the M38 pattern (`contactability`
+     * feeds the page and the gate) applied one level up.
+     *
+     * The reason text is the REFUSAL copy, not a second set of sentences
+     * written for a preview. `refused.why.*` already reads in the present
+     * tense, and two vocabularies for one decision is how the page and the
+     * product start saying different things about the same buyer.
+     *
+     * Nothing is being sent, so no quota is consumed: `ceilingReached` is
+     * false because no attempt has been made, not as a placeholder.
+     */
+    const reach = gateOutreach({
+      channel: c.channel, availableHere: CHANNEL_REGISTRY[c.channel].availableHere,
+      enabled: v.outreach.get(c.channel) === true,
+      satisfied: v.satisfied, consent: c.consent, suppression: c.suppression,
+      ceilingReached: false,
+    });
+    // Suppressed rows already carry it as a pill; saying it twice on one row is
+    // noise, not emphasis.
+    const outreachLine = stopped ? '' : `<div class="muted reach-line">${esc(reach.ok
+      ? t(locale, 'contacts.canWrite')
+      : t(locale, `refused.why.${reach.error}` as MessageKey))}</div>`;
     return `<li class="ct ${c.archivedAt ? 'gone' : ''} ${stopped ? 'stopped' : ''}">
       <div class="ct-h">
         <span class="who">${c.displayName ? `<bdi>${esc(c.displayName)}</bdi>` : ''}
@@ -168,6 +212,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       <div class="ct-b muted">${esc(t(locale, `contacts.channel.${c.channel}` as MessageKey))}
         　·　${esc(t(locale, `contacts.source.${c.source}` as MessageKey))}
         ${c.company ? `　·　<bdi>${esc(c.company)}</bdi>` : ''}</div>
+      ${outreachLine}
       ${actions.trim() ? `<div class="ct-a">${actions}</div>` : ''}
     </li>`;
   }).join('');
@@ -215,6 +260,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       .ct .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
       .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
       .ct-b { font-size:var(--font-size-note); margin-top:var(--space-4); }
+      .ct .reach-line { font-size:var(--font-size-note); margin-top:var(--space-8); }
       .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
       .ct .since { font-size:var(--font-size-note); }
       /* Permanent, and it should read that way at a glance. */

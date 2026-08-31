@@ -8,6 +8,7 @@ import {
   type OutreachChannel, type Requirement,
 } from '../../core/channel/registry.js';
 import type { TemplateState } from '../../core/channel/window.js';
+import { canBeEnabled, outreachEnabled, setOutreach } from '../../db/outreach.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
@@ -56,7 +57,11 @@ export type ChannelsData = {
   readonly ownerPhone: string | null;
   /** M39 — resolved at boot from the provider and the approved-template list. */
   readonly templateState: TemplateState;
+  /** M42 — her decision to write first, per channel. Absent means NOT enabled. */
+  readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
 };
+
+const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
 
 export async function loadChannels(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
@@ -69,9 +74,10 @@ export async function loadChannels(
     kind: KIND, connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
-  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState };
+  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH };
 
   return withTenantTx(db, bid.value, async (tx) => {
+    const outreach = await outreachEnabled(tx, bid.value);
     const ownerPhone = (await sql<{ p: string | null }>`
       select owner_phone as p from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.p ?? null;
     const row = (await sql<{
@@ -87,7 +93,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -99,7 +105,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone, templateState,
+        ownerPhone, templateState, outreach,
       };
     }
 
@@ -121,7 +127,7 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
-      ownerPhone, templateState,
+      ownerPhone, templateState, outreach,
     };
   });
 }
@@ -265,7 +271,10 @@ export function satisfiedRequirements(templateState: TemplateState): ReadonlySet
  * M42 refuses a send it refuses for the reason printed here, because it is the
  * same call.
  */
-export function renderReach(locale: Locale, satisfied: ReadonlySet<Requirement>): string {
+export function renderReach(
+  locale: Locale, satisfied: ReadonlySet<Requirement>,
+  enabled: ReadonlyMap<OutreachChannel, boolean> = new Map(),
+): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
     const decision = mayInitiate(channel, satisfied);
@@ -296,10 +305,35 @@ export function renderReach(locale: Locale, satisfied: ReadonlySet<Requirement>)
     const window = cap.replyWindowHours === null ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
 
+    /**
+     * M42 — her decision, on the card that just told her what the channel
+     * allows. Offered ONLY where an uninvited message is possible at all: a
+     * switch that changes nothing is worse than no switch, and Instagram is
+     * exactly where an owner would expect one to work.
+     *
+     * The warning is not fine print and is not conditional on her clicking
+     * anything. She is about to accept that a first message to someone who
+     * never asked can cost her the number permanently, and that sentence
+     * belongs on the screen where the decision is made.
+     */
+    const on = enabled.get(channel) === true;
+    const toggle = !canBeEnabled(channel) ? '' : `
+      <div class="outreach">
+        <span class="${on ? 'on' : 'muted'}">${esc(t(locale, on ? 'outreach.on' : 'outreach.off'))}</span>
+        ${channel === 'whatsapp' && !on
+          ? `<p class="muted warn-line">${esc(t(locale, 'outreach.warn.whatsapp'))}</p>` : ''}
+        <form method="post" action="/app/channels/outreach" class="inline">
+          <input type="hidden" name="channel" value="${esc(channel)}" />
+          <input type="hidden" name="enabled" value="${on ? 'false' : 'true'}" />
+          <button class="btn ${on ? 'stop' : 'send'}" type="submit"
+            >${esc(t(locale, on ? 'outreach.turnOff' : 'outreach.turnOn'))}</button>
+        </form>
+      </div>`;
+
     return `<div class="card reach">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
         <span class="pill ${tone}">${esc(headline)}</span></div>
-      ${reqs}${notHere}${window}${instead}
+      ${reqs}${notHere}${window}${instead}${toggle}
     </div>`;
   }).join('');
 
@@ -315,6 +349,11 @@ export function renderReach(locale: Locale, satisfied: ReadonlySet<Requirement>)
       .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8);
         border-top:1px solid var(--color-border); }
       .reach .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+      .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12);
+        border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap;
+        align-items:center; gap:var(--space-12); }
+      .reach .outreach .on { color:var(--color-ink); font-weight:600; }
+      .reach .warn-line { flex-basis:100%; font-size:var(--font-size-note); margin:0; }
     </style>
   </div>`;
 }
@@ -345,7 +384,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
     </div>`;
 
   // M39 — what each channel allows, before she connects one.
-  const reach = renderReach(locale, satisfiedRequirements(data.templateState));
+  const reach = renderReach(locale, satisfiedRequirements(data.templateState), data.outreach);
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>

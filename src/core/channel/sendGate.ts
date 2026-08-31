@@ -1,4 +1,5 @@
 import { aiMaySpeak, ownershipOf } from '../conversation/ownership.js';
+import { OUTREACH_REFUSALS, gateOutreach, type OutreachInput } from '../outreach/gate.js';
 import type { SendPlan } from './window.js';
 import type { OutboundRow } from '../../outbound/sequencer.js';
 
@@ -50,6 +51,16 @@ export type GateInput = {
    * resolve it — including the next one, written by someone who never read this.
    */
   readonly silenced: boolean;
+  /**
+   * M42 — present when this message INITIATES rather than replies.
+   *
+   * Absent means a reply, and that default is safe by construction rather than
+   * by trust: an outreach row that forgot to declare itself has no inbound
+   * message behind it, so `windowPlan` is `wait_for_buyer` and the window check
+   * below refuses it anyway. It refuses for the wrong reason, which is a
+   * legible bug rather than a silent send — and a test holds that line.
+   */
+  readonly outreach?: OutreachInput;
 };
 
 /**
@@ -68,6 +79,11 @@ export const GATE_REFUSALS = [
   'not_allowlisted',      // M18.2
   'daily_ceiling',        // M18.5
   'silenced',             // M34.6
+  // M42 — the outreach refusals, SPREAD from the outreach gate's own list
+  // rather than restated. Same reason this list exists at all: a vocabulary
+  // that must be edited in two places to stay true is the transcription bug
+  // this repo keeps paying for.
+  ...OUTREACH_REFUSALS,
 ] as const;
 
 export type GateRefusal = (typeof GATE_REFUSALS)[number];
@@ -81,6 +97,23 @@ export function gateOutbound(g: GateInput): GateDecision {
   // so it binds the owner exactly as it binds the employee. It is checked
   // first: before the pilot is live, nothing else about this message matters.
   if (g.activated !== true) return { allow: false, reason: 'not_activated' };
+
+  /**
+   * M42 — a message nobody asked for answers to everything below AND to this.
+   *
+   * It runs before the rest, not instead of it: an outreach message that clears
+   * the outreach gate still faces the allowlist, the ceiling, the kill switch
+   * and the window, because every one of those is about whether ANY message may
+   * leave right now. This adds a question, it does not replace any.
+   *
+   * The decision itself lives in `outreach/gate.ts` and is called, not copied —
+   * the owner's contact list renders the same call, so what she is shown and
+   * what the send path does cannot disagree.
+   */
+  if (g.outreach) {
+    const reach = gateOutreach(g.outreach);
+    if (!reach.ok) return { allow: false, reason: reach.error };
+  }
 
   if (g.origin === 'employee') {
     // M34.6 — the ops kill switch. Checked at SEND time like everything else

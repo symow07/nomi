@@ -344,7 +344,7 @@ other credential.
 
 ---
 
-### M42 — The outreach gate
+### M42 — The outreach gate ✅ BUILT
 
 Where reach meets the invariant. Cold outreach goes through `gateOutbound`, and
 the gate learns four refusals:
@@ -364,6 +364,37 @@ channel, recorded, reversible in one tap. On the WhatsApp channel the screen
 states plainly what she is accepting: that cold messages without recorded opt-in
 risk permanent loss of the number. Said once, honestly, on the screen where the
 decision is made — not buried in terms.
+
+**As built.** `src/core/outreach/gate.ts`, migration 0037 (`outreach_settings`,
+insert-only), the toggle on `/app/channels`, and the same call rendered per
+person on `/app/contacts`. `REQUIRED_SCHEMA_VERSION` 37. A FIFTH refusal joined
+the four above — `channel_cannot_initiate` — because without it the page said
+Instagram cannot be written to first while the gate would have sent.
+
+- **It composes; it does not decide.** M39 answers whether the channel can carry
+  a first message, M38 whether this person may be written to. What is new here
+  is only what neither could know: her decision, and today's quota. A test
+  asserts the gate contains no local copy of either rule.
+- **The order is physics, then her decision, then this person, then the day.**
+  Each layer is "can this happen at all" before "should it happen now", and the
+  first layer is checked first so no refusal ever advises an action that cannot
+  help.
+- **`ceilingReached` is required, not optional** — the `silenced` precedent.
+  Nothing counts outreach attempts yet because nothing makes one; the counter
+  and `outreach_log` arrive with the first sender (M40), and a required field
+  makes the compiler name that sender when it is written.
+- **`REFUSAL_REASONS` is now spread from `GATE_REFUSALS`** rather than
+  hand-copied, and moved to `outbound/worker.ts` — the read model that renders
+  it is forbidden from naming the gate at all. The test that guarded the copy
+  had caught the drift twice.
+
+*What the screenshots caught. The e-mail card read "Not set up here yet — she
+cannot send on this one" directly above a switch she had just turned on, so
+`canBeEnabled` now requires the decision to be able to take effect: a channel
+becomes switchable when its adapter lands, not when someone edits a boolean. And
+her contact list gave "you have not said she may write first" as the reason for
+an e-mail contact — naming a decision she cannot make yet, about a switch e-mail
+does not have. The gate now takes `availableHere` and says the honest thing.*
 
 ---
 
@@ -604,7 +635,7 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
-### BLOCK C · The outbound engine — IN PROGRESS (C1, C2 built)
+### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 
 #### Block C in detail — built offline, plugged in at M52
 
@@ -615,7 +646,7 @@ at all.** It was deferred as "blocked", and it is not.
 |---|---|---|
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
-| C3 | **M42 the outreach gate** | None. `gateOutbound` learns four refusals over C1 and C2. |
+| C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
 | C4 | **M40 email from her own address** | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |

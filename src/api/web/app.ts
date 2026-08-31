@@ -24,6 +24,8 @@ import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
 } from './people.js';
+import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
+import { setOutreach } from '../../db/outreach.js';
 import {
   type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
   loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
@@ -1089,6 +1091,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * M42 — letting her write to someone who never wrote first.
+   *
+   * OWNER ONLY, alongside `messaging_activation`. On WhatsApp this decision
+   * risks the number permanently, and that is not a thing a staff code should
+   * be able to do on her behalf.
+   */
+  app.post('/app/channels/outreach', async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
+    const bid = parseBusinessId(sess.businessId);
+    if (!channel || !bid.ok) {
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.failed'))}`);
+    }
+    const enabled = b['enabled'] === 'true';
+    const done = await withTenantTx(deps.db, bid.value, (tx) =>
+      setOutreach(tx, bid.value, { channel, enabled, by: personOf(sess).name }));
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale,
+      !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off'))}`);
+  });
+
+  /**
    * M38 — who she may write to. The list, and the two decisions about it.
    *
    * NOT owner-only: an attestation carries the name of whoever made it, and the
@@ -1096,7 +1122,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * the safe direction — more hands able to stop a send is never the risk.
    */
   app.get('/app/contacts', authed('contacts', async (sess, req, locale) =>
-    renderContacts(await loadContacts(deps.db, sess.businessId), locale,
+    renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale,
       typeof (req.query as { flash?: string }).flash === 'string'
         ? (req.query as { flash: string }).flash : null)));
 
@@ -1125,7 +1151,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = req.query as { channel?: string; identity?: string };
     const found = (await loadContacts(deps.db, sess.businessId)).contacts
       .find((c) => c.channel === q.channel && c.identity === q.identity);
-    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId), locale, null);
+    if (!found) return renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale, null);
     return renderSuppressConfirm(found, locale);
   }));
 

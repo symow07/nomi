@@ -42,16 +42,14 @@ export type Refusal = {
 };
 
 /**
- * Every reason the worker can write. A row whose reason is not one of these is
- * not shown: a refusal we cannot name is one we cannot explain, and inventing a
- * label would be the same silence wearing a different coat. The list is also
- * the SQL filter, so the count and the list can never disagree.
+ * Re-exported from the worker, which is where "every reason the worker can
+ * write" actually belongs. This module is a READ MODEL and a test holds it to
+ * that: it may not name the gate at all, and importing the gate's vocabulary
+ * from here — even as a list of strings — would be the first step back toward a
+ * page that decides something.
  */
-export const REFUSAL_REASONS: readonly RefusalReason[] = [
-  'handed_off', 'paused', 'window_closed', 'not_activated',
-  'not_allowlisted', 'daily_ceiling', 'window_needs_owner',
-  'media_unsupported', 'silenced',
-];
+export { REFUSAL_REASONS } from '../../outbound/worker.js';
+import { REFUSAL_REASONS } from '../../outbound/worker.js';
 
 /** `transition()` stores the detail string verbatim: "canceled: <reason>". */
 const STORED = REFUSAL_REASONS.map((r) => `canceled: ${r}`);

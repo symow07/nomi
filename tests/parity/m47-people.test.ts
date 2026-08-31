@@ -64,9 +64,13 @@ describe('M47 · the ownership model is EXTENDED, not replaced', () => {
 });
 
 describe('M47 · one distinction, and it is named in code', () => {
-  it('four things belong to the owner, listed rather than matrixed', () => {
+  it('a handful of things belong to the owner, listed rather than matrixed', () => {
+    // M42 added the fifth. The list is still a LIST — the point of M47 was that
+    // one distinction (owner, or not) beats a permissions matrix, and adding an
+    // entry is not the same as adding a role.
     expect([...OWNER_ONLY]).toEqual([
       'capability_grant', 'messaging_activation', 'price_rules', 'people',
+      'outreach',
     ]);
   });
 
@@ -86,6 +90,7 @@ describe('M47 · one distinction, and it is named in code', () => {
       ["app.post('/app/factory/prices'", 'price_rules'],
       ["app.post('/app/settings/people'", 'people'],
       ["app.post('/app/settings/people/:id/remove'", 'people'],
+      ["app.post('/app/channels/outreach'", 'outreach'],
     ] as const) {
       const at = app.indexOf(route);
       expect(at, `route missing: ${route}`).toBeGreaterThan(-1);

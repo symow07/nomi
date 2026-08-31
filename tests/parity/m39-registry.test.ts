@@ -254,7 +254,7 @@ describe('M39 · what she reads', () => {
 
   it('and the Channel Center renders it', async () => {
     const src = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
-    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState))');
+    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState), data.outreach)');
     expect(src).toContain('${reach}');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none')");

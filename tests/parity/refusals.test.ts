@@ -65,16 +65,25 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
    */
   const GATE_REASONS: readonly GateRefusal[] = GATE_REFUSALS;
 
-  it('the refusal vocabulary covers gateOutbound exactly, plus the template case', () => {
+  it('the refusal vocabulary IS the gate’s, plus the two the send path adds', () => {
+    /**
+     * M42 — this assertion is now nearly tautological, and saying so is the
+     * point. `REFUSAL_REASONS` used to be a hand-written copy of the gate's
+     * list and this test existed to catch the drift; it caught it twice. The
+     * list is now spread from `GATE_REFUSALS`, so there is nothing left to
+     * drift, and what remains here is the narrower claim that the surface adds
+     * exactly two reasons and no third crept in unexplained:
+     *
+     *   window_needs_owner  allowed only via a template, and none is approved
+     *   media_unsupported   an image row on a connection that cannot carry one
+     *
+     * Neither is a second gate: both are the send path reporting that it could
+     * not carry out a decision the gate already made. The test that still has
+     * teeth is the coverage one below — every reason needs owner copy.
+     */
     for (const r of GATE_REASONS) expect(REFUSAL_REASONS, r).toContain(r);
-    // Two reasons come from OUTSIDE the gate, and both are ways a message the
-    // gate allowed still does not reach the buyer:
-    //   window_needs_owner  allowed only via a template, and none is approved
-    //   media_unsupported   an image row on a connection that cannot carry one
-    // Neither is a second gate: both are the send path reporting that it could
-    // not carry out a decision the gate already made.
-    expect([...REFUSAL_REASONS].sort())
-      .toEqual([...GATE_REASONS, 'window_needs_owner', 'media_unsupported'].sort());
+    expect(REFUSAL_REASONS.filter((r) => !(GATE_REASONS as readonly string[]).includes(r)))
+      .toEqual(['window_needs_owner', 'media_unsupported']);
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {
