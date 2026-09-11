@@ -132,8 +132,14 @@ import type { Db } from './client.js';
  *      message records it as it arrives. Against a 42 database that INSERT
  *      fails and no voice note is recorded at all — the message the owner
  *      most needs to see is the one that disappears.
+ *
+ * 44 = the checksum of each applied migration (0044, G20). Bookkeeping for
+ *      `tools/migrate.mjs`, which the app itself never reads: a file that was
+ *      applied and has since been edited on disk now stops the runner instead
+ *      of being skipped by version number. A 43 database simply has no column
+ *      to record it in, so the runner backfills on its next run.
  */
-export const REQUIRED_SCHEMA_VERSION = 43;
+export const REQUIRED_SCHEMA_VERSION = 44;
 
 export type SchemaState = {
   readonly required: number;

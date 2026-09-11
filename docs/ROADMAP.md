@@ -741,7 +741,7 @@ number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
 | G17 | M49 · finish the design pass, with Playwright screenshots | Medium | ✅ 2026-09-11 |
 | G18 | M43a + M43b · money shows its currency everywhere | Low | ✅ 2026-09-11 |
 | G19 | M51 follow-ups | Low | ✅ 2026-09-11 |
-| G20 | Guard rails for the invariants | Low | |
+| G20 | Guard rails for the invariants | Low | ✅ 2026-09-11 (0044) |
 | G21 | This file matches the ground again | Low | |
 
 **G1.** `tests/parity/m40-domain.test.ts` compared a check dated 31 August
@@ -1204,6 +1204,35 @@ thrown away.
   before replying" is a tuning knob whose right value depends on provider jitter
   and nothing she knows about her buyers. The runbook says what the columns are,
   what changing them costs, and how.
+
+**G20.** Five invariants that were true and unguarded. An invariant with no
+guard rail is a convention, and the defect this repository keeps finding is a
+second implementation of a rule that agreed with the first until it did not.
+- **"Exactly one module decides whether a message may be sent" read four
+  directories one level deep.** A second gate in a subdirectory — or anywhere
+  in `src/pipeline`, which it never looked at — was invisible to it. It is
+  recursive over all of `src/` now, and the old copy is deleted rather than
+  left to disagree.
+- **The one sender outside that gate is named.** `deliverOwnerAlert` writes to
+  the owner's own phone, which is not a buyer message and is not subject to her
+  allowlist or the 24-hour window. It is a deliberate exception, and it is now
+  the only one that can exist without a test turning red.
+- **Only `enqueueOutboundRow` inserts an outbound message.** Every refusal the
+  owner reads — the cancel reason, the audit row, the what/why/what-to-do card
+  — is a row that function wrote. A second INSERT would produce a message with
+  no refusal story behind it.
+- **The app role holds no DELETE and no TRUNCATE in `public`.** Archive-never-
+  erase stops being a discipline and becomes a grant the role does not have.
+  The exception is the `pgboss` schema and it is not ours: a queue deletes
+  finished jobs, and those tables hold no business fact. Both halves are pinned,
+  and the exception is written down in the ops runbook.
+- **An applied migration that changed on disk is now an error** (0044). The
+  runner chose work by version number, so editing an applied file was silent:
+  it ran on every clean database and on none of the old ones, and the two
+  drifted with nothing saying so. Each applied migration records the sha256 of
+  what ran; a file that no longer matches stops the run, names itself, and says
+  to write a new migration instead. Rows that predate the column are backfilled
+  rather than judged.
 
 ### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 

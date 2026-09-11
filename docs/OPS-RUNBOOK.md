@@ -84,3 +84,17 @@ Lowering it makes her quicker and more likely to answer half a question;
 raising it makes her more patient and slower. `tools/pre-pilot.mjs` sets 500 ms
 on its own throwaway tenant for exactly this reason — a rehearsal should not
 wait six seconds twelve times.
+## Archive, never erase — and the one exception (G20)
+
+The runtime role (`nomi_app`) holds **no DELETE and no TRUNCATE** on any table
+in `public`. That is not a convention the code follows; it is a grant the role
+does not have, so a stray `delete from` fails at the database rather than
+succeeding quietly. A product she stops selling is `is_active = false`; a
+forbidden term she removes keeps its history; a conversation that ends is
+closed.
+
+**The exception is the `pgboss` schema**, and it is not ours: pg-boss deletes
+completed jobs as part of how a queue works, and those tables hold no business
+fact — a deleted job is a job that ran, and what it did is in the rows it
+wrote. `tests/integration/grants.test.ts` pins both halves, so a DELETE grant
+outside that schema fails the suite and has to argue its case.

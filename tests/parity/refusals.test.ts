@@ -253,20 +253,11 @@ describe('M22 · gateOutbound remains the only authority', () => {
       expect(code.toLowerCase().includes(write), `refusals.ts writes: ${write}`).toBe(false);
   });
 
-  it('exactly one module decides whether a message may be sent', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const roots = ['src/api/web', 'src/outbound', 'src/db', 'src/channels'];
-    const callers: string[] = [];
-    for (const dir of roots) {
-      const base = new URL(`../../${dir}/`, import.meta.url);
-      for (const f of (await readdir(base)).filter((x) => x.endsWith('.ts'))) {
-        const src = await readFile(new URL(f, base), 'utf8');
-        if (/\bgateOutbound\s*\(/.test(src)) callers.push(`${dir}/${f}`);
-      }
-    }
-    // The worker, and nothing else. M22 added a reader, not a second gate.
-    expect(callers).toEqual(['src/outbound/worker.ts']);
-  });
+  // "Exactly one module decides whether a message may be sent" used to live
+  // here, reading four directories one level deep — so a second gate in a
+  // subdirectory, or anywhere in src/pipeline, was invisible to it. It is now
+  // recursive over all of src/, in tests/parity/g20-guardrails.test.ts, and
+  // stating it twice is the very shape of defect it exists to catch.
 
   it('the gate itself is unchanged by this milestone', () => {
     // Its six reasons, its fail-closed defaults, its order. Asserted here so a
