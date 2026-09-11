@@ -52,6 +52,7 @@ render < 16ms. Nothing enforces **approval card open < 1000ms**: that is an
 on-device budget and there is no device build. `PERF_BUDGETS.rendererMs` now
 measures nothing at all — the renderer it was pointed at (`core/owner/digest.ts`)
 was deleted in M34.8 and the live pages are HTML with no line budget.
+
 ## Message batching — OPERATOR-ONLY, and deliberately not a setting (G19)
 
 A buyer who types three lines in ten seconds is one message, not three. The wait
@@ -84,6 +85,7 @@ Lowering it makes her quicker and more likely to answer half a question;
 raising it makes her more patient and slower. `tools/pre-pilot.mjs` sets 500 ms
 on its own throwaway tenant for exactly this reason — a rehearsal should not
 wait six seconds twelve times.
+
 ## Archive, never erase — and the one exception (G20)
 
 The runtime role (`nomi_app`) holds **no DELETE and no TRUNCATE** on any table
@@ -98,3 +100,4 @@ completed jobs as part of how a queue works, and those tables hold no business
 fact — a deleted job is a job that ran, and what it did is in the rows it
 wrote. `tests/integration/grants.test.ts` pins both halves, so a DELETE grant
 outside that schema fails the suite and has to argue its case.
+

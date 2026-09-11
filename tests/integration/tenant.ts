@@ -81,6 +81,22 @@ export async function seedRunTenant(): Promise<void> {
     await client.query(demoSeedSql(RUN_NS));
     await client.query(demoTrustSeedSql(RUN_NS));
     await client.query('commit');
+    // G21 — attribution again, for the one collision this scheme still has.
+    // `client_channels` is unique on the number across every tenant, so a run
+    // whose phone block matches one already seeded loses those rows silently
+    // and its buyers become unreachable. That reads downstream as a broken
+    // send path rather than as a clash of test data, so it is named here.
+    const orphans = (await client.query(
+      `select cl.display_name as name
+         from clients cl
+         left join client_channels cc on cc.client_id = cl.id and cc.channel = 'whatsapp'
+        where cl.business_id = $1 and cc.client_id is null`, [RUN_BIZ])).rows;
+    if (orphans.length) {
+      throw new Error(
+        `this run's phone block is already taken: ${orphans.map((r: { name: string }) => r.name).join(', ')} `
+        + `have no client_channels row. Another tenant holds those numbers — re-run, which picks a new namespace.`,
+      );
+    }
   } catch (e) {
     await client.query('rollback');
     throw e;

@@ -6,7 +6,12 @@ exits with the names of anything missing or malformed; it never prints a value.*
 > This file previously described n8n environment variables — Supabase keys, a
 > Telegram bot, SendGrid, mock callback URLs. None of it applied to this
 > product. Rewritten in M25 against `validateEnv` and every `process.env` read
-> in `src/`.
+> in `src/`, and checked against both again in G21 (2026-09-12), which is when
+> the `PORT` default here stopped saying 8080 and the pool settings stopped
+> being undocumented.
+>
+> `tests/parity/g21-env-docs.test.ts` now fails if a variable the code reads is
+> missing from this table, so the next drift is caught rather than noticed.
 
 ---
 
@@ -85,12 +90,15 @@ media setting to keep in step with it.
 
 | Variable | Default | What it is |
 |---|---|---|
-| `PORT` | `8080` | HTTP port. |
+| `PORT` | `8787` | HTTP port. (`Number(env.PORT) || 8787` in `validateEnv` — this table said 8080 for four months, which is the shape of drift G21 exists to remove.) |
 | `NODE_ENV` | unset | `production` makes the three boot guards **refuse** rather than warn. |
 | `SANDBOX_BUSINESS_ID` | the seeded sandbox | The practice tenant. Must never equal `PILOT_BUSINESS_ID`. |
 | `SANDBOX_LIVE_AI` | unset | `1` offers Live-AI mode in the sandbox. It spends tokens; scripted is the default. |
 | `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | 小雅 · the Nomi mark | What the owner calls her. When `EMPLOYEE_AVATAR` is unset the header shows the brand mark (inline SVG, small cut); setting it to an emoji still wins, unchanged. |
-| `ENGINE_VERSION` | derived | Stamped into quote audit rows. |
+| `ENGINE_VERSION` | `dev` | Stamped into quote audit rows (`db/repos.ts`). |
+| `DATABASE_POOL_MAX` | `10` | Connections in the pool (`db/client.ts`). |
+| `DATABASE_CONNECT_TIMEOUT_MS` | `10000` | How long a connection attempt waits. |
+| `DATABASE_QUERY_TIMEOUT_MS` | `30000` | Server-side `statement_timeout`: a hung query returns an error instead of holding a pool slot for ever. |
 | `MIGRATE_DATABASE_URL` | — | **Not read by the app.** Used by `tools/migrate.mjs` and `tools/provision-factory.mjs`; an admin role that can run DDL. Runtime and migration credentials should differ. |
 
 ---
@@ -99,7 +107,7 @@ media setting to keep in step with it.
 
 ```bash
 npm run build && npm start          # exits listing anything missing or malformed
-curl -s http://localhost:8080/health
+curl -s http://localhost:8787/health
 ```
 
 `/health` reports `{ok, db, worker, provider}` and deliberately leaks nothing

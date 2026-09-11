@@ -8,7 +8,7 @@ Review weekly during shadow; move entries to "confirmed" or "fixed".
 
 | # | Baked-in assumption | Reality risk | Detection | Response |
 |---|---|---|---|---|
-| P1 | One message = one intent, analysed in isolation (`recentMessages` currently wired empty in the service path) | Buyers send 4 fragments in 10s: "hello" / "price?" / "the bags" / "5000pcs". Each analysed alone is meaningless | `turns` where conversation gets >2 inbound/min; parity churn on those | **Debounce-and-batch** ✅ BUILT (M51.1, 2026-08-18): fragments persist to `message_fragments`, `decideBatch` closes the batch on quiet or on a cap, and one turn answers the merged text. Per-tenant knobs; media is never merged into text, but it flushes a pending batch first so replies keep his order. |
+| P1 ✅ | One message = one intent, analysed in isolation (`recentMessages` currently wired empty in the service path) | Buyers send 4 fragments in 10s: "hello" / "price?" / "the bags" / "5000pcs". Each analysed alone is meaningless | `turns` where conversation gets >2 inbound/min; parity churn on those | **Debounce-and-batch** ✅ BUILT (M51.1, 2026-08-18): fragments persist to `message_fragments`, `decideBatch` closes the batch on quiet or on a cap, and one turn answers the merged text. Per-tenant knobs; media is never merged into text, but it flushes a pending batch first so replies keep his order. |
 | P2 | The analysis prompt's JSON contract survives mixed-language input | Arabizi ("3ndkom shanat?"), zh/en code-switching, voice-note transcript fragments | `analysis_parse_error` rate per language in `turns` | Fallback already safe; if >5% per language, per-language prompt examples |
 | P3 | Buyers state quantities as digits | "two containers", "٥٠٠٠", "5k", "half a 40ft" | `quantityMentioned=null` while qty words present (eval sample) | Deterministic qty normaliser (unit lexicon: container/carton/CBM/k) BEFORE the model — code over prompts |
 | P4 | The reply prompt's tone suits all markets | GCC buyers expect relationship talk before business; German buyers the opposite | Human eval sample (EVALS.md §weekly) | Per-market style block in `business_settings`, not prompt forks |
@@ -43,7 +43,24 @@ Review weekly during shadow; move entries to "confirmed" or "fixed".
 | # | Assumption | Reality risk | Detection | Response |
 |---|---|---|---|---|
 | L1 | 2 sequential LLM calls fit chat expectations | p95 could be 8–12s; buyers double-send, which re-queues serially | `timings.totalMs` distribution | Typing indicator (cheap); debounce (P1) absorbs double-sends; only then consider merging analyze+reply into one call |
-| L2 | Guard retries are rare | If violation rate >20%, every reply costs 2–3 generations | guardViolations per turn (now recorded) | Tighten reply prompt with quote-only examples; template rate is the backstop, not the norm |
+| L2 ✅ | Guard retries are rare | If violation rate >20%, every reply costs 2–3 generations | guardViolations per turn (now recorded) | Tighten reply prompt with quote-only examples; template rate is the backstop, not the norm |
+
+## Closed — assumptions that stopped being assumptions (G21, 2026-09-12)
+
+The header has asked since M5 that entries move here once they are confirmed or
+fixed. Nothing ever moved, so the register read as a list of open risks while
+several of them had been closed for weeks. An entry leaves the tables above
+only when the thing that made it a risk is gone, and it says what closed it.
+
+| # | Was | Closed by |
+|---|---|---|
+| P1 | One message = one intent, analysed in isolation | **M51.1** (2026-08-18). Fragments persist to `message_fragments`; `decideBatch` closes a batch on quiet or on a cap, and one turn answers the merged text. Media never merges into text but flushes a pending batch first, so his order survives. Per-tenant timings, documented as operator-only in `OPS-RUNBOOK.md` (G19). |
+| L2 | Guard retries are rare, so a failing reply costs 2–3 generations | **G8** (2026-09-11). Two failures now stop rather than spiral: the turn is held for the owner with a plain stand-in, and the reason is on the draft card. The cost is bounded by the rule, not by the prompt. |
+| S1 | Nothing outside the gate may send | **G20** (2026-09-11). It was a convention; it is a test. `gateOutbound` has one caller at any depth in `src/`, the owner-alert path is the single named exception, and `enqueueOutboundRow` is the only writer of an outbound row. |
+| S2 | Archive, never erase | **G20**. The runtime role holds no DELETE and no TRUNCATE in `public`; the `pgboss` schema is the one exception and is named in the runbook. It is now a grant the role does not have rather than a discipline every developer must keep. |
+
+Two of these (S1, S2) were never in the tables above, which is its own lesson:
+an invariant everyone believes is exactly the one nobody writes down.
 
 ## Meta-assumption (the honest one)
 

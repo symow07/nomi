@@ -43,6 +43,25 @@ try {
            (select count(*) from conversations where business_id = '${NS}-0000-4000-8000-0000000000b1') as conversations,
            (select count(*) from capability_events where business_id = '${NS}-0000-4000-8000-0000000000b1') as trust_events
   `)).rows[0];
+  // G21 — A BUYER WITH NO NUMBER IS A SEED THAT LOOKS COMPLETE AND IS NOT.
+  // `client_channels` is unique on (channel, channel_user_id) across every
+  // tenant, so a namespace whose phone block collides with one already seeded
+  // loses its rows to `on conflict do nothing` — and every consequence is
+  // silent: replies queue nothing, windows read as expired, and once messaging
+  // is on, each buyer reads as a number that is not on her list. Loud here
+  // instead.
+  const unreachable = (await client.query(`
+    select cl.display_name as name
+      from clients cl
+      left join client_channels cc on cc.client_id = cl.id and cc.channel = 'whatsapp'
+     where cl.business_id = '${NS}-0000-4000-8000-0000000000b1' and cc.client_id is null
+  `)).rows;
+  if (unreachable.length) {
+    console.error(`\n  seeded ${unreachable.length} buyer(s) with no WhatsApp number: ${
+      unreachable.map((r) => r.name).join(', ')}`);
+    console.error('  their numbers are already held by another tenant — seed under a different DEMO_NAMESPACE.\n');
+    process.exit(1);
+  }
   console.log('demo factory seeded:', JSON.stringify(counts));
 } catch (e) {
   await client.query('rollback');

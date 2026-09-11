@@ -371,11 +371,15 @@ dead documentation. A test also caught a `null` inside the events array taking
 the endpoint down with a 500, which would have made the provider replay a batch
 that had already written permanent rows.*
 
-**Still to build in M40:** `outreach_log` and the outreach ceiling counter
-(M42's `ceilingReached` is a required field precisely so this cannot be
-forgotten), the sequence engine with kill-conditions, one-click unsubscribe,
-bounce and complaint handling, the reply-as-opt-in, and the adapter itself —
-whose arrival is what flips e-mail's `availableHere`.
+**Still to build in M40** (trimmed in G21 — three of these shipped in M40.2 and
+G14, and a list that names finished work hides the work that is left):
+`outreach_log` and the outreach ceiling counter (M42's `ceilingReached` is a
+required field precisely so this cannot be forgotten), the sequence engine with
+kill-conditions, the reply-as-opt-in, and the adapter itself — whose arrival is
+what flips e-mail's `availableHere`. **Built already:** the sending domain
+(M40.1), bounce and complaint handling with a signature checked over the raw
+bytes (M40.2, repaired in G14 — in live mode it could never have verified one),
+and one-click unsubscribe with its own derived signing key.
 
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
@@ -523,7 +527,11 @@ says why.** Seasonal — worthless in June, essential in December.
 ### M45 — Samples ✅ BUILT (2026-08-14)
 "Can you send a sample?" is the second question in nearly every Yiwu
 conversation. Sample cost, whether it is credited against the first order,
-courier account, address collection. She meets this on day one of the pilot.
+address collection. She meets this on day one of the pilot.
+**Decided 2026-09-10: no courier details, ever.** This entry used to promise a
+courier account. Nomi does not hold one, cannot book a collection, and a field
+asking for her courier number would be a promise about shipping that nothing
+behind it keeps. The credit reaches the proforma (G15); the parcel is hers.
 
 ### M46 — After the order ✅ BUILT (2026-08-14)
 `confirmable.ts` and `invoice.ts` exist; the trail stops at confirmation. Three
@@ -542,45 +550,57 @@ single point of failure for a business built on messaging.
 
 ---
 
-### M51 — Nothing left in limbo ✅ BUILT (2026-08-18)
+### M51 — Nothing left in limbo ✅ BUILT (2026-08-30)
 
-Four things have been held rather than decided, and holding is what makes a
-codebase feel unfinished long after the features are done. Each has a note in
-`tools/check-reachable.mjs` explaining why it was held; none of them has a
-reason that still applies.
+Six things had been held rather than decided, and holding is what makes a
+codebase feel unfinished long after the features are done. Each is now decided —
+three built, two deleted, one continuous. Written as outcomes in G21, because
+this section described intentions for three weeks after the work shipped, and a
+roadmap in the future tense about the past is the drift it exists to prevent.
 
-**M51.1 — debounce-and-batch.** The one with a deadline. `batching.ts` is
-exempted as EXPIRES AT META GO-LIVE, and ASSUMPTIONS P1 says plainly: buyers
-send four fragments in ten seconds — "hello" / "price?" / "the bags" /
-"5000pcs" — each analysed alone is meaningless, **build before shadow.** 92
-lines of core exist; `message_fragments` has existed since 0009 with no writer.
-This bites on the first real buyer, and the pilot is the next thing that
-happens.
+**M51.1 — debounce-and-batch. BUILT.** Fragments persist to `message_fragments`
+(the table had existed since 0009 with no writer); `decideBatch` closes a batch
+on quiet or on a cap, and one turn answers the merged text. Media never merges
+into text, but it flushes a pending batch first, so a photo cannot overtake the
+sentence before it. The timings are per tenant and are operator-only on purpose
+— see OPS-RUNBOOK (G19). ASSUMPTIONS P1 is closed.
 
-**M51.2 — the budget gate.** `budget.ts` was meant to run BEFORE the analyzer
-call, the expensive one. It never runs. Its pause rule is meanwhile
-re-implemented in SQL in `db/channels.ts` — the same rule in two places, one
-enforced and one merely tested. That is this repository's most expensive
-recurring defect, and it is sitting in the open.
+**M51.2 — the budget gate. BUILT, AND ITS ORIGINAL DESIGN REVERSED.** The rule
+now lives once, in `core/budget.ts`: the SQL in `db/channels.ts` supplies the
+numbers and core makes the judgement, so the tested copy is the one that runs.
+What did NOT get built is the thing this milestone was written to do — consult
+the budget BEFORE the analyzer call, to save the expensive tokens. Skipping the
+turn would save those tokens and cost the owner her record of it: the outbound
+row is what carries `cancel_reason`, and that row is what the refusal surface
+renders as what happened, why, and what to do. A saving that makes a held
+message invisible to her is not a saving. `BUDGET_PAUSE_REPLY` went with it —
+"we are experiencing very high volume… a member of our team will reply to you
+personally" invents both halves. G19 then wired the one verdict that was still
+being computed and discarded: her soft warning now reaches Today, before the
+ceiling stops her rather than after.
 
-**M51.3 — the degrade ladder.** `degrade.ts` models a night-shift hold ack and
-a five-minute owner alert. What runs today is: the turn throws, pg-boss retries
-five times, dead-letters, alerts the owner. The modelled behaviour is better
-than the running behaviour. Wire it or delete it — a module that is better than
-production and not in production is a lie about what the product does.
+**M51.3 — the degrade ladder. DELETED.** `degrade.ts` modelled a night-shift
+hold acknowledgement and a five-minute owner alert. What runs is: the turn
+throws, pg-boss retries five times with backoff, dead-letters, and alerts the
+owner. A module that is better than production and not in production is a lie
+about what the product does, so it is gone rather than aspirational.
 
-**M51.4 — `editScope.ts`.** Held to see whether it could weigh spot-check
-evidence by edit size. It classifies the SCOPE of what an edit teaches, not the
-SIZE of one, and every input it needs is a signal nothing derives.
+**M51.4 — `editScope.ts`. DELETED.** Held to see whether it could weigh
+spot-check evidence by edit size. It classifies the SCOPE of what an edit
+teaches, not the SIZE of one, and every input it needs is a signal nothing
+derives.
 
-**M51.5 — why did this month change.** Formerly M43.5, unassigned. Name the
-driver and give the two counts ("询盘从 40 变成 25"), rank by the size of the
-change, end each line in something to tap. No percentages — that is why the
-first version was deleted rather than wired.
+**M51.5 — why did this month change. BUILT.** The driver is named with its two
+counts ("询盘从 40 变成 25"), ranked by the size of the change, ending in
+something to tap. No percentages — that is why the first version was deleted
+rather than wired. G19 gave it its own place beside the three things to do,
+because `slice(0, 3)` was dropping it on exactly the busy months it explains.
 
-**M51.6 — the map matches the ground.** This file said M37 was NEXT after it
-shipped, carried no status on eight built milestones, and pointed WeChat at
-M47. A roadmap that lies about the past cannot be trusted about the future.
+**M51.6 — the map matches the ground. CONTINUOUS.** This file had said M37 was
+NEXT after it shipped, carried no status on eight built milestones, and pointed
+WeChat at M47. It is not a milestone that can be finished: G21 is the same work
+again (this section, M40's list below, the audit findings, the environment
+docs), and the lesson is that it needs doing at the END of a block, every time.
 
 ---
 
@@ -742,7 +762,7 @@ number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
 | G18 | M43a + M43b · money shows its currency everywhere | Low | ✅ 2026-09-11 |
 | G19 | M51 follow-ups | Low | ✅ 2026-09-11 |
 | G20 | Guard rails for the invariants | Low | ✅ 2026-09-11 (0044) |
-| G21 | This file matches the ground again | Low | |
+| G21 | This file matches the ground again | Low | ✅ 2026-09-12 |
 
 **G1.** `tests/parity/m40-domain.test.ts` compared a check dated 31 August
 against the real clock, and the seven-day TTL turned CI red on 7 September.
@@ -991,8 +1011,12 @@ band ignored the band's upper bound (a buyer who ordered 20,000 was shown
 to the product quoted. Both fixed. The owner's row gained the whole link and
 the styles it never had.
 
-**G12.** M47 left routing out on purpose — "no roles, no permissions matrix,
-no routing" — and that was right while nobody could be handed anything. With
+**G12 — and the routing decision, recorded.** M47 left routing out on purpose —
+"no roles, no permissions matrix, no routing" — and that was right while nobody
+could be handed anything. **Decided 2026-09-10: build handing to a named
+person, and nothing more.** Not roles, not a permissions matrix, not a queue —
+one person hands one conversation to one other person, and the ownership model
+that already existed is extended rather than replaced. With
 staff it leaves the boss holding a conversation she cannot answer and no way
 to put it in front of the person who can; a sales assistant has no phone
 number, so a conversation only reaches them through this product. `handTo`
@@ -1233,6 +1257,64 @@ second implementation of a rule that agreed with the first until it did not.
   what ran; a file that no longer matches stops the run, names itself, and says
   to write a new migration instead. Rows that predate the column are backfilled
   rather than judged.
+
+**G21.** The map matches the ground again — the same work M51.6 did, which is
+why it is now written down as the thing a block ENDS with rather than a
+milestone anyone finishes.
+- **The 2026-09-10 audit is closed, finding by finding** (table below). One of
+  its findings was wrong and is recorded as wrong rather than quietly dropped.
+- **M51 reads as outcomes**, with the real commit date (2026-08-30, not the
+  2026-08-18 this file claimed) and the decision it reversed: the budget gate
+  deliberately does NOT run before the analyzer, because skipping the turn would
+  save tokens and cost her the refusal row that tells her it happened.
+- **M40's "still to build" list no longer names work that shipped.** The sending
+  domain, bounce and complaint handling, and one-click unsubscribe were on it
+  after they were built, which hides what is actually left.
+- **The courier and routing decisions are recorded where the promise was made** —
+  M45 no longer offers a courier account Nomi cannot book, and M47 says what
+  "routing" was scoped to mean.
+- **The environment docs match the code**, and a test keeps them that way: every
+  `process.env` name in `src/` must appear in `docs/env-checklist.md`. The
+  `PORT` default said 8080 for four months while the code used 8787, and the
+  three pool settings were in `.env.example` and no table at all.
+- **The n8n-era documents moved to `docs/archive/`** with a README saying what
+  each one was: a setup guide that starts "create a Supabase project" is not a
+  historical curiosity when it sits beside the current one, it is a trap.
+- **ASSUMPTIONS.md has the closed section it asked for since M5.** Four entries
+  moved into it. Two of them (one send path, archive-never-erase) were never in
+  the register at all — an invariant everyone believes is exactly the one nobody
+  writes down.
+- **The demo factory can be replied to.** It seeded six buyers with phone
+  numbers and no `client_channels` row, so on the tenant a new factory is shown
+  first, approving a draft reported "sent" while `enqueueOutboundRow` returned
+  null: nothing queued, therefore nothing refused, therefore nothing on the
+  blocked list either. Every seeded buyer now has the number he can be reached
+  on and an open window.
+
+#### The 2026-09-10 audit, closed
+
+| # | What the audit (or the planning that followed it) found | Closed by |
+|---|---|---|
+| 1 | CI red since 7 September; `npm test` could not start in a path with a space | G1 |
+| 2 | The transcript correction had never once succeeded — its audit insert named a column that does not exist | G2a |
+| 3 | The worker never received a transcriber or media fetchers, so every voice note and photo was refused in production | G2b |
+| 4 | Stickers, documents, videos and locations arrived as empty text and ran a turn | G2c |
+| 5 | Nothing in the product could connect a real factory's number; inbound was acknowledged and dropped | G3 |
+| 6 | "Where is my order?" could not work: confirming closed the conversation and the lookup searched only that conversation | G4 |
+| 7 | The proof page printed a lead time the quote had withheld, and "$" whatever the currency | G5 |
+| 8 | Every order was stamped with payment terms and an incoterm the owner never gave | G6 |
+| 9 | Her "ask me above this discount" line was computed, stored, and never enforced | G7a |
+| 10 | A price contradicting one the buyer already had was refused outright, and never became the baseline | G7b |
+| 11 | A reply that failed the guards twice went out unguarded, carrying an internal note | G8 |
+| 12 | A new staff code travelled in a URL that production logs; owner-only pages were open to staff | G9 |
+| 13 | The 24-hour window was per business, so two buyers broke it; approving skipped the send precheck; an unlisted number ran a model turn | G10 |
+| 14 | The proof link the roadmap opens with was a relative path nobody could open | G11 |
+| 15 | A voice note could be corrected but never played | G13 |
+| 16 | The e-mail webhook could never verify a signature in live mode; a correct SPF record read as malformed | G14 |
+| 17 | "The sample comes off the first order" never reached the proforma | G15 |
+| 18 | Re-photographing a price sheet changed nothing — every line was an insert that skipped an existing product | G16 |
+| 19 | 103 off-scale spacings across sixteen renderers; a jade link; a centred empty state | G17a |
+| — | **WRONG FINDING:** the audit reported that "Turn off this link?" never appears. It does — every confirm button has an inline handler and no policy blocks it. Recorded rather than dropped: an audit that is never wrong is an audit nobody checked. | — |
 
 ### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 

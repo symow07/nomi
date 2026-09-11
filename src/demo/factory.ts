@@ -20,13 +20,21 @@ export const DEMO_NAMESPACE = 'de300000';
 /**
  * The same buyer number, in another namespace's tenant. Keeps the country code
  * and the trailing buyer index so the number still reads like the buyer it
- * belongs to; only the middle six digits move. Exported so a test can compute
+ * belongs to; only the middle digits move. Exported so a test can compute
  * exactly what was seeded rather than guessing.
+ *
+ * G21 — EIGHT digits now, not six. `client_channels` is unique on the number
+ * across every tenant, so two namespaces that land on the same block share one
+ * number, and the second tenant's rows are dropped by `on conflict do nothing`
+ * — leaving seeded buyers nobody can reply to, which is the exact failure the
+ * seed was changed to prevent. Six digits gave 900,000 blocks and collided in
+ * practice; eight gives 90,000,000 and the seed now checks rather than hopes
+ * (tools/seed-demo.mjs).
  */
 export function demoPhone(phone: string, namespace: string): string {
   if (namespace === DEMO_NAMESPACE) return phone;
-  const block = String((parseInt(namespace.slice(0, 6), 16) % 900_000) + 100_000);
-  return phone.replace(/^(\d{2})\d{6}/, (_m, cc: string) => cc + block);
+  const block = String((parseInt(namespace.slice(0, 8), 16) % 90_000_000) + 10_000_000);
+  return phone.replace(/^(\d{2})\d{8}/, (_m, cc: string) => cc + block);
 }
 
 const B = 'de300000-0000-4000-8000-0000000000b1';   // business id
@@ -178,6 +186,21 @@ export function demoSeedSql(namespace: string = DEMO_NAMESPACE): string {
     out.push(
       `insert into clients (id, business_id, display_name, phone, country, preferred_language, is_vip) values`,
       `  ('${b.id}', '${B}', '${esc(b.name)}', '${b.phone}', '${b.country}', '${b.language}', ${b.vip}) on conflict (id) do nothing;`,
+      // G21 — THE NUMBER HE CAN BE REACHED ON. This was missing, and the demo
+      // told a false story because of it: `enqueueOutboundRow` returns null
+      // when a conversation's client has no channel identity, so approving a
+      // draft on any seeded conversation reported "sent" while nothing was
+      // queued, nothing was refused, and nothing appeared on the blocked list.
+      // Every other read went wrong the same quiet way — his window read as
+      // expired, and once messaging was activated he would have read as a
+      // number that is not on her list.
+      //
+      // `last_inbound_at` is his own 24-hour window (0042), set to when he last
+      // wrote in this seed, so the demo's windows are open the way a live
+      // conversation's would be.
+      `insert into client_channels (client_id, channel, channel_user_id, last_inbound_at) values`,
+      `  ('${b.id}', 'whatsapp', '${b.phone.replace(/[^0-9]/g, '')}', now() - interval '1 hour')`,
+      `  on conflict (channel, channel_user_id) do nothing;`,
     );
   }
 
