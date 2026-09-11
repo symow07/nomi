@@ -17,7 +17,8 @@
     "migrate": "node tools/migrate.mjs",
     "seed:demo": "node tools/seed-demo.mjs",
     "seed:sandbox": "node tools/seed-sandbox.mjs",
-    "screenshots": "node tools/screenshots.mjs"
+    "screenshots": "node tools/screenshots.mjs",
+    "pre-pilot": "node tools/pre-pilot.mjs"
   },
   "keywords": [],
   "author": "",

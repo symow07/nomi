@@ -127,6 +127,21 @@ kill <server-pid>; pg_ctl -D /tmp/yf-run/pg stop      # the exact command is pri
 
 If the PID is lost, free the port: `lsof -ti:8787 -sTCP:LISTEN | xargs -r kill`.
 
+### The pre-pilot walkthrough
+
+```bash
+DATABASE_URL=… MIGRATE_DATABASE_URL=… npm run pre-pilot           # the twelve, scripted
+npm run pre-pilot -- --live            # the real model writes the replies (needs a working key)
+npm run pre-pilot -- --only 5,6 --keep # two of them, and leave the app up on :8788
+```
+
+`tools/pre-pilot.mjs` seeds its own copy of the demo factory, boots the real
+production composition with the WhatsApp simulator as the adapter, and drives
+twelve day-one buyer scenarios end to end, printing a pass/fail line each and
+keeping the rendered conversation pages in `pre-pilot/`. It is a rehearsal, not
+a CI gate. It must not run while the integration suite runs — both start real
+pg-boss workers on the same queues.
+
 ### Screenshots, for review by eye
 
 ```bash
@@ -194,6 +209,13 @@ Postgres — the smoke script's cluster works: `DATABASE_URL=postgresql://nomi_a
   `/health` reports `"provider":"disabled"`. Only `/health` + `/app/*` exist.
 - **`ANTHROPIC_API_KEY` only needs the right shape** (≥ 20 chars) — in disabled mode
   no turn runs, so it's never called. A dummy is fine.
+- **Nothing is sent twice to one buyer until the first is confirmed.** A second
+  message waits for a `delivered`/`read` receipt on the one before it, or 90
+  seconds (`DELIVERY_WAIT_CAP_MS`), so two replies can never cross. WhatsApp
+  confirms within seconds; a simulator that never confirms makes every
+  follow-up look like a 90-second stall. `tools/pre-pilot.mjs` posts the
+  receipts back for exactly this reason — anything driving the simulator by
+  hand should too.
 - **An iCloud-synced checkout can hang at startup, silently.** With "Optimize Mac
   Storage", macOS evicts file contents to iCloud and leaves a placeholder
   (`ls -lO` shows `dataless`). Reading one blocks until iCloud delivers it, and

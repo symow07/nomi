@@ -12,3 +12,6 @@ dist/
 
 # G17b — tools/screenshots.mjs output, for review by eye; never committed.
 /screenshots/
+
+# The pre-pilot walkthrough's rendered pages and report.
+/pre-pilot/
