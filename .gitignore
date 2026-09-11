@@ -9,3 +9,6 @@ dist/
 # Per-machine Claude Code state. Ignored by ~/.config/git/ignore on the machine
 # this was written on, which protects nobody else's checkout or CI.
 .claude/settings.local.json
+
+# G17b — tools/screenshots.mjs output, for review by eye; never committed.
+/screenshots/
