@@ -55,11 +55,24 @@ export type Insight = {
   readonly action: InsightAction;
 };
 
-export type InsightsData = { readonly insights: readonly Insight[] };
+export type InsightsData = {
+  /** At most MAX_INSIGHTS things to DO, most urgent first. */
+  readonly insights: readonly Insight[];
+  /**
+   * G19 — what CHANGED this month, kept out of the three.
+   *
+   * It used to be pushed onto the same list and then cut by `slice(0, 3)`: on
+   * exactly the busy month it exists to explain, three things to do crowded it
+   * out, so the owner saw it only when little was happening. It is a different
+   * kind of thing — something to know, not something to do — and it now has its
+   * own place instead of competing for theirs. Null when nothing moved.
+   */
+  readonly monthChange: Insight | null;
+};
 
 export async function loadInsights(db: Db, businessIdRaw: string): Promise<InsightsData> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { insights: [] };
+  if (!bid.ok) return { insights: [], monthChange: null };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const out: Insight[] = [];
@@ -183,33 +196,35 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
     })) as Record<MonthDriver, { from: number; to: number }>;
 
     const changed = biggestChange(counts);
-    if (changed) {
-      out.push({
-        key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
-        params: { from: changed.from, to: changed.to },
-        action: { kind: 'seeBuyers', href: '/app/conversations' },
-      });
-    }
+    const monthChange: Insight | null = changed
+      ? {
+          key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
+          params: { from: changed.from, to: changed.to },
+          action: { kind: 'seeBuyers', href: '/app/conversations' },
+        }
+      : null;
 
-    return { insights: out.slice(0, MAX_INSIGHTS) };
+    return { insights: out.slice(0, MAX_INSIGHTS), monthChange };
   });
 }
 
 /** ── Renderer (pure, localized) ───────────────────────────────────────────── */
 
 export function renderInsights(d: InsightsData, locale: Locale): string {
-  if (d.insights.length === 0) return '';
+  if (d.insights.length === 0 && !d.monthChange) return '';
   const name = EMPLOYEE_NAME[locale];
+  const row = (i: Insight): string => {
+    const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
+      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
+    const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
+    return `<div class="insight">
+      <div class="iline">${esc(line)}</div>
+      <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
+    </div>`;
+  };
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
-    ${d.insights.map((i) => {
-      const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
-        ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
-      const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
-      return `<div class="insight">
-        <div class="iline">${esc(line)}</div>
-        <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
-      </div>`;
-    }).join('')}
+    ${d.insights.map(row).join('')}
+    ${d.monthChange ? row(d.monthChange) : ''}
   </div>${INSIGHT_STYLE}`;
 }
 

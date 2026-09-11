@@ -50,6 +50,7 @@ const snapshot = (blockedMessages: number): OperationsSnapshot => ({
   attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
+  budget: null,
   channel: { status: 'connected', provider: 'meta' },
   hasAttention: blockedMessages > 0,
 });

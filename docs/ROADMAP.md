@@ -740,7 +740,7 @@ number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
 | G16 | M37 · re-photographing updates what changed | Medium | ✅ 2026-09-11 |
 | G17 | M49 · finish the design pass, with Playwright screenshots | Medium | ✅ 2026-09-11 |
 | G18 | M43a + M43b · money shows its currency everywhere | Low | ✅ 2026-09-11 |
-| G19 | M51 follow-ups | Low | |
+| G19 | M51 follow-ups | Low | ✅ 2026-09-11 |
 | G20 | Guard rails for the invariants | Low | |
 | G21 | This file matches the ground again | Low | |
 
@@ -1180,6 +1180,30 @@ honest and the page was not.
   test fails and names the screens to look at. The comment in `money.ts` that
   still said "USD is still the only currency" — eleven milestones after CNY
   joined — says what is true now.
+
+**G19.** Three loose ends from M51, each a thing that was computed and then
+thrown away.
+- **The warning that arrives before the stop arrived nowhere.** `checkBudget`
+  has returned `soft_warn` since M51.2 and the send gate asks only "is it
+  pause?", so the owner learned about her ceiling by her employee going quiet.
+  Today now carries it: her percentage, and what HER setting does at 100% —
+  stops, or keeps answering — so the sentence is her rule rather than a general
+  fact about limits. It is a notice, never attention: a quiet day with a
+  warning on it is still a quiet day. Below her own soft-warn line nothing is
+  said, because a warning shown every day is a warning nobody reads.
+- **The month-change insight was dropped on exactly the month it explains.** It
+  was pushed onto the same list as the three things to DO and then cut by
+  `slice(0, 3)`: three drafts waiting, a quiet buyer and an unpriced product
+  crowded out "inquiries went from 12 to 30". It is a different kind of thing —
+  something to know, not something to do — and it now sits beside the three
+  instead of competing for one of their places. The cap still applies to the
+  things to do.
+- **The batching timings are documented as operator-only** (docs/OPS-RUNBOOK.md)
+  rather than put on a settings page. Every number she sets in this product is a
+  commercial rule she can state in her own words; "how many seconds to wait
+  before replying" is a tuning knob whose right value depends on provider jitter
+  and nothing she knows about her buyers. The runbook says what the columns are,
+  what changing them costs, and how.
 
 ### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 

@@ -86,7 +86,7 @@ const emptyOps = renderOperationsHome({
   hasAttention: true,
   activity: { handled: 9, draftsCreated: 3, corrections: 1 },
   knowledge: { openGaps: 2, recentCorrections: 1, recentlyTaught: 4 },
-  channel: { provider: 'meta', status: 'connected' },
+  channel: { provider: 'meta', status: 'connected' }, budget: null,
 }, 'zh');
 
 const inboxList = renderInboxList({

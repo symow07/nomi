@@ -76,6 +76,7 @@ const snap = (over: Partial<OperationsSnapshot> = {}): OperationsSnapshot => ({
   attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 4, draftsCreated: 3, corrections: 1 },
   knowledge: { openGaps: 2, recentCorrections: 1, recentlyTaught: 3 },
+  budget: null,
   channel: { status: 'not_connected', provider: 'disabled' },
   hasAttention: true,
   ...over,

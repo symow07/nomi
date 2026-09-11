@@ -87,12 +87,14 @@ describe('M51.5 · ranked by the size of the change, which is also a count', () 
 });
 
 describe('M51.5 · it obeys the insight rule', () => {
+  // G19 — it has its own place now, beside the three rather than inside them.
   const data = (): InsightsData => ({
-    insights: [{
+    insights: [],
+    monthChange: {
       key: 'insight.monthChange.inquiries.down',
       params: { from: 40, to: 25 },
       action: { kind: 'seeBuyers', href: '/app/conversations' },
-    }],
+    },
   });
 
   it('ends in something to tap, in every locale', () => {

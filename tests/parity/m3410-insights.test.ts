@@ -27,6 +27,7 @@ const insight = (over: Partial<Insight> = {}): Insight => ({
 } as Insight);
 
 const ALL: InsightsData = {
+  monthChange: null,
   insights: [
     insight(),
     insight({ key: 'insight.quotedNoReply', params: { buyer: 'Ahmed' },
@@ -57,7 +58,7 @@ describe('M34.10 · every insight carries somewhere to go', () => {
   });
 
   it('nothing to report renders nothing at all — not an empty heading', () => {
-    expect(renderInsights({ insights: [] }, 'en')).toBe('');
+    expect(renderInsights({ insights: [], monthChange: null }, 'en')).toBe('');
   });
 
   it('caps at three: a list of demands is a chore, not an insight', async () => {
