@@ -158,9 +158,31 @@ describe('the close, end to end, with idempotency', () => {
     const fx = await commitTurn(p, req('yes'), r, Date.now());
     expect(fx.orderCreated).not.toBeNull();
     expect(fx.outbound?.reply).toContain(fx.orderCreated!.orderReference);
-    expect(fx.outbound?.reply).toContain('buyer@example.com');
+    // G4 — it used to name his address and promise a confirmation e-mail that
+    // nothing in this product can send. It promises nothing it cannot keep.
+    expect(fx.outbound?.reply).not.toMatch(/e-?mail/i);
+    expect(fx.outbound?.reply).not.toContain('buyer@example.com');
     expect(p.tenant.closed).toContain(CONVERSATION);
     expect(p.tenant.eventRows.map((e) => e.type)).toContain('order_created');
+  });
+
+  it('G6 · the order carries HER terms — and none when she has stated none', async () => {
+    const none = ports();
+    none.tenant.seed(CONVERSATION, readyState());
+    await commitTurn(none, req('yes'), await computeTurn(none, req('yes')), Date.now());
+    expect(none.tenant.ordersCreated).toHaveLength(1);
+    expect(none.tenant.ordersCreated[0]!.paymentTerms).toBeNull();
+    expect(none.tenant.ordersCreated[0]!.incoterm).toBeNull();
+
+    const stated = ports();
+    stated.tenant.terms = {
+      paymentTerms: '50% with order, balance against B/L copy', incoterm: 'CIF',
+      statedAt: new Date('2026-09-01T00:00:00Z'),
+    };
+    stated.tenant.seed(CONVERSATION, readyState());
+    await commitTurn(stated, req('yes'), await computeTurn(stated, req('yes')), Date.now());
+    expect(stated.tenant.ordersCreated[0]!.paymentTerms).toBe('50% with order, balance against B/L copy');
+    expect(stated.tenant.ordersCreated[0]!.incoterm).toBe('CIF');
   });
 
   it('a SECOND "yes" yields the SAME order — never a duplicate', async () => {

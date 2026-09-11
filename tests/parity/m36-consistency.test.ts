@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import { computeQuote, contradictsHistory } from '../../src/core/commerce/quote.js';
-import { quoteRefusalContext } from '../../src/core/conversation/templates.js';
+import { holdReasonOf } from '../../src/core/conversation/hold.js';
+import { guardNumerals } from '../../src/core/safety/numerals.js';
 import type { PriorQuote } from '../../src/core/types/commerce.js';
-import { product, tiers, policy } from './fixtures.js';
+import { product, tiers, policy, emptyState } from './fixtures.js';
 
 /**
  * M36 — she does not contradict herself.
@@ -13,10 +14,12 @@ import { product, tiers, policy } from './fixtures.js';
  * guard did not, so the only thing standing between a returning buyer and a
  * contradiction was that nobody had tried it yet.
  *
- * Built as `below_floor`'s sibling: same mechanic (a refusal out of
- * computeQuote), same fail-closed posture, a different axis — history rather
- * than policy. The owner may APPROVE the new price. She may not be surprised by
- * it in front of a buyer who kept the first message.
+ * Built first as `below_floor`'s sibling — a refusal out of computeQuote. G7b
+ * made it a HOLD: refusing meant no quote, so the owner was never asked and
+ * her approval could not make the new price stick. Now the quote exists and
+ * carries the contradiction, the turn holds it for her, and her 发送 makes it
+ * the price he has (tests/integration/contradiction.test.ts). She may not be
+ * surprised by it in front of a buyer who kept the first message.
  */
 
 const march = new Date('2026-03-04T10:00:00Z');
@@ -28,19 +31,19 @@ const quote = (quantity: number, priorQuotes: readonly PriorQuote[] = []) =>
   computeQuote({ product: product(), tiers: tiers(), policy: policy(), rules: [], quantity, priorQuotes });
 
 describe('M36 · a higher price for a returning buyer stops and asks', () => {
-  it('the same quantity at a higher price is refused, with BOTH numbers and BOTH dates', () => {
+  it('the same quantity at a higher price is HELD, with BOTH numbers and BOTH dates', () => {
     // The fixture's price for 20,000 is well below this invented prior, so the
     // new quote is the cheaper one — flip it: claim she was quoted very little.
     const r = quote(20000, [prior(20000, 0.01)]);
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.error.kind).toBe('contradicts_history');
-    if (r.error.kind !== 'contradicts_history') return;
-    expect(r.error.how).toBe('higher_same_quantity');
-    expect(r.error.prior.unitPrice).toEqual(usd(0.01));
-    expect(r.error.prior.at).toEqual(march);
-    expect(r.error.proposedQuantity).toBe(20000);
-    expect(r.error.proposedUnitPrice.amount).toBeGreaterThan(0.01);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const c = r.value.contradicts;
+    expect(c).not.toBeNull();
+    expect(c!.how).toBe('higher_same_quantity');
+    expect(c!.prior.unitPrice).toEqual(usd(0.01));
+    expect(c!.prior.at).toEqual(march);
+    expect(c!.proposedQuantity).toBe(20000);
+    expect(c!.proposedUnitPrice).toEqual(r.value.unitPrice);
   });
 
   it('THE WORSE CASE: a higher unit price at a LARGER quantity inverts her own tiers', () => {
@@ -61,7 +64,8 @@ describe('M36 · a higher price for a returning buyer stops and asks', () => {
 describe('M36 · what is NOT a contradiction', () => {
   it('a NEW buyer — no history means nothing to contradict', () => {
     expect(contradictsHistory([], 20000, usd(9.99))).toBeNull();
-    expect(quote(20000).ok).toBe(true);
+    const r = quote(20000);
+    expect(r.ok && r.value.contradicts).toBeNull();
   });
 
   it('the SAME price again', () => {
@@ -84,29 +88,31 @@ describe('M36 · what is NOT a contradiction', () => {
   });
 });
 
-describe('M36 · the refusal reaches the owner without inventing anything', () => {
-  it('names no price the history does not contain', () => {
-    const r = contradictsHistory([prior(20000, 0.30)], 20000, usd(0.44))!;
-    const ctx = quoteRefusalContext({ ...r });
-    // Only the four real figures are permitted into a reply.
-    expect(new Set(ctx.allow)).toEqual(new Set([0.30, 20000, 0.44, 20000]));
-    expect(ctx.note).not.toMatch(/\d/);   // the note itself states no number
+describe('G7b · it is a hold, not a refusal', () => {
+  it('the quote exists and the turn holds it for her — the owner is ASKED', () => {
+    // This test used to assert the opposite ("no half-quote"): a refusal
+    // produced no quote, the turn fell to `recommend`, and nobody asked her.
+    const r = quote(20000, [prior(20000, 0.01)]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(holdReasonOf({ provenance: 'typed', quote: r.value, turnText: 'price for 20000?' }))
+      .toBe('contradicts_history');
   });
 
-  it('tells the reply writer NOT to state a new price', () => {
-    const r = contradictsHistory([prior(20000, 0.30)], 20000, usd(0.44))!;
-    expect(quoteRefusalContext({ ...r }).note.toLowerCase()).toContain('do not state a new price');
+  it('the draft may state the NEW price, and only that — the old one is not a sourced figure', () => {
+    // A held turn cannot auto-send, so stating the new price is safe: she
+    // reads it before he does. The old price stays out of the reply; it is on
+    // HER card, beside the new one.
+    const r = quote(20000, [prior(20000, 0.30)]);
+    if (!r.ok) throw new Error('fixture');
+    const price = r.value.unitPrice.amount.toFixed(2);
+    const at = (reply: string) => guardNumerals({ reply, quote: r.value, state: emptyState(), clientText: '', allow: [] }).ok;
+    expect(at(`For 20,000 pcs the price is $${price} each.`)).toBe(true);
+    expect(at('Last time it was $0.30 each.')).toBe(false);
   });
 });
 
-describe('M36 · it is below_floor’s sibling, structurally', () => {
-  it('refuses through the same Result channel, not a side effect', () => {
-    const r = quote(20000, [prior(20000, 0.01)]);
-    expect(r.ok).toBe(false);
-    // No quote is produced at all — she cannot half-quote and hope.
-    if (!r.ok) expect('value' in r).toBe(false);
-  });
-
+describe('M36 · the floor still comes first', () => {
   it('runs AFTER the floor, so a misconfigured catalogue still reports the floor first', () => {
     // Both wrong at once should surface the owner's own policy error, which is
     // hers to fix, rather than a history mismatch that is a consequence of it.

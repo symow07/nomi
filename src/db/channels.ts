@@ -70,7 +70,8 @@ export function channelStore(
         select c.assigned_to,
                tb.daily_llm_calls, tb.daily_tokens, tb.soft_warn_pct, tb.on_exceeded,
                tb.used_calls, tb.used_tokens,
-               ch.last_inbound_at,
+               -- G10b — the BUYER's window, not the channel's.
+               cc.last_inbound_at,
                ch.pilot_mode, ch.activated_at,
                cc.channel_user_id as buyer_wa_id,
                (select count(*)::int from outbound_messages om
@@ -100,7 +101,15 @@ export function channelStore(
              where b.business_id = c.business_id limit 1
           ) tb on true
           left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
-          left join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
+          -- G10b — ONE row, deterministically. A buyer with two WhatsApp
+          -- identities on one client would otherwise multiply this query's
+          -- rows, and the first of them is whichever the planner returned:
+          -- his window would come and go between two identical calls.
+          left join lateral (
+            select cc.channel_user_id, cc.last_inbound_at from client_channels cc
+             where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+             order by cc.last_inbound_at desc nulls last limit 1
+          ) cc on true
          where c.id = ${conversationId}
       `.execute(tx);
       const c = ctxRes.rows[0];
@@ -196,6 +205,19 @@ export function channelStore(
          where id = ${id}
       `.execute(tx);
       await logTransition(id, from, to, detail);
+      // G10a — what actually LEFT, on the timeline the owner reads. Nothing
+      // wrote a sent reply into `messages`, so her conversation page showed
+      // drafts and refusals and never the words that reached the buyer. At
+      // 'sent' — the provider accepted it — and once per outbound row.
+      if (to === 'sent') {
+        await sql`
+          insert into messages (conversation_id, external_id, direction, input_type, text_content, image_url, sent_at)
+          select conversation_id, ${'out:' + id}, 'outbound',
+                 case when media_url is null then 'text' else 'image' end, body, media_url, now()
+            from outbound_messages where id = ${id}
+          on conflict do nothing
+        `.execute(tx);
+      }
     },
 
     async recordProviderId(id, providerMessageId) {
@@ -256,6 +278,34 @@ export function channelStore(
           from channels where business_id = ${businessId} and kind = 'whatsapp'
       `.execute(tx);
     },
+  };
+}
+
+/**
+ * G10c — the three facts that decide whether she may answer this buyer AT ALL
+ * during the pilot: is she live, is pilot mode on, is he on the owner's list.
+ * Read inside the worker's own transaction, like the send gate reads them. A
+ * missing channel row is "not live" — nothing can be sent, so a draft is
+ * still rehearsal — and an unresolved buyer is not on the list.
+ */
+export async function pilotFactsFor(
+  tx: Tx, businessId: BusinessId, conversationId: string,
+): Promise<{ activated: boolean; pilotMode: boolean; allowlisted: boolean }> {
+  const row = (await sql<{ activated: boolean | null; pilot_mode: boolean | null; wa_id: string | null }>`
+    select ch.activated_at is not null as activated, ch.pilot_mode, cc.channel_user_id as wa_id
+      from conversations c
+      left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
+      left join lateral (
+        select cc.channel_user_id from client_channels cc
+         where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+         order by cc.last_inbound_at desc nulls last limit 1
+      ) cc on true
+     where c.id = ${conversationId} limit 1`.execute(tx)).rows[0];
+  const pilotMode = row?.pilot_mode ?? true;
+  return {
+    activated: row?.activated === true,
+    pilotMode,
+    allowlisted: pilotMode ? await isAllowlisted(tx, businessId, row?.wa_id ?? null) : true,
   };
 }
 
@@ -358,18 +408,24 @@ export async function enqueueOutboundRow(
  */
 export async function ownerSendFacts(
   tx: Tx, businessId: BusinessId, conversationId: string, providerConfigured: boolean,
-): Promise<{ facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean }> {
+): Promise<{ facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean; lastInboundAt: Date | null }> {
   const row = (await sql<{
     status: string | null; activated_at: Date | null; disconnected_at: Date | null;
     pilot_mode: boolean | null; cred: boolean | null; buyer_wa_id: string | null;
+    last_inbound_at: Date | null;
   }>`
     select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode,
            (select bool_or(cc.is_active) from channel_credentials cc
              where cc.business_id = ${businessId} and cc.channel = 'whatsapp') as cred,
-           cc2.channel_user_id as buyer_wa_id
+           cc2.channel_user_id as buyer_wa_id, cc2.last_inbound_at
       from conversations c
       left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
-      left join client_channels cc2 on cc2.client_id = c.client_id and cc2.channel = 'whatsapp'
+      -- G10b — one identity, the most recently heard from (see load()).
+      left join lateral (
+        select cc.channel_user_id, cc.last_inbound_at from client_channels cc
+         where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+         order by cc.last_inbound_at desc nulls last limit 1
+      ) cc2 on true
      where c.id = ${conversationId} limit 1
   `.execute(tx)).rows[0];
 
@@ -385,5 +441,7 @@ export async function ownerSendFacts(
     },
     pilotMode,
     recipientAllowed: pilotMode ? await isAllowlisted(tx, businessId, row?.buyer_wa_id ?? null) : true,
+    // G10b — so she is told, when she presses send, that his window is shut.
+    lastInboundAt: row?.last_inbound_at ?? null,
   };
 }

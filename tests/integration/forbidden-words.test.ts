@@ -146,4 +146,60 @@ d('M37.5 · her forbidden list, end to end (requires DATABASE_URL)', () => {
     expect(terms).toHaveLength(0);
     expect(guardForbidden({ reply: 'you idiot', ownerTerms: terms }).ok).toBe(false);
   });
+
+  it('G8 · RE-ADDING an archived term is a new row — the old one keeps its history, and her note is kept', async () => {
+    const res = await post('/app/settings/forbidden',
+      `term=Guangzhou%20Textile&note=${encodeURIComponent('they copied our catalogue')}`);
+    expect(res.statusCode).toBe(302);
+    // 0029's comment said re-adding "revives" the archived row. It never did,
+    // and two rows — one archived, one live — is the record worth keeping.
+    expect(await rows()).toEqual([
+      { term: 'Guangzhou Textile', archived: true },
+      { term: 'Guangzhou Textile', archived: false },
+    ]);
+    const page = await app.inject({ method: 'GET', url: '/app/settings/forbidden', headers: { cookie } });
+    expect(page.body).toContain('they copied our catalogue');
+  });
+
+  it('G8 · a hit in HER text shows on the conversation for her latest turn only — and is not evidence', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { loadCapabilityEvidence } = await import('../../src/pipeline/capability.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const tx = <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>) => withTenantTx(db, bid.value, fn);
+
+    const turnRow = (t: import('../../src/db/client.js').Tx, conv: string) => sql`
+      insert into turns (message_id, business_id, conversation_id, state_before, input, decision, engine, engine_version)
+      values (${`g8-${randomUUID()}`}, ${BIZ}, ${conv}::uuid, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, 'service', 'test')`.execute(t);
+
+    const conv = await tx(async (t) => {
+      const client = (await sql<{ id: string }>`
+        insert into clients (business_id, phone, display_name)
+        values (${BIZ}, ${`+8613${RUN}9`}, 'Ahmed') returning id::text as id`.execute(t)).rows[0]!.id;
+      const c = (await sql<{ id: string }>`
+        insert into conversations (business_id, client_id, channel, phase)
+        values (${BIZ}, ${client}::uuid, 'whatsapp', 'clarification') returning id::text as id`.execute(t)).rows[0]!.id;
+      // The turn and its event in ONE transaction, as commitTurn writes them.
+      await turnRow(t, c);
+      await sql`insert into conversation_events (business_id, conversation_id, type, payload)
+                values (${BIZ}, ${c}::uuid, 'forbidden_in_her_text',
+                        ${JSON.stringify({ hits: [{ term: 'Guangzhou Textile', source: 'owner', path: 'taught_answer' }] })}::jsonb)`.execute(t);
+      return c;
+    });
+    const before = await tx((t) => loadCapabilityEvidence(t, 'recommend'));
+
+    const page = () => app.inject({ method: 'GET', url: `/app/inbox/${conv}`, headers: { cookie } });
+    const shown = await page();
+    expect(shown.statusCode).toBe(200);
+    expect(shown.body).toContain('Your own words had a word you forbade');
+    expect(shown.body).toContain('Guangzhou Textile');
+    expect(shown.body).toContain('href="/app/knowledge"');
+
+    // Not the employee's failure: no guard violation counted for any capability.
+    expect(before.policyViolations).toBe(0);
+
+    // A later turn that ran clean: the card is gone, not lingering after she fixed it.
+    await tx((t) => turnRow(t, conv));
+    expect((await page()).body).not.toContain('Your own words had a word you forbade');
+  });
 });

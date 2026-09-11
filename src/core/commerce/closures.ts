@@ -53,6 +53,29 @@ export type LeadTimeBlocked = {
   readonly wouldShipOn: Date;
 };
 
+/**
+ * G5 — what is kept with a quote whose date she withheld: her closure, and
+ * NOT `wouldShipOn`. This is what the buyer's proof page reads, and the date a
+ * lead time would have promised is exactly the date that must never reach
+ * him — not on the page, and not in a column the page can select.
+ */
+export type WithheldLeadTime = { readonly label: string; readonly from: Date; readonly to: Date };
+
+export const withheldOf = (b: LeadTimeBlocked): WithheldLeadTime =>
+  ({ label: b.closure.label, from: b.closure.from, to: b.closure.to });
+
+/**
+ * G5 — the note the reply writer is given when a closure withheld the date,
+ * so the BUYER hears why rather than only noticing that no date came. Her
+ * label only: the closure's own dates are not in it, because every digit a
+ * reply may contain must be sourced, and a date in a note is a date the model
+ * will restate.
+ */
+export function closureNote(b: LeadTimeBlocked): string {
+  return `The factory is closed for ${b.closure.label}, so no delivery date can be promised `
+    + `for this order yet. Say so plainly and kindly. Do not state or estimate a lead time.`;
+}
+
 const DAY_MS = 86_400_000;
 
 /** Midnight-to-midnight, so a closure that starts today counts as today. */

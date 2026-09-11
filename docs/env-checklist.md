@@ -64,6 +64,23 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 | `META_TEMPLATE_NAMES` | Comma-separated names of message templates Meta has **actually approved**. Empty (the default) means a conversation older than 24 hours goes back to the owner instead of being re-opened. Nothing in the product calls Meta to check this — an operator records what was granted. |
 | `D360_API_KEY` · `D360_BASE_URL` · `WEBHOOK_SECRET` | Required only when the provider is `360dialog`. |
 
+## Hearing voice notes and seeing photos
+
+Voice notes and photos are downloaded with the **messaging provider's own
+credential** — the Meta token or the 360dialog key above. There is no separate
+media setting to keep in step with it.
+
+| Variable | Shape the boot check enforces | What it is |
+|---|---|---|
+| `TRANSCRIBE_API_KEY` | ≥ 20 chars, when set | Speech-to-text (Whisper). **Unset, she refuses every voice note** and tells the owner she could not hear it — never an answer to a question nobody heard. The one media setting that is its own account. |
+| `TRANSCRIBE_BASE_URL` | starts with `https://`, when set | Only for a Whisper-compatible provider other than OpenAI's. |
+| `SENDING_SPF_INCLUDE` | not checked at boot | The sending provider's own SPF mechanism (M40.1). Unset, SPF reads as `no_sender` — present but unconfirmable — and sending stays refused. |
+| `EMAIL_WEBHOOK_SECRET` | not checked at boot | Shared secret for the provider's bounce/complaint callbacks (M40.2). **Unset mounts no `/hooks/email` at all.** The signature is taken over the raw bytes (G14). |
+| `PUBLIC_BASE_URL` | starts with `https://`, when set | The address buyers reach this installation at. Every quote carries a proof link built on it (G11). **Unset, no link is attached** and the owner is told why on the conversation. https only: the link is forwarded to a stranger's phone. |
+
+> Until G2b (2026-09-10) the worker was never given these, however the host was
+> configured, so she refused every voice note and every photo in production.
+
 ## Optional
 
 | Variable | Default | What it is |

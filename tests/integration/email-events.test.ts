@@ -50,6 +50,21 @@ d('M40.2 · bounces and complaints (requires DATABASE_URL)', () => {
     });
   };
 
+  /**
+   * G14 — BYTES, not an object. A provider signs what it sends: its own
+   * spacing, its own key order. Re-serialising a parsed body agrees with that
+   * only by luck, and in live mode the body arrives as a STRING (the ingress
+   * app keeps raw JSON), so the old code hashed a quoted string and no real
+   * event could verify at all.
+   */
+  const postRaw = (rawBody: string, target = app) => target.inject({
+    method: 'POST', url: '/hooks/email', payload: rawBody,
+    headers: {
+      'content-type': 'application/json',
+      'x-webhook-signature': createHmac('sha256', HOOK).update(rawBody).digest('base64url'),
+    },
+  });
+
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
@@ -130,6 +145,55 @@ d('M40.2 · bounces and complaints (requires DATABASE_URL)', () => {
     // a batch that already wrote permanent rows.
     expect(res.statusCode).toBe(200);
     expect(await suppression('kept@example.com')).toBe('complained');
+  });
+
+  it('G14 · A BYTE-EXACT PROVIDER SAMPLE VERIFIES — in deployment mode and in live mode', async () => {
+    const { buildIngressApp } = await import('../../src/api/ingress.js');
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    const identity = 'byteexact@example.com';
+    // A provider's own formatting: spaced, its own key order, a unicode escape.
+    const raw = `{\n  "events": [ { "type": "complaint", "detail": "caf\\u00e9", "tag": "${await tag(identity)}" } ]\n}`;
+
+    // 1 · deployment mode — the Command Center on its own Fastify.
+    expect((await postRaw(raw)).statusCode).toBe(200);
+    expect(await suppression(identity)).toBe('complained');
+
+    // 2 · LIVE mode — mounted on the ingress app, whose JSON parser hands every
+    // route the raw string. This is the shape that could never verify before.
+    const live = buildIngressApp({
+      adapter: { provider: 'test', verifyWebhook: () => true, parseWebhook: () => [], send: async () => ({ ok: true, providerMessageId: 'x' }) } as never,
+      verifyToken: 'v'.repeat(16), logger: false,
+      persistEvent: async () => 'new', onNewEvent: async () => {},
+    });
+    registerWebApp(live, {
+      db, businessId: BIZ, accessCode: 'live-mode-code', sessionSecret: SECRET,
+      employeeName: 'Lily', avatar: '👩‍💼', provider: 'meta',
+      secureCookie: false, messagingEnabled: true, emailWebhookSecret: HOOK,
+      kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await live.ready();
+    const second = 'byteexact2@example.com';
+    const raw2 = `{ "events": [ { "type": "complaint", "tag": "${await tag(second)}" } ] }`;
+    expect((await postRaw(raw2, live)).statusCode).toBe(200);
+    expect(await suppression(second)).toBe('complained');
+    // And the WhatsApp webhook on that same app still parses as it always did.
+    expect((await live.inject({ method: 'POST', url: '/webhook/whatsapp', payload: '{}',
+      headers: { 'content-type': 'application/json' } })).statusCode).toBe(200);
+    await live.close();
+  });
+
+  it('G14 · an address the provider echoes in another case is ONE suppression, not a second row', async () => {
+    const identity = 'Mixed.Case@Example.COM';
+    const raw = `{"events":[{"type":"complaint","tag":"${await tag(identity)}"}]}`;
+    expect((await postRaw(raw)).statusCode).toBe(200);
+    // Written normalised, the way every other identity is written, so the send
+    // path's own lookup finds it.
+    expect(await suppression('mixed.case@example.com')).toBe('complained');
+    const rows = await inTenant(BIZ, (t) => sql<{ n: number }>`
+      select count(*)::int as n from suppressions
+       where business_id = ${BIZ} and lower(identity) = 'mixed.case@example.com'
+    `.execute(t).then((r) => r.rows[0]!.n));
+    expect(rows).toBe(1);
   });
 
   it('a malformed body is accepted and does nothing', async () => {

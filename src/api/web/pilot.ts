@@ -13,6 +13,7 @@ import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
 import { esc, deeper } from './layout.js';
+import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 
 /**
  * M15.1 — Pilot Readiness Hub. Extends the M11.2 onboarding into a single
@@ -262,11 +263,14 @@ export async function loadPilotFeedback(
     `.execute(tx)).rows[0]!.c;
 
     // Recurring issues: the stored PROBLEM signals, grouped. No classifier.
+    // G2c — the kinds come from core. This list was a hand copy that never
+    // learned 'audio_unheard', so a voice note she could not hear gated the
+    // close and was missing from the one summary of why she was needed.
     const reasons = (await sql<{ kind: string; n: number; last_at: Date }>`
       select kind, count(*)::int as n, max(created_at) as last_at
         from conversation_signals
        where business_id = ${B} and created_at >= ${cutoff}
-         and kind in ('human_requested','complaint','repeated_ambiguity','low_confidence_image')
+         and kind = any(${[...PROBLEM_SIGNAL_KINDS]}::text[])
        group by kind order by n desc, kind asc
     `.execute(tx)).rows;
 
@@ -644,31 +648,31 @@ export function renderPilotRunbook(
 }
 
 const RUNBOOK_STYLE = `<style>
-  .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:16px 0 6px; }
-  .rbrow { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
+  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper-sunk); }
   .rbrow:last-child { border-bottom:0; }
   .rbrow .lbl { font-size:var(--font-size-note); } .rbrow .n { margin-inline-start:auto; font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); }
   .rblink { font-size:var(--font-size-caption); }
-  .rbsteps { margin:6px 0 14px; padding-inline-start:20px; color:var(--color-ink-secondary); font-size:var(--font-size-note); }
+  .rbsteps { margin:var(--space-8) 0 var(--space-16); padding-inline-start:20px; color:var(--color-ink-secondary); font-size:var(--font-size-note); }
   .rbsteps li { padding:2px 0; }
   .rbrow .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
   /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
-  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:12px; }
-  .ev-h { display:flex; gap:10px; flex-wrap:wrap; }
+  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:var(--space-12); }
+  .ev-h { display:flex; gap:var(--space-8); flex-wrap:wrap; }
   .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
-  .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:6px; }
+  .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
   .ev-p { font:var(--font-size-micro)/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:var(--color-ink-secondary);
-          margin:8px 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
+          margin:var(--space-8) 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
 </style>`;
 
 const PILOT_STYLE = `<style>
-  .pr { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper-sunk); }
   .pr:last-child { border-bottom:0; }
   .pr .mk { font-size:var(--font-size-base); font-weight:700; } .pr.done .mk { color:var(--color-ok); } .pr.todo .mk { color:var(--color-ink-secondary); }
   .pr .lbl { font-size:var(--font-size-small); }
-  .pr-b { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-inline-start:auto; }
+  .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
   .badge { font-size:var(--font-size-micro); padding:3px 10px; border-radius:999px; }
   .badge.sys { background:var(--color-jade-wash); color:var(--color-ok); } .badge.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
-  .verdict { margin-top:16px; padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
+  .verdict { margin-top:var(--space-16); padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
   .verdict.ok { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
 </style>`;

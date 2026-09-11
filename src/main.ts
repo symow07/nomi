@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import Anthropic from '@anthropic-ai/sdk';
 import { startWorker } from './worker/main.js';
+import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
@@ -19,7 +20,7 @@ import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
 import { driveConversationOutbound } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, type NotifyJob } from './queue/boss.js';
+import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob } from './queue/boss.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import { markSmall } from './core/owner/brand.js';
@@ -62,6 +63,18 @@ export type ProdConfig = {
   META_WHATSAPP_BUSINESS_ACCOUNT_ID?: string;
   META_APP_SECRET?: string;
   META_GRAPH_API_VERSION: string;
+  // G2b — speech-to-text, the one media setting that is not the channel's own
+  // credential. Optional in every mode: absent, voice notes are refused with
+  // `audio_unheard` and the owner is told why.
+  TRANSCRIBE_API_KEY?: string;
+  TRANSCRIBE_BASE_URL?: string;
+  /**
+   * G11 — the address buyers reach this installation at, for the proof link a
+   * quote carries. Optional in every mode: absent, no link is attached and the
+   * owner is told why. https only — a proof link is forwarded to a stranger's
+   * phone, and it must not be sent over anything a network can read.
+   */
+  PUBLIC_BASE_URL?: string;
 };
 
 type Shape = (v: string) => boolean;
@@ -84,6 +97,15 @@ const META_SHAPES: Record<string, Shape> = {
   META_WHATSAPP_PHONE_NUMBER_ID: META_SHAPE.phoneNumberId,
   META_WHATSAPP_BUSINESS_ACCOUNT_ID: META_SHAPE.businessAccountId,
   META_APP_SECRET: META_SHAPE.appSecret,
+};
+// G2b — checked only when set. Absent is a real state (she refuses voice notes
+// and says why); malformed is not, and must fail at boot rather than at the
+// first voice note a buyer sends.
+const OPTIONAL_SHAPES: Record<string, Shape> = {
+  TRANSCRIBE_API_KEY: (v) => v.length >= 20,
+  TRANSCRIBE_BASE_URL: (v) => v.startsWith('https://'),
+  // G11 — a host, not a path: '/p/<token>' is appended to it.
+  PUBLIC_BASE_URL: (v) => /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(v),
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
@@ -111,6 +133,14 @@ export function validateEnv(env: Record<string, string | undefined>):
   if (provider === 'meta' && !/^v\d+\.\d+$/.test(graphVersion)) {
     problems.push('META_GRAPH_API_VERSION: invalid shape');
   }
+  // G2b — OPTIONAL, but checked when present: a malformed key would otherwise
+  // boot green and refuse every voice note at the first one a buyer sends.
+  for (const [name, shape] of Object.entries(OPTIONAL_SHAPES)) {
+    const v = env[name];
+    if (v === undefined || v === '') continue;
+    if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
+    else if (!shape(v)) problems.push(`${name}: invalid shape`);
+  }
   if (problems.length) return { ok: false, problems };
 
   const pick = (name: string): { [k: string]: string } | Record<string, never> =>
@@ -128,6 +158,9 @@ export function validateEnv(env: Record<string, string | undefined>):
       ...pick('D360_API_KEY'), ...pick('D360_BASE_URL'), ...pick('WEBHOOK_SECRET'),
       ...pick('META_WHATSAPP_ACCESS_TOKEN'), ...pick('META_WHATSAPP_PHONE_NUMBER_ID'),
       ...pick('META_WHATSAPP_BUSINESS_ACCOUNT_ID'), ...pick('META_APP_SECRET'),
+      ...(env['TRANSCRIBE_API_KEY'] ? pick('TRANSCRIBE_API_KEY') : {}),
+      ...(env['TRANSCRIBE_BASE_URL'] ? pick('TRANSCRIBE_BASE_URL') : {}),
+      ...(env['PUBLIC_BASE_URL'] ? pick('PUBLIC_BASE_URL') : {}),
     },
   };
 }
@@ -253,12 +286,33 @@ export type Production = {
 
 export async function buildProduction(
   cfg: ProdConfig,
-  overrides?: { adapter?: ChannelAdapter; logger?: boolean },
+  overrides?: {
+    adapter?: ChannelAdapter;
+    logger?: boolean;
+    /**
+     * G2b — the transcriber and media fetchers, beside `adapter` and for the
+     * same reason: a test that swaps the provider must also swap where media
+     * comes from, or a simulated voice note would be fetched from Meta.
+     */
+    media?: MediaPorts;
+    /** G2b — model ports, tests only; production builds them from the key. */
+    models?: Parameters<typeof startWorker>[2];
+  },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
+  // G2b — and it is handed the ports it needs to hear and see. Before this
+  // call carried them, both paths were dead in production however the host
+  // was configured.
+  // G13 — ONE set of media ports for this process: the worker hears with them
+  // and the Command Center plays back through the same fetcher. Built once, so
+  // a test that injects its own cannot end up with the web app using another.
+  const mediaPorts = overrides?.media ?? mediaPortsFor(cfg);
   const { db, boss } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
-  });
+    // G11 — the worker mints the proof link a quote carries, so it needs the
+    // address as much as the web app does.
+    ...(cfg.PUBLIC_BASE_URL ? { PUBLIC_BASE_URL: cfg.PUBLIC_BASE_URL } : {}),
+  }, mediaPorts, overrides?.models ?? {});
 
   // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
   // tenant isolation. Every RLS policy targets nomi_app; a superuser or
@@ -330,6 +384,14 @@ export async function buildProduction(
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
       templateState: TEMPLATE_STATE,
+      // G11 — so the owner's copy of a proof link is one she can send.
+      publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,
+      // G13 — the same fetcher the worker hears with, so she can play a note.
+      ...(mediaPorts.audio ? { audio: mediaPorts.audio } : {}),
+      kickAnswer: (businessId, conversationId, messageId, text) =>
+        boss.send(QUEUES.inbound, {
+          businessId, conversationId, messageId, text, answerOnly: true,
+        } satisfies InboundJob, { retryLimit: 1 }).then(() => undefined),
     // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` arrives with the sending
     // provider (M52); until then the SPF check cannot confirm authorisation and
     // says so, which refuses rather than assumes.
@@ -338,6 +400,9 @@ export async function buildProduction(
     // M40.2 — absent mounts no webhook, exactly as an absent WhatsApp provider
     // mounts none. There is nothing to verify a caller with.
     emailWebhookSecret: process.env['EMAIL_WEBHOOK_SECRET'] ?? null,
+    // G3 — the number "Connect this number" connects, from the validated
+    // config. Only Meta names one; without it the page shows the guide.
+    connectableNumber: cfg.provider === 'meta' ? (cfg.META_WHATSAPP_PHONE_NUMBER_ID ?? null) : null,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
@@ -477,11 +542,20 @@ export async function buildProduction(
       if (e.kind === 'message') {
         const { conversationId } = await withTenantTx(db, bid, async (tx) => {
           const conv = await ensureConversation(tx, bid, e.waId, e.profileName);
-          // 24h window + health signals live on the channel row.
+          // Health signals live on the channel row: "when did anything arrive".
           await sql`
             update channels
                set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
              where business_id = ${bid} and kind = 'whatsapp'
+          `.execute(tx);
+          // G10b — the 24-hour window is THIS buyer's. It lived on the channel
+          // row, which any buyer's message moved, so one chatty buyer kept a
+          // silent one's window open and Meta rejected what the gate allowed.
+          // `greatest`, because webhooks can arrive out of order.
+          await sql`
+            update client_channels
+               set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${e.occurredAt})
+             where channel = 'whatsapp' and channel_user_id = ${e.waId}
           `.execute(tx);
           return conv;
         });
@@ -492,6 +566,8 @@ export async function buildProduction(
           // past the webhook until now, which is why a voice note arrived as
           // empty text and was answered as though nothing had been said.
           messageType: e.messageType, mediaId: e.mediaId,
+          // G2c — what it WAS, so an unreadable message reaches a person by name.
+          received: e.received,
         });
       } else {
         const r = await withTenantTx(db, bid, (tx) =>

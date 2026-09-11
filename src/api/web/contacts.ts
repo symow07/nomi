@@ -12,6 +12,7 @@ import { displayPhone } from '../../core/channel/phone.js';
 import { gateOutreach } from '../../core/outreach/gate.js';
 import { CHANNEL_REGISTRY, type OutreachChannel, type Requirement } from '../../core/channel/registry.js';
 import { outreachEnabled } from '../../db/outreach.js';
+import { sendingDomain } from '../../db/sendingDomain.js';
 import { satisfiedRequirements } from './channels.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -59,12 +60,15 @@ export async function loadContacts(
   db: Db, businessIdRaw: string, templateState: TemplateState = 'none',
 ): Promise<ContactsView> {
   const bid = parseBusinessId(businessIdRaw);
-  const satisfied = satisfiedRequirements(templateState);
-  if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied };
+  if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied: satisfiedRequirements(templateState) };
   return withTenantTx(db, bid.value, async (tx) => ({
     contacts: await listContacts(tx, bid.value),
     outreach: await outreachEnabled(tx, bid.value),
-    satisfied,
+    // G14 — with the DOMAIN, so this page and the connections page answer
+    // "may she write to someone who never wrote first?" the same way. Without
+    // it, a verified domain read as unverified here and the requirement she
+    // had already met stayed on her list.
+    satisfied: satisfiedRequirements(templateState, await sendingDomain(tx, bid.value)),
   }));
 }
 

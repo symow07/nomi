@@ -47,7 +47,7 @@ export type PricingPolicy = {
   readonly floorPrice: Money;
   /** The AI's own authority, in percent. */
   readonly maxDiscountPct: number;
-  /** Beyond this, a human must approve. Triggers handoff, not refusal. */
+  /** Beyond this, she asks the owner first: the reply is held as a draft (G7a). */
   readonly humanRequiredAbovePct: number;
 };
 
@@ -115,8 +115,19 @@ export type Quote = {
    * The buyer is told nothing about her calendar.
    */
   readonly leadTimeBlocked: LeadTimeBlocked | null;
-  /** Discount exceeds the AI's authority → route to a human before sending. */
+  /**
+   * The discount actually given (after both clamps) is above the owner's
+   * "ask me above this" line. G7a: the reply waits for her — see
+   * core/conversation/hold.ts.
+   */
   readonly requiresHuman: boolean;
+  /**
+   * M36 — the price this buyer already has, when this quote is higher. G7b: a
+   * hold, not a refusal — the quote exists, the reply may state it, and it
+   * waits for her (core/conversation/hold.ts). null for a new buyer, or when
+   * the price is the same or lower.
+   */
+  readonly contradicts: HistoryContradiction | null;
   /** Which rules fired. For audit, and for explaining the price to the client. */
   readonly appliedRules: readonly string[];
 };
@@ -128,27 +139,32 @@ export type PriorQuote = {
   readonly at: Date;
 };
 
+/**
+ * M36 — this quote contradicts what she already told this buyer.
+ *
+ * Not a price error: the new number may be perfectly correct. It is a
+ * RELATIONSHIP error, and the owner is the only person who can decide whether
+ * to stand behind it. She sees both prices and both dates and may approve it;
+ * what she may not be is surprised by it in front of a buyer who remembers.
+ *
+ * G7b — this used to be a `QuoteRefusal`. Refusing meant no quote, so the
+ * turn fell to the `recommend` capability, the owner was never asked, and the
+ * refusal note still allowed the new price into the reply. As a hold it asks
+ * her, and her approval is what makes the new price the one he has.
+ */
+export type HistoryContradiction = {
+  readonly prior: PriorQuote;
+  readonly proposedUnitPrice: Money;
+  readonly proposedQuantity: number;
+  /** Which way it contradicts — the two cases are not equally bad. */
+  readonly how: 'higher_same_quantity' | 'higher_at_larger_quantity';
+};
+
 export type QuoteRefusal =
   | { readonly kind: 'below_moq'; readonly moq: number; readonly requested: number }
   | { readonly kind: 'below_floor'; readonly floorPrice: Money }
   | { readonly kind: 'no_price_tier'; readonly quantity: number }
-  | { readonly kind: 'no_price_configured' }
-  /**
-   * M36 — this contradicts what she already told this buyer.
-   *
-   * Not a price error: the new number may be perfectly correct. It is a
-   * RELATIONSHIP error, and the owner is the only person who can decide whether
-   * to stand behind it. She sees both prices and both dates and may approve it;
-   * what she may not be is surprised by it in front of a buyer who remembers.
-   */
-  | {
-      readonly kind: 'contradicts_history';
-      readonly prior: PriorQuote;
-      readonly proposedUnitPrice: Money;
-      readonly proposedQuantity: number;
-      /** Which way it contradicts — the two cases are not equally bad. */
-      readonly how: 'higher_same_quantity' | 'higher_at_larger_quantity';
-    };
+  | { readonly kind: 'no_price_configured' };
 
 /**
  * An order that has passed EVERY rule.
@@ -170,7 +186,13 @@ export type ConfirmableOrder = Brand<
     readonly unitPrice: Money;
     readonly total: Money;
     readonly email: Email;
-    readonly paymentTerms: string;
+    /**
+     * G6 — HER terms, or null when she has stated none. Never a default: a
+     * literal here stamped "30% deposit, 70% before shipment" on every order.
+     * An order without terms is still an order; it gets no proforma.
+     */
+    readonly paymentTerms: string | null;
+    readonly incoterm: string | null;
   },
   'ConfirmableOrder'
 >;

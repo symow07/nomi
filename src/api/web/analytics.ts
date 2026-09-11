@@ -147,10 +147,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 }
 
 const ANALYTICS_STYLE = `<style>
-  .sub { margin:16px 0 10px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .deals { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .deals { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); }
   .deals 
-  .deals .total { width:100%; font-size:var(--font-size-note); margin-top:6px; }
-  .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:8px; }
-  .empty-line { padding:6px 0; } .foot { margin:14px 0 0; font-size:var(--font-size-micro); }
+  .deals .total { width:100%; font-size:var(--font-size-note); margin-top:var(--space-8); }
+  .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:var(--space-8); }
+  .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-micro); }
 </style>`;

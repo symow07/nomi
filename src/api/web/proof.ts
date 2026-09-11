@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
-import { type Money, usd } from '../../core/types/money.js';
-import { randomBytes } from 'node:crypto';
+import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { issueProofLinkTx } from '../../db/proofs.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -61,7 +61,14 @@ export type ProofView = {
   /** The band this quantity fell in. Quantities and prices only. */
   readonly tier: { readonly minQty: number; readonly maxQty: number | null } | null;
   readonly moq: number;
+  /** G5 — the lead time the QUOTE stated, never the product's. */
   readonly leadTimeDays: number | null;
+  /**
+   * G5 — her closure, when it is why the quote stated no date. The buyer is
+   * told why, in her own words for it; never the date a lead time would have
+   * promised. Optional so a view built before G5 still types.
+   */
+  readonly leadTimeWithheld?: { readonly label: string; readonly from: string; readonly to: string } | null;
   /** Certifications the owner explicitly authorised — never inferred. */
   readonly certifications: readonly string[];
   /** Taught facts behind claims in this quote, in the owner's own words. */
@@ -71,37 +78,18 @@ export type ProofView = {
   readonly locale: Locale;
 };
 
-/** 32 bytes, base64url. Unguessable is the only protection this page has. */
-export const mintToken = (): string => randomBytes(32).toString('base64url');
-
 /**
- * Issue (or re-issue) the link for a quote. Idempotent: the partial unique
- * index means one live token per quote, so an owner who taps twice gets the
- * same link rather than orphaning the first.
+ * Issue (or re-issue) the link for a quote, in a transaction of this route's
+ * own. G11 — the minting itself moved to `db/proofs.ts` so the TURN can do it
+ * in the transaction that writes the quote; this is the owner's way in, and
+ * both reach the same writer.
  */
 export async function issueProofLink(
   db: Db, businessIdRaw: string, quoteId: string,
 ): Promise<{ token: string } | null> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return null;
-  return withTenantTx(db, bid.value, async (tx) => {
-    const existing = await sql<{ token: string }>`
-      select token from quote_proofs
-       where quote_id = ${quoteId}::uuid and revoked_at is null limit 1`.execute(tx);
-    if (existing.rows[0]) return { token: existing.rows[0].token };
-
-    const q = await sql<{ conversation_id: string }>`
-      select conversation_id from quotes
-       where id = ${quoteId}::uuid and business_id = ${bid.value}::uuid`.execute(tx);
-    if (!q.rows[0]) return null;
-
-    const token = mintToken();
-    await sql`
-      insert into quote_proofs (token, business_id, quote_id, conversation_id)
-      values (${token}, ${bid.value}::uuid, ${quoteId}::uuid, ${q.rows[0].conversation_id}::uuid)
-    `.execute(tx);
-    return { token };
-  });
+  return withTenantTx(db, bid.value, (tx) => issueProofLinkTx(tx, bid.value, quoteId));
 }
 
 /**
@@ -146,13 +134,21 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
 
   return withTenantTx(db, bid.value, async (tx): Promise<ProofView | null> => {
     // NOTE the columns: no `inputs`, so the policy snapshot never loads.
+    //
+    // G5 — the lead time is the QUOTE's (`q.`), not the product's (`p.`). The
+    // product's lead time is exactly the number M44 refused to state during
+    // one of her closures; reading it here printed that refused date on the
+    // buyer's own page, attributed to her catalogue. And the money is in the
+    // quote's own currency: every price here used to be shown as dollars.
     const q = (await sql<{
-      quantity: number; unit_price_usd: string; total_usd: string; created_at: Date;
+      quantity: number; unit_price_usd: string; total_usd: string; currency: string; created_at: Date;
       product_id: string; name: string; name_zh: string | null; sku: string;
-      unit: string; moq: number; lead_time_days: number | null; seller: string;
+      unit: string; moq: number; lead_time_days: number | null;
+      lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null; seller: string;
     }>`
-      select q.quantity, q.unit_price_usd, q.total_usd, q.created_at,
-             p.id as product_id, p.name, p.name_zh, p.sku, p.unit, p.moq, p.lead_time_days,
+      select q.quantity, q.unit_price_usd, q.total_usd, q.currency, q.created_at,
+             p.id as product_id, p.name, p.name_zh, p.sku, p.unit, p.moq,
+             q.lead_time_days, q.lead_time_withheld,
              b.name as seller
         from quotes q
         join products p on p.id = q.product_id
@@ -162,9 +158,14 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
     if (!q) return null;
 
     // The tier, re-read from price_tiers: quantities and prices, no policy.
+    // G11 — and the band must CONTAIN his quantity. Reading only the lower
+    // bound showed "5,000–19,999" to a buyer who ordered 20,000, so the page
+    // that exists to prove the price stated a band the price did not come
+    // from. `selectTier` has always respected the ceiling; this now agrees.
     const tier = (await sql<{ min_qty: number; max_qty: number | null }>`
       select min_qty, max_qty from price_tiers
        where product_id = ${q.product_id}::uuid and min_qty <= ${q.quantity}
+         and (max_qty is null or max_qty >= ${q.quantity})
        order by min_qty desc limit 1
     `.execute(tx)).rows[0];
 
@@ -189,6 +190,10 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
            where e.conversation_id = ${r.conversation_id}::uuid
              and e.type = 'knowledge_used'
              and pk.status = 'active'
+             -- G11 — about THIS product, or about the business. A fact taught
+             -- for another product is not evidence for this quote, and a page
+             -- whose whole claim is provenance must not carry one.
+             and (pk.product_id is null or pk.product_id = ${q.product_id}::uuid)
            order by pk.label limit 6
         `.execute(tx)).rows
       : [];
@@ -202,11 +207,15 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       sku: q.sku,
       quantity: q.quantity,
       unit: q.unit,
-      unitPrice: usd(Number(q.unit_price_usd)),
-      total: usd(Number(q.total_usd)),
+      unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency) ?? usd(Number(q.unit_price_usd)),
+      total: moneyFromRow(Number(q.total_usd), q.currency) ?? usd(Number(q.total_usd)),
       tier: tier ? { minQty: tier.min_qty, maxQty: tier.max_qty } : null,
       moq: q.moq,
       leadTimeDays: q.lead_time_days,
+      leadTimeWithheld: q.lead_time_withheld && typeof q.lead_time_withheld.label === 'string'
+        ? { label: q.lead_time_withheld.label,
+            from: String(q.lead_time_withheld.from ?? ''), to: String(q.lead_time_withheld.to ?? '') }
+        : null,
       certifications: certs,
       taught: taught.map((x) => ({ label: x.label, content: x.content })),
       issuedAt: q.created_at,
@@ -222,11 +231,19 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
  */
 async function buyerLocale(tx: Tx, conversationId: string | null): Promise<Locale> {
   if (!conversationId) return DEFAULT_LOCALE;
+  // G11 — what the turn remembered about HIM first (clients.preferred_language,
+  // written from the analyser), then the language stamped on a message. Before
+  // this, only voice notes and photos carried a detected language, so a buyer
+  // who typed in Arabic got an English page about his own quote.
   const row = (await sql<{ lang: string | null }>`
-    select detected_language as lang from messages
-     where conversation_id = ${conversationId}::uuid
-       and direction = 'inbound' and detected_language is not null
-     order by sent_at desc limit 1
+    select coalesce(
+             (select cl.preferred_language from conversations c
+                join clients cl on cl.id = c.client_id
+               where c.id = ${conversationId}::uuid),
+             (select m.detected_language from messages m
+               where m.conversation_id = ${conversationId}::uuid
+                 and m.direction = 'inbound' and m.detected_language is not null
+               order by m.sent_at desc limit 1)) as lang
   `.execute(tx)).rows[0];
   const lang = (row?.lang ?? '').slice(0, 2).toLowerCase();
   return (LOCALES as readonly string[]).includes(lang) ? lang as Locale : DEFAULT_LOCALE;
@@ -279,7 +296,13 @@ export function renderProof(v: ProofView): string {
     fact(t(l, 'proof.fact.moq'), `${v.moq.toLocaleString('en-US')} ${v.unit}`),
     ...(v.leadTimeDays !== null
       ? [fact(t(l, 'proof.fact.leadTime'), t(l, 'proof.days', { n: v.leadTimeDays }))]
-      : []),
+      // G5 — no date, and the page says WHY: her closure, in her words, with
+      // the days it runs. Never the date a lead time would have promised.
+      : v.leadTimeWithheld
+        ? [fact(t(l, 'proof.fact.leadTime'), t(l, 'proof.leadTime.withheld', {
+            label: v.leadTimeWithheld.label, from: v.leadTimeWithheld.from, to: v.leadTimeWithheld.to,
+          }))]
+        : []),
   ].join('') + `<div class="f-s group">${esc(sourceLabel('catalogue'))}</div>`;
 
   const certs = v.certifications.length
@@ -365,7 +388,7 @@ ${cssVariables()}
   .f-s.group { padding-top:var(--space-8); }
   .certs { list-style:none; margin:0; padding:0; }
   .certs li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-weight:600; }
-  .certs .f-s { display:block; font-weight:400; margin-top:2px; }
+  .certs .f-s { display:block; font-weight:400; margin-top:var(--space-4); }
   .certs li:last-child { border-bottom:0; }
   .taught { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .taught:last-child { border-bottom:0; }

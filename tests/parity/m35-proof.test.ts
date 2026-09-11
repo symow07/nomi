@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import { readFile } from 'node:fs/promises';
-import { renderProof, notFoundPage, mintToken, type ProofView } from '../../src/api/web/proof.js';
+import { renderProof, notFoundPage, type ProofView } from '../../src/api/web/proof.js';
+// G11 — the token is minted by the ONE writer now (db/proofs.ts), which the
+// owner's route and the turn both reach.
+import { mintToken } from '../../src/db/proofs.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';

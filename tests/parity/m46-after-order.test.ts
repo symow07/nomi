@@ -4,6 +4,7 @@ import {
   ORDER_STATES, isOrderState, asksOrderStatus, orderStatusReply, type OrderUpdate,
 } from '../../src/core/commerce/orderState.js';
 import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
+import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
@@ -137,7 +138,9 @@ describe('M46 · nothing is inferred', () => {
   it('THE PRODUCTION CALLER answers from the row, before any model is asked', async () => {
     const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
     expect(turn).toContain('if (asksOrderStatus(req.text)) {');
-    expect(turn).toContain('await tenant.orders.latestForConversation(req.conversationId)');
+    // G4 — by BUYER: the question arrives in a new conversation, because
+    // confirming closed the one the order was confirmed in.
+    expect(turn).toContain('await tenant.orders.latestForClient(state.clientId)');
     expect(turn).toContain('orderStatusReply({');
     // It sits BEFORE the taught-answer path and the generative path.
     expect(turn.indexOf('asksOrderStatus(req.text)'))
@@ -150,7 +153,8 @@ describe('M46 · the owner page', () => {
     orderId: 'o1', reference: 'PI-HF-20260803-0301', conversationId: 'c1',
     buyer: 'Ahmed', productName: 'Vacuum cup', productSku: 'ZX-200',
     quantity: 5000, unit: 'pcs', unitPriceAmount: 0.92, totalAmount: 4600,
-    currency: 'USD', email: 'a@example.com', paymentTerms: '30% deposit',
+    currency: 'USD', email: 'a@example.com',
+    paymentTerms: '50% with order, balance against B/L copy', incoterm: 'CIF',
     sellerName: '义乌宏发日用品厂',
     confirmedAt: new Date('2026-08-01T00:00:00Z'),
     history: [update({ state: 'in_production', note: 'chase the dye lot' })],
@@ -178,6 +182,21 @@ describe('M46 · the owner page', () => {
     // Its figures are the order's own; this page does no arithmetic.
     expect(html).toContain('$0.92');
     expect(html).toContain('$4,600.00');
+    // G6 — and its terms are the ones on the order: hers, verbatim.
+    expect(html).toContain('50% with order, balance against B/L copy');
+    expect(html).toContain('Unit price: $0.92 CIF');
+    expect(html).not.toContain(' FOB');
+  });
+
+  it('G6 · WITHOUT HER TERMS THERE IS NO PROFORMA — the page says why and where', () => {
+    for (const over of [{ incoterm: null }, { paymentTerms: null }, { paymentTerms: null, incoterm: null }]) {
+      for (const locale of LOCALES) {
+        const html = renderOrder(view(over), locale, null);
+        expect(html, `${locale} ${JSON.stringify(over)}`).not.toContain('PROFORMA INVOICE');
+        expect(html).toContain(esc(t(locale, 'order.invoice.noTerms')));
+        expect(html).toContain('href="/app/settings/terms"');
+      }
+    }
   });
 
   it('offers every state, and no others', () => {
@@ -212,7 +231,7 @@ describe('M46 · the owner page', () => {
       'order.update.intro', 'order.update.state', 'order.update.tracking',
       'order.update.tracking.placeholder', 'order.update.note', 'order.update.note.placeholder',
       'order.update.save', 'order.history.title', 'order.history.empty',
-      'order.invoice.title', 'order.invoice.intro', 'order.flash.recorded',
+      'order.invoice.title', 'order.invoice.intro', 'order.invoice.noTerms', 'order.flash.recorded',
       'order.flash.unknown_state', 'order.flash.failed', 'order.open', 'order.notFound',
     ];
     for (const locale of LOCALES) {

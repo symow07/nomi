@@ -1,11 +1,10 @@
 import { sql } from 'kysely';
-import { type Money, usd } from '../../core/types/money.js';
+import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
 import { loadCurrentRate } from './settings.js';
-import { blockingClosure } from '../../core/commerce/closures.js';
-import { type Person, heldByName } from '../../core/conversation/people.js';
+import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../../core/conversation/people.js';
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -14,13 +13,24 @@ import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/o
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, type Refusal } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
+import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
+import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
+import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 
-/** The stored problem-signal kinds shown as a takeover reason (no classifier). */
-const PROBLEM_KINDS = new Set([
-  'human_requested', 'complaint', 'repeated_ambiguity', 'low_confidence_image',
-  // M34 — she could not hear the question, so she did not answer it.
-  'audio_unheard',
-]);
+/**
+ * The stored problem-signal kinds shown as a takeover reason (no classifier).
+ * G2c — read from core rather than copied here: the copy on Today had never
+ * learned 'audio_unheard', and a third copy is how that happens again.
+ */
+const PROBLEM_KINDS: ReadonlySet<string> = new Set(PROBLEM_SIGNAL_KINDS);
+
+/** G2c — a stored `received` value, as one of the kinds the owner surface names. */
+const unreadableOf = (v: string | null | undefined): UnreadableKind | null =>
+  typeof v === 'string' && (UNREADABLE_KINDS as readonly string[]).includes(v) ? v as UnreadableKind : null;
+
+/** G10c — on the timeline, also a photo or voice note she was not allowed to open. */
+const receivedOf = (v: string | null | undefined): ReceivedKind | null =>
+  typeof v === 'string' && (RECEIVED_KINDS as readonly string[]).includes(v) ? v as ReceivedKind : null;
 
 /**
  * M9.3 + ADR-0008 — the owner's decision desk. A VIEW over existing data;
@@ -46,7 +56,7 @@ export const productName = (locale: Locale, p: { name: string | null; nameZh: st
  * consequence of something going wrong, so it appears only when it has
  * something to show. Same rule the shell applies to contextual destinations.
  */
-export type InboxFilter = 'pending' | 'all' | 'blocked';
+export type InboxFilter = 'pending' | 'all' | 'blocked' | 'mine';
 type InboxStatus = 'awaiting' | 'paused' | 'done' | 'handled';
 
 export type ConversationSummary = {
@@ -78,6 +88,8 @@ export type ConversationSummary = {
 
 export type InboxList = {
   readonly filter: InboxFilter;
+  /** G12 — how many this reader is holding. Absent viewer = 0. */
+  readonly mineCount?: number;
   /** M22 — conversations holding a message that never reached the buyer. */
   readonly blockedCount: number;
   readonly waitingCount: number;
@@ -93,7 +105,11 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
   return { status: 'handled', needs: false };
 }
 
-export async function loadInboxList(db: Db, businessIdRaw: string, filter: InboxFilter): Promise<InboxList> {
+export async function loadInboxList(
+  db: Db, businessIdRaw: string, filter: InboxFilter,
+  /** G12 — who is looking, so 'mine' means the conversations THEY hold. */
+  viewerId?: string,
+): Promise<InboxList> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [] };
 
@@ -168,10 +184,15 @@ export async function loadInboxList(db: Db, businessIdRaw: string, filter: Inbox
     `.execute(tx).then((r) => new Set(r.rows.map((x) => x.conversation_id)));
     const blocked = all.filter((c) => refused.has(c.conversationId));
 
+    // G12 — 'mine' is held BY ME: the conversations someone handed to this
+    // person, and the ones they took themselves. A staff member has no phone,
+    // so this list is the only way a hand-off reaches them.
+    const mine = viewerId ? all.filter((c) => c.heldBy === viewerId) : [];
     const conversations = filter === 'pending' ? all.filter(needsOwner)
       : filter === 'blocked' ? blocked
+      : filter === 'mine' ? mine
       : all;
-    return { filter, waitingCount, blockedCount: blocked.length, conversations };
+    return { filter, waitingCount, blockedCount: blocked.length, mineCount: mine.length, conversations };
   });
 }
 
@@ -193,8 +214,104 @@ export function defaultFilter(waitingCount: number): InboxFilter {
  * the bubble says so plainly, and the correction form is how the owner supplies
  * what was actually said.
  */
+/**
+ * G2c — something the buyer sent that she cannot read, shown as what it is.
+ *
+ * The label is product voice (sans); his caption, when he wrote one, is his
+ * words (the voice serif, like any other thing a person said). A caption
+ * shown as a plain bubble would read as a line he typed, with the file it
+ * described silently missing.
+ */
+function receivedBubble(locale: Locale, m: TimelineMessage): string {
+  return `<div class="bubble voiced">`
+    + `<div class="heard-label muted">📎 ${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
+    + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
+    + `</div>`;
+}
+
+/** G7b — the price a buyer already has, and the one a held draft would give him. */
+export type DraftContradiction = {
+  readonly before: { readonly price: Money; readonly quantity: number; readonly at: Date };
+  readonly now: { readonly price: Money; readonly quantity: number };
+  /** More pieces at a higher price each — the worse of M36's two cases. */
+  readonly largerQuantity: boolean;
+};
+
+/**
+ * Read back from the event payload the turn wrote. Anything malformed, or in
+ * a currency this build cannot price, is dropped rather than shown half-right:
+ * a wrong "before" price on this card is exactly the error it exists to catch.
+ */
+function contradictionOf(raw: unknown): DraftContradiction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as {
+    prior?: { quantity?: unknown; unitPrice?: { amount?: unknown; currency?: unknown }; at?: unknown };
+    proposedUnitPrice?: { amount?: unknown; currency?: unknown };
+    proposedQuantity?: unknown; how?: unknown;
+  };
+  const money = (m?: { amount?: unknown; currency?: unknown }) =>
+    m && typeof m.amount === 'number' && typeof m.currency === 'string' ? moneyFromRow(m.amount, m.currency) : null;
+  const before = money(c.prior?.unitPrice);
+  const now = money(c.proposedUnitPrice);
+  const at = typeof c.prior?.at === 'string' ? new Date(c.prior.at) : null;
+  const bq = c.prior?.quantity; const nq = c.proposedQuantity;
+  if (!before || !now || !at || Number.isNaN(at.getTime()) || typeof bq !== 'number' || typeof nq !== 'number') return null;
+  return {
+    before: { price: before, quantity: bq, at }, now: { price: now, quantity: nq },
+    largerQuantity: c.how === 'higher_at_larger_quantity',
+  };
+}
+
+const stringsOf = (raw: unknown): readonly string[] =>
+  Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [];
+
+/**
+ * G8 — the hits from her LATEST turn only. The event and the turn row are
+ * written in one transaction, so they share its timestamp; once a later turn
+ * runs clean, the card is gone rather than lingering after she fixed it.
+ */
+async function herWordsOf(tx: Tx, conversationId: string): Promise<NonNullable<ConversationDetail['herWords']>> {
+  const row = (await sql<{ hits: unknown }>`
+    select e.payload->'hits' as hits from conversation_events e
+     where e.conversation_id = ${conversationId} and e.type = 'forbidden_in_her_text'
+       and e.created_at >= coalesce((select max(t.created_at) from turns t
+                                      where t.conversation_id = ${conversationId}), '-infinity'::timestamptz)
+     order by e.id desc limit 1`.execute(tx)).rows[0];
+  const hits = Array.isArray(row?.hits) ? row.hits as { term?: unknown; path?: unknown }[] : [];
+  return (['taught_answer', 'order_status'] as const).flatMap((path) => {
+    const terms = [...new Set(hits.filter((h) => h.path === path && typeof h.term === 'string').map((h) => h.term as string))];
+    return terms.length ? [{ path, terms }] : [];
+  });
+}
+
+/** Her words, quoted the way each locale quotes. */
+const quoted = (locale: Locale, terms: readonly string[]): string =>
+  locale === 'zh' ? terms.map((x) => `「${x}」`).join('')
+    : locale === 'ar' ? terms.map((x) => `«${x}»`).join('، ')
+      : terms.map((x) => `“${x}”`).join(', ');
+
+function contradictionBlock(c: DraftContradiction, locale: Locale): string {
+  const line = (label: string, price: Money, quantity: number) =>
+    `<div><span class="muted">${esc(label)}</span> <b><bdi>${esc(formatMoney(price))}</bdi></b> <span class="muted">${
+      esc(t(locale, 'inbox.draft.contradicts.for', { qty: formatQty(locale, quantity) }))}</span></div>`;
+  return `<div class="held-then">
+      ${line(t(locale, 'inbox.draft.contradicts.before', { date: formatDate(locale, c.before.at) }), c.before.price, c.before.quantity)}
+      ${line(t(locale, 'inbox.draft.contradicts.now'), c.now.price, c.now.quantity)}
+      ${c.largerQuantity ? `<div class="muted">${esc(t(locale, 'inbox.draft.contradicts.larger'))}</div>` : ''}
+    </div>`;
+}
+
 function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string): string {
   const heardNothing = m.text.trim() === '';
+  /**
+   * G13 — THE RECORDING ITSELF. M34 asks her to type what the buyer said about
+   * a note she had no way to hear: the provider's handle for the audio lived
+   * only in the job that processed it. `preload="none"` so a conversation of
+   * twenty notes does not fetch twenty files from WhatsApp to render a page.
+   */
+  const player = m.id && m.playable
+    ? `<audio class="voiceplay" controls preload="none" src="/app/inbox/${encodeURIComponent(conversationId)}/voice/${encodeURIComponent(m.id)}"></audio>`
+    : m.id ? `<div class="muted heard-label">${esc(t(locale, 'voice.noRecording'))}</div>` : '';
   const body = heardNothing
     ? `<div class="unheard-line muted">🎤 ${esc(t(locale, 'voice.notHeard'))}</div>`
     // The SPOKEN words keep pre-wrap — a buyer's line breaks are his. The
@@ -208,6 +325,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
     : m.heard === 'voice_corrected' ? t(locale, 'voice.corrected') : t(locale, 'voice.heardAs');
   return `<div class="bubble voiced">`
     + (label ? `<div class="heard-label muted">🎤 ${esc(label)}</div>` : '')
+    + player
     + body
     + (m.originalTranscript ? `<div class="orig muted"><bdi>${esc(m.originalTranscript)}</bdi></div>` : '')
     + (m.id ? `<details class="fixheard"><summary>${esc(t(locale, 'voice.correct'))}</summary>`
@@ -215,7 +333,16 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
         + `<input type="hidden" name="messageId" value="${esc(m.id)}" />`
         + `<textarea name="heard" rows="2" placeholder="${esc(t(locale, 'voice.correctPlaceholder'))}">${esc(heardNothing ? '' : m.text)}</textarea>`
         + `<button class="btn" type="submit">${esc(t(locale, 'voice.correctSave'))}</button>`
-        + `</form></details>` : '')
+        + `</form>`
+        // G13 — her words are words she wants answered. This runs the ordinary
+        // turn on them; nothing about it skips a guard or a price rule.
+        + (m.heard === 'voice_corrected'
+          ? `<form method="post" action="/app/inbox/${encodeURIComponent(conversationId)}/answer-now" class="answernow">`
+            + `<input type="hidden" name="messageId" value="${esc(m.id)}" />`
+            + `<button class="btn send" type="submit">${esc(t(locale, 'voice.answerNow'))}</button>`
+            + `</form>`
+          : '')
+        + `</details>` : '')
     + `</div>`;
 }
 
@@ -237,11 +364,19 @@ export type TimelineMessage = {
   originalTranscript?: string | null | undefined;
   /** Message id, so the owner can correct what was heard. */
   id?: string | undefined;
+  /**
+   * G2c — something she cannot read arrived: a document, a video, a location.
+   * The bubble names it, and shows his caption when he wrote one, so a file
+   * never reads as a line he typed.
+   */
+  received?: ReceivedKind | undefined;
+  /** G13 — the provider still has a handle for this audio, so it can be played. */
+  playable?: boolean | undefined;
 };
 
 /** M16.2c — the human control-plane event kinds, in conversation_events. */
-export type HumanActionType = 'takeover' | 'owner_reply' | 'resume_ai' | 'draft_resolved';
-const HUMAN_ACTION_TYPES = ['takeover', 'owner_reply', 'resume_ai', 'draft_resolved'] as const;
+export type HumanActionType = 'takeover' | 'owner_reply' | 'resume_ai' | 'draft_resolved' | 'handed_to';
+const HUMAN_ACTION_TYPES = ['takeover', 'owner_reply', 'resume_ai', 'draft_resolved', 'handed_to'] as const;
 
 /**
  * "What happened last?" — the latest human action on this conversation, from
@@ -253,6 +388,8 @@ export type LastHumanAction = {
   readonly type: HumanActionType;
   readonly actor: string | null;
   readonly at: Date | null;
+  /** G12 — for a hand-off, the colleague it went TO. */
+  readonly to?: string | null;
 };
 
 export type ConversationDetail = {
@@ -268,11 +405,29 @@ export type ConversationDetail = {
    * null when there is nothing to prove yet; `token` is null until the owner
    * issues one. She is the only person who can create or revoke it.
    */
-  readonly proof: { readonly quoteId: string | null; readonly token: string | null };
+  readonly proof: {
+    readonly quoteId: string | null; readonly token: string | null;
+    /** G11 — the link as a BUYER would open it. Null when no public address is set. */
+    readonly url?: string | null;
+  };
   readonly order: { status: string; reference: string; total: Money | null; id: string } | null;
   readonly messages: readonly TimelineMessage[];
-  readonly pendingDraft: { draftId: string; draftText: string; capability: string } | null;
+  readonly pendingDraft: {
+    draftId: string; draftText: string; capability: string;
+    /**
+     * G7a — why her own rules held it, when they did. Read from the
+     * `draft_pending` event the turn wrote beside the draft; absent for a
+     * draft that waited only because the capability is in draft.
+     */
+    heldBecause?: HoldReason | null;
+    /** G7b — the price he already has, beside the one this draft states. */
+    contradicts?: DraftContradiction | null;
+    /** G8 — the owner's words that kept stopping a reply she could not write. */
+    forbidden?: readonly string[];
+  } | null;
   readonly ownership: ConversationOwnership;
+  /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
+  readonly heldBy?: string | null;
   /**
    * M22 — messages in THIS conversation that never reached the buyer. The
    * evidence is `outbound_messages.cancel_reason`, written by the worker when
@@ -282,7 +437,17 @@ export type ConversationDetail = {
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
+  /**
+   * G2c — what arrived that she could not read, when something did. Optional
+   * so a detail built before G2c (a test fixture, the sandbox) still types.
+   */
+  readonly unreadable?: UnreadableKind | null;
   readonly lastHumanAction: LastHumanAction | null;
+  /**
+   * G9b — who works here, so an actor id is read as a NAME. Actor columns
+   * hold person ids since G9b; a raw uuid on her screen is not a name.
+   */
+  readonly people?: readonly Person[];
   /**
    * Phase D — which taught facts supported her most recent reply, by LABEL.
    * Answers "why did she say that?" from the M13 usage audit
@@ -307,6 +472,13 @@ export type ConversationDetail = {
    * she has always quoted went missing.
    */
   readonly leadTimeBlocked: { readonly label: string; readonly from: Date; readonly to: Date } | null;
+  /**
+   * G8 — on her latest turn, a word the owner forbade was found in the owner's
+   * OWN text (her taught answer, or the order-status line), so that text was
+   * not sent. Not the employee's failure, and not counted as one; shown so she
+   * can fix the answer.
+   */
+  readonly herWords?: readonly { readonly path: 'order_status' | 'taught_answer'; readonly terms: readonly string[] }[];
   /**
    * M45 — this buyer asked for a sample, and whether she has stated a policy.
    *
@@ -353,37 +525,62 @@ export async function loadConversationDetail(
     // which is how the surface can show both.
     const messages = (await sql<{
       id: string; direction: string; text_content: string | null; sent_at: Date | null;
-      input_type: string; transcription: string | null;
+      input_type: string; transcription: string | null; received: string | null;
+      media: string | null;
     }>`
-      select id, direction, text_content, sent_at, input_type, transcription from messages
+      select id, direction, text_content, sent_at, input_type, transcription,
+             ai_analysis->>'received' as received, provider_media_id as media
+        from messages
        where conversation_id = ${conversationId} order by sent_at asc limit 200
     `.execute(tx)).rows
-      .filter((m) => m.text_content !== null || m.input_type === 'voice')
+      // G2c — something she could not read is SHOWN, named, even with no
+      // caption: a file the buyer sent must not be invisible to the owner. A
+      // reaction or a sticker is recorded and left out — nothing was asked.
+      .filter((m) => m.text_content !== null || m.input_type === 'voice' || receivedOf(m.received) !== null)
       .map((m): TimelineMessage => {
         const spoken = m.input_type === 'voice' || m.input_type === 'voice_transcribed';
         const corrected = spoken && m.transcription !== null && m.transcription !== m.text_content;
+        const received = m.input_type === 'unknown' ? receivedOf(m.received) : null;
         return {
           direction: m.direction === 'inbound' ? 'inbound' : 'outbound',
           text: m.text_content ?? '',
           at: m.sent_at,
           ...(spoken ? { heard: corrected ? 'voice_corrected' as const : 'voice' as const, id: m.id } : {}),
           ...(corrected ? { originalTranscript: m.transcription } : {}),
+          ...(received ? { received } : {}),
+          // G13 — a note recorded before 0043 has no handle, and says so.
+          ...(spoken && m.media ? { playable: true } : {}),
         };
       });
 
-    const q = (await sql<{ unit_price_usd: string; total_usd: string; quantity: number; product_id: string }>`
-      select unit_price_usd, total_usd, quantity, product_id from quotes
+    const q = (await sql<{
+      unit_price_usd: string; total_usd: string; quantity: number; product_id: string;
+      lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null;
+    }>`
+      select unit_price_usd, total_usd, quantity, product_id, lead_time_withheld from quotes
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
+    // G4 — the BUYER's latest order, not only one confirmed in this
+    // conversation. Confirming closes the conversation; when he writes again
+    // weeks later it is a new one, and the owner reading his "where is my
+    // order?" must see — and reach — the order he is asking about.
     const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null }>`
-      select id::text as id, status, order_reference, total_value_usd from orders
-       where conversation_id = ${conversationId} order by created_at desc limit 1
+      select o.id::text as id, o.status, o.order_reference, o.total_value_usd from orders o
+       where o.client_id = (select client_id from conversations where id = ${conversationId})
+       order by o.created_at desc limit 1
     `.execute(tx)).rows[0];
 
-    const draft = (await sql<{ id: string; draft_text: string; capability: string }>`
-      select id, draft_text, capability from drafts where conversation_id = ${conversationId} and status = 'pending'
-       order by created_at desc limit 1
+    // G7a/G7b — why her rules held it, and the prices behind that, from the
+    // `draft_pending` event the turn wrote beside THIS draft.
+    const draft = (await sql<{ id: string; draft_text: string; capability: string; pending: Record<string, unknown> | null }>`
+      select d.id, d.draft_text, d.capability,
+             (select e.payload from conversation_events e
+               where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
+                 and e.payload->>'draftId' = d.id::text
+               order by e.id desc limit 1) as pending
+        from drafts d where d.conversation_id = ${conversationId} and d.status = 'pending'
+       order by d.created_at desc limit 1
     `.execute(tx)).rows[0];
 
     // M22 — what did not reach this buyer. Read through the shared loader, so
@@ -403,19 +600,25 @@ export async function loadConversationDetail(
     const unheardReason = signalRows.find((r) => r.kind === 'audio_unheard')
       ? String((signalRows.find((r) => r.kind === 'audio_unheard')!.payload ?? {})['reason'] ?? 'transcription_failed')
       : null;
+    // G2c — and WHAT arrived that she could not read, so the owner knows what
+    // to go and look at rather than only that something went wrong.
+    const unreadableRow = signalRows.find((r) => r.kind === 'media_unreadable');
+    const unreadable = unreadableRow
+      ? (unreadableOf(String((unreadableRow.payload ?? {})['received'] ?? 'other')) ?? 'other')
+      : null;
 
     // M16.2c "what happened last?": the latest human action — kind + actor + time
     // only. payload->>'actor' is a human/agent id, never buyer data; no body read.
-    const lastAct = (await sql<{ type: string; actor: string | null; at: Date | null }>`
-      select type, payload->>'actor' as actor, created_at as at
+    const lastAct = (await sql<{ type: string; actor: string | null; to: string | null; at: Date | null }>`
+      select type, payload->>'actor' as actor, payload->>'to' as to, created_at as at
         from conversation_events
        where conversation_id = ${conversationId}
-         and type in ('takeover', 'owner_reply', 'resume_ai', 'draft_resolved')
+         and type in ('takeover', 'owner_reply', 'resume_ai', 'draft_resolved', 'handed_to')
        order by created_at desc, id desc limit 1
     `.execute(tx)).rows[0];
     const lastHumanAction: LastHumanAction | null =
       lastAct && (HUMAN_ACTION_TYPES as readonly string[]).includes(lastAct.type)
-        ? { type: lastAct.type as HumanActionType, actor: lastAct.actor, at: lastAct.at }
+        ? { type: lastAct.type as HumanActionType, actor: lastAct.actor, to: lastAct.to, at: lastAct.at }
         : null;
 
     // Phase D: the taught facts behind her latest reply — the M13 usage audit,
@@ -440,16 +643,26 @@ export async function loadConversationDetail(
       order: o ? { id: o.id, status: o.status, reference: o.order_reference, total: o.total_value_usd !== null ? usd(Number(o.total_value_usd)) : null } : null,
       messages,
       pendingDraft: draft
-        ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability }
+        ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability,
+            heldBecause: isHoldReason(draft.pending?.['heldBecause']) ? draft.pending['heldBecause'] : null,
+            contradicts: contradictionOf(draft.pending?.['contradicts']),
+            forbidden: stringsOf(draft.pending?.['forbidden']) }
         : null,
       ownership: ownershipOf(head.assigned_to),
+      heldBy: head.assigned_to,
       refusals,
       handoffReasons,
       unheardReason,
+      unreadable,
       rate: await loadCurrentRate(tx, bid.value),
-      leadTimeBlocked: await blockedLeadTime(tx, bid.value, q?.product_id ?? null, now),
+      leadTimeBlocked: withheldFrom(q?.lead_time_withheld ?? null),
+      herWords: await herWordsOf(tx, conversationId),
       sampleAsked: await sampleAsk(tx, bid.value, conversationId),
       lastHumanAction,
+      people: (await sql<{ id: string; name: string; is_owner: boolean }>`
+        select id::text as id, name, is_owner from people
+         where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx))
+        .rows.map((p) => ({ id: p.id, name: p.name, isOwner: p.is_owner })),
       knowledgeUsed,
     };
   });
@@ -481,18 +694,22 @@ export function renderInboxList(
   const name = EMPLOYEE_NAME[locale];
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
-    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}</a>`;
+    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'mine' && (data.mineCount ?? 0) > 0 ? ` (${data.mineCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}</a>`;
   // M22 — `blocked` is not a permanent tab. It appears when something did not
   // reach a buyer, or when the owner arrived here from Today's link, and
   // disappears again once there is nothing to show. An always-present tab that
   // is almost always empty trains the owner to ignore it.
   const showBlocked = data.blockedCount > 0 || data.filter === 'blocked';
-  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showBlocked ? tab('blocked') : ''}</div>`;
+  // G12 — 'Mine' appears once there is more than one person here. With a
+  // single owner every conversation is hers, and a tab that filters nothing
+  // is a tab that teaches her to ignore tabs.
+  const showMine = people.length > 1;
+  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}</div>`;
   const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
 
   if (data.conversations.length === 0) {
     const body = data.filter === 'pending'
-      ? `<div class="ok-card"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
+      ? `<div class="empty"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
       // "no message failed" is the normal state and not an achievement.
@@ -565,8 +782,12 @@ export function renderInboxList(
 }
 
 /** "What happened last?" — a localized one-liner: kind + who + when. No body. */
-function lastActionLine(a: LastHumanAction, locale: Locale, now: Date): string {
-  const who = a.actor && a.actor !== 'owner' ? a.actor : t(locale, 'takeover.actor.you');
+function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: readonly Person[], viewer: Viewer): string {
+  // G9b — a name, never an id: "Xiao Chen replied", or "you" for the reader.
+  // G12 — and for a hand-off, the name that matters is who it went TO.
+  const who = actorName(a.type === 'handed_to' ? a.to ?? null : a.actor, people, viewer, {
+    you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+  });
   const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: EMPLOYEE_NAME[locale] });
   const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
   return `<div class="lastact muted">${esc(t(locale, 'takeover.lastLabel'))}: ${esc(phrase + when)}</div>`;
@@ -597,23 +818,53 @@ function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string 
 }
 
 /** M16.1/M16.2c — the human control surface, driven purely by ownership. */
-function takeoverCard(d: ConversationDetail, locale: Locale, now: Date): string {
+function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
   const cid = encodeURIComponent(d.conversationId);
   const reasons = d.handoffReasons.length
     ? `<div class="why muted">${esc(t(locale, 'takeover.why'))}: ${d.handoffReasons.map((k) => esc(t(locale, `takeover.reason.${k}` as MessageKey))).join('、')}</div>`
     : '';
-  const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now) : '';
+  const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   const takeBtn = `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+
+  /**
+   * G12 — pass it to the colleague who can answer it. Offered once there is
+   * more than one person here, and never back to whoever already holds it.
+   * A staff member has no phone number, so this list is how they learn a
+   * conversation is theirs.
+   */
+  const others = (d.people ?? []).filter((p) => p.id !== d.heldBy);
+  const handToForm = others.length === 0 ? '' : `
+    <form method="post" action="/app/inbox/${cid}/handto" class="handto">
+      <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
+      <select id="handto" name="personId" required>
+        ${others.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+      </select>
+      <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
+    </form>`;
+
+  // G12 — whose it is, by name. "You're handling this" is only true for the
+  // person holding it; to anyone else it is a colleague's conversation.
+  const mine = d.heldBy === undefined || d.heldBy === null
+    || (viewer.id !== undefined && d.heldBy === viewer.id)
+    || (d.heldBy === 'owner' && viewer.isOwner);
+  const ownerPill = mine
+    ? esc(t(locale, 'takeover.status.owner'))
+    : esc(t(locale, 'people.holding', {
+        who: actorName(d.heldBy ?? null, d.people ?? [], viewer, {
+          you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+        }),
+      }));
 
   switch (d.ownership) {
     case 'AI':
-      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}</div>`;
+      return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${last}${takeBtn}${handToForm}</div>`;
     case 'WAITING_HUMAN':
-      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}</div>`;
+      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${reasons}${last}${takeBtn}${handToForm}</div>`;
     case 'OWNER_CONTROLLED':
       return `<div class="card takeover owner">
-        <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
+        <span class="pill owner">${ownerPill}</span>
         ${last}
+        ${handToForm}
         <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
           <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
@@ -639,9 +890,11 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
       <button class="btn" type="submit">${esc(t(locale, 'proof.owner.issue'))}</button>
     </form>`;
   }
+  // G11 — the whole link, or the plain reason it cannot be sent. A relative
+  // path was never something she could paste to a buyer.
   return `<div class="proofrow">
-    <span class="muted">${esc(t(locale, 'proof.owner.live'))}</span>
-    <code class="prooflink">/p/${esc(d.proof.token)}</code>
+    <span class="muted">${esc(t(locale, d.proof.url ? 'proof.owner.live' : 'proof.owner.noAddress'))}</span>
+    ${d.proof.url ? `<code class="prooflink"><bdi>${esc(d.proof.url)}</bdi></code>` : ''}
     <form method="post" action="/app/inbox/${cid}/proof/revoke" class="inline">
       <button class="btn danger" type="submit"
         onclick="return confirm(this.dataset.confirm)"
@@ -652,25 +905,25 @@ function proofRow(d: ConversationDetail, locale: Locale): string {
 }
 
 /**
- * M44 — did a closure she stated block the date this quote would have promised?
+ * M44 — did a closure she stated withhold the date this quote would have
+ * promised?
  *
- * DERIVED, not stored. The quote row records what was computed; the closures
- * are hers and may have changed since. Re-running the same pure check over the
- * same rows is the repo's rule — a transcribed "we refused a date" flag would
- * be a second source of truth that drifts the moment she edits her calendar.
+ * G5 — READ FROM THE QUOTE, no longer re-derived. This used to re-run the
+ * closure check against TODAY's closures, on the view that the calendar is hers
+ * and may change. But the card says "no delivery date was promised", which is a
+ * statement about what the QUOTE said — and a closure added after a date was
+ * promised made the card state the opposite of what the buyer was told. The
+ * quote now records what it said (0040); the buyer's proof page and this card
+ * read the same record, so they cannot disagree.
  */
-async function blockedLeadTime(
-  tx: Tx, businessId: BusinessId, productId: string | null, now: Date,
-): Promise<{ label: string; from: Date; to: Date } | null> {
-  if (!productId) return null;
-  const lead = (await sql<{ lead_time_days: number | null }>`
-    select lead_time_days from products where id = ${productId} limit 1`.execute(tx)).rows[0];
-  if (!lead?.lead_time_days) return null;
-  const closures = await tenantRepos(tx, businessId).catalog.factoryClosures();
-  const blocked = blockingClosure({ now, leadTimeDays: lead.lead_time_days, closures });
-  return blocked
-    ? { label: blocked.closure.label, from: blocked.closure.from, to: blocked.closure.to }
-    : null;
+function withheldFrom(
+  stored: { label?: unknown; from?: unknown; to?: unknown } | null,
+): { label: string; from: Date; to: Date } | null {
+  if (!stored || typeof stored.label !== 'string') return null;
+  const from = new Date(String(stored.from ?? ''));
+  const to = new Date(String(stored.to ?? ''));
+  return Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())
+    ? null : { label: stored.label, from, to };
 }
 
 /**
@@ -710,7 +963,9 @@ function inHerMoney(total: Money, rate: OwnerRate | null, locale: Locale): strin
     esc(t(locale, 'rate.at', { date: formatDate(locale, rate.statedAt) }))}</span></span>`;
 }
 
-export function renderConversationDetail(d: ConversationDetail, locale: Locale, now: Date, flash: string | null): string {
+export function renderConversationDetail(
+  d: ConversationDetail, locale: Locale, now: Date, flash: string | null, viewer: Viewer = OWNER_VIEW,
+): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
@@ -723,7 +978,9 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m) => `
         <div class="msg ${m.direction}">
-          ${m.heard ? voiceBubble(locale, m, d.conversationId) : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
+          ${m.heard ? voiceBubble(locale, m, d.conversationId)
+            : m.received ? receivedBubble(locale, m)
+            : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
           <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(EMPLOYEE_NAME[locale])}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
@@ -732,6 +989,13 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ? `<div class="card draft" role="region">
         <h2>${esc(t(locale, 'buyers.review.title'))}</h2>
         <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
+        ${d.pendingDraft.heldBecause
+          ? `<p class="held-why" role="note">${esc(t(locale, `inbox.draft.held.${d.pendingDraft.heldBecause}` as MessageKey, { name: EMPLOYEE_NAME[locale] }))}</p>`
+          : ''}
+        ${d.pendingDraft.contradicts ? contradictionBlock(d.pendingDraft.contradicts, locale) : ''}
+        ${d.pendingDraft.forbidden?.length
+          ? `<p class="held-why muted"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, d.pendingDraft.forbidden) }))}</bdi></p>`
+          : ''}
         <div class="proposed"><bdi>${esc(d.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
@@ -776,6 +1040,39 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     : '';
 
   /**
+   * G2c — the same three parts for something she could not open: what
+   * arrived, why she did not answer, what the owner does about it.
+   */
+  const unreadableCard = d.unreadable
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'unreadable.title'))}</h3>
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'unreadable.what', {
+            name: EMPLOYEE_NAME[locale],
+            what: t(locale, `received.${d.unreadable}` as MessageKey),
+          }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'unreadable.why'))}</div>
+          <div class="rf-d">${esc(t(locale, 'unreadable.do'))}</div>
+        </div>
+      </div>`
+    : '';
+
+  /**
+   * G10c — someone not on her pilot list wrote. Same three parts: what came,
+   * why she did not answer, and the two things the owner can do about it.
+   */
+  const unlistedCard = d.handoffReasons.includes('unlisted_number')
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'unlisted.title'))}</h3>
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-d"><a href="/app/factory">${esc(t(locale, 'unlisted.do'))}</a></div>
+        </div>
+      </div>`
+    : '';
+
+  /**
    * M44 — she promised no date, and this says which of her own closures is the
    * reason. Same three-part shape as the refusal and unheard cards: what
    * happened, why, and what she can go and do about it.
@@ -792,6 +1089,21 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
           <div class="rf-d"><a href="/app/settings/closures">${
             esc(t(locale, 'closures.blocked.action'))}</a></div>
         </div>
+      </div>`
+    : '';
+
+  /**
+   * G8 — her own text carried a word she forbade. Same three-part shape: what
+   * happened, why, and where she fixes it.
+   */
+  const herWordsCard = d.herWords?.length
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'herwords.title'))}</h3>
+        ${d.herWords.map((w) => `<div class="rf">
+          <div class="rf-y muted"><bdi>${esc(t(locale, `herwords.${w.path}` as MessageKey, { terms: quoted(locale, w.terms), name: EMPLOYEE_NAME[locale] }))}</bdi></div>
+          <div class="rf-d"><a href="${w.path === 'taught_answer' ? '/app/knowledge' : '/app/settings/forbidden'}">${
+            esc(t(locale, `herwords.action.${w.path}` as MessageKey))}</a></div>
+        </div>`).join('')}
       </div>`
     : '';
 
@@ -821,10 +1133,13 @@ export function renderConversationDetail(d: ConversationDetail, locale: Locale, 
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
     ${unheardCard}
+    ${unreadableCard}
+    ${unlistedCard}
     ${closedCard}
+    ${herWordsCard}
     ${sampleCard}
     ${refusalCard(d.refusals, locale, now)}
-    ${takeoverCard(d, locale, now)}
+    ${takeoverCard(d, locale, now, viewer)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${knew}
     ${context}
@@ -836,28 +1151,38 @@ const INBOX_STYLE = `<style>
   /* M22 — a refusal is information, not an alarm. Amber, like the disconnected
      channel: something needs the owner, and nothing is broken. */
   .card.refused { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
-  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 10px; }
+  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
   .rf { padding:10px 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
   .rf-w { font-size:var(--font-size-note); color:var(--color-highlight); }
-  .rf-y { font-size:var(--font-size-caption); margin-top:3px; line-height:1.55; max-width:var(--measure-prose); }
-  .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:6px; }
-  .rf-t { font-size:var(--font-size-micro); margin-top:4px; }
+  .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
+  .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:var(--space-8); }
+  .rf-t { font-size:var(--font-size-micro); margin-top:var(--space-4); }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
-  .bgroup { margin-bottom:26px; }
+  .bgroup { margin-bottom:var(--space-24); }
   .bgroup-h { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary);
-              margin:0 0 12px; font-weight:600; }
+              margin:0 0 var(--space-12); font-weight:600; }
   a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px 18px; }
   a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
-  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  .buyer-d { font-size:var(--font-size-caption); margin-top:6px; }
-  .buyer-m { margin-top:8px; font-size:var(--font-size-note); color:var(--color-ink-secondary); }
-  .buyer-t { font-size:var(--font-size-micro); margin-top:10px; }
+  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
+  .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .buyer-t { font-size:var(--font-size-micro); margin-top:var(--space-12); }
   .tag { font-size:var(--font-size-micro); font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
   .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
-  .review-intro { margin:0 0 12px; }
-  .revoke-note { margin:8px 0 0; }
+  .review-intro { margin:0 0 var(--space-12); }
+  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-note); color:var(--color-waiting); }
+  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-note); }
+  .draft .held-then b { font-weight:600; }
+  .voiceplay { display:block; margin:var(--space-8) 0; }
+  .answernow { margin-top:var(--space-8); }
+  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+            margin-top:var(--space-12); font-size:var(--font-size-note); }
+  .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+              margin-top:var(--space-12); font-size:var(--font-size-note); }
+  .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
+  .revoke-note { margin:var(--space-8) 0 0; }
   /* M34 — a heard message says so. The label and the superseded reading are the
      product speaking ABOUT the speech, so they stay sans while the words
      themselves keep the voice serif they inherit from .bubble. */
@@ -867,13 +1192,13 @@ const INBOX_STYLE = `<style>
      blank lines — invisible in tests, obvious in a screenshot. */
   .bubble.voiced { white-space:normal; }
   .bubble.voiced .said { white-space:pre-wrap; }
-  .heard-label { font-family:var(--font-family); font-size:var(--font-size-micro); margin-bottom:6px; }
+  .heard-label { font-family:var(--font-family); font-size:var(--font-size-micro); margin-bottom:var(--space-8); }
   .unheard-line { font-family:var(--font-family); font-size:var(--font-size-note); }
-  .orig { font-size:var(--font-size-caption); margin-top:8px;
+  .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);
           border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
-  .fixheard { margin-top:10px; font-family:var(--font-family); }
+  .fixheard { margin-top:var(--space-12); font-family:var(--font-family); }
   .fixheard summary { font-size:var(--font-size-caption); color:var(--color-ink-secondary); cursor:pointer; }
-  .fixheard form { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .fixheard form { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); }
   .knew { /* provenance panel, not a state boundary — no card, no tinted border */ }
   .knewlist { list-style:none; margin:0; padding:0; }
   .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
@@ -887,25 +1212,25 @@ const INBOX_STYLE = `<style>
   .conv { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
   .conv.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
   .conv:hover { border-color:var(--color-border); }
-  .conv-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:6px; }
-  .conv-b { font-size:var(--font-size-caption); margin-top:6px; } .conv-m { margin-top:6px; font-size:var(--font-size-note); color:var(--color-ink-secondary); }
-  .conv-t { font-size:var(--font-size-micro); margin-top:8px; }
-  .ok-card { text-align:center; padding:12px; } .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; }
-  .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .conv-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
+  .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:var(--space-8); }
+  .conv-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .conv-m { margin-top:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .conv-t { font-size:var(--font-size-micro); margin-top:var(--space-8); }
+  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; }
+  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .dhead .who { font-size:var(--font-size-small); }
-  .subline { font-size:var(--font-size-caption); margin-bottom:12px; }
-  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:var(--font-size-note); display:flex; flex-direction:column; gap:6px; }
+  .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:var(--space-16); font-size:var(--font-size-note); display:flex; flex-direction:column; gap:var(--space-4); }
   .card.draft { border-color:var(--color-waiting-line); }
-  .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .editform { display:flex; flex-direction:column; gap:8px; }
+  .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
+  .editform { display:flex; flex-direction:column; gap:var(--space-8); }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
      components live in one place so the two voices cannot fork per page. */
-  .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
   .why { flex-basis:100%; font-size:var(--font-size-caption); }
   .lastact { flex-basis:100%; font-size:var(--font-size-micro); }
-  .replyform { display:flex; flex-direction:column; gap:8px; }
+  .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } }
 </style>`;

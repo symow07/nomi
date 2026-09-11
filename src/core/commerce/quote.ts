@@ -4,6 +4,7 @@ import {
 } from '../types/money.js';
 import { blockingClosure, type FactoryClosure } from './closures.js';
 import type {
+  HistoryContradiction,
   NegotiationRule,
   PriceTier,
   PricingPolicy,
@@ -61,7 +62,7 @@ export function contradictsHistory(
   priors: readonly PriorQuote[],
   quantity: number,
   unitPrice: Money,
-): Extract<QuoteRefusal, { kind: 'contradicts_history' }> | null {
+): HistoryContradiction | null {
   const prior = [...priors].sort((a, b) => b.at.getTime() - a.at.getTime())[0];
   if (!prior) return null;
   // The same or cheaper is never a contradiction. `compareMoney` refuses to
@@ -71,7 +72,6 @@ export function contradictsHistory(
 
   const how = quantity > prior.quantity ? 'higher_at_larger_quantity' : 'higher_same_quantity';
   return {
-    kind: 'contradicts_history',
     prior,
     proposedUnitPrice: unitPrice,
     proposedQuantity: quantity,
@@ -150,23 +150,17 @@ export function computeQuote(input: {
   }
 
   // --- The guardrails. Both are hard. ---
-  let requiresHuman = false;
-
   if (policy) {
     // 1. The AI's discount authority.
     if (discountPct > policy.maxDiscountPct) {
       discountPct = policy.maxDiscountPct;
       applied.push(`clamped_to_authority:${policy.maxDiscountPct}`);
     }
-    // 2. Beyond this, a human signs it off. We do NOT refuse — we escalate.
-    if (discountPct > policy.humanRequiredAbovePct) {
-      requiresHuman = true;
-    }
   }
 
   let unitPrice = roundMoney(scaleMoney(listUnit, 1 - discountPct / 100));
 
-  // 3. The floor. Absolute. Nothing crosses it.
+  // 2. The floor. Absolute. Nothing crosses it.
   if (policy && isBelow(unitPrice, policy.floorPrice)) {
     // Prefer degrading the discount to refusing the sale entirely...
     if (compareMoney(listUnit, policy.floorPrice) >= 0) {
@@ -180,11 +174,24 @@ export function computeQuote(input: {
     }
   }
 
+  // 3. Her "ask me above this" line. We do NOT refuse — the reply waits for
+  //    her (pipeline/turn.ts holds it as a draft).
+  //
+  // G7a — decided on the discount the buyer would actually GET, after both
+  // clamps. It used to be decided before the floor: 25% asked for, clamped to
+  // a 20% authority, then to a floor that left 6.67% — and the quote still
+  // said it needed her sign-off for a discount nobody was being given. Once
+  // this decides draft-vs-send, that is a false hold on every floor-clamped
+  // quote.
+  const requiresHuman = policy !== null && discountPct > policy.humanRequiredAbovePct;
+
   // ── M36 · THE CONSISTENCY GUARD ─────────────────────────────────────────
   //
-  // below_floor's sibling: same mechanic, same fail-closed posture, a different
-  // axis. below_floor asks "does this break the owner's POLICY"; this asks
-  // "does this break what she already TOLD this buyer".
+  // below_floor asks "does this break the owner's POLICY"; this asks "does
+  // this break what she already TOLD this buyer". Unlike below_floor it does
+  // not refuse (G7b): the price may be right, and only she can decide to
+  // stand behind it. The quote carries the contradiction, the turn holds the
+  // reply for her, and her 发送 is what makes the new price the one he has.
   //
   // WHAT "CONTRADICTS" MEANS, and why there are two cases rather than one:
   //
@@ -202,9 +209,12 @@ export function computeQuote(input: {
   // is free to make silently; going up is the thing that needs her signature.
   //
   // Absent history is not a contradiction either — `priorQuotes` empty means a
-  // new buyer, and refusing there would make a first quote impossible.
-  const contradiction = contradictsHistory(input.priorQuotes ?? [], quantity, unitPrice);
-  if (contradiction) return err(contradiction);
+  // new buyer, and holding there would make every first quote wait.
+  //
+  // "History" is what he was actually given: auto-sent, or approved by her
+  // unchanged (db/repos.ts `priorQuotesForClient`). A draft she skipped or
+  // rewrote never set his expectation, so it never sets the baseline.
+  const contradicts = contradictsHistory(input.priorQuotes ?? [], quantity, unitPrice);
 
   // ── M44 · SHE DOES NOT PROMISE A DATE THE FACTORY CANNOT HIT ────────────
   //
@@ -227,6 +237,7 @@ export function computeQuote(input: {
     leadTimeDays: blocked ? null : leadTimeDays,
     leadTimeBlocked: blocked,
     requiresHuman,
+    contradicts,
     appliedRules: applied,
   });
 }

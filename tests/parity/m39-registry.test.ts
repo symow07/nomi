@@ -261,6 +261,8 @@ describe('M39 · what she reads', () => {
     expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain),');
     expect(src).toContain('${reach}');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none')");
+    // G3 added the configured number as a fifth argument; what this pins is
+    // that the page is handed the REAL template state, not a default.
+    expect(app).toMatch(/loadChannels\(deps\.db, s\.businessId, messagingEnabled, deps\.templateState \?\? 'none'[,)]/);
   });
 });

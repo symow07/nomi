@@ -180,17 +180,30 @@ describe('M40.2 · what the provider says happened', () => {
 describe('M40.2 · the webhook', () => {
   it('IS NOT MOUNTED WITHOUT A SECRET — an open endpoint writes permanent rows', async () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    const at = app.indexOf("app.post('/hooks/email'");
+    // G14 — it lives in a scope of its own now, so the signature can be taken
+    // over the bytes the provider sent without changing any other route.
+    const at = app.indexOf("scope.post('/hooks/email'");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(0, at)).toContain('if (deps.emailWebhookSecret) {');
-    const body = app.slice(at, at + 2200);
+    const body = app.slice(at, at + 2600);
     expect(body).toContain('timingSafeEqual');
     expect(body).toContain('reply.code(404).send()');
   });
 
+  it('G14 · the signature is taken over the RAW body, and parsed only after it passes', async () => {
+    const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
+    const at = app.indexOf('void app.register(async (scope) => {');
+    const body = app.slice(at, app.indexOf("app.get('/u'"));
+    expect(body).toContain("scope.addContentTypeParser('application/json', { parseAs: 'string' }");
+    expect(body).toContain('.update(rawBody)');
+    // Parse AFTER the check: unverified bytes are never handed to JSON.parse
+    // as if they were ours.
+    expect(body.indexOf('timingSafeEqual')).toBeLessThan(body.indexOf('JSON.parse(rawBody)'));
+  });
+
   it('reads the tenant from the signed token, never from the request', async () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    const body = app.slice(app.indexOf("app.post('/hooks/email'"), app.indexOf("app.get('/u'"));
+    const body = app.slice(app.indexOf("scope.post('/hooks/email'"), app.indexOf("app.get('/u'"));
     expect(body).toContain('claimFrom(deps.sessionSecret, e.tag)');
     expect(body).not.toMatch(/businessId.*req\.(params|query|body)/);
   });

@@ -169,6 +169,8 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
       quantity: 20000,
       inputs: {},
       unitPrice: usd(0.38),
+      leadTimeDays: null,
+      leadTimeWithheld: null,
       discountPct: 0,
       total: usd(7600),
       requiresHuman: false,

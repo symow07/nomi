@@ -230,18 +230,18 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
 }
 
 const OPS_STYLE = `<style>
-  .stat .v { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); } .stat .l { font-size:var(--font-size-micro); color:var(--color-ink-secondary); margin-top:4px; }
-  h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:16px 0 8px; }
-  .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .stat .v { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); } .stat .l { font-size:var(--font-size-micro); color:var(--color-ink-secondary); margin-top:var(--space-4); }
+  h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
+  .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .reqs .q { color:var(--color-ink); }
-  .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:10px; }
-  .gq { font-size:var(--font-size-small); margin-bottom:8px; } .gmeta { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
-  .gacts { display:flex; gap:8px; }
+  .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .gq { font-size:var(--font-size-small); margin-bottom:var(--space-8); } .gmeta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
+  .gacts { display:flex; gap:var(--space-8); }
   .pill.reason { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .pill.taught { background:var(--color-jade-wash); color:var(--color-ok); } .pill.corrected { background:var(--color-highlight-wash); color:var(--color-highlight); } .pill.archived { background:var(--color-border); color:var(--color-ink-secondary); }
-  .acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
-  .acts li { display:flex; align-items:center; gap:8px; }
-  .usage { font-size:var(--font-size-micro); margin-top:6px; }
+  .acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .acts li { display:flex; align-items:center; gap:var(--space-8); }
+  .usage { font-size:var(--font-size-micro); margin-top:var(--space-8); }
   @media (max-width:560px) { }
 </style>`;
 

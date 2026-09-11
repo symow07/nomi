@@ -1,8 +1,9 @@
 import { sql } from 'kysely';
-import { type Money, usd } from '../../core/types/money.js';
-import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
-import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport } from '../../core/onboard/catalogImport.js';
+import { type Money, usd, parseCurrency } from '../../core/types/money.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
+import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
+import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
@@ -133,29 +134,89 @@ export function reviewImport(rawText: string): ValidatedImport {
 }
 
 /**
+ * G16 — her catalogue, as the comparison with a page needs to see it.
+ *
+ * The floor is the product's own, the one `updateProduct` refuses below — the
+ * review holds back exactly the change the save would refuse, by the same rule.
+ */
+async function catalogueFor(tx: Tx, bid: BusinessId): Promise<readonly CatalogueEntry[]> {
+  const rows = (await sql<{
+    id: string; sku: string; name: string; name_zh: string | null;
+    price: string | null; currency: string; moq: number; floor: string | null;
+  }>`
+    select p.id, p.sku, p.name, p.name_zh, p.price_usd_per_unit as price, p.currency, p.moq,
+           pp.floor_price_usd as floor
+      from products p
+      left join pricing_policy pp on pp.business_id = p.business_id and pp.product_id = p.id
+     where p.business_id = ${bid}
+  `.execute(tx)).rows;
+  return rows.map((r) => ({
+    id: r.id, sku: r.sku, name: r.name, nameZh: r.name_zh,
+    price: r.price === null ? null : Number(r.price),
+    currency: parseCurrency(r.currency), moq: r.moq,
+    floor: r.floor === null ? null : Number(r.floor),
+  }));
+}
+
+/** G16 — what the review shows: the lines she is about to confirm, against what she sells. */
+export async function diffImport(db: Db, businessIdRaw: string, v: ValidatedImport): Promise<CatalogueDiff> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return diffAgainstCatalogue(v.accepted, []);
+  return withTenantTx(db, bid.value, async (tx) => diffAgainstCatalogue(v.accepted, await catalogueFor(tx, bid.value)));
+}
+
+/**
  * M22 (F-02) — `alreadyHere` is reported rather than swallowed. `on conflict do
  * nothing` used to make a re-import look like it did nothing at all: "0 learned"
  * with no explanation, which is the false-success class in reverse. Now that the
  * owner's OWN sku is used, a re-import collides on purpose and she is told so.
+ *
+ * G16 — and a line that CHANGES a product she has is no longer one of them.
  */
 export type ImportResult = {
   /** Rows created. None is sellable: an import cannot know a floor. */
   readonly added: number;
   /** Of those, how many carry a price and so need only the price rules. */
   readonly withPrice: number;
-  /** Her sku was already in the catalogue — reported, never swallowed (F-02). */
+  /** G16 — products whose price or MOQ she ticked to change, changed. */
+  readonly updated: number;
+  /**
+   * Already in her catalogue and left as they are: the page agreed with it, she
+   * left the change unticked, or it is one to change on the product's own page.
+   * Reported, never swallowed (F-02).
+   */
   readonly alreadyHere: number;
+  /**
+   * G16 — a change she ticked that her floor refused at the moment of saving,
+   * because she raised it between the review and the confirm. Never counted as
+   * done, and never as "left as it is".
+   */
+  readonly refused: number;
 };
 
-export async function confirmImport(db: Db, businessIdRaw: string, rawText: string): Promise<ImportResult> {
+/** G16 — who confirmed, and which of the changes the review offered she kept ticked. */
+export type ImportApproval = {
+  /** The signed-in person, for the audit trail (G9b). */
+  readonly actor: string;
+  /** Product ids. A change whose product is not here is left as it is. */
+  readonly apply: ReadonlySet<string>;
+};
+
+export async function confirmImport(
+  db: Db, businessIdRaw: string, rawText: string, approval?: ImportApproval,
+): Promise<ImportResult> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { added: 0, withPrice: 0, alreadyHere: 0 };
+  if (!bid.ok) return { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 0 };
   const { accepted } = reviewImport(rawText);
-  let added = 0, withPrice = 0, alreadyHere = 0;
+  let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
-    for (let i = 0; i < accepted.length; i++) {
-      const p = accepted[i]!;
+    // The SAME diff the review showed, from the same staged lines — recomputed
+    // here rather than trusted from the form, so a posted product id can only
+    // choose among changes this business's own catalogue produced.
+    const diff = diffAgainstCatalogue(accepted, await catalogueFor(tx, bid.value));
+    for (let i = 0; i < diff.added.length; i++) {
+      const p = diff.added[i]!;
       // Her article number is who this product IS — to her, her buyers and her
       // factory floor. A generated id in its place means she cannot find her own
       // goods and every re-import silently duplicates her catalogue. One is
@@ -173,7 +234,7 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
                 ${p.price?.amount ?? null}, ${p.price?.currency ?? 'USD'}, false)
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
-      if (!id) { alreadyHere++; continue; }        // her sku is already in the catalogue
+      if (!id) { alreadyHere++; continue; }        // written by someone else since the review
       added++;
       if (p.price !== null) {
         withPrice++;
@@ -188,22 +249,53 @@ export async function confirmImport(db: Db, businessIdRaw: string, rawText: stri
         // rules. Absence is the only honest representation of "not asked yet".
       }
     }
+    // G16 — a changed line goes through the ONE audited edit, the same as her
+    // typing the new price on the product's page: her floor still applies, and
+    // the trail says "0.45 → 0.38" and which line of the page said so.
+    for (const c of diff.changed) {
+      if (!approval || !approval.apply.has(c.product.id)) { alreadyHere++; continue; }
+      const r = await updateProductTx(tx, bid.value, c.product.id, approval.actor, {
+        price: c.price ? String(c.price.to) : null,
+        moq: c.moq ? String(c.moq.to) : null,
+      }, { via: 'import', line: c.line.sourceLine ?? c.line.name });
+      if (!r.ok) refused++;
+      else if (r.changed.length > 0) updated++;
+      else alreadyHere++;
+    }
+    alreadyHere += diff.unchanged.length;
+    // A change she ticked that her floor now forbids — raised between the
+    // review and this confirm — is a refusal she must hear about, not one more
+    // product "left as it is". The recomputed diff is what catches it.
+    for (const h of diff.held) {
+      if (h.reason === 'below_floor' && h.product && approval?.apply.has(h.product.id)) refused++;
+      else alreadyHere++;
+    }
   });
-  return { added, withPrice, alreadyHere };
+  return { added, withPrice, updated, alreadyHere, refused };
 }
 
 /** Localized confirm flash — called by the route (has locale). */
-export const importFlash = (locale: Locale, r: { added: number; withPrice: number; alreadyHere?: number }): string => {
+export const importFlash = (
+  locale: Locale, r: { added: number; withPrice: number; updated?: number; alreadyHere?: number; refused?: number },
+): string => {
   // M29 — this used to say "Learned N products", which was the false-success
   // class: an imported product is not learned, because the floor that decides
   // what she may never go below has not been stated by anyone. It says what
   // was added and what is still needed before she can quote any of it.
   const name = EMPLOYEE_NAME[locale];
-  const base = r.withPrice > 0
-    ? t(locale, 'product.flash.addedNeedRules', { added: r.added, withPrice: r.withPrice, name })
-    : t(locale, 'product.flash.addedNeedPrice', { added: r.added, name });
+  const parts: string[] = [];
+  // G16 — "Added 0 products" is not news when the page changed prices instead.
+  if (r.added > 0 || !(r.updated || r.alreadyHere || r.refused)) {
+    parts.push(r.withPrice > 0
+      ? t(locale, 'product.flash.addedNeedRules', { added: r.added, withPrice: r.withPrice, name })
+      : t(locale, 'product.flash.addedNeedPrice', { added: r.added, name }));
+  }
+  if (r.updated) parts.push(t(locale, 'product.flash.updated', { n: r.updated }));
   // A re-import that changed nothing must say so, not report a silent zero.
-  return r.alreadyHere ? `${base} ${t(locale, 'product.flash.alreadyHere', { n: r.alreadyHere })}` : base;
+  if (r.alreadyHere) parts.push(t(locale, 'product.flash.alreadyHere', { n: r.alreadyHere }));
+  // A change she ticked and did not get is said, never folded into "done".
+  if (r.refused) parts.push(t(locale, 'product.flash.refused', { n: r.refused }));
+  return parts.join(' ');
 };
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
@@ -218,7 +310,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
   if (items.length === 0) {
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
-      <div style="margin-top:16px"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
+      <div style="margin-top:var(--space-16)"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -325,57 +417,110 @@ export function renderAddForm(locale: Locale): string {
     </div>${PRODUCT_STYLE}`;
 }
 
-export function renderReview(v: ValidatedImport, rawText: string, locale: Locale): string {
+/** Rejected lines shown one by one before the rest become "and N more". */
+const REJECTED_SHOWN = 8;
+
+export function renderReview(
+  v: ValidatedImport, rawText: string, locale: Locale,
+  diff: CatalogueDiff = diffAgainstCatalogue(v.accepted, []),
+): string {
   // M37 — THE SOURCE LINE, beside every product, in BOTH flows.
   // What she confirms is a TRANSCRIPTION, not a list: the line she can compare
   // against the page in her hand sits under the product it produced. A price
   // that no line contains has nowhere to hide, because every price is shown
   // next to the text it came out of.
-  const accepted = v.accepted.map((p) => `
+  const from = (p: ExtractedProduct): string => p.sourceLine
+    ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : '';
+  const known = (e: CatalogueEntry): string =>
+    `<b>${esc(displayName(locale, e.name, e.nameZh))}</b> <span class="muted">${esc(e.sku)}</span>`;
+
+  // G16 — what the page CHANGES, first: the one thing she must look at. Each
+  // change is its own tick, on by default, so a price the page does not really
+  // say can be left out without throwing away the rest of the sheet.
+  const changed = diff.changed.map((c) => {
+    const money = (n: number | null): string => n === null || c.product.currency === null
+      ? t(locale, 'product.list.priceTbd') : formatMoney({ amount: n, currency: c.product.currency });
+    const moves = [
+      c.price ? t(locale, 'product.review.change.price', { from: money(c.price.from), to: money(c.price.to) }) : null,
+      c.moq ? t(locale, 'product.review.change.moq', { from: formatQty(locale, c.moq.from), to: formatQty(locale, c.moq.to) }) : null,
+    ].filter((m): m is string => m !== null).map((m) => `<span class="rev-move">${esc(m)}</span>`).join('');
+    return `
+    <label class="rev chg"><input type="checkbox" name="apply:${esc(c.product.id)}" checked /> ${known(c.product)}
+      ${moves}${from(c.line)}
+    </label>`;
+  }).join('');
+  const added = diff.added.map((p) => `
     <div class="rev"><b>${esc(p.name)}</b>
       <span class="muted">${p.price !== null ? esc(formatMoney(p.price)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
       ${p.price === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
-      ${p.sourceLine ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : ''}
+      ${from(p)}
     </div>`).join('');
+  const unchanged = diff.unchanged.map((u) => `<div class="rev">${known(u.product)}</div>`).join('');
+  const held = diff.held.map((h) => `
+    <div class="rev">${h.product ? known(h.product) : `<b>${esc(h.line.name)}</b>`}
+      <span class="rev-move">${esc(t(locale, `product.review.held.${h.reason}`))}</span>
+      ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}
+      ${from(h.line)}
+    </div>`).join('');
+
+  // Every line the page had and the catalogue will not get is accounted for:
+  // shown, or counted. A silent cut at eight was a page that seemed shorter.
+  const rest = v.rejected.length - REJECTED_SHOWN;
   const rejected = v.rejected.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, 8).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}</div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
     : '';
+
+  const everythingNew = diff.added.length === v.accepted.length;
+  const offered = diff.added.length + diff.changed.length;
+  const body = `
+    ${changed ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: diff.changed.length }))}</h2>
+      <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changed}</div>` : ''}
+    ${added ? `<div class="block"><h2>${esc(everythingNew
+      ? t(locale, 'product.review.recognized', { count: diff.added.length })
+      : t(locale, 'product.review.addedTitle', { count: diff.added.length }))}</h2>${added}</div>` : ''}
+    ${held ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${held}</div>` : ''}
+    ${unchanged ? `<div class="block"><h2>${esc(t(locale, 'product.review.unchangedTitle', { count: diff.unchanged.length }))}</h2>${unchanged}</div>` : ''}
+    ${v.accepted.length === 0
+      ? `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`
+      : offered === 0
+        ? `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.nothingToChange'))} <a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div></div>`
+        : ''}
+    ${rejected}`;
+
   return `<h1 class="page">${esc(t(locale, 'product.review.title'))}</h1>
-    ${v.accepted.length
-      ? `<div class="block"><h2>${esc(t(locale, 'product.review.recognized', { count: v.accepted.length }))}</h2>${accepted}</div>`
-      : `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`}
-    ${rejected}
-    ${v.accepted.length ? `<form method="post" action="/app/products/add/confirm">
+    ${offered > 0 ? `<form method="post" action="/app/products/add/confirm">
       <input type="hidden" name="text" value="${esc(rawText)}" />
-      <button class="btn send" type="submit">${esc(t(locale, 'product.review.confirm'))}</button>
+      ${body}
+      <button class="btn send" type="submit">${esc(t(locale, diff.added.length > 0 ? 'product.review.confirm' : 'product.review.confirmChanges'))}</button>
       <a class="btn" href="/app/products/add">${esc(t(locale, 'product.review.repaste'))}</a>
-    </form>` : ''}
+    </form>` : body}
     ${PRODUCT_STYLE}`;
 }
 
 const PRODUCT_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
+  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); color:var(--color-ink); }
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  .pcheck { display:flex; align-items:center; gap:10px; font-size:var(--font-size-note); color:var(--color-ink); min-height:44px; }
+  .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink); min-height:44px; }
   .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
-  .phead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
   .prod:hover { border-color:var(--color-border); }
-  .prod-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .prod-b { font-size:var(--font-size-caption); margin-top:6px; }
-  .tag { color:var(--color-ok); font-size:var(--font-size-micro); margin-top:8px; } .tag.big { color:var(--color-ok); font-size:var(--font-size-note); margin-bottom:12px; }
-  .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; } 
-  .info, .tiers { display:flex; flex-direction:column; gap:8px; font-size:var(--font-size-note); }
+  .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; } .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .tag { color:var(--color-ok); font-size:var(--font-size-micro); margin-top:var(--space-8); } .tag.big { color:var(--color-ok); font-size:var(--font-size-note); margin-bottom:var(--space-12); }
+  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); } 
+  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-note); }
   .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
-  .chips, .imgs { display:flex; flex-wrap:wrap; gap:8px; }
+  .chips, .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); } .qrow:last-child { border-bottom:none; }
-  .rev { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); flex-wrap:wrap; }
+  .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); flex-wrap:wrap; }
   .rev:last-child { border-bottom:none; }
   .rev-src { flex-basis:100%; font-size:var(--font-size-micro); }
-  .photo-in { display:block; width:100%; margin:10px 0; font:inherit; color:var(--color-ink); min-height:44px; }
-  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:10px 0; }
+  .rev-move { flex-basis:100%; }
+  .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
+  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
 </style>`;
 
@@ -416,85 +561,96 @@ export async function updateProduct(
 ): Promise<EditResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { ok: false, errors: {} };
+  return withTenantTx(db, bid.value, (tx) => updateProductTx(tx, bid.value, productId, actor, edit));
+}
 
-  return withTenantTx(db, bid.value, async (tx) => {
-    const cur = (await sql<{
-      price: string | null; moq: number; unit: string; is_active: boolean; floor: string | null;
-    }>`
-      select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active,
-             pp.floor_price_usd as floor
-        from products p
-        left join pricing_policy pp
-          on pp.business_id = ${bid.value} and pp.product_id = p.id
-       where p.business_id = ${bid.value} and p.id = ${productId} limit 1
-    `.execute(tx)).rows[0];
-    if (!cur) return { ok: false, errors: {} };
+/**
+ * G16 — where a change came from when it was not typed on the product's page:
+ * a line of a price sheet she confirmed, kept verbatim on the audit row so the
+ * trail can say which line moved the price.
+ */
+type EditSource = { readonly via: 'import'; readonly line: string };
 
-    const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
-    let price: number | null = cur.price === null ? null : Number(cur.price);
-    let moq = cur.moq;
-    let unit = cur.unit;
+/** The one audited edit, inside a caller's transaction (G16: the import's). */
+async function updateProductTx(
+  tx: Tx, bid: BusinessId, productId: string, actor: string, edit: ProductEdit, source?: EditSource,
+): Promise<EditResult> {
+  const cur = (await sql<{
+    price: string | null; moq: number; unit: string; is_active: boolean; floor: string | null;
+  }>`
+    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active,
+           pp.floor_price_usd as floor
+      from products p
+      left join pricing_policy pp
+        on pp.business_id = ${bid} and pp.product_id = p.id
+     where p.business_id = ${bid} and p.id = ${productId} limit 1
+  `.execute(tx)).rows[0];
+  if (!cur) return { ok: false, errors: {} };
 
-    if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
-      const n = Number(edit.price.trim());
-      if (!Number.isFinite(n)) errors.price = 'not_a_number';
-      else if (!(n > 0)) errors.price = 'not_positive';
-      // A new list price BELOW her own floor would make the product silently
-      // unquotable — quote.ts refuses `below_floor` rather than selling at a
-      // loss. She is told now, not by a buyer's silence later.
-      else if (cur.floor !== null && n < Number(cur.floor)) errors.price = 'below_floor';
-      else price = Number(n.toFixed(4));
-    }
-    if (edit.moq !== undefined && edit.moq !== null && edit.moq.trim() !== '') {
-      const n = Number(edit.moq.trim());
-      if (!Number.isFinite(n)) errors.moq = 'not_a_number';
-      else if (!(n > 0) || !Number.isInteger(n)) errors.moq = 'not_positive';
-      else moq = n;
-    }
-    if (edit.unit !== undefined && edit.unit !== null) {
-      const u = edit.unit.trim();
-      if (u === '') errors.unit = 'empty';
-      else unit = u;
-    }
-    if (Object.keys(errors).length > 0) return { ok: false, errors };
+  const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
+  let price: number | null = cur.price === null ? null : Number(cur.price);
+  let moq = cur.moq;
+  let unit = cur.unit;
 
-    const isActive = edit.isActive ?? cur.is_active;
-    const changed: ProductEditField[] = [];
-    const detail: Record<string, { from: unknown; to: unknown }> = {};
-    const note = (f: ProductEditField, from: unknown, to: unknown) => {
-      if (from !== to) { changed.push(f); detail[f] = { from, to }; }
-    };
-    note('price', cur.price === null ? null : Number(cur.price), price);
-    note('moq', cur.moq, moq);
-    note('unit', cur.unit, unit);
-    note('isActive', cur.is_active, isActive);
+  if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
+    const n = Number(edit.price.trim());
+    if (!Number.isFinite(n)) errors.price = 'not_a_number';
+    else if (!(n > 0)) errors.price = 'not_positive';
+    // A new list price BELOW her own floor would make the product silently
+    // unquotable — quote.ts refuses `below_floor` rather than selling at a
+    // loss. She is told now, not by a buyer's silence later.
+    else if (cur.floor !== null && n < Number(cur.floor)) errors.price = 'below_floor';
+    else price = Number(n.toFixed(4));
+  }
+  if (edit.moq !== undefined && edit.moq !== null && edit.moq.trim() !== '') {
+    const n = Number(edit.moq.trim());
+    if (!Number.isFinite(n)) errors.moq = 'not_a_number';
+    else if (!(n > 0) || !Number.isInteger(n)) errors.moq = 'not_positive';
+    else moq = n;
+  }
+  if (edit.unit !== undefined && edit.unit !== null) {
+    const u = edit.unit.trim();
+    if (u === '') errors.unit = 'empty';
+    else unit = u;
+  }
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
 
-    if (changed.length === 0) return { ok: true, changed: [] };
+  const isActive = edit.isActive ?? cur.is_active;
+  const changed: ProductEditField[] = [];
+  const detail: Record<string, { from: unknown; to: unknown }> = {};
+  const note = (f: ProductEditField, from: unknown, to: unknown) => {
+    if (from !== to) { changed.push(f); detail[f] = { from, to }; }
+  };
+  note('price', cur.price === null ? null : Number(cur.price), price);
+  note('moq', cur.moq, moq);
+  note('unit', cur.unit, unit);
+  note('isActive', cur.is_active, isActive);
 
+  if (changed.length === 0) return { ok: true, changed: [] };
+
+  await sql`
+    update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
+                        is_active = ${isActive}, updated_at = now()
+     where business_id = ${bid} and id = ${productId}
+  `.execute(tx);
+
+  // The entry tier is the same fact as the list price. Letting them drift is
+  // how a quote comes out at a number the owner never set.
+  if (detail['price'] && price !== null) {
     await sql`
-      update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
-                          is_active = ${isActive}, updated_at = now()
-       where business_id = ${bid.value} and id = ${productId}
+      insert into price_tiers (product_id, min_qty, unit_price_usd)
+      values (${productId}, 1, ${price})
+      on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd
     `.execute(tx);
+  }
 
-    // The entry tier is the same fact as the list price. Letting them drift is
-    // how a quote comes out at a number the owner never set.
-    if (detail['price'] && price !== null) {
-      await sql`
-        insert into price_tiers (product_id, min_qty, unit_price_usd)
-        values (${productId}, 1, ${price})
-        on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd
-      `.execute(tx);
-    }
+  await sql`
+    insert into channel_audit (business_id, channel_id, action, actor, detail)
+    values (${bid}, null, 'product_edited', ${actor},
+            ${JSON.stringify({ productId, changes: detail, ...(source ? { source } : {}) })}::jsonb)
+  `.execute(tx);
 
-    await sql`
-      insert into channel_audit (business_id, channel_id, action, actor, detail)
-      values (${bid.value}, null, 'product_edited', ${actor},
-              ${JSON.stringify({ productId, changes: detail })}::jsonb)
-    `.execute(tx);
-
-    return { ok: true, changed };
-  });
+  return { ok: true, changed };
 }
 
 /* ── M37 · photograph the price list ─────────────────────────────────────── */
@@ -522,7 +678,21 @@ export type PhotoImport =
       readonly text: string;
       readonly review: ValidatedImport;
     }
-  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'too_large' };
+  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' };
+
+/**
+ * Every reason a photograph comes to nothing, each named for what it is — the
+ * three above from reading it, and three from the upload itself, because each
+ * asks her to do something different:
+ *
+ *   too_large      over the limit          → take it again, smaller
+ *   not_a_photo    a PDF, a document       → photograph the page instead
+ *   upload_failed  it did not arrive whole → send it again
+ *
+ * G16 — every upload failure used to read "too large", so a photo that broke
+ * on the way told her to shrink a picture that was never too big.
+ */
+export type PhotoRefusal = Extract<PhotoImport, { kind: 'refused' }>['reason'] | 'too_large' | 'not_a_photo' | 'upload_failed';
 
 /**
  * Vision DESCRIBES; the parser EXTRACTS. This joins them and does neither.
@@ -571,9 +741,7 @@ export async function importFromPhoto(
  * names the reason in her language and names the next action — take another
  * photo, or paste the text, which is the path that always works.
  */
-export function renderPhotoRefusal(
-  reason: 'not_configured' | 'unreadable' | 'no_lines' | 'too_large', locale: Locale,
-): string {
+export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale): string {
   return `<h1 class="page">${esc(t(locale, 'product.photo.refusedTitle'))}</h1>
     <div class="block">
       <p>${esc(t(locale, `product.photo.refused.${reason}` as MessageKey))}</p>

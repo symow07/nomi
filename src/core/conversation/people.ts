@@ -20,13 +20,20 @@
  * across three gates in M34.11, and this milestone does not add a second one.
  * What changes is only that the value in the column is now a person.
  *
- * ── NO ROLES. NO PERMISSIONS MATRIX. NO ROUTING ───────────────────────────
+ * ── NO ROLES. NO PERMISSIONS MATRIX. AND ONE PIECE OF ROUTING ─────────────
  *
  * There is one distinction — owner or not — and it exists because four things
  * genuinely belong to the person whose business it is. Anything finer (who may
- * quote which product, whose conversations route where) needs watching a real
+ * quote which product, which buyers belong to whom) still needs watching a real
  * factory divide work, and inventing it now would be guessing at an
  * organisation chart nobody has drawn.
+ *
+ * G12 — routing, though, turned out to be one move rather than a system: the
+ * boss opens a conversation she cannot answer and hands it to the colleague who
+ * can (`handTo`, conversations/takeover.ts). It adds no role and no rule about
+ * WHOSE conversations these are; it only lets a person put one in another
+ * person's hands, and the receiving person sees it under "Mine". That is what a
+ * factory floor does, and it is as far as this goes until someone asks for more.
  *
  * Pure per ADR-0002.
  */
@@ -77,6 +84,40 @@ export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
  * that forgets is caught by a test that walks them.
  */
 export const mayDo = (person: Person, _action: OwnerOnlyAction): boolean => person.isOwner;
+
+/**
+ * G9a — who is LOOKING at a page, for hiding the controls behind an
+ * owner-only action. The routes are the gate; this only spares a sales
+ * assistant a button that can only refuse her. Renderers default to the
+ * owner's view, which is what every page was before staff existed.
+ */
+export type Viewer = Pick<Person, 'isOwner'> & {
+  /** G9b — so an action of theirs reads as "you". Absent = the owner's view. */
+  readonly id?: string;
+};
+export const OWNER_VIEW: Viewer = { isOwner: true };
+
+/**
+ * G9b — WHO DID IT, in words, for the person reading.
+ *
+ * Actor columns hold a person id since G9b; before, the 'owner' sentinel,
+ * which could only ever have meant her. The reader's own action reads as
+ * "you" — so the owner's sentinel is "you" to the owner and "the owner" to a
+ * sales assistant. An id that no longer resolves is someone who has left,
+ * never a raw uuid on her screen.
+ */
+export function actorName(
+  actor: string | null, people: readonly Person[], viewer: Viewer, words: {
+    readonly you: string; readonly owner: string; readonly gone: string;
+  },
+): string {
+  if (actor === null || actor === '') return viewer.isOwner ? words.you : words.owner;
+  if (viewer.id !== undefined && actor === viewer.id) return words.you;
+  if (actor === 'owner') return viewer.isOwner ? words.you : words.owner;
+  const p = people.find((x) => x.id === actor);
+  if (!p) return words.gone;
+  return p.isOwner && viewer.isOwner ? words.you : p.name;
+}
 
 /**
  * Who is holding this conversation, in words a person reads.

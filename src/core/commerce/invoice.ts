@@ -23,6 +23,12 @@ export type InvoiceData = {
   readonly leadTimeDays: number | null;
   readonly paymentTermsZh: string;           // from business policy, owner-set
   readonly paymentTermsEn: string;
+  /**
+   * M45/G15 — the sample he already paid for, coming off this first order
+   * because she said it would. Absent when she credits nothing, when this is
+   * not his first order, or when he asked for no sample.
+   */
+  readonly sampleCredit?: Money | null;
 };
 
 export function buildInvoice(input: {
@@ -36,6 +42,8 @@ export function buildInvoice(input: {
   readonly paymentTermsZh: string;
   readonly paymentTermsEn: string;
   readonly conversationRef: string;          // stable per conversation
+  /** M45/G15 — what he already paid for a sample, in the order's own currency. */
+  readonly sampleCredit?: Money | null;
   readonly now: Date;
 }): InvoiceData {
   const q = input.quote;
@@ -56,6 +64,7 @@ export function buildInvoice(input: {
     leadTimeDays: q.leadTimeDays,
     paymentTermsZh: input.paymentTermsZh,
     paymentTermsEn: input.paymentTermsEn,
+    ...(input.sampleCredit ? { sampleCredit: input.sampleCredit } : {}),
   };
 }
 
@@ -74,6 +83,14 @@ export function renderInvoiceEn(inv: InvoiceData): string {
     `Qty: ${inv.quantity.toLocaleString('en-US')} ${inv.unit}`,
     `Unit price: ${money(inv.unitPrice)} ${inv.incoterm}`,
     `Total: ${money(inv.total)}`,
+    // M45/G15 — she promised the sample comes off the first order, and the
+    // document is where that promise is kept. Two lines, not one adjusted
+    // total: a buyer comparing this against her earlier message must be able
+    // to see the price he was quoted AND the deduction he was promised.
+    ...(inv.sampleCredit ? [
+      `Less sample already paid: -${money(inv.sampleCredit)}`,
+      `Amount due: ${money({ amount: inv.total.amount - inv.sampleCredit.amount, currency: inv.total.currency })}`,
+    ] : []),
     inv.leadTimeDays !== null ? `Lead time: ${inv.leadTimeDays} days` : null,
     `Payment: ${inv.paymentTermsEn}`,
   ].filter((l): l is string => l !== null).join('\n');

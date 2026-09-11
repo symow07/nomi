@@ -63,7 +63,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
 
     // Built first: its phone_number_id is the credential's external_ref, which
     // Postgres holds unique across ALL tenants, so it has to be this run's.
-    sim = whatsappSimulator([], { tag: RUN_NS });
+    sim = whatsappSimulator([], { tag: `${RUN_NS}dep` });
 
     // The simulator's phone_number_id must resolve to THIS run's tenant.
     const setup = createDb(DATABASE_URL!);
@@ -230,14 +230,17 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
  * Railway before Meta onboarding finishes.
  */
 d('production deployment mode (requires DATABASE_URL)', () => {
-  // ONE simulator for this whole describe: whatsappSimulator([], { tag: RUN_NS }) restarts its
-  // wamid counter per instance and outbound_messages.provider_message_id is
-  // UNIQUE, so separate instances collide on the second send.
+  // ONE simulator for this whole describe, with a tag OF ITS OWN: the wamid
+  // counter restarts per instance and outbound_messages.provider_message_id is
+  // UNIQUE across every tenant, so two instances sharing a tag collide the
+  // moment both send — intermittently, since it depends on which blocks sent
+  // anything at all. That is the duplicate key this file hit during G14, and
+  // (with `window_closed` ruled out) the likeliest cause of the flake before.
   let m18Adapter: import('../../src/channels/contract.js').ChannelAdapter;
   let m18Sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
   beforeAll(async () => {
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
-    m18Sim = whatsappSimulator([], { tag: RUN_NS });
+    m18Sim = whatsappSimulator([], { tag: `${RUN_NS}m18` });
     m18Adapter = m18Sim.adapter;
   });
   let prod: import('../../src/main.js').Production;
@@ -1666,7 +1669,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       `.execute(tx as never));
       const a = (await detail())!.lastHumanAction!;
       expect(a.type).toBe('draft_resolved');                       // newest by (created_at, id)
-      expect(Object.keys(a).sort()).toEqual(['actor', 'at', 'type']); // narrow shape only
+      // Narrow shape only. G12 added `to` — the colleague a hand-off went to,
+      // an id like `actor`. Still no body, and nothing about the buyer.
+      expect(Object.keys(a).sort()).toEqual(['actor', 'at', 'to', 'type']);
       expect(a.actor).toBe('owner');
       expect(JSON.stringify(a)).not.toContain('BODY-MUST-NOT-SURFACE');
     });
@@ -1729,9 +1734,18 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       }
     });
 
-    it('take over: assigned to owner + a takeover event; the page shows owner controls', async () => {
+    it('take over: assigned to the signed-in owner + a takeover event; the page shows owner controls', async () => {
       expect((await post('takeover')).statusCode).toBe(302);
-      expect(await assigned()).toBe('owner');
+      // G9b — WHO took it over: the owner's person row, not the word 'owner'.
+      // The ownership model reads any person id as a human holding it.
+      const ownerId = await import('../../src/db/client.js').then(({ withTenantTx }) =>
+        import('../../src/core/types/ids.js').then(({ parseBusinessId }) => {
+          const b = parseBusinessId(DEMO_BIZ); if (!b.ok) throw new Error('fixture');
+          return withTenantTx(prod.db, b.value, (tx) => sql<{ id: string }>`
+            select id::text as id from people where business_id = ${DEMO_BIZ} and is_owner limit 1
+          `.execute(tx).then((r) => r.rows[0]!.id));
+        }));
+      expect(await assigned()).toBe(ownerId);
       expect(await events('takeover')).toBeGreaterThanOrEqual(1);   // M16.2d can observe it
 
       const cookie = await login();
@@ -2332,8 +2346,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // repos.pricingPolicy(productId) lets a per-product row win, and turn.ts
       // always asks per product — so a page that read only the `product_id is
       // null` row reported numbers no quote has ever used.
-      const rows = await q((tx) => sql<{ floor: string; ceiling: string; pid: string | null }>`
-        select floor_price_usd floor, max_discount_pct ceiling, product_id pid
+      const rows = await q((tx) => sql<{ floor: string; ceiling: string; ask: string; pid: string | null }>`
+        select floor_price_usd floor, max_discount_pct ceiling, human_required_above_pct ask, product_id pid
           from pricing_policy where business_id = ${DEMO_BIZ}`
         .execute(tx as never).then((r) => r.rows));
       const perProduct = rows.filter((r) => r.pid !== null);
@@ -2348,7 +2362,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const floors = applies.map((r) => Number(r.floor));
       expect(f.promises.floorLow?.amount).toBe(Math.min(...floors));
       expect(f.promises.floorHigh?.amount).toBe(Math.max(...floors));
-      expect(f.promises.ceilingPct).toBe(Math.min(...applies.map((r) => Number(r.ceiling))));
+      // The figure that makes each sentence true on EVERY product: the highest
+      // ceiling ("never more than … — less on some"), the highest ask line.
+      expect(f.promises.ceilingPct).toBe(Math.max(...applies.map((r) => Number(r.ceiling))));
+      expect(f.promises.askPct).toBe(Math.max(...applies.map((r) => Number(r.ask))));
 
       // and it must NOT be the fallback row when per-product rules exist
       const fallback = rows.find((r) => r.pid === null);
@@ -2357,10 +2374,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       const page = await html();
       expect(page).toContain('never discounts more than');
-      // the escalation threshold is not a gate (turn.ts asks resolveMode only),
-      // so it may never be promised to the owner as one
-      expect(page).not.toContain('waits for you');
-      expect(page).not.toContain('on her own');
+      // G7a — the ask-first line is a gate now (core/conversation/hold.ts), so
+      // the page promises it — whenever it can fire before the ceiling does.
+      if (f.promises.askPct! < f.promises.ceilingPct!)
+        expect(page).toContain('she asks you before the price goes out');
+      else expect(page).not.toContain('she asks you before the price goes out');
     });
 
     it('connection reflects the real channel state and never leaks a secret', async () => {
@@ -2717,7 +2735,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect((await channel())!.activated_at).toBeNull();
       const a = await audits('deactivate');
       expect(a.n).toBe(beforeAudit + 1);
-      expect(a.actor).toBe('owner');
+      // G9b — the audit names the person who stopped it: her row, not 'owner'.
+      const ownerId = await q((tx) => sql<{ id: string }>`
+        select id::text as id from people where business_id = ${DEMO_BIZ} and is_owner limit 1
+      `.execute(tx as never).then((x) => x.rows[0]!.id));
+      expect(a.actor).toBe(ownerId);
 
       // "nothing is deleted" is a promise the page makes — hold it to it
       expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
@@ -2920,9 +2942,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
         await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
                   values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
-        // the 24h window reads channels.last_inbound_at — open it, so this test
-        // isolates the ALLOWLIST decision rather than re-testing the window
-        await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+        // G10b — the 24h window is THIS buyer's (client_channels); open it, so
+        // this test isolates the ALLOWLIST decision rather than the window
+        await sql`update client_channels set last_inbound_at=now()
+                   where channel='whatsapp' and channel_user_id=${ALLOWED}`.execute(tx as never);
         await enqueueOutboundRow(tx, bid, c.conversationId, 'Reply to an allowlisted buyer', 'employee');
         return c.conversationId;
       });
@@ -2947,9 +2970,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
         await sql`insert into messages (conversation_id, direction, input_type, text_content, sent_at)
                   values (${c.conversationId},'inbound','text','hello',now())`.execute(tx as never);
-        // the 24h window reads channels.last_inbound_at — open it, so this test
-        // isolates the ALLOWLIST decision rather than re-testing the window
-        await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+        // G10b — the 24h window is THIS buyer's (client_channels); open it, so
+        // this test isolates the ALLOWLIST decision rather than the window
+        await sql`update client_channels set last_inbound_at=now()
+                   where channel='whatsapp' and channel_user_id=${BLOCKED}`.execute(tx as never);
         await enqueueOutboundRow(tx, bid, c.conversationId, 'This must never reach a real buyer', 'employee');
         return c.conversationId;
       });
@@ -3070,9 +3094,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       cid = await q(async (tx) => {
         const c = await ensureConversation(tx as never, bid, BUYER, 'M20 Buyer');
         await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
-        // open the 24h window so this isolates ACTIVATION, not the window
-        await sql`update channels set last_inbound_at=now(), status='connected', pilot_mode=true
+        // open the buyer's 24h window (G10b) so this isolates ACTIVATION, not the window
+        await sql`update channels set status='connected', pilot_mode=true
                    where business_id=${DEMO_BIZ}`.execute(tx as never);
+        await sql`update client_channels set last_inbound_at=now()
+                   where channel='whatsapp' and channel_user_id=${BUYER}`.execute(tx as never);
         return c.conversationId;
       });
     });
@@ -3291,7 +3317,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         const cid = await withTenantTx(prod.db, bid, async (tx) => {
           const c = await ensureConversation(tx, bid, wa, `Drill ${wa}`);
           await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
-          await sql`update channels set last_inbound_at=now() where business_id=${DEMO_BIZ}`.execute(tx as never);
+          await sql`update client_channels set last_inbound_at=now()
+                     where channel='whatsapp' and channel_user_id=${wa}`.execute(tx as never);
           await enqueueOutboundRow(tx, bid, c.conversationId, body, 'employee');
           return c.conversationId;
         });
@@ -3408,7 +3435,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const p = parseBusinessId(M22_BIZ); if (!p.ok) throw new Error('fixture'); bid = p.value;
-    sim = whatsappSimulator([], { tag: RUN_NS });
+    sim = whatsappSimulator([], { tag: `${RUN_NS}m22` });
     prod = await buildProduction({
       provider: 'meta', DATABASE_URL: DATABASE_URL!,
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
@@ -3526,12 +3553,11 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
       await sql`update conversations set assigned_to=null where id=${c.conversationId}`.execute(tx as never);
       await enqueueOutboundRow(tx, bid, c.conversationId, 'a reply three days late', 'employee');
       // The buyer last spoke three days ago, so the 24-hour window is long shut.
-      // NOTE: the worker reads `channels.last_inbound_at`, not the messages
-      // table and not a per-conversation column — an old row in `messages`
-      // leaves the window wide open, and the first version of this test sent a
-      // real message because of it. Set the fact the gate actually reads.
-      await sql`update channels set last_inbound_at = now() - interval '3 days'
-                 where business_id=${M22_BIZ} and kind='whatsapp'`.execute(tx as never);
+      // NOTE: the worker reads THIS BUYER's `client_channels.last_inbound_at`
+      // (G10b) — not the messages table, and no longer the channel row, which
+      // any buyer's message moved. Set the fact the gate actually reads.
+      await sql`update client_channels set last_inbound_at = now() - interval '3 days'
+                 where channel='whatsapp' and channel_user_id=${ph('971500007704')}`.execute(tx as never);
       return c.conversationId;
     });
     const effects = await withTenantTx(prod.db, bid, (tx) =>

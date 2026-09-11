@@ -59,6 +59,13 @@ export const ownerMayReply = (o: ConversationOwnership): boolean => o === 'OWNER
  *   WAITING_HUMAN → OWNER_CONTROLLED  (owner claims a handoff)
  *   WAITING_HUMAN → AI                (owner waves the AI back on)
  *   OWNER_CONTROLLED → AI             (resume)
+ *   OWNER_CONTROLLED → OWNER_CONTROLLED (G12: one person hands it to another)
+ *
+ * G12 — the last edge did not exist, because until M47 there was only one
+ * human and the move was meaningless. It stays INSIDE the same state: a person
+ * holds it either way, the AI is silent either way, and only the name in the
+ * column changes. Which person may be handed one is not decided here — that is
+ * `handTo` checking she is a live person of this business.
  */
 const ALLOWED: ReadonlySet<string> = new Set([
   'AI>WAITING_HUMAN',
@@ -66,6 +73,7 @@ const ALLOWED: ReadonlySet<string> = new Set([
   'WAITING_HUMAN>OWNER_CONTROLLED',
   'WAITING_HUMAN>AI',
   'OWNER_CONTROLLED>AI',
+  'OWNER_CONTROLLED>OWNER_CONTROLLED',
 ]);
 
 export function canTransition(from: ConversationOwnership, to: ConversationOwnership): boolean {

@@ -35,7 +35,7 @@ const SUPPORTED_AUDIO = new Set([
 /** Voice notes are speech, not photographs — a smaller ceiling than an image. */
 export const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
-type BinaryFetchLike = (url: string, init: { method: string; headers: Record<string, string>; signal?: AbortSignal }) =>
+export type BinaryFetchLike = (url: string, init: { method: string; headers: Record<string, string>; signal?: AbortSignal }) =>
   Promise<{ status: number; text(): Promise<string>; arrayBuffer?(): Promise<ArrayBuffer> }>;
 
 const SUPPORTED = new Set(['image/jpeg', 'image/png', 'image/webp']);

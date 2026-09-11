@@ -23,7 +23,8 @@ const complete: FactoryView = {
   products: { total: 12, needPrice: 0, names: [
     { name: 'Vacuum cup', nameZh: '保温杯' }, { name: 'Lunch box', nameZh: '饭盒' },
     { name: 'Thermos', nameZh: '热水瓶' }, { name: 'Kettle', nameZh: '水壶' }] },
-  promises: { certs: ['food_grade', 'BPA_free'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false },
+  promises: { certs: ['food_grade', 'BPA_free'], floorLow: usd(0.75), floorHigh: usd(0.75), ceilingPct: 8, ceilingVaries: false,
+    askPct: 5, askVaries: false },
   connection: { channel: channel(true), ownerPhone: '971500001111' },
   nextStep: null,
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
@@ -99,16 +100,33 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(html.indexOf('may state these')).toBeLessThan(html.indexOf('Food-safe materials'));
   });
 
-  it('states only the two rules the guard actually enforces', () => {
-    // quote.ts clamps the price at the floor and the discount at the ceiling.
-    // humanRequiredAbovePct sets `requiresHuman`, which lands in the quote audit
-    // and NEVER decides draft-vs-send (turn.ts asks resolveMode only) — so the
-    // page must not promise the owner that a big discount waits for her.
+  it('states the three rules the guard actually enforces', () => {
+    // quote.ts clamps the price at the floor and the discount at the ceiling,
+    // and since G7a a discount past her ask-first line holds the reply for her
+    // (core/conversation/hold.ts). Before G7a that line decided nothing, so the
+    // page did not state it; now it is a gate, so it is a promise.
     const rules = renderFactory(complete, 'en').match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
     expect(rules).toContain('never quotes below $0.75');
     expect(rules).toContain('never discounts more than 8%');
-    expect(rules).not.toContain('waits for you');
-    expect(rules).not.toContain('on her own');
+    expect(rules).toContain('Above 5% off, she asks you before the price goes out.');
+  });
+
+  it('G9a · a sales assistant sees whether she is live — not the switch, and not a link to the floor', () => {
+    const owner = renderFactory(complete, 'en');
+    expect(owner).toContain('action="/app/factory/activate"');
+    expect(owner).toContain('href="/app/factory/prices"');
+    const staff = renderFactory(complete, 'en', null, { isOwner: false });
+    expect(staff).not.toMatch(/action="\/app\/factory\/(activate|deactivate)"/);
+    expect(staff).not.toContain('href="/app/factory/prices"');
+    expect(staff).toContain('The owner decides this.');
+  });
+
+  it('an ask line at the ceiling is never stated — the clamp means she never asks', () => {
+    for (const askPct of [8, 9, null]) {
+      const rules = renderFactory({ ...complete, promises: { ...complete.promises, askPct } }, 'en')
+        .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
+      expect(rules, String(askPct)).not.toContain('she asks you');
+    }
   });
 
   it('a catalogue with different floors reports the range, never one product’s number', () => {
@@ -308,7 +326,8 @@ describe('Release hardening · My factory quotes the guard, not a second reading
       ...complete,
       promises: {
         certs: [], floorLow: usd(Math.min(...floors)), floorHigh: usd(Math.max(...floors)),
-        ceilingPct: Math.min(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
+        ceilingPct: Math.max(...policies.map((p) => p.maxDiscountPct)), ceilingVaries: true,
+        askPct: Math.max(...policies.map((p) => p.humanRequiredAbovePct)), askVaries: false,
       },
     };
     const html = renderFactory(view, 'en');
@@ -330,28 +349,46 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     expect(html).toContain('$0.36');
     expect(html).not.toMatch(/never quotes below \$0\.36\./);
 
-    // 3. The stated ceiling must be the strictest one, so it is never a promise
-    //    the guard would exceed on some product.
-    expect(view.promises.ceilingPct).toBe(Math.min(...policies.map((p) => p.maxDiscountPct)));
-    expect(html).toContain('8%');
-    expect(html).not.toContain('12%');
+    // 3. "Never more than X% — less on some products" is true on EVERY product
+    //    only if X is the LARGEST ceiling. It used to be the smallest, which
+    //    promised 8% while the 12% product was given 12%. Proven against the
+    //    engine: every real discount sits at or under the stated figure.
+    const stateCeil = view.promises.ceilingPct!;
+    for (const policy of policies) {
+      const r = computeQuote({
+        product: product(), tiers: tiers(), policy, quantity: 20000,
+        rules: [{ businessId: policy.businessId, priority: 1, condition: {}, action: { kind: 'discount_pct', value: 50 } }],
+      });
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.value.discountPct).toBeLessThanOrEqual(stateCeil);
+    }
+    expect(html).toContain('never discounts more than 12% — less on some products');
   });
 
-  it('states nothing about escalation, because escalation is not a gate', async () => {
-    // quote.ts sets requiresHuman from humanRequiredAbovePct, but turn.ts decides
-    // draft-vs-send from resolveMode(capability) alone and never reads it. A page
-    // that promised "between X% and Y% she waits for you" described nothing.
+  it('G7a · states the ask line, because it is a gate now — in every locale', async () => {
+    // This test used to assert the opposite: `requiresHuman` was stored and
+    // never read, so promising "she asks you first" described nothing. The
+    // chain it now describes, end to end: her line → requiresHuman on the
+    // discount actually given → a hold reason → the pipeline forces a draft.
+    const { computeQuote } = await import('../../src/core/commerce/quote.js');
+    const { holdReasonOf } = await import('../../src/core/conversation/hold.js');
+    const { product, tiers, policy } = await import('./fixtures.js');
+    const p = policy({ floorPrice: usd(0.10), maxDiscountPct: 8, humanRequiredAbovePct: 5 });
+    const q = computeQuote({
+      product: product(), tiers: tiers(), policy: p, quantity: 20000,
+      rules: [{ businessId: p.businessId, priority: 1, condition: {}, action: { kind: 'discount_pct', value: 6 } }],
+    });
+    expect(q.ok).toBe(true);
+    if (q.ok) expect(holdReasonOf({ provenance: 'typed', quote: q.value, turnText: '' })).toBe('discount_needs_owner');
     const { readFile } = await import('node:fs/promises');
     const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    const decision = turn.slice(turn.indexOf('const mode = resolveMode'), turn.indexOf('const mode = resolveMode') + 400);
-    expect(decision).not.toContain('requiresHuman');
+    expect(turn).toMatch(/r\.hold \? 'draft' : policyMode/);
 
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { esc } = await import('../../src/api/web/layout.js');
     for (const l of LOCALES) {
       const rules = renderFactory(complete, l).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
-      expect(rules).not.toContain('waits for you');
-      expect(rules).not.toContain('on her own');
-      expect(rules).not.toContain('بنفسها');
-      expect(rules).not.toContain('自己最多');
+      expect(rules, l).toContain(esc(t(l, 'factory.promise.ask', { ask: 5, name: '' })));
     }
   });
 });
@@ -489,9 +526,18 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
     expect(html).not.toContain('action="/app/factory/activate"');
   });
 
-  it('live: says when it started and who started it — from the stored row', () => {
+  it('live: says when it started and who started it — from the stored row, as a NAME', () => {
+    // G9b — the column holds whoever did it; the page says it in words. It
+    // used to print the column: "by owner", and after M47 it would have
+    // printed a uuid.
     const html = view({ live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'owner' });
-    expect(html).toMatch(/Started .* by owner/);
+    expect(html).toMatch(/Started .* by you\./);
+    const byChen = renderFactory({
+      ...complete, readiness: { ...complete.readiness, live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'p-chen' },
+      people: [{ id: 'p-chen', name: 'Xiao Chen', isOwner: false }],
+    }, 'en');
+    expect(byChen).toMatch(/Started .* by Xiao Chen\./);
+    expect(byChen).not.toContain('p-chen');
   });
 
   it('both decisions confirm first — neither fires on a stray tap', () => {

@@ -47,6 +47,18 @@ export type OrderState = (typeof ORDER_STATES)[number];
 export const isOrderState = (s: string): s is OrderState =>
   (ORDER_STATES as readonly string[]).includes(s);
 
+/**
+ * G4 — what a BUYER can be told an order's state is. The four she records,
+ * plus 'pending_confirmation': a state no one records any more but that the
+ * 0034 backfill copied from orders created before the log existed. Such an
+ * order used to be dropped by the lookup, so "where is my order?" fell through
+ * to the model — which may say anything. It is reported as what it is.
+ */
+export type ReportedOrderState = OrderState | 'pending_confirmation';
+
+export const isReportedOrderState = (s: string): s is ReportedOrderState =>
+  isOrderState(s) || s === 'pending_confirmation';
+
 /** One thing she recorded about an order. Append-only: history, not state. */
 export type OrderUpdate = {
   readonly state: OrderState;
@@ -93,16 +105,17 @@ export function asksOrderStatus(text: string): boolean {
  */
 export function orderStatusReply(input: {
   readonly reference: string;
-  readonly update: OrderUpdate;
+  readonly update: Omit<OrderUpdate, 'state'> & { readonly state: ReportedOrderState };
   readonly formatDate: (d: Date) => string;
 }): { reply: string; allow: readonly number[] } {
   const { reference, update } = input;
   const when = input.formatDate(update.at);
-  const WORDS: Record<OrderState, string> = {
+  const WORDS: Record<ReportedOrderState, string> = {
     confirmed: 'confirmed',
     in_production: 'in production',
     shipped: 'shipped',
     cancelled: 'cancelled',
+    pending_confirmation: 'awaiting confirmation',
   };
 
   const tracking = update.trackingReference

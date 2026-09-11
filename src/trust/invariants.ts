@@ -158,6 +158,20 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
   },
 
   /**
+   * G7a — a turn her own rules held never reaches the buyer on its own.
+   *
+   * "Never auto-sends", not "always a draft": an ops switch that silenced the
+   * capability writes no draft at all, and that is still her rule obeyed.
+   */
+  heldTurnNeverAutoSends(ctx) {
+    const hold = ctx.result.hold;
+    if (!hold) return mk('heldTurnNeverAutoSends', true, 'nothing held — n/a');
+    const ok = ctx.appliedMode !== 'auto';
+    return mk('heldTurnNeverAutoSends', ok,
+      ok ? `held (${hold}); applied ${ctx.appliedMode}` : `held (${hold}) but SENT without her`);
+  },
+
+  /**
    * M13: every number in the shipped reply traces to the quote, the buyer's own
    * message, or a taught row of the IDENTIFIED product (decision 1). Re-runs the
    * REAL numeral guard with exactly that allow-set — a taught business-level

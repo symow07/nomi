@@ -28,9 +28,20 @@ import { join } from 'node:path';
 const dir = mkdtempSync(join(tmpdir(), 'nomi-int-'));
 const out = join(dir, 'results.json');
 
+/**
+ * ONE FILE AT A TIME. G2b — several files build the whole PRODUCTION
+ * composition (`buildProduction`), and each starts a real pg-boss worker on the
+ * one database. Their queues are the same queues, so with files in parallel a
+ * job enqueued by one file's webhook could be taken by ANOTHER file's worker —
+ * built with different adapters, media ports and models. The first test that
+ * waited for a voice note to be answered found it answered by the wrong
+ * process. Production runs exactly one worker per database; this makes the
+ * suite do the same. The suite is small enough that the cost is seconds.
+ */
 const run = spawnSync(
   'npx',
-  ['vitest', 'run', 'tests/integration/', '--reporter=json', `--outputFile=${out}`,
+  ['vitest', 'run', 'tests/integration/', '--no-file-parallelism',
+   '--reporter=json', `--outputFile=${out}`,
    '--reporter=default', ...process.argv.slice(2)],
   { stdio: 'inherit', encoding: 'utf8' },
 );

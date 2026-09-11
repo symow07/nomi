@@ -6,11 +6,11 @@ import {
   ORDER_STATES, isOrderState, type OrderState, type OrderUpdate,
 } from '../../core/commerce/orderState.js';
 import { buildInvoice, renderInvoiceEn } from '../../core/commerce/invoice.js';
-import { usd } from '../../core/types/money.js';
+import { usd, moneyFromRow, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
-import { esc, back } from './layout.js';
+import { esc, back, deeper } from './layout.js';
 
 /**
  * M46 — one order, everything she knows about it, and the one thing she can do.
@@ -39,8 +39,18 @@ export type OrderView = {
   readonly currency: string;
   readonly email: string | null;
   readonly paymentTerms: string | null;
+  /** G6 — the delivery term the order was confirmed under; null when she had stated none. */
+  readonly incoterm?: string | null;
   readonly sellerName: string;
   readonly confirmedAt: Date | null;
+  /**
+   * M45/G15 — the sample he already paid for, coming off THIS order because
+   * she said it would. Null when nothing is owed; `mismatch` when the sample
+   * was priced in one currency and the order in another, which is hers to
+   * settle rather than ours to convert.
+   */
+  readonly sampleCredit?: { readonly kind: 'credit'; readonly amount: Money }
+    | { readonly kind: 'mismatch'; readonly amount: Money } | null;
   /** Newest first. Append-only: this is what she said, not what was computed. */
   readonly history: readonly OrderUpdate[];
 };
@@ -53,12 +63,12 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       id: string; reference: string; conversation_id: string; buyer: string | null; seller: string;
       name: string | null; sku: string; quantity: number; unit: string;
       unit_price: string | null; total: string | null; currency: string;
-      client_email: string | null; payment_terms: string | null; confirmed_at: Date | null;
+      client_email: string | null; payment_terms: string | null; incoterm: string | null; confirmed_at: Date | null;
     }>`
       select o.id, o.order_reference as reference, o.conversation_id::text as conversation_id,
              cl.display_name as buyer, p.name, p.sku, o.quantity, o.unit,
              o.agreed_unit_price_usd as unit_price, o.total_value_usd as total, o.currency,
-             o.client_email, o.payment_terms, o.confirmed_at, b.name as seller
+             o.client_email, o.payment_terms, o.incoterm, o.confirmed_at, b.name as seller
         from orders o
         join businesses b on b.id = o.business_id
         left join clients cl on cl.id = o.client_id
@@ -66,6 +76,48 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
        where o.business_id = ${bid.value} and o.id = ${orderId}
        limit 1`.execute(tx)).rows[0];
     if (!o) return null;
+
+    /**
+     * M45/G15 — is a sample credit owed on this order?
+     *
+     * Derived, with no new storage, from three rows that already exist:
+     *   · his FIRST order — counted by `orders.client_id`, the same key M46
+     *     looks orders up by, so a second order gets no second credit;
+     *   · that he ASKED for a sample — `sample_requests` reaches the client
+     *     through its conversation;
+     *   · the policy IN FORCE WHEN HE ASKED — `sample_policy` is insert-only
+     *     with the newest row in force, so the promise he was given is the one
+     *     that was current that day, not whatever she has said since.
+     */
+    const credit = (await sql<{ amount: string; currency: string; credited: boolean }>`
+      -- The order's own timestamp stays IN the database. Sending it back as a
+      -- parameter loses it: pg stores microseconds and a JavaScript Date holds
+      -- milliseconds, so a sample asked for in the same transaction as the
+      -- order came back 688µs in the future and the credit silently vanished.
+      with this_order as (
+        select client_id, created_at from orders
+         where id = ${orderId} and business_id = ${bid.value}
+      )
+      select sp.price_amount as amount, sp.currency, sp.credited_on_first_order as credited
+        from sample_requests sr
+        join conversations c on c.id = sr.conversation_id
+        join this_order o on c.client_id = o.client_id
+        join lateral (
+          select price_amount, currency, credited_on_first_order
+            from sample_policy p
+           where p.business_id = ${bid.value} and p.stated_at <= sr.requested_at
+           order by p.stated_at desc limit 1
+        ) sp on true
+       where sr.business_id = ${bid.value}
+         and sr.requested_at <= o.created_at
+         and not exists (
+           select 1 from orders earlier
+            where earlier.client_id = o.client_id and earlier.business_id = ${bid.value}
+              and earlier.created_at < o.created_at)
+       order by sr.requested_at asc limit 1
+    `.execute(tx)).rows[0];
+    const creditMoney = credit && credit.credited && Number(credit.amount) > 0
+      ? moneyFromRow(Number(credit.amount), credit.currency) : null;
 
     const h = await sql<{
       state: string; at: Date; note: string | null; tracking_reference: string | null; by_actor: string;
@@ -80,8 +132,15 @@ export async function loadOrder(db: Db, businessIdRaw: string, orderId: string):
       unitPriceAmount: o.unit_price === null ? null : Number(o.unit_price),
       totalAmount: o.total === null ? null : Number(o.total),
       currency: o.currency,
-      email: o.client_email, paymentTerms: o.payment_terms,
+      email: o.client_email, paymentTerms: o.payment_terms, incoterm: o.incoterm,
       sellerName: o.seller, confirmedAt: o.confirmed_at,
+      // Currencies that do not match are NOT converted here: her rate (M43b)
+      // is a decision she states, and applying one silently to a document a
+      // buyer pays against is the arithmetic this product refuses to invent.
+      sampleCredit: creditMoney === null ? null
+        : creditMoney.currency === o.currency
+          ? { kind: 'credit' as const, amount: creditMoney }
+          : { kind: 'mismatch' as const, amount: creditMoney },
       history: h.rows.flatMap((r): OrderUpdate[] => isOrderState(r.state) ? [{
         state: r.state, at: r.at, note: r.note,
         trackingReference: r.tracking_reference, by: r.by_actor,
@@ -151,7 +210,13 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
 
   // M46 — the proforma, from the row. Its numbers are the order's own; this
   // renderer does no arithmetic, which is why it can be shown verbatim.
-  const proforma = v.unitPriceAmount !== null && v.totalAmount !== null && v.currency === 'USD'
+  //
+  // G6 — and its TERMS are hers, or there is no proforma. Every order used to
+  // carry "30% deposit, 70% before shipment" and every proforma said FOB;
+  // neither came from her. Without her terms on the order, the page says what
+  // is missing and where she states it, instead of printing a guess.
+  const hasTerms = !!v.paymentTerms && !!v.incoterm;
+  const proforma = v.unitPriceAmount !== null && v.totalAmount !== null && v.currency === 'USD' && hasTerms
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}</p>
         <pre>${esc(renderInvoiceEn({ ...buildInvoice({
@@ -160,20 +225,31 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
             quantity: { value: v.quantity, unit: v.unit },
             unitPrice: usd(v.unitPriceAmount), discountPct: 0, total: usd(v.totalAmount),
             moq: v.quantity, leadTimeDays: null, leadTimeBlocked: null,
-            requiresHuman: false, appliedRules: [],
+            requiresHuman: false, contradicts: null, appliedRules: [],
           },
           sellerName: v.sellerName,
           sellerPrefix: 'PI',
           buyerName: v.buyer ?? '',
           productName: v.productName ?? v.productSku,
           productSku: v.productSku,
-          incoterm: t(locale, 'order.invoice.incoterm'),
+          incoterm: v.incoterm ?? '',
           paymentTermsZh: v.paymentTerms ?? '',
           paymentTermsEn: v.paymentTerms ?? '',
           conversationRef: v.conversationId,
+          // M45/G15 — the deduction she promised, on the document she promised
+          // it on. Only when the two currencies agree; see the note below.
+          sampleCredit: v.sampleCredit?.kind === 'credit' ? v.sampleCredit.amount : null,
           now: v.confirmedAt ?? v.history[v.history.length - 1]?.at ?? new Date(0),
-        }), piNumber: v.reference }))}</pre></section>`
-    : '';
+        }), piNumber: v.reference }))}</pre>
+        ${v.sampleCredit?.kind === 'mismatch'
+          ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
+              amount: formatMoney(v.sampleCredit.amount) }))}</p>`
+          : ''}</section>`
+    : v.unitPriceAmount !== null && v.totalAmount !== null && !hasTerms
+      ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
+          <p class="muted">${esc(t(locale, 'order.invoice.noTerms'))}</p>
+          ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`
+      : '';
 
   return `<div class="dhead">${back(`/app/inbox/${esc(v.conversationId)}`, t(locale, 'order.back'))}</div>
     <h1 class="page"><bdi>${esc(v.reference)}</bdi></h1>

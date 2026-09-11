@@ -121,11 +121,18 @@ describe('M51.1 · the batch is REACHED, not merely decided', () => {
   it('but media FLUSHES a pending batch first, so replies keep his order', async () => {
     const { readFile } = await import('node:fs/promises');
     const src = await readFile(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    // G2c moved the flush into `flushPendingText`, because a document or a
+    // location must flush the batch too before it goes to a person. The
+    // guarantee is unchanged and read the same way: the flush is CALLED before
+    // the media turn, and the flush is a real read of the pending fragments.
     const handler = src.slice(src.indexOf('await boss.work<InboundJob>'));
-    const flushAt = handler.indexOf('const flush = await withTenantTx');
     const mediaTurnAt = handler.lastIndexOf('await runTurn({');
-    expect(flushAt).toBeGreaterThan(0);
-    expect(flushAt, 'the text he typed is answered before the photo').toBeLessThan(mediaTurnAt);
+    const flushCalls = [...handler.matchAll(/await flushPendingText\(/g)].map((m) => m.index!);
+    expect(flushCalls.length, 'media AND unreadable messages both flush').toBeGreaterThanOrEqual(2);
+    expect(flushCalls.at(-1)!, 'the text he typed is answered before the photo').toBeLessThan(mediaTurnAt);
+    const flushFn = src.slice(src.indexOf('const flushPendingText'), src.indexOf('await boss.work<InboundJob>'));
+    expect(flushFn).toContain('pendingFragments(tx');
+    expect(flushFn).toContain('await runTurn({');
   });
 
   it('the config comes from HER row, and falls back to the defaults', async () => {

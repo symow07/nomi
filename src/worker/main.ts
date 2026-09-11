@@ -9,11 +9,16 @@ import {
   recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor,
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
+import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn, type TurnEffects } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
-import { whisperTranscriber } from '../llm/transcribe.js';
-import { whatsappAudioFetcher, whatsappMediaFetcher } from '../channels/whatsapp/media.js';
+import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
+import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
+import { pilotFactsFor } from '../db/channels.js';
+import { recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
+import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
+import type { Signal } from '../core/scoring/signals.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
@@ -29,42 +34,73 @@ import { redactSecrets } from '../security/credentials.js';
  * outbound/notify jobs commit together or not at all (transactional enqueue).
  */
 
-export async function startWorker(env: {
-  DATABASE_URL: string;
-  ANTHROPIC_API_KEY: string;
+export async function startWorker(
+  env: {
+    DATABASE_URL: string; ANTHROPIC_API_KEY: string;
+    /** G11 — the address a proof link is built on. Absent: no link is attached. */
+    PUBLIC_BASE_URL?: string;
+  },
   /**
-   * M34 — speech-to-text. Absent is a legitimate, honest state: every voice
-   * note then refuses with `audio_unheard` and the owner is told why, rather
-   * than the buyer receiving an answer to a question nobody heard.
+   * G2b — the ports themselves, built by the entrypoint from the provider
+   * config (src/worker/mediaPorts.ts). This used to be four optional STRINGS
+   * that neither entrypoint passed, so both paths were dead in production.
+   *
+   * M34 — an absent transcriber is still a legitimate, honest state: every
+   * voice note then refuses with `audio_unheard` and the owner is told why,
+   * rather than the buyer receiving an answer to a question nobody heard.
+   * M4.5 — an absent image fetcher means she cannot see, and every photo
+   * refuses rather than being answered from its caption.
    */
-  TRANSCRIBE_API_KEY?: string | undefined;
-  TRANSCRIBE_BASE_URL?: string | undefined;
-  /** Media download base + auth, from the same channel credential as photos. */
-  MEDIA_BASE_URL?: string | undefined;
-  MEDIA_API_KEY?: string | undefined;
-}) {
+  media: MediaPorts = {},
+  /**
+   * G2b — the model ports, for tests only. Production passes nothing and gets
+   * the Anthropic-backed ports below. A test that drives a real voice note or
+   * photo through this worker needs a turn to COMPLETE, and a fake key would
+   * make every turn a network failure against the real API.
+   */
+  models: { analyzer?: Analyzer; replyWriter?: ReplyWriter; vision?: VisionDescriber } = {},
+) {
   const db = createDb(env.DATABASE_URL);
   const boss = await startBoss(env.DATABASE_URL);
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-  const transcriber = env.TRANSCRIBE_API_KEY
-    ? whisperTranscriber({
-        apiKey: env.TRANSCRIBE_API_KEY,
-        ...(env.TRANSCRIBE_BASE_URL ? { baseUrl: env.TRANSCRIBE_BASE_URL } : {}),
-      })
-    : undefined;
-  const audio = env.MEDIA_BASE_URL && env.MEDIA_API_KEY
-    ? whatsappAudioFetcher({ baseUrl: env.MEDIA_BASE_URL, apiKey: env.MEDIA_API_KEY })
-    : undefined;
-  // M4.5 — photos share the audio path's credential: the same media endpoint
-  // downloads both. Absent means she cannot see, and every photo then refuses
-  // rather than being answered from its caption.
-  const mediaFetcher = env.MEDIA_BASE_URL && env.MEDIA_API_KEY
-    ? whatsappMediaFetcher({ baseUrl: env.MEDIA_BASE_URL, apiKey: env.MEDIA_API_KEY })
-    : undefined;
-  const analyzer = anthropicAnalyzer(anthropic);
-  const replyWriter = anthropicReplyWriter(anthropic);
-  const vision = anthropicVision(anthropic);
+  const { transcriber, audio, image: mediaFetcher } = media;
+  const analyzer = models.analyzer ?? anthropicAnalyzer(anthropic);
+  const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic);
+  const vision = models.vision ?? anthropicVision(anthropic);
+
+  /**
+   * G2c — she could not read what the buyer sent, so a PERSON must. Records
+   * the reason, and moves the conversation to "waiting for a person" when she
+   * is the one holding it.
+   *
+   * Before this, the unheard-note and unclear-photo paths recorded their
+   * signal and a handoff event and left the conversation with her. Those
+   * signals score no problem points, so ownership never changed, and the
+   * conversation never appeared under "needs you" — the owner learned of it
+   * only if the WhatsApp alert happened to arrive.
+   *
+   * The ownership model is unchanged: this is the existing AI → WAITING_HUMAN
+   * transition, taken through `canTransition`. A conversation a person already
+   * holds is left with that person.
+   */
+  const handToPerson = async (
+    tenant: ReturnType<typeof tenantRepos>, conversationId: ConversationId, signal: Signal,
+  ): Promise<TurnEffects> => {
+    await tenant.signals.record(conversationId, signal);
+    const state = await tenant.conversations.loadState(conversationId);
+    const from = ownershipOf(state?.assignedTo ?? null);
+    // Only AI → WAITING_HUMAN is an allowed move into waiting; a person who
+    // already holds it keeps it.
+    if (state && canTransition(from, 'WAITING_HUMAN')) {
+      await tenant.conversations.assign(conversationId, WAITING_HUMAN_AGENT);
+    }
+    await tenant.events.append(conversationId, 'handoff', { reason: signal.kind });
+    return {
+      outbound: null, draftCreated: null, hotLeadAlert: false,
+      handoffAlert: true, orderCreated: null,
+    } satisfies TurnEffects;
+  };
 
   /**
    * ONE TURN, whatever produced it: a typed message, a merged batch of
@@ -83,6 +119,8 @@ export async function startWorker(env: {
     caption: string | null;
     provenance: 'typed' | 'transcribed' | 'photo';
     heard: Awaited<ReturnType<typeof hearVoiceNote>> | null;
+    /** G13 — the provider's handle for the audio, kept so she can play it. */
+    mediaId?: string | null;
     seen: Awaited<ReturnType<typeof seeImage>> | null;
     fragmentIds: readonly string[];
     started: number;
@@ -94,23 +132,23 @@ export async function startWorker(env: {
       await lockConversation(tx, conversationId.value);
       const tenant = tenantRepos(tx, businessId.value);
       const retriever = hybridRetriever(tx, businessId.value);
-      const ports = { tenant, retriever, analyzer, replyWriter, now: () => new Date() };
+      const ports = {
+        tenant, retriever, analyzer, replyWriter, now: () => new Date(),
+        publicBaseUrl: env.PUBLIC_BASE_URL ?? null,
+      };
 
-      if (input.heard) await recordVoiceMessage(tx, conversationId.value, input.messageId, input.heard);
+      if (input.heard) {
+        await recordVoiceMessage(tx, conversationId.value, input.messageId, input.heard, input.mediaId);
+      }
 
       // FAIL CLOSED. She could not hear the question, so she does not answer
       // it: the signal flags the conversation for the owner and the turn ends
       // here. Before M34 this same input reached computeTurn as empty text and
       // produced a confident reply to a question nobody had asked.
       if (input.heard?.kind === 'unheard') {
-        await tenant.signals.record(conversationId.value, {
+        return handToPerson(tenant, conversationId.value, {
           kind: 'audio_unheard', reason: input.heard.reason,
         });
-        await tenant.events.append(conversationId.value, 'handoff', {});
-        return {
-          outbound: null, draftCreated: null, hotLeadAlert: false,
-          handoffAlert: true, orderCreated: null,
-        } satisfies TurnEffects;
       }
 
       if (input.seen) await recordImageMessage(tx, conversationId.value, input.messageId, input.caption, input.seen);
@@ -122,12 +160,7 @@ export async function startWorker(env: {
       // been in the vocabulary and rendered by the inbox since M4; until this
       // commit nothing ever wrote it, because nothing ever ran.
       if (input.seen?.kind === 'refused') {
-        await tenant.signals.record(conversationId.value, { kind: 'low_confidence_image' });
-        await tenant.events.append(conversationId.value, 'handoff', {});
-        return {
-          outbound: null, draftCreated: null, hotLeadAlert: false,
-          handoffAlert: true, orderCreated: null,
-        } satisfies TurnEffects;
+        return handToPerson(tenant, conversationId.value, { kind: 'low_confidence_image' });
       }
 
       const req = {
@@ -181,6 +214,30 @@ export async function startWorker(env: {
     // are real post-order effects, add the consumer and the producer together.
   };
 
+  /**
+   * His typed lines that are still waiting, answered FIRST and in order —
+   * before a photo, a voice note, or something she cannot read. Answering the
+   * photo while three unanswered lines sit in the queue, and replying to those
+   * six seconds later, reads as confusion to the owner watching.
+   */
+  const flushPendingText = async (
+    businessId: BusinessId, conversationId: ConversationId, started: number,
+  ): Promise<void> => {
+    const flush = await withTenantTx(db, businessId, async (tx) => {
+      const pending = await pendingFragments(tx, conversationId);
+      return pending.length === 0 ? null : pending;
+    });
+    if (!flush) return;
+    const merged = flush.map((f) => f.text.trim()).filter(Boolean).join('\n');
+    if (!merged) return;
+    await runTurn({
+      businessId, conversationId,
+      messageId: flush[flush.length - 1]!.id, text: merged, caption: null,
+      provenance: 'typed', heard: null, seen: null,
+      fragmentIds: flush.map((f) => f.id), started,
+    });
+  };
+
   await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
@@ -188,6 +245,58 @@ export async function startWorker(env: {
     if (!businessId.ok || !conversationId.ok) return; // poison job: drop, don't retry
 
     const started = Date.now();
+
+    /**
+     * ── G13 · SHE TYPED WHAT HE SAID, AND ASKED FOR AN ANSWER ─────────────
+     *
+     * A voice note the machine could not make out, corrected by a person. Her
+     * words are the message from here on — provenance 'transcribed', because
+     * the FIGURES in them are still one human's reading of a recording, and
+     * M34.5 holds a price built on those for her.
+     */
+    if (job.data.answerOnly) {
+      await runTurn({
+        businessId: businessId.value, conversationId: conversationId.value,
+        messageId: job.data.messageId, text: job.data.text, caption: null,
+        provenance: 'transcribed', heard: null, seen: null, mediaId: null,
+        fragmentIds: [], started,
+      });
+      return;
+    }
+
+    /**
+     * ── G10c · A NUMBER SHE MAY NOT WRITE TO ───────────────────────────────
+     *
+     * Live in pilot mode, and this buyer is not on the owner's list. The send
+     * gate would refuse any reply, so she writes none: before hearing, seeing
+     * or a model call, the message is recorded as what it was and a person is
+     * told. The owner decided this (2026-09-10): she can reply herself, or add
+     * the number and hand the conversation back.
+     */
+    const unlisted = await withTenantTx(db, businessId.value, async (tx) =>
+      unlistedDuringPilot(await pilotFactsFor(tx, businessId.value, conversationId.value)));
+    if (unlisted) {
+      const effects = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, conversationId.value);
+        const type = job.data.messageType ?? 'text';
+        if (type === 'text') {
+          await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
+        } else {
+          // Named, not opened: she was not allowed to read it either.
+          await recordReceivedMessage(tx, conversationId.value, job.data.messageId, job.data.text || null,
+            type === 'image' ? 'photo' : type === 'audio' ? 'voice' : (job.data.received ?? 'other'));
+        }
+        const d = inboundDisposition(type, job.data.received);
+        if (d.kind === 'ignore') return null;      // a reaction asks nothing of anyone
+        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, { kind: 'unlisted_number' });
+      });
+      if (effects?.handoffAlert) {
+        await boss.send(QUEUES.notify, {
+          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
+        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
+      }
+      return;
+    }
 
     // M34 — a voice note is heard BEFORE the turn, outside the tenant
     // transaction: a download and a transcription are seconds of network, and
@@ -209,6 +318,35 @@ export async function startWorker(env: {
       : null;
 
     /**
+     * ── G2c · SOMETHING SHE CANNOT ANSWER FROM TEXT ─────────────────────
+     *
+     * A reaction, a sticker, a document, a video, a location. Each used to
+     * reach the turn as an EMPTY STRING and get a reply: an answer to an emoji,
+     * or a confident answer to a PDF nobody opened. `inboundDisposition`
+     * decides, before any turn: ignore it, or hand it to a person with a name
+     * for what arrived. Text, photos and voice notes carry on as before.
+     */
+    const disposition = inboundDisposition(job.data.messageType ?? 'text', job.data.received);
+    if (disposition.kind !== 'answer') {
+      await flushPendingText(businessId.value, conversationId.value, started);
+      const effects = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, conversationId.value);
+        await recordReceivedMessage(tx, conversationId.value, job.data.messageId,
+          job.data.text || null, disposition.received);
+        if (disposition.kind === 'ignore') return null;
+        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, {
+          kind: 'media_unreadable', received: disposition.received,
+        });
+      });
+      if (effects?.handoffAlert) {
+        await boss.send(QUEUES.notify, {
+          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
+        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
+      }
+      return;
+    }
+
+    /**
      * ── M51.1 · DEBOUNCE-AND-BATCH ──────────────────────────────────────
      *
      * ASSUMPTIONS P1, closed at last. A buyer sends "hello" / "price?" /
@@ -226,6 +364,8 @@ export async function startWorker(env: {
         await recordFragment(tx, businessId.value, conversationId.value, {
           id: job.data.messageId, text: job.data.text, receivedAt: new Date(),
         });
+        // G10a — and on the timeline, as he sent it, whatever batching does next.
+        await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
         const pending = await pendingFragments(tx, conversationId.value);
         // Another wake already merged and answered these. Not an error — and
         // NOT a reason to schedule another wake, which is how a debounce turns
@@ -265,26 +405,10 @@ export async function startWorker(env: {
      * the difference between a figure she typed and a figure a machine read
      * out of audio, and M34.5 treats those differently on purpose.
      *
-     * It does FLUSH one, though. Answering the photo while three unanswered
-     * lines sit in the queue — and replying to those six seconds later — reads
-     * as confusion to the owner watching. The text goes first, in the order he
-     * sent it, and the media turn follows.
+     * It does FLUSH one, though: the text goes first, in the order he sent
+     * it, and the media turn follows (`flushPendingText`).
      */
-    const flush = await withTenantTx(db, businessId.value, async (tx) => {
-      const pending = await pendingFragments(tx, conversationId.value);
-      return pending.length === 0 ? null : pending;
-    });
-    if (flush) {
-      const merged = flush.map((f) => f.text.trim()).filter(Boolean).join('\n');
-      if (merged) {
-        await runTurn({
-          businessId: businessId.value, conversationId: conversationId.value,
-          messageId: flush[flush.length - 1]!.id, text: merged, caption: null,
-          provenance: 'typed', heard: null, seen: null,
-          fragmentIds: flush.map((f) => f.id), started,
-        });
-      }
-    }
+    await flushPendingText(businessId.value, conversationId.value, started);
 
     await runTurn({
       businessId: businessId.value, conversationId: conversationId.value,
@@ -295,7 +419,7 @@ export async function startWorker(env: {
       caption: job.data.text || null,
       provenance: heard?.kind === 'heard' ? 'transcribed'
         : seen?.kind === 'words' ? 'photo' : 'typed',
-      heard, seen, fragmentIds: [], started,
+      heard, seen, mediaId: job.data.mediaId ?? null, fragmentIds: [], started,
     });
   });
 
@@ -326,6 +450,25 @@ if (isMain) {
     console.error('DATABASE_URL and ANTHROPIC_API_KEY are required');
     process.exit(1);
   }
-  await startWorker({ DATABASE_URL, ANTHROPIC_API_KEY });
+  // A development entrypoint; production runs `dist/main.js`, which validates
+  // the environment before building these. This reads the same variables
+  // without that validation, so a malformed value here fails at the first
+  // media job rather than at boot.
+  const env = process.env;
+  const provider = env['WHATSAPP_PROVIDER'];
+  await startWorker({
+    DATABASE_URL, ANTHROPIC_API_KEY,
+    ...(env['PUBLIC_BASE_URL'] ? { PUBLIC_BASE_URL: env['PUBLIC_BASE_URL'] } : {}),
+  }, mediaPortsFor({
+    provider: provider === 'meta' || provider === '360dialog' ? provider : 'disabled',
+    META_WHATSAPP_ACCESS_TOKEN: env['META_WHATSAPP_ACCESS_TOKEN'],
+    META_WHATSAPP_PHONE_NUMBER_ID: env['META_WHATSAPP_PHONE_NUMBER_ID'],
+    META_APP_SECRET: env['META_APP_SECRET'],
+    META_GRAPH_API_VERSION: env['META_GRAPH_API_VERSION'] ?? 'v23.0',
+    D360_BASE_URL: env['D360_BASE_URL'],
+    D360_API_KEY: env['D360_API_KEY'],
+    TRANSCRIBE_API_KEY: env['TRANSCRIBE_API_KEY'],
+    TRANSCRIBE_BASE_URL: env['TRANSCRIBE_BASE_URL'],
+  }));
   console.log('worker started');
 }

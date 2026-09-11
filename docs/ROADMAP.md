@@ -705,6 +705,448 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
+### BLOCK G · Finish what was marked built — IN PROGRESS (started 2026-09-10)
+
+A full audit on 2026-09-10 (commit a0c02e5) read every milestone above against
+the code. Thirteen "BUILT" claims held. Nine were partly there: a named part
+missing, or built and tested but never reachable from a live path. Planning
+the fixes found more that the audit had missed, several of them in front of a
+buyer. None of it is new scope. It is the distance between what this file said
+and what the code did, closed before anything new is started.
+
+**Order, decided 2026-09-10:** Block G first, then Block E on a new dedicated
+number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
+
+| # | Milestone | Priority | Status |
+|---|---|---|---|
+| G1 | CI green, and a suite that runs from any folder | High | ✅ 2026-09-10 |
+| G2a | M34 · the transcript correction accepts only a buyer's voice note, and saves | High | ✅ 2026-09-10 |
+| G2b | M34 + M4 · she can hear and see in production | High | ✅ 2026-09-10 |
+| G2c | M34 · unheard notes and other message types reach the owner | High | ✅ 2026-09-10 |
+| G3 | Connect the factory's number — nothing could, so every inbound message was dropped | High | ✅ 2026-09-10 |
+| G4 | M46 · "where is my order?" works after confirmation | High | ✅ 2026-09-10 |
+| G5 | M44 + M35 · the proof page states only what the quote said | High | ✅ 2026-09-11 |
+| G6 | M46 · payment terms and incoterm come from the owner | High | ✅ 2026-09-11 |
+| G7a | Price rules · her ask-first line holds the reply — one hold rule | High | ✅ 2026-09-11 |
+| G7b | M36 · a contradicting price waits for her, then becomes the baseline | High | ✅ 2026-09-11 |
+| G8 | M37.5 · nothing unguarded reaches a buyer | High | ✅ 2026-09-11 |
+| G9 | M47 · staff access is safe | High | ✅ 2026-09-11 |
+| G10 | The reply window per buyer, approvals that tell the truth, unlisted numbers | High | ✅ 2026-09-11 |
+| G11 | M35 · every quote carries a working proof link | Medium | ✅ 2026-09-11 |
+| G12 | M47 · hand a conversation to a named person | Medium | ✅ 2026-09-11 |
+| G13 | M34 · she can play the buyer's voice note | Medium | ✅ 2026-09-11 |
+| G14 | M40.1 + M40.2 · ready for the first sender | Medium | ✅ 2026-09-11 |
+| G15 | M45 · the sample credit reaches the proforma (no courier: decided 2026-09-10) | Medium | ✅ 2026-09-11 |
+| G16 | M37 · re-photographing updates what changed | Medium | ✅ 2026-09-11 |
+| G17 | M49 · finish the design pass, with Playwright screenshots | Medium | ✅ 2026-09-11 |
+| G18 | M43a + M43b · money shows its currency everywhere | Low | |
+| G19 | M51 follow-ups | Low | |
+| G20 | Guard rails for the invariants | Low | |
+| G21 | This file matches the ground again | Low | |
+
+**G1.** `tests/parity/m40-domain.test.ts` compared a check dated 31 August
+against the real clock, and the seven-day TTL turned CI red on 7 September.
+Five files built paths with `URL.pathname`, which percent-encodes, so the suite
+could not start from a folder with a space in its path. CI now also runs
+`npm run build`, the config Railway compiles and CI never did.
+
+**G2a.** The correction route had never succeeded. Its audit insert named a
+column `channel_audit` does not have, so every correction rolled back, and the
+only test read the route's source text. It also accepted any message id in the
+conversation. It now takes only an inbound voice note, records the machine's
+reading of an unheard note as empty rather than null, so the page says
+"Corrected by you", and writes the audit row with the signed-in person.
+`tests/integration/hearing.test.ts` drives it for real and fails on the old
+route.
+
+**G2b.** Neither M34 nor M4.5 had ever run in production. `startWorker` took
+four optional strings that neither entrypoint passed, so the transcriber and
+both media fetchers were `undefined` for the life of the process, and every
+voice note and photo was refused — honestly, which is why nothing looked
+broken. The fetchers are now built from the provider credential the app
+already validates (`src/worker/mediaPorts.ts`), including a new
+`metaAudioFetcher`: the Meta image fetcher accepts only images and would have
+refused every voice note. `TRANSCRIBE_API_KEY` is the one new setting, checked
+at boot when set. Whisper's language names ("arabic") now become the codes the
+product reads ("ar"). The simulator gained voice notes and a media endpoint,
+and `tests/integration/hear-and-see.test.ts` takes a voice note and a photo
+from a signed webhook, through pg-boss and the real worker, to an answer.
+Getting that test to pass twice in a row exposed two old test-isolation holes:
+the simulator reused message ids across runs, which the dedup key then
+swallowed, and integration files ran in parallel with several production
+workers sharing one job queue. The runner now runs files one at a time.
+
+**G2c.** Three things the owner never saw. An unheard voice note and an
+unclear photo recorded their signal but left the conversation with her, so it
+never reached "needs you"; both now take the existing AI → waiting-for-a-person
+transition. Anything else WhatsApp sends — a document, a video, a location, a
+sticker, a reaction — arrived as empty text and got a reply. Now
+`core/conversation/inbound.ts` decides first: reactions and stickers are
+recorded and ignored, and everything else goes to a person under a new
+`media_unreadable` signal (migration 0039, `REQUIRED_SCHEMA_VERSION` 39), shown
+on the conversation page with what arrived and his caption. And Today's list of
+why she needed you was a hand copy that had never learned `audio_unheard`; the
+problem kinds now live once, in `core/scoring/signals.ts`, and both surfaces
+read them.
+
+**G3.** The pilot could not have received a single message. An inbound message
+finds its factory through `channel_credentials`, and only the demo seed ever
+wrote that table; for a real factory every message was acknowledged to Meta and
+dropped, and "Connect" led to a page of steps with no action. `/app/channels`
+now offers **Connect this number** when the host is configured with one and
+this factory has never been connected. It is owner-only, under the same
+decision as activation. It writes the credential, the channel and the audit
+row in one transaction, and the number comes from the validated host
+configuration, never from the form. A number another factory holds becomes a
+clear message instead of an error. Connecting lets messages in; activating is
+still what lets her send. `tests/integration/connect.test.ts` shows a message
+dropped before, received after, dropped on disconnect and received again on
+reconnect.
+
+**G4.** M46's defining scenario — "where is my order?" three weeks later —
+could never be reached. Confirming closes the conversation, his next message
+opens a new one, and the lookup searched only the conversation it was asked in.
+An order the pipeline created also had no first entry in its history, which is
+what the lookup reads, so even the same conversation got nothing. Orders are
+now looked up by buyer (`latestForClient`, on the indexed `orders.client_id`),
+`orders.create` writes the first `confirmed` entry through the one writer, and
+a legacy `pending_confirmation` order is reported as awaiting confirmation
+instead of falling through to the model. The buyer's latest order now appears,
+and opens, on the new conversation and his profile. The confirmation no longer
+promises "a confirmation email is on its way" — nothing here sends e-mail.
+`tests/integration/order-status.test.ts` creates the order the way the turn
+does and fails on the old code; the M46 test had inserted its order by hand,
+first entry included, and never saw either defect.
+
+**G5.** The date M44 refused went out by the side door. During one of her
+closures the quote drops its lead time and a reply cannot state one, but the
+quote row kept no lead time at all, so the buyer's proof page read the
+PRODUCT's and printed it, attributed to her catalogue. Migration 0040 records
+what each quote said: its lead time, or the closure that withheld it (her
+label and dates, and deliberately not the date the lead time would have
+promised). The proof page reads that, says "not yet — the factory is closed
+for …" when a closure is the reason, and renders money in the quote's own
+currency. The owner's closed-card now reads the same record instead of
+re-deriving from today's closures, which had let a closure added after a date
+was promised claim no date was promised. The reply writer gets a closure note
+with her label, so the buyer hears why, and the prompt's worked examples no
+longer model a lead time or promise an e-mail. Old quotes are not backfilled:
+guessing the product's lead time would re-create the leak, so their pages
+state none. `REQUIRED_SCHEMA_VERSION` 40.
+
+**G6.** Every order the pipeline confirmed was stamped "30% deposit, 70%
+before shipment", and every proforma said FOB — one a literal in the turn, the
+other a message key. The owner gave neither, and a proforma is the document a
+buyer pays against. The claims policy could not carry them: its payment terms
+are four fixed patterns and several incoterms can be allowed at once, while a
+proforma names one. Migration 0041 adds `trade_terms`, insert-only with the
+newest row in force (as `sample_policy` and `owner_rates`): her payment terms
+in her own words and the one delivery term she puts on a proforma, drawn from
+the claims guard's own incoterm list. She states them on
+`/app/settings/terms` (owner-only, under the price-rules decision), and saving
+also allows that incoterm as a claim, so her document and her employee say the
+same thing. Orders snapshot both at confirmation (`orders.incoterm` is new),
+so changing her terms rewrites no document a buyer holds. With none stated, the
+order is still recorded; its page shows no proforma and says where to state
+them. Both literals are gone. `REQUIRED_SCHEMA_VERSION` 41.
+
+**G7a.** Her answer to "above how much off should she ask you first?" was
+computed as `requiresHuman`, stored on every quote, and read by nothing: with
+`quote` in auto, a discount past her line went straight to the buyer. It was
+also computed before the floor clamp, so a quote the floor had cut to 6.67%
+still claimed to need her sign-off for the 20% nobody was being given.
+`requiresHuman` is now decided on the final discount, and
+`core/conversation/hold.ts` is the one rule for "this reply waits for her":
+a quantity heard in a voice note (M34.5, folded in) or a discount past her
+line. `computeTurn` decides the reason once; `commitTurn`, the trust harness
+and the sandbox all read that field, and a hold only narrows (auto becomes
+draft; a silenced capability stays silent). A new invariant,
+`heldTurnNeverAutoSends`, is on the sandbox watchlist, and the golden set
+gains `discount-above-ask-line-waits-for-owner` (24 scenarios). The draft
+card says why it is waiting. My factory now promises the ask line, and states
+the HIGHEST ceiling instead of the lowest — "never more than 8%" had been
+shown while a product on a 12% ceiling was given 12%. The price-rules
+questions say what the engine does: the ceiling is the most she may ever give,
+even with the owner's OK; the ask line is where she stops and asks.
+
+**G7b.** M36's guard refused a price above what the buyer already had — and a
+refusal meant no quote, so the turn fell to `recommend`, the owner was never
+asked, and the refusal note still put the new price on the reply's allowed
+list. Approving that reply recorded nothing, so he was refused again next time;
+and every drafted quote counted as history, including the ones she skipped, so
+a price he never saw could become his baseline. The contradiction is now a
+field on the quote and a hold reason (it outranks her discount line). The quote
+exists, the draft states it as a `quote`, and it waits for her; the card shows
+the price he already has, its date, and the new one, and names the worse case
+(more pieces at a higher price each). "History" is now what he was actually
+GIVEN: `priorQuotesForClient` counts a quote only if its reply went out on its
+own or she approved it unchanged. Pending, skipped, rewritten and expired
+drafts never count. So her 发送 is what makes a new price the baseline, in
+`applyOwnerCommand`'s own transaction. **No migration**, where the plan
+expected one. Whether a price was given is already recorded, in
+`drafts.status` joined through `turns.quote_id`, and a flag beside it could
+only drift from it. The golden set gains
+`higher-price-than-already-given-waits-for-owner` (25 scenarios).
+`tests/integration/contradiction.test.ts` runs real turns: approve, raise the
+price, held, skip, still held, approve, then nothing to hold.
+
+**G8.** Two failed attempts ended in a stand-in that went out unguarded, and
+when the analyser had no question it fell back to the refusal note, which is
+guidance TO the writer ("Quantity 10 is below the minimum of 1000."). The page
+of words she must never use promised a reply with one "comes to you instead",
+and nothing did. Now the stand-in takes only the analyser's question, passes
+the numeral, claims and forbidden-word guards, and if it cannot, becomes one
+fixed sentence with nothing to guard (`SAFE_REPLY`). The turn is held for her
+as `guards_failed_twice`, the fourth hold reason, and the card names the words
+that kept stopping it. Auto-demotion still keys off her grant, not the hold. A
+forbidden word found in her OWN text (her taught answer, or the order-status
+line) is its own event, `forbidden_in_her_text`, tagged by path. It is shown on
+the conversation for her latest turn, with a link to fix the answer, and it is
+never a `guard_violation`, so it cannot block promotion for words the employee
+did not write. The forbidden term's `note` is finally written and shown to her.
+And a correction to 0029, made here and not in the applied migration: its
+comment says re-adding an archived term revives it. It never did. Re-adding
+inserts a new row and the archived one keeps its history, which is the better
+rule. `tests/pipeline/guarded.test.ts` drives a forbidden term through every
+path. None reaches the buyer, and the owner gets a draft wherever the employee
+could not write the reply.
+
+**G9.** Staff access was safe on paper: every owner-only POST was gated. But
+a new colleague's access code travelled in the redirect's query string, which
+the production request log records. The pages behind the gates (her floor,
+and the form that hands someone a way in) opened for anyone signed in. And
+staff were shown buttons that could only refuse them.
+- **G9a.** The code now rides a five-minute HttpOnly cookie scoped to
+  `/app/settings/people`, read once and cleared. It is signed with its own
+  `staffcode:` HMAC, not the session codec: that codec signs any payload and
+  reads a person-less session as the owner, so a code token minted with it
+  would have verified as her session. One cookie writer now takes a name. The
+  people and price-rules pages refuse staff with the POST gate's own sentence.
+  My factory, Your employee and Channels hide the owner-only controls and say
+  "The owner decides this." A zh refusal that told staff "only YOU can do this"
+  now names the owner; the zh catalogue rule exempts the `staff.*` lines, the
+  one audience for whom she is 老板. The source tests that read 900 characters
+  after each route name are replaced by a walk signed in as staff, over every
+  owner-only route and page.
+- **G9b.** Every older write site in the web app wrote the literal `'owner'`
+  as its actor, so a sales assistant's actions were recorded as hers. They now
+  write the signed-in person, and the conversation page and My factory show a
+  NAME: "Taken over by Xiao Chen", or "you" for the reader, and never an id.
+  `applyOwnerCommand` no longer writes `drafts.decided_by`. That column
+  references the legacy `agents` table, and the old guard passed any UUID
+  through, so the first approval by someone with a `people` row, the owner
+  included, would have failed the foreign key. Who decided is recorded in the
+  event and `capability_events.actor`, as it always also was.
+
+**G10.** Three things a pilot would have met on day one, and a fourth found
+while building them. Migration 0042.
+- **What was said was not written down.** A voice note, a photo and a file each
+  had a writer into `messages`; a typed line had none, and neither did a reply
+  that went out. The demo seed wrote both directly, so every screen looked
+  right. In production her conversation page would have shown drafts and
+  refusals but never the buyer's words or her own — and `messages` is also
+  where Buyers' latest line, the analytics counts and a contact's "he wrote
+  first" consent evidence come from. A typed line is now recorded as it
+  arrives (before batching), and a reply when the provider accepts it.
+- **One window for every buyer.** WhatsApp allows a free-form reply for 24
+  hours after THAT buyer last wrote, and the send path read
+  `channels.last_inbound_at`, which any buyer's message moves. With two buyers,
+  one silent for a day, his window never closed as far as the gate could tell
+  and Meta rejects the reply it let through. The window now lives on
+  `client_channels` — per buyer, as Meta counts it — written by the webhook
+  with `greatest`, so out-of-order deliveries cannot wind it back.
+- **Approving said "sent" when the gate was about to refuse.** The approve
+  route now asks the same question the reply route asks, the buyer's window
+  included. Live, and he cannot be reached right now: the draft stays pending
+  and she is told why, so she can approve it when he writes again. Not live at
+  all: unchanged — an approval before go-live is her decision recorded.
+- **A number not on her list cost a model call.** During the pilot the gate
+  refuses any reply to one, so the turn only ever produced a draft that could
+  never leave. It is now recorded, named on her timeline, and handed to a
+  person with the reason (`unlisted_number`), before any transcription, vision
+  or model call. She replies herself, or adds the number and hands it back.
+  The rule binds only once messaging is on: before that nothing can reach
+  anyone and her drafts are rehearsal.
+`tests/integration/day-one.test.ts` walks all four through the production
+composition. `REQUIRED_SCHEMA_VERSION` 42.
+
+**G11.** M35 opens with "every quote she sends carries a link", and no quote
+ever did: the owner had to tap a button afterwards, and the page then showed
+her `/p/<token>` — a path with no host, which is not something she can paste to
+a buyer. The minting moved to one writer that takes the caller's transaction
+(`db/proofs.ts`), because the quote a link proves is not visible outside the
+turn's transaction until it commits; the owner's route and the turn now reach
+the same writer, and the turn mints as it records the quote. The link is
+appended AFTER the guards, deliberately: a token's digits are not sourced
+figures and a segment like `-FOB-` is not an authorised claim, so a link inside
+the guarded text would be refused by the very rules that make the text safe. A
+new `PUBLIC_BASE_URL` (https only, checked at boot) is what a whole link is
+built on; absent, no link is attached and the owner is told so on the
+conversation rather than shown half of one. The buyer's page is now in the
+language HE writes in — `clients.preferred_language`, written by the turn from
+the analyser, a column that had existed since the baseline with only the demo
+seed writing it. Two things the page stated that the quote did not: its tier
+band ignored the band's upper bound (a buyer who ordered 20,000 was shown
+"5,000–19,999"), and taught facts were scoped to the conversation rather than
+to the product quoted. Both fixed. The owner's row gained the whole link and
+the styles it never had.
+
+**G12.** M47 left routing out on purpose — "no roles, no permissions matrix,
+no routing" — and that was right while nobody could be handed anything. With
+staff it leaves the boss holding a conversation she cannot answer and no way
+to put it in front of the person who can; a sales assistant has no phone
+number, so a conversation only reaches them through this product. `handTo`
+moves it from one person to another INSIDE `OWNER_CONTROLLED`, through the same
+`canTransition` gate as every other move — the one self-transition the state
+machine now allows, and the AI stays silent either way. Who may receive one is
+a fact about the people table, not a role: a live person of this business, so a
+removed colleague and an id from another tenant are both refused. The
+conversation offers "Hand to…" (everyone but whoever holds it), says whose it
+is by name, and records `handed_to` with both names; the inbox gains a "Mine"
+tab, which appears only once more than one person works there. The header in
+`core/conversation/people.ts` that said NO ROUTING now says what is true: one
+move, not a system.
+
+**G13.** M34 shows the owner what a voice note said and, when the machine could
+not make it out, asks her to type what was said — about a recording she had no
+way to hear. The provider's media id lived only inside the pg-boss job that
+processed the message, so once that job finished nothing could ask WhatsApp for
+the audio again. Migration 0043 keeps the id on the message (a handle, never a
+URL: download links are signed and expire, and never the bytes), and a
+session-gated route streams it back through the same fetcher the worker hears
+with — resolved from the ROW, so a media id in a URL cannot be used to fetch
+anything else. Staff can play it too: whoever holds the conversation needs to
+hear it. A note received before 0043 has no handle and says so; a recording
+WhatsApp no longer holds says it has expired rather than pretending. And once
+she has typed what he said, "Answer this now" hands the conversation back to
+the employee (`resumeAi`, which also settles the signal that flagged it) and
+runs the ORDINARY turn on her words — same guards, same price rules, and
+provenance `transcribed`, because the figures in them are still one human's
+reading of a recording. `REQUIRED_SCHEMA_VERSION` 43.
+
+**G14.** The e-mail pieces are idle until a sender exists, and two of them were
+broken in ways that would only have surfaced on the first real callback.
+- **The bounce webhook could not verify anything in live mode.** A signature is
+  taken over the BYTES a provider sends; this route re-serialised the parsed
+  body and hashed that. Worse, with messaging live the Command Center is mounted
+  on the ingress app, whose JSON parser hands every route a STRING — so it
+  hashed a quoted string and no real event could ever pass. It now lives in a
+  scope of its own with its own raw-body parser (removing the inherited one
+  first, which both modes have), verifies over the bytes, and parses only
+  after. A byte-exact provider sample now passes in both modes.
+- **A correct SPF record read as wrong.** With no provider configured there is
+  no `include:` to look for, and the check called that `malformed` — telling her
+  to fix DNS that was already right. It is now `no_sender`: her record is fine,
+  we cannot confirm it yet, and sending stays refused either way. A record that
+  DELEGATES with `redirect=` is no longer malformed (RFC 7208 forbids an `all`
+  beside it), and the include must match as a WHOLE token — `includes()` matched
+  our mechanism inside `include:mail.example.com.attacker.example`.
+- **A suppression from the webhook is normalised and guarded**, like the
+  unsubscribe page's: an address echoed in another case wrote a second row that
+  no send would ever match, and one bad tenant could turn a batch into a 500 the
+  provider replays.
+- Unsubscribe tokens are signed with a key DERIVED from the session secret for
+  that purpose, derived inside mint and read so no caller can hold the wrong
+  one. `/app/contacts` now gets the domain, so it and the connections page give
+  the same answer about who may be written to. `SENDING_SPF_INCLUDE` and
+  `EMAIL_WEBHOOK_SECRET` are documented.
+- **And a flaky integration failure got its name.** Three simulators in
+  boot.test shared one tag; each restarts its wamid counter, and
+  `provider_message_id` is unique across every tenant, so two of them collided
+  the moment both sent — intermittently, depending on which blocks sent
+  anything. Each instance now has its own tag.
+
+**G15.** "The sample comes off the first order" was a sentence she could state
+and the product never kept: the proforma charged the full total. It is now
+derived when the document renders, with no new storage, from three rows that
+already exist — his FIRST order (counted by `orders.client_id`, the key M46
+looks orders up by, so a second order gets no second credit), that he ASKED for
+a sample (`sample_requests`, reached through its conversation), and the policy
+IN FORCE WHEN HE ASKED (`sample_policy` is insert-only, so the promise he was
+given is the one that was current that day — and a buyer who asked before she
+had stated anything was promised nothing). The proforma shows two lines, never
+one adjusted total: the price he was quoted, the deduction he was promised, and
+what is due. A sample priced in another currency is NOT converted — her rate is
+a decision she states (M43b), and applying one silently to a document a buyer
+pays against is exactly the arithmetic this product refuses to invent; the page
+tells her to take it off herself. The dead branch in `samples.ts` (free-and-
+credited and free-and-not returning the same sentence through two arms) is one
+sentence now. **One lesson worth keeping:** the first version compared the
+order's timestamp against a JavaScript `Date` handed back from the previous
+query, and Postgres stores microseconds where a `Date` holds milliseconds — a
+sample asked for in the same transaction as the order read as 688µs in the
+future and the credit vanished. The comparison stays in the database.
+
+**G16.** A printed price list exists to say this year's prices, and a
+photograph of one could not change a single price: every line was an insert
+that skipped a product she already had, and she was told they were "already
+here". Each confirmed line is now compared with her catalogue by one pure rule
+(`core/onboard/catalogDiff.ts`) and lands in exactly one pile — **new**,
+**changed** (a different price or MOQ), **already as the page says**, or
+**held**. The review and the confirm both compute that diff from the same
+staged lines, so the form carries only which changes she kept ticked, never
+what the changes are: a posted id can choose among changes her own catalogue
+produced, and cannot invent one.
+- **Which product a line is.** Her article number when the line has one (M22).
+  Without one, the product's name (either of its names) — but only when exactly
+  one product has it. A shared name is held rather than guessed, because
+  guessing changes the price of the wrong one.
+- **A line never erases.** No price on the line keeps her price; no MOQ keeps
+  her MOQ. Names are not changed from a page: a misread letter would rename what
+  her buyers already know.
+- **Each change is its own tick, on by default,** beside the line it was read
+  from, so one misread price can be left out without throwing away the sheet.
+- **Changes go through the one audited edit** (`updateProduct`, now taking the
+  import's transaction): the entry tier moves with the list price, her floor
+  still refuses, and the audit row carries the page line that moved the price.
+  A price under her floor is held at the review, naming the rule but never her
+  number, since staff can open this page. A floor she raises between the review
+  and the confirm still wins, and she is told it refused, not "left as it is".
+- A sheet that changes nothing offers nothing to confirm and says so. Rejected
+  lines past the first eight are counted ("and N more") instead of cut. The
+  three upload failures are each named for what they are: `too_large` only for
+  the parser's size limit, `not_a_photo` for a PDF, and `upload_failed` for a
+  form with no file or a stream that broke off. Before, all of these read "too
+  large", and a PDF was told to try better light.
+
+**G17.** M49 set the rules for one measure, one rhythm and two voices, but its
+spacing test read only the shell. Fifteen renderers had 93 off-scale margins and
+gaps between them (a gap of 10 here, a margin of 14 there), the shell had 10
+more, and `margin-inline-end` slipped past the pattern entirely.
+- **G17a · the rhythm.** All 209 raw-pixel margins and gaps in `src/api/web`,
+  off-scale or not, are now `var(--space-N)`. Each moved to the nearest step on
+  the scale; on a tie, margins take the larger step (space between rows opens
+  up) and gaps the smaller (items in a row stay together, matching the shell's
+  own `.fld`). The layout test now reads every renderer, the login page
+  included, and every `margin-*` and `gap`. It refuses any raw pixel value in
+  the space between things, and any token the scale does not emit.
+  - My factory's blocker links were jade, the colour that means "this sends",
+    spent on "this opens a page". They are ink and underlined now. The rule is
+    structural: any class a renderer puts on an `<a>` is checked wherever it is
+    styled, and only a hover or focus may deepen to jade.
+  - Buyers' "nothing waiting" was an `.ok-card` of its own, centred beside a
+    left-aligned page. It uses the shared `.empty` now. Anything still centred
+    is on a named list with its reason: the phone tab bar, the line under the
+    sign-in card, and the rehearsal verdict.
+  - The login button is as wide as its word, like every other button.
+  - Each new rule was checked by reintroducing its defect and watching it fail.
+- **G17b · screenshots.** Playwright, a dev dependency, drives
+  `tools/screenshots.mjs` (`npm run screenshots`). It captures every owner page
+  at phone, tablet and desktop widths in all three languages, plus a contact
+  sheet, and flags pages that did not render, rendered in the wrong language,
+  or are wider than their screen. It is not a CI gate. The first full run was
+  234 captures with nothing flagged; the order page was skipped because the
+  demo tenant has no order.
+  - Two things it surfaced on the way. The smoke script's failure handler ran
+    `kill "${APP_PID:-0}"`: before launch that is `kill 0`, which signals the
+    whole process group, so any tool that called the script died with it. It
+    now stops only what it started.
+  - Locally, this checkout lives in an iCloud-synced folder, and part of
+    `node_modules` and `dist` had been evicted to placeholders that iCloud
+    would not deliver. `node dist/main.js` sat idle forever without printing a
+    line, while the test suites passed because they load other modules. The
+    run-nomi skill now documents the symptom and the check.
+
 ### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 
 #### Block C in detail — built offline, plugged in at M52

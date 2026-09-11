@@ -103,8 +103,37 @@ import type { Db } from './client.js';
  *      a 37 database the connections page throws. The alternative shape is
  *      worse than a throw: a check that cannot be stored is a check that
  *      never goes stale, and stale is the one state this table exists to catch.
+ *
+ * 39 = the 'media_unreadable' signal (0039, G2c). The worker records it the
+ *      moment a buyer sends a document, a video or a location, and hands the
+ *      conversation to a person. Against a 38 database that INSERT fails the
+ *      CHECK, the job retries until it dead-letters, and the conversation is
+ *      neither answered nor handed over — the file the buyer sent is exactly
+ *      the thing that disappears.
+ *
+ * 40 = what a quote said about delivery (0040, G5). `recordQuote` writes
+ *      `quotes.lead_time_days` and `lead_time_withheld` on every quote, and
+ *      the buyer's proof page and the owner's closed-card read them. Against
+ *      a 39 database the first quote fails its INSERT and the turn rolls back
+ *      — she answers nobody who asks a price.
+ *
+ * 41 = her proforma terms (0041, G6). Confirming an order reads `trade_terms`
+ *      and writes `orders.incoterm`, and the order page reads both. Against a
+ *      40 database the confirmation throws and the buyer who said "yes" gets
+ *      no order at all.
+ *
+ * 42 = the buyer's own reply window, and the 'unlisted_number' signal (0042,
+ *      G10). Every inbound message writes `client_channels.last_inbound_at`
+ *      and the send path reads it; a number not on her pilot list records
+ *      the signal. Against a 41 database the webhook's write throws and no
+ *      buyer's message is processed at all.
+ *
+ * 43 = the media id a voice note can be played from (0043, G13). Every voice
+ *      message records it as it arrives. Against a 42 database that INSERT
+ *      fails and no voice note is recorded at all — the message the owner
+ *      most needs to see is the one that disappears.
  */
-export const REQUIRED_SCHEMA_VERSION = 38;
+export const REQUIRED_SCHEMA_VERSION = 43;
 
 export type SchemaState = {
   readonly required: number;

@@ -19,7 +19,12 @@ import type { BusinessId, ConversationId } from '../core/types/ids.js';
 
 export type TakeoverDeps = { readonly db: Db; readonly now: () => Date };
 
-export type TakeoverOutcome = 'taken_over' | 'resumed' | 'not_found' | 'invalid_state';
+export type TakeoverOutcome =
+  | 'taken_over' | 'resumed' | 'not_found' | 'invalid_state'
+  /** G12 — handed to a named colleague. */
+  | 'handed'
+  /** G12 — nobody of that name works here (or they were removed). */
+  | 'unknown_person';
 export type TakeoverResult = { readonly outcome: TakeoverOutcome; readonly ownership: ConversationOwnership | null };
 
 /** Read assigned_to for a tenant-owned conversation. null row = not this tenant's. */
@@ -54,6 +59,49 @@ export async function takeOver(deps: TakeoverDeps, input: { businessId: Business
     await repos.conversations.assign(cid, input.actor || OWNER_AGENT);
     await repos.events.append(cid, 'takeover', { actor: input.actor });
     return { outcome: 'taken_over', ownership: 'OWNER_CONTROLLED' };
+  });
+}
+
+/**
+ * G12 — hand this conversation to a NAMED colleague.
+ *
+ * M47 gave `assigned_to` a person and left routing out on purpose ("no roles,
+ * no permissions matrix, no routing"), which was right while nobody could be
+ * handed anything: with staff, the boss taking a conversation she cannot
+ * answer has nowhere to put it, and the person who can answer it never learns
+ * it exists.
+ *
+ * The ownership model is UNCHANGED and the AI-silent rule is untouched: this
+ * moves the conversation from one person to another inside OWNER_CONTROLLED,
+ * through the same `canTransition` gate as every other move.
+ *
+ * WHO may receive one is a fact about the people table, not a role: a live
+ * person of this business. A removed colleague cannot be handed anything, and
+ * neither can an id from another tenant — the lookup is tenant-scoped.
+ */
+export async function handTo(
+  deps: TakeoverDeps,
+  input: { businessId: BusinessId; conversationId: string; actor: string; toPersonId: string },
+): Promise<TakeoverResult & { readonly toName?: string }> {
+  return withTenantTx(deps.db, input.businessId, async (tx) => {
+    const cid = input.conversationId as ConversationId;
+    const cur = await currentOwnership(tx, input.businessId, input.conversationId);
+    if (cur === null) return { outcome: 'not_found' as const, ownership: null };
+    if (!canTransition(cur, 'OWNER_CONTROLLED')) return { outcome: 'invalid_state' as const, ownership: cur };
+
+    const to = (await sql<{ id: string; name: string }>`
+      select id::text as id, name from people
+       where id = ${input.toPersonId}::uuid and business_id = ${input.businessId}
+         and archived_at is null limit 1`.execute(tx)).rows[0];
+    if (!to) return { outcome: 'unknown_person' as const, ownership: cur };
+
+    await lockConversation(tx, input.conversationId);
+    const repos = tenantRepos(tx, input.businessId);
+    await repos.conversations.assign(cid, to.id);
+    // Both names, because "who gave it to me" is half of what the person
+    // receiving it needs to know.
+    await repos.events.append(cid, 'handed_to', { actor: input.actor, to: to.id });
+    return { outcome: 'handed' as const, ownership: 'OWNER_CONTROLLED' as const, toName: to.name };
   });
 }
 

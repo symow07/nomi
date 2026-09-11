@@ -287,13 +287,13 @@ export function renderPriceRules(
 }
 
 const PRICES_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
+  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); color:var(--color-ink); }
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
-  .plist { list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:18px; }
+  .plist { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
   .prow { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
-  .phead { display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
+  .phead { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
 </style>`;
 
 /**

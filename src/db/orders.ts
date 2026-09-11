@@ -10,7 +10,7 @@ import type { OrderState } from '../core/commerce/orderState.js';
  *
  *   `order_updates` IS THE RECORD. Append-only, the app role cannot UPDATE it,
  *     and it is what she actually said and when. Every read that can reach it
- *     reads it — `latestForConversation` takes the buyer-facing state from its
+ *     reads it — `latestForClient` takes the buyer-facing state from its
  *     head precisely so the answer a buyer gets and the record she keeps cannot
  *     disagree.
  *

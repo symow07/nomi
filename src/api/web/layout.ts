@@ -114,12 +114,12 @@ ${cssVariables()}
   .layout > * { min-width: 0; }
   nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
     padding: var(--space-16) var(--space-12); }
-  .brand { display:flex; align-items:center; gap:10px; font-weight: 700;
+  .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
     font-size:var(--font-size-micro); letter-spacing:0; margin-top:var(--space-4); }
-  nav.side a.navlink { display: flex; align-items: center; gap: 10px; padding: var(--space-12);
+  nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
   nav.side a.navlink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
@@ -129,20 +129,20 @@ ${cssVariables()}
      marks nothing; jade now means only "this sends" and "this is a state". */
   nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
   header.top { display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 8px 12px; padding: var(--space-16) var(--space-24);
+    flex-wrap: wrap; gap: var(--space-8) var(--space-12); padding: var(--space-16) var(--space-24);
     border-bottom: 1px solid var(--color-border); }
-  header.top .who { display:flex; align-items:center; gap:10px; }
+  header.top .who { display:flex; align-items:center; gap:var(--space-8); }
   header.top .whoname { font-weight:600; }
   header.top .avatar { width: 30px; height: 30px; border-radius: var(--radius-chip);
     background:var(--color-jade-wash);
     display:flex; align-items:center; justify-content:center; font-size:var(--font-size-small); }
-  header.top .right { display:flex; align-items:center; gap:14px; }
+  header.top .right { display:flex; align-items:center; gap:var(--space-12); }
   /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
   header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
     color:var(--color-ink-secondary); font-size:var(--font-size-note); white-space:nowrap; }
   /* Logging out is routine, not destructive — no warning colour on hover. */
   header.top .logout:hover { color:var(--color-ink); }
-  .langsw { display:inline-flex; gap:2px; background:var(--color-paper-sunk);
+  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
     border-radius:var(--radius-chip); font-size:var(--font-size-caption);
@@ -172,7 +172,7 @@ ${cssVariables()}
 
   /* Counts. Never a KPI tile — a plain line, the way Today has always drawn it. */
   .stats { display:flex; flex-direction:column; }
-  .stat { display:flex; align-items:baseline; gap:10px; padding:8px 0;
+  .stat { display:flex; align-items:baseline; gap:var(--space-8); padding:8px 0;
     border-bottom:1px solid var(--color-border); }
   .stat:last-child { border-bottom:0; }
   .stat .v { font-size:var(--font-size-base); font-weight:600; color:var(--color-ink);
@@ -237,7 +237,7 @@ ${cssVariables()}
   .tab.on { background:var(--color-paper-sunk); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
-  .back { display:inline-flex; align-items:center; gap:6px; min-height:44px;
+  .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
     color:var(--color-ink); font-size:var(--font-size-note); }
   pre { background:var(--color-paper-sunk); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
@@ -248,7 +248,7 @@ ${cssVariables()}
      line on the settings page, where they read as one run-on sentence with
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
-  .deeper { display:flex; width:fit-content; align-items:center; gap:6px; min-height:44px;
+  .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
     padding:var(--space-8) 0; font-size:var(--font-size-note); color:var(--color-ink); }
   .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
   /* The chevron carries the affordance now that the label does not shout. */
@@ -321,10 +321,10 @@ ${cssVariables()}
     .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     /* Four destinations fit one row on a phone: an equal-width bottom-style bar
        at the top, each a full-height target, no wrapping to three ragged rows. */
-    nav.side { display:flex; gap:6px; padding:10px 12px; border-inline-end:none;
+    nav.side { display:flex; gap:var(--space-4); padding:10px 12px; border-inline-end:none;
       border-bottom:1px solid var(--color-border); }
     nav.side .brand { display:none; }
-    nav.side a.navlink { flex:1; flex-direction:column; gap:3px; margin:0; padding:8px 4px;
+    nav.side a.navlink { flex:1; flex-direction:column; gap:var(--space-4); margin:0; padding:8px 4px;
       min-height:56px; justify-content:center; font-size:var(--font-size-micro); text-align:center; }
     header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
@@ -386,7 +386,8 @@ export function loginPage(input: { readonly locale: Locale; readonly path: strin
   input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
     border:1px solid var(--color-border); background:var(--color-paper-sunk);
     color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-16); }
-  button { width:100%; padding:12px; border:0; border-radius:var(--radius-card);
+  /* M49 — as wide as its word, like every other button in the product. */
+  button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-card);
     background:var(--color-jade); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { background:var(--color-jade-deep); }

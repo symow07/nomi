@@ -43,15 +43,22 @@ describe('M16.1 · conversation ownership (pure)', () => {
     expect(canTransition('WAITING_HUMAN', 'OWNER_CONTROLLED')).toBe(true); // claim
     expect(canTransition('WAITING_HUMAN', 'AI')).toBe(true);          // wave AI back on
     expect(canTransition('OWNER_CONTROLLED', 'AI')).toBe(true);       // resume
+    // G12 — one person hands it to another. It stays inside the same state:
+    // a person holds it either way and the AI is silent either way; only the
+    // name in the column changes.
+    expect(canTransition('OWNER_CONTROLLED', 'OWNER_CONTROLLED')).toBe(true);
   });
 
   it('rejects every invalid transition', () => {
-    for (const s of ALL) expect(canTransition(s, s)).toBe(false);     // no self-transition
+    // G12 — the ONE self-transition is person-to-person, and it is deliberate.
+    // The others stay refused: a conversation cannot hand itself back to the
+    // queue, and the AI cannot re-take one it already has.
     expect(canTransition('OWNER_CONTROLLED', 'WAITING_HUMAN')).toBe(false);
     expect(canTransition('AI', 'AI')).toBe(false);
-    // count: exactly 5 of the 9 ordered pairs are legal
+    expect(canTransition('WAITING_HUMAN', 'WAITING_HUMAN')).toBe(false);
+    // count: exactly 6 of the 9 ordered pairs are legal
     const legal = ALL.flatMap((a) => ALL.map((b) => canTransition(a, b))).filter(Boolean).length;
-    expect(legal).toBe(5);
+    expect(legal).toBe(6);
   });
 });
 

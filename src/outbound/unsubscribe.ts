@@ -48,8 +48,21 @@ export type UnsubscribeClaim = {
 const enc = (s: string): string => Buffer.from(s, 'utf8').toString('base64url');
 const dec = (s: string): string => Buffer.from(s, 'base64url').toString('utf8');
 
-const mac = (secret: string, payload: string): string =>
-  createHmac('sha256', secret).update(`unsubscribe:${payload}`).digest('base64url');
+/**
+ * G14 — signed with a key DERIVED from the installation's secret for this
+ * purpose alone, rather than with the secret itself.
+ *
+ * The `unsubscribe:` prefix already makes one of these useless as a session
+ * and a session useless here. This is the second half of the same idea: the
+ * KEY differs too, so a leak of one — in a log, a backup, a support
+ * transcript — is not a leak of the other. Derived inside both functions
+ * below, so no caller can hold the wrong key.
+ */
+export const unsubscribeKey = (sessionSecret: string): string =>
+  createHmac('sha256', sessionSecret).update('yf-unsubscribe-v1').digest('hex');
+
+const mac = (sessionSecret: string, payload: string): string =>
+  createHmac('sha256', unsubscribeKey(sessionSecret)).update(`unsubscribe:${payload}`).digest('base64url');
 
 /** Constant-time, like every other comparison of a secret in this product. */
 const same = (a: string, b: string): boolean => {

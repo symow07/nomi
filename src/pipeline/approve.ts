@@ -17,7 +17,7 @@ import { ensureSpotChecks } from './spotChecks.js';
  *     provider call, no duplicate outbound logic.
  *   - Idempotency: the draft is resolved FOR UPDATE and only when 'pending', so
  *     a double-submit or a page refresh cannot send twice.
- *   - Audit/trust reuse existing patterns: decided_by/at on the draft, the
+ *   - Audit/trust reuse existing patterns: decided_at on the draft (who, in the event), the
  *     training_examples view derives from 'edited' drafts, 收回 writes a
  *     capability_events row and flips autonomy_policy (the M5 reduction path).
  *
@@ -53,11 +53,13 @@ export async function applyOwnerCommand(
 ): Promise<ApplyResult> {
   const cmd = parseOwnerReply(input.rawReply);
   const now = deps.now();
-  // drafts.decided_by FKs to agents(id); the owner acting via the Command
-  // Center is not an agent row, so it stays null and the human actor is
-  // recorded in the event payload / capability_events.actor (both text).
-  const decidedByAgent = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.decidedBy)
-    ? input.decidedBy : null;
+  // G9b — `drafts.decided_by` is a foreign key to `agents` (0009), a table of
+  // the pre-M47 handoff model that no route writes. It is NEVER written from
+  // here: `decidedBy` is a PERSON id since M47, and the old guard passed any
+  // UUID straight through — every approval by a person with a `people` row,
+  // the owner included, would have failed the foreign key and approved
+  // nothing. Who decided lives where it always also lived, as text: the
+  // `draft_resolved` event payload and `capability_events.actor`.
 
   const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{
     outcome: ApplyOutcome; conversationId: string | null; sendText: string | null;
@@ -77,7 +79,7 @@ export async function applyOwnerCommand(
 
     const resolve = async (status: string, sentText: string | null) => {
       await sql`
-        update drafts set status = ${status}, decided_by = ${decidedByAgent},
+        update drafts set status = ${status},
                decided_at = ${now}, sent_text = ${sentText}
          where id = ${draft.id}
       `.execute(tx);

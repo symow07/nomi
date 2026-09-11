@@ -17,7 +17,9 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
+import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { esc } from './layout.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
  * M9.4 + ADR-0008 — Channel Center. A VIEW + connection-STATE management over
@@ -65,6 +67,12 @@ export type ChannelsData = {
   readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
   /** M40.1 — the domain her mail leaves as, and the last look at its records. */
   readonly domain: SendingDomain | null;
+  /**
+   * G3 — this installation has a WhatsApp number configured and this factory
+   * has never been connected to one, so "Connect this number" can do it here
+   * instead of pointing at a guide. Absent reads as false: the guide.
+   */
+  readonly canConnect?: boolean;
 };
 
 const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
@@ -74,17 +82,26 @@ export async function loadChannels(
   // M39 — resolved at boot, not here: `templateState()` reads the provider and
   // the approved-template list, and asking it twice is how two answers start.
   templateState: TemplateState = 'none',
+  /** G3 — the number this installation is configured with, when it has one. */
+  connectableNumber: string | null = null,
 ): Promise<ChannelsData> {
   const bid = parseBusinessId(businessIdRaw);
   const notConnected: ChannelView = {
     kind: KIND, connected: false, status: 'not_connected', healthOk: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
-  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH, domain: null };
+  if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH, domain: null, canConnect: false };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const outreach = await outreachEnabled(tx, bid.value);
     const domain = await sendingDomain(tx, bid.value);
+    // G3 — Connect creates the credential; Reconnect reactivates one. Any row
+    // at all, active or not, means this factory has been connected before.
+    const hasCredential = (await sql<{ n: number }>`
+      select count(*)::int as n from channel_credentials
+       where business_id = ${bid.value} and channel = ${KIND}
+    `.execute(tx)).rows[0]!.n > 0;
+    const canConnect = messagingEnabled && connectableNumber !== null && !hasCredential;
     const ownerPhone = (await sql<{ p: string | null }>`
       select owner_phone as p from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.p ?? null;
     const row = (await sql<{
@@ -100,7 +117,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, domain };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, domain, canConnect };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -112,7 +129,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone, templateState, outreach, domain,
+        ownerPhone, templateState, outreach, domain, canConnect,
       };
     }
 
@@ -134,7 +151,7 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
-      ownerPhone, templateState, outreach, domain,
+      ownerPhone, templateState, outreach, domain, canConnect,
     };
   });
 }
@@ -164,7 +181,9 @@ export async function saveOwnerPhone(db: Db, businessIdRaw: string, rawPhone: st
 
 export type ChannelFlash =
   | 'nothing_to_connect' | 'no_credential'      // M20.4 (F-08)
-  | 'disconnected' | 'reconnected' | 'test_ok' | 'test_degraded' | 'test_not_connected' | 'failed';
+  | 'disconnected' | 'reconnected' | 'test_ok' | 'test_degraded' | 'test_not_connected' | 'failed'
+  // G3 — connecting the configured number.
+  | 'connected' | 'already_connected' | 'number_taken' | 'not_configured';
 export type ChannelActionResult = { readonly code: ChannelFlash };
 
 async function audit(tx: import('../../db/client.js').Tx, businessId: string, action: string, actor: string) {
@@ -205,6 +224,69 @@ export async function reconnectChannel(db: Db, businessIdRaw: string, actor: str
     if (row.cred !== true) return { code: 'no_credential' as const }; // nothing to connect WITH
     await audit(tx, bid.value, 'reconnect', actor);
     return { code: 'reconnected' as const };
+  });
+}
+
+/**
+ * G3 — connect the WhatsApp number this installation is configured with.
+ *
+ * ── WHY THIS DID NOT EXIST, AND WHAT IT COST ──────────────────────────────
+ *
+ * An inbound message is matched to a factory by `resolve_tenant`, which reads
+ * `channel_credentials`. Nothing in the product ever wrote that table: only the
+ * demo seed did. So on the day a real factory went live, every buyer message
+ * would have been acknowledged to Meta and dropped (src/main.ts, "unknown
+ * credential: ack, never process"), and the Connect button led to a page of
+ * steps with no action on it. Activation could not work either: it updates a
+ * `channels` row that nothing had created.
+ *
+ * ── WHAT IT WRITES, AND WHAT IT DOES NOT ─────────────────────────────────
+ *
+ * The number comes from the HOST's configuration, validated at boot, never
+ * from the form — so this route can only ever connect the number the operator
+ * set up, and a crafted post cannot claim someone else's. The secret stays in
+ * the host environment; `secret_ref` names where it lives rather than holding
+ * it (ADR-0005 §4–5: a database backup must never be a credential dump).
+ *
+ * One tenant transaction: the credential, the channel, the audit row. The
+ * credential's key is unique across ALL businesses, and another factory's row
+ * is invisible here under RLS — so a number held elsewhere surfaces as
+ * `number_taken` from ON CONFLICT, not as an error page.
+ *
+ * Connecting is not activating. Messages start arriving; she still sends
+ * nothing until the owner activates the channel, as before.
+ */
+export async function connectConfiguredNumber(
+  db: Db, businessIdRaw: string, actor: string, phoneNumberId: string | null,
+): Promise<ChannelActionResult> {
+  if (phoneNumberId === null || !META_SHAPE.phoneNumberId(phoneNumberId)) return { code: 'not_configured' };
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const existing = (await sql<{ n: number }>`
+      select count(*)::int as n from channel_credentials
+       where business_id = ${bid.value} and channel = ${KIND}
+    `.execute(tx)).rows[0]!.n;
+    // Connected before: that is Reconnect's job, which reactivates what exists.
+    if (existing > 0) return { code: 'already_connected' as const };
+
+    const cred = (await sql<{ id: string }>`
+      insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
+      values (${bid.value}, ${KIND}, ${phoneNumberId}, 'env:META_WHATSAPP_ACCESS_TOKEN', 'service')
+      on conflict (channel, external_ref) do nothing
+      returning id
+    `.execute(tx)).rows[0];
+    if (!cred) return { code: 'number_taken' as const };
+
+    await sql`
+      insert into channels (business_id, kind, status, credential_id, connected_at, disconnected_at, updated_at)
+      values (${bid.value}, ${KIND}, 'connected', ${cred.id}::uuid, now(), null, now())
+      on conflict (business_id, kind) do update
+        set status = 'connected', credential_id = excluded.credential_id,
+            connected_at = now(), disconnected_at = null, updated_at = now()
+    `.execute(tx);
+    await audit(tx, bid.value, 'connect', actor);
+    return { code: 'connected' as const };
   });
 }
 
@@ -293,12 +375,15 @@ export function satisfiedRequirements(
  * be two different names.
  */
 export function renderDomain(
-  locale: Locale, domain: SendingDomain | null, now: Date = new Date(),
+  locale: Locale, domain: SendingDomain | null, now: Date = new Date(), viewer: Viewer = OWNER_VIEW,
 ): string {
+  // G9a — the domain is hers to set and to check (the routes are owner-only).
+  const form = (d: SendingDomain | null) => viewer.isOwner
+    ? domainForm(locale, d) : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
   if (!domain) {
     return `<div class="dom">
       <p class="muted">${esc(t(locale, 'domain.none'))}</p>
-      ${domainForm(locale, null)}
+      ${form(null)}
     </div>`;
   }
   const verdict = mayUseDomain({ check: domain.check, checkedAt: domain.checkedAt }, now);
@@ -326,10 +411,10 @@ export function renderDomain(
       <span class="pill ${verdict.ok ? 'ok' : 'warn'}">${esc(said)}</span></div>
     <p class="muted">${esc(t(locale, 'domain.intro'))}</p>
     <ul class="dns">${rows}</ul>
-    <form method="post" action="/app/channels/domain/check" class="inline">
+    ${viewer.isOwner ? `<form method="post" action="/app/channels/domain/check" class="inline">
       <button class="btn" type="submit">${esc(t(locale, 'domain.check'))}</button>
-    </form>
-    ${domainForm(locale, domain)}
+    </form>` : ''}
+    ${form(domain)}
   </div>`;
 }
 
@@ -348,6 +433,7 @@ export function renderReach(
   locale: Locale, satisfied: ReadonlySet<Requirement>,
   enabled: ReadonlyMap<OutreachChannel, boolean> = new Map(),
   domain: SendingDomain | null = null,
+  viewer: Viewer = OWNER_VIEW,
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -391,7 +477,10 @@ export function renderReach(
      * belongs on the screen where the decision is made.
      */
     const on = enabled.get(channel) === true;
-    const toggle = !canBeEnabled(channel) ? '' : `
+    // G9a — the switch is hers; a sales assistant sees the state, not the switch.
+    const toggle = !canBeEnabled(channel) ? '' : !viewer.isOwner
+      ? `<div class="outreach"><span class="${on ? 'on' : 'muted'}">${esc(t(locale, on ? 'outreach.on' : 'outreach.off'))}</span></div>`
+      : `
       <div class="outreach">
         <span class="${on ? 'on' : 'muted'}">${esc(t(locale, on ? 'outreach.on' : 'outreach.off'))}</span>
         ${channel === 'whatsapp' && !on
@@ -406,7 +495,7 @@ export function renderReach(
 
     // M40.1 — the domain block sits under e-mail's requirement list, because
     // that requirement is the only thing she can do anything about here.
-    const dom = channel === 'email' ? renderDomain(locale, domain) : '';
+    const dom = channel === 'email' ? renderDomain(locale, domain, new Date(), viewer) : '';
 
     return `<div class="card reach">
       <div class="ch-h"><span class="ch-name">${esc(t(locale, `reach.channel.${channel}` as MessageKey))}</span>
@@ -447,14 +536,23 @@ export function renderReach(
   </div>`;
 }
 
-export function renderChannels(data: ChannelsData, locale: Locale, flash: string | null): string {
+export function renderChannels(
+  data: ChannelsData, locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
+): string {
   const w = data.whatsapp;
   const actions = w.connected
     ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
        <form method="post" action="/app/channels/whatsapp/disconnect" style="display:inline"><button class="btn danger">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
     : w.status === 'disconnected'
       ? `<form method="post" action="/app/channels/whatsapp/reconnect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.reconnect'))}</button></form>`
-      : `<a class="btn send" href="/app/channels/whatsapp/connect">${esc(t(locale, 'channel.action.connect'))}</a>`;
+      // G3 — with a number configured, Connect DOES it; the guide is only for
+      // an installation that has no number yet.
+      : data.canConnect && !viewer.isOwner
+        ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
+      : data.canConnect
+        ? `<form method="post" action="/app/channels/whatsapp/connect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.connectNumber'))}</button></form>
+           <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: EMPLOYEE_NAME[locale] }))}</div>`
+        : `<a class="btn send" href="/app/channels/whatsapp/connect">${esc(t(locale, 'channel.action.connect'))}</a>`;
 
   const pill = w.connected ? `${esc(t(locale, 'channel.status.connected'))} ✓` : esc(t(locale, `channel.status.${w.status}` as MessageKey));
 
@@ -474,7 +572,7 @@ export function renderChannels(data: ChannelsData, locale: Locale, flash: string
 
   // M39 — what each channel allows, before she connects one.
   const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain),
-    data.outreach, data.domain);
+    data.outreach, data.domain, viewer);
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
@@ -519,15 +617,15 @@ export function renderConnectGuide(locale: Locale): string {
 }
 
 const CHANNELS_STYLE = `<style>
-  .ch-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .ch-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
   .ch-name { font-size:var(--font-size-small); font-weight:700; }
-  .ch-desc { font-size:var(--font-size-caption); margin:6px 0 12px; }
-  .ch-info { display:flex; flex-direction:column; gap:6px; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:12px; }
-  .ch-acts { display:flex; gap:8px; flex-wrap:wrap; }
-  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:12px; line-height:1.6; }
-  .ownerform { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+  .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
+  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:var(--space-12); }
+  .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:var(--space-12); line-height:1.6; }
+  .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .soon { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
   .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
-  .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:4px; }
+  .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:var(--space-4); }
 </style>`;

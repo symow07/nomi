@@ -2,7 +2,9 @@ import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/type
 import type { Money } from '../core/types/money.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
-import type { OrderUpdate } from '../core/commerce/orderState.js';
+import type { OrderUpdate, ReportedOrderState } from '../core/commerce/orderState.js';
+import type { WithheldLeadTime } from '../core/commerce/closures.js';
+import type { TradeTerms } from '../core/commerce/terms.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { PriorQuote } from '../core/types/commerce.js';
 import type {
@@ -50,6 +52,20 @@ export interface Tenant {
   readonly ops: OpsRepo;
   readonly drafts: DraftRepo;
   readonly knowledge: KnowledgeRepo;
+  readonly proofs: ProofRepo;
+}
+
+/**
+ * G11 — the buyer's proof link, minted in the turn's own transaction.
+ *
+ * A quote written by this turn is not visible outside it until commit, so the
+ * page that proves it could only ever be created afterwards, by the owner, by
+ * hand. This port is how "every quote she sends carries a link" becomes true
+ * of the turn rather than of a button.
+ */
+export interface ProofRepo {
+  /** Idempotent: one live token per quote. Null when the quote is not ours. */
+  issue(quoteId: string): Promise<{ token: string } | null>;
 }
 
 /**
@@ -107,6 +123,12 @@ export interface ClientRepo {
   /** Persist a captured email so the view surfaces it on every later turn. */
   saveEmail(clientId: ClientId, email: string): Promise<void>;
   touchLastSeen(clientId: ClientId): Promise<void>;
+  /**
+   * G11 — the language the BUYER writes in, remembered on the client. The
+   * column has existed since the baseline and only the demo seed ever wrote
+   * it, so a buyer's own proof page fell back to English however he wrote.
+   */
+  savePreferredLanguage(clientId: ClientId, language: string): Promise<void>;
 }
 
 /**
@@ -132,6 +154,10 @@ export interface AuditRepo {
     total: Money;
     requiresHuman: boolean;
     appliedRules: readonly string[];
+    /** G5 — the lead time the quote STATED, or null. */
+    leadTimeDays: number | null;
+    /** G5 — her closure, when it withheld the lead time. Never `wouldShipOn`. */
+    leadTimeWithheld: WithheldLeadTime | null;
   }): Promise<{ quoteId: string }>;
 
   recordTurn(t: {
@@ -191,6 +217,11 @@ export interface CatalogRepo {
    * reply may contain come from what she wrote down.
    */
   samplePolicy(): Promise<SamplePolicy | null>;
+  /**
+   * G6 — the terms she puts on a proforma, newest in force; null when she has
+   * stated none. Null is the answer, not a gap to fill.
+   */
+  tradeTerms(): Promise<TradeTerms | null>;
   bundleRules(): Promise<BundleRule[]>;
   substitutions(productId: string): Promise<SubstitutionRule[]>;
 }
@@ -226,14 +257,19 @@ export interface OrderRepo {
   }>;
 
   /**
-   * M46 — the order behind this conversation, and the last thing SHE recorded
-   * about it. Null when there is no order yet; that is the ordinary case for
-   * most of a conversation's life.
+   * M46 — this buyer's latest order, and the last thing SHE recorded about it.
+   * Null when he has no order yet; that is the ordinary case for most of a
+   * conversation's life.
+   *
+   * G4 — by BUYER, not by conversation. Confirming an order closes the
+   * conversation it was confirmed in, so "where is my order?" three weeks
+   * later always arrives in a NEW one — which a lookup by conversation could
+   * never find. The question the roadmap named was unanswerable by design.
    */
-  latestForConversation(conversationId: ConversationId): Promise<{
+  latestForClient(clientId: ClientId): Promise<{
     readonly orderId: string;
     readonly reference: string;
-    readonly update: OrderUpdate;
+    readonly update: Omit<OrderUpdate, 'state'> & { readonly state: ReportedOrderState };
   } | null>;
 }
 

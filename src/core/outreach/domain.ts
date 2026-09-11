@@ -37,8 +37,16 @@ export const DOMAIN_CHECK_TTL_MS = 7 * 24 * 3600 * 1000;
 export const DNS_RECORDS = ['spf', 'dkim', 'dmarc'] as const;
 export type DnsRecordKind = (typeof DNS_RECORDS)[number];
 
-/** 'ok' means present AND correctly shaped. Nothing else counts. */
-export type RecordState = 'missing' | 'malformed' | 'unauthorized' | 'ok';
+/**
+ * 'ok' means present AND correctly shaped. Nothing else counts.
+ *
+ * G14 — `no_sender` is the fourth answer, and it is about US, not her: until a
+ * sending provider exists there is no `include:` to look for, so a perfectly
+ * good SPF record cannot be confirmed. Calling that 'malformed' told her to fix
+ * a record that was already right — the one thing this page must never do.
+ * It still refuses to send: unconfirmed is not confirmed.
+ */
+export type RecordState = 'missing' | 'malformed' | 'unauthorized' | 'no_sender' | 'ok';
 
 export type DomainCheck = Readonly<Record<DnsRecordKind, RecordState>>;
 
@@ -57,11 +65,19 @@ export type LookupResult = Readonly<Record<DnsRecordKind, readonly string[]>>;
 export function checkSpf(txt: readonly string[], requiredInclude: string | null): RecordState {
   const record = txt.map((t) => t.trim()).find((t) => t.toLowerCase().startsWith('v=spf1'));
   if (!record) return 'missing';
-  // An "all" mechanism must terminate it, or receivers have no instruction for
-  // everything not listed.
-  if (!/[-~?+]all\s*$/.test(record)) return 'malformed';
-  if (requiredInclude === null) return 'malformed';
-  const authorized = record.toLowerCase().includes(`include:${requiredInclude.toLowerCase()}`);
+  const tokens = record.toLowerCase().split(/\s+/).filter(Boolean);
+  // G14 — a record may DELEGATE instead of terminating: `redirect=` hands the
+  // whole policy to another domain, and RFC 7208 says an `all` must not appear
+  // beside it. Demanding one called every delegating record malformed.
+  const delegates = tokens.some((x) => x.startsWith('redirect='));
+  // An "all" mechanism must otherwise terminate it, or receivers have no
+  // instruction for everything not listed.
+  if (!delegates && !/[-~?+]all\s*$/.test(record)) return 'malformed';
+  // G14 — her record is fine; we are the ones who cannot check it yet.
+  if (requiredInclude === null) return 'no_sender';
+  // G14 — a WHOLE token. `includes()` matched 'include:mail.example.com' inside
+  // 'include:mail.example.com.someone-else.net', which authorises a stranger.
+  const authorized = tokens.includes(`include:${requiredInclude.toLowerCase()}`);
   return authorized ? 'ok' : 'unauthorized';
 }
 

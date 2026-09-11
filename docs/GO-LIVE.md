@@ -72,11 +72,17 @@ in `META-CLOUD-API-SETUP.md`.
    `https://<host>/webhook/whatsapp`, verify token = `WEBHOOK_VERIFY_TOKEN`.
    Meta issues a `GET` handshake; the app echoes the challenge only when the
    token matches.
-5. **Connect the channel** in the Command Center: `/app/channels` → **Connect**,
-   then **activate** the pilot. Activation refuses unless readiness is complete,
-   the allowlist is non-empty, and secrets are confirmed rotated — and it leaves
-   pilot mode ON, because activation starts a controlled pilot rather than
-   ending one.
+5. **Connect the number** in the Command Center: `/app/channels` →
+   **Connect this number** (the owner does this). It records the number set in
+   `META_WHATSAPP_PHONE_NUMBER_ID` as this factory's, which is how an incoming
+   message finds its factory. **Until this step, every message a buyer sends is
+   acknowledged to Meta and dropped** — the webhook answers 200 and nothing is
+   processed, so a test message from your phone will simply never appear. (G3,
+   2026-09-10: before then nothing in the product could do this at all.)
+   Connecting lets messages in; she still sends nothing. Then **activate** the
+   pilot. Activation refuses unless readiness is complete, the allowlist is
+   non-empty, and secrets are confirmed rotated — and it leaves pilot mode ON,
+   because activation starts a controlled pilot rather than ending one.
 6. **First contact — with your own number, not a customer's.** Send a WhatsApp
    message *to* the business number from your own phone and confirm:
    - it appears in `/app/inbox`

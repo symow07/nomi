@@ -214,7 +214,7 @@ export function renderInsights(d: InsightsData, locale: Locale): string {
 }
 
 const INSIGHT_STYLE = `<style>
-  .insight { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  .insight { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
              padding:10px 0; border-bottom:1px solid var(--color-border); }
   .insight:last-child { border-bottom:0; }
   .iline { flex:1; }

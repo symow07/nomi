@@ -306,8 +306,8 @@ export function renderOperationsHome(
     /* .block is the shell's now — Today is where the pattern came from. */
     /* Not-live is neutral, not celebratory: no tick, no green. */
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
-    .needs { display:flex; flex-direction:column; gap:10px; }
-    a.need { display:flex; align-items:center; gap:14px; background:var(--color-surface);
+    .needs { display:flex; flex-direction:column; gap:var(--space-8); }
+    a.need { display:flex; align-items:center; gap:var(--space-12); background:var(--color-surface);
              border:1px solid var(--color-border); border-radius:12px; padding:16px 18px; }
     a.need:hover, a.need:focus-visible { border-color:var(--color-jade-line); }
     .need-n { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); min-width:1.6em;
@@ -326,18 +326,18 @@ export function renderOperationsHome(
     /* Not live is not an achievement: the rule is quiet, not jade. */
     .calm-page.off .calm-rule { background:var(--color-border); }
     /* Plain count lines — no tiles, no grid, no colour coding. */
-    .counts { display:flex; flex-direction:column; gap:2px; }
-    .tline { display:flex; align-items:baseline; gap:12px; padding:7px 0;
+    .counts { display:flex; flex-direction:column; gap:var(--space-4); }
+    .tline { display:flex; align-items:baseline; gap:var(--space-12); padding:7px 0;
              border-bottom:1px solid var(--color-border); }
     .tline:last-child { border-bottom:0; }
     .tnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em;
             font-variant-numeric:tabular-nums; }
     .tlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-    .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 6px; }
+    .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 var(--space-8); }
     .sub { font-size:var(--font-size-caption); letter-spacing:0;
-           color:var(--color-ink-secondary); margin:16px 0 8px; font-weight:600; }
+           color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); font-weight:600; }
     .quiet { color:var(--color-ink-secondary); margin:0; }
-    .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:22px 0 0;
+    .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:var(--space-24) 0 0;
                padding-top:16px; border-top:1px solid var(--color-border); }
     @media (max-width:560px) {
       .need-n { font-size:var(--font-size-numeral); }

@@ -32,6 +32,8 @@ import { activationPreconditions, activationState, type ActivationRefusal } from
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
+import { OWNER_VIEW, actorName, type Person, type Viewer } from '../../core/conversation/people.js';
+import { loadPeople } from './people.js';
 import {
   rehearseFactory, PROBE_CAP,
   type FactoryFixture, type FactoryProduct, type FindingReason, type RehearsalReport,
@@ -56,15 +58,24 @@ export type FactoryPromises = {
    * reported numbers no quote has ever used.
    *
    * Only what the guard enforces is stated: `quote.ts` clamps the price at the
-   * floor and the discount at the ceiling. `humanRequiredAbovePct` is NOT a gate
-   * — it lands in the quote audit and never decides draft-vs-send — so it is not
-   * presented to the owner as a rule.
+   * floor and the discount at the ceiling, and — since G7a — a discount past
+   * her ask-first line waits for her (core/conversation/hold.ts). Before G7a
+   * that line was stored and never read, so this page did not state it.
+   *
+   * Each figure is the one that makes the sentence true on EVERY product:
+   * the lowest floor ("never below"), the highest ceiling ("never more than
+   * … — less on some"), the highest ask line ("above … she asks — sooner on
+   * some"). The ceiling used to be the lowest, which promised 8% while a
+   * product on a 12% ceiling could be given 12%.
    */
   readonly floorLow: Money | null;
   readonly floorHigh: Money | null;
   readonly ceilingPct: number | null;
   /** true when different products carry different ceilings. */
   readonly ceilingVaries: boolean;
+  /** G7a — the ask-first line; null when she has stated no price rules. */
+  readonly askPct?: number | null;
+  readonly askVaries?: boolean;
 };
 
 /** Getting ready to go live — a summary of the EXISTING pilot readiness model. */
@@ -110,6 +121,8 @@ export type FactoryView = {
   readonly rehearsal: RehearsalReport | null;
   /** M29 — how much of her own price limits she has actually stated. */
   readonly prices: PriceRulesView;
+  /** G9b — who works here, so "started by" names a person rather than an id. */
+  readonly people?: readonly Person[];
 };
 
 /**
@@ -121,6 +134,7 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
   const bid = parseBusinessId(businessIdRaw);
   const none: FactoryPromises = {
     certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false,
+    askPct: null, askVaries: false,
   };
   if (!bid.ok) return none;
 
@@ -130,8 +144,9 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
       repos.catalog.claimsPolicy(),
       // Every rule the guard could reach, not just the fallback. A per-product
       // row wins, so when any exists the business-wide row is never consulted.
-      sql<{ floor: string; ceiling: string; product_id: string | null }>`
-        select floor_price_usd as floor, max_discount_pct as ceiling, product_id
+      sql<{ floor: string; ceiling: string; ask: string; product_id: string | null }>`
+        select floor_price_usd as floor, max_discount_pct as ceiling,
+               human_required_above_pct as ask, product_id
           from pricing_policy where business_id = ${bid.value}
       `.execute(tx).then((r) => r.rows),
     ]);
@@ -139,14 +154,17 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
     const applies = perProduct.length > 0 ? perProduct : rows;
     const floors = applies.map((r) => Number(r.floor));
     const ceilings = [...new Set(applies.map((r) => Number(r.ceiling)))];
+    const asks = [...new Set(applies.map((r) => Number(r.ask)))];
     return {
       certs: claims
         .filter((c) => c.allowed && (c.kind === 'certification' || c.kind === 'compliance'))
         .map((c) => c.claimKey),
       floorLow: floors.length ? usd(Math.min(...floors)) : null,
       floorHigh: floors.length ? usd(Math.max(...floors)) : null,
-      ceilingPct: ceilings.length ? Math.min(...ceilings) : null,
+      ceilingPct: ceilings.length ? Math.max(...ceilings) : null,
       ceilingVaries: ceilings.length > 1,
+      askPct: asks.length ? Math.max(...asks) : null,
+      askVaries: asks.length > 1,
     };
   });
 }
@@ -270,7 +288,7 @@ export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices, people] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -287,6 +305,7 @@ export async function loadFactory(
     // the page already trusts and runs pure code over them.
     loadFactoryRehearsal(db, businessIdRaw),
     loadPriceRules(db, businessIdRaw),
+    loadPeople(db, businessIdRaw),
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -316,6 +335,7 @@ export async function loadFactory(
     },
     rehearsal,
     prices,
+    people,
   };
 }
 
@@ -399,14 +419,16 @@ const fact = (label: string, value: string | null): string =>
  * in the interface voice. That is the whole rule, applied here for the first
  * time.
  */
-const section = (title: string, question: string, body: string, href: string, more: string): string =>
+const section = (title: string, question: string, body: string, href: string | null, more: string): string =>
   `<section class="fblock">
     <div class="fhead"><h2>${esc(title)}</h2><p class="fq">${esc(question)}</p></div>
     ${body}
-    ${deeper(href, more)}
+    ${href ? deeper(href, more) : ''}
   </section>`;
 
-export function renderFactory(f: FactoryView, locale: Locale, flash: string | null = null): string {
+export function renderFactory(
+  f: FactoryView, locale: Locale, flash: string | null = null, viewer: Viewer = OWNER_VIEW,
+): string {
   const name = EMPLOYEE_NAME[locale];
   const p = f.profile;
 
@@ -452,11 +474,12 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
 
   // 3 · What you promise buyers — the guard's allowlist in the owner's words.
   //     Everything not listed is refused; that rule is stated, never implied.
-  // Only the two things the guard actually enforces, and only in the shape the
-  // owner's own data takes: one floor, or a range across her products.
+  // Only what the guard actually enforces, and only in the shape the owner's
+  // own data takes: one floor, or a range across her products.
   const lo = f.promises.floorLow;
   const hi = f.promises.floorHigh;
   const ceil = f.promises.ceilingPct;
+  const ask = f.promises.askPct ?? null;
   const priceRules = [
     lo !== null && hi !== null
       ? (lo.amount === hi.amount && lo.currency === hi.currency
@@ -466,6 +489,11 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ceil !== null
       ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
         { ceil, name })
+      : null,
+    // G7a — a gate now, so a promise. Not stated when it can never fire: an
+    // ask line at the ceiling is a question the clamp means she never asks.
+    ask !== null && ceil !== null && ask < ceil
+      ? t(locale, f.promises.askVaries ? 'factory.promise.askVaries' : 'factory.promise.ask', { ask, name })
       : null,
   ].filter((x): x is string => x !== null);
 
@@ -557,8 +585,10 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
   // M20.3 — the decision itself. Confirmed, because it is the moment a real
   // buyer can first be reached; and reversible, because the stop control is
   // never further away than the start one was.
-  const confirmBtn = (action: string, cls: string, label: string, question: string) =>
-    `<form method="post" action="/app/factory/${action}" class="inline">
+  // G9a — turning messaging on or off is hers: staff see the state, not the switch.
+  const confirmBtn = (action: string, cls: string, label: string, question: string) => !viewer.isOwner
+    ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`
+    : `<form method="post" action="/app/factory/${action}" class="inline">
       <button class="btn ${cls}" type="submit"
               onclick="return confirm(this.dataset.confirm)"
               data-confirm="${esc(question)}">${esc(label)}</button>
@@ -567,7 +597,11 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
   const readyBody = r.live
     ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>
        ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
-          when: formatDate(locale, r.activatedAt), who: r.activatedBy ?? '' }))}</p>` : ''}
+          when: formatDate(locale, r.activatedAt),
+          // G9b — a name, or "you" for the reader; never the id in the column.
+          who: actorName(r.activatedBy, f.people ?? [], viewer, {
+            you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+          }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
        <div class="facts">${confirmBtn('deactivate', 'danger',
@@ -599,7 +633,9 @@ export function renderFactory(f: FactoryView, locale: Locale, flash: string | nu
     ${section(t(locale, 'factory.about.title'), t(locale, 'factory.about.q'), aboutBody, '/app/settings', t(locale, 'factory.about.more'))}
     ${section(t(locale, 'factory.sell.title'), t(locale, 'factory.sell.q'), sellBody, '/app/products', t(locale, 'factory.sell.more'))}
     ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
-    ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody, '/app/factory/prices', t(locale, 'factory.prices.more'))}
+    ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody,
+      // G9a — the price-rules page is the owner's; no link to a refusal.
+      viewer.isOwner ? '/app/factory/prices' : null, t(locale, 'factory.prices.more'))}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
     ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
     ${FACTORY_STYLE}`;
@@ -613,7 +649,7 @@ const FACTORY_STYLE = `<style>
      loudest object on a page about somebody's factory, and it competed with the
      two lines that actually report how her business stands. A raised sheet
      says "start here" without spending the one colour that means something. */
-  .fnext { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  .fnext { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
            background:var(--color-paper); border:1px solid var(--color-border); border-radius:14px;
            padding:var(--space-16); margin-bottom:var(--space-24); }
   .fnext:hover, .fnext:focus-visible { border-color:var(--color-ink-secondary); }
@@ -624,50 +660,51 @@ const FACTORY_STYLE = `<style>
   .fblock:first-of-type { border-top:0; padding-top:0; }
   .fhead { margin-bottom:var(--space-12); }
   .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
-  .fq { margin:4px 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fq { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
 
   .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
-  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:8px 0 0; max-width:var(--measure-prose); }
-  .fdesc-lead { margin:0 0 12px; }
+  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .fdesc-lead { margin:0 0 var(--space-12); }
   .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:0; max-width:var(--measure-prose); }
-  .facts { margin-top:14px; display:flex; flex-direction:column; gap:9px; }
-  .frow { display:flex; gap:14px; font-size:var(--font-size-note); }
+  .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
+  .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-note); }
   .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
   .fval { color:var(--color-ink); }
 
   /* A product tally is never the loudest thing an owner reads. */
-  .fcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:9px;
+  .fcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8);
             font-variant-numeric:tabular-nums; }
   .fcount-l { font-size:var(--font-size-note); font-weight:400; color:var(--color-ink-secondary); }
-  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:6px 0 0; }
-  .fwarn { color:var(--color-highlight); font-size:var(--font-size-note); margin:12px 0 0; }
-  .fok { color:var(--color-jade); font-size:var(--font-size-note); margin:12px 0 0; }
+  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:var(--space-8) 0 0; }
+  .fwarn { color:var(--color-highlight); font-size:var(--font-size-note); margin:var(--space-12) 0 0; }
+  .fok { color:var(--color-jade); font-size:var(--font-size-note); margin:var(--space-12) 0 0; }
 
-  .fchips { display:flex; flex-wrap:wrap; gap:8px; }
+  .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px;
            background:var(--color-paper-sunk); color:var(--color-ink); border:1px solid var(--color-border); }
-  .frules { margin:14px 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-note); line-height:1.6; }
+  .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-note); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
   .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6;
             color:var(--color-ink); max-width:var(--measure-prose);
             border-inline-start:2px solid var(--color-jade); padding-inline-start:14px; }
-  .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .fsteps li { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
   .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
-  .rehear { margin-top:12px; display:flex; flex-direction:column; gap:14px; }
-  .fgap .fnames { margin-top:3px; }
-  .alform { display:flex; flex-direction:column; gap:10px; margin-top:14px; max-width:var(--measure-form); }
-  .alform .fld { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); }
+  .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
+  .fgap .fnames { margin-top:var(--space-4); }
+  .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
+  .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); }
   .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
     color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .rm { margin-inline-start:8px; }
-  .blink { color:var(--color-jade); }
-  .fconn { display:flex; align-items:center; gap:13px; }
+  .rm { margin-inline-start:var(--space-8); }
+  /* M49 — a link is ink; jade is spent on sending and on state. */
+  .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .fconn { display:flex; align-items:center; gap:var(--space-12); }
   .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
   .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .fconn-h { font-size:var(--font-size-caption); margin-top:2px; }
+  .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .fconn-i { font-size:var(--font-size-numeral); }
   .fconn.on .fconn-s { color:var(--color-jade); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
@@ -675,9 +712,9 @@ const FACTORY_STYLE = `<style>
   .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-highlight); }
   .fconn.off .fconn-s { color:var(--color-highlight); }
   .fconn.off .go { margin-inline-start:auto; }
-  .fblock .deeper { margin-top:8px; }
+  .fblock .deeper { margin-top:var(--space-8); }
   @media (max-width:560px) {
-    .frow { flex-direction:column; align-items:flex-start; gap:2px; }
+    .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
   }
 </style>`;

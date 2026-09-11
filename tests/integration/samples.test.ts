@@ -18,6 +18,7 @@ const d = DATABASE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd450000-0000-4000-8000-${RUN}0001`;
+const PROD = `dd450000-0000-4000-8000-${RUN}0003`;
 
 d('M45 · samples (requires DATABASE_URL)', () => {
   let app: import('fastify').FastifyInstance;
@@ -276,6 +277,85 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     // and the conversation stops carrying it too
     const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
     expect((await loadConversationDetail(db, BIZ, convId, new Date()))!.sampleAsked).toBeNull();
+  });
+
+  /* ── G15 · the credit reaches the proforma ─────────────────────────────── */
+
+  it('G15 · A FIRST ORDER AFTER A CREDITED SAMPLE SHOWS THE DEDUCTION', async () => {
+    // Her policy: $25, credited on the first order. Stated BEFORE he asks —
+    // the promise he was given is the one that was current that day.
+    expect((await post('/app/settings/samples', 'price=25&credited=on')).statusCode).toBe(302);
+    // His own conversation: the FIRST ask is the obligation (M45), and the
+    // buyer above asked before she had stated anything at all — so nothing was
+    // promised to him, which is a different test.
+    const { client, order } = await tx(async (t) => {
+      const cl = (await sql<{ id: string }>`
+        insert into clients (business_id, phone, display_name)
+        values (${BIZ}, ${`+8615${RUN}`}, 'Karim') returning id::text as id`.execute(t)).rows[0]!.id;
+      const conv0 = (await sql<{ id: string }>`
+        insert into conversations (business_id, client_id, channel, phase)
+        values (${BIZ}, ${cl}::uuid, 'whatsapp', 'confirmation') returning id::text as id`.execute(t)).rows[0]!.id;
+      await sql`insert into sample_requests (business_id, conversation_id, asked_text, requested_at)
+                values (${BIZ}, ${conv0}::uuid, 'can I get a sample first?', now())`.execute(t);
+      await sql`insert into products (id, business_id, sku, name, unit, moq, is_active)
+                values (${PROD}, ${BIZ}, ${'SM-' + RUN}, 'Canvas tote bag', 'pcs', 500, true)
+                on conflict (id) do nothing`.execute(t);
+      const o = (await sql<{ id: string }>`
+        insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
+                            quantity, unit, agreed_unit_price_usd, total_value_usd, currency,
+                            payment_terms, incoterm, status, confirmed_at)
+        values (${'SM-' + RUN}, ${BIZ}, ${cl}::uuid, ${conv0}::uuid, ${PROD}::uuid,
+                1000, 'pcs', 0.50, 500, 'USD', '50% with order', 'CIF', 'confirmed', now())
+        returning id::text as id`.execute(t)).rows[0]!.id;
+      return { client: cl, order: o };
+    });
+
+    const page = await app.inject({ method: 'GET', url: `/app/orders/${order}`, headers: { cookie } });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('PROFORMA INVOICE');
+    expect(page.body).toContain('Less sample already paid: -$25.00');
+    // Two lines, never one adjusted total: he must be able to see the price he
+    // was quoted AND the deduction he was promised.
+    expect(page.body).toContain('Total: $500.00');
+    expect(page.body).toContain('Amount due: $475.00');
+
+    // …and a SECOND order — he came back, in a new conversation, as M46's
+    // buyer does — gets no second credit.
+    const second = await tx(async (t) => {
+      const later = (await sql<{ id: string }>`
+        insert into conversations (business_id, client_id, channel, phase)
+        values (${BIZ}, ${client}::uuid, 'whatsapp', 'confirmation') returning id::text as id`.execute(t)).rows[0]!.id;
+      return (await sql<{ id: string }>`
+        insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
+                            quantity, unit, agreed_unit_price_usd, total_value_usd, currency,
+                            payment_terms, incoterm, status, confirmed_at)
+        values (${'SM2-' + RUN}, ${BIZ}, ${client}::uuid, ${later}::uuid, ${PROD}::uuid,
+                1000, 'pcs', 0.50, 500, 'USD', '50% with order', 'CIF', 'confirmed', now())
+        returning id::text as id`.execute(t)).rows[0]!.id;
+    });
+    const again = await app.inject({ method: 'GET', url: `/app/orders/${second}`, headers: { cookie } });
+    expect(again.body).not.toContain('Less sample already paid');
+    expect(again.body).toContain('Total: $500.00');
+  });
+
+  it('G15 · a buyer who asked for no sample is owed nothing', async () => {
+    const other = await tx(async (t) => {
+      const cl = (await sql<{ id: string }>`
+        insert into clients (business_id, phone, display_name)
+        values (${BIZ}, ${`+8614${RUN}`}, 'Farid') returning id::text as id`.execute(t)).rows[0]!.id;
+      const conv = (await sql<{ id: string }>`
+        insert into conversations (business_id, client_id, channel, phase)
+        values (${BIZ}, ${cl}::uuid, 'whatsapp', 'confirmation') returning id::text as id`.execute(t)).rows[0]!.id;
+      return (await sql<{ id: string }>`
+        insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
+                            quantity, unit, agreed_unit_price_usd, total_value_usd, currency,
+                            payment_terms, incoterm, status, confirmed_at)
+        values (${'SM3-' + RUN}, ${BIZ}, ${cl}::uuid, ${conv}::uuid, ${PROD}::uuid,
+                1000, 'pcs', 0.50, 500, 'USD', '50% with order', 'CIF', 'confirmed', now())
+        returning id::text as id`.execute(t)).rows[0]!.id;
+    });
+    const page = await app.inject({ method: 'GET', url: `/app/orders/${other}`, headers: { cookie } });
+    expect(page.body).not.toContain('Less sample already paid');
   });
 
   it('what she typed wrong does not become a policy', async () => {

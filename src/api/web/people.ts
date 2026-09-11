@@ -40,6 +40,52 @@ const sameHash = (a: string, b: string): boolean => {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 };
 
+/**
+ * G9a — a code she has just issued, on its way to the one page that shows it.
+ *
+ * It used to travel in the redirect's query string, and a URL is the one
+ * place a secret is certain to be written down: the production request log,
+ * the browser history, any proxy in between. Now it rides a short-lived,
+ * HttpOnly cookie scoped to the people page, read once and cleared.
+ *
+ * SIGNED WITH ITS OWN PURPOSE, NOT THE SESSION CODEC. The session codec signs
+ * any payload and reads a session without a person as the OWNER — so a code
+ * token minted by it would verify as an owner's session, and a session would
+ * verify here. The `staffcode:` prefix (as `unsubscribe:` in
+ * outbound/unsubscribe.ts) makes each token useless as the other.
+ */
+export const ISSUED_COOKIE = 'yf_issued';
+export const ISSUED_PATH = '/app/settings/people';
+/** Long enough to land on the page; short enough that a forgotten tab forgets it. */
+export const ISSUED_TTL_MS = 5 * 60 * 1000;
+
+const issuedMac = (secret: string, payload: string): string =>
+  createHmac('sha256', secret).update(`staffcode:${payload}`).digest('base64url');
+
+export function mintIssuedCode(secret: string, issued: { name: string; code: string }, now: number): string {
+  const payload = Buffer.from(JSON.stringify([issued.name, issued.code, now + ISSUED_TTL_MS]), 'utf8')
+    .toString('base64url');
+  return `${payload}.${issuedMac(secret, payload)}`;
+}
+
+/** Null for anything but a fresh token this installation minted for this purpose. */
+export function readIssuedCode(
+  secret: string, token: string | undefined, now: number,
+): { name: string; code: string } | null {
+  if (!token) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const payload = token.slice(0, dot);
+  if (!sameHash(token.slice(dot + 1), issuedMac(secret, payload))) return null;
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!Array.isArray(parsed) || parsed.length !== 3) return null;
+    const [name, code, exp] = parsed as unknown[];
+    if (typeof name !== 'string' || typeof code !== 'string' || typeof exp !== 'number' || exp < now) return null;
+    return { name, code };
+  } catch { return null; }
+}
+
 export type PeopleView = {
   readonly people: readonly (Person & { readonly addedAt: Date })[];
   /** Shown ONCE, immediately after creating someone. Never stored. */
