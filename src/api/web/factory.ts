@@ -14,7 +14,7 @@
  * /app/channels) stay exactly as they are and are linked, not replaced.
  */
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
@@ -144,23 +144,35 @@ async function loadPromises(db: Db, businessIdRaw: string): Promise<FactoryPromi
       repos.catalog.claimsPolicy(),
       // Every rule the guard could reach, not just the fallback. A per-product
       // row wins, so when any exists the business-wide row is never consulted.
-      sql<{ floor: string; ceiling: string; ask: string; product_id: string | null }>`
+      sql<{ floor: string; ceiling: string; ask: string; product_id: string | null; currency: string }>`
         select floor_price_usd as floor, max_discount_pct as ceiling,
-               human_required_above_pct as ask, product_id
+               human_required_above_pct as ask, product_id, currency
           from pricing_policy where business_id = ${bid.value}
       `.execute(tx).then((r) => r.rows),
     ]);
     const perProduct = rows.filter((r) => r.product_id !== null);
     const applies = perProduct.length > 0 ? perProduct : rows;
-    const floors = applies.map((r) => Number(r.floor));
+    /**
+      * G18 — a range is only a range inside ONE currency.
+      *
+      * "She never quotes below $0.30" was built from every floor she has, as
+      * though each were dollars. Two currencies would make that sentence a
+      * number she never said, on the page where she checks what her employee
+      * may promise. So the span is stated only when her floors agree on the
+      * currency; otherwise she is told nothing here rather than told a mixture.
+      */
+     const byCurrency = new Map<string, number[]>();
+     for (const r of applies) byCurrency.set(r.currency, [...(byCurrency.get(r.currency) ?? []), Number(r.floor)]);
+     const onlyCurrency = byCurrency.size === 1 ? [...byCurrency.keys()][0]! : null;
+     const floors = onlyCurrency ? byCurrency.get(onlyCurrency)! : [];
     const ceilings = [...new Set(applies.map((r) => Number(r.ceiling)))];
     const asks = [...new Set(applies.map((r) => Number(r.ask)))];
     return {
       certs: claims
         .filter((c) => c.allowed && (c.kind === 'certification' || c.kind === 'compliance'))
         .map((c) => c.claimKey),
-      floorLow: floors.length ? usd(Math.min(...floors)) : null,
-      floorHigh: floors.length ? usd(Math.max(...floors)) : null,
+      floorLow: floors.length && onlyCurrency ? moneyFromRow(Math.min(...floors), onlyCurrency) : null,
+      floorHigh: floors.length && onlyCurrency ? moneyFromRow(Math.max(...floors), onlyCurrency) : null,
       ceilingPct: ceilings.length ? Math.max(...ceilings) : null,
       ceilingVaries: ceilings.length > 1,
       askPct: asks.length ? Math.max(...asks) : null,

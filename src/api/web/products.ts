@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, parseCurrency } from '../../core/types/money.js';
+import { type Money, usd, parseCurrency, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
@@ -46,11 +46,11 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => (await sql<{
     id: string; name: string; name_zh: string | null; sku: string; moq: number; unit: string;
-    is_active: boolean; price: string | null;
+    is_active: boolean; price: string | null; currency: string;
     entry_qty: number | null; entry_price: string | null; extras: number;
   }>`
     select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
-           t.min_qty as entry_qty, t.unit_price_usd as entry_price,
+           p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
            (select count(*) from product_aliases a where a.product_id = p.id)
              + (select count(*) from product_images i where i.product_id = p.id) as extras
       from products p
@@ -63,7 +63,8 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
     return {
       id: r.id, name: r.name, nameZh: r.name_zh, sku: r.sku, moq: r.moq, unit: r.unit,
       entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq : null),
-      entryPrice: entryPrice === null ? null : usd(entryPrice),
+      // G18 — her product's own currency, not an assumed dollar.
+      entryPrice: entryPrice === null ? null : moneyFromRow(entryPrice, r.currency),
       learned: r.is_active && entryPrice !== null,
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
@@ -98,23 +99,32 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     const p = (await sql<{
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
       unit: string; moq: number; lead_time_days: number | null; customizable: boolean;
-      is_active: boolean; price: string | null;
-    }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active, price_usd_per_unit as price
+      is_active: boolean; price: string | null; currency: string;
+    }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
+              price_usd_per_unit as price, currency
          from products where id = ${productId} limit 1`.execute(tx)).rows[0];
     if (!p) return null;
 
-    const tiers = (await sql<{ min_qty: number; max_qty: number | null; unit_price_usd: string }>`
-      select min_qty, max_qty, unit_price_usd from price_tiers where product_id = ${productId} order by min_qty asc`
-      .execute(tx)).rows.map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPrice: usd(Number(tr.unit_price_usd)) }));
+    const tiers = (await sql<{ min_qty: number; max_qty: number | null; unit_price_usd: string; currency: string }>`
+      select min_qty, max_qty, unit_price_usd, currency from price_tiers where product_id = ${productId} order by min_qty asc`
+      .execute(tx)).rows
+      .map((tr) => ({ minQty: tr.min_qty, maxQty: tr.max_qty, unitPrice: moneyFromRow(Number(tr.unit_price_usd), tr.currency) }))
+      .filter((tr): tr is { minQty: number; maxQty: number | null; unitPrice: Money } => tr.unitPrice !== null);
     const aliases = (await sql<{ alias: string }>`
       select distinct alias from product_aliases where product_id = ${productId} order by alias limit 40`
       .execute(tx)).rows.map((a) => a.alias);
     const images = (await sql<{ url: string }>`
       select url from product_images where product_id = ${productId} order by is_primary desc, sort_order asc limit 8`
       .execute(tx)).rows.map((i) => i.url);
-    const recentQuotes = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string }>`
-      select quantity, unit_price_usd, total_usd from quotes where product_id = ${productId} order by created_at desc limit 5`
-      .execute(tx)).rows.map((q) => ({ quantity: q.quantity, unitPrice: usd(Number(q.unit_price_usd)), total: usd(Number(q.total_usd)) }));
+    const recentQuotes = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string; currency: string }>`
+      select quantity, unit_price_usd, total_usd, currency from quotes where product_id = ${productId} order by created_at desc limit 5`
+      .execute(tx)).rows
+      .map((q) => ({
+        quantity: q.quantity,
+        unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency),
+        total: moneyFromRow(Number(q.total_usd), q.currency),
+      }))
+      .filter((q): q is { quantity: number; unitPrice: Money; total: Money } => q.unitPrice !== null && q.total !== null);
 
     const learned = p.is_active && (tiers.length > 0 || p.price !== null);
     return {

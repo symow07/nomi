@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { issueProofLinkTx } from '../../db/proofs.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -198,6 +198,16 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
         `.execute(tx)).rows
       : [];
 
+    // G18 — the price a BUYER relies on, in the currency it was quoted in.
+    // The old `?? usd(...)` made an unpriceable row read as dollars on the one
+    // page whose whole claim is that it states only what the quote said. A
+    // currency this build cannot price is not a proof page: it reads as a link
+    // that no longer resolves, which is the same fail-closed answer the page
+    // already gives for a quote that is gone.
+    const unitPrice = moneyFromRow(Number(q.unit_price_usd), q.currency);
+    const total = moneyFromRow(Number(q.total_usd), q.currency);
+    if (!unitPrice || !total) return null;
+
     const locale = await buyerLocale(tx, r.conversation_id);
     const zh = locale === 'zh' && q.name_zh ? q.name_zh : q.name;
 
@@ -207,8 +217,8 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       sku: q.sku,
       quantity: q.quantity,
       unit: q.unit,
-      unitPrice: moneyFromRow(Number(q.unit_price_usd), q.currency) ?? usd(Number(q.unit_price_usd)),
-      total: moneyFromRow(Number(q.total_usd), q.currency) ?? usd(Number(q.total_usd)),
+      unitPrice,
+      total,
       tier: tier ? { minQty: tier.min_qty, maxQty: tier.max_qty } : null,
       moq: q.moq,
       leadTimeDays: q.lead_time_days,

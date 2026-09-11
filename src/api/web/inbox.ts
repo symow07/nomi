@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { loadProofLinkState } from './proof.js';
@@ -119,14 +119,14 @@ export async function loadInboxList(
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null;
-      is_active: boolean; pending: number; unit_price: string | null; handoff_reason: string | null;
+      is_active: boolean; pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
     }>`
       select c.id, cl.display_name as buyer, cl.country,
              p.name_zh, p.name, cs.inquiry_quantity as qty,
              c.assigned_to, c.closed_at, c.is_active,
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
-             q.unit_price_usd as unit_price,
+             q.unit_price_usd as unit_price, q.currency as quote_currency,
              sig.kind as handoff_reason
         from conversations c
         left join clients cl on cl.id = c.client_id
@@ -134,7 +134,7 @@ export async function loadInboxList(
         left join products p on p.id = cs.identified_product_id
         left join lateral (select text_content, direction, sent_at from messages m
                             where m.conversation_id = c.id order by m.sent_at desc limit 1) lm on true
-        left join lateral (select unit_price_usd from quotes qq
+        left join lateral (select unit_price_usd, currency from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
         left join lateral (select kind from conversation_signals cs
                             where cs.conversation_id = c.id and cs.resolved_at is null
@@ -163,7 +163,9 @@ export async function loadInboxList(
         handoffReason: r.handoff_reason,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
-        unitPrice: r.unit_price !== null ? usd(Number(r.unit_price)) : null,
+        // G18 — in the currency the quote was made in. Rebuilding it as dollars
+        // put a "$" in front of a number that was never dollars.
+        unitPrice: r.unit_price !== null ? moneyFromRow(Number(r.unit_price), r.quote_currency ?? 'USD') : null,
       };
     });
     // Phase D — "needs you" is an ownership question, not a drafts count. A buyer
@@ -554,10 +556,10 @@ export async function loadConversationDetail(
       });
 
     const q = (await sql<{
-      unit_price_usd: string; total_usd: string; quantity: number; product_id: string;
+      unit_price_usd: string; total_usd: string; quantity: number; product_id: string; currency: string;
       lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null;
     }>`
-      select unit_price_usd, total_usd, quantity, product_id, lead_time_withheld from quotes
+      select unit_price_usd, total_usd, quantity, product_id, currency, lead_time_withheld from quotes
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
@@ -565,8 +567,8 @@ export async function loadConversationDetail(
     // conversation. Confirming closes the conversation; when he writes again
     // weeks later it is a new one, and the owner reading his "where is my
     // order?" must see — and reach — the order he is asking about.
-    const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null }>`
-      select o.id::text as id, o.status, o.order_reference, o.total_value_usd from orders o
+    const o = (await sql<{ id: string; status: string; order_reference: string; total_value_usd: string | null; currency: string }>`
+      select o.id::text as id, o.status, o.order_reference, o.total_value_usd, o.currency from orders o
        where o.client_id = (select client_id from conversations where id = ${conversationId})
        order by o.created_at desc limit 1
     `.execute(tx)).rows[0];
@@ -634,13 +636,22 @@ export async function loadConversationDetail(
        limit 6
     `.execute(tx)).rows.map((r) => r.label);
 
+    const quoteUnit = q ? moneyFromRow(Number(q.unit_price_usd), q.currency) : null;
+    const quoteTotal = q ? moneyFromRow(Number(q.total_usd), q.currency) : null;
+
     const st = statusOf({ pending: head.pending, assigned_to: head.assigned_to, closed_at: head.closed_at });
     return {
       conversationId: head.id, buyer: head.buyer, country: head.country, status: st.status,
       product: { name: head.name, nameZh: head.name_zh }, quantity: head.qty ?? null,
-      quote: q ? { unitPrice: usd(Number(q.unit_price_usd)), total: usd(Number(q.total_usd)), quantity: q.quantity } : null,
+      // G18 — both halves in the quote's OWN currency, and no dollar fallback:
+      // a row whose currency this build cannot price is a row it must not put a
+      // "$" in front of, so the context line is left off instead.
+      quote: quoteUnit && quoteTotal && q ? { unitPrice: quoteUnit, total: quoteTotal, quantity: q.quantity } : null,
       proof: await loadProofLinkState(tx, conversationId),
-      order: o ? { id: o.id, status: o.status, reference: o.order_reference, total: o.total_value_usd !== null ? usd(Number(o.total_value_usd)) : null } : null,
+      order: o ? {
+        id: o.id, status: o.status, reference: o.order_reference,
+        total: o.total_value_usd !== null ? moneyFromRow(Number(o.total_value_usd), o.currency) : null,
+      } : null,
       messages,
       pendingDraft: draft
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability,
@@ -970,7 +981,7 @@ export function renderConversationDetail(
   const prod = productName(locale, d.product);
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
-      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}` : ''}
+      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}${inHerMoney(d.order.total, d.rate, locale)}` : ''}
         <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}<span class="go" aria-hidden="true">›</span></a></div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';

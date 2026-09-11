@@ -12,17 +12,18 @@
  * them cannot compile — or, where the compiler cannot see it, throws rather
  * than producing a plausible wrong number.
  *
- * ── THIS MILESTONE CHANGES NO BEHAVIOUR ───────────────────────────────────
+ * ── THERE ARE TWO OF THEM NOW ──────────────────────────────────────────────
  *
- * USD is still the only currency. `Currency` is a union of ONE, deliberately:
- * every currency-mixing bug is unrepresentable today, and the type is the place
- * that stays honest when a second member is added. What changes now is only
- * where the currency is written down — in the value, not in the name.
+ * M43a introduced this type while USD was the only member, and said so. M43b
+ * added CNY, and the sentence stayed — which is how a comment becomes a lie
+ * about the very thing it guards. `Currency` has two members: a conversion
+ * between them exists only through `convertMoney`, and only against a rate the
+ * OWNER stated, with the date she stated it. A live rate she did not approve is
+ * a number from outside her rules, and this whole engine exists to stop those.
  *
- * The rate at which a second currency becomes a first-class citizen is M43b's
- * problem, and it is a PRODUCT decision, not a type one: she states the rate
- * she will honour, or Nomi refuses. A live rate she did not approve is a number
- * from outside her rules, and this whole engine exists to stop those.
+ * Mixing remains unrepresentable rather than merely discouraged: `sameCurrency`
+ * throws, and every read of a stored amount pairs it with its own stored
+ * currency column (G18) instead of assuming the dollar it used to be.
  */
 
 /**

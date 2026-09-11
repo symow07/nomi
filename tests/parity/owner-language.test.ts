@@ -112,7 +112,7 @@ const analytics = renderAnalytics({
   range: 'month', hasActivity: true,
   summary: { newClients: 4, activeConvos: 12, quotes: 3, orders: 1 },
   activity: { inbound: 12, replied: 9, waiting: 2 },
-  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValue: usd(7300) },
+  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(7300)] },
   employee: { handled: 9, waiting: 2, edits: 1 },
 }, 'zh');
 

@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -65,30 +65,30 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
   return withTenantTx(db, bid.value, async (tx) => {
     const rows = (await sql<{
       product_id: string | null; sku: string | null; name: string | null; name_zh: string | null;
-      list_price: string | null; is_active: boolean | null;
-      floor: string | null; max: string | null; ask: string | null;
+      list_price: string | null; list_currency: string | null; is_active: boolean | null;
+      floor: string | null; max: string | null; ask: string | null; currency: string | null;
     }>`
       -- Every product, plus the business-wide row (product_id is null), in one
       -- read. A LEFT JOIN so a product with no rules comes back as a product
       -- with no rules, rather than not coming back.
       select p.id as product_id, p.sku, p.name, p.name_zh,
-             p.price_usd_per_unit as list_price, p.is_active,
+             p.price_usd_per_unit as list_price, p.currency as list_currency, p.is_active,
              pp.floor_price_usd as floor, pp.max_discount_pct as max,
-             pp.human_required_above_pct as ask
+             pp.human_required_above_pct as ask, pp.currency
         from products p
         left join pricing_policy pp
           on pp.business_id = ${bid.value} and pp.product_id = p.id
        where p.business_id = ${bid.value}
        union all
-      select null, null, null, null, null, null,
-             floor_price_usd, max_discount_pct, human_required_above_pct
+      select null, null, null, null, null, null, null,
+             floor_price_usd, max_discount_pct, human_required_above_pct, currency
         from pricing_policy
        where business_id = ${bid.value} and product_id is null
     `.execute(tx)).rows;
 
     const businessRow = rows.find((r) => r.product_id === null);
     const businessDefault = businessRow?.floor
-      ? toRules({ floor: businessRow.floor, max: businessRow.max!, ask: businessRow.ask! })
+      ? toRules({ floor: businessRow.floor, max: businessRow.max!, ask: businessRow.ask!, currency: businessRow.currency ?? 'USD' })
       : null;
 
     const products = rows
@@ -98,8 +98,11 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
         sku: r.sku ?? '',
         name: r.name ?? '',
         nameZh: r.name_zh,
-        listPrice: r.list_price === null ? null : usd(Number(r.list_price)),
-        own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask! }) : null,
+        // G18 — the row's own currency, for the price as well as the floor.
+        // `toRules` has read it since M43a; the query never selected it, so
+        // every floor was read back as dollars whatever it was stored as.
+        listPrice: r.list_price === null ? null : moneyFromRow(Number(r.list_price), r.list_currency ?? 'USD'),
+        own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask!, currency: r.currency ?? 'USD' }) : null,
         inheritsDefault: r.floor === null && businessDefault !== null,
         isActive: r.is_active ?? false,
       }));
@@ -146,14 +149,14 @@ export async function savePriceRules(
   return withTenantTx(db, bid.value, async (tx) => {
     // The list price is needed to reject a floor above it, so read it first.
     const product = input.productId
-      ? (await sql<{ price: string | null; is_active: boolean }>`
-          select price_usd_per_unit as price, is_active from products
+      ? (await sql<{ price: string | null; currency: string; is_active: boolean }>`
+          select price_usd_per_unit as price, currency, is_active from products
            where business_id = ${bid.value} and id = ${input.productId} limit 1
         `.execute(tx)).rows[0]
       : undefined;
     if (input.productId && !product) return { ok: false, errors: { floor: 'missing' } };
 
-    const listPrice = product?.price != null ? usd(Number(product.price)) : null;
+    const listPrice = product?.price != null ? moneyFromRow(Number(product.price), product.currency) : null;
     const v = validatePriceRules({
       floor: input.floor, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
       ...(input.productId ? { listPrice } : {}),

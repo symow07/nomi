@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -200,15 +200,15 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
          union select o.product_id from orders o where o.conversation_id = ${conversationId})
     `.execute(tx)).rows.map((r) => ({ sku: r.sku, name: r.name, nameZh: r.name_zh }));
 
-    const latestQuoteRow = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string }>`
-      select quantity, unit_price_usd, total_usd from quotes
+    const latestQuoteRow = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string; currency: string }>`
+      select quantity, unit_price_usd, total_usd, currency from quotes
        where conversation_id = ${conversationId} order by created_at desc limit 1`.execute(tx)).rows[0];
 
     // G4 — the buyer's latest order, wherever it was confirmed: confirming
     // closes a conversation, so the order he asks about later lives in an
     // earlier one.
-    const orderRow = (await sql<{ id: string; status: string; order_reference: string; quantity: number; total_value_usd: string | null }>`
-      select o.id::text as id, o.status, o.order_reference, o.quantity, o.total_value_usd from orders o
+    const orderRow = (await sql<{ id: string; status: string; order_reference: string; quantity: number; total_value_usd: string | null; currency: string }>`
+      select o.id::text as id, o.status, o.order_reference, o.quantity, o.total_value_usd, o.currency from orders o
        where o.client_id = (select client_id from conversations where id = ${conversationId})
        order by o.created_at desc limit 1`.execute(tx)).rows[0];
 
@@ -255,6 +255,10 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       pending: head.pending, order_status: head.order_status, quote_count: head.quote_count,
       is_active: head.is_active, closed_at: head.closed_at, phase: head.phase,
     });
+    // G18 — the quote in its own currency; nothing shown if it is one this
+    // build cannot price, rather than a dollar sign over a number that is not.
+    const latestQuoteUnit = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.unit_price_usd), latestQuoteRow.currency) : null;
+    const latestQuoteTotal = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.total_usd), latestQuoteRow.currency) : null;
     const identified = (head.name || head.name_zh) ? [{ name: head.name, nameZh: head.name_zh }] : [];
     const profileProducts = products.length ? products.map((p) => ({ name: p.name, nameZh: p.nameZh })) : identified;
 
@@ -265,11 +269,13 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       timeline: recent,
       context: {
         products,
-        latestQuote: latestQuoteRow
-          ? { qty: latestQuoteRow.quantity, unitPrice: usd(Number(latestQuoteRow.unit_price_usd)), total: usd(Number(latestQuoteRow.total_usd)) }
+        latestQuote: latestQuoteUnit && latestQuoteTotal && latestQuoteRow
+          ? { qty: latestQuoteRow.quantity, unitPrice: latestQuoteUnit, total: latestQuoteTotal }
           : null,
         order: orderRow
-          ? { id: orderRow.id, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity, total: orderRow.total_value_usd !== null ? usd(Number(orderRow.total_value_usd)) : null }
+          ? { id: orderRow.id, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity,
+              // G18 — his order in the currency it was taken in.
+              total: orderRow.total_value_usd !== null ? moneyFromRow(Number(orderRow.total_value_usd), orderRow.currency) : null }
           : null,
         corrections,
       },

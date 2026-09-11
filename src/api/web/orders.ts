@@ -6,7 +6,7 @@ import {
   ORDER_STATES, isOrderState, type OrderState, type OrderUpdate,
 } from '../../core/commerce/orderState.js';
 import { buildInvoice, renderInvoiceEn } from '../../core/commerce/invoice.js';
-import { usd, moneyFromRow, type Money } from '../../core/types/money.js';
+import { moneyFromRow, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
@@ -188,6 +188,13 @@ export async function recordOrderUpdate(
 
 export function renderOrder(v: OrderView, locale: Locale, flash: string | null): string {
   const name = EMPLOYEE_NAME[locale];
+  // G18 — the order's own money, in the order's own currency. Both of these
+  // used to be rebuilt as dollars and then hidden unless the order WAS in
+  // dollars, so an order taken in ￥ showed her no total and no proforma at
+  // all. An amount in a currency this build does not know is still shown to
+  // nobody — `moneyFromRow` returns null rather than guessing.
+  const total = v.totalAmount === null ? null : moneyFromRow(v.totalAmount, v.currency);
+  const unitPrice = v.unitPriceAmount === null ? null : moneyFromRow(v.unitPriceAmount, v.currency);
   const latest = v.history[0] ?? null;
   const stateName = (s: OrderState) => t(locale, `order.state.${s}` as MessageKey);
 
@@ -195,8 +202,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
     [t(locale, 'order.field.buyer'), v.buyer ?? t(locale, 'common.buyer')],
     [t(locale, 'order.field.product'), v.productName ?? v.productSku],
     [t(locale, 'order.field.quantity'), `${formatQty(locale, v.quantity)} ${v.unit}`],
-    ...(v.totalAmount !== null && v.currency === 'USD'
-      ? [[t(locale, 'order.field.total'), formatMoney(usd(v.totalAmount))]] : []),
+    ...(total ? [[t(locale, 'order.field.total'), formatMoney(total)]] : []),
     ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), formatDate(locale, v.confirmedAt)]] : []),
   ].map(([l, val]) => `<div class="frow"><span class="flabel">${esc(l!)}</span><span class="fval"><bdi>${esc(val!)}</bdi></span></div>`).join('');
 
@@ -216,14 +222,14 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
   // neither came from her. Without her terms on the order, the page says what
   // is missing and where she states it, instead of printing a guess.
   const hasTerms = !!v.paymentTerms && !!v.incoterm;
-  const proforma = v.unitPriceAmount !== null && v.totalAmount !== null && v.currency === 'USD' && hasTerms
+  const proforma = unitPrice && total && hasTerms
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}</p>
         <pre>${esc(renderInvoiceEn({ ...buildInvoice({
           quote: {
             productId: '' as never,
             quantity: { value: v.quantity, unit: v.unit },
-            unitPrice: usd(v.unitPriceAmount), discountPct: 0, total: usd(v.totalAmount),
+            unitPrice, discountPct: 0, total,
             moq: v.quantity, leadTimeDays: null, leadTimeBlocked: null,
             requiresHuman: false, contradicts: null, appliedRules: [],
           },
@@ -245,7 +251,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
               amount: formatMoney(v.sampleCredit.amount) }))}</p>`
           : ''}</section>`
-    : v.unitPriceAmount !== null && v.totalAmount !== null && !hasTerms
+    : unitPrice && total && !hasTerms
       ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
           <p class="muted">${esc(t(locale, 'order.invoice.noTerms'))}</p>
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`

@@ -739,7 +739,7 @@ number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
 | G15 | M45 · the sample credit reaches the proforma (no courier: decided 2026-09-10) | Medium | ✅ 2026-09-11 |
 | G16 | M37 · re-photographing updates what changed | Medium | ✅ 2026-09-11 |
 | G17 | M49 · finish the design pass, with Playwright screenshots | Medium | ✅ 2026-09-11 |
-| G18 | M43a + M43b · money shows its currency everywhere | Low | |
+| G18 | M43a + M43b · money shows its currency everywhere | Low | ✅ 2026-09-11 |
 | G19 | M51 follow-ups | Low | |
 | G20 | Guard rails for the invariants | Low | |
 | G21 | This file matches the ground again | Low | |
@@ -1146,6 +1146,40 @@ more, and `margin-inline-end` slipped past the pattern entirely.
     would not deliver. `node dist/main.js` sat idle forever without printing a
     line, while the test suites passed because they load other modules. The
     run-nomi skill now documents the symptom and the check.
+
+**G18.** M43a made money a pair — an amount and the currency it is in — so that
+a euro price added to a dollar floor could not compile. The owner surfaces then
+undid it one row at a time: each read a stored amount and rebuilt it with
+`usd(...)`, so whatever the column said, the screen said "$". The type was
+honest and the page was not.
+- **Her month's total was one number made of every order**, summed across the
+  currency column and labelled in dollars. It is now one total PER currency,
+  grouped in SQL; an amount in a currency this build cannot price is dropped
+  rather than counted as dollars.
+- **An order in another currency showed her nothing at all** — the page
+  rendered a total and a proforma only when the order was in USD, so a ￥ order
+  was a blank where her own order should be. Both now render in the order's own
+  currency.
+- The inbox list, the conversation, the buyer profile, the product list and
+  detail, her price rules and the public proof page all read the currency
+  column beside the amount. Where the currency is one this build cannot price,
+  the row is left out instead of priced in dollars — on the proof page that
+  means the link reads as gone, which is the fail-closed answer it already
+  gives for a quote that no longer exists.
+- **A range is only a range inside one currency.** "She never quotes below
+  $0.30" was built from every floor she has; with two currencies that sentence
+  would be a number she never said, on the page where she checks what her
+  employee may promise. It is stated only when her floors agree.
+- The order total now shows the converted amount beside it, as the quote
+  already did — her own money, at the rate she stated, with the date she
+  stated it.
+- **What holds it shut:** a source rule that no owner surface may call `usd()`
+  on a value that came out of a row, and renderer tests written in ￥, because
+  a test that only ever passes dollars cannot fail. The five tables that still
+  refuse a second currency are pinned too: the day one of them widens, that
+  test fails and names the screens to look at. The comment in `money.ts` that
+  still said "USD is still the only currency" — eleven milestones after CNY
+  joined — says what is true now.
 
 ### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
 
