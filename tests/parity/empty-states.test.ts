@@ -56,7 +56,7 @@ const emptyFactoryView: FactoryView = {
   // Nothing to rehearse on day one — no products means no probes, so the block
   // is absent rather than reporting an empty success.
   rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
-  prices: { businessDefault: null, products: [], unanswered: 0 },
+  prices: { businessDefault: null, products: [], unanswered: 0, volume: [] },
 };
 const emptyFactory = renderFactory(emptyFactoryView, 'en');
 

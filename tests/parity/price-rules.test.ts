@@ -174,6 +174,7 @@ describe('M29 · the same engine, before and after the owner grants authority', 
 // ── the owner's own words ────────────────────────────────────────────────────
 
 const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
+  volume: [],
   businessDefault: null,
   products: [{
     productId: 'p1', sku: 'BAG-001', name: 'Canvas tote', nameZh: null,
@@ -218,7 +219,7 @@ describe('M29 · questions, not a form', () => {
   });
 
   it('shows real counts, never a score', () => {
-    const html = renderPriceRules(view({ unanswered: 3 }), 'en').replace(/<style>[\s\S]*?<\/style>/g, '');
+    const html = renderPriceRules(view({ unanswered: 3, volume: [] }), 'en').replace(/<style>[\s\S]*?<\/style>/g, '');
     for (const banned of ['score', 'rating', 'grade', '%complete', 'of 3 done'])
       expect(html.toLowerCase().includes(banned.toLowerCase())).toBe(false);
   });

@@ -763,6 +763,7 @@ number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
 | G19 | M51 follow-ups | Low | ✅ 2026-09-11 |
 | G20 | Guard rails for the invariants | Low | ✅ 2026-09-11 (0044) |
 | G21 | This file matches the ground again | Low | ✅ 2026-09-12 |
+| G22 | Her discount rule can actually fire | Low | ✅ 2026-09-12 |
 
 **G1.** `tests/parity/m40-domain.test.ts` compared a check dated 31 August
 against the real clock, and the seven-day TTL turned CI red on 7 September.
@@ -1290,6 +1291,28 @@ milestone anyone finishes.
   null: nothing queued, therefore nothing refused, therefore nothing on the
   blocked list either. Every seeded buyer now has the number he can be reached
   on and an open window.
+
+**G22.** Her "ask me above this discount" line could never fire, and neither
+could her ceiling. `computeQuote` derives a discount from `negotiation_rules`
+and from nowhere else, and no owner surface had ever written that table: every
+quote came out at `discountPct` 0, so "never more than 8% off" was a ceiling on
+nothing and the hold G7a built described an event the product could not
+produce. **Found by the pre-pilot walkthrough** — scenario 7 had to insert the
+row by hand, and a rehearsal that reaches into the database is rehearsing
+something the owner cannot do.
+- She writes it in her own terms on her price-limits page: which product (or
+  everything she sells), from how many pieces, how much off. Archived rather
+  than deleted when she stops offering it, and audited as the price rule it is
+  rather than under a second vocabulary for the same history.
+- **It refuses rather than clamping.** A discount above the most she said may
+  ever come off is rejected naming her own number — the engine would quietly
+  narrow it, which leaves her believing she has a rule she does not. One with
+  no limits stated at all is refused too: the floor is what makes a discount
+  safe, and M29's argument is that absence of a rule is never a default.
+- With none written, the page says plainly that she never offers one. That was
+  always true and never said.
+- The engine needed no change. It has always been able to discount; nothing
+  could tell it to.
 
 #### The 2026-09-10 audit, closed
 

@@ -20,7 +20,10 @@ import {
   renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
   importFromPhoto, renderPhotoRefusal, diffImport, type PhotoRefusal,
 } from './products.js';
-import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
+import {
+  loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
+  saveVolumeDiscount, archiveVolumeDiscount,
+} from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
@@ -1151,6 +1154,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
       { name: deps.employeeName });
     return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
+  });
+
+  // G22 — WHEN she comes down, and by how much. Owner-only for the same reason
+  // the floor is: staff negotiate inside her rules and do not write them.
+  app.post('/app/factory/prices/volume', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveVolumeDiscount(deps.db, s.businessId, personOf(s).id, {
+      productId: (b['productId'] ?? '').trim() || null,
+      minQty: b['minQty'] ?? null,
+      discountPct: b['discountPct'] ?? null,
+    });
+    if (!r.ok) {
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'prices.title'), active: 'factory',
+        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors),
+      }));
+    }
+    return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(
+      t(locale, 'prices.flash.volumeAdded', { name: deps.employeeName }))}`);
+  });
+
+  app.post('/app/factory/prices/volume/:id/archive', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const r = await archiveVolumeDiscount(deps.db, s.businessId, personOf(s).id, id);
+    return reply.redirect(`/app/factory/prices${r.ok ? `?flash=${encodeURIComponent(
+      t(locale, 'prices.flash.volumeRemoved'))}` : ''}`);
   });
 
   app.post('/app/products/add/confirm', async (req, reply) => {

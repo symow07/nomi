@@ -332,7 +332,7 @@ const view = (rehearsal: RehearsalReport | null): FactoryView => ({
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
   rehearsal,
-  prices: { businessDefault: null, products: [], unanswered: 0 },
+  prices: { businessDefault: null, products: [], unanswered: 0, volume: [] },
 });
 
 const OFFLINE_CHANNEL: ChannelView = {
