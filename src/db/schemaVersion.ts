@@ -138,8 +138,15 @@ import type { Db } from './client.js';
  *      applied and has since been edited on disk now stops the runner instead
  *      of being skipped by version number. A 43 database simply has no column
  *      to record it in, so the runner backfills on its next run.
+ *
+ * 45 = the SPF state the code has returned since G14 (0045). `no_sender` was
+ *      in the type and not in the CHECK, so on a production without
+ *      `SENDING_SPF_INCLUDE` — which is every production today — pressing
+ *      "check my domain" raised a constraint violation. Against a 44 database
+ *      that write still fails, which is why this bumps rather than being
+ *      treated as cosmetic.
  */
-export const REQUIRED_SCHEMA_VERSION = 44;
+export const REQUIRED_SCHEMA_VERSION = 45;
 
 export type SchemaState = {
   readonly required: number;

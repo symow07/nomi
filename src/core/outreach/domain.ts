@@ -46,7 +46,8 @@ export type DnsRecordKind = (typeof DNS_RECORDS)[number];
  * a record that was already right — the one thing this page must never do.
  * It still refuses to send: unconfirmed is not confirmed.
  */
-export type RecordState = 'missing' | 'malformed' | 'unauthorized' | 'no_sender' | 'ok';
+export const RECORD_STATES = ['missing', 'malformed', 'unauthorized', 'no_sender', 'ok'] as const;
+export type RecordState = (typeof RECORD_STATES)[number];
 
 export type DomainCheck = Readonly<Record<DnsRecordKind, RecordState>>;
 

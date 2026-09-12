@@ -1314,6 +1314,26 @@ something the owner cannot do.
 - The engine needed no change. It has always been able to discount; nothing
   could tell it to.
 
+#### Found while planning C4 — fixed 2026-09-12 (0045)
+
+**Her "check my domain" button raised a 500, in production's own
+configuration.** G14 gave the SPF answer a fourth state, `no_sender` — her
+record is fine and we cannot confirm it until a sending provider exists — so
+the page would stop telling her to fix DNS that was already correct. The type
+gained the value and the CHECK on `sending_domains.spf_state` did not.
+`SENDING_SPF_INCLUDE` is unset in every production today, so `checkSpf` returns
+`no_sender` for every well-formed record and `recordDomainCheck` writes it
+unconditionally: a constraint violation on an owner action, in the one
+configuration nothing tested. The existing suite always passed an include, and
+so never produced the state the column refused.
+
+0045 widens all three state columns to the code's own vocabulary — they share
+one `RecordState`, so a column accepting a subset is the same defect waiting on
+a different record — and `RECORD_STATES` is now an exported array that an
+integration test compares against the constraints, so the type and the column
+cannot drift again. The regression test runs the configuration production runs
+in: no include, a correct record, and the check recorded rather than thrown.
+
 #### The 2026-09-10 audit, closed
 
 | # | What the audit (or the planning that followed it) found | Closed by |
