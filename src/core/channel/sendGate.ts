@@ -12,9 +12,15 @@ import type { OutboundRow } from '../../outbound/sequencer.js';
  */
 
 export type GateInput = {
-  /** Who authored the queued message. Owner-authored text is the owner
-   * speaking — the takeover/pause gates are FOR him, not against him. */
-  readonly origin: 'employee' | 'owner';
+  /**
+   * Who authored the queued message. Owner-authored text is the owner
+   * speaking — the takeover/pause gates are FOR him, not against him.
+   *
+   * C4.a — 'outreach' is the third: a message that starts a conversation
+   * rather than continuing one. It is the only origin the outreach gate below
+   * applies to, and the only one counted against her daily outreach cap.
+   */
+  readonly origin: 'employee' | 'owner' | 'outreach';
   /** Handoff state: non-null (incl. 'unclaimed') = a human owns the thread. */
   readonly assignedTo: string | null;
   /** 收回 / budget pause / owner-set pause. */
@@ -156,7 +162,7 @@ export function gateOutbound(g: GateInput): GateDecision {
  * gate blocks their retries.
  */
 export function cancelableOnTakeover(
-  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' })[],
+  rows: readonly (OutboundRow & { readonly origin: 'employee' | 'owner' | 'outreach' })[],
 ): readonly string[] {
   return rows
     .filter((r) => r.status === 'queued' && r.origin === 'employee')

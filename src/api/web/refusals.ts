@@ -37,8 +37,9 @@ export type Refusal = {
   readonly buyer: string | null;
   readonly reason: RefusalReason;
   readonly at: Date;
-  /** Employee-authored, or the owner's own typed reply that never left. */
-  readonly origin: 'employee' | 'owner';
+  /** Employee-authored, the owner's own typed reply, or (C4.a) a first message
+   *  she wrote to someone who had not written to her. */
+  readonly origin: 'employee' | 'owner' | 'outreach';
 };
 
 /**
@@ -89,7 +90,9 @@ export async function loadRefusals(
         from outbound_messages o
         join conversations c on c.id = o.conversation_id
         left join clients cl on cl.id = c.client_id
-        left join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
+        -- C4.a — his identity on THIS conversation's channel, so a refused mail
+        -- names the address it was for rather than nobody.
+        left join client_channels cc on cc.client_id = c.client_id and cc.channel = c.channel
        where o.business_id = ${bid.value}
          and ${isRefusal}
          and o.created_at > now() - make_interval(days => ${days})
@@ -107,7 +110,8 @@ export async function loadRefusals(
         buyer: r.buyer ?? r.channel_user_id,
         reason,
         at: r.at,
-        origin: r.origin === 'owner' ? 'owner' as const : 'employee' as const,
+        origin: r.origin === 'owner' ? 'owner' as const
+          : r.origin === 'outreach' ? 'outreach' as const : 'employee' as const,
       }];
     });
   });

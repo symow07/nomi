@@ -30,7 +30,8 @@ import {
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
-import { setOutreach } from '../../db/outreach.js';
+import { outreachSettings, setOutreach } from '../../db/outreach.js';
+import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
 import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
 import { checkDomain } from '../../core/outreach/domain.js';
 import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
@@ -40,8 +41,9 @@ import { suppress as suppressIdentityRow } from '../../db/contacts.js';
 import { normalizeIdentity } from '../../core/outreach/consent.js';
 import {
   type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
-  loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
+  loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
+import { writeFirst } from '../../outbound/writeFirst.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
@@ -1606,6 +1608,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * C4.a — the most first messages a day, on this channel. Owner-only for the
+   * switch's own reason: the volume of mail that leaves in her name is her
+   * decision about her name. Empty clears it back to the default, which the
+   * form states as a number. Recorded as a new row carrying the switch as it
+   * stands, so changing the number never changes whether writing first is on.
+   */
+  app.post('/app/channels/outreach/cap', async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
+    const bid = parseBusinessId(sess.businessId);
+    const raw = typeof b['cap'] === 'string' ? b['cap'].trim() : '';
+    const cap = raw === '' ? null : /^\d{1,5}$/.test(raw) && Number(raw) >= 1 ? Number(raw) : undefined;
+    const failed = `/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.failed'))}`;
+    if (!channel || !bid.ok || cap === undefined) return reply.redirect(failed);
+    const done = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const current = (await outreachSettings(tx, bid.value)).get(channel);
+      return setOutreach(tx, bid.value, {
+        channel, enabled: current?.enabled === true, by: personOf(sess).name, dailyCap: cap,
+      });
+    });
+    if (!done) return reply.redirect(failed);
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.cap',
+      { n: String(cap ?? DAILY_OUTREACH_CEILING) }))}`);
+  });
+
+  /**
    * M38 — who she may write to. The list, and the two decisions about it.
    *
    * NOT owner-only: an attestation carries the name of whoever made it, and the
@@ -1652,6 +1683,82 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(contactsBack(localeOf(req), await suppressIdentity(deps.db, s.businessId, {
       channel: b['channel'], identity: b['identity'], reason: b['reason'], detail: b['detail'],
     })));
+  });
+
+  /**
+   * C4.a — she writes to someone who has not written to her.
+   *
+   * The page opens only for a buyer the gate has just said yes to — the same
+   * `reachOf` the row's button was drawn from — so it never offers a send it
+   * already knows will be refused. Anyone else lands back on the list, where his
+   * row already says why.
+   *
+   * NOT owner-only, for M38's reason: the person who took the card is the person
+   * who knows him, and the message carries the name of whoever sends it. What
+   * IS owner-only is the switch that lets anyone write first at all.
+   */
+  app.get('/app/contacts/write', authed('contacts', async (sess, req, locale) => {
+    const q = req.query as { channel?: string; identity?: string };
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
+    if (!found || found.channel !== 'email') return renderContacts(view, locale, null);
+    // Deployment mode has no outbound worker at all (src/main.ts): a row queued
+    // here would sit until messaging is switched on and then leave, days after
+    // she wrote it. Said now, before she types, rather than after.
+    if (!messagingEnabled) return renderContacts(view, locale, t(locale, 'contacts.flash.notLive'));
+    const reach = reachOf(view, found);
+    if (!reach.ok) {
+      return renderContacts(view, locale, t(locale, `refused.why.${reach.error}` as MessageKey));
+    }
+    return renderWriteFirst(found, locale);
+  }));
+
+  app.post('/app/contacts/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string): string => (typeof b[k] === 'string' ? b[k] as string : '');
+    if (!bid.ok || b['channel'] !== 'email') return reply.redirect(contactsBack(locale, 'failed'));
+    if (!messagingEnabled) {
+      return reply.redirect(`/app/contacts?flash=${encodeURIComponent(t(locale, 'contacts.flash.notLive'))}`);
+    }
+
+    const found = (await loadContacts(deps.db, s.businessId)).contacts
+      .find((c) => c.channel === 'email' && c.identity === str('identity').trim().toLowerCase());
+    const r = await writeFirst(
+      {
+        db: deps.db, now: () => new Date(),
+        kickDrive: deps.kickDrive ?? (async () => {}),
+        templateState: deps.templateState ?? 'none',
+      },
+      {
+        businessId: bid.value, channel: 'email', identity: str('identity'),
+        subject: str('subject').slice(0, 200), body: str('body').slice(0, 5000),
+        actor: personOf(s).id, displayName: found?.displayName ?? null,
+      },
+    );
+
+    if (r.outcome === 'queued' && r.conversationId) {
+      return reply.redirect(`/app/inbox/${encodeURIComponent(r.conversationId)}?flash=${
+        encodeURIComponent(t(locale, 'contacts.flash.queued'))}`);
+    }
+    // Her words come back to her when the fault is in the form, not in him.
+    if (r.outcome === 'empty' && found) {
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'nav.contacts'), active: 'contacts',
+        bodyHtml: renderWriteFirst(found, locale, {
+          draft: { subject: str('subject'), body: str('body') },
+          flash: t(locale, 'contacts.flash.empty'),
+        }),
+      }));
+    }
+    const sentence = r.outcome === 'empty' || r.outcome === 'no_channel'
+      || r.outcome === 'missing' || r.outcome === 'not_an_email' || r.outcome === 'not_a_phone'
+      ? t(locale, `contacts.flash.${r.outcome}` as MessageKey)
+      // The outreach gate's own refusal, in the words his row already uses.
+      : t(locale, `refused.why.${r.outcome}` as MessageKey);
+    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
   });
 
   app.post('/app/contacts/:id/archive', async (req, reply) => {

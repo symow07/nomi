@@ -8,7 +8,9 @@ import {
   type OutreachChannel, type Requirement,
 } from '../../core/channel/registry.js';
 import type { TemplateState } from '../../core/channel/window.js';
-import { canBeEnabled, outreachEnabled, setOutreach } from '../../db/outreach.js';
+import { satisfiedRequirements } from '../../core/channel/requirements.js';
+import { canBeEnabled, outreachSettings, setOutreach } from '../../db/outreach.js';
+import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
 import { sendingDomain, type SendingDomain } from '../../db/sendingDomain.js';
 import {
   DNS_RECORDS, mayUseDomain, recordHost, type DnsRecordKind,
@@ -65,6 +67,9 @@ export type ChannelsData = {
   readonly templateState: TemplateState;
   /** M42 — her decision to write first, per channel. Absent means NOT enabled. */
   readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
+  /** C4.a — the most first messages a day she has said, per channel. Null or
+   *  absent means she has stated none and the default applies. */
+  readonly outreachCaps?: ReadonlyMap<OutreachChannel, number | null>;
   /** M40.1 — the domain her mail leaves as, and the last look at its records. */
   readonly domain: SendingDomain | null;
   /**
@@ -93,7 +98,9 @@ export async function loadChannels(
   if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH, domain: null, canConnect: false };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const outreach = await outreachEnabled(tx, bid.value);
+    const settings = await outreachSettings(tx, bid.value);
+    const outreach = new Map([...settings].map(([k, v]) => [k, v.enabled] as const));
+    const outreachCaps = new Map([...settings].map(([k, v]) => [k, v.dailyCap] as const));
     const domain = await sendingDomain(tx, bid.value);
     // G3 — Connect creates the credential; Reconnect reactivates one. Any row
     // at all, active or not, means this factory has been connected before.
@@ -117,7 +124,7 @@ export async function loadChannels(
     `.execute(tx)).rows[0];
 
     if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, domain, canConnect };
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, outreachCaps, domain, canConnect };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -129,7 +136,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone, templateState, outreach, domain, canConnect,
+        ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
       };
     }
 
@@ -151,7 +158,7 @@ export async function loadChannels(
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
       },
-      ownerPhone, templateState, outreach, domain, canConnect,
+      ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
     };
   });
 }
@@ -335,31 +342,6 @@ function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): stri
 }
 
 /**
- * M39 — which of the registry's named requirements are actually true here.
- *
- * `approved_template` has exactly one answerer (`templateReadiness.ts`) and it
- * is asked, not re-derived. The other two are Meta's to confirm and hers to
- * supply, and NOTHING in this product can observe them — so they are UNMET.
- *
- * That is the fail-closed direction and it is deliberate: an unobservable
- * requirement reported as satisfied would put "you can write first" in front of
- * an owner whose first template send would be rejected, or worse, accepted
- * against an unverified business.
- */
-export function satisfiedRequirements(
-  templateState: TemplateState, domain: SendingDomain | null = null, now: Date = new Date(),
-): ReadonlySet<Requirement> {
-  const s = new Set<Requirement>();
-  if (templateState === 'approved') s.add('approved_template');
-  // M40.1 — the SAME predicate the send path uses, TTL and all. A page that
-  // read the stored states directly would call a six-week-old pass a pass.
-  if (mayUseDomain({ check: domain?.check ?? null, checkedAt: domain?.checkedAt ?? null }, now).ok) {
-    s.add('verified_sending_domain');
-  }
-  return s;
-}
-
-/**
  * M39 — the truth about each channel, BEFORE she connects one.
  *
  * Every row is derived by asking `mayInitiate`, never by reading the table
@@ -429,11 +411,38 @@ function domainForm(locale: Locale, domain: SendingDomain | null): string {
   </form>`;
 }
 
+/**
+ * C4.a — HER CEILING, on the card that holds the switch.
+ *
+ * `outreach_settings.daily_cap` is read by the send path the moment e-mail can
+ * leave; a column the send path obeys and nothing lets her set would be her
+ * rule written by someone else. Empty means "the default", said on the form
+ * with the number, so she is never capped by a figure she cannot see.
+ *
+ * Its own small form, not a field inside the switch's: pressing "stop writing
+ * first" must not also submit whatever half-typed number sits beside it.
+ *
+ * Shown only where a first message can actually go. The first screenshot put a
+ * "most a day" box on the WhatsApp card, whose requirements are not met, and a
+ * limit on something that cannot happen is a control connected to nothing.
+ */
+function capForm(locale: Locale, channel: OutreachChannel, cap: number | null): string {
+  return `<form method="post" action="/app/channels/outreach/cap" class="inline capform">
+    <input type="hidden" name="channel" value="${esc(channel)}" />
+    <label class="fld"><span class="muted">${esc(t(locale, 'outreach.cap.label'))}</span>
+      <input name="cap" type="number" inputmode="numeric" min="1" max="10000" step="1"
+        value="${cap === null ? '' : String(cap)}" placeholder="${String(DAILY_OUTREACH_CEILING)}" /></label>
+    <span class="muted cap-hint">${esc(t(locale, 'outreach.cap.hint', { n: String(DAILY_OUTREACH_CEILING) }))}</span>
+    <button class="btn" type="submit">${esc(t(locale, 'outreach.cap.save'))}</button>
+  </form>`;
+}
+
 export function renderReach(
   locale: Locale, satisfied: ReadonlySet<Requirement>,
   enabled: ReadonlyMap<OutreachChannel, boolean> = new Map(),
   domain: SendingDomain | null = null,
   viewer: Viewer = OWNER_VIEW,
+  caps: ReadonlyMap<OutreachChannel, number | null> = new Map(),
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -491,6 +500,7 @@ export function renderReach(
           <button class="btn ${on ? 'stop' : 'send'}" type="submit"
             >${esc(t(locale, on ? 'outreach.turnOff' : 'outreach.turnOn'))}</button>
         </form>
+        ${decision.ok ? capForm(locale, channel, caps.get(channel) ?? null) : ''}
       </div>`;
 
     // M40.1 — the domain block sits under e-mail's requirement list, because
@@ -524,6 +534,10 @@ export function renderReach(
         align-items:center; gap:var(--space-12); }
       .reach .outreach .on { color:var(--color-ink); font-weight:600; }
       .reach .warn-line { flex-basis:100%; font-size:var(--font-size-note); margin:0; }
+      .reach .capform { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-8);
+        flex-basis:100%; }
+      .reach .capform input[type=number] { width:8ch; }
+      .reach .cap-hint { font-size:var(--font-size-note); }
       .dom { margin-top:var(--space-12); }
       .dom-h { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; }
       .dom .who { font-weight:600; }
@@ -571,8 +585,8 @@ export function renderChannels(
     </div>`;
 
   // M39 — what each channel allows, before she connects one.
-  const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain),
-    data.outreach, data.domain, viewer);
+  const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
+    data.outreach, data.domain, viewer, data.outreachCaps);
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
@@ -629,3 +643,6 @@ const CHANNELS_STYLE = `<style>
   .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:var(--space-4); }
 </style>`;
+
+/** C4.a — the predicate moved to core; re-exported so every caller is unchanged. */
+export { satisfiedRequirements };

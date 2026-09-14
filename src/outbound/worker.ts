@@ -4,7 +4,9 @@ import {
   onSendFailure, shouldReclaim,
 } from '../core/channel/delivery.js';
 import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
-import { sendPlan, windowState, type TemplateState } from '../core/channel/window.js';
+import { channelSendPlan, type TemplateState } from '../core/channel/window.js';
+import type { OutreachInput } from '../core/outreach/gate.js';
+import type { Locale } from '../core/owner/i18n/locale.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 
@@ -19,7 +21,20 @@ export type OutboundWorkRow = OutboundRow & {
   readonly to: string;
   /** Text, or the caption when `kind` is 'image'. */
   readonly body: string;
-  readonly origin: 'employee' | 'owner';
+  /**
+   * C4.a — 'outreach' is the third kind of authorship: a message that STARTS a
+   * conversation, as against her employee answering a buyer ('employee') and
+   * the owner typing herself ('owner'). Only this one faces the outreach gate,
+   * and only this one counts against her daily outreach cap.
+   */
+  readonly origin: 'employee' | 'owner' | 'outreach';
+  /** C4.a — which transport carries this row. Defaulted for every row written
+   *  before e-mail existed, so the WhatsApp path reads exactly as it did. */
+  readonly channel?: string;
+  /** C4.a — what her buyer sees before he opens it. Null on WhatsApp, where
+   *  the concept does not exist; required for a mail, which is why a row
+   *  without one is refused rather than sent with something invented. */
+  readonly subject?: string | null;
   readonly sendingSince: Date | null;
   /** M26 — 'text' (default), 'quote_card', or 'image'. */
   readonly kind?: string;
@@ -48,6 +63,23 @@ export type ConversationSendContext = {
    * kill switch nothing resolved, so no store gets to leave it unanswered.
    */
   readonly silenced: boolean;
+  /**
+   * C4.a — everything the OUTREACH gate needs about this buyer, for a message
+   * that starts a conversation instead of continuing one.
+   *
+   * Optional because it is meaningless for a reply, and absent it is not
+   * ignored: a row whose origin is 'outreach' with no facts here is REFUSED
+   * (`outreach_unchecked`), never sent. A store that cannot answer the question
+   * does not get to skip it.
+   */
+  readonly outreach?: OutreachInput;
+  /**
+   * C4.a — the BUYER's language, for the one thing in a mail he reads that is
+   * not her words: the unsubscribe page behind the RFC 8058 headers. Absent
+   * means unknown, and the caller names its own fallback rather than having one
+   * assumed for him here.
+   */
+  readonly buyerLocale?: Locale;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -79,7 +111,16 @@ export type OutboundStore = {
  * with Meta, so the message cannot go, and calling that "allowed" in the
  * owner's audit trail would be the same lie this milestone exists to remove.
  */
-export type RefusalReason = GateRefusal | 'window_needs_owner' | 'media_unsupported';
+export type RefusalReason =
+  | GateRefusal | 'window_needs_owner' | 'media_unsupported'
+  // C4.a — this build has no adapter for the row's channel, or the row is a
+  // mail with no subject. Both are the product's own fault rather than hers,
+  // and both are shown rather than swallowed.
+  | 'channel_unavailable' | 'subject_missing' | 'no_unsubscribe'
+  // C4.a — a first message whose permission could not be established at all.
+  // Not a refusal BY the outreach gate: a refusal because the gate could not be
+  // asked, which is the one honest answer when the facts are missing.
+  | 'outreach_unchecked';
 
 /**
  * The same union as a list, DERIVED not restated.
@@ -96,6 +137,10 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
   // From OUTSIDE the gate — both are ways a message the gate ALLOWED still did
   // not reach the buyer, reported by the send path rather than decided by it.
   'window_needs_owner', 'media_unsupported',
+  // C4.a — and the four a first message can hit: no adapter for its channel, no
+  // subject, no way out for a buyer who never wrote first, or no way to tell
+  // whether he may be written to at all.
+  'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked',
 ];
 
 export type DriveEffect =
@@ -125,8 +170,46 @@ async function refuse(
   if (deps.store.recordRefusal) await deps.store.recordRefusal(row.id, row.to, reason);
 }
 
+/**
+ * C4.a — WHICH TRANSPORT CARRIES THIS ROW.
+ *
+ * One adapter was enough while WhatsApp was the only channel. Rather than a
+ * second send path — the thing this product refuses, because a message that
+ * leaves outside the gate has no refusal story — the caller passes the
+ * adapters it has, and the row's own `channel` chooses between them at the one
+ * call site the guard rails pin. A row whose channel has no adapter here is
+ * refused, not dropped: `channel_unavailable` is a real answer the owner can
+ * be shown.
+ */
+export type AdapterFor = (channel: string) => ChannelAdapter | undefined;
+
+/**
+ * C4.a — the headers that give her buyer a way out, minted per message.
+ *
+ * A function rather than a column: the token is signed, and the signing key is
+ * derived from the installation's secret, which belongs neither in core nor in
+ * the store. The composition root has it (`src/main.ts`) and hands this down,
+ * the same way it hands down the adapter.
+ */
+export type MailHeadersFor = (
+  row: OutboundWorkRow,
+  /** The buyer's language, for the page the link goes to. */
+  opts: { readonly locale: Locale },
+) => Readonly<Record<string, string>>;
+
+const adapterFor = (deps: { adapter: ChannelAdapter; adapters?: AdapterFor }, channel: string | undefined)
+  : ChannelAdapter | undefined => {
+  const wanted = channel ?? 'whatsapp';
+  if (deps.adapters) return deps.adapters(wanted);
+  // One adapter and no map: it serves its own kind, and nothing else.
+  return deps.adapter.kind === wanted ? deps.adapter : undefined;
+};
+
 export async function driveConversationOutbound(
-  deps: { store: OutboundStore; adapter: ChannelAdapter; now: () => Date },
+  deps: {
+    store: OutboundStore; adapter: ChannelAdapter; adapters?: AdapterFor;
+    mailHeaders?: MailHeadersFor; now: () => Date;
+  },
   conversationId: string,
 ): Promise<readonly DriveEffect[]> {
   const effects: DriveEffect[] = [];
@@ -184,9 +267,21 @@ export async function driveConversationOutbound(
   if (!candidate) return effects; // row vanished mid-tick — next tick resolves
 
   // 4. Final gate: 24h window + suppression, evaluated at SEND time.
-  const plan = sendPlan(windowState(ctx.lastInboundAt, now), 'reply', ctx.template);
+  //
+  // C4.a — a message that STARTS a conversation answers to the outreach gate as
+  // well, and it cannot be sent without the facts that gate needs. Refused here
+  // rather than passed through unanswered: `gateOutbound` only asks the outreach
+  // question when the field is present, so omitting it would be a silent send to
+  // someone who may never have consented.
+  if (candidate.origin === 'outreach' && !ctx.outreach) {
+    await refuse(deps, candidate, 'outreach_unchecked');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'outreach_unchecked' }];
+  }
+  // And the window is the CHANNEL's, not WhatsApp's — see `channelSendPlan`.
+  const plan = channelSendPlan(candidate.channel ?? 'whatsapp', ctx.lastInboundAt, now, ctx.template);
   const gate = gateOutbound({
     origin: candidate.origin,
+    ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
     assignedTo: ctx.assignedTo,
     paused: ctx.paused,
     windowPlan: plan,
@@ -228,15 +323,48 @@ export async function driveConversationOutbound(
   // the one the owner approved, and sending it would be exactly the quiet
   // substitution this product exists to not do.
   if (candidate.kind === 'image') {
-    if (!candidate.mediaUrl || !deps.adapter.sendMedia) {
+    if (!candidate.mediaUrl || !adapterFor(deps, candidate.channel)?.sendMedia) {
       await refuse(deps, candidate, 'media_unsupported');
       return [...effects, { kind: 'canceled', id: candidate.id, reason: 'media_unsupported' }];
     }
   }
+  // C4.a — the adapter this row's channel needs, and the refusals that follow
+  // from not having one. Both are refusals rather than throws: a queued row
+  // that cannot be carried is something the owner must be able to see.
+  const adapter = adapterFor(deps, candidate.channel);
+  if (!adapter) {
+    await refuse(deps, candidate, 'channel_unavailable');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'channel_unavailable' }];
+  }
+  const asMail = adapter.sendMail !== undefined;
+  if (asMail && !candidate.subject) {
+    // A mail with no subject is not the message she wrote, and inventing one
+    // would invent the only part her buyer sees before opening it.
+    await refuse(deps, candidate, 'subject_missing');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'subject_missing' }];
+  }
+  // 'en' is the fallback for a buyer whose language nothing has observed yet —
+  // named here, at the one place that needs one, rather than assumed in the
+  // store where a null would quietly become a claim about him.
+  const headers = asMail && deps.mailHeaders
+    ? deps.mailHeaders(candidate, { locale: ctx.buyerLocale ?? 'en' })
+    : {};
+  // A message to someone who never wrote to her MUST carry a way out. RFC 8058
+  // is the buyer's, not ours to weigh: an outreach mail without it does not go,
+  // and she is told why rather than discovering it from a complaint.
+  if (asMail && candidate.origin === 'outreach' && Object.keys(headers).length === 0) {
+    await refuse(deps, candidate, 'no_unsubscribe');
+    return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
+  }
+
   await deps.store.transition(candidate.id, 'sending', null);
-  const result = candidate.kind === 'image' && candidate.mediaUrl && deps.adapter.sendMedia
-    ? await deps.adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })
-    : await deps.adapter.sendText(candidate.to, candidate.body);
+  const result = asMail && adapter.sendMail
+    ? await adapter.sendMail({
+        to: candidate.to, subject: candidate.subject ?? '', text: candidate.body, headers,
+      })
+    : candidate.kind === 'image' && candidate.mediaUrl && adapter.sendMedia
+      ? await adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })
+      : await adapter.sendText(candidate.to, candidate.body);
 
   if (result.ok) {
     await deps.store.recordProviderId(candidate.id, result.providerMessageId);

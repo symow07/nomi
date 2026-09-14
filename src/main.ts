@@ -16,6 +16,9 @@ import { assertPilotTenant } from './db/pilotTenant.js';
 import { templateState, parseApprovedTemplates } from './core/channel/templateReadiness.js';
 import { resolveSendingRecords } from './outbound/dns.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
+import { emailAdapter } from './channels/email/adapter.js';
+import { fakeMailTransport, type MailTransport } from './channels/email/transport.js';
+import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
@@ -24,6 +27,7 @@ import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob } from './queue
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import { markSmall } from './core/owner/brand.js';
+import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
 
@@ -297,6 +301,13 @@ export async function buildProduction(
     media?: MediaPorts;
     /** G2b — model ports, tests only; production builds them from the key. */
     models?: Parameters<typeof startWorker>[2];
+    /**
+     * C4.a — the mail transport. Absent is the recording fake, which is what
+     * every environment has until a provider arrives with M52: it keeps what
+     * would have left, so a test can assert the subject, the recipient and the
+     * unsubscribe headers rather than only that something was called.
+     */
+    mailTransport?: MailTransport;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -363,6 +374,11 @@ export async function buildProduction(
   // is approved by Meta, not by us, and we must not call Meta to find out — so
   // the operator records it beside the credentials. Empty (the state today) =
   // 'none', which keeps an out-of-window message with the owner.
+  // One derivation of the web session secret: the Command Center signs its
+  // cookies with it and C4.a's unsubscribe tokens are keyed from it, and two
+  // copies of that line would be two secrets the day one of them is edited.
+  const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
+
   const TEMPLATE_STATE = templateState({
     providerConfigured: cfg.provider !== 'disabled',
     approvedTemplates: parseApprovedTemplates(process.env['META_TEMPLATE_NAMES']),
@@ -380,7 +396,7 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
-      sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
+      sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
       templateState: TEMPLATE_STATE,
@@ -475,6 +491,40 @@ export async function buildProduction(
   // Outbound drive: consumes both reply jobs (from turn effects) and bare
   // re-drive ticks (from status webhooks / wait-recheck).
   type DriveJob = { businessId: string; conversationId: string; reply?: string };
+  /**
+   * C4.a — the adapters this installation has, by channel.
+   *
+   * WhatsApp is whichever provider the environment selected. E-mail is always
+   * present in the sense that the code exists; what decides whether a message
+   * can actually leave is her verified sending domain and her outreach switch,
+   * both of which the gate reads — not whether an object was constructed here.
+   * Until a real provider arrives with M52 the transport is the fake one, and
+   * it records rather than pretends, so what would have left is inspectable.
+   */
+  const mailTransport = overrides?.mailTransport ?? fakeMailTransport();
+  const email = emailAdapter({ transport: mailTransport });
+  const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
+  const adapterFor = (channel: string): ChannelAdapter | undefined => byChannel[channel];
+
+  /**
+   * C4.a — RFC 8058 headers, minted per message from the same signing key the
+   * unsubscribe page reads with. Empty when this installation has no public
+   * address to send anyone to, which is a refusal rather than a mail without a
+   * way out (`no_unsubscribe`).
+   */
+  const mailHeaders = (
+    row: { readonly to: string }, opts: { readonly locale: Locale },
+  ): Readonly<Record<string, string>> => {
+    if (!cfg.PUBLIC_BASE_URL) return {};
+    const token = mintUnsubscribe(webSessionSecret, {
+      // The BUYER's language, resolved by the store from his own client row: the
+      // page behind this link is the one thing in her mail he reads that she did
+      // not write, and it is no use to him in a language he does not read.
+      businessId: PILOT_BUSINESS_ID, channel: 'email', identity: row.to, locale: opts.locale,
+    });
+    return unsubscribeHeaders(`${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`);
+  };
+
   await boss.work<DriveJob>(QUEUES.outbound, async ([job]: { data: DriveJob }[]) => {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
@@ -487,7 +537,8 @@ export async function buildProduction(
       }
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       return driveConversationOutbound(
-        { store, adapter, now: () => new Date() }, job.data.conversationId,
+        { store, adapter, adapters: adapterFor, mailHeaders, now: () => new Date() },
+        job.data.conversationId,
       );
     });
 

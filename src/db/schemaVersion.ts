@@ -145,8 +145,14 @@ import type { Db } from './client.js';
  *      "check my domain" raised a constraint violation. Against a 44 database
  *      that write still fails, which is why this bumps rather than being
  *      treated as cosmetic.
+ *
+ * 46 = an e-mail can exist (0046, C4.a). `conversations.channel` and
+ *      `client_channels.channel` admit 'email'; the outbound row carries the
+ *      channel that will fetch it and the subject an e-mail needs; `origin`
+ *      admits 'outreach', the third kind of authorship. Against a 45 database
+ *      every outreach insert fails on a column that is not there.
  */
-export const REQUIRED_SCHEMA_VERSION = 45;
+export const REQUIRED_SCHEMA_VERSION = 46;
 
 export type SchemaState = {
   readonly required: number;

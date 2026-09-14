@@ -84,7 +84,12 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
      */
     for (const r of GATE_REASONS) expect(REFUSAL_REASONS, r).toContain(r);
     expect(REFUSAL_REASONS.filter((r) => !(GATE_REASONS as readonly string[]).includes(r)))
-      .toEqual(['window_needs_owner', 'media_unsupported']);
+      // C4.a — four more, all from the send path and none of them a decision:
+      // no adapter for the row's channel, a mail with no subject, an outreach
+      // mail that could not carry a way out, and a first message whose outreach
+      // facts could not be resolved so the gate could not be asked at all.
+      .toEqual(['window_needs_owner', 'media_unsupported',
+                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked']);
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {

@@ -240,6 +240,8 @@ put it one stray click away on every row of a list of live buyers.
 `message_fragments` sat in migration 0009 with no writer for eleven milestones
 and the batching it existed for was never wired; a table created ahead of its
 writer is that mistake with a schema attached.
+*(C4.a, later: it never shipped at all. The first sender counts the
+`outbound_messages` rows it already writes, so there is one record of the day.)*
 
 ---
 
@@ -371,15 +373,70 @@ dead documentation. A test also caught a `null` inside the events array taking
 the endpoint down with a 500, which would have made the provider replay a batch
 that had already written permanent rows.*
 
-**Still to build in M40** (trimmed in G21 — three of these shipped in M40.2 and
-G14, and a list that names finished work hides the work that is left):
-`outreach_log` and the outreach ceiling counter (M42's `ceilingReached` is a
-required field precisely so this cannot be forgotten), the sequence engine with
-kill-conditions, the reply-as-opt-in, and the adapter itself — whose arrival is
-what flips e-mail's `availableHere`. **Built already:** the sending domain
-(M40.1), bounce and complaint handling with a signature checked over the raw
-bytes (M40.2, repaired in G14 — in live mode it could never have verified one),
-and one-click unsubscribe with its own derived signing key.
+#### C4.a — one e-mail, written by her, sent to one contact ✅ BUILT
+
+Migration 0046, `src/channels/email/`, `src/outbound/writeFirst.ts`,
+`src/db/outreach.ts`, the "Write to them" page off `/app/contacts`, and her daily
+cap on the writing-first card. `REQUIRED_SCHEMA_VERSION` 46.
+
+- **The database could not hold an e-mail conversation.** `conversations.channel`
+  and `client_channels.channel` both refused `'email'`; the outbound row carried
+  no channel and no subject; `enqueueOutboundRow` resolved recipients from a join
+  pinned to `'whatsapp'`. 0046 widens the three channel lists, adds
+  `outbound_messages.channel` (defaulted `'whatsapp'`, so no existing row changes
+  meaning) and `subject`, admits `origin = 'outreach'`, and gives
+  `outreach_settings` her `daily_cap`.
+- **No second send path.** `writeFirst` is `ownerReply` with a different origin:
+  it queues through `enqueueOutboundRow`, and the ONE worker picks the adapter by
+  the row's own channel at the one call site the guard rails pin. A row whose
+  channel has no adapter is refused `channel_unavailable`, never dropped.
+- **The window is the channel's.** `channelSendPlan` asks the registry: e-mail's
+  `replyWindowHours` is null, so it has no window to be outside of — without this
+  every mail was refused `window_closed`, naming a WhatsApp rule. An unknown
+  channel is treated as windowed, the refusing answer.
+- **The outreach gate finally has its facts.** `outreachFacts` reads her switch,
+  her cap, her domain, his consent and his suppression for one buyer; `writeFirst`
+  asks it when she presses send and the outbound store asks it again when the row
+  leaves, so a bounce that lands in between still stops the mail. An outreach row
+  whose facts could not be resolved is refused `outreach_unchecked` — `gateOutbound`
+  only asks the outreach question when the field is present, so a missing field
+  must not read as a yes.
+- **No `outreach_log`.** The cap counts `outbound_messages` rows that actually
+  left today on that channel with origin `outreach`. One record of the day rather
+  than two that can disagree. The default is 50 a day — a quarter of the reply
+  ceiling or less, because what is at risk is the address she has used for years.
+- **Every first mail carries RFC 8058 headers**, minted at the composition root
+  with the key the `/u` page reads with, in the buyer's own language when his
+  client row knows it. No public address configured means no link, which means
+  the mail is refused `no_unsubscribe` rather than sent without a way out.
+- **Activation and the pilot allowlist are WhatsApp's, stated rather than joined.**
+  `channels` has a row for WhatsApp only, and `pilot_allowlist.phone` holds digits
+  only. For an e-mail conversation the store no longer reads either: what stands
+  between her and a stranger's inbox is her switch, her verified domain, his
+  consent, his suppression and her cap, every one absent by default. C4.d gives
+  e-mail its own row and its own list.
+- **An address another factory already holds writes nothing here.**
+  `client_channels` is unique on (channel, identity) globally; the conversation and
+  client created for him are rolled back rather than left as an empty thread.
+- **A buyer on two channels has two threads.** `ensureConversation` finds the
+  active conversation per channel, so a first mail can never be queued into his
+  WhatsApp thread and leave as a text message with no subject.
+- **In production today nothing leaves, and that is correct.** `SENDING_SPF_INCLUDE`
+  is unset until a sending provider exists (M52), so no domain verifies, so e-mail
+  cannot initiate; and deployment mode runs no outbound worker, so the write page
+  says messaging is not switched on before she types. The transport is a
+  recording fake until M52 replaces it.
+
+*The mutation check that mattered: pinning the store's identity join back to
+`'whatsapp'`, or dropping the outreach facts, fails four of the twelve
+integration tests over the real composition — the send, the unsubscribe loop,
+the late suppression and the cap.*
+
+**Still to build in M40:** the sequence engine with kill-conditions (C4.b), the
+reply-as-opt-in (C4.c), and per-channel activation (C4.d). **Built already:** the
+sending domain (M40.1), bounce and complaint handling with a signature checked
+over the raw bytes (M40.2, repaired in G14), one-click unsubscribe with its own
+derived signing key, and the first mail itself (C4.a).
 
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
@@ -454,9 +511,9 @@ Instagram cannot be written to first while the gate would have sent.
   first layer is checked first so no refusal ever advises an action that cannot
   help.
 - **`ceilingReached` is required, not optional** — the `silenced` precedent.
-  Nothing counts outreach attempts yet because nothing makes one; the counter
-  and `outreach_log` arrive with the first sender (M40), and a required field
-  makes the compiler name that sender when it is written.
+  Nothing counted outreach attempts because nothing made one; a required field
+  made the compiler name the first sender when it was written — which C4.a did,
+  counting `outbound_messages` rather than adding an `outreach_log`.
 - **`REFUSAL_REASONS` is now spread from `GATE_REFUSALS`** rather than
   hand-copied, and moved to `outbound/worker.ts` — the read model that renders
   it is forbidden from naming the gate at all. The test that guarded the copy
@@ -1371,7 +1428,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1, M40.2 built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 
