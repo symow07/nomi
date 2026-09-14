@@ -1067,6 +1067,8 @@ const EN = {
   'takeover.reason.audio_unheard': 'a voice message she could not hear',
   'takeover.reason.media_unreadable': 'something the buyer sent that she could not open',
   'takeover.reason.unlisted_number': 'a number that is not on your list',
+  // C4.c — he answered an e-mail you wrote first; a person answers him.
+  'takeover.reason.email_reply': 'an answer to your e-mail',
   // M34 — what happened, why, and what the owner does about it. Three reasons,
   // because the owner's next action genuinely differs: wait, ask for text, or
   // finish setting the installation up.
@@ -1276,6 +1278,7 @@ const EN = {
   'contacts.source.manual': 'You added them',
   'contacts.evidence.inbound_message': 'They wrote to you first',
   'contacts.evidence.owner_attestation': 'You said you may',
+  'contacts.evidence.replied_to_email': 'They answered your e-mail',
   'contacts.consent.none': 'You have not said you may write to them',
   'contacts.attest.button': 'I may write to them',
   'contacts.attest.hint': 'Only if they gave you their card or asked you to stay in touch. Whoever says so is recorded.',
@@ -2486,6 +2489,7 @@ const ZH: Record<MessageKey, string> = {
   'takeover.reason.audio_unheard': '一条听不清的语音',
   'takeover.reason.media_unreadable': '买家发来的东西她打不开',
   'takeover.reason.unlisted_number': '一个不在你名单上的号码',
+  'takeover.reason.email_reply': '对你邮件的回复',
   'unheard.title': '有条语音她没听清',
   'unheard.what': '{name}收到一条语音，但没听清里面说了什么，所以没有回复。',
   'unheard.why.not_configured': '她还不会听语音。',
@@ -2679,6 +2683,7 @@ const ZH: Record<MessageKey, string> = {
   'contacts.source.manual': '你加的',
   'contacts.evidence.inbound_message': '他先来找过你',
   'contacts.evidence.owner_attestation': '你说过可以',
+  'contacts.evidence.replied_to_email': '他回复过你的邮件',
   'contacts.consent.none': '你还没说过可以联系他',
   'contacts.attest.button': '我可以联系他',
   'contacts.attest.hint': '只有他给过你名片、或请你保持联系时才这样标。谁标的会记下来。',
@@ -3882,6 +3887,7 @@ const AR: Record<MessageKey, string> = {
   'takeover.reason.audio_unheard': 'رسالة صوتية لم تتمكّن من سماعها',
   'takeover.reason.media_unreadable': 'شيء أرسله المشتري ولم تتمكّن من فتحه',
   'takeover.reason.unlisted_number': 'رقم ليس في قائمتك',
+  'takeover.reason.email_reply': 'ردّ على بريدك',
   'unheard.title': 'رسالة صوتية لم تتمكّن من سماعها',
   'unheard.what': 'وصلت {name} رسالة صوتية ولم تتبيّن الكلمات، لذلك لم تردّ.',
   'unheard.why.not_configured': 'هذا التركيب لا يستطيع بعد الاستماع إلى الرسائل الصوتية.',
@@ -4075,6 +4081,7 @@ const AR: Record<MessageKey, string> = {
   'contacts.source.manual': 'أنتِ أضفتِه',
   'contacts.evidence.inbound_message': 'راسلكِ أولًا',
   'contacts.evidence.owner_attestation': 'قلتِ إنه يجوز',
+  'contacts.evidence.replied_to_email': 'ردّ على بريدك',
   'contacts.consent.none': 'لم تقولي بعد إنه يجوز أن تراسليه',
   'contacts.attest.button': 'يجوز أن أراسله',
   'contacts.attest.hint': 'فقط إن أعطاكِ بطاقته أو طلب أن تبقيا على تواصل. ويُسجَّل اسم من قال ذلك.',

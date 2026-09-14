@@ -94,6 +94,19 @@ export type ChannelCapability = {
    * lands, not because someone remembered to edit a boolean.
    */
   readonly availableHere: boolean;
+  /**
+   * C4.c — whether the channel ever tells us a message REACHED the person.
+   *
+   * WhatsApp sends a 'delivered' receipt, and the outbound sequencer holds the
+   * next message in a conversation until the previous one has one (or 90
+   * seconds pass), so a greeting and a quote cannot arrive in the wrong order.
+   * E-mail sends no such receipt — a provider's acceptance is all anyone can
+   * know — so waiting for one only ever delays her answer by the full cap.
+   *
+   * Optional, and ABSENT MEANS IT DOES: the waiting behaviour is the safe one,
+   * so a channel added without thinking about this keeps it.
+   */
+  readonly deliveryReceipts?: boolean;
 };
 
 export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapability>> = {
@@ -108,6 +121,7 @@ export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapabilit
     // than a warning somewhere.
     requires: ['verified_sending_domain'],
     replyWindowHours: null, instead: [],
+    deliveryReceipts: false,
   },
   whatsapp: {
     availableHere: true, channel: 'whatsapp', coldInitiate: 'conditional',

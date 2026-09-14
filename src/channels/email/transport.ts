@@ -18,6 +18,22 @@ import type { MailMessage, SendResult } from '../contract.js';
 export interface MailTransport {
   /** Provider name for the audit trail — 'fake', 'ses', 'gmail'. */
   readonly provider: string;
+  /**
+   * C4.c — THE CONTRACT A REAL TRANSPORT MUST KEEP, because replies depend on it:
+   *
+   *   `providerMessageId` on success is the RFC 5322 Message-ID of the mail as
+   *   the recipient's client sees it, without angle brackets.
+   *
+   * A buyer's reply names the mail it answers only by that header, in
+   * In-Reply-To and References, and `resolve_email_reply` (0048) matches it
+   * against this stored value. A provider's internal job id in its place would
+   * make every reply unmatchable — silently, since an unknown thread is
+   * acknowledged and ignored. SES returns `<id>@email.amazonses.com`-shaped
+   * ids and Gmail returns the header on the sent message; each adapter maps
+   * its own.
+   *
+   * And `message.tag` goes out as provider metadata — see `MailMessage.tag`.
+   */
   send(message: MailMessage): Promise<SendResult>;
 }
 
@@ -56,6 +72,7 @@ export function fakeMailTransport(
       // — a re-send loop found by the integration suite, where each file is a
       // fresh process. The WhatsApp simulator namespaces its ids for the same
       // reason (G2b).
+      // Shaped as a Message-ID, which is the contract above.
       return r.ok && r.providerMessageId === ''
         ? { ok: true, providerMessageId: `fake-mail-${randomUUID()}@nomi.invalid` }
         : r;

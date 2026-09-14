@@ -182,11 +182,17 @@ describe('M40.2 · the webhook', () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // G14 — it lives in a scope of its own now, so the signature can be taken
     // over the bytes the provider sent without changing any other route.
-    const at = app.indexOf("scope.post('/hooks/email'");
+    // C4.c — exact route, with the comma: '/hooks/email/inbound' now shares the
+    // prefix, and a prefix search found the reply route first.
+    const at = app.indexOf("scope.post('/hooks/email', ");
     expect(at).toBeGreaterThan(-1);
     expect(app.slice(0, at)).toContain('if (deps.emailWebhookSecret) {');
     const body = app.slice(at, at + 2600);
-    expect(body).toContain('timingSafeEqual');
+    // The constant-time check is ONE helper both e-mail routes call (C4.c), so
+    // the route must call it and the helper must be the timing-safe one.
+    expect(body).toContain('signedBody(req)');
+    const scope = app.slice(app.indexOf('void app.register(async (scope) => {'), at);
+    expect(scope).toMatch(/const signedBody = [\s\S]*timingSafeEqual/);
     expect(body).toContain('reply.code(404).send()');
   });
 
@@ -203,7 +209,7 @@ describe('M40.2 · the webhook', () => {
 
   it('reads the tenant from the signed token, never from the request', async () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    const body = app.slice(app.indexOf("scope.post('/hooks/email'"), app.indexOf("app.get('/u'"));
+    const body = app.slice(app.indexOf("scope.post('/hooks/email', "), app.indexOf("app.get('/u'"));
     expect(body).toContain('claimFrom(deps.sessionSecret, e.tag)');
     expect(body).not.toMatch(/businessId.*req\.(params|query|body)/);
   });

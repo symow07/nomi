@@ -212,6 +212,15 @@ export function channelStore(
       // stays null and the caller decides, because a wrong language stated
       // confidently is worse than a fallback named as one.
       const buyerLocale = LOCALES.find((l) => l === c?.buyer_locale) ?? null;
+      // C4.c — his latest e-mail's Message-ID, so what she sends into his thread
+      // threads under it. Stored as the message's external id, 'email:<id>'.
+      const inReplyTo = channel === 'email'
+        ? (await sql<{ id: string }>`
+            select substr(external_id, 7) as id from messages
+             where conversation_id = ${conversationId} and direction = 'inbound'
+               and external_id like 'email:%'
+             order by sent_at desc limit 1`.execute(tx)).rows[0]?.id ?? null
+        : null;
 
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
@@ -245,6 +254,7 @@ export function channelStore(
         dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,
         ...(buyerLocale ? { buyerLocale } : {}),
         ...(outreach ? { outreach } : {}),
+        ...(inReplyTo ? { inReplyTo } : {}),
       };
       return { rows, ctx };
     },
@@ -501,6 +511,23 @@ export async function enqueueOutboundRow(
   const channel = to.rows[0]?.channel ?? 'whatsapp';
   if (!recipient) return null;   // no channel identity — nothing to send to
 
+  /**
+   * C4.c — HER ANSWER TO HIS REPLY needs a subject, and the one it has is not
+   * invented: "Re: " and the subject of the mail he answered, which is how every
+   * mail client names a reply and what he will look for in his inbox. Only for a
+   * person answering on an e-mail thread; a first mail or a sequence step always
+   * carries the subject she wrote, and a thread with no subject to reply to
+   * stays without one — the worker then refuses it `subject_missing`, visibly.
+   */
+  let subject = mail?.subject ?? null;
+  if (subject === null && channel === 'email' && origin === 'owner') {
+    const last = (await sql<{ subject: string }>`
+      select subject from outbound_messages
+       where conversation_id = ${conversationId} and subject is not null
+       order by seq desc limit 1`.execute(tx)).rows[0]?.subject ?? null;
+    subject = last === null ? null : /^re:/i.test(last.trim()) ? last : `Re: ${last}`;
+  }
+
   // At-least-once jobs: a retry after commit must not queue the reply twice.
   // Employee replies dedupe on identical recent body; owner text never does
   // (repeating yourself on purpose is a human right). Outreach does not dedupe
@@ -510,7 +537,7 @@ export async function enqueueOutboundRow(
       (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject)
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
-           ${channel}, ${mail?.subject ?? null}
+           ${channel}, ${subject}
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not exists (
       select 1 from outbound_messages
@@ -528,13 +555,17 @@ export async function enqueueOutboundRow(
  */
 export async function ownerSendFacts(
   tx: Tx, businessId: BusinessId, conversationId: string, providerConfigured: boolean,
-): Promise<{ facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean; lastInboundAt: Date | null }> {
+): Promise<{
+  facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean; lastInboundAt: Date | null;
+  /** C4.c — the conversation's own channel; the precheck above is WhatsApp's. */
+  channel: string;
+}> {
   const row = (await sql<{
     status: string | null; activated_at: Date | null; disconnected_at: Date | null;
     pilot_mode: boolean | null; cred: boolean | null; buyer_wa_id: string | null;
-    last_inbound_at: Date | null;
+    last_inbound_at: Date | null; channel: string | null;
   }>`
-    select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode,
+    select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode, c.channel,
            (select bool_or(cc.is_active) from channel_credentials cc
              where cc.business_id = ${businessId} and cc.channel = 'whatsapp') as cred,
            cc2.channel_user_id as buyer_wa_id, cc2.last_inbound_at
@@ -563,5 +594,6 @@ export async function ownerSendFacts(
     recipientAllowed: pilotMode ? await isAllowlisted(tx, businessId, row?.buyer_wa_id ?? null) : true,
     // G10b — so she is told, when she presses send, that his window is shut.
     lastInboundAt: row?.last_inbound_at ?? null,
+    channel: row?.channel ?? 'whatsapp',
   };
 }

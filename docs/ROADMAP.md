@@ -493,10 +493,57 @@ sequence" (below) needs a live model and its own guard rails for cold copy;
 the approval that makes a proposal safe is what C4.b built, so a drafting
 employee can land later behind it without changing what is enforced.*
 
-**Still to build in M40:** the reply-as-opt-in (C4.c) and per-channel activation
-(C4.d). **Built already:** the sending domain (M40.1), bounce and complaint
-handling (M40.2, repaired in G14), one-click unsubscribe with its own derived
-signing key, the first mail itself (C4.a), and follow-ups (C4.b).
+#### C4.c — the reply is the opt-in ✅ BUILT
+
+Migration 0048, `src/channels/email/inbound.ts`, `src/pipeline/emailReply.ts`,
+and `POST /hooks/email/inbound`. `REQUIRED_SCHEMA_VERSION` 48.
+
+- **His answer arrives at a signed webhook** in one provider-neutral shape
+  (`from`, `messageId`, `inReplyTo`/`references`, `subject`, `text`); the adapter
+  that comes with the provider (M52) maps its own payload onto it. Same secret,
+  same raw-bytes HMAC and the same 404-on-a-bad-signature as the events route —
+  one helper, `signedBody`, for both.
+- **The tenant cannot be forged.** The reply names the mail it answers by
+  Message-ID; `resolve_email_reply` (SECURITY DEFINER, like `resolve_tenant`)
+  finds that id among mails this product actually SENT and returns the business,
+  thread and address from her record. And the sender must BE that address: a
+  colleague or a forward is `not_the_recipient` and records nothing in his name.
+- **What his answer changes, in one transaction:** his words on the thread
+  (deduped on his Message-ID), `replied_to_email` consent for e-mail to his
+  address, the `email_reply` signal and the SAME handoff an unread document takes
+  (`handToPerson`, moved out of the worker closure so there is one copy). No
+  model runs on a stranger's first answer. His follow-ups stop by C4.b's own
+  rule — he has written since he was enrolled.
+- **She answers him through the one send path.** The owner precheck is
+  channel-aware (an e-mail thread has no WhatsApp lifecycle); her reply takes
+  "Re:" and the subject of the mail he answered — how every mail client names a
+  reply, not an invented subject — and threads under his with In-Reply-To and
+  References. The unsubscribe refusal now asks for `List-Unsubscribe` BY NAME:
+  it had been "no headers at all", which a threading header would have satisfied.
+- **E-mail has no delivery receipt to wait for.** The outbound sequencer held
+  each message until the one before it had a WhatsApp 'delivered' receipt or 90
+  seconds passed; for e-mail that was always the full 90 seconds on her answer.
+  The registry now says `deliveryReceipts: false` for e-mail (absent means yes,
+  the waiting behaviour), and a mail still in flight still blocks the next.
+- **Found while building it — M40.2 could never have matched a real provider's
+  bounce.** Its webhook reads the tenant from a signed `tag` on each event, and
+  nothing ever handed a transport that tag: it existed only inside the
+  List-Unsubscribe URL. `MailMessage.tag` now carries it, the transport contract
+  says to attach it as provider metadata, and an integration test posts a bounce
+  echoing the tag of a real sent mail and sees the right address suppressed.
+- **The transport contract, written down for M52:** on success,
+  `providerMessageId` is the RFC 5322 Message-ID the recipient's client sees —
+  a provider's internal job id there would make every reply unmatchable.
+
+*The roadmap said a reply "opens WhatsApp for them later". It does not, and
+cannot: consent belongs to the channel it was given on (M38), and answering a
+mail hands nobody his phone number. It opens e-mail; WhatsApp opens when he
+messages her there.*
+
+**Still to build in M40:** per-channel activation (C4.d). **Built already:** the
+sending domain (M40.1), bounce and complaint handling (M40.2, repaired in G14,
+matchable since C4.c), one-click unsubscribe, the first mail (C4.a), follow-ups
+(C4.b), and replies (C4.c).
 
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
@@ -1488,7 +1535,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b, C4.c built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 

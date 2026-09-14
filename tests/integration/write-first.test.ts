@@ -250,7 +250,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     const email = emailAdapter({ transport: own });
     const effects = await tx((x) => driveConversationOutbound({
       store: channelStore(x, bid), adapter: email, adapters: (k) => (k === 'email' ? email : undefined),
-      mailHeaders: () => ({ 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }), now: () => new Date(),
+      mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x' }), now: () => new Date(),
     }, cid));
     expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'suppressed' }));
     expect(own.sent).toEqual([]);

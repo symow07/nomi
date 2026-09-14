@@ -41,6 +41,13 @@ export type Signal =
    * problem with the buyer, only with who may be written to.
    */
   | { readonly kind: 'unlisted_number' }
+  /**
+   * C4.c — he answered an e-mail she wrote first. A person answers him: no model
+   * runs on a stranger's first reply to a cold mail, and the follow-ups stop
+   * (C4.b's `replied`). Not a problem with him — the best thing that can happen —
+   * but it needs a person, which is what this list is for.
+   */
+  | { readonly kind: 'email_reply' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -68,6 +75,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'media_unreadable',
   // G10c — nor may she write to him: he is not on the owner's pilot list.
   'unlisted_number',
+  // C4.c — he answered her cold e-mail, and a person answers him.
+  'email_reply',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -86,6 +95,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   audio_unheard: { kind: 'audio_unheard', reason: 'transcription_failed' },
   media_unreadable: { kind: 'media_unreadable', received: 'document' },
   unlisted_number: { kind: 'unlisted_number' },
+  email_reply: { kind: 'email_reply' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -116,6 +126,7 @@ export const TRIGGER_REASONS = [
   'audio_unheard',
   'media_unreadable',
   'unlisted_number',
+  'email_reply',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -136,6 +147,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'media_unreadable';
     case 'unlisted_number':
       return 'unlisted_number';
+    case 'email_reply':
+      return 'email_reply';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

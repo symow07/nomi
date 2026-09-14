@@ -44,6 +44,8 @@ import {
   loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
 import { writeFirst } from '../../outbound/writeFirst.js';
+import { parseInboundMail } from '../../channels/email/inbound.js';
+import { recordEmailReply } from '../../pipeline/emailReply.js';
 import { enroll } from '../../outbound/sequences.js';
 import {
   type SequenceFlash, addStepFrom, approveSequenceFrom, archiveSequenceById, createSequenceFrom,
@@ -60,7 +62,7 @@ import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
-import { sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
+import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
@@ -208,6 +210,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
+  { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -344,6 +347,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => {
     const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, messagingEnabled));
+    /**
+     * C4.c — an e-mail thread has no WhatsApp lifecycle to be in. Her answer to
+     * his reply is refused only by what binds e-mail: messaging must be live
+     * (the outbound worker runs only then), and the channel's own window — none,
+     * for e-mail — asked through `channelSendPlan`, so an unknown channel still
+     * reads as windowed. Everything else is the send gate's, at send time.
+     */
+    if (pre.channel !== 'whatsapp') {
+      if (!messagingEnabled) return 'not_connected' as const;
+      return channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), deps.templateState ?? 'none').action
+        === 'wait_for_buyer' ? 'window_closed' as const : 'ok' as const;
+    }
     return precheckOwnerSend(pre.facts, {
       ...pre,
       windowAction: sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', deps.templateState ?? 'none').action,
@@ -407,13 +422,43 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // framework's own in deployment mode, the ingress app's in live mode.
       scope.removeContentTypeParser('application/json');
       scope.addContentTypeParser('application/json', { parseAs: 'string' }, (_r, body, done) => done(null, body));
+      /**
+       * The raw body, when its signature is good; null when it is not. ONE
+       * check for both e-mail routes: a second copy is where a timing-unsafe
+       * comparison or a re-serialised body would come back.
+       */
+      const signedBody = (req: FastifyRequest): string | null => {
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+        const given = String(req.headers['x-webhook-signature'] ?? '');
+        const expected = createHmac('sha256', deps.emailWebhookSecret!).update(rawBody).digest('base64url');
+        const a = Buffer.from(given); const b = Buffer.from(expected);
+        return a.length === b.length && timingSafeEqual(a, b) ? rawBody : null;
+      };
+
+      /**
+       * C4.c — HIS ANSWER. Signed like the events route; the tenant comes from
+       * the mail he quoted, never from the request (`recordEmailReply`).
+       *
+       * 404 on a bad signature, exactly as the events route, so the two cannot
+       * be told apart from outside. 200 on everything after it, including a
+       * payload that is not a mail or a thread we never sent: a provider that
+       * sees an error retries, and retrying cannot make either of those true.
+       * Only a failure to WRITE is an error — that one is worth a retry.
+       */
+      scope.post('/hooks/email/inbound', async (req, reply) => {
+        const rawBody = signedBody(req);
+        if (rawBody === null) return reply.code(404).send();
+        let parsed: unknown;
+        try { parsed = JSON.parse(rawBody); } catch { return reply.code(200).send({ ok: true }); }
+        const mail = parseInboundMail(parsed);
+        if (!mail) return reply.code(200).send({ ok: true });
+        const r = await recordEmailReply(deps.db, mail);
+        return reply.code(200).send({ ok: true, outcome: r.outcome });
+      });
+
       scope.post('/hooks/email', async (req, reply) => {
-      const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
-      const given = String(req.headers['x-webhook-signature'] ?? '');
-      const expected = createHmac('sha256', deps.emailWebhookSecret!)
-        .update(rawBody).digest('base64url');
-      const a = Buffer.from(given); const b = Buffer.from(expected);
-      if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(404).send();
+      const rawBody = signedBody(req);
+      if (rawBody === null) return reply.code(404).send();
 
       let parsed: unknown;
       try { parsed = JSON.parse(rawBody); } catch { return reply.code(200).send({ ok: true }); }

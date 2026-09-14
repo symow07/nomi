@@ -80,7 +80,7 @@ media setting to keep in step with it.
 | `TRANSCRIBE_API_KEY` | ≥ 20 chars, when set | Speech-to-text (Whisper). **Unset, she refuses every voice note** and tells the owner she could not hear it — never an answer to a question nobody heard. The one media setting that is its own account. |
 | `TRANSCRIBE_BASE_URL` | starts with `https://`, when set | Only for a Whisper-compatible provider other than OpenAI's. |
 | `SENDING_SPF_INCLUDE` | not checked at boot | The sending provider's own SPF mechanism (M40.1). Unset, SPF reads as `no_sender` — present but unconfirmable — and sending stays refused. |
-| `EMAIL_WEBHOOK_SECRET` | not checked at boot | Shared secret for the provider's bounce/complaint callbacks (M40.2). **Unset mounts no `/hooks/email` at all.** The signature is taken over the raw bytes (G14). |
+| `EMAIL_WEBHOOK_SECRET` | not checked at boot | Shared secret for the provider's callbacks: bounce/complaint events at `/hooks/email` (M40.2) and buyers' replies at `/hooks/email/inbound` (C4.c). **Unset mounts neither.** The signature is HMAC-SHA256 over the raw bytes, base64url, in `x-webhook-signature` (G14). |
 | `PUBLIC_BASE_URL` | starts with `https://`, when set | The address buyers reach this installation at. Every quote carries a proof link built on it (G11). **Unset, no link is attached** and the owner is told why on the conversation. https only: the link is forwarded to a stranger's phone. |
 
 > Until G2b (2026-09-10) the worker was never given these, however the host was

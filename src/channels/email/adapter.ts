@@ -13,13 +13,14 @@ import type { MailTransport } from './transport.js';
  * message, and not one commit earlier. A switch that does nothing is the thing
  * this product exists to refuse.
  *
- * WHAT IT DELIBERATELY DOES NOT DO. Inbound mail arrives in C4.c; until then
- * `verifyWebhook` refuses everything and `parseWebhook` returns nothing, which
- * is the truth rather than a half-parser that would drop a buyer's reply
- * silently. Bounces and complaints already arrive by their own route —
- * `/hooks/email`, M40.2 — which verifies its own signature over raw bytes and
- * writes suppressions; it is not this adapter's business and is not routed
- * through it.
+ * WHAT IT DELIBERATELY DOES NOT DO. Receive. The contract's webhook methods are
+ * shaped for WhatsApp's event stream (a phone-number id, a wa_id), and a mail
+ * is neither. A buyer's reply arrives at `/hooks/email/inbound` (C4.c) and
+ * bounces and complaints at `/hooks/email` (M40.2), each verifying its own
+ * signature over raw bytes and each finding the tenant from what this product
+ * sent rather than from the request. So `verifyWebhook` refuses everything and
+ * `parseWebhook` returns nothing here — the truth, rather than a second
+ * receiving path that could disagree with the first.
  *
  * `sendText` is absent on purpose. A mail with no subject is not the message
  * she wrote, and an adapter that invented one would be inventing the only part
@@ -31,9 +32,9 @@ export function emailAdapter(deps: { readonly transport: MailTransport }): Chann
     provider: deps.transport.provider,
 
     /**
-     * Inbound mail does not arrive here (C4.c). Refusing is not a placeholder:
-     * an adapter that accepted a payload it cannot parse would acknowledge a
-     * buyer's reply and lose it.
+     * Inbound mail does not arrive here: see the header. Refusing is not a
+     * placeholder — an adapter that accepted a payload it cannot parse would
+     * acknowledge a buyer's reply and lose it.
      */
     verifyWebhook(): boolean {
       return false;

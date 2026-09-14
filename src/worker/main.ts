@@ -10,15 +10,13 @@ import {
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
-import { computeTurn, commitTurn, type TurnEffects } from '../pipeline/turn.js';
+import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
-import { recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
-import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
-import type { Signal } from '../core/scoring/signals.js';
+import { handToPerson, recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
@@ -69,38 +67,6 @@ export async function startWorker(
   const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic);
   const vision = models.vision ?? anthropicVision(anthropic);
 
-  /**
-   * G2c — she could not read what the buyer sent, so a PERSON must. Records
-   * the reason, and moves the conversation to "waiting for a person" when she
-   * is the one holding it.
-   *
-   * Before this, the unheard-note and unclear-photo paths recorded their
-   * signal and a handoff event and left the conversation with her. Those
-   * signals score no problem points, so ownership never changed, and the
-   * conversation never appeared under "needs you" — the owner learned of it
-   * only if the WhatsApp alert happened to arrive.
-   *
-   * The ownership model is unchanged: this is the existing AI → WAITING_HUMAN
-   * transition, taken through `canTransition`. A conversation a person already
-   * holds is left with that person.
-   */
-  const handToPerson = async (
-    tenant: ReturnType<typeof tenantRepos>, conversationId: ConversationId, signal: Signal,
-  ): Promise<TurnEffects> => {
-    await tenant.signals.record(conversationId, signal);
-    const state = await tenant.conversations.loadState(conversationId);
-    const from = ownershipOf(state?.assignedTo ?? null);
-    // Only AI → WAITING_HUMAN is an allowed move into waiting; a person who
-    // already holds it keeps it.
-    if (state && canTransition(from, 'WAITING_HUMAN')) {
-      await tenant.conversations.assign(conversationId, WAITING_HUMAN_AGENT);
-    }
-    await tenant.events.append(conversationId, 'handoff', { reason: signal.kind });
-    return {
-      outbound: null, draftCreated: null, hotLeadAlert: false,
-      handoffAlert: true, orderCreated: null,
-    } satisfies TurnEffects;
-  };
 
   /**
    * ONE TURN, whatever produced it: a typed message, a merged batch of

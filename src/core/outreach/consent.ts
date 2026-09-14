@@ -62,12 +62,15 @@ export type ContactSource = (typeof CONTACT_SOURCES)[number];
  *                       consent, and no system saw it. Recorded as HER claim,
  *                       never as an observation.
  *
- * `replied_to_email` and `form_submission` are named in the roadmap and absent
- * for the same reason as the sources above: nothing can write them yet. The
- * first arrives with M40, where a reply to her email is what legitimately
- * opens WhatsApp for that buyer later.
+ *   replied_to_email  — (C4.c) he answered an e-mail she sent. Observed, like
+ *                       `inbound_message`, and consent for E-MAIL to that
+ *                       address only: a reply to a mail hands nobody his phone
+ *                       number, so it cannot open WhatsApp by itself.
+ *
+ * `form_submission` is named in the roadmap and absent for the reason the
+ * sources above are: nothing can write it yet.
  */
-export const CONSENT_EVIDENCE = ['inbound_message', 'owner_attestation'] as const;
+export const CONSENT_EVIDENCE = ['inbound_message', 'owner_attestation', 'replied_to_email'] as const;
 export type ConsentEvidence = (typeof CONSENT_EVIDENCE)[number];
 
 /** Why an identity may never be written to again. */

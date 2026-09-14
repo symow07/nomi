@@ -51,6 +51,19 @@ export type MailMessage = {
   readonly subject: string;
   readonly text: string;
   readonly headers: Readonly<Record<string, string>>;
+  /**
+   * C4.c — THE SIGNED TOKEN A PROVIDER MUST ECHO ON EVERY EVENT about this mail.
+   *
+   * M40.2's bounce and complaint webhook finds the tenant and the address from
+   * a signed `tag` on each event, and nothing handed a transport one: the token
+   * lived only inside the List-Unsubscribe URL. So no real provider could ever
+   * have echoed it, and every bounce would have been dropped as unsigned. A
+   * transport attaches this as the provider's own message metadata (SES message
+   * tags, Postmark metadata, a Mailgun variable) so its events carry it back.
+   * Null only where the installation has no signing context, and then the mail
+   * carries no unsubscribe link either and is refused before it gets here.
+   */
+  readonly tag: string | null;
 };
 
 export interface ChannelAdapter {

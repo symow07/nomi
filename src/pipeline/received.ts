@@ -1,5 +1,10 @@
 import { sql } from 'kysely';
 import type { Tx } from '../db/client.js';
+import type { tenantRepos } from '../db/repos.js';
+import type { ConversationId } from '../core/types/ids.js';
+import type { Signal } from '../core/scoring/signals.js';
+import type { TurnEffects } from './turn.js';
+import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
 
 /**
  * G2c — recording a message she will not answer: a reaction or a sticker she
@@ -52,4 +57,42 @@ export async function recordReceivedMessage(
        ${JSON.stringify({ received })}::jsonb, clock_timestamp())
     on conflict do nothing
   `.execute(tx);
+}
+
+/**
+ * G2c — she could not read what the buyer sent, so a PERSON must.
+ *
+ * C4.c — moved here from the worker's closure, unchanged, because an e-mail
+ * reply hands the conversation to a person the same way and a second copy of
+ * this transition would be a second place to get it wrong.
+ *
+ * Records the reason, and moves the conversation to "waiting for a person"
+ * when she is the one holding it.
+ *
+ * Before this, the unheard-note and unclear-photo paths recorded their
+ * signal and a handoff event and left the conversation with her. Those
+ * signals score no problem points, so ownership never changed, and the
+ * conversation never appeared under "needs you" — the owner learned of it
+ * only if the WhatsApp alert happened to arrive.
+ *
+ * The ownership model is unchanged: this is the existing AI → WAITING_HUMAN
+ * transition, taken through `canTransition`. A conversation a person already
+ * holds is left with that person.
+ */
+export async function handToPerson(
+  tenant: ReturnType<typeof tenantRepos>, conversationId: ConversationId, signal: Signal,
+): Promise<TurnEffects> {
+  await tenant.signals.record(conversationId, signal);
+  const state = await tenant.conversations.loadState(conversationId);
+  const from = ownershipOf(state?.assignedTo ?? null);
+  // Only AI → WAITING_HUMAN is an allowed move into waiting; a person who
+  // already holds it keeps it.
+  if (state && canTransition(from, 'WAITING_HUMAN')) {
+    await tenant.conversations.assign(conversationId, WAITING_HUMAN_AGENT);
+  }
+  await tenant.events.append(conversationId, 'handoff', { reason: signal.kind });
+  return {
+    outbound: null, draftCreated: null, hotLeadAlert: false,
+    handoffAlert: true, orderCreated: null,
+  } satisfies TurnEffects;
 }

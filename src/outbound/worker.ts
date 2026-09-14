@@ -82,6 +82,13 @@ export type ConversationSendContext = {
    * assumed for him here.
    */
   readonly buyerLocale?: Locale;
+  /**
+   * C4.c — the Message-ID of his latest e-mail in this conversation, so a mail
+   * sent into it (her answer to his reply) threads under his in his inbox
+   * instead of arriving as a stranger's new message. Absent where he has not
+   * written, which is every first mail.
+   */
+  readonly inReplyTo?: string;
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -193,11 +200,17 @@ export type AdapterFor = (channel: string) => ChannelAdapter | undefined;
  * the store. The composition root has it (`src/main.ts`) and hands this down,
  * the same way it hands down the adapter.
  */
+export type MailEnvelope = {
+  /** The RFC 8058 pair, when there is a public address to send him to. */
+  readonly headers: Readonly<Record<string, string>>;
+  /** C4.c — the same signed token, for the provider to echo on its events. */
+  readonly tag: string | null;
+};
 export type MailHeadersFor = (
   row: OutboundWorkRow,
   /** The buyer's language, for the page the link goes to. */
   opts: { readonly locale: Locale },
-) => Readonly<Record<string, string>>;
+) => MailEnvelope;
 
 const adapterFor = (deps: { adapter: ChannelAdapter; adapters?: AdapterFor }, channel: string | undefined)
   : ChannelAdapter | undefined => {
@@ -349,13 +362,22 @@ export async function driveConversationOutbound(
   // 'en' is the fallback for a buyer whose language nothing has observed yet —
   // named here, at the one place that needs one, rather than assumed in the
   // store where a null would quietly become a claim about him.
-  const headers = asMail && deps.mailHeaders
+  const envelope: MailEnvelope = asMail && deps.mailHeaders
     ? deps.mailHeaders(candidate, { locale: ctx.buyerLocale ?? 'en' })
-    : {};
+    : { headers: {}, tag: null };
+  const headers: Readonly<Record<string, string>> = {
+    ...envelope.headers,
+    ...(asMail && ctx.inReplyTo
+      ? { 'In-Reply-To': `<${ctx.inReplyTo}>`, References: `<${ctx.inReplyTo}>` } : {}),
+  };
   // A message to someone who never wrote to her MUST carry a way out. RFC 8058
   // is the buyer's, not ours to weigh: an outreach mail without it does not go,
   // and she is told why rather than discovering it from a complaint.
-  if (asMail && candidate.origin === 'outreach' && Object.keys(headers).length === 0) {
+  //
+  // C4.c — asked of the unsubscribe header BY NAME. It was "no headers at all",
+  // which a threading header would have satisfied: a mail with In-Reply-To and
+  // no way out would have gone.
+  if (asMail && candidate.origin === 'outreach' && !('List-Unsubscribe' in envelope.headers)) {
     await refuse(deps, candidate, 'no_unsubscribe');
     return [...effects, { kind: 'canceled', id: candidate.id, reason: 'no_unsubscribe' }];
   }
@@ -363,7 +385,7 @@ export async function driveConversationOutbound(
   await deps.store.transition(candidate.id, 'sending', null);
   const result = asMail && adapter.sendMail
     ? await adapter.sendMail({
-        to: candidate.to, subject: candidate.subject ?? '', text: candidate.body, headers,
+        to: candidate.to, subject: candidate.subject ?? '', text: candidate.body, headers, tag: envelope.tag,
       })
     : candidate.kind === 'image' && candidate.mediaUrl && adapter.sendMedia
       ? await adapter.sendMedia(candidate.to, { url: candidate.mediaUrl, caption: candidate.body })

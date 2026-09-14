@@ -157,8 +157,13 @@ import type { Db } from './client.js';
  *      vocabulary in a CHECK, and `sequence_sends`, the key that keeps a step
  *      from being queued twice. The sweep reads them every minute, so against a
  *      46 database the worker fails on its first tick.
+ *
+ * 48 = the reply is the opt-in (0048, C4.c). 'replied_to_email' consent, the
+ *      'email_reply' signal, and `resolve_email_reply`, the security-definer
+ *      lookup from the Message-ID he quoted to the mail she sent. Against a 47
+ *      database his answer is refused by a CHECK and the webhook 500s.
  */
-export const REQUIRED_SCHEMA_VERSION = 47;
+export const REQUIRED_SCHEMA_VERSION = 48;
 
 export type SchemaState = {
   readonly required: number;

@@ -227,13 +227,6 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
        join sequence_enrollments e on e.id = s.enrollment_id
        where e.identity = ${addr('ahmed')} and s.position = 1`.execute(x).then((r) => r.rows[0]?.status))) === 'sent',
       'step one to be marked sent');
-    // Step one left "two days ago" in this test's time, so say so in the row.
-    // The outbound sequencer holds a message for up to 90 s after the one before
-    // it in the same conversation was sent, waiting on a WhatsApp delivery
-    // receipt; days apart in real life that hold has long expired, and a test
-    // that moves time by argument has to move this timestamp with it.
-    await tx((x) => sql`update outbound_messages set sent_at = now() - interval '2 days'
-                         where business_id = ${BIZ} and to_wa_id = ${addr('ahmed')}`.execute(x));
     await sweep(new Date(T0.getTime() + 1 * DAY));
     await new Promise((r) => setTimeout(r, 1500));
     expect(mailsTo('ahmed'), 'the follow-up went early').toHaveLength(1);
@@ -349,7 +342,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
       const email = emailAdapter({ transport: own });
       const effects = await tx((x) => driveConversationOutbound({
         store: channelStore(x, b), adapter: email, adapters: (k) => (k === 'email' ? email : undefined),
-        mailHeaders: () => ({ 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }), now: () => new Date(),
+        mailHeaders: () => ({ headers: { 'List-Unsubscribe': '<https://nomi.test/u?t=x>' }, tag: 'x' }), now: () => new Date(),
       }, queued));
       expect(effects).toContainEqual(expect.objectContaining({ kind: 'canceled', reason: 'silenced' }));
       expect(own.sent).toEqual([]);

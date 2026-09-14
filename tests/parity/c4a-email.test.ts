@@ -93,7 +93,7 @@ function rig(opts: {
   const locales: string[] = [];
   const drive = (s: OutboundStore) => driveConversationOutbound({
     store: s, adapter: wa, adapters: (k) => byChannel[k],
-    mailHeaders: (_row, o) => { locales.push(o.locale); return opts.headers ?? HEADERS; },
+    mailHeaders: (_row, o) => { locales.push(o.locale); return { headers: opts.headers ?? HEADERS, tag: 'signed-tag' }; },
     now: () => NOW,
   }, 'c1');
   return { transport, wa, drive, locales };
@@ -132,7 +132,7 @@ describe('C4.a · the adapter and the transport', () => {
     expect(r.ok === false && r.retryable).toBe(false);
   });
 
-  it('inbound mail is refused outright until C4.c, never half-parsed', () => {
+  it('the adapter receives nothing — replies and bounces have their own signed routes', () => {
     const a = emailAdapter({ transport: fakeMailTransport() });
     expect(a.verifyWebhook('{}', 'sha256=anything')).toBe(false);
     expect(a.parseWebhook({})).toEqual([]);
@@ -140,8 +140,8 @@ describe('C4.a · the adapter and the transport', () => {
 
   it('the fake transport RECORDS what would have left, and names every message it accepted', async () => {
     const tr = fakeMailTransport();
-    const r1 = await tr.send({ to: ADDRESS, subject: 's', text: 'b', headers: HEADERS });
-    const r2 = await tr.send({ to: ADDRESS, subject: 's', text: 'b', headers: {} });
+    const r1 = await tr.send({ to: ADDRESS, subject: 's', text: 'b', headers: HEADERS, tag: 't1' });
+    const r2 = await tr.send({ to: ADDRESS, subject: 's', text: 'b', headers: {}, tag: null });
     expect(r1.ok && r2.ok && r1.providerMessageId !== r2.providerMessageId).toBe(true);
     expect(r1.ok && r1.providerMessageId.length).toBeGreaterThan(0);
     expect(tr.sent.map((m) => m.headers)).toEqual([HEADERS, {}]);
@@ -151,8 +151,8 @@ describe('C4.a · the adapter and the transport', () => {
     // Two transports stand for two boots of the same installation. A counter
     // per instance gave both "fake-mail-1", the second insert violated the
     // unique constraint after the mail had gone, and the job re-sent it.
-    const before = await fakeMailTransport().send({ to: ADDRESS, subject: 's', text: 'b', headers: {} });
-    const after = await fakeMailTransport().send({ to: ADDRESS, subject: 's', text: 'b', headers: {} });
+    const before = await fakeMailTransport().send({ to: ADDRESS, subject: 's', text: 'b', headers: {}, tag: null });
+    const after = await fakeMailTransport().send({ to: ADDRESS, subject: 's', text: 'b', headers: {}, tag: null });
     expect(before.ok && after.ok).toBe(true);
     expect(before.ok && after.ok && before.providerMessageId !== after.providerMessageId).toBe(true);
   });
@@ -170,6 +170,8 @@ describe('C4.a · a first e-mail goes out through the one send path', () => {
       to: ADDRESS, subject: 'Canvas totes from Yiwu', text: 'We make canvas totes.',
     });
     expect(m.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+    // C4.c — and the provider is handed the signed tag its bounce events echo.
+    expect(m.tag).toBe('signed-tag');
     expect(r.wa.texts, 'an e-mail left as a WhatsApp text').toEqual([]);
     expect(s.statuses).toEqual(['sending', 'sent']);
   });
@@ -181,6 +183,14 @@ describe('C4.a · a first e-mail goes out through the one send path', () => {
     const unknown = rig();
     await unknown.drive(store([mailRow()]));
     expect(unknown.locales).toEqual(['en']);
+  });
+
+  it('C4.c · a mail into a thread he started answers under his message, not as a new one', async () => {
+    const r = rig();
+    await r.drive(store([mailRow({ origin: 'owner', subject: 'Re: Canvas totes' })], { inReplyTo: 'his-reply@buyer.test' }));
+    const m = r.transport.sent[0]!;
+    expect(m.headers['In-Reply-To']).toBe('<his-reply@buyer.test>');
+    expect(m.headers['References']).toBe('<his-reply@buyer.test>');
   });
 
   it('a WhatsApp reply beside it is untouched — e-mail changed nothing for every message that exists today', async () => {
@@ -235,6 +245,8 @@ describe('C4.a · every reason a first message must not go is a refusal she can 
   it('a mail with no subject', () => refusedFor('subject_missing', [mailRow({ subject: null })]));
   it('an outreach mail that cannot carry a way out', () =>
     refusedFor('no_unsubscribe', [mailRow()], {}, { headers: {} }));
+  it('a threading header is not a way out: an outreach mail with In-Reply-To and no unsubscribe is refused', () =>
+    refusedFor('no_unsubscribe', [mailRow()], { inReplyTo: 'his-message@buyer.test' }, { headers: {} }));
   it('no transport for its channel in this build', () =>
     refusedFor('channel_unavailable', [mailRow()], {}, { withEmail: false }));
   it('the ops kill switch does not bind her own first message — it silences the employee, not her', async () => {

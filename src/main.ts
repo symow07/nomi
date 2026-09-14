@@ -22,7 +22,7 @@ import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
-import { driveConversationOutbound } from './outbound/worker.js';
+import { driveConversationOutbound, type MailEnvelope } from './outbound/worker.js';
 import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
@@ -515,15 +515,20 @@ export async function buildProduction(
    */
   const mailHeaders = (
     row: { readonly to: string }, opts: { readonly locale: Locale },
-  ): Readonly<Record<string, string>> => {
-    if (!cfg.PUBLIC_BASE_URL) return {};
+  ): MailEnvelope => {
+    if (!cfg.PUBLIC_BASE_URL) return { headers: {}, tag: null };
     const token = mintUnsubscribe(webSessionSecret, {
       // The BUYER's language, resolved by the store from his own client row: the
       // page behind this link is the one thing in her mail he reads that she did
       // not write, and it is no use to him in a language he does not read.
       businessId: PILOT_BUSINESS_ID, channel: 'email', identity: row.to, locale: opts.locale,
     });
-    return unsubscribeHeaders(`${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`);
+    // C4.c — the same token as the provider's event tag, so a bounce or a
+    // complaint about this mail resolves to this business and this address.
+    return {
+      headers: unsubscribeHeaders(`${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`),
+      tag: token,
+    };
   };
 
   await boss.work<DriveJob>(QUEUES.outbound, async ([job]: { data: DriveJob }[]) => {
