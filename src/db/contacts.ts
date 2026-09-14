@@ -22,6 +22,8 @@ export type ContactRow = {
   readonly identity: string;
   readonly displayName: string | null;
   readonly company: string | null;
+  /** C5 — a job title, from the search she chose them in. */
+  readonly title?: string | null;
   readonly source: ContactSource;
   readonly firstSeen: Date;
   readonly archivedAt: Date | null;
@@ -137,10 +139,10 @@ export async function contactability(
 export async function listContacts(tx: Tx, businessId: BusinessId): Promise<readonly ContactRow[]> {
   const rows = await sql<StateRow & {
     id: string | null; channel: string; identity: string; display_name: string | null;
-    company: string | null; source: string; first_seen: Date; archived_at: Date | null;
+    company: string | null; title: string | null; source: string; first_seen: Date; archived_at: Date | null;
   }>`
     with added as (
-      select id::text as id, channel, identity, display_name, company, source,
+      select id::text as id, channel, identity, display_name, company, title, source,
              created_at as first_seen, archived_at
         from contacts where business_id = ${businessId}::uuid
     ),
@@ -148,7 +150,7 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
       -- The buyers themselves, derived. Never copied into the contacts table,
       -- and read from the column that is always written — see DERIVED_INBOUND.
       select null::text as id, 'whatsapp' as channel, c.phone as identity,
-             max(c.display_name) as display_name, null::text as company, 'inbound' as source,
+             max(c.display_name) as display_name, null::text as company, null::text as title, 'inbound' as source,
              min(m.sent_at) as first_seen, null::timestamptz as archived_at
         from clients c
         join conversations v on v.client_id = c.id
@@ -192,7 +194,7 @@ export async function listContacts(tx: Tx, businessId: BusinessId): Promise<read
       : null);
     return {
       id: r.id, channel: r.channel as ContactChannel, identity: r.identity,
-      displayName: r.display_name, company: r.company, source: r.source as ContactSource,
+      displayName: r.display_name, company: r.company, title: r.title, source: r.source as ContactSource,
       firstSeen: r.first_seen, archivedAt: r.archived_at,
       consent, suppression: state.suppression,
     };

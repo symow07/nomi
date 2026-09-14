@@ -162,8 +162,13 @@ import type { Db } from './client.js';
  *      'email_reply' signal, and `resolve_email_reply`, the security-definer
  *      lookup from the Message-ID he quoted to the mail she sent. Against a 47
  *      database his answer is refused by a CHECK and the webhook 500s.
+ *
+ * 49 = a source of prospects (0049, C5). `connector_credentials` (encrypted,
+ *      one live per connector), `organization_enrichments` (per domain, for
+ *      people to read), and 'apollo' as a contact source with a title. Against
+ *      a 48 database the prospects page fails on its first read.
  */
-export const REQUIRED_SCHEMA_VERSION = 48;
+export const REQUIRED_SCHEMA_VERSION = 49;
 
 export type SchemaState = {
   readonly required: number;

@@ -44,6 +44,12 @@ import {
   loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
 import { writeFirst } from '../../outbound/writeFirst.js';
+import {
+  addProspect, enrichmentsFor, keyStatus, lookUpCompany, removeKey, saveKey, searchProspects,
+  type ProspectDeps,
+} from '../../prospects/service.js';
+import type { ProspectSourceFor } from '../../connectors/contract.js';
+import { failureSentence, filterFromQuery, renderProspects } from './prospects.js';
 import { parseInboundMail } from '../../channels/email/inbound.js';
 import { recordEmailReply } from '../../pipeline/emailReply.js';
 import { enroll } from '../../outbound/sequences.js';
@@ -154,6 +160,14 @@ export type WebDeps = {
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
+  /**
+   * C5 — the installation's CREDENTIAL_KEY, derived, so a connector key she
+   * pastes is encrypted before it touches a row. Absent: keys cannot be kept,
+   * and the prospects page says so rather than storing one in the clear.
+   */
+  readonly credentialKey?: Buffer;
+  /** C5 — builds a prospect source from her key (Apollo in production). */
+  readonly prospectSourceFor?: ProspectSourceFor;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -1694,10 +1708,98 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * person who took the card is the person who knows. Suppressing is open in
    * the safe direction — more hands able to stop a send is never the risk.
    */
-  app.get('/app/contacts', authed('contacts', async (sess, req, locale) =>
-    renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+  /**
+   * C5 — prospecting. The key is hers (owner-only, on the `outreach` action: it
+   * is how she reaches people who never wrote first); searching, adding someone
+   * and looking up a company are anyone's, with the name recorded — each costs a
+   * credit only where its button says so.
+   */
+  const prospectDeps = (): ProspectDeps => ({
+    db: deps.db, now: () => new Date(),
+    credentialKey: deps.credentialKey ?? null, sourceFor: deps.prospectSourceFor ?? null,
+  });
+
+  app.get('/app/contacts', authed('contacts', async (sess, req, locale) => {
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const bid = parseBusinessId(sess.businessId);
+    const pd = prospectDeps();
+    const [companies, status] = bid.ok ? await Promise.all([
+      enrichmentsFor(pd, bid.value, view.contacts.filter((c) => c.channel === 'email').map((c) => c.identity)),
+      keyStatus(pd, bid.value),
+    ]) : [new Map(), { kind: 'none' } as const];
+    return renderContacts({
+      ...view, companies,
+      canLookUp: status.kind === 'stored' && status.readable && deps.prospectSourceFor !== undefined,
+    }, locale, flashOfQuery(req));
+  }));
+
+  app.post('/app/contacts/lookup', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(contactsBack(locale, 'failed'));
+    const r = await lookUpCompany(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name,
+      address: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
+    });
+    const sentence = r === 'found' || r === 'not_found' || r === 'reused' || r === 'personal' || r === 'not_an_email'
+      ? t(locale, `contacts.lookup.flash.${r}` as MessageKey)
+      : failureSentence(locale, r);
+    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  app.get('/app/prospects', authed('prospects', async (sess, req, locale) => {
+    const bid = parseBusinessId(sess.businessId);
+    if (!bid.ok) return '';
+    const pd = prospectDeps();
+    const status = await keyStatus(pd, bid.value);
+    const filter = filterFromQuery(req.query as Record<string, unknown>);
+    const outcome = filter && status.kind === 'stored' && status.readable
+      ? await searchProspects(pd, { businessId: bid.value, filter }) : null;
+    return renderProspects({ status, filter, outcome }, locale, flashOfQuery(req), personOf(sess));
+  }));
+
+  const prospectsBack = (locale: Locale, key: string, back = '') =>
+    `/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(t(locale, key as MessageKey))}`;
+
+  app.post('/app/prospects/key', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    const r = await saveKey(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name,
+      apiKey: String((req.body as { apiKey?: unknown } | undefined)?.apiKey ?? ''),
+    });
+    return reply.redirect(prospectsBack(localeOf(req), r === 'saved' ? 'prospects.flash.saved'
+      : r === 'invalid' ? 'prospects.flash.invalid' : 'prospects.noSource.no_key_store'));
+  });
+
+  app.post('/app/prospects/key/remove', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    const done = await removeKey(prospectDeps(), { businessId: bid.value, by: personOf(s).name });
+    return reply.redirect(prospectsBack(localeOf(req), done ? 'prospects.flash.removed' : 'prospects.flash.failed'));
+  });
+
+  app.post('/app/prospects/add', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string).trim() : '');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !str('sourceId') || !str('name')) return reply.redirect(prospectsBack(locale, 'prospects.flash.failed'));
+    const r = await addProspect(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name, sourceId: str('sourceId').slice(0, 64),
+      name: str('name'), title: str('title') || null, organization: str('organization') || null,
+    });
+    const back = str('back');
+    if (r === 'added' || r === 'exists' || r === 'not_found') {
+      return reply.redirect(prospectsBack(locale, `prospects.flash.${r}`, back));
+    }
+    const sentence = failureSentence(locale, r);
+    return reply.redirect(`/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(sentence)}`);
+  });
 
   const contactsBack = (locale: Locale, r: ContactsFlash) =>
     `/app/contacts?flash=${encodeURIComponent(t(locale, `contacts.flash.${r}` as MessageKey))}`;

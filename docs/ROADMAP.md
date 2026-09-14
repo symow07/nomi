@@ -580,6 +580,49 @@ than a rewrite.
 Owner supplies her own Apollo API key, stored with `encryptSecret` like every
 other credential.
 
+#### C5 — Apollo behind a connector ✅ BUILT
+
+Migration 0049, `src/connectors/` (the contract and Apollo), `src/prospects/service.ts`,
+`src/db/prospects.ts`, `/app/prospects`, and a company line on her contact list.
+`REQUIRED_SCHEMA_VERSION` 49.
+
+- **One contract, Apollo behind it.** `ProspectSource` speaks the product's words
+  (a company, a person, a search); the next source is a file beside `apollo.ts`.
+  The Apollo client puts her key in the `X-Api-Key` header only, turns every
+  status into a closed reason (`unauthorized`, `no_credits`, `rate_limited`,
+  `unavailable`, `unreadable`) and carries nothing a vendor said past the
+  boundary. It refuses an address Apollo will not stand behind — a placeholder
+  or an unverified one. **Not yet exercised against the live API**: there is no
+  key here and none belongs in a test; the first real call is M52's.
+- **Her key, locked.** `connector_credentials` holds AES-256-GCM ciphertext and a
+  fingerprint — the first production use of the M3 helpers. Owner-only (on the
+  `outreach` action); replacing archives, removing archives, nothing is erased; a
+  key written under another CREDENTIAL_KEY reads as unreadable, never guessed.
+- **Every credit is a click.** Search spends nothing. Adding a person (their
+  business address) and looking up a company each spend one, only on a button
+  that says so. A company is bought once per domain per 90 days; a personal
+  mailbox (gmail, qq, 163…) is never looked up — it would buy "works at Google".
+  No network call holds a database transaction.
+- **Enrichment is for people, never for her employee** — asserted at source level
+  as the roadmap asked, and as an IMPORT GRAPH rather than a word search: no
+  module under `src/pipeline`, `src/llm`, `src/core/conversation`, `src/trust`,
+  `src/worker` or `src/retrieval` can reach the prospects store, service or a
+  connector through any chain of imports; the table is queried in exactly one
+  module; no prompt names it. A planted import fails the test.
+- **Target lists she decides about, never a queue.** A result is a person with one
+  button. Adding them creates a contact with `source: 'apollo'` and a job title —
+  and **no consent**. Her list says so in the gate's own words, and enrolment
+  refuses them by the existing path. *Enrolment into C4's sequences therefore
+  works for an Apollo contact exactly when a lawful basis is recorded, and not
+  before.*
+- Vendor facts on the Arabic page are isolated fact by fact, not as one span — the
+  first screenshot read ": 60 عدد الموظفين".
+
+**Waiting on the owner, not on code:** whether a cold e-mail to a business address
+found in a search may rest on "legitimate interest" (and so on a new consent
+evidence) is a legal decision. M38's rule — no row means no consent — holds for
+purchased leads until she makes it.
+
 ---
 
 ### M42 — The outreach gate ✅ BUILT
@@ -1536,7 +1579,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
 | C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b, C4.c built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
-| C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
+| C5 | **M41 Apollo behind a connector** ✅ BUILT (live call unverified until M52) | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 
 Built in that order, each one ships with "not configured" as an honest state —

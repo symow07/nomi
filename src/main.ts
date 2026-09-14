@@ -19,6 +19,8 @@ import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { emailAdapter } from './channels/email/adapter.js';
 import { fakeMailTransport, type MailTransport } from './channels/email/transport.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
+import { deriveKey } from './security/credentials.js';
+import { apolloSource } from './connectors/apollo.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
@@ -420,6 +422,10 @@ export async function buildProduction(
     // G3 — the number "Connect this number" connects, from the validated
     // config. Only Meta names one; without it the page shows the guide.
     connectableNumber: cfg.provider === 'meta' ? (cfg.META_WHATSAPP_PHONE_NUMBER_ID ?? null) : null,
+    // C5 — her connector keys are encrypted with the same key as every other
+    // credential; Apollo is built from her key per request, never held.
+    credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
+    prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets

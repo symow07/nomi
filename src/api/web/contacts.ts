@@ -19,6 +19,9 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
+import { companyLineHtml } from './prospects.js';
+import { companyDomainOf } from '../../core/outreach/companyDomain.js';
+import type { Enrichment } from '../../db/prospects.js';
 
 /**
  * M38 — the page that answers "may I write to this person", for a human.
@@ -46,6 +49,13 @@ export type ContactsView = {
   /** M42 — her per-channel decision, so the list can say what would happen. */
   readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
   readonly satisfied: ReadonlySet<Requirement>;
+  /**
+   * C5 — what a company lookup said, by company domain. For the PEOPLE reading
+   * this page; nothing on the conversation path can reach it.
+   */
+  readonly companies?: ReadonlyMap<string, Enrichment>;
+  /** C5 — a readable key is on file, so a lookup can be offered. */
+  readonly canLookUp?: boolean;
 };
 
 export type ContactsFlash =
@@ -209,6 +219,22 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
      * false because no attempt has been made, not as a placeholder.
      */
     const reach = reachOf(v, c);
+
+    /**
+     * C5 — what a lookup said about his company, for the person reading. A
+     * button to look it up only where there is a company to look up (not a
+     * personal mailbox), nothing is known yet, and a key is on file — each click
+     * spends one of her credits, so the sentence on it says so.
+     */
+    const domain = c.channel === 'email' ? companyDomainOf(c.identity) : null;
+    const known = domain ? v.companies?.get(domain) : undefined;
+    const line = companyLineHtml(locale, known);
+    const company = line ? `<div class="muted ct-co">${line}</div>`
+      : domain && v.canLookUp && !stopped
+        ? `<form method="post" action="/app/contacts/lookup" class="inline ct-co">
+            <input type="hidden" name="identity" value="${esc(c.identity)}" />
+            <button class="btn" type="submit">${esc(t(locale, 'contacts.lookup.button'))}</button></form>`
+        : '';
     // Suppressed rows already carry it as a pill; saying it twice on one row is
     // noise, not emphasis.
     const outreachLine = stopped ? '' : `<div class="muted reach-line">${esc(reach.ok
@@ -244,7 +270,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       </div>
       <div class="ct-b muted">${esc(t(locale, `contacts.channel.${c.channel}` as MessageKey))}
         　·　${esc(t(locale, `contacts.source.${c.source}` as MessageKey))}
+        ${c.title ? `　·　<bdi>${esc(c.title)}</bdi>` : ''}
         ${c.company ? `　·　<bdi>${esc(c.company)}</bdi>` : ''}</div>
+      ${company}
       ${outreachLine}
       ${actions.trim() ? `<div class="ct-a">${actions}</div>` : ''}
     </li>`;
@@ -266,6 +294,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
       ${deeper('/app/sequences', t(locale, 'seq.title'))}
+      ${deeper('/app/prospects', t(locale, 'prospects.title'))}
       ${canAttest ? `<p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>` : ''}
       ${list}
     </section>
@@ -295,6 +324,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
       .ct-b { font-size:var(--font-size-note); margin-top:var(--space-4); }
       .ct .reach-line { font-size:var(--font-size-note); margin-top:var(--space-8); }
+      .ct .ct-co { font-size:var(--font-size-note); margin-top:var(--space-8); display:block; }
       .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
       .ct .since { font-size:var(--font-size-note); }
       /* Permanent, and it should read that way at a glance. */
