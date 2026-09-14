@@ -44,6 +44,12 @@ import {
   loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
 import { writeFirst } from '../../outbound/writeFirst.js';
+import { enroll } from '../../outbound/sequences.js';
+import {
+  type SequenceFlash, addStepFrom, approveSequenceFrom, archiveSequenceById, createSequenceFrom,
+  loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
+  updateStepFrom,
+} from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
@@ -1759,6 +1765,100 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // The outreach gate's own refusal, in the words his row already uses.
       : t(locale, `refused.why.${r.outcome}` as MessageKey);
     return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  /**
+   * C4.b — a first e-mail and its follow-ups. See `./sequences.ts` for who may
+   * do what: writing, adding someone and stopping are anyone's, with the name
+   * recorded; approving and taking out of use are hers.
+   */
+  const seqBack = (locale: Locale, id: string | null, f: SequenceFlash) =>
+    `/app/sequences${id ? `/${encodeURIComponent(id)}` : ''}?flash=${encodeURIComponent(t(locale, `seq.flash.${f}` as MessageKey))}`;
+  const flashOfQuery = (req: FastifyRequest): string | null =>
+    typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+  const seqId = (req: FastifyRequest) => (req.params as { id: string }).id;
+  const sequenceDeps = () => ({
+    db: deps.db, now: () => new Date(), templateState: deps.templateState ?? 'none',
+    kickDrive: deps.kickDrive ?? (async () => {}),
+  });
+
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale) =>
+    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, flashOfQuery(req))));
+
+  app.post('/app/sequences', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const r = await createSequenceFrom(deps.db, s.businessId, {
+      name: (req.body as { name?: unknown } | undefined)?.name, by: personOf(s).name,
+    });
+    return reply.redirect(seqBack(localeOf(req), r.id, r.flash));
+  });
+
+  app.get('/app/sequences/:id', authed('sequences', async (sess, req, locale) => {
+    const d = await loadSequenceDetail(deps.db, sess.businessId, seqId(req));
+    if (!d) return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, null);
+    // Who could be added right now: the SAME `reachOf` her contact list draws
+    // its "write to them" button from, so the two pages cannot offer different
+    // people. Only computed where adding is possible.
+    const view = d.state === 'approved'
+      ? await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none') : null;
+    const eligible = view ? view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok) : [];
+    return renderSequenceDetail(d, locale, flashOfQuery(req), {
+      viewer: personOf(sess), eligible, messagingEnabled,
+    });
+  }));
+
+  app.post('/app/sequences/:id/steps', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await addStepFrom(deps.db, s.businessId, seqId(req), (req.body ?? {}) as Record<string, unknown>);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/steps/:position', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const position = Number((req.params as { position: string }).position);
+    const f = await updateStepFrom(deps.db, s.businessId, seqId(req), position, (req.body ?? {}) as Record<string, unknown>);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/approve', async (req, reply) => {
+    const back = `/app/sequences/${encodeURIComponent(seqId(req))}`;
+    const s = await ownerOnly(req, reply, 'outreach', back); if (!s) return reply;
+    const f = await approveSequenceFrom(deps.db, s.businessId, seqId(req), {
+      fingerprint: (req.body as { fingerprint?: unknown } | undefined)?.fingerprint, by: personOf(s).name,
+    });
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/archive', async (req, reply) => {
+    const back = `/app/sequences/${encodeURIComponent(seqId(req))}`;
+    const s = await ownerOnly(req, reply, 'outreach', back); if (!s) return reply;
+    const f = await archiveSequenceById(deps.db, s.businessId, seqId(req));
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/enroll', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(seqBack(locale, seqId(req), 'failed'));
+    // Same reason as the write page: no outbound worker, no follow-ups.
+    if (!messagingEnabled) return reply.redirect(seqBack(locale, seqId(req), 'notLive'));
+    const r = await enroll(sequenceDeps(), {
+      businessId: bid.value, sequenceId: seqId(req), by: personOf(s).name,
+      identity: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
+    });
+    const sentence = r === 'enrolled' || r === 'already' || r === 'not_approved'
+      ? t(locale, `seq.flash.${r === 'not_approved' ? 'notApproved' : r}` as MessageKey)
+      : r === 'missing' || r === 'not_an_email' || r === 'not_a_phone'
+        ? t(locale, `contacts.flash.${r}` as MessageKey)
+        : t(locale, `refused.why.${r}` as MessageKey);
+    return reply.redirect(`/app/sequences/${encodeURIComponent(seqId(req))}?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  app.post('/app/sequences/:id/enrollments/:eid/stop', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await stopEnrollmentById(deps.db, s.businessId, (req.params as { eid: string }).eid);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
   });
 
   app.post('/app/contacts/:id/archive', async (req, reply) => {

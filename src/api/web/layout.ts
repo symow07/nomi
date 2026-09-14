@@ -54,6 +54,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     '/app/onboarding', '/app/sandbox',                      // → going live
   ] },
   { hub: '/app/conversations', routes: ['/app/contacts'] },
+  // C4.b — follow-ups are written for the people on her list, so they are
+  // reached from it.
+  { hub: '/app/contacts', routes: ['/app/sequences'] },
   { hub: '/app', routes: ['/app/conversations', '/app/analytics'] },
 ];
 

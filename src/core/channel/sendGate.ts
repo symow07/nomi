@@ -67,6 +67,18 @@ export type GateInput = {
    * legible bug rather than a silent send — and a test holds that line.
    */
   readonly outreach?: OutreachInput;
+  /**
+   * C4.b — nobody pressed send on this message at this moment: a follow-up the
+   * schedule released. It answers to the ops kill switch the way the
+   * employee's messages do, because it IS the machine sending. A first mail
+   * she typed herself is not, and the switch leaves it alone for the reason it
+   * leaves the owner's reply alone.
+   *
+   * Absent means a person sent it — the permissive reading, so it is resolved
+   * by the store from `sequence_sends` rather than trusted to a caller, and a
+   * test holds the store to it.
+   */
+  readonly automated?: boolean;
 };
 
 /**
@@ -121,13 +133,16 @@ export function gateOutbound(g: GateInput): GateDecision {
     if (!reach.ok) return { allow: false, reason: reach.error };
   }
 
+  // M34.6 — the ops kill switch. Checked at SEND time like everything else
+  // here, which is the point: a reply queued a minute before the switch was
+  // thrown must not still leave the building. It binds THE MACHINE — the
+  // employee's messages, and (C4.b) a follow-up released by a schedule —
+  // and not the owner, who may well be silencing it in order to answer the
+  // buyer himself.
+  if (g.silenced && (g.origin === 'employee' || g.automated === true)) {
+    return { allow: false, reason: 'silenced' };
+  }
   if (g.origin === 'employee') {
-    // M34.6 — the ops kill switch. Checked at SEND time like everything else
-    // here, which is the point: a reply queued a minute before the switch was
-    // thrown must not still leave the building. It binds the employee only —
-    // silencing the machine is not silencing the owner, who may well be
-    // silencing it in order to answer the buyer himself.
-    if (g.silenced) return { allow: false, reason: 'silenced' };
     if (!aiMaySpeak(ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };
     if (g.paused) return { allow: false, reason: 'paused' };
   }

@@ -23,7 +23,8 @@ import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
 import { driveConversationOutbound } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob } from './queue/boss.js';
+import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
+import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import { markSmall } from './core/owner/brand.js';
@@ -553,6 +554,30 @@ export async function buildProduction(
         { businessId: job.data.businessId, conversationId: job.data.conversationId },
         { startAfter: 1, singletonKey: job.data.conversationId });
     }
+  });
+
+  /**
+   * C4.b — follow-ups. Once a minute, whatever is due for this installation's
+   * tenant. Registered only on the messaging path, beside the outbound worker it
+   * feeds: in deployment mode there is no worker to send what it would queue, and
+   * a follow-up queued there would leave days late when messaging came on.
+   *
+   * The schedule is upserted on every boot, so a deploy never leaves two. The
+   * tenant comes from this process, never from the job: a tick is a reminder to
+   * look, not an instruction about whom to write to.
+   */
+  const sequenceDeps = {
+    db, now: () => new Date(), templateState: TEMPLATE_STATE,
+    kickDrive: async (businessId: string, conversationId: string) => {
+      await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId });
+    },
+  };
+  await boss.schedule(QUEUES.sequences, '* * * * *', { businessId: PILOT_BUSINESS_ID } satisfies SequenceSweepJob);
+  await boss.work<SequenceSweepJob>(QUEUES.sequences, async ([job]: { data: SequenceSweepJob }[]) => {
+    if (!job) return;
+    const tenant = parseBusinessId(PILOT_BUSINESS_ID);
+    if (!tenant.ok) return;
+    await runDueSteps(sequenceDeps, tenant.value);
   });
 
   // P3: owner alerts. QUEUES.notify → resolve owner locale/destination → send the

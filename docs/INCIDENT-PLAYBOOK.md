@@ -60,6 +60,14 @@ update ops_flags set cleared_at = now() where id = $id;
   construction): auto → draft → silent, never the other way.
 - It silences the **employee**, not the owner. He can still reply to every buyer
   from `/app/inbox`, and the refusal he sees says so in his own language.
+- **It also holds every follow-up e-mail (C4.b).** While it is on, the minute
+  sweep looks at no enrolment, so nothing is queued and nothing advances; a
+  follow-up queued the moment before is refused `silenced` at send time. When it
+  is cleared, what fell due goes late, never early. A first e-mail she types
+  herself on `/app/contacts/write` is NOT held — same rule as her replies.
+- **To stop follow-ups without silencing replies:** turn writing first off on
+  `/app/channels` (every live enrolment stops `outreach_not_enabled` at its next
+  look), or take the sequence out of use on `/app/sequences/:id` (stops at once).
 - Refusals are recorded as `silenced` and surfaced like every other refusal — a
   silenced employee is visible, not mysteriously quiet.
 - Ops writes these rows as the table owner; the app role holds SELECT only, so a

@@ -122,12 +122,28 @@ export async function setOutreach(
  */
 export async function outreachSentToday(
   tx: Tx, businessId: BusinessId, channel: OutreachChannel,
+  /**
+   * C4.b — 'sent' is what the SEND-TIME gate counts: the row being sent is not
+   * sent yet, so counting queued rows would count it against itself.
+   * 'sent_or_queued' is what a PRECHECK counts — her write button, the sequence
+   * scheduler — because mail already queued today will spend today's quota
+   * the moment the worker reaches it. Counting only the sent, sixty first
+   * messages queued in one minute against a cap of fifty would all be accepted
+   * and ten refused later, each one a refusal card instead of a "not today".
+   */
+  counting: 'sent' | 'sent_or_queued' = 'sent',
 ): Promise<number> {
   const r = await sql<{ n: number }>`
     select count(*)::int as n from outbound_messages
      where business_id = ${businessId}::uuid
        and channel = ${channel} and origin = 'outreach'
-       and sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')
+       and (sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')
+            -- In flight means queued in the last day. A row stuck in 'queued'
+            -- since last week is not about to spend today's quota, and letting
+            -- it count would lower her cap for good.
+            ${counting === 'sent_or_queued'
+              ? sql`or (status in ('queued', 'sending') and created_at > now() - interval '1 day')`
+              : sql``})
   `.execute(tx);
   return Number(r.rows[0]?.n ?? 0);
 }
@@ -136,11 +152,12 @@ export async function outreachSentToday(
  * C4.a — EVERY FACT THE OUTREACH GATE NEEDS, resolved once.
  *
  * The gate (M42) is pure and composes M38 and M39; somebody has to read the
- * rows. This is that reader for ONE buyer, and it has exactly two callers on
- * purpose: `writeFirst`, when she presses send, and the outbound store, when the
- * row actually leaves. Both then ask `gateOutreach`, so the answer she was given
- * and the answer the send path acts on come from the same rows and the same
- * function.
+ * rows. This is that reader for ONE buyer, and its callers are the moments a
+ * first message is decided: `writeFirst` when she presses send, the sequence
+ * scheduler when a follow-up falls due (C4.b), and the outbound store when the
+ * row actually leaves. All of them then ask `gateOutreach`, so the answer she was
+ * given and the answer the send path acts on come from the same rows and the
+ * same function.
  *
  * Her contacts LIST asks the same gate with the rows `listContacts` already
  * holds — the same consent and suppression shape `contactability` reads, per
@@ -160,6 +177,8 @@ export async function outreachFacts(
     readonly identity: string;
     readonly templateState: TemplateState;
     readonly now: Date;
+    /** See `outreachSentToday`. The send path leaves it at 'sent'. */
+    readonly counting?: 'sent' | 'sent_or_queued';
   },
 ): Promise<OutreachInput> {
   // Sequential, not Promise.all: one transaction is one connection, and the
@@ -168,7 +187,7 @@ export async function outreachFacts(
   const person = await contactability(tx, businessId, input.channel, input.identity);
   const domain = await sendingDomain(tx, businessId);
   const cap = settings.get(input.channel)?.dailyCap ?? DAILY_OUTREACH_CEILING;
-  const sent = await outreachSentToday(tx, businessId, input.channel);
+  const sent = await outreachSentToday(tx, businessId, input.channel, input.counting ?? 'sent');
   return {
     channel: input.channel,
     availableHere: CHANNEL_REGISTRY[input.channel].availableHere,

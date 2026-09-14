@@ -20,7 +20,15 @@ export const QUEUES = {
   outbound: 'message.outbound',
   /** telegram/slack alerts: hot lead, handoff, delivery-failure */
   notify: 'notify.team',
+  /**
+   * C4.b — the once-a-minute look at which follow-ups are due. A cron tick, not
+   * a job per step: the schedule lives in `sequence_enrollments.next_due_at`,
+   * where a lost job cannot lose a follow-up (src/outbound/sequences.ts).
+   */
+  sequences: 'outreach.sequences',
 } as const;
+
+export type SequenceSweepJob = { businessId: string };
 
 export async function startBoss(connectionString: string): Promise<PgBoss> {
   const boss = new PgBoss({

@@ -18,7 +18,7 @@ import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { deeper, esc } from './layout.js';
 
 /**
  * M38 — the page that answers "may I write to this person", for a human.
@@ -265,6 +265,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
+      ${deeper('/app/sequences', t(locale, 'seq.title'))}
       ${canAttest ? `<p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>` : ''}
       ${list}
     </section>
@@ -380,9 +381,9 @@ export function renderWriteFirst(
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
         <label class="fld"><span class="muted">${esc(t(locale, 'contacts.write.subject'))}</span>
-          <input name="subject" required maxlength="200" value="${esc(draft.subject)}" /></label>
+          <input name="subject" dir="auto" required maxlength="200" value="${esc(draft.subject)}" /></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'contacts.write.body'))}</span>
-          <textarea name="body" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
+          <textarea name="body" dir="auto" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
         <div class="wact">
           <button class="btn send" type="submit">${esc(t(locale, 'contacts.write.send'))}</button>
           <a class="btn" href="/app/contacts">${esc(t(locale, 'contacts.write.cancel'))}</a>

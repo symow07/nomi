@@ -151,8 +151,14 @@ import type { Db } from './client.js';
  *      channel that will fetch it and the subject an e-mail needs; `origin`
  *      admits 'outreach', the third kind of authorship. Against a 45 database
  *      every outreach insert fails on a column that is not there.
+ *
+ * 47 = a first e-mail and its follow-ups (0047, C4.b). `sequences`, their
+ *      steps — frozen by trigger once she approves — enrolments with the stop
+ *      vocabulary in a CHECK, and `sequence_sends`, the key that keeps a step
+ *      from being queued twice. The sweep reads them every minute, so against a
+ *      46 database the worker fails on its first tick.
  */
-export const REQUIRED_SCHEMA_VERSION = 46;
+export const REQUIRED_SCHEMA_VERSION = 47;
 
 export type SchemaState = {
   readonly required: number;

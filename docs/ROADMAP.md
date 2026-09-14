@@ -432,11 +432,71 @@ cap on the writing-first card. `REQUIRED_SCHEMA_VERSION` 46.
 integration tests over the real composition — the send, the unsubscribe loop,
 the late suppression and the cap.*
 
-**Still to build in M40:** the sequence engine with kill-conditions (C4.b), the
-reply-as-opt-in (C4.c), and per-channel activation (C4.d). **Built already:** the
-sending domain (M40.1), bounce and complaint handling with a signature checked
-over the raw bytes (M40.2, repaired in G14), one-click unsubscribe with its own
-derived signing key, and the first mail itself (C4.a).
+#### C4.b — a first e-mail and the follow-ups after it ✅ BUILT
+
+Migration 0047, `src/core/outreach/sequence.ts`, `src/db/sequences.ts`,
+`src/outbound/sequences.ts`, and `/app/sequences` (reached from her contact list).
+`REQUIRED_SCHEMA_VERSION` 47.
+
+- **The one feature that keeps writing to a stranger after she stops looking,**
+  so its whole policy is one pure function, `decideStep`. In order: out of use →
+  he replied → a suppression, by its own reason → a person holds the thread →
+  the previous mail did not arrive → nothing left (finished only once the last is
+  known to have gone) → not due yet → previous still pending (an hour, and only
+  once due, so the hour can delay a follow-up and never bring one forward) → the
+  outreach gate. Refusals true forever stop it; her cap and a lapsed domain check
+  HOLD it until tomorrow in Shanghai, and after `MAX_HOLD_DAYS` (7) stop it. The
+  refusal-to-meaning map is a mapped type over the gate's vocabulary, so a new
+  refusal fails to compile until someone decides.
+- **What goes out is what she approved, word for word — enforced by the
+  database.** A trigger freezes an approved sequence's steps and name; another
+  refuses any enrolment on a draft or archived one. The approve form carries a
+  SHA-256 fingerprint of the words on her screen, and approval is refused if a
+  colleague edited a step while she read. The step trigger locks the sequence
+  row `for share`, so an edit and the approval cannot commit on one snapshot.
+  Approving and taking out of use are owner-only; writing, adding someone and
+  stopping are anyone's, with the name recorded.
+- **The schedule is a table; the queue only wakes it.** Each enrolment holds
+  `next_due_at`; a pg-boss cron runs `runDueSteps` every minute. No delayed job
+  per step — a lost job would be a follow-up that silently never happens.
+  Each enrolment is taken `for update skip locked` in its own transaction, so a
+  throw on one retries next minute without taking the batch down.
+- **No step is sent twice**, by two independent defences: the row lock, and a
+  `sequence_sends` key claimed before the outbound row is queued in the same
+  transaction. A deferral is `greatest(next_due_at, until)` — found by mutation:
+  with the lock removed, a sweep that lost the race deferred the winner's
+  "in two days" to "in an hour", and the follow-up went a day early.
+- **A step is an ordinary outbound row** (origin `outreach`, her subject), so
+  the gate, his suppression, her cap and the unsubscribe headers all apply at
+  the moment it actually leaves.
+- **The ops kill switch holds every follow-up** — found while writing the
+  runbook, not by a test: C4.a had left `global_silence` binding only the
+  employee's messages, so a schedule would have kept mailing strangers through
+  an emergency stop. The sweep now looks at nothing while it is on, and the gate
+  refuses a step queued the moment before (`GateInput.automated`, resolved by the
+  store from `sequence_sends`). A first mail she typed herself is still not held,
+  which keeps the refusal's sentence — "reply yourself, you are not paused" —
+  true.
+- **Prechecks count queued mail too.** `outreachFacts` gained `counting:
+  'sent_or_queued'` (queued within the last day) for her write button and the
+  scheduler; the send-time gate still counts only the sent. Before this, sixty
+  first mails queued in a minute against a cap of fifty were all accepted and ten
+  refused later. `writeFirst` (C4.a) now uses it as well.
+- **An address another factory holds** stops the enrolment `unreachable`, with
+  the thread and client made for him rolled back rather than left empty.
+- **Her words follow their own direction.** Every subject and body field and
+  block is `dir="auto"`: the Arabic page's first screenshot laid an English mail
+  out right-to-left, comma first.
+
+*The sequence is drafted by a person, not by her employee. "She proposes the
+sequence" (below) needs a live model and its own guard rails for cold copy;
+the approval that makes a proposal safe is what C4.b built, so a drafting
+employee can land later behind it without changing what is enforced.*
+
+**Still to build in M40:** the reply-as-opt-in (C4.c) and per-channel activation
+(C4.d). **Built already:** the sending domain (M40.1), bounce and complaint
+handling (M40.2, repaired in G14), one-click unsubscribe with its own derived
+signing key, the first mail itself (C4.a), and follow-ups (C4.b).
 
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
@@ -1428,7 +1488,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 

@@ -35,6 +35,8 @@ export type OutboundWorkRow = OutboundRow & {
    *  the concept does not exist; required for a mail, which is why a row
    *  without one is refused rather than sent with something invented. */
   readonly subject?: string | null;
+  /** C4.b — a schedule released this row, not a person (see `GateInput.automated`). */
+  readonly automated?: boolean;
   readonly sendingSince: Date | null;
   /** M26 — 'text' (default), 'quote_card', or 'image'. */
   readonly kind?: string;
@@ -282,6 +284,7 @@ export async function driveConversationOutbound(
   const gate = gateOutbound({
     origin: candidate.origin,
     ...(candidate.origin === 'outreach' && ctx.outreach ? { outreach: ctx.outreach } : {}),
+    ...(candidate.automated === true ? { automated: true } : {}),
     assignedTo: ctx.assignedTo,
     paused: ctx.paused,
     windowPlan: plan,

@@ -53,9 +53,12 @@ export function channelStore(
         attempts: number; sent_at: Date | null; to_wa_id: string | null; body: string;
         origin: 'employee' | 'owner' | 'outreach'; sending_since: Date | null;
         kind: string; media_url: string | null; channel: string; subject: string | null;
+        automated: boolean;
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
-               origin, sending_since, kind, media_url, channel, subject
+               origin, sending_since, kind, media_url, channel, subject,
+               -- C4.b — released by a follow-up schedule rather than a person.
+               exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id) as automated
           from outbound_messages
          where conversation_id = ${conversationId}
            and (next_retry_at is null or next_retry_at <= now())
@@ -131,6 +134,7 @@ export function channelStore(
         origin: r.origin, sendingSince: r.sending_since,
         kind: r.kind, mediaUrl: r.media_url,
         channel: r.channel, subject: r.subject,
+        ...(r.automated ? { automated: true } : {}),
       }));
       /**
        * C4.a — WHICH CHANNEL THIS CONVERSATION IS ON, because the three facts

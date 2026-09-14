@@ -118,6 +118,8 @@ export async function writeFirst(
     const facts = await outreachFacts(tx, input.businessId, {
       channel: input.channel, identity: identity.value,
       templateState: deps.templateState, now: deps.now(),
+      // Mail she queued a minute ago spends today's cap too (C4.b).
+      counting: 'sent_or_queued',
     });
     const may = gateOutreach(facts);
     if (!may.ok) return { outcome: may.error, conversationId: null };

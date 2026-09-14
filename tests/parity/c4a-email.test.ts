@@ -321,6 +321,7 @@ describe('C4.a · the button appears only where the gate has said yes', () => {
       expect(html).toContain('action="/app/contacts/write"');
       expect(html).toMatch(/name="subject"[^>]*required/);
       expect(html).toMatch(/<textarea name="body"[^>]*required/);
+      expect(html, 'an English mail typed on the Arabic page ran right-to-left').toMatch(/<textarea name="body" dir="auto"/);
       expect(html).toContain(`value="${ADDRESS}"`);
       expect(html, locale).toContain(t(locale, 'contacts.write.hint').slice(0, 12));
     }
