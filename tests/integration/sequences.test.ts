@@ -70,7 +70,16 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     const { runDueSteps } = await import('../../src/outbound/sequences.js');
     const { QUEUES } = await import('../../src/queue/boss.js');
     return runDueSteps({
-      db: prod.db, now: () => at, templateState: 'none',
+      db: prod.db, now: () => at, templateState: 'none', repliesObservable: true,
+      kickDrive: async (b, c) => { await prod.boss.send(QUEUES.outbound, { businessId: b, conversationId: c }, { singletonKey: c }); },
+    }, await bid());
+  };
+  /** The sweep as production composes it since C6: his answer lands in her mailbox, unseen. */
+  const sweepBlind = async (at: Date) => {
+    const { runDueSteps } = await import('../../src/outbound/sequences.js');
+    const { QUEUES } = await import('../../src/queue/boss.js');
+    return runDueSteps({
+      db: prod.db, now: () => at, templateState: 'none', repliesObservable: false,
       kickDrive: async (b, c) => { await prod.boss.send(QUEUES.outbound, { businessId: b, conversationId: c }, { singletonKey: c }); },
     }, await bid());
   };
@@ -122,7 +131,8 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     });
     expect((await post('/app/channels/outreach', { channel: 'email', enabled: 'true' })).statusCode).toBe(302);
     for (const [who, name] of [['ahmed', 'Ahmed'], ['bounce', 'Bounce'], ['rejected', 'Rejected'],
-      ['stopme', 'Stop Me'], ['late', 'Late'], ['capped', 'Capped'], ['wired', 'Wired']] as const) {
+      ['stopme', 'Stop Me'], ['late', 'Late'], ['capped', 'Capped'], ['wired', 'Wired'],
+      ['blind', 'Blind'], ['ignored', 'Ignored']] as const) {
       await addAndAttest(who, name);
     }
   }, 90_000);
@@ -303,6 +313,66 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     expect((await enrollment('capped'))?.stop_reason).toBe('cap');
     await post('/app/channels/outreach/cap', { channel: 'email', cap: '' });
   }, 60_000);
+
+  it('WHERE HIS ANSWER CANNOT BE SEEN, a follow-up waits for a person — and a week of nobody stops it', async () => {
+    const waitingFor = (who: string) => tx((x) => sql<{
+      id: string; awaiting: Date | null; confirmed_position: number | null; confirmed_by: string | null;
+    }>`select id::text as id, awaiting_confirmation_since as awaiting, confirmed_position, confirmed_by
+         from sequence_enrollments where business_id = ${BIZ} and identity = ${addr(who)}`.execute(x)
+      .then((r) => r.rows[0]!));
+    for (const who of ['blind', 'ignored']) expect(flashOf(await enrol(who))).toBe(t('en', 'seq.flash.enrolled'));
+
+    // The first mail asks nobody.
+    await sweepBlind(new Date(T0.getTime() + 60_000));
+    await until(() => mailsTo('blind').length === 1 && mailsTo('ignored').length === 1, 'both first e-mails');
+    await until(async () => (await tx((x) => sql<{ n: number }>`
+      select count(*)::int as n from sequence_sends s join outbound_messages o on o.id = s.outbound_id
+        join sequence_enrollments e on e.id = s.enrollment_id
+       where e.business_id = ${BIZ} and e.identity in (${addr('blind')}, ${addr('ignored')}) and o.status = 'sent'`
+      .execute(x).then((r) => r.rows[0]!.n))) === 2, 'both first e-mails to be marked sent');
+
+    // Due — and nothing goes. It waits, and says so on her page and on Today.
+    const due = new Date(T0.getTime() + 2 * DAY + 5 * 60_000);
+    const r = await sweepBlind(due);
+    expect(r.awaiting).toBeGreaterThanOrEqual(2);
+    await new Promise((res) => setTimeout(res, 1500));
+    expect(mailsTo('blind'), 'a follow-up went without anyone checking her inbox').toHaveLength(1);
+    const blind = await waitingFor('blind');
+    expect(blind.awaiting?.getTime()).toBe(due.getTime());
+    const page = await get(`/app/sequences/${seqId}`);
+    expect(page.body).toContain(`/enrollments/${blind.id}/confirm"`);
+    expect(page.body).toContain(esc(t('en', 'seq.enrolment.confirm')));
+    expect((await get('/app')).body).toContain(esc(t('en', 'insight.followUpsWaiting', { count: 2 })));
+    expect((await get('/app/sequences')).body).toContain(esc(t('en', 'seq.list.awaiting', { count: '2' })));
+
+    // Looking again the next minute does not restart the week.
+    await sweepBlind(new Date(due.getTime() + DAY + 60_000));
+    expect((await waitingFor('blind')).awaiting?.getTime()).toBe(due.getTime());
+
+    // A page open on the wrong step releases nothing.
+    expect(flashOf(await post(`/app/sequences/${seqId}/enrollments/${blind.id}/confirm`, { position: '3' })))
+      .toBe(t('en', 'seq.flash.notWaiting'));
+    expect((await waitingFor('blind')).confirmed_position).toBeNull();
+
+    // Somebody looked, and he has not answered: it goes, with their name on it.
+    expect(flashOf(await post(`/app/sequences/${seqId}/enrollments/${blind.id}/confirm`, { position: '2' })))
+      .toBe(t('en', 'seq.flash.confirmed'));
+    const released = await waitingFor('blind');
+    expect(released).toMatchObject({ awaiting: null, confirmed_position: 2 });
+    expect(released.confirmed_by).not.toBeNull();
+    await sweepBlind(new Date(due.getTime() + DAY + 2 * 60_000));
+    await until(() => mailsTo('blind').length === 2, 'the released follow-up');
+    expect(mailsTo('blind')[1]!.subject).toBe('Following up on totes');
+    // Pressing it twice releases nothing more.
+    expect(flashOf(await post(`/app/sequences/${seqId}/enrollments/${blind.id}/confirm`, { position: '2' })))
+      .toBe(t('en', 'seq.flash.notWaiting'));
+
+    // Nobody looked for a week: it stops, by its own reason, and nothing more went.
+    await sweepBlind(new Date(due.getTime() + 7 * DAY + 60_000));
+    expect((await enrollment('ignored'))?.stop_reason).toBe('unconfirmed');
+    expect(mailsTo('ignored')).toHaveLength(1);
+    expect((await get(`/app/sequences/${seqId}`)).body).toContain(esc(t('en', 'seq.stop.unconfirmed')));
+  }, 120_000);
 
   it('THE SWEEP IS WIRED INTO PRODUCTION: a tick on its queue sends what is due', async () => {
     // The cron fires this same job every minute; sending one by hand exercises

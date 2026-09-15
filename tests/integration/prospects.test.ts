@@ -179,7 +179,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     const { enroll } = await import('../../src/outbound/sequences.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const b = parseBusinessId(BIZ); if (!b.ok) throw new Error('fixture');
-    const r = await enroll({ db, now: () => new Date(), templateState: 'none', kickDrive: async () => {} },
+    const r = await enroll({ db, now: () => new Date(), templateState: 'none', repliesObservable: false, kickDrive: async () => {} },
       { businessId: b.value, sequenceId: randomUUID(), identity: addr('omar', 'soukhome-test.om'), by: 'owner' });
     expect(r).toBe('not_approved');   // no such sequence — and below, the gate's own answer about him
     const { outreachFacts } = await import('../../src/db/outreach.js');

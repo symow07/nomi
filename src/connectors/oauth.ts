@@ -33,7 +33,17 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 export const OAUTH_PROVIDERS = ['google', 'microsoft'] as const;
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
-export type OAuthClient = { readonly clientId: string; readonly clientSecret: string };
+export type OAuthClient = {
+  readonly clientId: string;
+  readonly clientSecret: string;
+  /**
+   * Microsoft only — the directory the app is registered in. An app registered
+   * for "this organization only" (what a factory registering in its own
+   * Microsoft 365 naturally picks) is REFUSED at `/common`; it must be asked at
+   * its own tenant. Absent is `common`, which serves a multitenant app.
+   */
+  readonly tenant?: string;
+};
 export type OAuthClients = Partial<Record<OAuthProvider, OAuthClient>>;
 
 export type OAuthFetch = (url: string, init: {
@@ -65,6 +75,19 @@ export const PROVIDER = {
   },
 } as const satisfies Record<OAuthProvider, unknown>;
 
+/** The SPF mechanism her domain must list for the mailbox she connected — or null. */
+export const spfIncludeFor = (provider: OAuthProvider | null | undefined): string | null =>
+  provider ? PROVIDER[provider].spfInclude : null;
+
+/** A Microsoft tenant as Entra names one: a GUID, a verified domain, or a well-known alias. */
+const TENANT_SHAPE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9-]+(\.[a-z0-9-]+)+|common|organizations|consumers)$/i;
+
+/** Where this client's authorize and token requests go. */
+export function endpointFor(provider: OAuthProvider, client: OAuthClient, kind: 'authorize' | 'token'): string {
+  const url = kind === 'authorize' ? PROVIDER[provider].authorizeUrl : PROVIDER[provider].tokenUrl;
+  return provider === 'microsoft' && client.tenant ? url.replace('/common/', `/${client.tenant}/`) : url;
+}
+
 /**
  * The installation's apps, from the environment. Both halves or nothing: an id
  * with no secret would send her to a consent screen whose code can never be
@@ -78,7 +101,10 @@ export function oauthClientsFrom(env: Record<string, string | undefined>): OAuth
     return undefined;
   };
   const google = pair('GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'Google sending');
-  const microsoft = pair('MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'Microsoft sending');
+  const microsoftPair = pair('MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'Microsoft sending');
+  const tenant = env['MICROSOFT_OAUTH_TENANT']?.trim();
+  if (tenant && !TENANT_SHAPE.test(tenant)) console.warn('MICROSOFT_OAUTH_TENANT: not a tenant id or domain. Using common.');
+  const microsoft = microsoftPair && tenant && TENANT_SHAPE.test(tenant) ? { ...microsoftPair, tenant } : microsoftPair;
   return { ...(google ? { google } : {}), ...(microsoft ? { microsoft } : {}) };
 }
 
@@ -108,7 +134,7 @@ export function authorizeUrl(
       ? { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
       : { response_mode: 'query', prompt: 'select_account' }),
   });
-  return `${PROVIDER[provider].authorizeUrl}?${p.toString()}`;
+  return `${endpointFor(provider, client, 'authorize')}?${p.toString()}`;
 }
 
 // ── The state that ties a callback to the person who pressed "Connect" ─────
@@ -177,7 +203,18 @@ export type ConnectFailure =
   | 'no_refresh_token'
   /** The ID token was absent, or not for this app, this issuer, or now. */
   | 'no_address'
+  /**
+   * The provider refused THIS INSTALLATION'S APP, not her: a wrong client
+   * secret, or one that expired (Entra secrets always do). Pressing Connect
+   * again cannot fix it, so it must not be told to her as if it could.
+   */
+  | 'app_refused'
   | 'unavailable';
+
+/** OAuth 2.0 (RFC 6749 §5.2): the client itself was not accepted. */
+const appRefused = (r: { readonly status: number; readonly json: Record<string, unknown> | null }): boolean =>
+  (r.status === 400 || r.status === 401)
+  && (r.json?.['error'] === 'invalid_client' || r.json?.['error'] === 'unauthorized_client');
 
 export type Connected = {
   readonly refreshToken: string;
@@ -239,12 +276,13 @@ export async function exchangeCode(
   o: { readonly code: string; readonly verifier: string; readonly redirectUri: string },
   fetchImpl: OAuthFetch, now: number,
 ): Promise<{ readonly ok: true; readonly value: Connected } | { readonly ok: false; readonly reason: ConnectFailure }> {
-  const r = await postForm(fetchImpl, PROVIDER[provider].tokenUrl, {
+  const r = await postForm(fetchImpl, endpointFor(provider, client, 'token'), {
     grant_type: 'authorization_code', code: o.code, redirect_uri: o.redirectUri,
     client_id: client.clientId, client_secret: client.clientSecret, code_verifier: o.verifier,
   });
   if (!r) return { ok: false, reason: 'unavailable' };
   if (r.status >= 500) return { ok: false, reason: 'unavailable' };
+  if (appRefused(r)) return { ok: false, reason: 'app_refused' };
   if (r.status !== 200 || !r.json) return { ok: false, reason: 'rejected' };
   const j = r.json;
   const scopes = typeof j['scope'] === 'string' ? j['scope'] : '';
@@ -271,17 +309,20 @@ export type Refreshed =
     /** Microsoft rotates refresh tokens; when one comes back it replaces the stored one. */
     readonly rotatedRefreshToken: string | null;
   }
-  | { readonly ok: false; readonly reason: 'revoked' | 'unavailable' };
+  | { readonly ok: false; readonly reason: 'revoked' | 'app_refused' | 'unavailable' };
 
 export async function refreshAccessToken(
   provider: OAuthProvider, client: OAuthClient, refreshToken: string, fetchImpl: OAuthFetch,
 ): Promise<Refreshed> {
-  const r = await postForm(fetchImpl, PROVIDER[provider].tokenUrl, {
+  const r = await postForm(fetchImpl, endpointFor(provider, client, 'token'), {
     grant_type: 'refresh_token', refresh_token: refreshToken,
     client_id: client.clientId, client_secret: client.clientSecret,
     ...(provider === 'microsoft' ? { scope: PROVIDER.microsoft.scopes.join(' ') } : {}),
   });
   if (!r || r.status >= 500 || r.status === 429) return { ok: false, reason: 'unavailable' };
+  // Her token may be fine; the installation's secret is not. Marking her
+  // mailbox dead would send her to reconnect, which fails the same way.
+  if (appRefused(r)) return { ok: false, reason: 'app_refused' };
   // `invalid_grant` is the providers' word for a token that will never work
   // again: a changed password, a revoked app, an expired grant.
   if (r.status !== 200 || !r.json || typeof r.json['access_token'] !== 'string') return { ok: false, reason: 'revoked' };

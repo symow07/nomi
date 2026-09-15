@@ -172,8 +172,13 @@ import type { Db } from './client.js';
  *      per business, holding an encrypted refresh token and nothing that could
  *      send by itself. The mail transport reads it on every send, so against a
  *      49 database no e-mail can leave at all.
+ *
+ * 51 = a follow-up waits for a person when a reply could not be seen (0051).
+ *      Confirmation columns on `sequence_enrollments` and the 'unconfirmed'
+ *      stop. The sweep reads them every minute, so against a 50 database the
+ *      first due follow-up fails.
  */
-export const REQUIRED_SCHEMA_VERSION = 50;
+export const REQUIRED_SCHEMA_VERSION = 51;
 
 export type SchemaState = {
   readonly required: number;

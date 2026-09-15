@@ -5,7 +5,7 @@ import { outreachFacts } from '../db/outreach.js';
 import { loadKillSwitches } from '../db/opsFlags.js';
 import {
   advanceEnrollment, claimSend, completeEnrollment, contactName, deferEnrollment, dueEnrollments,
-  insertEnrollment, loadSequence, lockStepFacts, recordSend, stopEnrollment,
+  insertEnrollment, loadSequence, lockStepFacts, markAwaitingConfirmation, recordSend, stopEnrollment,
 } from '../db/sequences.js';
 import { decideStep, dueAfter, type SequenceStop, type StepDecision } from '../core/outreach/sequence.js';
 import { gateOutreach, type OutreachRefusal } from '../core/outreach/gate.js';
@@ -44,6 +44,12 @@ export type SequenceDeps = {
   readonly templateState: TemplateState;
   /** The bare outbound re-drive tick, fired after commit for each queued step. */
   readonly kickDrive: (businessId: string, conversationId: string) => Promise<void>;
+  /**
+   * Whether a buyer's reply reaches this product (see `StepInput`). REQUIRED:
+   * the composition root says false for mail sent through her own mailbox, and
+   * a follow-up then waits for a person instead of going blind.
+   */
+  readonly repliesObservable: boolean;
 };
 
 export type EnrollOutcome =
@@ -83,6 +89,8 @@ export type SweepResult = {
   readonly looked: number;
   /** Enrolments whose transaction threw; each is looked at again next minute. */
   readonly failed: number;
+  /** Follow-ups now waiting for a person to confirm. */
+  readonly awaiting: number;
   readonly queued: number;
   readonly stopped: readonly SequenceStop[];
   readonly completed: number;
@@ -118,6 +126,9 @@ async function stepOne(deps: SequenceDeps, businessId: BusinessId, enrollmentId:
         handedOff: !aiMaySpeak(ownershipOf(f.assignedTo)),
         previous: f.previous,
         outreach,
+        repliesObservable: deps.repliesObservable,
+        confirmedPosition: f.enrollment.confirmedPosition,
+        awaitingConfirmationSince: f.enrollment.awaitingConfirmationSince,
       });
 
       if (decision.kind === 'stop') {
@@ -135,6 +146,10 @@ async function stepOne(deps: SequenceDeps, businessId: BusinessId, enrollmentId:
       }
       if (decision.kind === 'wait') {
         await deferEnrollment(tx, enrollmentId, decision.until);
+        return { decision, kick: null };
+      }
+      if (decision.kind === 'confirm') {
+        await markAwaitingConfirmation(tx, enrollmentId, now);
         return { decision, kick: null };
       }
 
@@ -194,7 +209,7 @@ export async function runDueSteps(deps: SequenceDeps, businessId: BusinessId): P
   // the moment before the switch was thrown (`GateInput.automated`).
   const due = await withTenantTx(deps.db, businessId, async (tx) =>
     (await loadKillSwitches(tx, businessId)).globalSilence ? [] : dueEnrollments(tx, businessId, now, SWEEP_BATCH));
-  let queued = 0; let completed = 0; let deferred = 0; let failed = 0;
+  let queued = 0; let completed = 0; let deferred = 0; let failed = 0; let awaiting = 0;
   const stopped: SequenceStop[] = [];
 
   for (const enrollmentId of due) {
@@ -213,7 +228,8 @@ export async function runDueSteps(deps: SequenceDeps, businessId: BusinessId): P
     if (done.decision.kind === 'stop') stopped.push(done.decision.reason);
     if (done.decision.kind === 'complete') completed += 1;
     if (done.decision.kind === 'wait') deferred += 1;
+    if (done.decision.kind === 'confirm') awaiting += 1;
     if (done.kick) await deps.kickDrive(businessId, done.kick);
   }
-  return { looked: due.length, failed, queued, stopped, completed, deferred };
+  return { looked: due.length, failed, awaiting, queued, stopped, completed, deferred };
 }

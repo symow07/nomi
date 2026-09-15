@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import {
   addressFromIdToken, authorizeUrl, exchangeCode, mintOAuthState, oauthClientsFrom, pkcePair,
-  readOAuthState, refreshAccessToken, OAUTH_STATE_TTL_MS, type OAuthFetch,
+  readOAuthState, refreshAccessToken, spfIncludeFor, OAUTH_STATE_TTL_MS, type OAuthFetch,
 } from '../../src/connectors/oauth.js';
 import { gmailSender, graphSender, mimeMessage } from '../../src/channels/email/senders.js';
-import { renderAccounts, spfIncludeFor, type AccountsView } from '../../src/api/web/connect.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { renderAccounts, type AccountsView } from '../../src/api/web/connect.js';
+import type { ConnectOutcome } from '../../src/channels/email/connectMailbox.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -49,6 +51,21 @@ describe('C6 · the apps this installation has', () => {
     expect(oauthClientsFrom({ GOOGLE_OAUTH_CLIENT_ID: 'a', GOOGLE_OAUTH_CLIENT_SECRET: 'b' })).toEqual({ google: { clientId: 'a', clientSecret: 'b' } });
     expect(oauthClientsFrom({ MICROSOFT_OAUTH_CLIENT_ID: 'a' })).toEqual({});
     expect(oauthClientsFrom({})).toEqual({});
+  });
+
+  it('AN OUTLOOK APP REGISTERED FOR ONE ORGANISATION is asked at its own tenant — /common refuses it', async () => {
+    const env = { MICROSOFT_OAUTH_CLIENT_ID: MS.clientId, MICROSOFT_OAUTH_CLIENT_SECRET: 's', MICROSOFT_OAUTH_TENANT: 'yiwuhf.onmicrosoft.com' };
+    const client = oauthClientsFrom(env).microsoft!;
+    expect(client.tenant).toBe('yiwuhf.onmicrosoft.com');
+    expect(authorizeUrl('microsoft', client, { redirectUri: 'https://x.test/cb', state: 's', challenge: 'c' }))
+      .toMatch(/^https:\/\/login\.microsoftonline\.com\/yiwuhf\.onmicrosoft\.com\/oauth2\/v2\.0\/authorize\?/);
+    const w = wire(() => ({ status: 400, body: { error: 'invalid_grant' } }));
+    await refreshAccessToken('microsoft', client, 'rt', w.fetchImpl);
+    expect(w.calls[0]!.url).toBe('https://login.microsoftonline.com/yiwuhf.onmicrosoft.com/oauth2/v2.0/token');
+    // Unset, or not a tenant at all: common, as a multitenant app needs.
+    expect(oauthClientsFrom({ ...env, MICROSOFT_OAUTH_TENANT: 'not a tenant' }).microsoft!.tenant).toBeUndefined();
+    expect(authorizeUrl('microsoft', MS, { redirectUri: 'https://x.test/cb', state: 's', challenge: 'c' }))
+      .toContain('/common/oauth2/v2.0/authorize');
   });
 });
 
@@ -138,10 +155,24 @@ describe('C6 · the code exchange, and every way it can be wrong', () => {
     expect(await run(200, { ...ok, refresh_token: undefined }).r).toEqual({ ok: false, reason: 'no_refresh_token' });
     expect(await run(200, { ...ok, id_token: googleId({ aud: 'x' }) }).r).toEqual({ ok: false, reason: 'no_address' });
     expect(await run(400, { error: 'invalid_grant' }).r).toEqual({ ok: false, reason: 'rejected' });
+    // The installation's own secret is wrong or expired: not hers to fix.
+    expect(await run(401, { error: 'invalid_client' }).r).toEqual({ ok: false, reason: 'app_refused' });
+    expect(await run(400, { error: 'unauthorized_client' }).r).toEqual({ ok: false, reason: 'app_refused' });
     expect(await run(503, 'down').r).toEqual({ ok: false, reason: 'unavailable' });
     const thrown = await exchangeCode('google', GOOGLE, { code: 'c', verifier: 'v', redirectUri: 'https://x.test' },
       async () => { throw new Error('reset'); }, NOW);
     expect(thrown).toEqual({ ok: false, reason: 'unavailable' });
+  });
+
+  it('every way connecting can end tells her what happened, in every locale', () => {
+    // A Record over the type: a new outcome fails to compile here until it has words.
+    const OUTCOMES: Record<ConnectOutcome, true> = {
+      connected: true, not_configured: true, rejected: true, missing_scope: true,
+      no_refresh_token: true, no_address: true, app_refused: true, unavailable: true,
+    };
+    for (const l of LOCALES) for (const o of Object.keys(OUTCOMES)) {
+      expect(t(l, `connect.flash.${o}` as MessageKey, { address: 'x@y.test' }), `${l}/${o}`).not.toBe(`connect.flash.${o}`);
+    }
   });
 
   it('a refresh token that no longer works is REVOKED; a provider that is down is not', async () => {
@@ -149,6 +180,9 @@ describe('C6 · the code exchange, and every way it can be wrong', () => {
     expect(await refreshAccessToken('google', GOOGLE, 'rt', dead.fetchImpl)).toEqual({ ok: false, reason: 'revoked' });
     const down = wire(() => ({ status: 503, body: '' }));
     expect(await refreshAccessToken('google', GOOGLE, 'rt', down.fetchImpl)).toEqual({ ok: false, reason: 'unavailable' });
+    // An expired app secret is not her dead token: her mailbox must not be marked for reconnecting.
+    const secretExpired = wire(() => ({ status: 401, body: { error: 'invalid_client', error_description: 'AADSTS7000222' } }));
+    expect(await refreshAccessToken('microsoft', MS, 'rt', secretExpired.fetchImpl)).toEqual({ ok: false, reason: 'app_refused' });
     const rotated = wire(() => ({ status: 200, body: { access_token: 'at2', expires_in: 3600, refresh_token: 'rt-new' } }));
     expect(await refreshAccessToken('microsoft', MS, 'rt-old', rotated.fetchImpl)).toEqual({ ok: true, accessToken: 'at2', expiresInSec: 3600, rotatedRefreshToken: 'rt-new' });
   });

@@ -299,7 +299,7 @@ inbound story, which the section now states in full.*
 
 ---
 
-### M40 — Email as the cold channel
+### M40 — Email as the cold channel ✅ BUILT except C4.d (deferred until the pilot is live)
 
 The real outbound engine. Owner connects her own sending domain — she provides
 the credentials, as you want, and it is her domain's reputation, not ours.
@@ -421,11 +421,12 @@ cap on the writing-first card. `REQUIRED_SCHEMA_VERSION` 46.
 - **A buyer on two channels has two threads.** `ensureConversation` finds the
   active conversation per channel, so a first mail can never be queued into his
   WhatsApp thread and leave as a text message with no subject.
-- **In production today nothing leaves, and that is correct.** `SENDING_SPF_INCLUDE`
-  is unset until a sending provider exists (M52), so no domain verifies, so e-mail
-  cannot initiate; and deployment mode runs no outbound worker, so the write page
-  says messaging is not switched on before she types. The transport is a
-  recording fake until M52 replaces it.
+- **When C4.a landed, nothing left production, and that was correct.** No
+  domain could verify without a sending provider, deployment mode runs no
+  outbound worker, and the transport was a recording fake. *Superseded by C6:*
+  mail now leaves through the mailbox she connects, and the fake is tests-only.
+  Deployment mode still runs no outbound worker, so the write page still says
+  messaging is not switched on before she types.
 
 *The mutation check that mattered: pinning the store's identity join back to
 `'whatsapp'`, or dropping the outreach facts, fails four of the twelve
@@ -556,7 +557,7 @@ and it costs nothing because the reply had to happen anyway.
 
 ---
 
-### M41 — Apollo, and the connector shape
+### M41 — Apollo, and the connector shape ✅ BUILT as C5 (live call unverified until M52)
 
 Apollo is one source behind a generic interface, not a special case — so a
 second source (Lusha, Clay, a CSV, her own trade-show list) costs a file rather
@@ -848,7 +849,7 @@ alignment, spacing drawn from the scale. Screenshots at three widths, three
 locales, reviewed by eye — five defects in this project have now been caught by
 a screenshot and missed by a green suite.
 
-### M50 — The connect surface
+### M50 — The connect surface ✅ BUILT as C6 (WhatsApp paste path deferred with C4.d)
 
 One settings page where every account links: WhatsApp, Google/Microsoft,
 Instagram, Facebook, Apollo. Each shows connected / not connected / needs
@@ -914,8 +915,48 @@ exists (C5).
 Gmail/Outlook lands in her own inbox, not in the product — reading it would need
 `gmail.readonly` / `Mail.Read`, which Google classes as restricted (paid security
 assessment). The inbound webhook (C4.c) serves an e-mail service provider
-instead. And an Outlook send that fails between creating and sending leaves a
-draft in her Drafts folder.
+instead. Because of that, follow-ups wait for a person (0051, below). And an
+Outlook send that fails between creating and sending leaves a draft in her
+Drafts folder.
+
+#### After C6 — what the last check found (0051) ✅ BUILT 2026-09-15
+
+A final read of Block C against the code, before calling it done, found five
+things that would have failed a real factory. Migration 0051,
+`src/outbound/domainCheck.ts`, and `docs/EMAIL-SETUP.md`.
+`REQUIRED_SCHEMA_VERSION` 51.
+
+- **A sequence would have kept writing to a man who had answered.** C4.b stops
+  on a reply the product *records*. Since C6 her mail leaves through her own
+  mailbox and his answer lands there, unread, so `repliedSinceEnrolment` could
+  never become true: the one thing a sequence must never do, made certain.
+  Now `decideStep` takes `repliesObservable` — required, the composition root
+  says `false` — and where replies cannot be seen every follow-up (never the
+  first mail) waits for a person: "Waiting for you" on the sequence page, a line
+  saying his answer would be in her own inbox, and **No answer yet — send it**,
+  recorded with the person's name. Nobody pressing it for `MAX_HOLD_DAYS` stops
+  the enrolment `unconfirmed`. It is asked after the refusals that end a
+  sequence (nobody releases a mail that could never go) and before her cap and
+  domain holds; releasing resets the hold clock. A stale page releases nothing:
+  the button carries the step it was shown for. Today counts the waiting ones.
+- **The domain check lapsed on its own after a week.** Only her "Look again"
+  button renewed it, so a week after setup every follow-up was held and a week
+  after that stopped, for a reason she had done nothing to cause. The sequence
+  cron now looks first — daily after a pass, hourly after a failure — through the
+  same function as her button, and it can only record what DNS says.
+- **An Outlook app registered for "this organization only" could not
+  connect.** Microsoft refuses such an app at `/common`, which is what a factory
+  registering inside its own Microsoft 365 naturally creates.
+  `MICROSOFT_OAUTH_TENANT` sends the requests to her own tenant.
+- **An expired app secret would have asked her to reconnect, forever.** A
+  provider's `invalid_client` (Entra secrets always expire) was read as her
+  token being dead: her mailbox was marked "Needs you", and connecting again
+  failed the same way. It is now `app_refused`: her row is untouched, the mail
+  is refused naming the secret, and connecting tells her it is the
+  installation's to fix.
+- **Nobody could have set e-mail up from the docs.** `docs/EMAIL-SETUP.md` is
+  the operator's and owner's path, from the Google Cloud project or Entra app to
+  the DNS records to the first follow-up.
 
 ---
 
@@ -990,7 +1031,7 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
-### BLOCK G · Finish what was marked built — IN PROGRESS (started 2026-09-10)
+### BLOCK G · Finish what was marked built ✅ DONE (2026-09-10 → 2026-09-12)
 
 A full audit on 2026-09-10 (commit a0c02e5) read every milestone above against
 the code. Thirteen "BUILT" claims held. Nine were partly there: a named part
@@ -1624,7 +1665,7 @@ in: no include, a correct record, and the check recorded rather than thrown.
 | 19 | 103 off-scale spacings across sixteen renderers; a jade link; a centred empty state | G17a |
 | — | **WRONG FINDING:** the audit reported that "Turn off this link?" never appears. It does — every confirm button has an inline handler and no policy blocks it. Recorded rather than dropped: an audit that is never wrong is an audit nobody checked. | — |
 
-### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
+### BLOCK C · The outbound engine ✅ DONE except C4.d (2026-09-15)
 
 #### Block C in detail — built offline, plugged in at M52
 
@@ -1636,7 +1677,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b, C4.c built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C4 | **M40 email from her own address** ✅ BUILT — M40.1, M40.2, C4.a, C4.b, C4.c; C4.d (per-channel activation) deferred until the pilot is live | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** ✅ BUILT (live call unverified until M52) | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
 | C6 | **M50 the connect surface** ✅ BUILT (WhatsApp paste path deferred with C4.d; providers unverified until M52) | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 

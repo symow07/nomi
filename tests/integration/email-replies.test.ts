@@ -75,7 +75,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     const { runDueSteps } = await import('../../src/outbound/sequences.js');
     const { QUEUES } = await import('../../src/queue/boss.js');
     return runDueSteps({
-      db: prod.db, now: () => at, templateState: 'none',
+      db: prod.db, now: () => at, templateState: 'none', repliesObservable: true,
       kickDrive: async (b, c) => { await prod.boss.send(QUEUES.outbound, { businessId: b, conversationId: c }, { singletonKey: c }); },
     }, await bid());
   };

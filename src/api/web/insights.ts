@@ -43,6 +43,8 @@ export type InsightAction =
   | { readonly kind: 'follow_up'; readonly href: string; readonly buyer: string }
   | { readonly kind: 'consider_promotion'; readonly href: '/app/employee'; readonly capability: string }
   | { readonly kind: 'fix_catalog'; readonly href: '/app/products' }
+  /** 0051 — follow-ups that stop in a week unless someone looks in her inbox. */
+  | { readonly kind: 'confirm_follow_ups'; readonly href: '/app/sequences' }
   /** M51.5 — a change in the month is a change in HER BUYERS. That is where
    *  it is visible one conversation at a time, so that is where it points. */
   | { readonly kind: 'seeBuyers'; readonly href: '/app/conversations' };
@@ -109,6 +111,20 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
         key: 'insight.draftsWaiting',
         params: { count: waiting },
         action: { kind: 'review_drafts', href: '/app/inbox' },
+      });
+    }
+
+    // 2b. Follow-ups waiting for a person to check her inbox. A draft by
+    //     another name, with a week's clock on it — so it sits beside drafts.
+    const follow = (await sql<{ n: number }>`
+      select count(*)::int as n from sequence_enrollments
+       where business_id = ${bid.value} and awaiting_confirmation_since is not null
+         and stopped_at is null and completed_at is null`.execute(tx)).rows[0]!.n;
+    if (follow > 0) {
+      out.push({
+        key: 'insight.followUpsWaiting',
+        params: { count: follow },
+        action: { kind: 'confirm_follow_ups', href: '/app/sequences' },
       });
     }
 

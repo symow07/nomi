@@ -32,8 +32,7 @@ import {
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
 import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
-import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
-import { checkDomain } from '../../core/outreach/domain.js';
+import { setSendingDomain } from '../../db/sendingDomain.js';
 import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { suppressionFor } from '../../core/outreach/events.js';
@@ -49,8 +48,8 @@ import {
   type OAuthClients, type OAuthFetch,
 } from '../../connectors/oauth.js';
 import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
-import { loadAccounts, renderAccounts, spfIncludeFor } from './connect.js';
-import { liveMailAccount } from '../../db/mailAccounts.js';
+import { loadAccounts, renderAccounts } from './connect.js';
+import { checkSendingDomainNow } from '../../outbound/domainCheck.js';
 import {
   addProspect, enrichmentsFor, keyStatus, lookUpCompany, removeKey, saveKey, searchProspects,
   type ProspectDeps,
@@ -62,7 +61,7 @@ import { recordEmailReply } from '../../pipeline/emailReply.js';
 import { enroll } from '../../outbound/sequences.js';
 import {
   type SequenceFlash, addStepFrom, approveSequenceFrom, archiveSequenceById, createSequenceFrom,
-  loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
+  confirmFollowUpById, loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
   updateStepFrom,
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
@@ -144,8 +143,9 @@ export type WebDeps = {
   readonly resolveDns: import('../../outbound/dns.js').DnsLookup;
   /**
    * The `include:` mechanism her SPF record must carry — the sending provider's
-   * own. NULL until a provider is configured (M52), and the check reads that as
-   * "cannot verify", which refuses. Absence of a confirmation is not one.
+   * own, when the host names one. NULL falls back to the mailbox she connected
+   * (C6, `spfIncludeFor`); with neither, the check reads "cannot verify", which
+   * refuses. Absence of a confirmation is not one.
    */
   readonly sendingInclude?: string | null;
   /**
@@ -1655,20 +1655,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) {
       return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
     }
-    const row = await withTenantTx(deps.db, bid.value, (tx) => sendingDomain(tx, bid.value));
-    if (!row) {
+    // The lookup is I/O and can fail; a failure returns empty lists, which read
+    // as 'missing'. It is never allowed to read as "fine". The mechanism to
+    // require is the host's, else the connected mailbox's own (C6); with neither
+    // the check says it cannot confirm (`no_sender`). The same function the
+    // sweep's clock uses, so her button and the clock cannot disagree.
+    const check = await checkSendingDomainNow({
+      db: deps.db, resolveDns: deps.resolveDns, sendingInclude: deps.sendingInclude ?? null,
+    }, bid.value, new Date());
+    if (!check) {
       return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
     }
-    // The lookup is I/O and can fail; a failure returns empty lists, which read
-    // as 'missing'. It is never allowed to read as "fine".
-    const found = await deps.resolveDns(row.domain, row.dkimSelector);
-    // C6 — the mechanism to require is the connected mailbox's own (Google's or
-    // Microsoft's), when the host names none. Before a mailbox is connected
-    // there is still nothing to confirm, and the check says so (`no_sender`).
-    const mailbox = await withTenantTx(deps.db, bid.value, (tx) => liveMailAccount(tx, bid.value));
-    const check = checkDomain(found, deps.sendingInclude ?? spfIncludeFor(mailbox?.provider));
-    await withTenantTx(deps.db, bid.value, (tx) =>
-      recordDomainCheck(tx, bid.value, check, new Date()));
     return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.checked'))}`);
   });
 
@@ -2022,6 +2019,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const sequenceDeps = () => ({
     db: deps.db, now: () => new Date(), templateState: deps.templateState ?? 'none',
     kickDrive: deps.kickDrive ?? (async () => {}),
+    // Enrolling sends nothing; the sweep in src/main.ts is what decides this.
+    repliesObservable: false,
   });
 
   app.get('/app/sequences', authed('sequences', async (sess, req, locale) =>
@@ -2095,6 +2094,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         ? t(locale, `contacts.flash.${r}` as MessageKey)
         : t(locale, `refused.why.${r}` as MessageKey);
     return reply.redirect(`/app/sequences/${encodeURIComponent(seqId(req))}?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  // 0051 — a follow-up waiting for someone who has looked in her own inbox.
+  app.post('/app/sequences/:id/enrollments/:eid/confirm', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await confirmFollowUpById(deps.db, s.businessId, (req.params as { eid: string }).eid,
+      (req.body as { position?: unknown } | undefined)?.position, personOf(s).name);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
   });
 
   app.post('/app/sequences/:id/enrollments/:eid/stop', async (req, reply) => {

@@ -1,7 +1,7 @@
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import {
-  MAX_STEPS, addStep, approveSequence, archiveSequence, createSequence, listSequences, loadSequence,
+  MAX_STEPS, addStep, approveSequence, archiveSequence, confirmFollowUp, createSequence, listSequences, loadSequence,
   stepsFingerprint, stopEnrollment, updateStep,
   type Enrollment, type SequenceDetail, type SequenceSummary,
 } from '../../db/sequences.js';
@@ -9,6 +9,7 @@ import type { ContactRow } from '../../db/contacts.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
+import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, esc } from './layout.js';
 
@@ -31,7 +32,8 @@ import { back, esc } from './layout.js';
 export type SequenceFlash =
   | 'created' | 'saved' | 'added' | 'full' | 'notDraft' | 'invalid'
   | 'approved' | 'changed' | 'empty' | 'archived'
-  | 'enrolled' | 'already' | 'notApproved' | 'stopped' | 'failed' | 'notLive';
+  | 'enrolled' | 'already' | 'notApproved' | 'stopped' | 'failed' | 'notLive'
+  | 'confirmed' | 'notWaiting';
 
 /** A step as the form sent it, or null when any part of it is not a step. */
 export function stepFromForm(b: Record<string, unknown>): { delayDays: number; subject: string; body: string } | null {
@@ -100,6 +102,22 @@ export async function archiveSequenceById(db: Db, businessIdRaw: string, id: str
   return (await withTenantTx(db, bid, (tx) => archiveSequence(tx, bid, id))) ? 'archived' : 'failed';
 }
 
+/**
+ * "He has not answered — send it." Anyone signed in may say so, as anyone may
+ * stop it: the words were already approved by her, and this releases one of
+ * them to a man who has not written back, with the person's name on it.
+ */
+export async function confirmFollowUpById(
+  db: Db, businessIdRaw: string, enrollmentId: string, positionRaw: unknown, by: string,
+): Promise<SequenceFlash> {
+  const bid = tenant(businessIdRaw);
+  if (!bid) return 'failed';
+  const position = typeof positionRaw === 'string' && /^\d{1,2}$/.test(positionRaw) ? Number(positionRaw) : NaN;
+  if (!Number.isInteger(position)) return 'notWaiting';
+  return (await withTenantTx(db, bid, (tx) => confirmFollowUp(tx, bid, enrollmentId, position, by)))
+    ? 'confirmed' : 'notWaiting';
+}
+
 export async function stopEnrollmentById(db: Db, businessIdRaw: string, enrollmentId: string): Promise<SequenceFlash> {
   const bid = tenant(businessIdRaw);
   if (!bid) return 'failed';
@@ -117,7 +135,8 @@ export function renderSequenceList(
 ): string {
   const rows = list.map((s) => `<li class="sq ${s.state === 'archived' ? 'gone' : ''}">
       <div class="sq-h"><a class="sq-name" href="/app/sequences/${esc(s.id)}"><bdi>${esc(s.name)}</bdi></a>
-        ${statePill(locale, s.state)}</div>
+        ${statePill(locale, s.state)}${s.awaiting > 0
+          ? ` <span class="pill wait">${esc(t(locale, 'seq.list.awaiting', { count: String(s.awaiting) }))}</span>` : ''}</div>
       <div class="muted sq-b">${esc(t(locale, 'seq.list.counts', {
         steps: String(s.steps), live: String(s.live), finished: String(s.finished), stopped: String(s.stopped),
       }))}</div>
@@ -179,19 +198,32 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
   const who = e.displayName ? `<bdi>${esc(e.displayName)}</bdi> <span class="id"><bdi>${esc(e.identity)}</bdi></span>`
     : `<bdi>${esc(e.identity)}</bdi>`;
   const live = e.stoppedAt === null && e.completedAt === null;
+  const awaiting = live && e.awaitingConfirmationSince !== null;
   const state = e.stopReason
     ? `<span class="pill stop">${esc(t(locale, `seq.stop.${e.stopReason}` as MessageKey))}</span>`
     : e.completedAt
       ? `<span class="pill ok">${esc(t(locale, 'seq.enrolment.done'))}</span>`
-      : `<span class="muted">${esc(t(locale, 'seq.enrolment.next', {
-          n: String(e.nextPosition), date: formatDate(locale, e.nextDueAt),
-        }))}</span>`;
+      : awaiting
+        ? `<span class="pill wait">${esc(t(locale, 'seq.enrolment.waitingPill'))}</span>`
+        : `<span class="muted">${esc(t(locale, 'seq.enrolment.next', {
+            n: String(e.nextPosition), date: formatDate(locale, e.nextDueAt),
+          }))}</span>`;
+  // Replies reach her own mailbox, not this page: say so where the button is,
+  // so nobody presses it without having looked there.
+  const ask = awaiting
+    ? `<p class="muted">${esc(t(locale, 'seq.enrolment.awaiting', {
+        n: String(e.nextPosition),
+        date: formatDate(locale, new Date(e.awaitingConfirmationSince!.getTime() + MAX_HOLD_DAYS * 24 * 3600_000)),
+      }))}</p>` : '';
+  const confirm = awaiting ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/confirm" class="inline">
+      <input type="hidden" name="position" value="${esc(String(e.nextPosition))}" />
+      <button class="btn send" type="submit">${esc(t(locale, 'seq.enrolment.confirm'))}</button></form>` : '';
   const thread = e.conversationId
     ? `<a href="/app/inbox/${esc(e.conversationId)}">${esc(t(locale, 'seq.enrolment.thread'))}</a>` : '';
   const stop = live ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/stop" class="inline">
       <button class="btn stop" type="submit">${esc(t(locale, 'seq.enrolment.stop'))}</button></form>` : '';
   return `<li class="en ${live ? '' : 'gone'}"><div class="en-h"><span class="who">${who}</span>${state}</div>
-    ${thread || stop ? `<div class="en-a">${thread}${stop}</div>` : ''}</li>`;
+    ${ask}${thread || stop || confirm ? `<div class="en-a">${confirm}${thread}${stop}</div>` : ''}</li>`;
 }
 
 export function renderSequenceDetail(

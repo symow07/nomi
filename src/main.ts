@@ -15,6 +15,7 @@ import { assertSchemaCurrent } from './db/schemaVersion.js';
 import { assertPilotTenant } from './db/pilotTenant.js';
 import { templateState, parseApprovedTemplates } from './core/channel/templateReadiness.js';
 import { resolveSendingRecords } from './outbound/dns.js';
+import { refreshDomainCheckIfDue } from './outbound/domainCheck.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { emailAdapter } from './channels/email/adapter.js';
 import type { MailTransport } from './channels/email/transport.js';
@@ -308,10 +309,11 @@ export async function buildProduction(
     /** G2b — model ports, tests only; production builds them from the key. */
     models?: Parameters<typeof startWorker>[2];
     /**
-     * C4.a — the mail transport. Absent is the recording fake, which is what
-     * every environment has until a provider arrives with M52: it keeps what
-     * would have left, so a test can assert the subject, the recipient and the
-     * unsubscribe headers rather than only that something was called.
+     * C4.a — the mail transport, tests only. Absent is production's own
+     * (C6): `accountMailTransport`, bound to each job's business, sending
+     * through the mailbox she connected and refusing when there is none. A test
+     * passes the recording fake so it can assert the subject, the recipient
+     * and the unsubscribe headers rather than only that something was called.
      */
     mailTransport?: MailTransport;
   },
@@ -420,9 +422,10 @@ export async function buildProduction(
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
         } satisfies InboundJob, { retryLimit: 1 }).then(() => undefined),
-    // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` arrives with the sending
-    // provider (M52); until then the SPF check cannot confirm authorisation and
-    // says so, which refuses rather than assumes.
+    // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` names a sending
+    // provider's SPF mechanism explicitly; unset, the check requires the one
+    // belonging to the mailbox she connected (C6), and with neither it cannot
+    // confirm authorisation and says so, which refuses rather than assumes.
     resolveDns: resolveSendingRecords,
     sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
     // M40.2 — absent mounts no webhook, exactly as an absent WhatsApp provider
@@ -604,6 +607,11 @@ export async function buildProduction(
    */
   const sequenceDeps = {
     db, now: () => new Date(), templateState: TEMPLATE_STATE,
+    // Her mail leaves through her own mailbox (C6), and a buyer's answer lands
+    // there, unread by this product: no follow-up goes without a person
+    // confirming he has not answered. True only for a transport whose replies
+    // reach /hooks/email/inbound — none is wired in production today.
+    repliesObservable: false,
     kickDrive: async (businessId: string, conversationId: string) => {
       await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId });
     },
@@ -613,6 +621,13 @@ export async function buildProduction(
     if (!job) return;
     const tenant = parseBusinessId(PILOT_BUSINESS_ID);
     if (!tenant.ok) return;
+    // Her domain check lapses after a week by design; the clock looks again
+    // before it does, so a follow-up is never held for want of someone pressing
+    // "Look again". Its failure must not cost the minute's sends — and cannot
+    // authorise one: a lookup that fails records `missing`.
+    await refreshDomainCheckIfDue({
+      db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
+    }, tenant.value, new Date()).catch((e: unknown) => console.warn('[domain-check]', e instanceof Error ? e.message : e));
     await runDueSteps(sequenceDeps, tenant.value);
   });
 

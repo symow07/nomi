@@ -24,6 +24,8 @@ import type { BusinessId } from '../../core/types/ids.js';
  *   her mailbox is not on her      a Gmail address sending as yiwuhf.com's
  *   verified domain                buyers would fail SPF and DKIM alignment
  *   the token is dead              recorded on the row; she reconnects
+ *   the installation's app is      NOT recorded on her row: her token may be
+ *   refused (secret expired)       fine, and reconnecting cannot fix it
  *   the provider is down           retryable, and retried
  *
  * None of these is a silent success. The fake's `ok` for a mail that went
@@ -86,6 +88,9 @@ export function accountMailTransport(deps: {
           if (r.reason === 'revoked') {
             await markDead('revoked');
             return refuse('the mail account must be connected again');
+          }
+          if (r.reason === 'app_refused') {
+            return refuse(`the provider refused this installation's ${account.provider} app; its client secret may have expired`);
           }
           return { ok: false, retryable: true, error: 'mail provider unavailable' };
         }

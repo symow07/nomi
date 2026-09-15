@@ -7,7 +7,8 @@ import type { MailMessage, SendResult } from '../contract.js';
  * A PORT, not an implementation, for the same reason every other outside edge
  * in this product is one: the sequence engine, the gate, the unsubscribe
  * headers and the owner's screens can all be built and tested now, and the one
- * piece that needs an account from M52 is this interface's other side.
+ * piece that needs an account is this interface's other side — since C6,
+ * `accountMailTransport`, which sends through the mailbox she connected.
  *
  * `SendResult` is the channel contract's own, so a mail failure retries,
  * dead-letters and shows on her refusal list through exactly the machinery a
@@ -40,7 +41,9 @@ export interface MailTransport {
 export type SentMail = MailMessage & { readonly at: Date };
 
 /**
- * The transport for a product with no mail account yet.
+ * The transport every TEST sends through. Production never does: since C6 the
+ * composition root builds `accountMailTransport`, and a parity test holds
+ * `src/main.ts` to never naming this function.
  *
  * It is not a stub that pretends: it records exactly what would have left, and
  * that record is what the tests assert against — the unsubscribe headers, the
@@ -64,8 +67,8 @@ export function fakeMailTransport(
       // status reconciliation that keys on it.
       //
       // UNIQUE ACROSS PROCESSES, not a counter. `outbound_messages.
-      // provider_message_id` is unique over the whole database, and this fake
-      // is what production sends through until M52. A per-instance counter
+      // provider_message_id` is unique over the whole database, and until C6
+      // this fake was what production sent through. A per-instance counter
       // restarted at 1 on every boot, so the first mail after any restart
       // collided with one already stored: the row failed AFTER the transport
       // had accepted the message, the job was retried, and the mail went again

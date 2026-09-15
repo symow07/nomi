@@ -218,6 +218,19 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     expect(new URLSearchParams(refreshes.at(-1)!.body!).get('refresh_token')).toBe(`refresh-g-${RUN}`);
   });
 
+  it('AN EXPIRED APP SECRET is the installation\'s to fix: the mail is refused saying so, and her mailbox is NOT marked for reconnecting', async () => {
+    const { accountMailTransport } = await import('../../src/channels/email/accountTransport.js');
+    refreshAnswer = { status: 401, body: { error: 'invalid_client' } };
+    const transport = accountMailTransport({
+      db, businessId: await bid(), credentialKey, clients: { google: GOOGLE }, fetchImpl,
+      senders: { google: async () => ({ ok: true, providerMessageId: 'x' }), microsoft: async () => ({ ok: true, providerMessageId: 'x' }) },
+    });
+    const r = await transport.send({ to: 'buyer@gulf.test', subject: 'Hello', text: 'Hi', headers: {}, tag: null });
+    expect(r).toMatchObject({ ok: false, retryable: false, error: expect.stringContaining('client secret') });
+    expect((await live())!.last_error).toBeNull();
+    refreshAnswer = { status: 200, body: { access_token: 'access-1', expires_in: 3600 } };
+  });
+
   it('A DEAD TOKEN is recorded once and asks her to reconnect — every later mail says why instead of vanishing', async () => {
     const { accountMailTransport } = await import('../../src/channels/email/accountTransport.js');
     refreshAnswer = { status: 400, body: { error: 'invalid_grant' } };

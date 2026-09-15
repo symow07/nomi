@@ -21,8 +21,8 @@ import { gateOutreach, type OutreachInput, type OutreachRefusal } from './gate.j
  */
 
 /**
- * Every way an enrolment ends other than finishing. The migration's CHECK holds
- * exactly this list (0047), and an integration test compares the two.
+ * Every way an enrolment ends other than finishing. The newest migration's CHECK
+ * holds exactly this list (0051), and a parity test compares the two.
  */
 export const SEQUENCE_STOPS = [
   'replied',             // he wrote back — a person answers now, not a schedule
@@ -35,6 +35,7 @@ export const SEQUENCE_STOPS = [
   'outreach_not_enabled',// she turned writing first off
   'cap',                 // held back by her daily cap for too long
   'domain',              // held back by an unverified domain for too long
+  'unconfirmed',         // replies could not be seen, and nobody released the follow-up for a week
   'unreachable',         // nothing here can send to that address (another factory holds it)
   'stopped_by_owner',    // she stopped it
   'sequence_archived',   // she archived the sequence it was on
@@ -81,13 +82,27 @@ export type StepInput = {
    * from two different reads and disagree.
    */
   readonly outreach: OutreachInput;
+  /**
+   * Whether a reply from him would reach this product at all. False when her
+   * mail leaves through her own Gmail or Outlook (C6): his answer lands in that
+   * mailbox, which is not read, so `repliedSinceEnrolment` cannot become true
+   * and must not be trusted to stop anything. REQUIRED — the `silenced`
+   * precedent: a caller that could forget it would send follow-ups blind.
+   */
+  readonly repliesObservable: boolean;
+  /** The step a person released after checking her inbox, if any. */
+  readonly confirmedPosition: number | null;
+  /** When the step now due started waiting for that person. */
+  readonly awaitingConfirmationSince: Date | null;
 };
 
 export type StepDecision =
   | { readonly kind: 'send'; readonly position: number }
   | { readonly kind: 'wait'; readonly until: Date; readonly why: 'not_due' | 'previous_pending' | 'cap' | 'domain' }
   | { readonly kind: 'stop'; readonly reason: SequenceStop }
-  | { readonly kind: 'complete' };
+  | { readonly kind: 'complete' }
+  /** A follow-up is due and replies cannot be seen: a person must say "send it". */
+  | { readonly kind: 'confirm'; readonly position: number };
 
 const HOUR_MS = 3600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -133,14 +148,16 @@ const ON_REFUSAL: { readonly [R in OutreachRefusal]: SequenceStop | 'hold_cap' |
  *    what a sequence exists to produce and the worst thing it can do is keep
  *    going after he did. Then a suppression, by its own reason. Then a person
  *    holding the thread.
- * 2. What happened to the LAST step. Not arrived → stop, at once. Not known
- *    yet → wait an hour and look again, but only once the next step is due, so
- *    that the hour can delay a follow-up and never bring one forward.
+ * 2. What happened to the LAST step, whether anything is left, and whether it
+ *    is due. Not arrived → stop, at once. Not known yet → wait an hour and look
+ *    again, but only once the next step is due, so that the hour can delay a
+ *    follow-up and never bring one forward.
  * 3. Whether HE may still be written to — the outreach gate. The refusals that
- *    are true forever (no consent, her switch off) stop it; the two that are
- *    true today and false tomorrow (her cap, a lapsed domain check) hold it,
- *    until `MAX_HOLD_DAYS` turns holding into stopping.
- * 4. Whether there is anything left, and whether it is due.
+ *    are true forever (no consent, her switch off) stop it.
+ * 4. Where a reply could not be seen, whether a person has released the
+ *    follow-up — asked for a week, then stopped.
+ * 5. The two refusals that are true today and false tomorrow (her cap, a lapsed
+ *    domain check) hold it, until `MAX_HOLD_DAYS` turns holding into stopping.
  *
  * FAIL CLOSED where it cannot be exhaustive: holding is reserved for the two
  * refusals named as temporary, and every other refusal stops. `ON_REFUSAL` makes
@@ -173,9 +190,26 @@ export function decideStep(input: StepInput): StepDecision {
   }
 
   const reach = gateOutreach(input.outreach);
-  if (!reach.ok) {
-    const meaning = ON_REFUSAL[reach.error];
-    if (meaning !== 'hold_cap' && meaning !== 'hold_domain') return { kind: 'stop', reason: meaning };
+  const meaning = reach.ok ? null : ON_REFUSAL[reach.error];
+  if (meaning !== null && meaning !== 'hold_cap' && meaning !== 'hold_domain') {
+    return { kind: 'stop', reason: meaning };
+  }
+
+  // BLIND FOLLOW-UPS DO NOT GO. Where a reply cannot reach this product, "he
+  // has not answered" is something only a person with her inbox can say, so a
+  // follow-up waits for one. Never the first mail: nobody can have answered a
+  // mail that has not gone. Asked after the refusals that end a sequence, so
+  // nobody is asked to release a mail that could never go; and before the two
+  // that hold one, so her cap never keeps her from being asked. A week with
+  // nobody answering stops it, for the reason `MAX_HOLD_DAYS` stops a held step.
+  if (!input.repliesObservable && step.position > 1 && input.confirmedPosition !== step.position) {
+    const waited = input.awaitingConfirmationSince
+      ? input.now.getTime() - input.awaitingConfirmationSince.getTime() : 0;
+    if (waited >= MAX_HOLD_DAYS * DAY_MS) return { kind: 'stop', reason: 'unconfirmed' };
+    return { kind: 'confirm', position: step.position };
+  }
+
+  if (meaning === 'hold_cap' || meaning === 'hold_domain') {
     const held = meaning === 'hold_cap' ? 'cap' as const : 'domain' as const;
     const heldFor = input.now.getTime() - input.stepDueSince.getTime();
     if (heldFor >= MAX_HOLD_DAYS * DAY_MS) return { kind: 'stop', reason: held };

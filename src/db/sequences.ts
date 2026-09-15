@@ -33,6 +33,8 @@ export type SequenceSummary = {
   readonly live: number;
   readonly finished: number;
   readonly stopped: number;
+  /** Follow-ups waiting for a person to confirm (0051). */
+  readonly awaiting: number;
   readonly createdAt: Date;
 };
 
@@ -49,6 +51,10 @@ export type Enrollment = {
   readonly stoppedAt: Date | null;
   readonly stopReason: SequenceStop | null;
   readonly completedAt: Date | null;
+  /** The follow-up a person released, when replies cannot be seen. */
+  readonly confirmedPosition: number | null;
+  /** When the step now due started waiting for that person; null when it is not. */
+  readonly awaitingConfirmationSince: Date | null;
 };
 
 export type SequenceDetail = {
@@ -88,7 +94,7 @@ export function stepsFingerprint(steps: readonly SequenceStep[]): string {
 export async function listSequences(tx: Tx, businessId: BusinessId): Promise<readonly SequenceSummary[]> {
   const rows = await sql<{
     id: string; name: string; approved_at: Date | null; archived_at: Date | null; created_at: Date;
-    steps: number; live: number; finished: number; stopped: number;
+    steps: number; live: number; finished: number; stopped: number; awaiting: number;
   }>`
     select s.id::text as id, s.name, s.approved_at, s.archived_at, s.created_at,
            (select count(*)::int from sequence_steps st where st.sequence_id = s.id) as steps,
@@ -97,13 +103,16 @@ export async function listSequences(tx: Tx, businessId: BusinessId): Promise<rea
            (select count(*)::int from sequence_enrollments e where e.sequence_id = s.id
                and e.completed_at is not null) as finished,
            (select count(*)::int from sequence_enrollments e where e.sequence_id = s.id
-               and e.stopped_at is not null) as stopped
+               and e.stopped_at is not null) as stopped,
+           (select count(*)::int from sequence_enrollments e where e.sequence_id = s.id
+               and e.awaiting_confirmation_since is not null
+               and e.stopped_at is null and e.completed_at is null) as awaiting
       from sequences s
      where s.business_id = ${businessId}::uuid
      order by (s.archived_at is not null), s.created_at desc`.execute(tx);
   return rows.rows.map((r) => ({
     id: r.id, name: r.name, state: stateOf(r), steps: r.steps, live: r.live,
-    finished: r.finished, stopped: r.stopped, createdAt: r.created_at,
+    finished: r.finished, stopped: r.stopped, awaiting: r.awaiting, createdAt: r.created_at,
   }));
 }
 
@@ -124,10 +133,11 @@ export async function loadSequence(
     id: string; identity: string; display_name: string | null; conversation_id: string | null;
     enrolled_by: string; enrolled_at: Date; next_position: number; next_due_at: Date;
     step_due_since: Date; stopped_at: Date | null; stop_reason: string | null; completed_at: Date | null;
+    confirmed_position: number | null; awaiting_confirmation_since: Date | null;
   }>`
     select e.id::text as id, e.identity, k.display_name, e.conversation_id::text as conversation_id,
            e.enrolled_by, e.enrolled_at, e.next_position, e.next_due_at, e.step_due_since,
-           e.stopped_at, e.stop_reason, e.completed_at
+           e.stopped_at, e.stop_reason, e.completed_at, e.confirmed_position, e.awaiting_confirmation_since
       from sequence_enrollments e
       left join lateral (
         select display_name from contacts c
@@ -145,6 +155,7 @@ export async function loadSequence(
       enrolledBy: r.enrolled_by, enrolledAt: r.enrolled_at, nextPosition: r.next_position,
       nextDueAt: r.next_due_at, stepDueSince: r.step_due_since, stoppedAt: r.stopped_at,
       stopReason: asStop(r.stop_reason), completedAt: r.completed_at,
+      confirmedPosition: r.confirmed_position, awaitingConfirmationSince: r.awaiting_confirmation_since,
     })),
   };
 }
@@ -294,10 +305,11 @@ export async function lockStepFacts(
     id: string; sequence_id: string; identity: string; conversation_id: string | null;
     enrolled_by: string; enrolled_at: Date; next_position: number; next_due_at: Date;
     step_due_since: Date; stopped_at: Date | null; stop_reason: string | null; completed_at: Date | null;
+    confirmed_position: number | null; awaiting_confirmation_since: Date | null;
   }>`
     select id::text as id, sequence_id::text as sequence_id, identity, conversation_id::text as conversation_id,
            enrolled_by, enrolled_at, next_position, next_due_at, step_due_since,
-           stopped_at, stop_reason, completed_at
+           stopped_at, stop_reason, completed_at, confirmed_position, awaiting_confirmation_since
       from sequence_enrollments
      where id = ${enrollmentId}::uuid and business_id = ${businessId}::uuid
        and stopped_at is null and completed_at is null
@@ -346,6 +358,7 @@ export async function lockStepFacts(
       conversationId: e.conversation_id, enrolledBy: e.enrolled_by, enrolledAt: e.enrolled_at,
       nextPosition: e.next_position, nextDueAt: e.next_due_at, stepDueSince: e.step_due_since,
       stoppedAt: e.stopped_at, stopReason: asStop(e.stop_reason), completedAt: e.completed_at,
+      confirmedPosition: e.confirmed_position, awaitingConfirmationSince: e.awaiting_confirmation_since,
     },
     sequenceArchived: seq?.archived_at != null,
     sequenceApproved: seq?.approved_at != null,
@@ -383,10 +396,12 @@ export async function advanceEnrollment(
   tx: Tx, enrollmentId: string,
   input: { readonly conversationId: string; readonly nextPosition: number; readonly nextDueAt: Date },
 ): Promise<void> {
+  // The next step waits for its OWN confirmation, with its own week.
   await sql`update sequence_enrollments
                set conversation_id = ${input.conversationId}::uuid,
                    next_position = ${input.nextPosition},
-                   next_due_at = ${input.nextDueAt}, step_due_since = ${input.nextDueAt}
+                   next_due_at = ${input.nextDueAt}, step_due_since = ${input.nextDueAt},
+                   awaiting_confirmation_since = null
              where id = ${enrollmentId}::uuid`.execute(tx);
 }
 
@@ -404,6 +419,40 @@ export async function advanceEnrollment(
 export async function deferEnrollment(tx: Tx, enrollmentId: string, until: Date): Promise<void> {
   await sql`update sequence_enrollments set next_due_at = greatest(next_due_at, ${until}::timestamptz)
              where id = ${enrollmentId}::uuid`.execute(tx);
+}
+
+/**
+ * The follow-up is due and replies cannot be seen: it waits for a person. The
+ * wait starts once (`coalesce`), and the sweep looks again tomorrow — nothing
+ * about the answer can change except a person pressing a button, which
+ * `confirmFollowUp` makes due at once.
+ */
+export async function markAwaitingConfirmation(tx: Tx, enrollmentId: string, now: Date): Promise<void> {
+  await sql`update sequence_enrollments
+               set awaiting_confirmation_since = coalesce(awaiting_confirmation_since, ${now}),
+                   next_due_at = greatest(next_due_at, ${new Date(now.getTime() + 24 * 3600_000)}::timestamptz)
+             where id = ${enrollmentId}::uuid`.execute(tx);
+}
+
+/**
+ * "He has not answered — send it." Only for the step actually waiting, so a
+ * stale page cannot release a follow-up nobody has looked at yet.
+ */
+export async function confirmFollowUp(
+  tx: Tx, businessId: BusinessId, enrollmentId: string, position: number, by: string,
+): Promise<boolean> {
+  if (!/^[0-9a-f-]{36}$/i.test(enrollmentId) || !Number.isInteger(position)) return false;
+  const r = await sql`update sequence_enrollments
+                         set confirmed_position = ${position}, confirmed_by = ${by},
+                             awaiting_confirmation_since = null, next_due_at = now(),
+                             -- A person just looked: the step is fresh again, so
+                             -- a day's hold by her cap is not charged the week
+                             -- it spent waiting for her.
+                             step_due_since = now()
+                       where id = ${enrollmentId}::uuid and business_id = ${businessId}::uuid
+                         and next_position = ${position} and awaiting_confirmation_since is not null
+                         and stopped_at is null and completed_at is null`.execute(tx);
+  return Number(r.numAffectedRows ?? 0) > 0;
 }
 
 export async function completeEnrollment(tx: Tx, enrollmentId: string): Promise<void> {

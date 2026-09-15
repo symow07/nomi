@@ -1,7 +1,7 @@
 import { withTenantTx, type Db } from '../../db/client.js';
 import { liveMailAccount, type MailAccount } from '../../db/mailAccounts.js';
 import { sendingDomain } from '../../db/sendingDomain.js';
-import { OAUTH_PROVIDERS, PROVIDER, type OAuthClients, type OAuthProvider } from '../../connectors/oauth.js';
+import { OAUTH_PROVIDERS, type OAuthClients, type OAuthProvider } from '../../connectors/oauth.js';
 import { CHANNEL_REGISTRY } from '../../core/channel/registry.js';
 import type { KeyStatus } from '../../prospects/service.js';
 import type { BusinessId } from '../../core/types/ids.js';
@@ -54,10 +54,6 @@ export async function loadAccounts(
     apollo: o.apollo,
   };
 }
-
-/** The SPF mechanism her domain must list for the mailbox she connected — or null. */
-export const spfIncludeFor = (provider: OAuthProvider | null | undefined): string | null =>
-  provider ? PROVIDER[provider].spfInclude : null;
 
 /**
  * A sentence in her language with an address in it: the ADDRESS is isolated,

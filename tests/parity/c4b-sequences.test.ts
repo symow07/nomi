@@ -11,6 +11,7 @@ import type { ContactRow } from '../../src/db/contacts.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { gateOutbound } from '../../src/core/channel/sendGate.js';
 
 /**
@@ -39,7 +40,8 @@ const input = (over: Partial<StepInput> = {}): StepInput => ({
   now: NOW, steps: STEPS, nextPosition: 2,
   nextDueAt: new Date(NOW.getTime() - 60_000), stepDueSince: new Date(NOW.getTime() - 60_000),
   sequenceArchived: false, repliedSinceEnrolment: false, handedOff: false,
-  previous: 'sent', outreach: yes(), ...over,
+  previous: 'sent', outreach: yes(),
+  repliesObservable: true, confirmedPosition: null, awaitingConfirmationSince: null, ...over,
 });
 
 describe('C4.b · what ends a sequence, and in what order', () => {
@@ -124,6 +126,63 @@ describe('C4.b · what ends a sequence, and in what order', () => {
   });
 });
 
+describe('0051 · where his answer cannot be seen, a follow-up waits for a person', () => {
+  const blind = (over: Partial<StepInput> = {}) => input({ repliesObservable: false, ...over });
+
+  it('A FOLLOW-UP DOES NOT GO BLIND: it asks, and nothing is sent', () => {
+    expect(decideStep(blind())).toEqual({ kind: 'confirm', position: 2 });
+  });
+
+  it('the first mail never asks — nobody can have answered a mail that has not gone', () => {
+    expect(decideStep(blind({ nextPosition: 1, previous: 'none' }))).toEqual({ kind: 'send', position: 1 });
+  });
+
+  it('released for THIS step it goes; a release for another step releases nothing', () => {
+    expect(decideStep(blind({ confirmedPosition: 2 }))).toEqual({ kind: 'send', position: 2 });
+    expect(decideStep(blind({ nextPosition: 3, confirmedPosition: 2 }))).toEqual({ kind: 'confirm', position: 3 });
+  });
+
+  it('it asks only when the step is due, and never ahead of what already stopped it', () => {
+    const due = new Date(NOW.getTime() + DAY);
+    expect(decideStep(blind({ nextDueAt: due }))).toEqual({ kind: 'wait', until: due, why: 'not_due' });
+    expect(decideStep(blind({ handedOff: true }))).toEqual({ kind: 'stop', reason: 'handed_off' });
+    // Nobody is asked to release a mail that could never go.
+    expect(decideStep(blind({ outreach: yes({ consent: null }) }))).toEqual({ kind: 'stop', reason: 'no_consent' });
+    expect(decideStep(blind({ previous: 'pending' })).kind).toBe('wait');
+  });
+
+  it('her cap does not keep her from being asked — and once released, the cap holds it as usual', () => {
+    const capped = yes({ ceilingReached: true });
+    expect(decideStep(blind({ outreach: capped }))).toEqual({ kind: 'confirm', position: 2 });
+    expect(decideStep(blind({ outreach: capped, confirmedPosition: 2 })))
+      .toEqual({ kind: 'wait', until: nextShanghaiDay(NOW), why: 'cap' });
+  });
+
+  it('A WEEK WITH NOBODY SAYING SO STOPS IT, by its own reason', () => {
+    const almost = new Date(NOW.getTime() - MAX_HOLD_DAYS * DAY + 60_000);
+    expect(decideStep(blind({ awaitingConfirmationSince: almost })).kind).toBe('confirm');
+    const week = new Date(NOW.getTime() - MAX_HOLD_DAYS * DAY);
+    expect(decideStep(blind({ awaitingConfirmationSince: week }))).toEqual({ kind: 'stop', reason: 'unconfirmed' });
+  });
+
+  it('where replies ARE seen, nothing asks: the recorded reply is what stops it', () => {
+    expect(decideStep(input({ repliesObservable: true })).kind).toBe('send');
+  });
+
+  it('THE COMPOSITION ROOT SAYS REPLIES ARE NOT SEEN — her mail goes through her own mailbox', () => {
+    const main = readFileSync(fileURLToPath(new URL('../../src/main.ts', import.meta.url)), 'utf8');
+    expect(main).toMatch(/const sequenceDeps = \{[\s\S]*?repliesObservable: false,/);
+    expect(main).not.toMatch(/repliesObservable: true/);
+  });
+
+  it('the same minute looks at her domain before the sweep, so a follow-up is not held for want of a button', () => {
+    const main = readFileSync(fileURLToPath(new URL('../../src/main.ts', import.meta.url)), 'utf8');
+    const worker = /boss\.work<SequenceSweepJob>[\s\S]*?\n {2}\}\);/.exec(main)?.[0] ?? '';
+    expect(worker.indexOf('refreshDomainCheckIfDue(')).toBeGreaterThan(-1);
+    expect(worker.indexOf('refreshDomainCheckIfDue(')).toBeLessThan(worker.indexOf('runDueSteps('));
+  });
+});
+
 describe('C4.b · the ops kill switch silences the machine, not her', () => {
   const g = {
     assignedTo: null, paused: false,
@@ -160,8 +219,9 @@ describe('C4.b · time', () => {
 
 describe('C4.b · the vocabulary is one list', () => {
   it('the stop reasons in code are exactly the ones the column accepts', () => {
-    const sql = readFileSync(fileURLToPath(new URL('../../migrations/0047_sequences.sql', import.meta.url)), 'utf8');
-    const check = /stop_reason\s+text check \(stop_reason in \(([\s\S]*?)\)\)/.exec(sql)?.[1] ?? '';
+    // The newest migration to redraw the CHECK is the one in force.
+    const sql = readFileSync(fileURLToPath(new URL('../../migrations/0051_follow_up_confirmation.sql', import.meta.url)), 'utf8');
+    const check = /check \(stop_reason in \(([\s\S]*?)\)\)/.exec(sql)?.[1] ?? '';
     const column = [...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(column).toEqual([...SEQUENCE_STOPS].sort());
   });
@@ -244,6 +304,7 @@ describe('C4.b · the pages', () => {
       enrollments: [{
         id: 'e1', identity: contact.identity, displayName: 'Ahmed', conversationId: null, enrolledBy: 'Lily',
         enrolledAt: NOW, nextPosition: 1, nextDueAt: NOW, stepDueSince: NOW, stoppedAt: null, stopReason: null, completedAt: null,
+        confirmedPosition: null, awaitingConfirmationSince: null,
       }],
     });
     expect(renderSequenceDetail(d, 'en', null, { eligible: [contact], messagingEnabled: true }))
@@ -260,12 +321,47 @@ describe('C4.b · the pages', () => {
           id: 'e2', identity: contact.identity, displayName: null, conversationId: 'c1', enrolledBy: 'Lily',
           enrolledAt: NOW, nextPosition: 2, nextDueAt: NOW, stepDueSince: NOW,
           stoppedAt: NOW, stopReason: 'replied', completedAt: null,
+          confirmedPosition: null, awaitingConfirmationSince: null,
         }],
       }), locale, null, { messagingEnabled: true });
       expect(html, locale).toContain(esc(t(locale, 'seq.stop.replied')));
       expect(html, locale).not.toContain('/enrollments/e2/stop');
       expect(html, locale).toContain('href="/app/inbox/c1"');
     }
+  });
+
+  it('A FOLLOW-UP WAITING FOR HER: it says to look in her own inbox first, when it stops, and offers the release', () => {
+    const since = new Date(NOW.getTime() - DAY);
+    for (const locale of LOCALES) {
+      const html = renderSequenceDetail(detail({
+        state: 'approved', approvedBy: 'Lily', approvedAt: NOW,
+        enrollments: [{
+          id: 'e4', identity: contact.identity, displayName: 'Ahmed', conversationId: 'c1', enrolledBy: 'Lily',
+          enrolledAt: NOW, nextPosition: 2, nextDueAt: NOW, stepDueSince: NOW,
+          stoppedAt: null, stopReason: null, completedAt: null,
+          confirmedPosition: null, awaitingConfirmationSince: since,
+        }],
+      }), locale, null, { messagingEnabled: true });
+      expect(html, locale).toContain('action="/app/sequences/11111111-1111-4111-8111-111111111111/enrollments/e4/confirm"');
+      expect(html, locale).toContain('name="position" value="2"');
+      expect(html, locale).toContain(esc(t(locale, 'seq.enrolment.confirm')));
+      expect(html, locale).toContain(esc(t(locale, 'seq.enrolment.awaiting', {
+        n: '2', date: formatDate(locale, new Date(since.getTime() + MAX_HOLD_DAYS * DAY)),
+      })));
+      // Stopping stays offered beside it: "he did answer" is the other outcome.
+      expect(html, locale).toContain('/enrollments/e4/stop');
+    }
+    // Not waiting: no release to press.
+    const plain = renderSequenceDetail(detail({
+      state: 'approved', approvedBy: 'Lily', approvedAt: NOW,
+      enrollments: [{
+        id: 'e5', identity: contact.identity, displayName: null, conversationId: null, enrolledBy: 'Lily',
+        enrolledAt: NOW, nextPosition: 2, nextDueAt: NOW, stepDueSince: NOW,
+        stoppedAt: null, stopReason: null, completedAt: null,
+        confirmedPosition: null, awaitingConfirmationSince: null,
+      }],
+    }), 'en', null, { messagingEnabled: true });
+    expect(plain).not.toContain('/confirm"');
   });
 
   it('OUT OF USE: no archive button, and its history still reads', () => {
@@ -275,6 +371,7 @@ describe('C4.b · the pages', () => {
         id: 'e3', identity: contact.identity, displayName: null, conversationId: null, enrolledBy: 'Lily',
         enrolledAt: NOW, nextPosition: 1, nextDueAt: NOW, stepDueSince: NOW,
         stoppedAt: NOW, stopReason: 'sequence_archived', completedAt: null,
+        confirmedPosition: null, awaitingConfirmationSince: null,
       }],
     }), 'en', null);
     expect(html).not.toContain('/archive"');
@@ -285,8 +382,14 @@ describe('C4.b · the pages', () => {
     expect(renderSequenceList([], 'en', null)).toContain(esc(t('en', 'seq.empty')));
     const html = renderSequenceList([{
       id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',
-      steps: 3, live: 1, finished: 0, stopped: 2, createdAt: NOW,
+      steps: 3, live: 1, finished: 0, stopped: 2, awaiting: 0, createdAt: NOW,
     }], 'ar', null);
     expect(html).toContain('href="/app/sequences/22222222-2222-4222-8222-222222222222"');
+    expect(html).not.toContain(esc(t('ar', 'seq.list.awaiting', { count: '0' })));
+    const waiting = renderSequenceList([{
+      id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',
+      steps: 3, live: 1, finished: 0, stopped: 0, awaiting: 1, createdAt: NOW,
+    }], 'zh', null);
+    expect(waiting).toContain(esc(t('zh', 'seq.list.awaiting', { count: '1' })));
   });
 });
