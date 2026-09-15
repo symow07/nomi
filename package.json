@@ -16,7 +16,9 @@
     "start": "node dist/main.js",
     "migrate": "node tools/migrate.mjs",
     "seed:demo": "node tools/seed-demo.mjs",
-    "seed:sandbox": "node tools/seed-sandbox.mjs"
+    "seed:sandbox": "node tools/seed-sandbox.mjs",
+    "screenshots": "node tools/screenshots.mjs",
+    "pre-pilot": "node tools/pre-pilot.mjs"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },

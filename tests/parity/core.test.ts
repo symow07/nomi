@@ -218,10 +218,20 @@ describe('order confirmation (deterministic — replaces an LLM call)', () => {
   it('★ a fully-qualified conversation CAN close', () => {
     const r = toConfirmableOrder({
       state: readyState(), product: product(), quote: quoteFor(5_000),
-      paymentTerms: '30% deposit, 70% before shipment',
+      paymentTerms: '50% with order, balance against B/L copy', incoterm: 'CIF',
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.total).toEqual(usd(2_250));
+    // G6 — her terms travel on the order verbatim.
+    if (r.ok) expect([r.value.paymentTerms, r.value.incoterm]).toEqual(['50% with order, balance against B/L copy', 'CIF']);
+  });
+
+  it('G6 · an order with NO stated terms still closes — carrying none, not a default', () => {
+    const r = toConfirmableOrder({
+      state: readyState(), product: product(), quote: quoteFor(5_000), paymentTerms: null,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect([r.value.paymentTerms, r.value.incoterm]).toEqual([null, null]);
   });
 
   it('a HOT LEAD does not block its own close', () => {

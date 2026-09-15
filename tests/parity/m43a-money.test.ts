@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import {
   type Money, usd, parseCurrency, moneyFromRow, subMoney, scaleMoney,
   compareMoney, isBelow, isAbove, roundMoney, currencySymbol,
@@ -100,8 +101,10 @@ describe('M43a · a row whose currency this build cannot price is DROPPED, never
     const src = await readFile(new URL('../../src/db/repos.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/const unitPrice = moneyFromRow\(num\(r\.unit_price_usd\), r\.currency\);/);
     expect(src).toContain('return unitPrice === null ? [] : [{');
-    // and a prior quote in another currency is not compared against
-    expect(src).toMatch(/priorQuotes[\s\S]{0,900}unitPrice === null \? \[\] : \[\{ quantity: x\.quantity, unitPrice, at: x\.created_at \}\]/);
+    // and a prior quote in another currency is not compared against. Scoped to
+    // the function, not a character window: G7b's history filter grew it.
+    const prior = src.slice(src.indexOf('async priorQuotesForClient'), src.indexOf('async recordQuote'));
+    expect(prior).toContain('return unitPrice === null ? [] : [{ quantity: x.quantity, unitPrice, at: x.created_at }]');
   });
 
   it('a floor it cannot read is not silently treated as a dollar floor', async () => {
@@ -191,7 +194,7 @@ describe('M43a · nothing is named for its currency any more', () => {
     // place where the currency is still a comment.
     const { execSync } = await import('node:child_process');
     const hits = execSync('grep -rn "[A-Za-z]Usd[A-Za-z]*" src || true', {
-      cwd: new URL('../../', import.meta.url).pathname, encoding: 'utf8',
+      cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8',
     })
       .split('\n')
       .filter((l) => l.trim() !== '')

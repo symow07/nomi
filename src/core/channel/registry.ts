@@ -94,17 +94,34 @@ export type ChannelCapability = {
    * lands, not because someone remembered to edit a boolean.
    */
   readonly availableHere: boolean;
+  /**
+   * C4.c — whether the channel ever tells us a message REACHED the person.
+   *
+   * WhatsApp sends a 'delivered' receipt, and the outbound sequencer holds the
+   * next message in a conversation until the previous one has one (or 90
+   * seconds pass), so a greeting and a quote cannot arrive in the wrong order.
+   * E-mail sends no such receipt — a provider's acceptance is all anyone can
+   * know — so waiting for one only ever delays her answer by the full cap.
+   *
+   * Optional, and ABSENT MEANS IT DOES: the waiting behaviour is the safe one,
+   * so a channel added without thinking about this keeps it.
+   */
+  readonly deliveryReceipts?: boolean;
 };
 
 export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapability>> = {
   email: {
-    availableHere: false, channel: 'email', coldInitiate: 'open',
+    // C4.a — true because `src/channels/email/` exists, which is what the
+    // parity test checks. The adapter landed with a send path that can carry
+    // an e-mail, so the switch it turns on does something.
+    availableHere: true, channel: 'email', coldInitiate: 'open',
     // M40.1 — mail leaves as HER domain, so a missing SPF/DKIM/DMARC record
     // damages the address she has used with buyers for years. The damage is
     // silent and gradual, which is exactly why it is a requirement here rather
     // than a warning somewhere.
     requires: ['verified_sending_domain'],
     replyWindowHours: null, instead: [],
+    deliveryReceipts: false,
   },
   whatsapp: {
     availableHere: true, channel: 'whatsapp', coldInitiate: 'conditional',

@@ -1,3 +1,5 @@
+import { CHANNEL_REGISTRY, type ChannelCapability } from './registry.js';
+
 /**
  * M3 — WhatsApp 24-hour customer-service window, as a state machine.
  *
@@ -15,6 +17,28 @@ export const WINDOW_MS = 24 * 3600 * 1000;
 export const CLOSING_SOON_MS = 2 * 3600 * 1000;
 
 export type WindowState = 'open' | 'closing_soon' | 'expired';
+
+/**
+ * C4.a — A CHANNEL WITH NO WINDOW HAS NOTHING TO BE OUTSIDE OF.
+ *
+ * The 24-hour rule is WhatsApp's, and this module was written when WhatsApp was
+ * the only channel. E-mail has no such rule: the registry says so already
+ * (`replyWindowHours: null`), and nobody needs a buyer's permission-by-recency
+ * to receive a letter — what an unwanted e-mail needs is consent, a
+ * suppression check and a way out, which is the outreach gate's job and not
+ * this one's.
+ *
+ * Without this, every e-mail would be refused `window_closed`: the window is
+ * computed from a WhatsApp-only join, so an address has no `lastInboundAt`,
+ * and `windowState(null)` is 'expired' by design. The owner would be told her
+ * buyer must write first — about a channel where that is not true.
+ *
+ * It reads the registry rather than naming e-mail, so the next channel with no
+ * window answers correctly on the day it arrives.
+ */
+export function channelHasWindow(replyWindowHours: number | null): boolean {
+  return replyWindowHours !== null;
+}
 
 /** A buyer who has never written has no window: nothing may be initiated. */
 export function windowState(lastInboundAt: Date | null, now: Date): WindowState {
@@ -64,4 +88,38 @@ export function sendPlan(
     action: 'wait_for_buyer',
     ownerNoteZh: '暂时不能主动发送，客户回复后即可继续',
   };
+}
+
+/**
+ * C4.a — the same question, asked of the channel the message is actually on.
+ *
+ * The send path had one window because the product had one channel. It now has
+ * rows on two, and `sendPlan` alone would answer for an e-mail with WhatsApp's
+ * rule: no `lastInboundAt` (there is no such thing for an address nobody has
+ * written from), so 'expired', so `wait_for_buyer`, so `window_closed` — the
+ * owner told to wait for a buyer to write first on the one channel where
+ * writing first is the entire point.
+ *
+ * It ASKS THE REGISTRY rather than naming e-mail, so a channel added tomorrow
+ * with no window answers correctly on the day it lands. And it fails CLOSED on
+ * a channel the registry does not know: an unrecognised name is treated as
+ * windowed, which refuses rather than sends.
+ *
+ * It is the only caller of `channelHasWindow`, which stays exported because the
+ * rule — "a null reply window means no window" — is what the parity test pins;
+ * a test that read `replyWindowHours !== null` itself would be asserting its own
+ * arithmetic.
+ */
+export function channelSendPlan(
+  channel: string,
+  lastInboundAt: Date | null,
+  now: Date,
+  template: TemplateState,
+): SendPlan {
+  const cap = (CHANNEL_REGISTRY as Readonly<Record<string, ChannelCapability | undefined>>)[channel];
+  // A channel the registry does not know is treated as windowed. A missing
+  // entry must never read as a missing window — those are opposite answers, and
+  // only one of them is safe.
+  const windowed = cap === undefined ? true : channelHasWindow(cap.replyWindowHours);
+  return sendPlan(windowed ? windowState(lastInboundAt, now) : 'open', 'reply', template);
 }

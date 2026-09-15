@@ -43,6 +43,8 @@ export type InsightAction =
   | { readonly kind: 'follow_up'; readonly href: string; readonly buyer: string }
   | { readonly kind: 'consider_promotion'; readonly href: '/app/employee'; readonly capability: string }
   | { readonly kind: 'fix_catalog'; readonly href: '/app/products' }
+  /** 0051 — follow-ups that stop in a week unless someone looks in her inbox. */
+  | { readonly kind: 'confirm_follow_ups'; readonly href: '/app/sequences' }
   /** M51.5 — a change in the month is a change in HER BUYERS. That is where
    *  it is visible one conversation at a time, so that is where it points. */
   | { readonly kind: 'seeBuyers'; readonly href: '/app/conversations' };
@@ -55,11 +57,24 @@ export type Insight = {
   readonly action: InsightAction;
 };
 
-export type InsightsData = { readonly insights: readonly Insight[] };
+export type InsightsData = {
+  /** At most MAX_INSIGHTS things to DO, most urgent first. */
+  readonly insights: readonly Insight[];
+  /**
+   * G19 — what CHANGED this month, kept out of the three.
+   *
+   * It used to be pushed onto the same list and then cut by `slice(0, 3)`: on
+   * exactly the busy month it exists to explain, three things to do crowded it
+   * out, so the owner saw it only when little was happening. It is a different
+   * kind of thing — something to know, not something to do — and it now has its
+   * own place instead of competing for theirs. Null when nothing moved.
+   */
+  readonly monthChange: Insight | null;
+};
 
 export async function loadInsights(db: Db, businessIdRaw: string): Promise<InsightsData> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { insights: [] };
+  if (!bid.ok) return { insights: [], monthChange: null };
 
   return withTenantTx(db, bid.value, async (tx) => {
     const out: Insight[] = [];
@@ -96,6 +111,20 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
         key: 'insight.draftsWaiting',
         params: { count: waiting },
         action: { kind: 'review_drafts', href: '/app/inbox' },
+      });
+    }
+
+    // 2b. Follow-ups waiting for a person to check her inbox. A draft by
+    //     another name, with a week's clock on it — so it sits beside drafts.
+    const follow = (await sql<{ n: number }>`
+      select count(*)::int as n from sequence_enrollments
+       where business_id = ${bid.value} and awaiting_confirmation_since is not null
+         and stopped_at is null and completed_at is null`.execute(tx)).rows[0]!.n;
+    if (follow > 0) {
+      out.push({
+        key: 'insight.followUpsWaiting',
+        params: { count: follow },
+        action: { kind: 'confirm_follow_ups', href: '/app/sequences' },
       });
     }
 
@@ -183,38 +212,40 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
     })) as Record<MonthDriver, { from: number; to: number }>;
 
     const changed = biggestChange(counts);
-    if (changed) {
-      out.push({
-        key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
-        params: { from: changed.from, to: changed.to },
-        action: { kind: 'seeBuyers', href: '/app/conversations' },
-      });
-    }
+    const monthChange: Insight | null = changed
+      ? {
+          key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
+          params: { from: changed.from, to: changed.to },
+          action: { kind: 'seeBuyers', href: '/app/conversations' },
+        }
+      : null;
 
-    return { insights: out.slice(0, MAX_INSIGHTS) };
+    return { insights: out.slice(0, MAX_INSIGHTS), monthChange };
   });
 }
 
 /** ── Renderer (pure, localized) ───────────────────────────────────────────── */
 
 export function renderInsights(d: InsightsData, locale: Locale): string {
-  if (d.insights.length === 0) return '';
+  if (d.insights.length === 0 && !d.monthChange) return '';
   const name = EMPLOYEE_NAME[locale];
+  const row = (i: Insight): string => {
+    const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
+      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
+    const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
+    return `<div class="insight">
+      <div class="iline">${esc(line)}</div>
+      <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
+    </div>`;
+  };
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
-    ${d.insights.map((i) => {
-      const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
-        ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
-      const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
-      return `<div class="insight">
-        <div class="iline">${esc(line)}</div>
-        <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
-      </div>`;
-    }).join('')}
+    ${d.insights.map(row).join('')}
+    ${d.monthChange ? row(d.monthChange) : ''}
   </div>${INSIGHT_STYLE}`;
 }
 
 const INSIGHT_STYLE = `<style>
-  .insight { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  .insight { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
              padding:10px 0; border-bottom:1px solid var(--color-border); }
   .insight:last-child { border-bottom:0; }
   .iline { flex:1; }

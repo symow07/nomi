@@ -16,7 +16,7 @@ import {
  * products?"
  *
  * WHAT THIS IS NOT. It is not a second trust harness, not an extension of the
- * golden set, and not a grade. `scenarios.ts` — the twenty-three scenarios that
+ * golden set, and not a grade. `scenarios.ts` — the twenty-five scenarios that
  * decide whether the product is safe AT ALL — is never read from here and never
  * changes shape; this module IMPORTS its types and builders and constructs its
  * own scenarios from the owner's real rows. The universal gate stays fixed; this

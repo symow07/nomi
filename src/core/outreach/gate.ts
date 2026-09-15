@@ -54,11 +54,14 @@ export type OutreachInput = {
    * Today's outreach quota for this channel is spent.
    *
    * REQUIRED, not optional like a defaulted field would be — the `silenced`
-   * precedent in `gateOutbound`, for the same reason. Nothing counts outreach
-   * attempts yet because nothing makes one: the counter and `outreach_log`
-   * arrive with the first sender (M40). A required field makes the compiler
-   * name that sender when it is written, by someone who will not have read
-   * this. An optional one would let it ship uncapped and silent.
+   * precedent in `gateOutbound`, for the same reason: a field the first sender
+   * could forget is a field that ships the product uncapped and silent.
+   *
+   * C4.a — and the sender arrived, so this is now answered rather than pending.
+   * `db/outreach.ts` counts the `outbound_messages` rows that actually left
+   * today on this channel against her `daily_cap`. There is no `outreach_log`:
+   * counting the rows we already write leaves one record of the day instead of
+   * two that can disagree about it.
    */
   readonly ceilingReached: boolean;
 };

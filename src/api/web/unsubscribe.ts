@@ -89,5 +89,7 @@ export async function applyUnsubscribe(db: Db, claim: UnsubscribeClaim): Promise
   }
 }
 
-export const claimFrom = (secret: string, token: string): UnsubscribeClaim | null =>
-  token.length > 16 ? readUnsubscribe(secret, token) : null;
+/** Every caller passes the installation's session secret; the unsubscribe key
+ *  is derived from it inside `readUnsubscribe` (G14), never held by a caller. */
+export const claimFrom = (sessionSecret: string, token: string): UnsubscribeClaim | null =>
+  token.length > 16 ? readUnsubscribe(sessionSecret, token) : null;

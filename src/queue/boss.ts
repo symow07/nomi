@@ -20,7 +20,15 @@ export const QUEUES = {
   outbound: 'message.outbound',
   /** telegram/slack alerts: hot lead, handoff, delivery-failure */
   notify: 'notify.team',
+  /**
+   * C4.b — the once-a-minute look at which follow-ups are due. A cron tick, not
+   * a job per step: the schedule lives in `sequence_enrollments.next_due_at`,
+   * where a lost job cannot lose a follow-up (src/outbound/sequences.ts).
+   */
+  sequences: 'outreach.sequences',
 } as const;
+
+export type SequenceSweepJob = { businessId: string };
 
 export async function startBoss(connectionString: string): Promise<PgBoss> {
   const boss = new PgBoss({
@@ -60,8 +68,21 @@ export type InboundJob = {
    * note is REFUSED (audio_unheard), never treated as empty text.
    */
   messageType?: 'text' | 'image' | 'audio' | 'unsupported';
+  /**
+   * G2c — the provider's own type ('document', 'sticker', …), so an
+   * unreadable message reaches a person by name instead of running a turn on
+   * empty text. Optional for the same reason as `messageType`.
+   */
+  received?: string;
   /** Provider media id for audio/image — short-lived, fetch promptly. */
   mediaId?: string | null;
+  /**
+   * G13 — a person typed what the buyer said and asked for an answer. The turn
+   * runs on THOSE words: no fragment, no second message on the timeline (the
+   * corrected note is already there), and no batching to wait out. Everything
+   * after that is the ordinary turn — same guards, same price rules, same gate.
+   */
+  answerOnly?: boolean;
 };
 
 export type OutboundJob = {

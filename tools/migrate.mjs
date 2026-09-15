@@ -25,8 +25,16 @@
  * Each unit applies inside one transaction: failure rolls back that unit and
  * stops the chain. pgvector is optional by design (0007 degrades to
  * trigram-only with a NOTICE).
+ *
+ * G20 — AN APPLIED MIGRATION THAT CHANGED ON DISK IS AN ERROR, NOT A NO-OP.
+ * Pending work is chosen by version number, so editing an already-applied file
+ * used to be silent: it ran on every clean database and on none of the old
+ * ones. Each applied migration now carries the sha256 of what was applied
+ * (0044); a file that no longer matches stops the run before anything else is
+ * applied, and says which file and what to do about it.
  */
 import { readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import pg from 'pg';
@@ -63,18 +71,55 @@ try {
   const hasMigrations = (await one(
     `select 1 as ok from information_schema.tables where table_schema='public' and table_name='_migrations'`,
   ))?.ok === 1;
-  const applied = hasMigrations
-    ? (await client.query('select version from _migrations order by version')).rows.map((r) => Number(r.version))
+  // The column arrives in 0044, so on a database that predates it this runner
+  // must still be able to read the table it is about to migrate.
+  const checksumColumn = async () => (await one(
+    `select 1 as ok from information_schema.columns
+      where table_schema='public' and table_name='_migrations' and column_name='checksum'`,
+  ))?.ok === 1;
+  const appliedRows = hasMigrations
+    ? (await client.query(await checksumColumn()
+        ? 'select version, checksum from _migrations order by version'
+        : 'select version, null::text as checksum from _migrations order by version')).rows
     : [];
+  const applied = appliedRows.map((r) => Number(r.version));
+  const recorded = new Map(appliedRows.map((r) => [Number(r.version), r.checksum ?? null]));
 
   const files = readdirSync(join(root, 'migrations'))
     .filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
   const pending = files.filter((f) => !applied.includes(Number(f.slice(0, 4))));
 
+  const sha = (f) => createHash('sha256')
+    .update(readFileSync(join(root, 'migrations', f))).digest('hex');
+
+  // G20 — every applied migration whose checksum we know must still match. A
+  // row with no checksum predates 0044 and is backfilled below, not judged.
+  const changed = files.filter((f) => {
+    const known = recorded.get(Number(f.slice(0, 4)));
+    return known && known !== sha(f);
+  });
+  if (changed.length && !process.argv.includes('--status')) {
+    console.error('\nThese migrations were already applied and have since changed on disk:\n');
+    for (const f of changed) console.error(`  ${f}`);
+    console.error(`
+A database that ran the old text will never run the new one, and a clean
+database will only ever run the new one — the two drift apart silently, which
+is exactly what a migration is supposed to prevent.
+
+Put the file back as it was applied and write a NEW migration for the change
+(forward-only, ADR-0007). If the edit is genuinely cosmetic and you are sure
+every database has the old text, re-record it deliberately:
+
+  update _migrations set checksum = null where version = <version>;
+`);
+    process.exit(1);
+  }
+
   if (process.argv.includes('--status')) {
     console.log(`baseline: ${hasBaseline ? 'present' : 'MISSING'}`);
     console.log(`applied:  ${applied.join(', ') || 'none'}`);
     console.log(`pending:  ${pending.join(', ') || 'none'}`);
+    console.log(`changed:  ${changed.join(', ') || 'none'}   (applied, then edited on disk)`);
     process.exit(0);
   }
 
@@ -92,6 +137,17 @@ try {
 
   for (const f of pending) {
     await inTx(f, readFileSync(join(root, 'migrations', f), 'utf8'));
+  }
+
+  // Record what was applied, and backfill the rows that predate 0044. Both are
+  // the same statement: the file on disk is what this database ran.
+  if (await checksumColumn()) {
+    for (const f of files) {
+      await client.query(
+        'update _migrations set checksum = $2 where version = $1 and checksum is null',
+        [Number(f.slice(0, 4)), sha(f)],
+      );
+    }
   }
 
   const count = await one('select count(*)::int as n from _migrations');

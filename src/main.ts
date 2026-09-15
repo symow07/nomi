@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import Anthropic from '@anthropic-ai/sdk';
 import { startWorker } from './worker/main.js';
+import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
@@ -14,15 +15,26 @@ import { assertSchemaCurrent } from './db/schemaVersion.js';
 import { assertPilotTenant } from './db/pilotTenant.js';
 import { templateState, parseApprovedTemplates } from './core/channel/templateReadiness.js';
 import { resolveSendingRecords } from './outbound/dns.js';
+import { refreshDomainCheckIfDue } from './outbound/domainCheck.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
+import { emailAdapter } from './channels/email/adapter.js';
+import type { MailTransport } from './channels/email/transport.js';
+import { accountMailTransport } from './channels/email/accountTransport.js';
+import { gmailSender, graphSender } from './channels/email/senders.js';
+import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
+import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
+import { deriveKey } from './security/credentials.js';
+import { apolloSource } from './connectors/apollo.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
-import { driveConversationOutbound } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, type NotifyJob } from './queue/boss.js';
+import { driveConversationOutbound, type MailEnvelope } from './outbound/worker.js';
+import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
+import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import { markSmall } from './core/owner/brand.js';
+import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
 
@@ -62,6 +74,18 @@ export type ProdConfig = {
   META_WHATSAPP_BUSINESS_ACCOUNT_ID?: string;
   META_APP_SECRET?: string;
   META_GRAPH_API_VERSION: string;
+  // G2b — speech-to-text, the one media setting that is not the channel's own
+  // credential. Optional in every mode: absent, voice notes are refused with
+  // `audio_unheard` and the owner is told why.
+  TRANSCRIBE_API_KEY?: string;
+  TRANSCRIBE_BASE_URL?: string;
+  /**
+   * G11 — the address buyers reach this installation at, for the proof link a
+   * quote carries. Optional in every mode: absent, no link is attached and the
+   * owner is told why. https only — a proof link is forwarded to a stranger's
+   * phone, and it must not be sent over anything a network can read.
+   */
+  PUBLIC_BASE_URL?: string;
 };
 
 type Shape = (v: string) => boolean;
@@ -84,6 +108,15 @@ const META_SHAPES: Record<string, Shape> = {
   META_WHATSAPP_PHONE_NUMBER_ID: META_SHAPE.phoneNumberId,
   META_WHATSAPP_BUSINESS_ACCOUNT_ID: META_SHAPE.businessAccountId,
   META_APP_SECRET: META_SHAPE.appSecret,
+};
+// G2b — checked only when set. Absent is a real state (she refuses voice notes
+// and says why); malformed is not, and must fail at boot rather than at the
+// first voice note a buyer sends.
+const OPTIONAL_SHAPES: Record<string, Shape> = {
+  TRANSCRIBE_API_KEY: (v) => v.length >= 20,
+  TRANSCRIBE_BASE_URL: (v) => v.startsWith('https://'),
+  // G11 — a host, not a path: '/p/<token>' is appended to it.
+  PUBLIC_BASE_URL: (v) => /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(v),
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
@@ -111,6 +144,14 @@ export function validateEnv(env: Record<string, string | undefined>):
   if (provider === 'meta' && !/^v\d+\.\d+$/.test(graphVersion)) {
     problems.push('META_GRAPH_API_VERSION: invalid shape');
   }
+  // G2b — OPTIONAL, but checked when present: a malformed key would otherwise
+  // boot green and refuse every voice note at the first one a buyer sends.
+  for (const [name, shape] of Object.entries(OPTIONAL_SHAPES)) {
+    const v = env[name];
+    if (v === undefined || v === '') continue;
+    if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
+    else if (!shape(v)) problems.push(`${name}: invalid shape`);
+  }
   if (problems.length) return { ok: false, problems };
 
   const pick = (name: string): { [k: string]: string } | Record<string, never> =>
@@ -128,6 +169,9 @@ export function validateEnv(env: Record<string, string | undefined>):
       ...pick('D360_API_KEY'), ...pick('D360_BASE_URL'), ...pick('WEBHOOK_SECRET'),
       ...pick('META_WHATSAPP_ACCESS_TOKEN'), ...pick('META_WHATSAPP_PHONE_NUMBER_ID'),
       ...pick('META_WHATSAPP_BUSINESS_ACCOUNT_ID'), ...pick('META_APP_SECRET'),
+      ...(env['TRANSCRIBE_API_KEY'] ? pick('TRANSCRIBE_API_KEY') : {}),
+      ...(env['TRANSCRIBE_BASE_URL'] ? pick('TRANSCRIBE_BASE_URL') : {}),
+      ...(env['PUBLIC_BASE_URL'] ? pick('PUBLIC_BASE_URL') : {}),
     },
   };
 }
@@ -253,12 +297,41 @@ export type Production = {
 
 export async function buildProduction(
   cfg: ProdConfig,
-  overrides?: { adapter?: ChannelAdapter; logger?: boolean },
+  overrides?: {
+    adapter?: ChannelAdapter;
+    logger?: boolean;
+    /**
+     * G2b — the transcriber and media fetchers, beside `adapter` and for the
+     * same reason: a test that swaps the provider must also swap where media
+     * comes from, or a simulated voice note would be fetched from Meta.
+     */
+    media?: MediaPorts;
+    /** G2b — model ports, tests only; production builds them from the key. */
+    models?: Parameters<typeof startWorker>[2];
+    /**
+     * C4.a — the mail transport, tests only. Absent is production's own
+     * (C6): `accountMailTransport`, bound to each job's business, sending
+     * through the mailbox she connected and refusing when there is none. A test
+     * passes the recording fake so it can assert the subject, the recipient
+     * and the unsubscribe headers rather than only that something was called.
+     */
+    mailTransport?: MailTransport;
+  },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
+  // G2b — and it is handed the ports it needs to hear and see. Before this
+  // call carried them, both paths were dead in production however the host
+  // was configured.
+  // G13 — ONE set of media ports for this process: the worker hears with them
+  // and the Command Center plays back through the same fetcher. Built once, so
+  // a test that injects its own cannot end up with the web app using another.
+  const mediaPorts = overrides?.media ?? mediaPortsFor(cfg);
   const { db, boss } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
-  });
+    // G11 — the worker mints the proof link a quote carries, so it needs the
+    // address as much as the web app does.
+    ...(cfg.PUBLIC_BASE_URL ? { PUBLIC_BASE_URL: cfg.PUBLIC_BASE_URL } : {}),
+  }, mediaPorts, overrides?.models ?? {});
 
   // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
   // tenant isolation. Every RLS policy targets nomi_app; a superuser or
@@ -309,6 +382,17 @@ export async function buildProduction(
   // is approved by Meta, not by us, and we must not call Meta to find out — so
   // the operator records it beside the credentials. Empty (the state today) =
   // 'none', which keeps an out-of-window message with the owner.
+  // One derivation of the web session secret: the Command Center signs its
+  // cookies with it and C4.a's unsubscribe tokens are keyed from it, and two
+  // copies of that line would be two secrets the day one of them is edited.
+  const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
+  /**
+   * C6 — this installation's own OAuth apps. Each provider needs BOTH its id and
+   * its secret; half a pair is not configured, and says so at boot rather than
+   * sending her to a provider page that will refuse the app.
+   */
+  const oauthClients = oauthClientsFrom(process.env);
+
   const TEMPLATE_STATE = templateState({
     providerConfigured: cfg.provider !== 'disabled',
     approvedTemplates: parseApprovedTemplates(process.env['META_TEMPLATE_NAMES']),
@@ -326,18 +410,36 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
-      sessionSecret: createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex'),
+      sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
       templateState: TEMPLATE_STATE,
-    // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` arrives with the sending
-    // provider (M52); until then the SPF check cannot confirm authorisation and
-    // says so, which refuses rather than assumes.
+      // G11 — so the owner's copy of a proof link is one she can send.
+      publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,
+      // G13 — the same fetcher the worker hears with, so she can play a note.
+      ...(mediaPorts.audio ? { audio: mediaPorts.audio } : {}),
+      kickAnswer: (businessId, conversationId, messageId, text) =>
+        boss.send(QUEUES.inbound, {
+          businessId, conversationId, messageId, text, answerOnly: true,
+        } satisfies InboundJob, { retryLimit: 1 }).then(() => undefined),
+    // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` names a sending
+    // provider's SPF mechanism explicitly; unset, the check requires the one
+    // belonging to the mailbox she connected (C6), and with neither it cannot
+    // confirm authorisation and says so, which refuses rather than assumes.
     resolveDns: resolveSendingRecords,
     sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
     // M40.2 — absent mounts no webhook, exactly as an absent WhatsApp provider
     // mounts none. There is nothing to verify a caller with.
     emailWebhookSecret: process.env['EMAIL_WEBHOOK_SECRET'] ?? null,
+    // G3 — the number "Connect this number" connects, from the validated
+    // config. Only Meta names one; without it the page shows the guide.
+    connectableNumber: cfg.provider === 'meta' ? (cfg.META_WHATSAPP_PHONE_NUMBER_ID ?? null) : null,
+    // C5 — her connector keys are encrypted with the same key as every other
+    // credential; Apollo is built from her key per request, never held.
+    credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
+    prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
+    // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
+    oauthClients,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
@@ -410,6 +512,56 @@ export async function buildProduction(
   // Outbound drive: consumes both reply jobs (from turn effects) and bare
   // re-drive ticks (from status webhooks / wait-recheck).
   type DriveJob = { businessId: string; conversationId: string; reply?: string };
+  /**
+   * C4.a / C6 — the adapters this installation has, by channel, FOR ONE BUSINESS.
+   *
+   * WhatsApp is whichever provider the environment selected. E-mail leaves
+   * through the mailbox the business connected (`mail_accounts`, C6): the
+   * transport is bound to the job's own business, reads its live account on
+   * every send, and REFUSES — says why, never pretends — when none is connected,
+   * when the installation has no OAuth app for it, or when the mailbox is not on
+   * her verified domain. The recording fake that stood here until C6 said `ok` to
+   * mail that went nowhere; tests still pass one in as `overrides.mailTransport`.
+   */
+  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+  const oauthFetch = fetch as unknown as OAuthFetch;
+  const tokenCache = new Map<string, { token: string; until: number }>();
+  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
+  const adaptersFor = (businessId: BusinessId) => {
+    const email = emailAdapter({
+      transport: overrides?.mailTransport ?? accountMailTransport({
+        db, businessId, credentialKey, clients: oauthClients, senders: mailSenders,
+        fetchImpl: oauthFetch, cache: tokenCache,
+      }),
+    });
+    const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
+    return (channel: string): ChannelAdapter | undefined => byChannel[channel];
+  };
+
+  /**
+   * C4.a — RFC 8058 headers, minted per message from the same signing key the
+   * unsubscribe page reads with, for the business the mail is sent for. Empty
+   * when this installation has no public address to send anyone to, which is a
+   * refusal rather than a mail without a way out (`no_unsubscribe`).
+   */
+  const mailHeadersFor = (businessId: BusinessId) => (
+    row: { readonly to: string }, opts: { readonly locale: Locale },
+  ): MailEnvelope => {
+    if (!cfg.PUBLIC_BASE_URL) return { headers: {}, tag: null };
+    const token = mintUnsubscribe(webSessionSecret, {
+      // The BUYER's language, resolved by the store from his own client row: the
+      // page behind this link is the one thing in her mail he reads that she did
+      // not write, and it is no use to him in a language he does not read.
+      businessId, channel: 'email', identity: row.to, locale: opts.locale,
+    });
+    // C4.c — the same token as the provider's event tag, so a bounce or a
+    // complaint about this mail resolves to this business and this address.
+    return {
+      headers: unsubscribeHeaders(`${cfg.PUBLIC_BASE_URL.replace(/\/$/, '')}/u?t=${encodeURIComponent(token)}`),
+      tag: token,
+    };
+  };
+
   await boss.work<DriveJob>(QUEUES.outbound, async ([job]: { data: DriveJob }[]) => {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
@@ -422,7 +574,11 @@ export async function buildProduction(
       }
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       return driveConversationOutbound(
-        { store, adapter, now: () => new Date() }, job.data.conversationId,
+        {
+          store, adapter, adapters: adaptersFor(businessId.value),
+          mailHeaders: mailHeadersFor(businessId.value), now: () => new Date(),
+        },
+        job.data.conversationId,
       );
     });
 
@@ -437,6 +593,42 @@ export async function buildProduction(
         { businessId: job.data.businessId, conversationId: job.data.conversationId },
         { startAfter: 1, singletonKey: job.data.conversationId });
     }
+  });
+
+  /**
+   * C4.b — follow-ups. Once a minute, whatever is due for this installation's
+   * tenant. Registered only on the messaging path, beside the outbound worker it
+   * feeds: in deployment mode there is no worker to send what it would queue, and
+   * a follow-up queued there would leave days late when messaging came on.
+   *
+   * The schedule is upserted on every boot, so a deploy never leaves two. The
+   * tenant comes from this process, never from the job: a tick is a reminder to
+   * look, not an instruction about whom to write to.
+   */
+  const sequenceDeps = {
+    db, now: () => new Date(), templateState: TEMPLATE_STATE,
+    // Her mail leaves through her own mailbox (C6), and a buyer's answer lands
+    // there, unread by this product: no follow-up goes without a person
+    // confirming he has not answered. True only for a transport whose replies
+    // reach /hooks/email/inbound — none is wired in production today.
+    repliesObservable: false,
+    kickDrive: async (businessId: string, conversationId: string) => {
+      await boss.send(QUEUES.outbound, { businessId, conversationId }, { singletonKey: conversationId });
+    },
+  };
+  await boss.schedule(QUEUES.sequences, '* * * * *', { businessId: PILOT_BUSINESS_ID } satisfies SequenceSweepJob);
+  await boss.work<SequenceSweepJob>(QUEUES.sequences, async ([job]: { data: SequenceSweepJob }[]) => {
+    if (!job) return;
+    const tenant = parseBusinessId(PILOT_BUSINESS_ID);
+    if (!tenant.ok) return;
+    // Her domain check lapses after a week by design; the clock looks again
+    // before it does, so a follow-up is never held for want of someone pressing
+    // "Look again". Its failure must not cost the minute's sends — and cannot
+    // authorise one: a lookup that fails records `missing`.
+    await refreshDomainCheckIfDue({
+      db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
+    }, tenant.value, new Date()).catch((e: unknown) => console.warn('[domain-check]', e instanceof Error ? e.message : e));
+    await runDueSteps(sequenceDeps, tenant.value);
   });
 
   // P3: owner alerts. QUEUES.notify → resolve owner locale/destination → send the
@@ -477,11 +669,20 @@ export async function buildProduction(
       if (e.kind === 'message') {
         const { conversationId } = await withTenantTx(db, bid, async (tx) => {
           const conv = await ensureConversation(tx, bid, e.waId, e.profileName);
-          // 24h window + health signals live on the channel row.
+          // Health signals live on the channel row: "when did anything arrive".
           await sql`
             update channels
                set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
              where business_id = ${bid} and kind = 'whatsapp'
+          `.execute(tx);
+          // G10b — the 24-hour window is THIS buyer's. It lived on the channel
+          // row, which any buyer's message moved, so one chatty buyer kept a
+          // silent one's window open and Meta rejected what the gate allowed.
+          // `greatest`, because webhooks can arrive out of order.
+          await sql`
+            update client_channels
+               set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${e.occurredAt})
+             where channel = 'whatsapp' and channel_user_id = ${e.waId}
           `.execute(tx);
           return conv;
         });
@@ -492,6 +693,8 @@ export async function buildProduction(
           // past the webhook until now, which is why a voice note arrived as
           // empty text and was answered as though nothing had been said.
           messageType: e.messageType, mediaId: e.mediaId,
+          // G2c — what it WAS, so an unreadable message reaches a person by name.
+          received: e.received,
         });
       } else {
         const r = await withTenantTx(db, bid, (tx) =>

@@ -57,6 +57,7 @@ const DEFAULT_INVARIANTS: readonly Expectation[] = [
   { invariant: 'priceFloorRespected' },
   { invariant: 'noFabricatedPrice' },
   { invariant: 'noSilentCapabilityEscalation' },
+  { invariant: 'heldTurnNeverAutoSends' },
   { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved', 'DDP', 'money-back', 'refund guarantee', 'ISO 9001'] },
 ];
 
@@ -207,7 +208,9 @@ export function evaluateTrust(input: {
 }): SandboxTrust {
   const { result, effects } = input;
   const capability = capabilityOf(result.decision, result.quote !== null);
-  const requestedMode = resolveMode({ capability, grants: input.grants, now: input.now, timeZone: BUSINESS_TZ });
+  // G7a — her hold rules narrow the grant; the same field commitTurn read.
+  const requestedMode = result.hold ? 'draft'
+    : resolveMode({ capability, grants: input.grants, now: input.now, timeZone: BUSINESS_TZ });
   const appliedMode: SandboxTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (pid: string): number | null =>
     result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
@@ -272,7 +275,7 @@ export type SandboxTrust = {
  * The M21 rehearsal found this surface silently dead on a fresh factory: it
  * wrote turns to a separate hard-coded tenant that only an operator script
  * creates, so choosing a case returned 302 and nothing happened. Scripted
- * practice now runs the M12.1 harness in process — the same 23 golden scenarios
+ * practice now runs the M12.1 harness in process — the same 25 golden scenarios
  * the readiness check runs — so it works the moment a factory exists.
  *
  * Isolation is now absolute rather than conventional: no DB write, no adapter,
@@ -542,44 +545,44 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
 }
 
 const SANDBOX_STYLE = `<style>
-  .pcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:4px 0 12px; }
+  .pcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
   .pcases { list-style:none; margin:0; padding:0; }
-  .pcase { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .pcase { display:flex; gap:var(--space-8); padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .pcase:last-child { border-bottom:0; }
   .pcase.ok .pmark { color:var(--color-ok); } .pcase.bad .pmark { color:var(--color-warn); }
   .ptitle { color:var(--color-ink-secondary); }
-  .pproves { margin:12px 0 0; max-width:var(--measure-prose); line-height:1.6; }
-  .dhead { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-note); margin:6px 0 12px; }
-  .sbx-intro { margin:0 0 16px; }
-  .sbx-compose { display:flex; flex-direction:column; gap:14px; }
-  .modebar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-size:var(--font-size-note); }
-  .radio { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+  .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
+  .dhead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+  .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-note); margin:var(--space-8) 0 var(--space-12); }
+  .sbx-intro { margin:0 0 var(--space-16); }
+  .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
+  .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-note); }
+  .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }
-  .scenariobar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   select { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
-  .msgbar { display:flex; flex-direction:column; gap:8px; }
-  .msgacts { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
+  .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   .sbx-trust { border-color:var(--color-highlight-line); }
   .sbx-trust.pass { border-color:var(--color-jade-line); } .sbx-trust.fail { border-color:var(--color-warn-line); }
   .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
   .sbx-trust.pass .verdict { color:var(--color-ok); } .sbx-trust.fail .verdict { color:var(--color-warn); }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .chips { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-12); }
   .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:4px 12px; font-size:var(--font-size-micro); color:var(--color-ink-secondary); }
   .chip.auto { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
   .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-waiting-line); }
   .chip.warn { background:var(--color-warn-wash); color:var(--color-warn); } .chip.badge { background:var(--color-jade-wash); color:var(--color-highlight); }
-  .checks { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
-  .chk { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; align-items:start; }
+  .checks { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .chk { display:grid; grid-template-columns:auto 1fr; gap:var(--space-4) var(--space-8); align-items:start; }
   .chk .mk { font-weight:700; } .chk.ok .mk { color:var(--color-ok); } .chk.bad .mk { color:var(--color-warn); }
   .chk .lbl { font-size:var(--font-size-note); } .chk .dt { grid-column:2; font-size:var(--font-size-micro); word-break:break-word; }
   .card.draft { border-color:var(--color-waiting-line); }
-  .acts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .editform { display:flex; flex-direction:column; gap:8px; }
+  .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
+  .editform { display:flex; flex-direction:column; gap:var(--space-8); }
   /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
      components live in one place so the two voices cannot fork per page. */
-  .takeover { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .takeover.owner { flex-direction:column; align-items:stretch; }
-  .replyform { display:flex; flex-direction:column; gap:8px; }
+  .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
 </style>`;

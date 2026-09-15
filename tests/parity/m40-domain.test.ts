@@ -44,6 +44,27 @@ describe('M40.1 · what the records must actually say', () => {
     // is configured there is no `include:` to look for, so the shape alone
     // proves nothing and the check refuses.
     expect(checkSpf([SPF_OK], null)).not.toBe('ok');
+    // G14 — but it is OUR gap, not a fault in her record, and it now says
+    // which. Calling a correct record 'malformed' sent her to fix a DNS entry
+    // that was already right.
+    expect(checkSpf([SPF_OK], null)).toBe('no_sender');
+    expect(checkSpf(['v=spf1 include:mail.example.net'], null)).toBe('malformed');
+  });
+
+  it('G14 · a record that DELEGATES with redirect= is not malformed', () => {
+    // RFC 7208: `redirect=` hands the whole policy to another domain, and an
+    // `all` must not appear beside it. Demanding one called every delegating
+    // record broken.
+    expect(checkSpf(['v=spf1 redirect=_spf.example.net'], INCLUDE)).toBe('unauthorized');
+    expect(checkSpf([`v=spf1 include:${INCLUDE} redirect=_spf.example.net`], INCLUDE)).toBe('ok');
+  });
+
+  it('G14 · the include must be a WHOLE token — a longer domain is a stranger', () => {
+    // `includes()` matched our mechanism inside someone else's hostname, which
+    // reads as "we are authorised" on a record that authorises another server.
+    expect(checkSpf([`v=spf1 include:${INCLUDE}.attacker.example ~all`], INCLUDE)).toBe('unauthorized');
+    expect(checkSpf([`v=spf1 include:not${INCLUDE} ~all`], INCLUDE)).toBe('unauthorized');
+    expect(checkSpf([`v=spf1 a mx include:${INCLUDE} -all`], INCLUDE)).toBe('ok');
   });
 
   it('a DKIM key that was revoked parses, and means the opposite of ready', () => {
@@ -116,7 +137,11 @@ describe('M40.1 · it is a requirement of the channel, not a fourth gate', () =>
     // place deciding whether e-mail may initiate.
     expect([...CHANNEL_REGISTRY.email.requires]).toEqual(['verified_sending_domain']);
     expect(mayInitiate('email', new Set()).ok).toBe(false);
-    expect(mayInitiate('email', satisfiedRequirements('none', verified())).ok).toBe(true);
+    // The clock is the fixture's, not the machine's. Without `NOW` this line
+    // compared a check dated 31 August against today, and the seven-day TTL
+    // turned CI red on 7 September for a reason that had nothing to do with
+    // the code under test.
+    expect(mayInitiate('email', satisfiedRequirements('none', verified(), NOW)).ok).toBe(true);
   });
 
   it('THE PAGE USES THE SAME PREDICATE, TTL AND ALL', () => {
@@ -193,14 +218,17 @@ describe('M40.1 · what she reads', () => {
       .toBeLessThan(email.indexOf(t('en', 'domain.intro')));
   });
 
-  it('it is registered, owner-only, and reachable from the e-mail card', async () => {
-    const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    for (const r of ["app.post('/app/channels/domain'", "app.post('/app/channels/domain/check'"]) {
-      const at = app.indexOf(r);
-      expect(at, r).toBeGreaterThan(-1);
-      expect(app.slice(at, at + 400), `${r} is not owner-gated`).toContain("ownerOnly(req, reply, 'outreach'");
-    }
-    const ch = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
-    expect(ch).toContain("channel === 'email' ? renderDomain(locale, domain) : ''");
+  it('it is reachable from the e-mail card — for the owner; staff see the reason instead', async () => {
+    // Owner-only is proven by a walk signed in as staff (tests/integration/
+    // people.test.ts, G9a), not by reading 400 characters after the route.
+    const { renderReach } = await import('../../src/api/web/channels.js');
+    const owner = renderReach('en', new Set(), new Map(), verified());
+    expect(owner).toContain('action="/app/channels/domain"');
+    expect(owner).toContain('action="/app/channels/domain/check"');
+    const staff = renderReach('en', new Set(), new Map(), verified(), { isOwner: false });
+    expect(staff).not.toContain('action="/app/channels/domain');
+    expect(staff).toContain(t('en', 'staff.ownerDecides'));
+    // the records she has to add are still shown — reading is the job too
+    expect(staff).toContain(t('en', 'domain.intro'));
   });
 });

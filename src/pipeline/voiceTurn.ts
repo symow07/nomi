@@ -70,17 +70,26 @@ export async function recordVoiceMessage(
   conversationId: string,
   messageId: string,
   outcome: HearingOutcome,
+  /**
+   * G13 — the provider's handle for the audio. Kept so the owner can PLAY the
+   * note she is being asked to correct; it lived only in the job payload
+   * before, so by the time she saw the transcript the recording was
+   * unreachable. Never a URL: a download link is signed and expires.
+   */
+  mediaId?: string | null,
 ): Promise<void> {
   const heard = outcome.kind === 'heard';
   await sql`
     insert into messages
-      (conversation_id, external_id, direction, input_type, text_content, transcription, detected_language, sent_at)
+      (conversation_id, external_id, direction, input_type, text_content, transcription,
+       detected_language, provider_media_id, sent_at)
     values
       (${conversationId}, ${messageId}, 'inbound',
        ${heard ? 'voice_transcribed' : 'voice'},
        ${heard ? outcome.transcript : null},
        ${heard ? outcome.transcript : null},
        ${heard ? outcome.language : null},
+       ${mediaId ?? null},
        clock_timestamp())
     on conflict do nothing
   `.execute(tx);

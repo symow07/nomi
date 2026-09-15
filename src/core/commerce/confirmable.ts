@@ -31,9 +31,12 @@ export function toConfirmableOrder(input: {
   state: ConversationState;
   product: Product | null;
   quote: Quote | null;
-  paymentTerms: string;
+  /** G6 — hers, from `trade_terms`, or null. Never a literal. */
+  paymentTerms: string | null;
+  incoterm?: string | null;
 }): Result<ConfirmableOrder, BlockingReason[]> {
   const { state, product, quote, paymentTerms } = input;
+  const incoterm = input.incoterm ?? null;
   const reasons: BlockingReason[] = [];
 
   // Rule 0 (new): a human owns this conversation. The AI does not close deals
@@ -98,5 +101,6 @@ export function toConfirmableOrder(input: {
     total: q.total,
     email,
     paymentTerms,
+    incoterm,
   } as ConfirmableOrder);
 }

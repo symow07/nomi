@@ -66,6 +66,11 @@ teach the knowledge buyers actually ask for → authorise (or disclaim) claims.
 **Exit:** Profile, Products, Knowledge and Claims are ✓ *Verified by system*.
 These come from real data — nothing can be ticked on the owner's behalf.
 
+Also state her terms on `/app/settings/terms`: her payment terms in her own
+words, and the one delivery term (FOB, CIF, …) she puts on a proforma. Nothing
+fills these in for her. Until she states them, a confirmed order is still
+recorded but its page shows no proforma, and says why (G6).
+
 ## 3. Rehearse — owner, ~30 minutes
 
 `/app/sandbox`. Run the practice flow at least once: buyer question → drafted
@@ -105,9 +110,11 @@ Order the allowlist deliberately:
 | 5c | wider, one number at a time | volume, and the questions you did not anticipate |
 
 Then: set the Meta credentials, flip `WHATSAPP_PROVIDER=meta`, redeploy,
-register the webhook, connect the channel, and activate in the product
-(`GO-LIVE.md` has the exact steps). Activation refuses unless readiness is
-complete, the allowlist is non-empty, and secrets are confirmed rotated.
+register the webhook, press **Connect this number** on `/app/channels`, and
+activate in the product (`GO-LIVE.md` has the exact steps). Connecting is what
+lets a buyer's message find this factory; before it, every message is
+acknowledged and dropped. Activation refuses unless readiness is complete, the
+allowlist is non-empty, and secrets are confirmed rotated.
 
 **Exit for 5a:** you sent yourself a message from your own phone, the reply was
 held as a draft, you approved it, and it arrived.

@@ -169,6 +169,44 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
     expect(page.body).toContain('Last looked at');
   });
 
+  it('THE CLOCK LOOKS AGAIN before a pass lapses, the way her button does — and records only what DNS says', async () => {
+    const { refreshDomainCheckIfDue, RECHECK_PASSING_AFTER_MS, RECHECK_FAILING_AFTER_MS } =
+      await import('../../src/outbound/domainCheck.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const deps = {
+      db, sendingInclude: 'mail.example.net',
+      resolveDns: async (domain: string, selector: string) => {
+        asked.push(`${selector}._domainkey.${domain}`);
+        return answers;
+      },
+    };
+    answers = { spf: [SPF], dkim: [DKIM], dmarc: [DMARC] };
+    await post('/app/channels/domain/check');
+    const passedAt = (await row())!.checked_at!;
+
+    // A fresh pass is left alone: no lookup, nothing written.
+    asked = [];
+    expect(await refreshDomainCheckIfDue(deps, bid.value, new Date(passedAt.getTime() + 60_000))).toBe('fresh');
+    expect(asked).toEqual([]);
+
+    // A day on it looks — and a record removed since is recorded as removed.
+    answers = { spf: [SPF], dkim: [], dmarc: [DMARC] };
+    const dayOn = new Date(passedAt.getTime() + RECHECK_PASSING_AFTER_MS);
+    expect(await refreshDomainCheckIfDue(deps, bid.value, dayOn)).toBe('checked');
+    expect(asked).toContain('k2._domainkey.other-factory.com');
+    const r = await row();
+    expect(r!.dkim_state).toBe('missing');
+    expect(r!.checked_at!.getTime()).toBe(dayOn.getTime());
+
+    // A failing look is tried again within the hour, not in a day.
+    answers = { spf: [SPF], dkim: [DKIM], dmarc: [DMARC] };
+    expect(await refreshDomainCheckIfDue(deps, bid.value, new Date(dayOn.getTime() + 60_000))).toBe('fresh');
+    expect(await refreshDomainCheckIfDue(deps, bid.value, new Date(dayOn.getTime() + RECHECK_FAILING_AFTER_MS)))
+      .toBe('checked');
+    expect((await row())!.dkim_state).toBe('ok');
+  });
+
   it('one sending domain per business, and the app role cannot delete it', async () => {
     await expect(tx((t) => sql`
       insert into sending_domains (business_id, domain) values (${BIZ}, 'third.com')

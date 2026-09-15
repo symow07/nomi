@@ -8,6 +8,10 @@ import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
 import { type FactoryClosure, type ClosureError, validateClosure, closureDate } from '../../core/commerce/closures.js';
 import { type SamplePolicy, type SamplePolicyError, validateSamplePolicy } from '../../core/commerce/samples.js';
+import {
+  type TradeTerms, type TradeTermsError, validateTradeTerms, MAX_PAYMENT_TERMS,
+} from '../../core/commerce/terms.js';
+import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
 import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
@@ -213,6 +217,7 @@ export function renderSettings(
     ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
+    ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
     ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${SETTINGS_STYLE}`;
 }
@@ -220,10 +225,10 @@ export function renderSettings(
 const SETTINGS_STYLE = `<style>
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
-  .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:10px; }
+  .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:var(--space-12); }
   .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
-  .langs { display:flex; flex-wrap:wrap; gap:14px; padding-top:2px; }
-  .cats { display:flex; flex-wrap:wrap; gap:8px; }
+  .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
+  .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   
 </style>
@@ -240,16 +245,23 @@ const SETTINGS_STYLE = `<style>
  * cannot rely on.
  */
 export type ForbiddenView = {
-  readonly own: readonly { readonly id: string; readonly term: string }[];
+  /**
+   * G8 — with her note: why she added it, in her words. The column existed
+   * since 0029 and nothing wrote it; it is hers, and never shown to a buyer.
+   */
+  readonly own: readonly { readonly id: string; readonly term: string; readonly note?: string | null }[];
   readonly floor: readonly string[];
 };
+
+/** Long enough for a reason; short enough to stay a note. */
+export const MAX_FORBIDDEN_NOTE = 200;
 
 export async function loadForbidden(db: Db, businessIdRaw: string): Promise<ForbiddenView> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { own: [], floor: FORBIDDEN_FLOOR };
   return withTenantTx(db, bid.value, async (tx) => {
-    const r = await sql<{ id: string; term: string }>`
-      select id, term from forbidden_terms
+    const r = await sql<{ id: string; term: string; note: string | null }>`
+      select id, term, note from forbidden_terms
        where business_id = ${bid.value}::uuid and archived_at is null
        order by created_at desc`.execute(tx);
     return { own: r.rows, floor: FORBIDDEN_FLOOR };
@@ -257,20 +269,24 @@ export async function loadForbidden(db: Db, businessIdRaw: string): Promise<Forb
 }
 
 export async function addForbidden(
-  db: Db, businessIdRaw: string, term: string,
+  db: Db, businessIdRaw: string, term: string, note = '',
 ): Promise<{ code: 'added' | 'empty' | 'duplicate' | 'failed' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
   const clean = term.trim();
   if (!clean) return { code: 'empty' };
+  const why = note.trim().slice(0, MAX_FORBIDDEN_NOTE) || null;
   return withTenantTx(db, bid.value, async (tx) => {
     const existing = await sql<{ id: string }>`
       select id from forbidden_terms
        where business_id = ${bid.value}::uuid and lower(btrim(term)) = lower(btrim(${clean}))
          and archived_at is null`.execute(tx);
     if (existing.rows[0]) return { code: 'duplicate' as const };
-    await sql`insert into forbidden_terms (business_id, term)
-              values (${bid.value}::uuid, ${clean})`.execute(tx);
+    // A term she archived and adds again is a NEW row: the old one keeps its
+    // record of when it was forbidden and why. (0029's comment says re-adding
+    // "revives" the archived row; it never did, and history is the better rule.)
+    await sql`insert into forbidden_terms (business_id, term, note)
+              values (${bid.value}::uuid, ${clean}, ${why})`.execute(tx);
     return { code: 'added' as const };
   });
 }
@@ -300,12 +316,16 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string 
         <label><span class="muted">${esc(t(locale, 'forbidden.add.label'))}</span>
           <input name="term" required maxlength="80"
             placeholder="${esc(t(locale, 'forbidden.add.placeholder'))}" /></label>
+        <label><span class="muted">${esc(t(locale, 'forbidden.add.note'))}</span>
+          <input name="note" maxlength="${MAX_FORBIDDEN_NOTE}"
+            placeholder="${esc(t(locale, 'forbidden.add.notePlaceholder'))}" /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'forbidden.add.button'))}</button>
       </form>
       ${v.own.length === 0
         ? `<p class="muted empty-p">${esc(t(locale, 'forbidden.empty'))}</p>`
         : `<ul class="fterms">${v.own.map((x) => `<li>
-            <bdi>${esc(x.term)}</bdi>
+            <span><bdi>${esc(x.term)}</bdi>${x.note
+              ? `<span class="fnote muted"><bdi>${esc(x.note)}</bdi></span>` : ''}</span>
             <form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
               <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
             </form></li>`).join('')}</ul>`}
@@ -322,6 +342,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string 
                    border-bottom:1px solid var(--color-border); }
       .fterms li:last-child { border-bottom:0; }
       .fterms.floor li { color:var(--color-ink-secondary); }
+      .fterms .fnote { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
     </style>`;
 }
 
@@ -499,7 +520,8 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: string | n
       <form method="post" action="/app/settings/closures" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.label'))}</span>
           <input name="label" required maxlength="80"
-            placeholder="${esc(t(locale, 'closures.add.placeholder'))}" /></label>
+            placeholder="${esc(t(locale, 'closures.add.placeholder'))}" />
+          <span class="muted">${esc(t(locale, 'closures.add.shown'))}</span></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.from'))}</span>
           <input name="from" type="date" required /></label>
         <label class="fld"><span class="muted">${esc(t(locale, 'closures.add.to'))}</span>
@@ -593,6 +615,72 @@ export async function saveSamplePolicy(
                       ${v.value.creditedOnFirstOrder}, ${v.value.statedAt})`.execute(tx);
     return { code: 'saved' as const };
   });
+}
+
+/** ── G6 · her terms on a proforma ──────────────────────────────────────── */
+
+export type TermsView = { readonly terms: TradeTerms | null };
+
+export async function loadTerms(db: Db, businessIdRaw: string): Promise<TermsView> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { terms: null };
+  return withTenantTx(db, bid.value, async (tx) =>
+    ({ terms: await tenantRepos(tx, bid.value).catalog.tradeTerms() }));
+}
+
+/**
+ * Stating terms INSERTS: what an order was confirmed under is still on the
+ * record. And the delivery term she puts on her proformas is one her employee
+ * may also SAY — the same decision, written where the claims guard reads it,
+ * so a proforma saying FOB and a reply refused for saying FOB cannot coexist.
+ */
+export async function saveTerms(
+  db: Db, businessIdRaw: string,
+  input: { payment?: string | null; incoterm?: string | null; actor: string; now: Date },
+): Promise<{ code: 'saved' | TradeTermsError | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const v = validateTradeTerms({ payment: input.payment ?? null, incoterm: input.incoterm ?? null, now: input.now });
+  if (!v.ok) return { code: v.error };
+  return withTenantTx(db, bid.value, async (tx) => {
+    await sql`insert into trade_terms (business_id, payment_terms, incoterm, stated_at, stated_by)
+              values (${bid.value}::uuid, ${v.value.paymentTerms}, ${v.value.incoterm},
+                      ${v.value.statedAt}, ${input.actor})`.execute(tx);
+    await sql`
+      insert into claims_policy (business_id, kind, claim_key, allowed)
+      values (${bid.value}, 'incoterm', ${v.value.incoterm}, true)
+      on conflict (business_id, kind, claim_key) do update set allowed = true, updated_at = now()
+    `.execute(tx);
+    return { code: 'saved' as const };
+  });
+}
+
+export function renderTerms(v: TermsView, locale: Locale, flash: string | null): string {
+  const name = EMPLOYEE_NAME[locale];
+  const stated = v.terms
+    ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
+       <p class="muted">${esc(t(locale, 'terms.setOn', { date: formatDate(locale, v.terms.statedAt) }))}</p>`
+    : `<p class="muted empty-p">${esc(t(locale, 'terms.none', { name }))}</p>`;
+  const options = INCOTERM_KEYS.map((k) =>
+    `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
+  return `<h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
+      ${stated}
+      <form method="post" action="/app/settings/terms" class="pform">
+        <label class="fld"><span class="muted">${esc(t(locale, 'terms.payment.label'))}</span>
+          <input name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
+            placeholder="${esc(t(locale, 'terms.payment.placeholder'))}"
+            value="${v.terms ? esc(v.terms.paymentTerms) : ''}" /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'terms.incoterm.label'))}</span>
+          <select name="incoterm" required>
+            ${v.terms ? '' : `<option value="" selected disabled></option>`}${options}
+          </select>
+          <span class="muted">${esc(t(locale, 'terms.incoterm.hint', { name }))}</span></label>
+        <button class="btn send" type="submit">${esc(t(locale, 'terms.save'))}</button>
+      </form>
+    </section>`;
 }
 
 /** The address SHE captured. Never inferred from a message. */

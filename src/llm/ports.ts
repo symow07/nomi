@@ -71,6 +71,12 @@ export interface ReplyWriter {
      * allow-set only grows from a row she wrote.
      */
     sampleNote?: string;
+    /**
+     * G5 — present only when a closure of HERS withheld the lead time, from
+     * `closureNote`. It tells the buyer why no date came. The lead time itself
+     * is already null on the quote, and `guardNumerals` refuses any date.
+     */
+    closureNote?: string;
   }): Promise<{ reply: string; promptVersion: string; modelId: string;
     usage: { inputTokens: number; outputTokens: number } }>;
 }

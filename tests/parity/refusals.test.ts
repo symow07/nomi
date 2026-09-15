@@ -50,6 +50,7 @@ const snapshot = (blockedMessages: number): OperationsSnapshot => ({
   attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
+  budget: null,
   channel: { status: 'connected', provider: 'meta' },
   hasAttention: blockedMessages > 0,
 });
@@ -83,7 +84,12 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
      */
     for (const r of GATE_REASONS) expect(REFUSAL_REASONS, r).toContain(r);
     expect(REFUSAL_REASONS.filter((r) => !(GATE_REASONS as readonly string[]).includes(r)))
-      .toEqual(['window_needs_owner', 'media_unsupported']);
+      // C4.a — four more, all from the send path and none of them a decision:
+      // no adapter for the row's channel, a mail with no subject, an outreach
+      // mail that could not carry a way out, and a first message whose outreach
+      // facts could not be resolved so the gate could not be asked at all.
+      .toEqual(['window_needs_owner', 'media_unsupported',
+                'channel_unavailable', 'subject_missing', 'no_unsubscribe', 'outreach_unchecked']);
   });
 
   it('each one answers what happened, why, and what to do — in all three locales', () => {
@@ -252,20 +258,11 @@ describe('M22 · gateOutbound remains the only authority', () => {
       expect(code.toLowerCase().includes(write), `refusals.ts writes: ${write}`).toBe(false);
   });
 
-  it('exactly one module decides whether a message may be sent', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const roots = ['src/api/web', 'src/outbound', 'src/db', 'src/channels'];
-    const callers: string[] = [];
-    for (const dir of roots) {
-      const base = new URL(`../../${dir}/`, import.meta.url);
-      for (const f of (await readdir(base)).filter((x) => x.endsWith('.ts'))) {
-        const src = await readFile(new URL(f, base), 'utf8');
-        if (/\bgateOutbound\s*\(/.test(src)) callers.push(`${dir}/${f}`);
-      }
-    }
-    // The worker, and nothing else. M22 added a reader, not a second gate.
-    expect(callers).toEqual(['src/outbound/worker.ts']);
-  });
+  // "Exactly one module decides whether a message may be sent" used to live
+  // here, reading four directories one level deep — so a second gate in a
+  // subdirectory, or anywhere in src/pipeline, was invisible to it. It is now
+  // recursive over all of src/, in tests/parity/g20-guardrails.test.ts, and
+  // stating it twice is the very shape of defect it exists to catch.
 
   it('the gate itself is unchanged by this milestone', () => {
     // Its six reasons, its fail-closed defaults, its order. Asserted here so a

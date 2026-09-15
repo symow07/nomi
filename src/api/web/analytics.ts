@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { formatMoneyCompact } from '../../core/owner/format.js';
@@ -27,7 +27,15 @@ export type AnalyticsData = {
     readonly quotes: number;
     readonly orders: number;
     readonly deals: readonly { readonly status: string; readonly n: number }[];
-    readonly totalValue: Money | null;
+    /**
+     * G18 — ONE TOTAL PER CURRENCY, never one number made of two.
+     *
+     * This summed `total_value_usd` across every order and labelled the result
+     * "$", so the day a second currency exists her month's figure would be
+     * dollars and yuan added together — the exact arithmetic `sameCurrency`
+     * throws on everywhere else. Empty when there is nothing to total.
+     */
+    readonly totals: readonly Money[];
   };
   readonly employee: { readonly handled: number; readonly waiting: number; readonly edits: number };
 };
@@ -37,7 +45,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     range, hasActivity: false,
     summary: { newClients: 0, activeConvos: 0, quotes: 0, orders: 0 },
     activity: { inbound: 0, replied: 0, waiting: 0 },
-    commerce: { quotes: 0, orders: 0, deals: [], totalValue: null },
+    commerce: { quotes: 0, orders: 0, deals: [], totals: [] },
     employee: { handled: 0, waiting: 0, edits: 0 },
   };
   const bid = parseBusinessId(businessIdRaw);
@@ -67,12 +75,21 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
 
     // Deals — only when real orders exist; value is a genuine SUM, never invented.
     const dealsRows = c.orders > 0
-      ? (await sql<{ status: string; n: number; val: string }>`
-          select status, count(*)::int as n, coalesce(sum(total_value_usd), 0)::numeric as val
+      ? (await sql<{ status: string; n: number }>`
+          select status, count(*)::int as n
             from orders where created_at >= ${cutoff} group by status order by status`.execute(tx)).rows
       : [];
     const deals = dealsRows.map((r) => ({ status: r.status, n: r.n }));
-    const totalValue = dealsRows.length ? dealsRows.reduce((s, r) => s + Number(r.val), 0) : null;
+    const totalRows = c.orders > 0
+      ? (await sql<{ currency: string; val: string }>`
+          select currency, coalesce(sum(total_value_usd), 0)::numeric as val
+            from orders where created_at >= ${cutoff} group by currency order by 2 desc`.execute(tx)).rows
+      : [];
+    // A row in a currency this build does not know is dropped, not defaulted:
+    // `moneyFromRow` returns null rather than calling it dollars.
+    const totals = totalRows
+      .map((r) => moneyFromRow(Number(r.val), r.currency))
+      .filter((m): m is Money => m !== null && m.amount > 0);
 
     const hasActivity =
       c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + c.handled > 0;
@@ -81,7 +98,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
       range, hasActivity,
       summary: { newClients: c.new_clients, activeConvos: c.active_convos, quotes: c.quotes, orders: c.orders },
       activity: { inbound: c.inbound, replied: c.replied, waiting: c.waiting },
-      commerce: { quotes: c.quotes, orders: c.orders, deals, totalValue: totalValue !== null && totalValue > 0 ? usd(totalValue) : null },
+      commerce: { quotes: c.quotes, orders: c.orders, deals, totals },
       employee: { handled: c.handled, waiting: c.waiting, edits: c.edits },
     };
   });
@@ -125,7 +142,9 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const dealsHtml = d.commerce.orders > 0
     ? `<div class="deals">
         ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${x.n}</span>`).join('')}
-        ${d.commerce.totalValue !== null ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', { value: formatMoneyCompact(d.commerce.totalValue) }))}</div>` : ''}
+        ${d.commerce.totals.length ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', {
+          value: d.commerce.totals.map((m) => formatMoneyCompact(m)).join(' · '),
+        }))}</div>` : ''}
       </div>`
     : `<div class="muted empty-line">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
@@ -147,10 +166,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 }
 
 const ANALYTICS_STYLE = `<style>
-  .sub { margin:16px 0 10px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  .deals { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .deals { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); }
   .deals 
-  .deals .total { width:100%; font-size:var(--font-size-note); margin-top:6px; }
-  .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:8px; }
-  .empty-line { padding:6px 0; } .foot { margin:14px 0 0; font-size:var(--font-size-micro); }
+  .deals .total { width:100%; font-size:var(--font-size-note); margin-top:var(--space-8); }
+  .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:var(--space-8); }
+  .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-micro); }
 </style>`;

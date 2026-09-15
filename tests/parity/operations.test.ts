@@ -15,14 +15,15 @@ const sample = (): OperationsSnapshot => ({
   attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
   activity: { handled: 5, draftsCreated: 4, corrections: 1 },
   knowledge: { openGaps: 3, recentCorrections: 1, recentlyTaught: 2 },
-  channel: { status: 'not_connected', provider: 'disabled' },
+  channel: { status: 'not_connected', provider: 'disabled' }, budget: null,
   hasAttention: true,
 });
 
 describe('M16.2a · operations snapshot (pure)', () => {
   it('is a neutral shape — exactly the expected sections, all plain integers', () => {
     const s = sample();
-    expect(Object.keys(s).sort()).toEqual(['activity', 'attention', 'channel', 'hasAttention', 'knowledge', 'range']);
+    // G19 — `budget` joined them: her own ceiling, or null until she nears it.
+    expect(Object.keys(s).sort()).toEqual(['activity', 'attention', 'budget', 'channel', 'hasAttention', 'knowledge', 'range']);
     for (const grp of [s.attention, s.activity, s.knowledge]) {
       for (const v of Object.values(grp)) expect(Number.isInteger(v)).toBe(true);
     }
@@ -99,7 +100,7 @@ const populated: OperationsSnapshot = {
   attention: { pendingApprovals: 2, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
   activity: { handled: 5, draftsCreated: 4, corrections: 1 },
   knowledge: { openGaps: 3, recentCorrections: 1, recentlyTaught: 2 },
-  channel: { status: 'not_connected', provider: 'disabled' },
+  channel: { status: 'not_connected', provider: 'disabled' }, budget: null,
   hasAttention: true,
 };
 const emptyFactory: OperationsSnapshot = {
@@ -107,7 +108,7 @@ const emptyFactory: OperationsSnapshot = {
   attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-  channel: { status: 'not_connected', provider: 'disabled' },
+  channel: { status: 'not_connected', provider: 'disabled' }, budget: null,
   hasAttention: false,
 };
 

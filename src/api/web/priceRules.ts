@@ -1,11 +1,11 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatMoney } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty } from '../../core/owner/i18n/format.js';
 import { esc, back } from './layout.js';
 import { productName } from './inbox.js';
 import {
@@ -45,6 +45,29 @@ export type PriceRulesView = {
   readonly products: readonly ProductRules[];
   /** Products with a price but no rules — the ones she cannot sell yet. */
   readonly unanswered: number;
+  /**
+   * G22 — WHEN SHE MAY COME DOWN, and by how much.
+   *
+   * Her limits above say what she will never go below and how much may ever
+   * come off. Neither of them produces a discount: a discount only exists when
+   * a `negotiation_rules` row says one does, and until now nothing in the
+   * product wrote that table. So "above 5% off she asks you first" was a
+   * promise about an event that could not occur, on the page where she checks
+   * what her employee may do. These are the rows that make it reachable.
+   */
+  readonly volume: readonly VolumeDiscount[];
+};
+
+/** "From 10,000 pieces, 8% off" — one row of `negotiation_rules`, in her words. */
+export type VolumeDiscount = {
+  readonly id: string;
+  /** null = every product she sells. */
+  readonly productId: string | null;
+  readonly productLabel: string | null;
+  readonly minQty: number;
+  readonly discountPct: number;
+  /** Past her ask-me line for that product, so the reply waits for her (G7a). */
+  readonly asksFirst: boolean;
 };
 
 // M43a — the currency comes from the ROW, and a policy this build cannot price
@@ -58,37 +81,37 @@ const toRules = (
 };
 
 export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<PriceRulesView> {
-  const empty: PriceRulesView = { businessDefault: null, products: [], unanswered: 0 };
+  const empty: PriceRulesView = { businessDefault: null, products: [], unanswered: 0, volume: [] };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
 
   return withTenantTx(db, bid.value, async (tx) => {
     const rows = (await sql<{
       product_id: string | null; sku: string | null; name: string | null; name_zh: string | null;
-      list_price: string | null; is_active: boolean | null;
-      floor: string | null; max: string | null; ask: string | null;
+      list_price: string | null; list_currency: string | null; is_active: boolean | null;
+      floor: string | null; max: string | null; ask: string | null; currency: string | null;
     }>`
       -- Every product, plus the business-wide row (product_id is null), in one
       -- read. A LEFT JOIN so a product with no rules comes back as a product
       -- with no rules, rather than not coming back.
       select p.id as product_id, p.sku, p.name, p.name_zh,
-             p.price_usd_per_unit as list_price, p.is_active,
+             p.price_usd_per_unit as list_price, p.currency as list_currency, p.is_active,
              pp.floor_price_usd as floor, pp.max_discount_pct as max,
-             pp.human_required_above_pct as ask
+             pp.human_required_above_pct as ask, pp.currency
         from products p
         left join pricing_policy pp
           on pp.business_id = ${bid.value} and pp.product_id = p.id
        where p.business_id = ${bid.value}
        union all
-      select null, null, null, null, null, null,
-             floor_price_usd, max_discount_pct, human_required_above_pct
+      select null, null, null, null, null, null, null,
+             floor_price_usd, max_discount_pct, human_required_above_pct, currency
         from pricing_policy
        where business_id = ${bid.value} and product_id is null
     `.execute(tx)).rows;
 
     const businessRow = rows.find((r) => r.product_id === null);
     const businessDefault = businessRow?.floor
-      ? toRules({ floor: businessRow.floor, max: businessRow.max!, ask: businessRow.ask! })
+      ? toRules({ floor: businessRow.floor, max: businessRow.max!, ask: businessRow.ask!, currency: businessRow.currency ?? 'USD' })
       : null;
 
     const products = rows
@@ -98,11 +121,49 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
         sku: r.sku ?? '',
         name: r.name ?? '',
         nameZh: r.name_zh,
-        listPrice: r.list_price === null ? null : usd(Number(r.list_price)),
-        own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask! }) : null,
+        // G18 — the row's own currency, for the price as well as the floor.
+        // `toRules` has read it since M43a; the query never selected it, so
+        // every floor was read back as dollars whatever it was stored as.
+        listPrice: r.list_price === null ? null : moneyFromRow(Number(r.list_price), r.list_currency ?? 'USD'),
+        own: r.floor ? toRules({ floor: r.floor, max: r.max!, ask: r.ask!, currency: r.currency ?? 'USD' }) : null,
         inheritsDefault: r.floor === null && businessDefault !== null,
         isActive: r.is_active ?? false,
       }));
+
+    // G22 — her volume discounts. Only `discount_pct` rows: the table can also
+    // carry lead-time and free-shipping actions, and a page that showed those
+    // as discounts would be describing something else.
+    const volumeRows = (await sql<{
+      id: string; product_id: string | null; min_qty: number | null; pct: number | null;
+    }>`
+      select id::text as id,
+             nullif(condition->>'productId', '')::uuid::text as product_id,
+             (condition->>'qtyGte')::int as min_qty,
+             (action->>'value')::numeric as pct
+        from negotiation_rules
+       where business_id = ${bid.value} and is_active
+         and action->>'kind' = 'discount_pct'
+       order by (condition->>'qtyGte')::int nulls first, priority
+    `.execute(tx)).rows;
+
+    const askFor = (productId: string | null): number | null => {
+      const own = productId ? products.find((p) => p.productId === productId)?.own ?? null : null;
+      return (own ?? businessDefault)?.askAbovePct ?? null;
+    };
+    const volume = volumeRows
+      .filter((r) => r.min_qty !== null && r.pct !== null)
+      .map((r): VolumeDiscount => {
+        const p = r.product_id ? products.find((x) => x.productId === r.product_id) : undefined;
+        const ask = askFor(r.product_id);
+        return {
+          id: r.id,
+          productId: r.product_id,
+          productLabel: p ? (p.name || p.sku) : null,
+          minQty: Number(r.min_qty),
+          discountPct: Number(r.pct),
+          asksFirst: ask !== null && Number(r.pct) > ask,
+        };
+      });
 
     return {
       businessDefault,
@@ -110,6 +171,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
       // What she cannot sell yet: a price, but no rule of her own and no default
       // to fall back on. This is a real count of rows, not a score.
       unanswered: products.filter((p) => p.listPrice !== null && p.own === null && !p.inheritsDefault).length,
+      volume,
     };
   });
 }
@@ -146,14 +208,14 @@ export async function savePriceRules(
   return withTenantTx(db, bid.value, async (tx) => {
     // The list price is needed to reject a floor above it, so read it first.
     const product = input.productId
-      ? (await sql<{ price: string | null; is_active: boolean }>`
-          select price_usd_per_unit as price, is_active from products
+      ? (await sql<{ price: string | null; currency: string; is_active: boolean }>`
+          select price_usd_per_unit as price, currency, is_active from products
            where business_id = ${bid.value} and id = ${input.productId} limit 1
         `.execute(tx)).rows[0]
       : undefined;
     if (input.productId && !product) return { ok: false, errors: { floor: 'missing' } };
 
-    const listPrice = product?.price != null ? usd(Number(product.price)) : null;
+    const listPrice = product?.price != null ? moneyFromRow(Number(product.price), product.currency) : null;
     const v = validatePriceRules({
       floor: input.floor, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
       ...(input.productId ? { listPrice } : {}),
@@ -214,10 +276,107 @@ export async function savePriceRules(
  * score: the page shows how many products still need answering, which is a
  * count of rows she can verify by looking at them.
  */
+/**
+ * G22 — she says when she will come down, and by how much.
+ *
+ * WHY THIS EXISTS. `computeQuote` derives a discount from `negotiation_rules`
+ * and from nowhere else. No owner surface has ever written that table, so
+ * `discountPct` was always 0, her "never more than 8% off" was a ceiling on
+ * nothing, and "above 5% off she asks you first" — which G7a made a real hold —
+ * described an event the product could not produce. Found by the pre-pilot
+ * walkthrough, which had to insert the row by hand to rehearse it.
+ *
+ * WHAT IT REFUSES. A discount above the most she said may ever come off is not
+ * clamped quietly (which is what the engine would do) — it is refused, naming
+ * her own number, because a rule she wrote and the engine silently narrowed is
+ * a rule she believes she has and does not. A discount with no limits under it
+ * at all is refused too: the floor is what makes a discount safe, and M29's
+ * whole argument is that absence of a rule is never a default.
+ */
+export type VolumeField = 'minQty' | 'discountPct';
+export type VolumeError = 'missing' | 'not_a_number' | 'not_positive' | 'above_max' | 'no_limits';
+export type VolumeResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly errors: Partial<Record<VolumeField, VolumeError>> };
+
+export async function saveVolumeDiscount(
+  db: Db, businessIdRaw: string, actor: string,
+  input: { readonly productId: string | null; readonly minQty: string | null; readonly discountPct: string | null },
+): Promise<VolumeResult> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { ok: false, errors: { minQty: 'missing' } };
+
+  return withTenantTx(db, bid.value, async (tx) => {
+    const errors: Partial<Record<VolumeField, VolumeError>> = {};
+    const qty = Number((input.minQty ?? '').trim());
+    const pct = Number((input.discountPct ?? '').trim());
+    if (!(input.minQty ?? '').trim()) errors.minQty = 'missing';
+    else if (!Number.isFinite(qty)) errors.minQty = 'not_a_number';
+    else if (!Number.isInteger(qty) || qty <= 0) errors.minQty = 'not_positive';
+    if (!(input.discountPct ?? '').trim()) errors.discountPct = 'missing';
+    else if (!Number.isFinite(pct)) errors.discountPct = 'not_a_number';
+    else if (pct <= 0 || pct > 100) errors.discountPct = 'not_positive';
+    if (Object.keys(errors).length) return { ok: false, errors };
+
+    // The ceiling that applies: this product's own, else the business default.
+    const ceiling = (await sql<{ max: string }>`
+      select max_discount_pct as max from pricing_policy
+       where business_id = ${bid.value}
+         and product_id is not distinct from ${input.productId}
+       union all
+      select max_discount_pct from pricing_policy
+       where business_id = ${bid.value} and product_id is null
+       limit 1
+    `.execute(tx)).rows[0];
+    if (!ceiling) return { ok: false, errors: { discountPct: 'no_limits' } };
+    if (pct > Number(ceiling.max)) return { ok: false, errors: { discountPct: 'above_max' } };
+
+    await sql`
+      insert into negotiation_rules (business_id, priority, condition, action, is_active)
+      values (${bid.value}, 100,
+              ${JSON.stringify({ qtyGte: qty, ...(input.productId ? { productId: input.productId } : {}) })}::jsonb,
+              ${JSON.stringify({ kind: 'discount_pct', value: pct })}::jsonb, true)
+    `.execute(tx);
+
+    // The same verb her other price rules use: this IS a price rule she set,
+    // and a second audit vocabulary for it would be a second way to read the
+    // same history.
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'price_rules_set', ${actor},
+              ${JSON.stringify({ kind: 'volume_discount', productId: input.productId, minQty: qty, discountPct: pct })}::jsonb)
+    `.execute(tx);
+    return { ok: true };
+  });
+}
+
+/** Archive, never erase: she stops offering it, and the history stays. */
+export async function archiveVolumeDiscount(
+  db: Db, businessIdRaw: string, actor: string, id: string,
+): Promise<{ readonly ok: boolean }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { ok: false };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const done = await sql<{ id: string }>`
+      update negotiation_rules set is_active = false
+       where business_id = ${bid.value} and id = ${id}::uuid and is_active
+       returning id::text as id
+    `.execute(tx);
+    if (!done.rows[0]) return { ok: false };
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid.value}, null, 'price_rules_set', ${actor},
+              ${JSON.stringify({ kind: 'volume_discount_archived', ruleId: id })}::jsonb)
+    `.execute(tx);
+    return { ok: true };
+  });
+}
+
 export function renderPriceRules(
   v: PriceRulesView, locale: Locale, flash: string | null = null,
   errors: Partial<Record<PriceRuleField, PriceRuleError>> = {},
   draft: { productId?: string | null } = {},
+  volumeErrors: Partial<Record<VolumeField, VolumeError>> = {},
 ): string {
   const name = EMPLOYEE_NAME[locale];
   const err = (f: PriceRuleField): string =>
@@ -282,18 +441,68 @@ export function renderPriceRules(
       <ul class="plist">${answered.map(productRow).join('')}</ul>
     </section>` : ''}
 
+    ${volumeSection(v, locale, volumeErrors)}
+
     ${back('/app/factory', t(locale, 'nav.factory'))}
     ${PRICES_STYLE}`;
 }
 
+/**
+ * G22 — the section that makes her ceiling mean something.
+ *
+ * It sits AFTER her limits, on purpose: a discount is a thing she gives inside
+ * a floor she has already stated, and the page reads in that order. With no
+ * rule written, it says plainly that she never offers one — which is the truth
+ * the product has always had and never said.
+ */
+function volumeSection(
+  v: PriceRulesView, locale: Locale, errors: Partial<Record<VolumeField, VolumeError>>,
+): string {
+  const name = EMPLOYEE_NAME[locale];
+  const err = (f: VolumeField): string =>
+    errors[f] ? `<p class="perr">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+
+  const rows = v.volume.map((d) => `<li class="prow">
+      <div class="phead"><bdi>${esc(t(locale, 'prices.volume.row', {
+        qty: formatQty(locale, d.minQty), pct: d.discountPct,
+        product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
+      }))}</bdi></div>
+      ${d.asksFirst ? `<p class="fdesc">${esc(t(locale, 'prices.volume.asksFirst', { name }))}</p>` : ''}
+      <form method="post" action="/app/factory/prices/volume/${esc(d.id)}/archive">
+        <button class="btn" type="submit">${esc(t(locale, 'prices.volume.remove'))}</button>
+      </form>
+    </li>`).join('');
+
+  return `<section class="fblock">
+    <h2>${esc(t(locale, 'prices.volume.title'))}</h2>
+    <p class="fdesc">${esc(t(locale, 'prices.volume.sub', { name }))}</p>
+    ${v.volume.length
+      ? `<ul class="plist">${rows}</ul>`
+      : `<p class="fwarn">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
+    <form method="post" action="/app/factory/prices/volume" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
+        <select name="productId">
+          <option value="">${esc(t(locale, 'prices.volume.everyProduct'))}</option>
+          ${v.products.map((p) => `<option value="${esc(p.productId)}">${
+            esc(productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku)}</option>`).join('')}
+        </select></label>
+      <label class="pq"><span>${esc(t(locale, 'prices.volume.q.minQty'))}</span>
+        <input name="minQty" inputmode="numeric" required />${err('minQty')}</label>
+      <label class="pq"><span>${esc(t(locale, 'prices.volume.q.discount'))}</span>
+        <input name="discountPct" inputmode="decimal" required />${err('discountPct')}</label>
+      <button class="btn send" type="submit">${esc(t(locale, 'prices.volume.add'))}</button>
+    </form>
+  </section>`;
+}
+
 const PRICES_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:6px; font-size:var(--font-size-note); color:var(--color-ink); }
+  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); color:var(--color-ink); }
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
-  .plist { list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:18px; }
+  .plist { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
   .prow { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
-  .phead { display:flex; gap:10px; flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
+  .phead { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
 </style>`;
 
 /**

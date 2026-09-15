@@ -22,6 +22,29 @@ Confirm on `/app/onboarding` (owner login required):
 The page shows only whether each credential is **set and correctly shaped** — it
 never displays a value, and reading it contacts nobody.
 
+### Rehearse the twelve, first
+
+Before any of the above, run the pre-pilot walkthrough against a private copy of
+the demo factory:
+
+```bash
+DATABASE_URL=… MIGRATE_DATABASE_URL=… npm run pre-pilot          # scripted replies
+DATABASE_URL=… MIGRATE_DATABASE_URL=… npm run pre-pilot -- --live  # the real model writes them
+```
+
+It boots the real composition (`buildProduction`, the real ingress, worker, send
+gate and owner routes) with the WhatsApp simulator in place of Meta, and drives
+the twelve things a buyer can do on day one: a voice note, a photo, a sticker, a
+PDF, a quote inside a closure, a price that contradicts one already given, a
+discount past her ask-me line, a word she forbade, a reply that fails her rules
+twice, a confirmed order followed by "where is my order?", two buyers with
+different reply windows, and a number that is not on her list. Every scenario
+must pass. The rendered conversation pages are kept in `pre-pilot/` for reading.
+
+Two things it will not tell you: media CONTENT is simulated (the voice note and
+the photo are stand-ins), and two scenarios force the reply text on purpose,
+because a model cannot be asked to break a rule on cue.
+
 ## Credentials
 
 Set these in the host environment (Railway → Variables). They are read at boot;
@@ -72,11 +95,17 @@ in `META-CLOUD-API-SETUP.md`.
    `https://<host>/webhook/whatsapp`, verify token = `WEBHOOK_VERIFY_TOKEN`.
    Meta issues a `GET` handshake; the app echoes the challenge only when the
    token matches.
-5. **Connect the channel** in the Command Center: `/app/channels` → **Connect**,
-   then **activate** the pilot. Activation refuses unless readiness is complete,
-   the allowlist is non-empty, and secrets are confirmed rotated — and it leaves
-   pilot mode ON, because activation starts a controlled pilot rather than
-   ending one.
+5. **Connect the number** in the Command Center: `/app/channels` →
+   **Connect this number** (the owner does this). It records the number set in
+   `META_WHATSAPP_PHONE_NUMBER_ID` as this factory's, which is how an incoming
+   message finds its factory. **Until this step, every message a buyer sends is
+   acknowledged to Meta and dropped** — the webhook answers 200 and nothing is
+   processed, so a test message from your phone will simply never appear. (G3,
+   2026-09-10: before then nothing in the product could do this at all.)
+   Connecting lets messages in; she still sends nothing. Then **activate** the
+   pilot. Activation refuses unless readiness is complete, the allowlist is
+   non-empty, and secrets are confirmed rotated — and it leaves pilot mode ON,
+   because activation starts a controlled pilot rather than ending one.
 6. **First contact — with your own number, not a customer's.** Send a WhatsApp
    message *to* the business number from your own phone and confirm:
    - it appears in `/app/inbox`

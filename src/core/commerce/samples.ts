@@ -68,13 +68,12 @@ export function sampleAnswerContext(
   if (!policy) return { ok: false, error: { kind: 'no_sample_policy' } };
 
   const free = policy.price.amount === 0;
+  // G15 — one sentence for free, not a branch with two identical arms. Free
+  // AND credited is not a contradiction (she may credit a courier cost she
+  // still charges), but there is nothing to deduct from an order, so the
+  // sentence says the one thing that is certain either way.
   const note = free
-    ? (policy.creditedOnFirstOrder
-      // Free AND credited is not a contradiction — she may credit the courier
-      // cost she still charges — but it is very likely a mistake in her own
-      // rules, so the sentence says only what is certain.
-      ? 'Samples are free.'
-      : 'Samples are free.')
+    ? 'Samples are free.'
     : (policy.creditedOnFirstOrder
       ? `A sample costs ${currencySymbol(policy.price.currency)}${policy.price.amount}, and that comes off the first order.`
       : `A sample costs ${currencySymbol(policy.price.currency)}${policy.price.amount}.`);

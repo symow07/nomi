@@ -41,14 +41,15 @@ export const CONTACT_CHANNELS = ['email', 'whatsapp'] as const;
 export type ContactChannel = (typeof CONTACT_CHANNELS)[number];
 
 /**
- * Where a contact record came from. Two values, because two things write one.
+ * Where a contact record came from.
  *
- * `csv` and `apollo` are named in the roadmap and are NOT here: a source
- * nothing can write is a source nothing can display honestly, and M43a
- * established the rule — a value the code cannot produce must not be storable.
- * The importer and the constraint land together.
+ * `csv` is named in the roadmap and is NOT here: a source nothing can write is a
+ * source nothing can display honestly, and M43a established the rule — a value
+ * the code cannot produce must not be storable. `apollo` arrived exactly that
+ * way, with the search that writes it (C5, 0049). A contact from it carries NO
+ * consent: being found in a search is agreeing to nothing.
  */
-export const CONTACT_SOURCES = ['inbound', 'manual'] as const;
+export const CONTACT_SOURCES = ['inbound', 'manual', 'apollo'] as const;
 export type ContactSource = (typeof CONTACT_SOURCES)[number];
 
 /**
@@ -62,12 +63,15 @@ export type ContactSource = (typeof CONTACT_SOURCES)[number];
  *                       consent, and no system saw it. Recorded as HER claim,
  *                       never as an observation.
  *
- * `replied_to_email` and `form_submission` are named in the roadmap and absent
- * for the same reason as the sources above: nothing can write them yet. The
- * first arrives with M40, where a reply to her email is what legitimately
- * opens WhatsApp for that buyer later.
+ *   replied_to_email  — (C4.c) he answered an e-mail she sent. Observed, like
+ *                       `inbound_message`, and consent for E-MAIL to that
+ *                       address only: a reply to a mail hands nobody his phone
+ *                       number, so it cannot open WhatsApp by itself.
+ *
+ * `form_submission` is named in the roadmap and absent for the reason the
+ * sources above are: nothing can write it yet.
  */
-export const CONSENT_EVIDENCE = ['inbound_message', 'owner_attestation'] as const;
+export const CONSENT_EVIDENCE = ['inbound_message', 'owner_attestation', 'replied_to_email'] as const;
 export type ConsentEvidence = (typeof CONSENT_EVIDENCE)[number];
 
 /** Why an identity may never be written to again. */

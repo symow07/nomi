@@ -131,7 +131,12 @@ describe('M4.5 · the worker calls the picture path', () => {
     // definition rather than the call. The guarantee is about ORDER WITHIN THE
     // JOB — see the photo, then open a transaction — and that is what this
     // slice asserts.
-    const handler = src.slice(src.indexOf('await boss.work<InboundJob>'));
+    // G10c — the job first asks, in one short READ, whether this buyer may be
+    // answered at all; it takes no lock and closes before any download. The
+    // guarantee below is about the ANSWERING path that follows it.
+    const job = src.slice(src.indexOf('await boss.work<InboundJob>'));
+    expect(job).toMatch(/withTenantTx\(db, businessId\.value, async \(tx\) =>\s*unlistedDuringPilot\(await pilotFactsFor\(/);
+    const handler = job.slice(job.indexOf('// M34 — a voice note is heard BEFORE the turn'));
     const seeAt = handler.indexOf('await seeImage(');
     const txAt = handler.indexOf('await withTenantTx(db, businessId.value');
     expect(seeAt).toBeGreaterThan(0);

@@ -1,5 +1,6 @@
 import type { ChannelAdapter } from '../contract.js';
 import type { FetchLike } from './client.js';
+import type { BinaryFetchLike } from './media.js';
 import { whatsappAdapter } from './adapter.js';
 import { signBody } from './signature.js';
 
@@ -43,8 +44,25 @@ export type Simulator = {
   /** Build a SIGNED raw webhook body + headers, as the provider would POST. */
   inboundText(args: { from?: string; text: string; name?: string; at?: Date }): SignedWebhook;
   inboundImage(args: { from?: string; caption?: string | null; at?: Date }): SignedWebhook;
+  /** G2b — a voice note, the shape the Cloud API sends: type 'audio'. */
+  inboundAudio(args?: { from?: string; at?: Date }): SignedWebhook;
+  /**
+   * G2c — any other kind the Cloud API sends ('document', 'sticker',
+   * 'reaction', 'location', 'video'…), with `body` as its type-named object.
+   */
+  inboundOther(args: { from?: string; type: string; body?: Record<string, unknown>; at?: Date }): SignedWebhook;
   status(wamid: string, status: 'sent' | 'delivered' | 'read' | 'failed', args?: { at?: Date; errorTitle?: string }): SignedWebhook;
+  /**
+   * G2b — the provider's media endpoint, for the media ids this instance
+   * issued. Hand it to `whatsappMediaFetcher` / `whatsappAudioFetcher` as
+   * `fetchImpl` with base URL `SIM_MEDIA_BASE`: the real two-GET code runs
+   * unchanged and only the network is scripted, as with sends. An id it never
+   * issued answers 404, the way an expired WhatsApp media id does.
+   */
+  readonly mediaFetch: BinaryFetchLike;
 };
+
+export const SIM_MEDIA_BASE = 'https://simulator.invalid/media';
 
 export type SignedWebhook = {
   readonly rawBody: string;
@@ -71,10 +89,31 @@ export function whatsappSimulator(
 
   const tag = opts.tag ?? '1';
   const phoneNumberId = `SIM_PNID_${tag}`;
+  // G2b — inbound message and media ids carry the tag too. A message id is the
+  // event's dedup key, held unique across the whole database, so a second run
+  // of a suite that sent `wamid.SIM_IN_1` found it already recorded and never
+  // processed the message at all — which only a test that waits for the worker
+  // to answer would ever notice.
   let sendN = 0;
   let eventN = 0;
   const remaining = [...script];
   const sentIds: string[] = [];
+  /** media id → the MIME type the provider would report for it. */
+  const media = new Map<string, string>();
+
+  const mediaFetch: BinaryFetchLike = async (url) => {
+    const bytes = new TextEncoder().encode('simulated media bytes').buffer as ArrayBuffer;
+    if (url.startsWith(`${SIM_MEDIA_BASE}/bytes/`)) {
+      return { status: 200, text: async () => '', arrayBuffer: async () => bytes };
+    }
+    const id = url.slice(`${SIM_MEDIA_BASE}/`.length);
+    const mime = media.get(id);
+    if (!mime) return { status: 404, text: async () => '{"error":"media not found"}' };
+    return {
+      status: 200,
+      text: async () => JSON.stringify({ url: `${SIM_MEDIA_BASE}/bytes/${id}`, mime_type: mime }),
+    };
+  };
 
   const fetchImpl: FetchLike = async (_url, init) => {
     sendN += 1;
@@ -139,18 +178,41 @@ export function whatsappSimulator(
       eventN += 1;
       return sign(envelope({
         contacts: [{ profile: { name }, wa_id: from }],
-        messages: [{ from, id: `wamid.SIM_IN_${eventN}`, timestamp: unixSeconds(at), type: 'text', text: { body: text } }],
+        messages: [{ from, id: `wamid.SIM_IN_${tag}_${eventN}`, timestamp: unixSeconds(at), type: 'text', text: { body: text } }],
       }));
     },
 
     inboundImage({ from = SIM_BUYER, caption = null, at }) {
       eventN += 1;
+      media.set(`sim_media_${tag}_${eventN}`, 'image/jpeg');
       return sign(envelope({
         contacts: [{ profile: { name: 'Sim Buyer' }, wa_id: from }],
-        messages: [{ from, id: `wamid.SIM_IN_${eventN}`, timestamp: unixSeconds(at), type: 'image',
-          image: { id: `sim_media_${eventN}`, ...(caption ? { caption } : {}) } }],
+        messages: [{ from, id: `wamid.SIM_IN_${tag}_${eventN}`, timestamp: unixSeconds(at), type: 'image',
+          image: { id: `sim_media_${tag}_${eventN}`, ...(caption ? { caption } : {}) } }],
       }));
     },
+
+    inboundAudio({ from = SIM_BUYER, at } = {}) {
+      eventN += 1;
+      // WhatsApp voice notes are ogg/opus, and the provider reports the codec
+      // in the MIME type — the real fetcher must strip it to match.
+      media.set(`sim_media_${tag}_${eventN}`, 'audio/ogg; codecs=opus');
+      return sign(envelope({
+        contacts: [{ profile: { name: 'Sim Buyer' }, wa_id: from }],
+        messages: [{ from, id: `wamid.SIM_IN_${tag}_${eventN}`, timestamp: unixSeconds(at), type: 'audio',
+          audio: { id: `sim_media_${tag}_${eventN}`, mime_type: 'audio/ogg; codecs=opus', voice: true } }],
+      }));
+    },
+
+    inboundOther({ from = SIM_BUYER, type, body = {}, at }) {
+      eventN += 1;
+      return sign(envelope({
+        contacts: [{ profile: { name: 'Sim Buyer' }, wa_id: from }],
+        messages: [{ from, id: `wamid.SIM_IN_${tag}_${eventN}`, timestamp: unixSeconds(at), type, [type]: body }],
+      }));
+    },
+
+    mediaFetch,
 
     status(wamid, status, args) {
       return sign(envelope({

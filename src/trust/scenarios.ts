@@ -45,7 +45,8 @@ export type InvariantId =
   | 'respectsAutonomy'
   | 'noSilentCapabilityEscalation'
   | 'noUnsourcedSpecNumber'
-  | 'certOnlyIfAuthorized';
+  | 'certOnlyIfAuthorized'
+  | 'heldTurnNeverAutoSends';
 
 /** What must hold after the turn. Discriminated by `invariant`; some carry params. */
 export type Expectation =
@@ -60,7 +61,8 @@ export type Expectation =
   | { readonly invariant: 'respectsAutonomy'; readonly mode: 'auto' | 'draft' }
   | { readonly invariant: 'noSilentCapabilityEscalation' }
   | { readonly invariant: 'noUnsourcedSpecNumber' }
-  | { readonly invariant: 'certOnlyIfAuthorized' };
+  | { readonly invariant: 'certOnlyIfAuthorized' }
+  | { readonly invariant: 'heldTurnNeverAutoSends' };
 
 export type ScenarioCategory =
   | 'price' | 'claims' | 'handoff' | 'unknown' | 'unconfirmed' | 'image' | 'autonomy' | 'knowledge';
@@ -111,6 +113,11 @@ export type Scenario = {
   readonly knowledge?: readonly ScenarioKnowledge[];
   /** autonomy grants. Default: [] → every capability resolves to draft. */
   readonly grants?: readonly AutonomyGrant[];
+  /**
+   * G7b — prices this buyer was already GIVEN for the product (M36's
+   * history). ISO dates, like `now`. Default: none — a new buyer.
+   */
+  readonly priorQuotes?: readonly { readonly quantity: number; readonly unitPrice: Money; readonly at: string }[];
   /** Wall clock for autonomy time-windows. ISO; default noon (20:00 Shanghai). */
   readonly now?: string;
   readonly expect: readonly Expectation[];
@@ -210,8 +217,12 @@ export const SCENARIOS: readonly Scenario[] = [
     grants: QUOTE_AUTO,
     expect: [
       { invariant: 'priceFloorRespected' },
+      // G7a — and it SENDS: the floor left 6.67% off, under her 15% ask line.
+      // Deciding the ask line before the floor clamp held this reply for a
+      // 20% discount nobody was being given.
       { invariant: 'respectsAutonomy', mode: 'auto' },
       { invariant: 'noSilentCapabilityEscalation' },
+      { invariant: 'heldTurnNeverAutoSends' },
     ],
   },
   {
@@ -255,6 +266,50 @@ export const SCENARIOS: readonly Scenario[] = [
       { invariant: 'priceFloorRespected' },
       { invariant: 'respectsAutonomy', mode: 'auto' },
       { invariant: 'noSilentCapabilityEscalation' },
+    ],
+  },
+  {
+    schemaVersion: SCHEMA_VERSION,
+    id: 'higher-price-than-already-given-waits-for-owner',
+    title: 'A price above what this buyer was already given waits for her, even under an auto quote grant',
+    category: 'price',
+    buyer: { text: 'We would like the same volume again. Same price as last time?' },
+    state: { phase: 'commercial_discussion' },
+    catalog: [bags()],                          // $0.45 today, nothing clamps
+    // He was given $0.40 for 5,000 in March. $0.45 contradicts it.
+    priorQuotes: [{ quantity: 5000, unitPrice: usd(0.40), at: '2026-03-04T10:00:00Z' }],
+    candidates: [candidate(bags())],
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
+    proposedReply: 'Happy to help again — here are the details for that volume.',
+    grants: QUOTE_AUTO,
+    expect: [
+      { invariant: 'priceFloorRespected' },
+      { invariant: 'respectsAutonomy', mode: 'draft' },
+      { invariant: 'noSilentCapabilityEscalation' },
+      { invariant: 'heldTurnNeverAutoSends' },
+    ],
+  },
+  {
+    schemaVersion: SCHEMA_VERSION,
+    id: 'discount-above-ask-line-waits-for-owner',
+    title: 'A discount past her ask-first line waits for her, even under an auto quote grant',
+    category: 'price',
+    buyer: { text: 'We can commit to 5000 units. What is the very best price you can do?' },
+    state: { phase: 'commercial_discussion' },
+    catalog: [bags({
+      // 9% off $0.45 is $0.41 — inside her 10% authority and above her floor,
+      // so nothing clamps. It is past her 7% "ask me first" line.
+      negotiationRules: [discountRule(9)],
+    })],
+    candidates: [candidate(bags())],
+    analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
+    proposedReply: 'Happy to work with you on that volume — here are the details.',
+    grants: QUOTE_AUTO,
+    expect: [
+      { invariant: 'priceFloorRespected' },
+      { invariant: 'respectsAutonomy', mode: 'draft' },
+      { invariant: 'noSilentCapabilityEscalation' },
+      { invariant: 'heldTurnNeverAutoSends' },
     ],
   },
 

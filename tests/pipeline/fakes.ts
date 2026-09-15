@@ -1,4 +1,5 @@
 import type { Money } from '../../src/core/types/money.js';
+import type { TradeTerms } from '../../src/core/commerce/terms.js';
 import type { OrderUpdate } from '../../src/core/commerce/orderState.js';
 import type { SamplePolicy } from '../../src/core/commerce/samples.js';
 import type { FactoryClosure } from '../../src/core/commerce/closures.js';
@@ -35,7 +36,8 @@ export class FakeTenant implements Tenant {
   savedStates: ConversationState[] = [];
   ordersByConversation = new Map<string, { orderId: string; orderReference: string }>();
   signalRows = new Map<string, Signal[]>();
-  eventRows: Array<{ conversationId: string; type: string }> = [];
+  /** Payloads kept, so a test can read what a turn said about itself (G7a's `heldBecause`). */
+  eventRows: Array<{ conversationId: string; type: string; payload?: unknown }> = [];
   quotesRecorded: unknown[] = [];
   turnsRecorded: unknown[] = [];
   emailsSaved: Array<{ clientId: string; email: string }> = [];
@@ -66,9 +68,21 @@ export class FakeTenant implements Tenant {
     close: async (id) => { this.closed.push(id); },
   };
 
+  /** G11 — the language remembered for this buyer, if a turn wrote one. */
+  preferredLanguage: string | null = null;
   clients: ClientRepo = {
     saveEmail: async (clientId, email) => { this.emailsSaved.push({ clientId, email }); },
     touchLastSeen: async () => {},
+    savePreferredLanguage: async (_clientId, language) => { this.preferredLanguage = language; },
+  };
+
+  /** G11 — proof tokens this turn minted, so a test can read the link it sent. */
+  proofsIssued: string[] = [];
+  proofs: import('../../src/db/ports.js').ProofRepo = {
+    issue: async (quoteId) => {
+      this.proofsIssued.push(quoteId);
+      return { token: `tok-${this.proofsIssued.length}` };
+    },
   };
 
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
@@ -77,6 +91,8 @@ export class FakeTenant implements Tenant {
   closures: FactoryClosure[] = [];
   /** M45 — what she has said about samples. Null unless a test sets it. */
   sample: SamplePolicy | null = null;
+  /** G6 — her proforma terms. Null (she has stated none) unless a test sets them. */
+  terms: TradeTerms | null = null;
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
@@ -85,13 +101,17 @@ export class FakeTenant implements Tenant {
     forbiddenTerms: async () => this.forbidden,
     factoryClosures: async () => this.closures,
     samplePolicy: async () => this.sample,
+    tradeTerms: async () => this.terms,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],
   };
 
+  /** G6 — every order handed to the repo, so a test can read what it carried. */
+  ordersCreated: Array<Parameters<OrderRepo['create']>[1]> = [];
   orders: OrderRepo = {
-    create: async (conversationId) => {
+    create: async (conversationId, order) => {
+      this.ordersCreated.push(order);
       const existing = this.ordersByConversation.get(conversationId);
       if (existing) return { ...existing, alreadyExisted: true } as never;
       const created = {
@@ -102,7 +122,7 @@ export class FakeTenant implements Tenant {
       return { ...created, alreadyExisted: false } as never;
     },
     /** M46 — no order in the harness unless a test sets one. */
-    latestForConversation: async () => this.latestOrder,
+    latestForClient: async () => this.latestOrder,
   };
 
   signals: SignalRepo = {
@@ -118,8 +138,8 @@ export class FakeTenant implements Tenant {
   };
 
   events: EventLog = {
-    append: async (conversationId, type) => {
-      this.eventRows.push({ conversationId: conversationId as string, type });
+    append: async (conversationId, type, payload) => {
+      this.eventRows.push({ conversationId: conversationId as string, type, payload });
     },
   };
 

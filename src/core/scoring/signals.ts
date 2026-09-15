@@ -27,6 +27,27 @@ export type Signal =
    * it; the signal itself only says "something was said and not heard".
    */
   | { readonly kind: 'audio_unheard'; readonly reason: string }
+  /**
+   * G2c — the buyer sent something she cannot read: a document, a video, a
+   * location. Before this, each arrived as EMPTY TEXT and she answered it — a
+   * reply to a PDF nobody opened. `received` says what arrived, so the owner
+   * knows what to go and look at.
+   */
+  | { readonly kind: 'media_unreadable'; readonly received: string }
+  /**
+   * G10c — she is live in pilot and this number is not on the owner's list.
+   * The gate could never let a reply out, so she does not write one: the
+   * message is recorded and a PERSON is told. Scores nothing — it is not a
+   * problem with the buyer, only with who may be written to.
+   */
+  | { readonly kind: 'unlisted_number' }
+  /**
+   * C4.c — he answered an e-mail she wrote first. A person answers him: no model
+   * runs on a stranger's first reply to a cold mail, and the follow-ups stop
+   * (C4.b's `replied`). Not a problem with him — the best thing that can happen —
+   * but it needs a person, which is what this list is for.
+   */
+  | { readonly kind: 'email_reply' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -36,7 +57,13 @@ export type Signal =
 
 export type SignalKind = Signal['kind'];
 
-const PROBLEM_KINDS = new Set<SignalKind>([
+/**
+ * The PROBLEM kinds, once. G2c — the inbox and Today each kept their own copy
+ * of this list, and Today's had never learned 'audio_unheard': an unheard
+ * voice note gated the close and was invisible on the owner's summary of why
+ * she was needed. Both now read this.
+ */
+export const PROBLEM_SIGNAL_KINDS = [
   'human_requested',
   'complaint',
   'repeated_ambiguity',
@@ -44,7 +71,15 @@ const PROBLEM_KINDS = new Set<SignalKind>([
   // M34 — the machine does not know what the buyer said. Gating the close on
   // this is the whole point: an unheard question must not be answered.
   'audio_unheard',
-]);
+  // G2c — nor what the buyer sent.
+  'media_unreadable',
+  // G10c — nor may she write to him: he is not on the owner's pilot list.
+  'unlisted_number',
+  // C4.c — he answered her cold e-mail, and a person answers him.
+  'email_reply',
+] as const satisfies readonly SignalKind[];
+
+const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
 
 /**
  * One representative Signal per kind, so tests can cover the union without
@@ -58,6 +93,9 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   repeated_ambiguity: { kind: 'repeated_ambiguity', turns: 2 },
   low_confidence_image: { kind: 'low_confidence_image' },
   audio_unheard: { kind: 'audio_unheard', reason: 'transcription_failed' },
+  media_unreadable: { kind: 'media_unreadable', received: 'document' },
+  unlisted_number: { kind: 'unlisted_number' },
+  email_reply: { kind: 'email_reply' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -86,6 +124,9 @@ export const TRIGGER_REASONS = [
   'manual',
   'low_confidence_image',
   'audio_unheard',
+  'media_unreadable',
+  'unlisted_number',
+  'email_reply',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -102,6 +143,12 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'low_confidence_image';
     case 'audio_unheard':
       return 'audio_unheard';
+    case 'media_unreadable':
+      return 'media_unreadable';
+    case 'unlisted_number':
+      return 'unlisted_number';
+    case 'email_reply':
+      return 'email_reply';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

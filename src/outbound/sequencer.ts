@@ -1,3 +1,5 @@
+import { CHANNEL_REGISTRY, type ChannelCapability } from '../core/channel/registry.js';
+
 /**
  * Delivery-ordering state machine (ADR-0012 C).
  *
@@ -18,7 +20,18 @@ export type OutboundRow = {
   readonly requiresOrder: boolean;
   readonly attempts: number;
   readonly sentAt: Date | null;
+  /** C4.c — which channel carried it; absent is WhatsApp, as every row before e-mail was. */
+  readonly channel?: string;
 };
+
+/**
+ * C4.c — does a 'sent' row on this channel still have a receipt to wait for?
+ * Asked of the registry, and an unknown channel is assumed to have one: waiting
+ * is the conservative answer.
+ */
+const awaitsReceipt = (channel: string | undefined): boolean =>
+  (CHANNEL_REGISTRY as Readonly<Record<string, ChannelCapability | undefined>>)[channel ?? 'whatsapp']
+    ?.deliveryReceipts !== false;
 
 /** delivered/read = confirmed at handset; failed/canceled = will never block. */
 const TERMINAL = new Set<OutboundStatus>(['delivered', 'read', 'failed', 'canceled']);
@@ -47,6 +60,8 @@ export function nextToSend(
       if (!prior.requiresOrder) continue;
       if (TERMINAL.has(prior.status)) continue;
 
+      // Accepted by a channel that never confirms delivery: accepted is final.
+      if (prior.status === 'sent' && !awaitsReceipt(prior.channel)) continue;
       if (prior.status === 'sent' && prior.sentAt) {
         const waited = now.getTime() - prior.sentAt.getTime();
         if (waited >= DELIVERY_WAIT_CAP_MS) continue; // cap reached — unblock

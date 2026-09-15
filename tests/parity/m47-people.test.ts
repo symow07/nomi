@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import {
   OWNER_ONLY, mayDo, heldByName, validatePerson, type Person,
 } from '../../src/core/conversation/people.js';
@@ -56,7 +57,7 @@ describe('M47 · the ownership model is EXTENDED, not replaced', () => {
     // added a fourth copy would undo the most valuable thing about that work.
     const { execSync } = await import('node:child_process');
     const hits = execSync('grep -rn "assignedTo !== null\\|assigned_to !== null" src || true', {
-      cwd: new URL('../../', import.meta.url).pathname, encoding: 'utf8',
+      cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8',
       // The module that OWNS the meaning is allowed to state it.
     }).split('\n').filter((l) => l.trim() !== '' && !l.startsWith('src/core/conversation/ownership.ts'));
     expect(hits, `a second ownership predicate appeared:\n${hits.join('\n')}`).toEqual([]);
@@ -81,23 +82,11 @@ describe('M47 · one distinction, and it is named in code', () => {
     }
   });
 
-  it('EVERY owner-only route calls the gate — none of them forgot', async () => {
-    const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    for (const [route, action] of [
-      ["app.post(`/app/employee/capability/:capability/${verb}`", 'capability_grant'],
-      ["app.post('/app/factory/activate'", 'messaging_activation'],
-      ["app.post('/app/factory/deactivate'", 'messaging_activation'],
-      ["app.post('/app/factory/prices'", 'price_rules'],
-      ["app.post('/app/settings/people'", 'people'],
-      ["app.post('/app/settings/people/:id/remove'", 'people'],
-      ["app.post('/app/channels/outreach'", 'outreach'],
-    ] as const) {
-      const at = app.indexOf(route);
-      expect(at, `route missing: ${route}`).toBeGreaterThan(-1);
-      const body = app.slice(at, at + 900);
-      expect(body, `${route} does not gate on ${action}`).toContain(`ownerOnly(req, reply, '${action}'`);
-    }
-  });
+  // G9a — "every owner-only route calls the gate" and "a sales assistant can
+  // do the job" used to be source tests reading a fixed number of characters
+  // after each route name: a comment mentioning `ownerOnly(` passed them, and
+  // a longer handler failed them. Both are now a walk signed in as staff, over
+  // every route and the two owner-only pages (tests/integration/people.test.ts).
 
   it('and NO OTHER route does — this is a list, not a creeping matrix', async () => {
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
@@ -105,18 +94,6 @@ describe('M47 · one distinction, and it is named in code', () => {
     expect(new Set(gated)).toEqual(new Set(OWNER_ONLY));
   });
 
-  it('a sales assistant can do the job: reply, take over, hand back, teach', async () => {
-    const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    for (const route of ["app.post('/app/inbox/:conversationId/reply'",
-      "app.post('/app/inbox/:conversationId/takeover'",
-      "app.post('/app/inbox/:conversationId/resume'",
-      "app.post('/app/knowledge/teach'",
-      "app.post('/app/orders/:id/update'"]) {
-      const at = app.indexOf(route);
-      expect(at, route).toBeGreaterThan(-1);
-      expect(app.slice(at, at + 700), `${route} is gated and should not be`).not.toContain('ownerOnly(');
-    }
-  });
 });
 
 describe('M47 · who holds this conversation', () => {
@@ -232,7 +209,7 @@ describe('M47 · the page', () => {
       'people.add.placeholder', 'people.add.button', 'people.issued.title', 'people.issued.once',
       'people.ownerOnly.title', 'people.ownerOnly.intro', 'people.ownerOnly.rest',
       'people.flash.added', 'people.flash.removed', 'people.flash.name_missing',
-      'people.flash.name_too_long', 'people.flash.failed', 'people.notAllowed',
+      'people.flash.name_too_long', 'people.flash.failed', 'staff.notAllowed',
       'people.held.waiting', 'people.held.owner', 'people.held.gone', 'people.holding',
     ];
     for (const locale of LOCALES) {

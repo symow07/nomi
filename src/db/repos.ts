@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { closureDate } from '../core/commerce/closures.js';
-import { isOrderState } from '../core/commerce/orderState.js';
+import { isReportedOrderState } from '../core/commerce/orderState.js';
+import { writeOrderState } from './orders.js';
 import { moneyFromRow, usd } from '../core/types/money.js';
 import type { Tx } from './client.js';
 import type {
@@ -29,6 +30,7 @@ import type { Signal } from '../core/scoring/signals.js';
 import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import { loadKillSwitches } from './opsFlags.js';
+import { issueProofLinkTx } from './proofs.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -50,7 +52,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           'cs.product_confirmed_by_client', 'cs.inquiry_quantity', 'cs.inquiry_unit',
           'cs.problem_score', 'cs.lead_score', 'cs.pending_question',
           'cs.turn_count', 'cs.context_summary',
-          'cl.email as client_email', 'cl.display_name',
+          'cl.email as client_email', 'cl.display_name', 'cl.preferred_language',
         ])
         .where('c.id', '=', id)
         .executeTakeFirst();
@@ -78,7 +80,9 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         contact: { email: email?.ok ? email.value : null },
         pendingQuestion: row.pending_question as ConversationState['pendingQuestion'],
         assignedTo: row.assigned_to as ConversationState['assignedTo'],
-        preferredLanguage: null,
+        // G11 — remembered from his own messages, so a turn with no analysis
+        // (a fast path, an injection) still answers in the language he writes.
+        preferredLanguage: row.preferred_language ?? null,
         contextSummary: row.context_summary,
       };
     },
@@ -177,6 +181,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       await tx.updateTable('clients').set({ last_seen_at: new Date() })
         .where('id', '=', clientId).execute();
     },
+    // G11 — his language, as he writes it. Two letters, from the analyser.
+    async savePreferredLanguage(clientId, language) {
+      await sql`update clients set preferred_language = ${language.slice(0, 2).toLowerCase()}
+                 where id = ${clientId}`.execute(tx);
+    },
   };
 
   // ── catalog ────────────────────────────────────────────────────────────────
@@ -268,6 +277,15 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       }));
     },
 
+    // G6 — newest in force, as with her sample policy and her rate.
+    async tradeTerms() {
+      const r = await sql<{ payment_terms: string; incoterm: string; stated_at: Date }>`
+        select payment_terms, incoterm, stated_at from trade_terms
+         where business_id = ${businessId} order by stated_at desc, id desc limit 1`.execute(tx);
+      const row = r.rows[0];
+      return row ? { paymentTerms: row.payment_terms, incoterm: row.incoterm, statedAt: row.stated_at } : null;
+    },
+
     // M45 — the most recently stated policy is the one in force. A currency
     // this build cannot price is not a policy it can quote: dropped, not
     // defaulted, exactly as every other money read here.
@@ -323,11 +341,24 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           total_value_usd: order.total.amount,
           currency: order.total.currency,
           client_email: order.email,
+          // G6 — hers at the moment he confirmed, or null: kept with the order
+          // so a document he already holds is not rewritten when she changes
+          // her terms later.
           payment_terms: order.paymentTerms,
+          incoterm: order.incoterm,
           status: 'confirmed',
           quote_id: null,
           confirmed_at: new Date(),
         }).returning(['id', 'order_reference']).executeTakeFirstOrThrow();
+
+        // G4 — the order's FIRST entry in its history, written by the one
+        // writer of that history. Without it the log had no head, the lookup
+        // (which reads the log, not the cache) found nothing, and "where is my
+        // order?" fell through to the model the minute after he confirmed.
+        await writeOrderState(tx, businessId, row.id, {
+          state: 'confirmed', note: null, trackingReference: null,
+          actor: 'employee', at: new Date(),
+        });
 
         return {
           orderId: row.id as OrderId,
@@ -355,7 +386,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     // M46 — the latest thing SHE recorded. The log is the history; this reads
     // its newest row rather than `orders.status`, so the answer a buyer gets
     // and the record she keeps cannot disagree.
-    async latestForConversation(conversationId) {
+    //
+    // G4 — his latest ORDER, by buyer. Confirming closes the conversation, so
+    // the question always arrives in a new one; `orders.client_id` is indexed
+    // and set on every order, so this needs no join through conversations.
+    async latestForClient(clientId) {
       const r = await sql<{
         order_id: string; reference: string; state: string; at: Date;
         note: string | null; tracking_reference: string | null; by_actor: string;
@@ -367,13 +402,17 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
                -- must not tell a waiting buyer there is no tracking.
                o.tracking_reference
           from orders o
-          join order_updates u on u.order_id = o.id
-         where o.business_id = ${businessId} and o.conversation_id = ${conversationId}
-         order by u.at desc, u.id desc
+          join lateral (
+            select state, at, note, by_actor from order_updates u
+             where u.order_id = o.id
+             order by u.at desc, u.id desc limit 1
+          ) u on true
+         where o.business_id = ${businessId} and o.client_id = ${clientId}
+         order by o.created_at desc
          limit 1
       `.execute(tx);
       const row = r.rows[0];
-      if (!row || !isOrderState(row.state)) return null;
+      if (!row || !isReportedOrderState(row.state)) return null;
       return {
         orderId: row.order_id,
         reference: row.reference,
@@ -408,6 +447,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           }
           case 'audio_unheard':
             return { kind: 'audio_unheard', reason: String(p['reason'] ?? 'transcription_failed') } as Signal;
+          case 'media_unreadable':
+            return { kind: 'media_unreadable', received: String(p['received'] ?? 'other') } as Signal;
           default:
             return { kind: r.kind } as Signal;
         }
@@ -460,12 +501,22 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     // Joined through conversations because quotes carry a conversation, not a
     // client: the same buyer across two threads is one buyer.
     async priorQuotesForClient(clientId, productId) {
+      // G7b — only prices he was actually GIVEN. A quote whose reply became a
+      // draft counts once she approved it unchanged (发送 — `applyOwnerCommand`
+      // sets 'approved' in its own transaction, which is what makes a new price
+      // the baseline); one still pending, skipped, rewritten or expired never
+      // set his expectation. A quote with no draft went out on its own — or
+      // was stopped later, which is counted too: over-counting history only
+      // asks her more often, and under-counting it is how he gets contradicted.
       const r = await sql<{ quantity: number; unit_price_usd: string; currency: string; created_at: Date }>`
         select q.quantity, q.unit_price_usd, q.currency, q.created_at
           from quotes q
           join conversations c on c.id = q.conversation_id
          where c.client_id = ${clientId} and q.product_id = ${productId}
            and q.business_id = ${businessId}
+           and not exists (
+             select 1 from turns t join drafts d on d.turn_message_id = t.message_id
+              where t.quote_id = q.id and d.status <> 'approved')
          order by q.created_at desc limit 10
       `.execute(tx);
       // A prior quote in a currency this build cannot price is dropped rather
@@ -490,6 +541,15 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         requires_human: q.requiresHuman,
         applied_rules: [...q.appliedRules],
         engine_version: ENGINE_VERSION,
+        // G5 — what the quote said about delivery (0040).
+        lead_time_days: q.leadTimeDays,
+        lead_time_withheld: q.leadTimeWithheld
+          ? JSON.stringify({
+              label: q.leadTimeWithheld.label,
+              from: q.leadTimeWithheld.from.toISOString().slice(0, 10),
+              to: q.leadTimeWithheld.to.toISOString().slice(0, 10),
+            })
+          : null,
       }).returning('id').executeTakeFirstOrThrow();
       return { quoteId: row.id };
     },
@@ -601,5 +661,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
-  return { businessId, conversations, clients, catalog, orders, samples, signals, events, audit, autonomy, ops, drafts, knowledge };
+  // G11 — the buyer's proof link, minted in THIS transaction (db/proofs.ts).
+  const proofs: import('./ports.js').ProofRepo = {
+    issue: (quoteId) => issueProofLinkTx(tx, businessId, quoteId),
+  };
+
+  return { businessId, conversations, clients, catalog, orders, samples, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
 }

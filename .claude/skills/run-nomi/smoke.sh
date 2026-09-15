@@ -27,7 +27,10 @@ SOCK="$(mktemp -d /tmp/yfs.XXXX)"       # PG unix-socket dir must be a SHORT pat
 fail() {
   echo "FAIL: $*" >&2
   [ -f "$SK/app.log" ] && { echo "--- app.log tail ---" >&2; tail -20 "$SK/app.log" >&2; }
-  kill "${APP_PID:-0}" 2>/dev/null
+  # Only the server THIS run started. `kill 0` — what an unset APP_PID used to
+  # expand to — signals the whole process group, the caller's shell included,
+  # so a failure before launch killed whatever ran this script.
+  [ -n "${APP_PID:-}" ] && kill "$APP_PID" 2>/dev/null
   pg_ctl -D "$SK/pg" -w stop >/dev/null 2>&1
   exit 1
 }

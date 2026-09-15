@@ -103,13 +103,14 @@ describe('M38 · the address is the key, so it is canonical', () => {
 });
 
 describe('M38 · a value nothing can write is not storable', () => {
-  it('two channels, two sources, two kinds of evidence — and no others yet', () => {
-    // M43a's rule on a new axis. 'csv'/'apollo' and 'replied_to_email' are in
-    // the roadmap and arrive WITH the importers and the mailbox that produce
-    // them: a source nothing can write is a source nothing can display honestly.
+  it('two channels, three sources, three kinds of evidence — and no others yet', () => {
+    // M43a's rule on a new axis. 'csv' is in the roadmap and arrives WITH the
+    // importer that produces it: a source nothing can write is a source nothing
+    // can display honestly. 'replied_to_email' arrived exactly that way, with
+    // the reply webhook (C4.c, 0048), and 'apollo' with the search (C5, 0049).
     expect([...CONTACT_CHANNELS]).toEqual(['email', 'whatsapp']);
-    expect([...CONTACT_SOURCES]).toEqual(['inbound', 'manual']);
-    expect([...CONSENT_EVIDENCE]).toEqual(['inbound_message', 'owner_attestation']);
+    expect([...CONTACT_SOURCES]).toEqual(['inbound', 'manual', 'apollo']);
+    expect([...CONSENT_EVIDENCE]).toEqual(['inbound_message', 'owner_attestation', 'replied_to_email']);
     expect([...SUPPRESSION_REASONS]).toEqual(['unsubscribed', 'bounced', 'complained']);
   });
 

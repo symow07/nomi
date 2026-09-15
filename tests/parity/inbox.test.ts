@@ -190,10 +190,15 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     expect(line('owner_reply')).not.toContain('$');                   // the action line carries no price/body
   });
 
-  it('a non-owner actor is shown as-is and escaped (future team member)', () => {
-    const html = renderConversationDetail(withLast('AI', 'takeover', '<b>agent-7</b>'), 'en', NOW, null);
-    expect(html).toContain('&lt;b&gt;agent-7&lt;/b&gt;');
-    expect(html).not.toContain('<b>agent-7</b>');
+  it('a team member is NAMED, escaped — and an id nobody holds is never shown raw (G9b)', () => {
+    const named = renderConversationDetail({
+      ...withLast('AI', 'takeover', 'p-7'), people: [{ id: 'p-7', name: '<b>Xiao Chen</b>', isOwner: false }],
+    }, 'en', NOW, null);
+    expect(named).toContain('Taken over by &lt;b&gt;Xiao Chen&lt;/b&gt;');
+    expect(named).not.toContain('<b>Xiao Chen</b>');
+    const unknown = renderConversationDetail(withLast('AI', 'takeover', '<b>agent-7</b>'), 'en', NOW, null);
+    expect(unknown).not.toContain('agent-7');
+    expect(unknown).toContain(t('en', 'people.held.gone'));
   });
 
   it('localized states + last action in zh and ar', () => {

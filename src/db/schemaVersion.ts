@@ -103,8 +103,82 @@ import type { Db } from './client.js';
  *      a 37 database the connections page throws. The alternative shape is
  *      worse than a throw: a check that cannot be stored is a check that
  *      never goes stale, and stale is the one state this table exists to catch.
+ *
+ * 39 = the 'media_unreadable' signal (0039, G2c). The worker records it the
+ *      moment a buyer sends a document, a video or a location, and hands the
+ *      conversation to a person. Against a 38 database that INSERT fails the
+ *      CHECK, the job retries until it dead-letters, and the conversation is
+ *      neither answered nor handed over — the file the buyer sent is exactly
+ *      the thing that disappears.
+ *
+ * 40 = what a quote said about delivery (0040, G5). `recordQuote` writes
+ *      `quotes.lead_time_days` and `lead_time_withheld` on every quote, and
+ *      the buyer's proof page and the owner's closed-card read them. Against
+ *      a 39 database the first quote fails its INSERT and the turn rolls back
+ *      — she answers nobody who asks a price.
+ *
+ * 41 = her proforma terms (0041, G6). Confirming an order reads `trade_terms`
+ *      and writes `orders.incoterm`, and the order page reads both. Against a
+ *      40 database the confirmation throws and the buyer who said "yes" gets
+ *      no order at all.
+ *
+ * 42 = the buyer's own reply window, and the 'unlisted_number' signal (0042,
+ *      G10). Every inbound message writes `client_channels.last_inbound_at`
+ *      and the send path reads it; a number not on her pilot list records
+ *      the signal. Against a 41 database the webhook's write throws and no
+ *      buyer's message is processed at all.
+ *
+ * 43 = the media id a voice note can be played from (0043, G13). Every voice
+ *      message records it as it arrives. Against a 42 database that INSERT
+ *      fails and no voice note is recorded at all — the message the owner
+ *      most needs to see is the one that disappears.
+ *
+ * 44 = the checksum of each applied migration (0044, G20). Bookkeeping for
+ *      `tools/migrate.mjs`, which the app itself never reads: a file that was
+ *      applied and has since been edited on disk now stops the runner instead
+ *      of being skipped by version number. A 43 database simply has no column
+ *      to record it in, so the runner backfills on its next run.
+ *
+ * 45 = the SPF state the code has returned since G14 (0045). `no_sender` was
+ *      in the type and not in the CHECK, so on a production without
+ *      `SENDING_SPF_INCLUDE` — which is every production today — pressing
+ *      "check my domain" raised a constraint violation. Against a 44 database
+ *      that write still fails, which is why this bumps rather than being
+ *      treated as cosmetic.
+ *
+ * 46 = an e-mail can exist (0046, C4.a). `conversations.channel` and
+ *      `client_channels.channel` admit 'email'; the outbound row carries the
+ *      channel that will fetch it and the subject an e-mail needs; `origin`
+ *      admits 'outreach', the third kind of authorship. Against a 45 database
+ *      every outreach insert fails on a column that is not there.
+ *
+ * 47 = a first e-mail and its follow-ups (0047, C4.b). `sequences`, their
+ *      steps — frozen by trigger once she approves — enrolments with the stop
+ *      vocabulary in a CHECK, and `sequence_sends`, the key that keeps a step
+ *      from being queued twice. The sweep reads them every minute, so against a
+ *      46 database the worker fails on its first tick.
+ *
+ * 48 = the reply is the opt-in (0048, C4.c). 'replied_to_email' consent, the
+ *      'email_reply' signal, and `resolve_email_reply`, the security-definer
+ *      lookup from the Message-ID he quoted to the mail she sent. Against a 47
+ *      database his answer is refused by a CHECK and the webhook 500s.
+ *
+ * 49 = a source of prospects (0049, C5). `connector_credentials` (encrypted,
+ *      one live per connector), `organization_enrichments` (per domain, for
+ *      people to read), and 'apollo' as a contact source with a title. Against
+ *      a 48 database the prospects page fails on its first read.
+ *
+ * 50 = the mailbox her e-mail leaves from (0050, C6). `mail_accounts`, one live
+ *      per business, holding an encrypted refresh token and nothing that could
+ *      send by itself. The mail transport reads it on every send, so against a
+ *      49 database no e-mail can leave at all.
+ *
+ * 51 = a follow-up waits for a person when a reply could not be seen (0051).
+ *      Confirmation columns on `sequence_enrollments` and the 'unconfirmed'
+ *      stop. The sweep reads them every minute, so against a 50 database the
+ *      first due follow-up fails.
  */
-export const REQUIRED_SCHEMA_VERSION = 38;
+export const REQUIRED_SCHEMA_VERSION = 51;
 
 export type SchemaState = {
   readonly required: number;

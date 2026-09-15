@@ -263,20 +263,20 @@ export function renderProductKnowledge(
 const KNOWLEDGE_STYLE = `<style>
   /* The two scopes sit side by side, so each says which one it is. */
   /* A scope caption explains; it is not a state, so it gets no colour. */
-  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:2px 0 10px; }
-  .klist { display:flex; flex-direction:column; gap:8px; }
+  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); }
+  .klist { display:flex; flex-direction:column; gap:var(--space-8); }
   .krow { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
   .krow:hover { border-color:var(--color-border); }
-  .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:12px; }
-  .kh { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .kh .src { margin-inline-start:auto; font-size:var(--font-size-micro); }
-  .kc { margin:8px 0; white-space:pre-wrap; }
-  .teach, .krow-actions { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
+  .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   .teach h3 { margin:0; font-size:var(--font-size-note); }
   input[type=text], textarea, select { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
-  .kbtns { display:flex; gap:8px; }
-  .certs { display:flex; flex-wrap:wrap; gap:8px; }
+  .kbtns { display:flex; gap:var(--space-8); }
+  .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper-sunk); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
   .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
-  .dhead { display:flex; align-items:center; gap:12px; } 
+  .dhead { display:flex; align-items:center; gap:var(--space-12); } 
 </style>`;

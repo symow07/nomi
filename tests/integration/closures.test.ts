@@ -171,39 +171,55 @@ d('M44 · the factory closure calendar (requires DATABASE_URL)', () => {
     expect(await tx((t) => tenantRepos(t, bid.value).catalog.factoryClosures())).toEqual([]);
   });
 
-  it('THE CONVERSATION SURFACE says WHY no date was promised — at an injected clock', async () => {
-    // The clock is a parameter, not a call to `new Date()` inside the loader.
-    // A read model that reaches for the wall clock is how a test passes all day
-    // and fails once at a boundary, and this assertion would be exactly that
-    // test: the answer depends on which day it is.
+  it('THE CONVERSATION SURFACE says WHY no date was promised — from what the QUOTE said', async () => {
+    // G5 — this used to re-run the closure check against the clock the page
+    // was viewed at. But "no delivery date was promised" is a statement about
+    // the quote: a closure added AFTER a date was promised made the card say
+    // the opposite of what the buyer was told. The quote now records what it
+    // said, and the card reads that — at any clock.
     const { loadConversationDetail } = await import('../../src/api/web/inbox.js');
+    const { tenantRepos } = await import('../../src/db/repos.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { usd } = await import('../../src/core/types/money.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
     await post('/app/settings/closures', 'label=%E6%98%A5%E8%8A%82&from=2027-02-05&to=2027-02-21');
 
-    const convId = await tx(async (t) => {
+    const conversation = (phone: string) => tx(async (t) => {
       const client = (await sql<{ id: string }>`
         insert into clients (business_id, phone, display_name)
-        values (${BIZ}, ${`+8613${RUN}9`}, 'Closure test buyer') returning id::text as id
+        values (${BIZ}, ${phone}, 'Closure test buyer') returning id::text as id
       `.execute(t)).rows[0]!.id;
-      const c = (await sql<{ id: string }>`
+      return (await sql<{ id: string }>`
         insert into conversations (business_id, client_id, channel, phase)
         values (${BIZ}, ${client}::uuid, 'whatsapp', 'warm_intake') returning id::text as id
       `.execute(t)).rows[0]!.id;
-      await sql`insert into quotes (business_id, conversation_id, product_id, quantity,
-                                    inputs, unit_price_usd, total_usd, currency, engine_version)
-                values (${BIZ}, ${c}::uuid, ${PID}::uuid, 20000, '{}'::jsonb, 0.45, 9000, 'USD', 'closure-test')
-      `.execute(t);
-      return c;
     });
+    const quote = (c: string, leadTimeDays: number | null, withheld: boolean) =>
+      tx((t) => tenantRepos(t, bid.value).audit.recordQuote({
+        conversationId: c as never, productId: PID, quantity: 20000, inputs: {},
+        unitPrice: usd(0.45), discountPct: 0, total: usd(9000), requiresHuman: false, appliedRules: [],
+        leadTimeDays,
+        leadTimeWithheld: withheld
+          ? { label: '春节', from: new Date('2027-02-05'), to: new Date('2027-02-21') } : null,
+      }));
 
-    const inJanuary = await loadConversationDetail(db, BIZ, convId, new Date('2027-01-20T09:00:00Z'));
-    expect(inJanuary!.leadTimeBlocked?.label).toBe('春节');
+    const withheld = await conversation(`+8613${RUN}9`);
+    await quote(withheld, null, true);
+    const promised = await conversation(`+8613${RUN}8`);
+    await quote(promised, 25, false);
 
-    const inJune = await loadConversationDetail(db, BIZ, convId, new Date('2027-06-01T09:00:00Z'));
-    expect(inJune!.leadTimeBlocked).toBeNull();
+    // What the quote said, whichever day the page is opened on.
+    for (const at of ['2027-01-20T09:00:00Z', '2027-06-01T09:00:00Z']) {
+      expect((await loadConversationDetail(db, BIZ, withheld, new Date(at)))!.leadTimeBlocked?.label).toBe('春节');
+      // Inside her closure, but this quote DID state a date: the card must not
+      // claim otherwise.
+      expect((await loadConversationDetail(db, BIZ, promised, new Date(at)))!.leadTimeBlocked).toBeNull();
+    }
 
     // and it is HER calendar the page names, with a way to go and change it
     const { renderConversationDetail } = await import('../../src/api/web/inbox.js');
-    const html = renderConversationDetail(inJanuary!, 'en', new Date('2027-01-20T09:00:00Z'), null);
+    const detail = await loadConversationDetail(db, BIZ, withheld, new Date('2027-01-20T09:00:00Z'));
+    const html = renderConversationDetail(detail!, 'en', new Date('2027-01-20T09:00:00Z'), null);
     expect(html).toContain('No delivery date was promised');
     expect(html).toContain('春节');
     expect(html).toContain('/app/settings/closures');

@@ -5,6 +5,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
 import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
+import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
@@ -12,30 +13,57 @@ import {
 } from './inbox.js';
 import {
   loadChannels, renderChannels, renderConnectGuide, channelFlash,
-  disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone,
+  disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
   renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
-  importFromPhoto, renderPhotoRefusal,
+  importFromPhoto, renderPhotoRefusal, diffImport, type PhotoRefusal,
 } from './products.js';
-import { loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules } from './priceRules.js';
+import {
+  loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
+  saveVolumeDiscount, archiveVolumeDiscount,
+} from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
   loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
+  mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
-import { setOutreach } from '../../db/outreach.js';
-import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
-import { checkDomain } from '../../core/outreach/domain.js';
+import { outreachSettings, setOutreach } from '../../db/outreach.js';
+import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
+import { setSendingDomain } from '../../db/sendingDomain.js';
 import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { suppressionFor } from '../../core/outreach/events.js';
 import { suppress as suppressIdentityRow } from '../../db/contacts.js';
+import { normalizeIdentity } from '../../core/outreach/consent.js';
 import {
   type ContactsFlash, addContactFrom, archiveContactById, attestConsent,
-  loadContacts, renderContacts, renderSuppressConfirm, suppressIdentity,
+  loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
+import { writeFirst } from '../../outbound/writeFirst.js';
+import {
+  OAUTH_PROVIDERS, authorizeUrl, mintOAuthState, pkcePair, readOAuthState, sameNonce,
+  type OAuthClients, type OAuthFetch,
+} from '../../connectors/oauth.js';
+import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
+import { loadAccounts, renderAccounts } from './connect.js';
+import { checkSendingDomainNow } from '../../outbound/domainCheck.js';
+import {
+  addProspect, enrichmentsFor, keyStatus, lookUpCompany, removeKey, saveKey, searchProspects,
+  type ProspectDeps,
+} from '../../prospects/service.js';
+import type { ProspectSourceFor } from '../../connectors/contract.js';
+import { failureSentence, filterFromQuery, renderProspects } from './prospects.js';
+import { parseInboundMail } from '../../channels/email/inbound.js';
+import { recordEmailReply } from '../../pipeline/emailReply.js';
+import { enroll } from '../../outbound/sequences.js';
+import {
+  type SequenceFlash, addStepFrom, approveSequenceFrom, archiveSequenceById, createSequenceFrom,
+  confirmFollowUpById, loadSequenceDetail, loadSequenceList, renderSequenceDetail, renderSequenceList, stopEnrollmentById,
+  updateStepFrom,
+} from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
@@ -43,9 +71,10 @@ import {
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
-  loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples } from './settings.js';
+  loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
+  loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
-import type { TemplateState } from '../../core/channel/window.js';
+import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
@@ -69,11 +98,11 @@ import {
 import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
-import { takeOver, resumeAi } from '../../conversations/takeover.js';
+import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, esc } from './layout.js';
+import { shell, loginPage, esc, back } from './layout.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -102,14 +131,21 @@ export type WebDeps = {
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
   /**
+   * G11 — the address buyers reach this installation at. Absent, the owner is
+   * shown that a proof link cannot be sent yet rather than a path she would
+   * have to assemble a host for.
+   */
+  readonly publicBaseUrl?: string | null;
+  /**
    * M40.1 — the DNS lookup, injected so a test can drive it without the
    * network and so the resolver stays out of the web layer.
    */
   readonly resolveDns: import('../../outbound/dns.js').DnsLookup;
   /**
    * The `include:` mechanism her SPF record must carry — the sending provider's
-   * own. NULL until a provider is configured (M52), and the check reads that as
-   * "cannot verify", which refuses. Absence of a confirmation is not one.
+   * own, when the host names one. NULL falls back to the mailbox she connected
+   * (C6, `spfIncludeFor`); with neither, the check reads "cannot verify", which
+   * refuses. Absence of a confirmation is not one.
    */
   readonly sendingInclude?: string | null;
   /**
@@ -118,12 +154,48 @@ export type WebDeps = {
    * anyone to remove her buyers one address at a time.
    */
   readonly emailWebhookSecret?: string | null;
+  /**
+   * G3 — the WhatsApp number this installation is configured with (Meta's
+   * phone number id), or null when there is none. It is what "Connect this
+   * number" connects: taken from the host's validated configuration, never
+   * from anything a request supplies.
+   */
+  readonly connectableNumber?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
   /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
   readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
+  /**
+   * C5 — the installation's CREDENTIAL_KEY, derived, so a connector key she
+   * pastes is encrypted before it touches a row. Absent: keys cannot be kept,
+   * and the prospects page says so rather than storing one in the clear.
+   */
+  readonly credentialKey?: Buffer;
+  /** C5 — builds a prospect source from her key (Apollo in production). */
+  readonly prospectSourceFor?: ProspectSourceFor;
+  /**
+   * C6 — this installation's OAuth apps, per provider. A provider with no client
+   * here shows "not set up here", never a Connect button that can only fail.
+   */
+  readonly oauthClients?: OAuthClients;
+  /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
+  readonly oauthFetch?: OAuthFetch;
+  /**
+   * G13 — ask the worker to answer words a person typed for a voice note. The
+   * models live in the worker; this hands it the job, and everything after is
+   * the ordinary turn.
+   */
+  readonly kickAnswer?: (
+    businessId: string, conversationId: string, messageId: string, text: string,
+  ) => Promise<void>;
+  /**
+   * G13 — the channel's audio fetcher, so the owner can PLAY the note she is
+   * being asked to correct. Absent (no provider configured) → nothing to play,
+   * and the page says so.
+   */
+  readonly audio?: import('../../channels/whatsapp/media.js').AudioFetcher;
   /** M12.2 pilot sandbox: a dedicated tenant, distinct from `businessId`.
    *  Absent → the sandbox surface is not mounted. */
   readonly sandboxBusinessId?: string;
@@ -166,6 +238,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
+  { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -246,17 +319,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) { await reply.redirect('/login'); return null; }
     if (!mayDo(personOf(s), action)) {
-      await reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'people.notAllowed'))}`);
+      await reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'staff.notAllowed'))}`);
       return null;
     }
     return s;
   };
 
-  const setCookie = (reply: FastifyReply, token: string, maxAgeSec: number) => {
-    const flags = ['HttpOnly', 'Path=/', 'SameSite=Lax', `Max-Age=${maxAgeSec}`];
+  /**
+   * G9a — one cookie writer, for any cookie, by NAME. It used to write only
+   * the session cookie; a second secret-bearing cookie deserves the same
+   * flags, not a hand-copied set that forgets `Secure` in production.
+   */
+  const writeCookie = (
+    reply: FastifyReply, name: string, value: string, o: { readonly path: string; readonly maxAgeSec: number },
+  ) => {
+    const flags = ['HttpOnly', `Path=${o.path}`, 'SameSite=Lax', `Max-Age=${o.maxAgeSec}`];
     if (deps.secureCookie) flags.push('Secure');
-    reply.header('set-cookie', `${COOKIE}=${token}; ${flags.join('; ')}`);
+    reply.header('set-cookie', `${name}=${value}; ${flags.join('; ')}`);
   };
+  const setCookie = (reply: FastifyReply, token: string, maxAgeSec: number) =>
+    writeCookie(reply, COOKIE, token, { path: '/', maxAgeSec });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
   const localeOf = (req: FastifyRequest): Locale =>
@@ -265,6 +347,51 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   /** Render a full page: fills locale + path + avatar from the request/deps. */
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string }): string =>
     shell({ ...o, locale: localeOf(req), path: req.url, avatar: deps.avatar });
+
+  /**
+   * G9a — an owner-only PAGE. Only the POSTs were gated, so the pages behind
+   * them — her floor, her people and the form that issues a way in — opened
+   * for anyone signed in. Same predicate, same sentence as the POST gate,
+   * sent back to where the page is reached from.
+   */
+  const ownerPage = (
+    action: OwnerOnlyAction, active: string, back: string,
+    render: (s: OwnerSession, req: FastifyRequest, reply: FastifyReply, locale: Locale) => Promise<string> | string,
+  ) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = await ownerOnly(req, reply, action, back);
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const body = await render(s, req, reply, locale);
+    return reply.type('text/html; charset=utf-8').send(
+      page(req, { title: t(locale, `nav.${active}` as MessageKey), active, bodyHtml: body }),
+    );
+  };
+
+  /**
+   * G10 — would a message she sends to this buyer LEAVE? The same facts the
+   * send gate reads, asked when she presses the button, because the gate runs
+   * later in the worker and cannot answer her in time. Since G10 it includes
+   * the buyer's own 24-hour window.
+   */
+  const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => {
+    const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, messagingEnabled));
+    /**
+     * C4.c — an e-mail thread has no WhatsApp lifecycle to be in. Her answer to
+     * his reply is refused only by what binds e-mail: messaging must be live
+     * (the outbound worker runs only then), and the channel's own window — none,
+     * for e-mail — asked through `channelSendPlan`, so an unknown channel still
+     * reads as windowed. Everything else is the send gate's, at send time.
+     */
+    if (pre.channel !== 'whatsapp') {
+      if (!messagingEnabled) return 'not_connected' as const;
+      return channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), deps.templateState ?? 'none').action
+        === 'wait_for_buyer' ? 'window_closed' as const : 'ok' as const;
+    }
+    return precheckOwnerSend(pre.facts, {
+      ...pre,
+      windowAction: sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', deps.templateState ?? 'none').action,
+    });
+  };
 
   /** Wrap an authed page: verify session or redirect to /login. */
   const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale) => Promise<string> | string) =>
@@ -303,14 +430,67 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * a second thing to keep true.
    */
   if (deps.emailWebhookSecret) {
-    app.post('/hooks/email', async (req, reply) => {
-      const given = String(req.headers['x-webhook-signature'] ?? '');
-      const expected = createHmac('sha256', deps.emailWebhookSecret!)
-        .update(JSON.stringify(req.body ?? {})).digest('base64url');
-      const a = Buffer.from(given); const b = Buffer.from(expected);
-      if (a.length !== b.length || !timingSafeEqual(a, b)) return reply.code(404).send();
+    /**
+     * G14 — ITS OWN SCOPE, WITH ITS OWN PARSER.
+     *
+     * A signature is computed over the BYTES the provider sent. This route
+     * re-serialised the parsed body and hashed that, which agrees with the
+     * provider only by luck — key order, spacing and unicode escapes are all
+     * free to differ. Worse, in live mode the Command Center is mounted on the
+     * ingress app, whose JSON parser hands every route a STRING: the code then
+     * hashed `JSON.stringify("{...}")` and no real event could ever verify.
+     *
+     * Fastify encapsulates content-type parsers in the scope that declares
+     * them, so this keeps the raw body here without changing how any other
+     * route is parsed, in either mode.
+     */
+    void app.register(async (scope) => {
+      // The inherited parser first: Fastify refuses to add a second one for a
+      // type already handled in the chain, and BOTH modes have one — the
+      // framework's own in deployment mode, the ingress app's in live mode.
+      scope.removeContentTypeParser('application/json');
+      scope.addContentTypeParser('application/json', { parseAs: 'string' }, (_r, body, done) => done(null, body));
+      /**
+       * The raw body, when its signature is good; null when it is not. ONE
+       * check for both e-mail routes: a second copy is where a timing-unsafe
+       * comparison or a re-serialised body would come back.
+       */
+      const signedBody = (req: FastifyRequest): string | null => {
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+        const given = String(req.headers['x-webhook-signature'] ?? '');
+        const expected = createHmac('sha256', deps.emailWebhookSecret!).update(rawBody).digest('base64url');
+        const a = Buffer.from(given); const b = Buffer.from(expected);
+        return a.length === b.length && timingSafeEqual(a, b) ? rawBody : null;
+      };
 
-      const events = (req.body as { events?: unknown })?.events;
+      /**
+       * C4.c — HIS ANSWER. Signed like the events route; the tenant comes from
+       * the mail he quoted, never from the request (`recordEmailReply`).
+       *
+       * 404 on a bad signature, exactly as the events route, so the two cannot
+       * be told apart from outside. 200 on everything after it, including a
+       * payload that is not a mail or a thread we never sent: a provider that
+       * sees an error retries, and retrying cannot make either of those true.
+       * Only a failure to WRITE is an error — that one is worth a retry.
+       */
+      scope.post('/hooks/email/inbound', async (req, reply) => {
+        const rawBody = signedBody(req);
+        if (rawBody === null) return reply.code(404).send();
+        let parsed: unknown;
+        try { parsed = JSON.parse(rawBody); } catch { return reply.code(200).send({ ok: true }); }
+        const mail = parseInboundMail(parsed);
+        if (!mail) return reply.code(200).send({ ok: true });
+        const r = await recordEmailReply(deps.db, mail);
+        return reply.code(200).send({ ok: true, outcome: r.outcome });
+      });
+
+      scope.post('/hooks/email', async (req, reply) => {
+      const rawBody = signedBody(req);
+      if (rawBody === null) return reply.code(404).send();
+
+      let parsed: unknown;
+      try { parsed = JSON.parse(rawBody); } catch { return reply.code(200).send({ ok: true }); }
+      const events = (parsed as { events?: unknown })?.events;
       if (!Array.isArray(events)) return reply.code(200).send({ ok: true });
 
       for (const raw of events) {
@@ -333,15 +513,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         if (!reason) continue;
         const bid = parseBusinessId(claim.businessId);
         if (!bid.ok) continue;
-        await withTenantTx(deps.db, bid.value, (tx) => suppressIdentityRow(tx, bid.value, {
-          channel: claim.channel, identity: claim.identity, reason,
-          detail: typeof e.detail === 'string' ? e.detail.slice(0, 200) : null,
-        }));
+        // G14 — NORMALISED, like every other write of an identity. A provider
+        // that echoes 'Ahmed@Example.COM' would otherwise write a second
+        // suppression row that no send ever matches, and the address would
+        // keep receiving mail it asked to stop.
+        const identity = normalizeIdentity(claim.channel, claim.identity);
+        if (!identity.ok) continue;
+        // …and GUARDED, the way the unsubscribe page is: a tenant that no
+        // longer exists must not turn one bad row into a 500 the provider
+        // retries against rows that are already permanent.
+        try {
+          await withTenantTx(deps.db, bid.value, (tx) => suppressIdentityRow(tx, bid.value, {
+            channel: claim.channel, identity: identity.value, reason,
+            detail: typeof e.detail === 'string' ? e.detail.slice(0, 200) : null,
+          }));
+        } catch { continue; }
       }
       // Always 200 once the signature is good: a provider that gets an error
       // retries the batch, and a batch that half-succeeded would be replayed
       // against rows that are already permanent.
       return reply.code(200).send({ ok: true });
+      });
     });
   }
 
@@ -509,10 +701,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const requested = (req.query as { filter?: string } | undefined)?.filter;
-    const list0 = await loadInboxList(deps.db, s.businessId, 'all');
+    // G12 — 'mine' needs to know who is looking.
+    const me = personOf(s).id;
+    const list0 = await loadInboxList(deps.db, s.businessId, 'all', me);
     const filter: InboxFilter = requested === 'pending' || requested === 'all'
+      || requested === 'blocked' || requested === 'mine'
       ? requested : defaultFilter(list0.waitingCount);
-    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter);
+    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       // M47 — so the list can name WHICH human holds each conversation.
@@ -535,9 +730,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
+    // G11 — the proof link as a buyer would open it, built from the address
+    // this installation is reachable at. Absent, the row says so.
+    const withProof = {
+      ...detail,
+      proof: { ...detail.proof, url: detail.proof.token ? proofUrl(deps.publicBaseUrl, detail.proof.token) : null },
+    };
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: renderConversationDetail(detail, locale, now, flash),
+      bodyHtml: renderConversationDetail(withProof, locale, now, flash, personOf(s)),
     }));
   });
 
@@ -551,13 +752,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !body.draftId) return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}`);
 
+    // G10 — the question the reply route asks, asked here too. Approving said
+    // "sent" when the gate was about to refuse it. Live, and this buyer cannot
+    // be reached RIGHT NOW (his window is shut, or he is not on her pilot
+    // list): the draft stays pending and she is told why — when he writes
+    // again she approves it then. Not live at all: unchanged — an approval
+    // before going live is her decision recorded, and she is told nothing went.
+    const sends = body.command === '发送' || body.command === '改';
+    const verdict = sends ? await ownerSendVerdict(bid.value, conversationId) : 'ok';
+    if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
+      return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(
+        t(localeOf(req), `inbox.blocked.${verdict}` as MessageKey))}`);
+    }
+    const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
+
     // 改 carries the owner's text; other commands map straight to the parser.
     const rawReply = body.command === '改' ? `改：${body.edit ?? ''}` : (body.command ?? '');
     const r = await applyOwnerCommand(
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
-      { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: 'owner' },
+      { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: personOf(s).id },
     );
-    const flash = r.outcome === 'sent' && !messagingEnabled
+    const flash = (r.outcome === 'sent' || r.outcome === 'edited_sent') && notLive
       ? t(localeOf(req), 'inbox.flash.sentNotLive')
       : t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
     return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(flash)}`);
@@ -583,6 +798,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
 
+  // G12 — hand it to a named colleague. Not owner-only: passing work to the
+  // person who can answer it IS the job (core/conversation/people.ts).
+  app.post('/app/inbox/:conversationId/handto', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const to = String((req.body as { personId?: string } | undefined)?.personId ?? '');
+    const r = await handTo({ db: deps.db, now: () => new Date() },
+      { businessId: bid.value, conversationId: cid, actor: personOf(s).id, toPersonId: to });
+    const locale = localeOf(req);
+    const msg = r.outcome === 'handed'
+      ? t(locale, 'takeover.flash.handed', { name: r.toName ?? '' })
+      : t(locale, `takeover.flash.${r.outcome}` as MessageKey);
+    return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(msg)}`);
+  });
+
   app.post('/app/inbox/:conversationId/reply', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const cid = (req.params as { conversationId: string }).conversationId;
@@ -593,16 +825,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // stopped messaging and told her "等着发出去" (waiting to send). The gate
     // then correctly canceled it and nothing said so. Ask the SAME facts the
     // gate reads before accepting, so the answer she gets is the true one.
-    const pre = await withTenantTx(deps.db, bid.value, (tx) =>
-      ownerSendFacts(tx, bid.value, cid, messagingEnabled));
-    const verdict = precheckOwnerSend(pre.facts, pre);
+    const verdict = await ownerSendVerdict(bid.value, cid);
     if (verdict !== 'ok') {
       return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(
         t(localeOf(req), `inbox.blocked.${verdict}` as MessageKey))}`);
     }
     const r = await ownerReply(
       { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
-      { businessId: bid.value, conversationId: cid, text, actor: 'owner' },
+      { businessId: bid.value, conversationId: cid, text, actor: personOf(s).id },
     );
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
@@ -619,6 +849,78 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * NOT A SECOND TRANSCRIBER. This writes down a human's testimony about what a
    * human said; it makes no claim of its own and re-runs nothing.
    */
+  /**
+   * G13 — PLAY THE NOTE. Session-gated (staff too: whoever holds the
+   * conversation needs to hear it), tenant-scoped, and streamed rather than
+   * stored: the bytes are fetched from the provider at the moment she presses
+   * play, with her own channel credential, and never written down here.
+   */
+  app.get('/app/inbox/:conversationId/voice/:messageId', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const { conversationId: cid, messageId } = req.params as { conversationId: string; messageId: string };
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const expired = () => reply.code(404).type('text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .send(page(req, {
+        title: t(localeOf(req), 'nav.inbox'), active: 'inbox',
+        bodyHtml: `<div class="block"><p class="muted">${esc(t(localeOf(req), 'voice.expired'))}</p>`
+          + `${back(`/app/inbox/${esc(cid)}`, t(localeOf(req), 'inbox.detail.back'))}</div>`,
+      }));
+
+    // The id comes from the ROW, never from the URL: a media id in a query
+    // string would let anyone signed in fetch any file the token names.
+    const media = await withTenantTx(deps.db, bid.value, (tx) => sql<{ media: string | null }>`
+      select provider_media_id as media from messages
+       where id = ${messageId}::uuid and conversation_id = ${cid}::uuid
+         and direction = 'inbound' and input_type in ('voice', 'voice_transcribed')
+       limit 1
+    `.execute(tx).then((r) => r.rows[0]?.media ?? null));
+    if (!media || !deps.audio) return expired();
+
+    const got = await deps.audio(media);
+    if (!got.ok) return expired();
+    return reply
+      .header('content-type', got.mediaType)
+      .header('cache-control', 'private, no-store')
+      .header('content-disposition', 'inline')
+      .send(Buffer.from(got.base64, 'base64'));
+  });
+
+  /**
+   * G13 — ANSWER WHAT SHE TYPED. Her words go through the ordinary turn in the
+   * worker (the models live there), so nothing here skips a guard or a rule.
+   */
+  app.post('/app/inbox/:conversationId/answer-now', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const messageId = String((req.body as { messageId?: string } | undefined)?.messageId ?? '');
+    const bid = parseBusinessId(s.businessId);
+    const back0 = `/app/inbox/${encodeURIComponent(cid)}`;
+    if (!bid.ok || !messageId || !deps.kickAnswer) return reply.redirect(back0);
+
+    const said = await withTenantTx(deps.db, bid.value, (tx) => sql<{ text: string | null }>`
+      select text_content as text from messages
+       where id = ${messageId}::uuid and conversation_id = ${cid}::uuid
+         and direction = 'inbound' and input_type in ('voice', 'voice_transcribed')
+       limit 1
+    `.execute(tx).then((r) => r.rows[0]?.text ?? null));
+    if (!said || !said.trim()) return reply.redirect(back0);
+
+    /**
+     * A note she could not hear put a PERSON in charge of this conversation
+     * (G2c), and a person in charge is the one rule that keeps the employee
+     * quiet. Asking for an answer is handing it back to her — the existing
+     * `resumeAi`, which also soft-resolves the signal that flagged it, so the
+     * turn does not immediately hand it over again. Already hers to answer?
+     * `resumeAi` says invalid_state and nothing changes.
+     */
+    await resumeAi({ db: deps.db, now: () => new Date() },
+      { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
+    await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
+    return reply.redirect(`${back0}?flash=${encodeURIComponent(t(localeOf(req), 'voice.flash.answering'))}`);
+  });
+
   app.post('/app/inbox/:conversationId/heard', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const cid = (req.params as { conversationId: string }).conversationId;
@@ -630,31 +932,47 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const back = `/app/inbox/${encodeURIComponent(cid)}`;
     if (!messageId || !heard) return reply.redirect(back);
 
-    await withTenantTx(deps.db, bid.value, async (tx) => {
+    const corrected = await withTenantTx(deps.db, bid.value, async (tx) => {
+      // G2a — ONLY A BUYER'S VOICE NOTE. This route used to accept any message
+      // id in the conversation, so a crafted post could rewrite her own reply or
+      // a typed buyer message and relabel it as something the buyer SAID.
+      //
       // The ORIGINAL is whatever `transcription` already holds — set on first
       // correction, left alone on every later one, so the machine's reading
       // survives however many times the owner refines her own.
       const before = (await sql<{ text_content: string | null; transcription: string | null }>`
         select text_content, transcription from messages
-         where id = ${messageId}::uuid and conversation_id = ${cid}::uuid limit 1
+         where id = ${messageId}::uuid and conversation_id = ${cid}::uuid
+           and direction = 'inbound' and input_type in ('voice', 'voice_transcribed')
+         limit 1
       `.execute(tx)).rows[0];
-      if (!before) return;
+      if (!before) return false;
+      // An UNHEARD note has no machine reading at all. Recording that reading as
+      // the empty string — rather than leaving it null — is what lets the page
+      // label her words "Corrected by you" instead of "Heard as": null would
+      // claim the machine heard exactly what she typed.
       await sql`
         update messages
            set text_content = ${heard},
-               transcription = coalesce(transcription, ${before.text_content}),
+               transcription = coalesce(transcription, ${before.text_content ?? ''}),
                input_type = 'voice_transcribed'
          where id = ${messageId}::uuid and conversation_id = ${cid}::uuid
+           and direction = 'inbound' and input_type in ('voice', 'voice_transcribed')
       `.execute(tx);
+      // `channel_audit` has `channel_id` (nullable) and a NOT NULL `actor`
+      // (migration 0011). The insert that named a `channel` column failed on
+      // every call and rolled the correction back with it.
       await sql`
-        insert into channel_audit (business_id, channel, action, detail)
-        values (${bid.value}, 'whatsapp', 'transcript_corrected',
+        insert into channel_audit (business_id, action, actor, detail)
+        values (${bid.value}, 'transcript_corrected', ${personOf(s).id},
                 ${JSON.stringify({
                   conversationId: cid, messageId,
-                  before: before.transcription ?? before.text_content, after: heard,
+                  before: before.transcription ?? before.text_content ?? '', after: heard,
                 })}::jsonb)
       `.execute(tx);
+      return true;
     });
+    if (!corrected) return reply.redirect(back);
     return reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'voice.flash.corrected'))}`);
   });
 
@@ -663,7 +981,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cid = (req.params as { conversationId: string }).conversationId;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/inbox');
-    const r = await resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: 'owner' });
+    const r = await resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
 
@@ -671,23 +989,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const messagingEnabled = deps.provider !== 'disabled';
   app.get('/app/channels/whatsapp/connect', authed('channels', (_s, _req, locale) => renderConnectGuide(locale)));
 
-  const channelAction = (path: string, run: (businessId: string) => Promise<import('./channels.js').ChannelActionResult>) =>
+  const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
-      const r = await run(s.businessId);
+      const r = await run(s.businessId, personOf(s).id);
       return reply.redirect(`/app/channels?flash=${encodeURIComponent(channelFlash(localeOf(req), r.code))}`);
     });
-  channelAction('/app/channels/whatsapp/disconnect', (b) => disconnectChannel(deps.db, b, 'owner'));
-  channelAction('/app/channels/whatsapp/reconnect', (b) => reconnectChannel(deps.db, b, 'owner'));
-  channelAction('/app/channels/whatsapp/test', (b) => testChannel(deps.db, b, 'owner', messagingEnabled));
+  // G3 — connect the number the HOST is configured with. Owner-only under the
+  // same decision as activation: it is the step that lets buyers' messages in.
+  // The number is never read from the form.
+  app.post('/app/channels/whatsapp/connect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    if (!s) return reply;
+    const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(channelFlash(localeOf(req), r.code))}`);
+  });
+  channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
+  channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
+  channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, messagingEnabled));
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
-    const r = await saveOwnerPhone(deps.db, s.businessId, phone, 'owner');
+    const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
     return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(localeOf(req), `settings.flash.${r.code}` as MessageKey))}`);
   });
 
@@ -697,10 +1024,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const data = await loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none');
+    const data = await loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none',
+      deps.connectableNumber ?? null);
+    // C6 — every other account she links, read beside the WhatsApp card.
+    const bid = parseBusinessId(s.businessId);
+    const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
+      clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
+      apollo: await keyStatus(prospectDeps(), bid.value),
+    }) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
-      bodyHtml: renderChannels(data, locale, flash),
+      bodyHtml: renderChannels(data, locale, flash, personOf(s), accounts ? renderAccounts(accounts, locale, personOf(s)) : ''),
     }));
   });
 
@@ -711,7 +1045,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/factory', authed('factory', async (s, req, locale) => {
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
-    return renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale, flash);
+    return renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale, flash, personOf(s));
   }));
 
   // M20.3 — going live, and coming back. Both go through the EXISTING service:
@@ -729,7 +1063,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
-    const r = await activate(deps.db, bid.value, 'owner', { providerConfigured: messagingEnabled });
+    const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: messagingEnabled });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
     return reply.redirect(r.ok
@@ -748,7 +1082,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.redirect('/app/factory');
     const b = (req.body ?? {}) as { phone?: string; label?: string };
     const label = String(b.label ?? '').trim() || null;
-    const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, 'owner');
+    const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, personOf(s).id);
     return reply.redirect(r.ok
       ? factoryFlash(req, 'allowlist.flash.added', { who: label ?? r.phone })
       : factoryFlash(req, 'allowlist.flash.invalid'));
@@ -760,7 +1094,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
-    const r = await archiveFromAllowlist(deps.db, bid.value, phone, 'owner');
+    const r = await archiveFromAllowlist(deps.db, bid.value, phone, personOf(s).id);
     return reply.redirect(r.ok
       ? factoryFlash(req, 'allowlist.flash.removed', { who: r.phone })
       : factoryFlash(req, 'allowlist.flash.invalid'));
@@ -773,7 +1107,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
-    await deactivate(deps.db, bid.value, 'owner', 'owner stopped messaging');
+    await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
     return reply.redirect(factoryFlash(req, 'activation.flash.deactivated'));
   });
 
@@ -792,9 +1126,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
+    const v = reviewImport(text);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(reviewImport(text), text, locale),
+      bodyHtml: renderReview(v, text, locale, await diffImport(deps.db, s.businessId, v)),
     }));
   });
   /**
@@ -812,7 +1147,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const refuse = (reason: Parameters<typeof renderPhotoRefusal>[0]) =>
+    const refuse = (reason: PhotoRefusal) =>
       reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'product.photo.refusedTitle'), active: 'products',
         bodyHtml: renderPhotoRefusal(reason, locale),
@@ -822,24 +1157,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg';
     try {
       const file = await req.file();
-      if (!file) return refuse('unreadable');
+      if (!file) return refuse('upload_failed');
       const mt = file.mimetype;
-      if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('unreadable');
+      if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('not_a_photo');
       mediaType = mt;
       imageBase64 = (await file.toBuffer()).toString('base64');
-    } catch {
-      // The parser throws on a file over the limit. Over-size is its own
-      // refusal because "too big" and "unreadable" ask her to do different
-      // things — retake smaller, versus retake in better light.
-      return refuse('too_large');
+    } catch (err) {
+      // G16 — each failure is named for what it is. Only the parser's size
+      // limit is "too large"; a stream that broke off, a request that was not
+      // an upload, a limit on parts no form of ours sends — the photo did not
+      // arrive, and "take it smaller" would send her to fix the wrong thing.
+      return refuse((err as { code?: unknown } | null)?.code === 'FST_REQ_FILE_TOO_LARGE' ? 'too_large' : 'upload_failed');
     }
-    if (!imageBase64) return refuse('unreadable');
+    if (!imageBase64) return refuse('upload_failed');
 
     const out = await importFromPhoto({ transcriber: deps.pageTranscriber }, { imageBase64, mediaType });
     if (out.kind === 'refused') return refuse(out.reason);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(out.review, out.text, locale),
+      bodyHtml: renderReview(out.review, out.text, locale, await diffImport(deps.db, s.businessId, out.review)),
     }));
   });
 
@@ -850,7 +1186,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const id = (req.params as { id: string }).id;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const r = await updateProduct(deps.db, s.businessId, id, 'owner', {
+    const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
       price: b['price'] ?? null,
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
@@ -869,7 +1205,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M29 Price limits: the three questions, reached from My factory ────────
-  app.get('/app/factory/prices', authed('factory', async (s, req, locale) => {
+  // G9a — OWNER ONLY as a page: her floor is what a buyer must never learn,
+  // and a sales assistant has no need to know it to negotiate inside it.
+  app.get('/app/factory/prices', ownerPage('price_rules', 'factory', '/app/factory', async (s, req, _reply, locale) => {
     const q = req.query as { flash?: string; product?: string };
     return renderPriceRules(
       await loadPriceRules(deps.db, s.businessId), locale,
@@ -885,7 +1223,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const productId = (b['productId'] ?? '').trim() || null;
-    const r = await savePriceRules(deps.db, s.businessId, 'owner', {
+    const r = await savePriceRules(deps.db, s.businessId, personOf(s).id, {
       productId,
       floor: b['floor'] ?? null,
       maxDiscountPct: b['maxDiscountPct'] ?? null,
@@ -905,11 +1243,48 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
   });
 
+  // G22 — WHEN she comes down, and by how much. Owner-only for the same reason
+  // the floor is: staff negotiate inside her rules and do not write them.
+  app.post('/app/factory/prices/volume', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveVolumeDiscount(deps.db, s.businessId, personOf(s).id, {
+      productId: (b['productId'] ?? '').trim() || null,
+      minQty: b['minQty'] ?? null,
+      discountPct: b['discountPct'] ?? null,
+    });
+    if (!r.ok) {
+      return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'prices.title'), active: 'factory',
+        bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors),
+      }));
+    }
+    return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(
+      t(locale, 'prices.flash.volumeAdded', { name: deps.employeeName }))}`);
+  });
+
+  app.post('/app/factory/prices/volume/:id/archive', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const id = (req.params as { id: string }).id;
+    const r = await archiveVolumeDiscount(deps.db, s.businessId, personOf(s).id, id);
+    return reply.redirect(`/app/factory/prices${r.ok ? `?flash=${encodeURIComponent(
+      t(locale, 'prices.flash.volumeRemoved'))}` : ''}`);
+  });
+
   app.post('/app/products/add/confirm', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
-    const text = String((req.body as { text?: string } | undefined)?.text ?? '');
-    const r = await confirmImport(deps.db, s.businessId, text);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const text = String(b['text'] ?? '');
+    // G16 — each change the review offered is its own tick, `apply:<product>`.
+    // Only ids are read here; which changes EXIST is recomputed from her own
+    // catalogue inside confirmImport, so a posted id can choose, never invent.
+    const apply = new Set(Object.keys(b).filter((k) => k.startsWith('apply:') && b[k] === 'on').map((k) => k.slice('apply:'.length)));
+    const r = await confirmImport(deps.db, s.businessId, text, { actor: personOf(s).id, apply });
     return reply.redirect(`/app/products?flash=${encodeURIComponent(importFlash(localeOf(req), r))}`);
   });
 
@@ -937,10 +1312,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         draftsPrepared: snapshot.activity.draftsCreated,
         neededYou: feedback.conversationsNeedingYou,
         gaps: ops.gaps.slice(0, 5).map((g) => ({ question: g.question, count: g.count })),
-      }),
+      }, personOf(s)),
     }));
   });
-  const capAction = (verb: string, run: (biz: string, cap: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
+  const capAction = (verb: string, run: (biz: string, cap: string, actor: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
       // OWNER ONLY: deciding what Nomi may do unsupervised is the trust ladder
       // itself, and it is her judgement about her own business risk.
@@ -948,11 +1323,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
-      const r = await run(s.businessId, cap);
+      const r = await run(s.businessId, cap, personOf(s).id);
       return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, `employee.flash.${r.code}` as MessageKey))}`);
     });
-  capAction('promote', (b, c) => promoteCapability(deps.db, b, c, 'owner'));
-  capAction('revoke', (b, c) => revokeCapability(deps.db, b, c, 'owner'));
+  capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
+  capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
 
   // ── M34.7 抽查: the owner answers a spot check ────────────────────────────
   // The buttons post the wire words parseSpotCheckReply already understands
@@ -1130,8 +1505,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const sess = sessionOf(req);
     if (!sess) return reply.redirect('/login');
     const locale = localeOf(req);
-    const term = String((req.body as { term?: string } | undefined)?.term ?? '');
-    const r = await addForbidden(deps.db, sess.businessId, term);
+    const body = (req.body ?? {}) as { term?: string; note?: string };
+    const r = await addForbidden(deps.db, sess.businessId, String(body.term ?? ''), String(body.note ?? ''));
     return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
       t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
   });
@@ -1202,23 +1577,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await recordOrderUpdate(deps.db, s.businessId, id, {
       state: b['state'] ?? '', note: b['note'] ?? null, trackingReference: b['tracking'] ?? null,
-      actor: 'owner', now: new Date(),
+      actor: personOf(s).id, now: new Date(),
     });
     return reply.redirect(`/app/orders/${encodeURIComponent(id)}?flash=${encodeURIComponent(
       t(locale, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey))}`);
   });
 
-  // M47 — who works here. OWNER ONLY: handing someone a way in is hers.
-  app.get('/app/settings/people', authed('settings', async (sess, req, locale) =>
-    renderPeople({
-      people: await loadPeople(deps.db, sess.businessId),
-      // A code is shown ONCE, on the redirect that follows creating someone —
-      // it is carried in the query string and never stored anywhere.
-      justIssued: typeof (req.query as { code?: string }).code === 'string'
-        ? { name: String((req.query as { who?: string }).who ?? ''), code: String((req.query as { code: string }).code) }
-        : null,
-    }, locale, typeof (req.query as { flash?: string }).flash === 'string'
-      ? (req.query as { flash: string }).flash : null)));
+  // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
+  // since G9a the page too, not only the form's POST.
+  app.get('/app/settings/people', ownerPage('people', 'settings', '/app/settings', async (sess, req, reply, locale) => {
+    // A code is shown ONCE: read from the cookie the POST set, and cleared in
+    // the same response. Never in a URL, never stored.
+    const cookie = parseCookies(req.headers.cookie)[ISSUED_COOKIE];
+    const justIssued = readIssuedCode(deps.sessionSecret, cookie, Date.now());
+    if (cookie !== undefined) writeCookie(reply, ISSUED_COOKIE, '', { path: ISSUED_PATH, maxAgeSec: 0 });
+    return renderPeople({ people: await loadPeople(deps.db, sess.businessId), justIssued }, locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null);
+  }));
 
   app.post('/app/settings/people', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
@@ -1230,9 +1606,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
         t(locale, `people.flash.${r.code}` as MessageKey))}`);
     }
-    return reply.redirect('/app/settings/people?'
-      + `code=${encodeURIComponent(r.accessCode)}&who=${encodeURIComponent(r.name)}`
-      + `&flash=${encodeURIComponent(t(locale, 'people.flash.added', { name: r.name }))}`);
+    writeCookie(reply, ISSUED_COOKIE, mintIssuedCode(deps.sessionSecret, { name: r.name, code: r.accessCode }, Date.now()),
+      { path: ISSUED_PATH, maxAgeSec: Math.floor(ISSUED_TTL_MS / 1000) });
+    return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
+      t(locale, 'people.flash.added', { name: r.name }))}`);
   });
 
   app.post('/app/settings/people/:id/remove', async (req, reply) => {
@@ -1278,16 +1655,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) {
       return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
     }
-    const row = await withTenantTx(deps.db, bid.value, (tx) => sendingDomain(tx, bid.value));
-    if (!row) {
+    // The lookup is I/O and can fail; a failure returns empty lists, which read
+    // as 'missing'. It is never allowed to read as "fine". The mechanism to
+    // require is the host's, else the connected mailbox's own (C6); with neither
+    // the check says it cannot confirm (`no_sender`). The same function the
+    // sweep's clock uses, so her button and the clock cannot disagree.
+    const check = await checkSendingDomainNow({
+      db: deps.db, resolveDns: deps.resolveDns, sendingInclude: deps.sendingInclude ?? null,
+    }, bid.value, new Date());
+    if (!check) {
       return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
     }
-    // The lookup is I/O and can fail; a failure returns empty lists, which read
-    // as 'missing'. It is never allowed to read as "fine".
-    const found = await deps.resolveDns(row.domain, row.dkimSelector);
-    const check = checkDomain(found, deps.sendingInclude ?? null);
-    await withTenantTx(deps.db, bid.value, (tx) =>
-      recordDomainCheck(tx, bid.value, check, new Date()));
     return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.checked'))}`);
   });
 
@@ -1316,16 +1694,204 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
+   * C4.a — the most first messages a day, on this channel. Owner-only for the
+   * switch's own reason: the volume of mail that leaves in her name is her
+   * decision about her name. Empty clears it back to the default, which the
+   * form states as a number. Recorded as a new row carrying the switch as it
+   * stands, so changing the number never changes whether writing first is on.
+   */
+  app.post('/app/channels/outreach/cap', async (req, reply) => {
+    const sess = await ownerOnly(req, reply, 'outreach', '/app/channels');
+    if (!sess) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
+    const bid = parseBusinessId(sess.businessId);
+    const raw = typeof b['cap'] === 'string' ? b['cap'].trim() : '';
+    const cap = raw === '' ? null : /^\d{1,5}$/.test(raw) && Number(raw) >= 1 ? Number(raw) : undefined;
+    const failed = `/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.failed'))}`;
+    if (!channel || !bid.ok || cap === undefined) return reply.redirect(failed);
+    const done = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const current = (await outreachSettings(tx, bid.value)).get(channel);
+      return setOutreach(tx, bid.value, {
+        channel, enabled: current?.enabled === true, by: personOf(sess).name, dailyCap: cap,
+      });
+    });
+    if (!done) return reply.redirect(failed);
+    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.cap',
+      { n: String(cap ?? DAILY_OUTREACH_CEILING) }))}`);
+  });
+
+  /**
    * M38 — who she may write to. The list, and the two decisions about it.
    *
    * NOT owner-only: an attestation carries the name of whoever made it, and the
    * person who took the card is the person who knows. Suppressing is open in
    * the safe direction — more hands able to stop a send is never the risk.
    */
-  app.get('/app/contacts', authed('contacts', async (sess, req, locale) =>
-    renderContacts(await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none'), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+  /**
+   * C6 · M50 — CONNECT HER MAILBOX, with a few clicks.
+   *
+   * OWNER ONLY, on the `outreach` action: this is the address mail leaves as,
+   * in her name, to people who never wrote to her.
+   *
+   * THE CALLBACK IS TIED TO THE PERSON WHO STARTED IT. The start route puts a
+   * signed, ten-minute cookie on this browser holding the PKCE verifier, a nonce
+   * and her person id, scoped to `/app/connect`; the provider echoes the nonce in
+   * `state`. A callback with no cookie, a stale one, another provider's, another
+   * person's, or a mismatched nonce connects nothing — the shape of a login-CSRF
+   * that would otherwise attach an attacker's mailbox to her factory.
+   */
+  const OAUTH_COOKIE = 'yf_oauth';
+  const redirectUriFor = (provider: string) =>
+    `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/${provider}/callback`;
+  const channelsFlash = (locale: Locale, key: string, vars?: Record<string, string>) =>
+    `/app/channels?flash=${encodeURIComponent(t(locale, key as MessageKey, vars))}`;
+
+  app.get('/app/connect/:provider/start', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
+    const client = provider ? deps.oauthClients?.[provider] : undefined;
+    if (!provider || !client || !deps.publicBaseUrl || !deps.credentialKey) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    }
+    const { verifier, challenge } = pkcePair();
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, OAUTH_COOKIE, mintOAuthState(deps.sessionSecret, { provider, verifier, nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/connect', maxAgeSec: 600 });
+    return reply.redirect(authorizeUrl(provider, client, { redirectUri: redirectUriFor(provider), state: nonce, challenge }));
+  });
+
+  app.get('/app/connect/:provider/callback', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
+    // Used once, whatever happens next.
+    writeCookie(reply, OAUTH_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
+        || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+    }
+    if (q.error || typeof q.code !== 'string' || !q.code) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.denied'));
+    }
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.rejected'));
+    const r = await completeMailConnection({
+      db: deps.db, credentialKey: deps.credentialKey ?? null, clients: deps.oauthClients ?? {},
+      fetchImpl: deps.oauthFetch ?? (fetch as unknown as OAuthFetch), now: () => new Date(),
+    }, {
+      businessId: bid.value, provider, code: q.code.slice(0, 2048), verifier: state.verifier,
+      redirectUri: redirectUriFor(provider), by: personOf(s).name,
+    });
+    return reply.redirect(r.outcome === 'connected'
+      ? channelsFlash(locale, 'connect.flash.connected', { address: r.address ?? '' })
+      : channelsFlash(locale, `connect.flash.${r.outcome}`));
+  });
+
+  app.post('/app/connect/mail/disconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
+    return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.flash.disconnected' : 'connect.flash.rejected'));
+  });
+
+  /**
+   * C5 — prospecting. The key is hers (owner-only, on the `outreach` action: it
+   * is how she reaches people who never wrote first); searching, adding someone
+   * and looking up a company are anyone's, with the name recorded — each costs a
+   * credit only where its button says so.
+   */
+  const prospectDeps = (): ProspectDeps => ({
+    db: deps.db, now: () => new Date(),
+    credentialKey: deps.credentialKey ?? null, sourceFor: deps.prospectSourceFor ?? null,
+  });
+
+  app.get('/app/contacts', authed('contacts', async (sess, req, locale) => {
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const bid = parseBusinessId(sess.businessId);
+    const pd = prospectDeps();
+    const [companies, status] = bid.ok ? await Promise.all([
+      enrichmentsFor(pd, bid.value, view.contacts.filter((c) => c.channel === 'email').map((c) => c.identity)),
+      keyStatus(pd, bid.value),
+    ]) : [new Map(), { kind: 'none' } as const];
+    return renderContacts({
+      ...view, companies,
+      canLookUp: status.kind === 'stored' && status.readable && deps.prospectSourceFor !== undefined,
+    }, locale, flashOfQuery(req));
+  }));
+
+  app.post('/app/contacts/lookup', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(contactsBack(locale, 'failed'));
+    const r = await lookUpCompany(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name,
+      address: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
+    });
+    const sentence = r === 'found' || r === 'not_found' || r === 'reused' || r === 'personal' || r === 'not_an_email'
+      ? t(locale, `contacts.lookup.flash.${r}` as MessageKey)
+      : failureSentence(locale, r);
+    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  app.get('/app/prospects', authed('prospects', async (sess, req, locale) => {
+    const bid = parseBusinessId(sess.businessId);
+    if (!bid.ok) return '';
+    const pd = prospectDeps();
+    const status = await keyStatus(pd, bid.value);
+    const filter = filterFromQuery(req.query as Record<string, unknown>);
+    const outcome = filter && status.kind === 'stored' && status.readable
+      ? await searchProspects(pd, { businessId: bid.value, filter }) : null;
+    return renderProspects({ status, filter, outcome }, locale, flashOfQuery(req), personOf(sess));
+  }));
+
+  const prospectsBack = (locale: Locale, key: string, back = '') =>
+    `/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(t(locale, key as MessageKey))}`;
+
+  app.post('/app/prospects/key', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    const r = await saveKey(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name,
+      apiKey: String((req.body as { apiKey?: unknown } | undefined)?.apiKey ?? ''),
+    });
+    return reply.redirect(prospectsBack(localeOf(req), r === 'saved' ? 'prospects.flash.saved'
+      : r === 'invalid' ? 'prospects.flash.invalid' : 'prospects.noSource.no_key_store'));
+  });
+
+  app.post('/app/prospects/key/remove', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    const done = await removeKey(prospectDeps(), { businessId: bid.value, by: personOf(s).name });
+    return reply.redirect(prospectsBack(localeOf(req), done ? 'prospects.flash.removed' : 'prospects.flash.failed'));
+  });
+
+  app.post('/app/prospects/add', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string).trim() : '');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !str('sourceId') || !str('name')) return reply.redirect(prospectsBack(locale, 'prospects.flash.failed'));
+    const r = await addProspect(prospectDeps(), {
+      businessId: bid.value, by: personOf(s).name, sourceId: str('sourceId').slice(0, 64),
+      name: str('name'), title: str('title') || null, organization: str('organization') || null,
+    });
+    const back = str('back');
+    if (r === 'added' || r === 'exists' || r === 'not_found') {
+      return reply.redirect(prospectsBack(locale, `prospects.flash.${r}`, back));
+    }
+    const sentence = failureSentence(locale, r);
+    return reply.redirect(`/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(sentence)}`);
+  });
 
   const contactsBack = (locale: Locale, r: ContactsFlash) =>
     `/app/contacts?flash=${encodeURIComponent(t(locale, `contacts.flash.${r}` as MessageKey))}`;
@@ -1364,10 +1930,210 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     })));
   });
 
+  /**
+   * C4.a — she writes to someone who has not written to her.
+   *
+   * The page opens only for a buyer the gate has just said yes to — the same
+   * `reachOf` the row's button was drawn from — so it never offers a send it
+   * already knows will be refused. Anyone else lands back on the list, where his
+   * row already says why.
+   *
+   * NOT owner-only, for M38's reason: the person who took the card is the person
+   * who knows him, and the message carries the name of whoever sends it. What
+   * IS owner-only is the switch that lets anyone write first at all.
+   */
+  app.get('/app/contacts/write', authed('contacts', async (sess, req, locale) => {
+    const q = req.query as { channel?: string; identity?: string };
+    const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
+    const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
+    if (!found || found.channel !== 'email') return renderContacts(view, locale, null);
+    // Deployment mode has no outbound worker at all (src/main.ts): a row queued
+    // here would sit until messaging is switched on and then leave, days after
+    // she wrote it. Said now, before she types, rather than after.
+    if (!messagingEnabled) return renderContacts(view, locale, t(locale, 'contacts.flash.notLive'));
+    const reach = reachOf(view, found);
+    if (!reach.ok) {
+      return renderContacts(view, locale, t(locale, `refused.why.${reach.error}` as MessageKey));
+    }
+    return renderWriteFirst(found, locale);
+  }));
+
+  app.post('/app/contacts/write', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string): string => (typeof b[k] === 'string' ? b[k] as string : '');
+    if (!bid.ok || b['channel'] !== 'email') return reply.redirect(contactsBack(locale, 'failed'));
+    if (!messagingEnabled) {
+      return reply.redirect(`/app/contacts?flash=${encodeURIComponent(t(locale, 'contacts.flash.notLive'))}`);
+    }
+
+    const found = (await loadContacts(deps.db, s.businessId)).contacts
+      .find((c) => c.channel === 'email' && c.identity === str('identity').trim().toLowerCase());
+    const r = await writeFirst(
+      {
+        db: deps.db, now: () => new Date(),
+        kickDrive: deps.kickDrive ?? (async () => {}),
+        templateState: deps.templateState ?? 'none',
+      },
+      {
+        businessId: bid.value, channel: 'email', identity: str('identity'),
+        subject: str('subject').slice(0, 200), body: str('body').slice(0, 5000),
+        actor: personOf(s).id, displayName: found?.displayName ?? null,
+      },
+    );
+
+    if (r.outcome === 'queued' && r.conversationId) {
+      return reply.redirect(`/app/inbox/${encodeURIComponent(r.conversationId)}?flash=${
+        encodeURIComponent(t(locale, 'contacts.flash.queued'))}`);
+    }
+    // Her words come back to her when the fault is in the form, not in him.
+    if (r.outcome === 'empty' && found) {
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'nav.contacts'), active: 'contacts',
+        bodyHtml: renderWriteFirst(found, locale, {
+          draft: { subject: str('subject'), body: str('body') },
+          flash: t(locale, 'contacts.flash.empty'),
+        }),
+      }));
+    }
+    const sentence = r.outcome === 'empty' || r.outcome === 'no_channel'
+      || r.outcome === 'missing' || r.outcome === 'not_an_email' || r.outcome === 'not_a_phone'
+      ? t(locale, `contacts.flash.${r.outcome}` as MessageKey)
+      // The outreach gate's own refusal, in the words his row already uses.
+      : t(locale, `refused.why.${r.outcome}` as MessageKey);
+    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  /**
+   * C4.b — a first e-mail and its follow-ups. See `./sequences.ts` for who may
+   * do what: writing, adding someone and stopping are anyone's, with the name
+   * recorded; approving and taking out of use are hers.
+   */
+  const seqBack = (locale: Locale, id: string | null, f: SequenceFlash) =>
+    `/app/sequences${id ? `/${encodeURIComponent(id)}` : ''}?flash=${encodeURIComponent(t(locale, `seq.flash.${f}` as MessageKey))}`;
+  const flashOfQuery = (req: FastifyRequest): string | null =>
+    typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+  const seqId = (req: FastifyRequest) => (req.params as { id: string }).id;
+  const sequenceDeps = () => ({
+    db: deps.db, now: () => new Date(), templateState: deps.templateState ?? 'none',
+    kickDrive: deps.kickDrive ?? (async () => {}),
+    // Enrolling sends nothing; the sweep in src/main.ts is what decides this.
+    repliesObservable: false,
+  });
+
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale) =>
+    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, flashOfQuery(req))));
+
+  app.post('/app/sequences', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const r = await createSequenceFrom(deps.db, s.businessId, {
+      name: (req.body as { name?: unknown } | undefined)?.name, by: personOf(s).name,
+    });
+    return reply.redirect(seqBack(localeOf(req), r.id, r.flash));
+  });
+
+  app.get('/app/sequences/:id', authed('sequences', async (sess, req, locale) => {
+    const d = await loadSequenceDetail(deps.db, sess.businessId, seqId(req));
+    if (!d) return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, null);
+    // Who could be added right now: the SAME `reachOf` her contact list draws
+    // its "write to them" button from, so the two pages cannot offer different
+    // people. Only computed where adding is possible.
+    const view = d.state === 'approved'
+      ? await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none') : null;
+    const eligible = view ? view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok) : [];
+    return renderSequenceDetail(d, locale, flashOfQuery(req), {
+      viewer: personOf(sess), eligible, messagingEnabled,
+    });
+  }));
+
+  app.post('/app/sequences/:id/steps', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await addStepFrom(deps.db, s.businessId, seqId(req), (req.body ?? {}) as Record<string, unknown>);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/steps/:position', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const position = Number((req.params as { position: string }).position);
+    const f = await updateStepFrom(deps.db, s.businessId, seqId(req), position, (req.body ?? {}) as Record<string, unknown>);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/approve', async (req, reply) => {
+    const back = `/app/sequences/${encodeURIComponent(seqId(req))}`;
+    const s = await ownerOnly(req, reply, 'outreach', back); if (!s) return reply;
+    const f = await approveSequenceFrom(deps.db, s.businessId, seqId(req), {
+      fingerprint: (req.body as { fingerprint?: unknown } | undefined)?.fingerprint, by: personOf(s).name,
+    });
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/archive', async (req, reply) => {
+    const back = `/app/sequences/${encodeURIComponent(seqId(req))}`;
+    const s = await ownerOnly(req, reply, 'outreach', back); if (!s) return reply;
+    const f = await archiveSequenceById(deps.db, s.businessId, seqId(req));
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/enroll', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(seqBack(locale, seqId(req), 'failed'));
+    // Same reason as the write page: no outbound worker, no follow-ups.
+    if (!messagingEnabled) return reply.redirect(seqBack(locale, seqId(req), 'notLive'));
+    const r = await enroll(sequenceDeps(), {
+      businessId: bid.value, sequenceId: seqId(req), by: personOf(s).name,
+      identity: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
+    });
+    const sentence = r === 'enrolled' || r === 'already' || r === 'not_approved'
+      ? t(locale, `seq.flash.${r === 'not_approved' ? 'notApproved' : r}` as MessageKey)
+      : r === 'missing' || r === 'not_an_email' || r === 'not_a_phone'
+        ? t(locale, `contacts.flash.${r}` as MessageKey)
+        : t(locale, `refused.why.${r}` as MessageKey);
+    return reply.redirect(`/app/sequences/${encodeURIComponent(seqId(req))}?flash=${encodeURIComponent(sentence)}`);
+  });
+
+  // 0051 — a follow-up waiting for someone who has looked in her own inbox.
+  app.post('/app/sequences/:id/enrollments/:eid/confirm', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await confirmFollowUpById(deps.db, s.businessId, (req.params as { eid: string }).eid,
+      (req.body as { position?: unknown } | undefined)?.position, personOf(s).name);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
+  app.post('/app/sequences/:id/enrollments/:eid/stop', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const f = await stopEnrollmentById(deps.db, s.businessId, (req.params as { eid: string }).eid);
+    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+  });
+
   app.post('/app/contacts/:id/archive', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     return reply.redirect(contactsBack(localeOf(req),
       await archiveContactById(deps.db, s.businessId, (req.params as { id: string }).id)));
+  });
+
+  // G6 — her terms on a proforma. Owner-only under the price-rules decision:
+  // staff negotiate inside her commercial terms, they do not set them.
+  app.get('/app/settings/terms', authed('settings', async (sess, req, locale) =>
+    renderTerms(await loadTerms(deps.db, sess.businessId), locale,
+      typeof (req.query as { flash?: string }).flash === 'string'
+        ? (req.query as { flash: string }).flash : null)));
+
+  app.post('/app/settings/terms', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/terms');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveTerms(deps.db, s.businessId, {
+      payment: b['payment'] ?? null, incoterm: b['incoterm'] ?? null,
+      actor: personOf(s).id, now: new Date(),
+    });
+    const flash = t(locale, `terms.flash.${r.code}` as MessageKey);
+    return reply.redirect(`/app/settings/terms?flash=${encodeURIComponent(flash)}`);
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.
@@ -1405,7 +2171,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const r = await markSampleHandled(deps.db, s.businessId, (req.params as { id: string }).id, 'owner', new Date());
+    const r = await markSampleHandled(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id, new Date());
     return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(
       t(locale, r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed'))}`);
   });
@@ -1431,7 +2197,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       contactEmail: String(b['contact_email'] ?? ''), contactPhone: String(b['contact_phone'] ?? ''),
       languagesServed: LOCALES.filter((l) => b[`lang_${l}`] !== undefined),
     };
-    const r = await saveBusinessProfile(deps.db, s.businessId, input, 'owner');
+    const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     if (r.code === 'saved') {
       return reply.redirect(`/app/settings?flash=${encodeURIComponent(t(locale, 'settings.flash.profileSaved'))}`);
     }
@@ -1562,7 +2328,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // Approval reuses the ONE approval service; the sink records, never transmits.
     app.post('/app/sandbox/act', async (req, reply) => {
-      if (!sessionOf(req)) return reply.redirect('/login');
+      const s = sessionOf(req);
+      if (!s) return reply.redirect('/login');
       const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string; mode?: string };
       const mode = modeOf(b.mode);
       const bid = parseBusinessId(deps.sandboxBusinessId!);
@@ -1570,7 +2337,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const rawReply = b.command === '改' ? `改：${b.edit ?? ''}` : (b.command ?? '');
         await applyOwnerCommand(
           { db: deps.db, now: () => new Date(), kickOutbound: sandboxOutboundSink(sbxDeps) },
-          { businessId: bid.value, draftId: b.draftId, rawReply, decidedBy: 'owner' },
+          { businessId: bid.value, draftId: b.draftId, rawReply, decidedBy: personOf(s).id },
         );
       }
       return reply.redirect(`/app/sandbox?mode=${mode}`);
@@ -1588,23 +2355,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // and is flushed to the transcript by the sandbox sink — never a real send.
     const sbxFlash = (req: FastifyRequest, outcome: string) =>
       `/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), `takeover.flash.${outcome}` as MessageKey))}`;
-    const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest) => Promise<{ outcome: string }>) =>
+    const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest, actor: string) => Promise<{ outcome: string }>) =>
       app.post(path, async (req, reply) => {
-        if (!sessionOf(req)) return reply.redirect('/login');
+        const s = sessionOf(req);
+        if (!s) return reply.redirect('/login');
         const bid = parseBusinessId(deps.sandboxBusinessId!);
         const cid = await activeSandboxConversationId(sbxDeps);
         if (!bid.ok || !cid) return reply.redirect('/app/sandbox');
-        const r = await run(bid.value, cid, req);
+        const r = await run(bid.value, cid, req, personOf(s).id);
         return reply.redirect(sbxFlash(req, r.outcome));
       });
-    sbxAction('/app/sandbox/takeover', (bid, cid) =>
-      takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor: 'owner' }));
-    sbxAction('/app/sandbox/reply', (bid, cid, req) =>
+    sbxAction('/app/sandbox/takeover', (bid, cid, _req, actor) =>
+      takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
+    sbxAction('/app/sandbox/reply', (bid, cid, req, actor) =>
       ownerReply(
         { db: deps.db, now: () => new Date(), kickDrive: (_b, c) => sandboxFlushOutbound(sbxDeps, c) },
-        { businessId: bid, conversationId: cid, text: String((req.body as { text?: string } | undefined)?.text ?? ''), actor: 'owner' },
+        { businessId: bid, conversationId: cid, text: String((req.body as { text?: string } | undefined)?.text ?? ''), actor },
       ));
-    sbxAction('/app/sandbox/resume', (bid, cid) =>
-      resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor: 'owner' }));
+    sbxAction('/app/sandbox/resume', (bid, cid, _req, actor) =>
+      resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
   }
 }

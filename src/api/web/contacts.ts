@@ -12,12 +12,16 @@ import { displayPhone } from '../../core/channel/phone.js';
 import { gateOutreach } from '../../core/outreach/gate.js';
 import { CHANNEL_REGISTRY, type OutreachChannel, type Requirement } from '../../core/channel/registry.js';
 import { outreachEnabled } from '../../db/outreach.js';
+import { sendingDomain } from '../../db/sendingDomain.js';
 import { satisfiedRequirements } from './channels.js';
 import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { deeper, esc } from './layout.js';
+import { companyLineHtml } from './prospects.js';
+import { companyDomainOf } from '../../core/outreach/companyDomain.js';
+import type { Enrichment } from '../../db/prospects.js';
 
 /**
  * M38 — the page that answers "may I write to this person", for a human.
@@ -45,6 +49,13 @@ export type ContactsView = {
   /** M42 — her per-channel decision, so the list can say what would happen. */
   readonly outreach: ReadonlyMap<OutreachChannel, boolean>;
   readonly satisfied: ReadonlySet<Requirement>;
+  /**
+   * C5 — what a company lookup said, by company domain. For the PEOPLE reading
+   * this page; nothing on the conversation path can reach it.
+   */
+  readonly companies?: ReadonlyMap<string, Enrichment>;
+  /** C5 — a readable key is on file, so a lookup can be offered. */
+  readonly canLookUp?: boolean;
 };
 
 export type ContactsFlash =
@@ -59,12 +70,15 @@ export async function loadContacts(
   db: Db, businessIdRaw: string, templateState: TemplateState = 'none',
 ): Promise<ContactsView> {
   const bid = parseBusinessId(businessIdRaw);
-  const satisfied = satisfiedRequirements(templateState);
-  if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied };
+  if (!bid.ok) return { contacts: [], outreach: new Map(), satisfied: satisfiedRequirements(templateState, null, new Date()) };
   return withTenantTx(db, bid.value, async (tx) => ({
     contacts: await listContacts(tx, bid.value),
     outreach: await outreachEnabled(tx, bid.value),
-    satisfied,
+    // G14 — with the DOMAIN, so this page and the connections page answer
+    // "may she write to someone who never wrote first?" the same way. Without
+    // it, a verified domain read as unverified here and the requirement she
+    // had already met stayed on her list.
+    satisfied: satisfiedRequirements(templateState, await sendingDomain(tx, bid.value), new Date()),
   }));
 }
 
@@ -147,6 +161,26 @@ export async function archiveContactById(
   return 'archived';
 }
 
+/**
+ * M42 — would a first message to this person go, if she wrote one now?
+ *
+ * One call for the list row and for the page that composes the message, so the
+ * button she pressed and the page it opened cannot disagree about him.
+ *
+ * `ceilingReached: false` is not a placeholder: this answers for a list she is
+ * reading, and the day's count belongs to the moment a message is actually
+ * queued — `writeFirst` asks `outreachFacts`, which counts, and the worker asks
+ * again when it sends.
+ */
+export function reachOf(v: ContactsView, c: ContactRow): ReturnType<typeof gateOutreach> {
+  return gateOutreach({
+    channel: c.channel, availableHere: CHANNEL_REGISTRY[c.channel].availableHere,
+    enabled: v.outreach.get(c.channel) === true,
+    satisfied: v.satisfied, consent: c.consent, suppression: c.suppression,
+    ceilingReached: false,
+  });
+}
+
 /** Her own eyes on her own list: the phone in full, not masked. */
 const shown = (c: ContactRow): string =>
   c.channel === 'whatsapp' ? displayPhone(c.identity) : c.identity;
@@ -167,14 +201,6 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
         ? `<span class="pill ok">${esc(t(locale, `contacts.evidence.${decision.value.evidence}` as MessageKey))}</span>`
         : `<span class="pill wait">${esc(t(locale, 'contacts.consent.none'))}</span>`;
 
-    const actions = !decision.ok && decision.error.kind === 'suppressed' ? '' : `
-      ${decision.ok ? '' : `<form method="post" action="/app/contacts/consent" class="inline">${hidden}
-        <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>`}
-      <a class="btn stop" href="/app/contacts/suppress?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
-        >${esc(t(locale, 'contacts.suppress.button'))}</a>
-      ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
-        <button class="btn" type="submit">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
-
     const stopped = !decision.ok && decision.error.kind === 'suppressed';
 
     /**
@@ -192,17 +218,50 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
      * Nothing is being sent, so no quota is consumed: `ceilingReached` is
      * false because no attempt has been made, not as a placeholder.
      */
-    const reach = gateOutreach({
-      channel: c.channel, availableHere: CHANNEL_REGISTRY[c.channel].availableHere,
-      enabled: v.outreach.get(c.channel) === true,
-      satisfied: v.satisfied, consent: c.consent, suppression: c.suppression,
-      ceilingReached: false,
-    });
+    const reach = reachOf(v, c);
+
+    /**
+     * C5 — what a lookup said about his company, for the person reading. A
+     * button to look it up only where there is a company to look up (not a
+     * personal mailbox), nothing is known yet, and a key is on file — each click
+     * spends one of her credits, so the sentence on it says so.
+     */
+    const domain = c.channel === 'email' ? companyDomainOf(c.identity) : null;
+    const known = domain ? v.companies?.get(domain) : undefined;
+    const line = companyLineHtml(locale, known);
+    const company = line ? `<div class="muted ct-co">${line}</div>`
+      : domain && v.canLookUp && !stopped
+        ? `<form method="post" action="/app/contacts/lookup" class="inline ct-co">
+            <input type="hidden" name="identity" value="${esc(c.identity)}" />
+            <button class="btn" type="submit">${esc(t(locale, 'contacts.lookup.button'))}</button></form>`
+        : '';
     // Suppressed rows already carry it as a pill; saying it twice on one row is
     // noise, not emphasis.
     const outreachLine = stopped ? '' : `<div class="muted reach-line">${esc(reach.ok
       ? t(locale, 'contacts.canWrite')
       : t(locale, `refused.why.${reach.error}` as MessageKey))}</div>`;
+
+    /**
+     * C4.a — and the button that acts on the sentence above it.
+     *
+     * Offered only where the gate has just said yes, so it is never a button
+     * that leads to a refusal she was already shown on the same line. It is a
+     * LINK to a page rather than a box on this row: a first message to a
+     * stranger is written, not dashed off between two other people's rows, and
+     * the composer needs a subject as well as a body.
+     */
+    const writeLink = !reach.ok ? '' : `<a class="btn send"
+      href="/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
+      >${esc(t(locale, 'contacts.write.button'))}</a>`;
+
+    const actions = stopped ? '' : `
+      ${decision.ok ? '' : `<form method="post" action="/app/contacts/consent" class="inline">${hidden}
+        <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>`}
+      ${writeLink}
+      <a class="btn stop" href="/app/contacts/suppress?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
+        >${esc(t(locale, 'contacts.suppress.button'))}</a>
+      ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
+        <button class="btn" type="submit">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
     return `<li class="ct ${c.archivedAt ? 'gone' : ''} ${stopped ? 'stopped' : ''}">
       <div class="ct-h">
         <span class="who">${c.displayName ? `<bdi>${esc(c.displayName)}</bdi>` : ''}
@@ -211,7 +270,9 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       </div>
       <div class="ct-b muted">${esc(t(locale, `contacts.channel.${c.channel}` as MessageKey))}
         　·　${esc(t(locale, `contacts.source.${c.source}` as MessageKey))}
+        ${c.title ? `　·　<bdi>${esc(c.title)}</bdi>` : ''}
         ${c.company ? `　·　<bdi>${esc(c.company)}</bdi>` : ''}</div>
+      ${company}
       ${outreachLine}
       ${actions.trim() ? `<div class="ct-a">${actions}</div>` : ''}
     </li>`;
@@ -232,6 +293,8 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
+      ${deeper('/app/sequences', t(locale, 'seq.title'))}
+      ${deeper('/app/prospects', t(locale, 'prospects.title'))}
       ${canAttest ? `<p class="muted note">${esc(t(locale, 'contacts.attest.hint'))}</p>` : ''}
       ${list}
     </section>
@@ -261,6 +324,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
       .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
       .ct-b { font-size:var(--font-size-note); margin-top:var(--space-4); }
       .ct .reach-line { font-size:var(--font-size-note); margin-top:var(--space-8); }
+      .ct .ct-co { font-size:var(--font-size-note); margin-top:var(--space-8); display:block; }
       .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
       .ct .since { font-size:var(--font-size-note); }
       /* Permanent, and it should read that way at a glance. */
@@ -309,5 +373,56 @@ export function renderSuppressConfirm(
     <style>
       .confirm { display:flex; gap:var(--space-12); align-items:center;
                  flex-wrap:wrap; margin-top:var(--space-12); }
+    </style>`;
+}
+
+/**
+ * C4.a — THE FIRST MESSAGE, written on its own page.
+ *
+ * A subject and a body, because a mail is both and neither is invented for her
+ * (`subject_missing` refuses a row without one). The hint above the form says
+ * the three things that are true of every first message and that she should
+ * know before pressing send, not after: it is in her name, it carries a way for
+ * him to stop hearing from her, and it counts against her day.
+ *
+ * GOING BACK IS NOT THE PRIMARY BUTTON HERE, unlike the suppression page. That
+ * page asks her to confirm something permanent; this one is the thing she came
+ * to do, and the button that does it is the one her reflex should land on.
+ *
+ * The route renders this only after `gateOutreach` has said yes for this buyer,
+ * so the page never offers a send it already knows will be refused.
+ */
+export function renderWriteFirst(
+  who: { readonly channel: ContactChannel; readonly identity: string; readonly displayName: string | null },
+  locale: Locale,
+  opts: {
+    /** What she had typed, kept when the page comes back to her. */
+    readonly draft?: { readonly subject: string; readonly body: string };
+    readonly flash?: string | null;
+  } = {},
+): string {
+  const name = who.displayName ?? (who.channel === 'whatsapp' ? displayPhone(who.identity) : who.identity);
+  const draft = opts.draft ?? { subject: '', body: '' };
+  return `<h1 class="page">${esc(t(locale, 'contacts.write.title', { who: name }))}</h1>
+    ${opts.flash ? `<div class="flash" role="status">${esc(opts.flash)}</div>` : ''}
+    <section class="block">
+      <p class="muted">${esc(t(locale, 'contacts.write.hint'))}</p>
+      <form method="post" action="/app/contacts/write" class="wform">
+        <input type="hidden" name="channel" value="${esc(who.channel)}" />
+        <input type="hidden" name="identity" value="${esc(who.identity)}" />
+        <label class="fld"><span class="muted">${esc(t(locale, 'contacts.write.subject'))}</span>
+          <input name="subject" dir="auto" required maxlength="200" value="${esc(draft.subject)}" /></label>
+        <label class="fld"><span class="muted">${esc(t(locale, 'contacts.write.body'))}</span>
+          <textarea name="body" dir="auto" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
+        <div class="wact">
+          <button class="btn send" type="submit">${esc(t(locale, 'contacts.write.send'))}</button>
+          <a class="btn" href="/app/contacts">${esc(t(locale, 'contacts.write.cancel'))}</a>
+        </div>
+      </form>
+    </section>
+    <style>
+      .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
+      .wform textarea { width:100%; font:inherit; }
+      .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
     </style>`;
 }

@@ -12,7 +12,8 @@ import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
 import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
 import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
 import { effectiveMode } from '../core/ops/killSwitch.js';
-import { quantityWasHeardNotTyped, type TextProvenance } from '../core/safety/heardNumbers.js';
+import type { TextProvenance } from '../core/safety/heardNumbers.js';
+import { holdReasonOf, type HoldReason } from '../core/conversation/hold.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
@@ -23,9 +24,12 @@ import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
+import { closureNote, withheldOf } from '../core/commerce/closures.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
+import { proofUrl } from '../db/proofs.js';
 import {
   guardFallbackReply,
+  SAFE_REPLY,
   HANDOFF_REPLY,
   orderBlockedReply,
   orderConfirmedReply,
@@ -59,6 +63,13 @@ export type TurnPorts = {
   analyzer: Analyzer;
   replyWriter: ReplyWriter;
   now: () => Date;
+  /**
+   * G11 — the address this installation is reachable at, for the proof link a
+   * quote carries. Absent is a real state: no link is attached, and the owner
+   * is told so on the conversation. A link to a host we do not know is a link
+   * that 404s in front of a buyer.
+   */
+  publicBaseUrl?: string | null;
 };
 
 export type TurnRequest = {
@@ -127,6 +138,14 @@ export type TurnResult = {
    */
   forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[];
   /**
+   * G8 — forbidden words found in HER OWN text: her taught answer, or the
+   * order-status line built from her order. Tagged by where, shown to her,
+   * and never counted against her employee — the employee did not write
+   * them, and counting them would block promotion for as long as the answer
+   * stands.
+   */
+  forbiddenInHerText: readonly ForbiddenInHerText[];
+  /**
    * M45 — this buyer asked for a sample.
    *
    * Decided once per turn, from the buyer's own words, by a deterministic
@@ -135,10 +154,23 @@ export type TurnResult = {
    * about the buyer, and the owner needs to see it either way.
    */
   sampleRequested: boolean;
+  /**
+   * G7a — why this reply must wait for her whatever her autonomy says, or
+   * null. Decided once, here; `commitTurn`, the trust harness and the sandbox
+   * all read THIS rather than re-deriving it (core/conversation/hold.ts).
+   */
+  hold: HoldReason | null;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
   fingerprint: DecisionFingerprint;
+};
+
+/** G8 — a forbidden word in her own text, and which of her texts it was in. */
+export type ForbiddenInHerText = {
+  readonly term: string;
+  readonly source: 'floor' | 'owner';
+  readonly path: 'order_status' | 'taught_answer';
 };
 
 export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<TurnResult> {
@@ -290,6 +322,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let guardViolations = 0;
   /** M37.5 — which forbidden terms stopped a draft, so the owner is told WHICH. */
   let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
+  /** G8 — the same, found in her own text rather than in what the employee wrote. */
+  const forbiddenInHerText: ForbiddenInHerText[] = [];
+  /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
+  let guardsFailedTwice = false;
   let confirmBlockedReasons: readonly string[] = [];
   let knowledge: readonly KnowledgeSnippet[] = [];
   let knowledgeUsed: readonly string[] = [];
@@ -311,11 +347,15 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       break;
 
     case 'confirm_order': {
+      // G6 — HER terms, or none. This was the literal "30% deposit, 70%
+      // before shipment", stamped on every order she never set terms for.
+      const terms = await tenant.catalog.tradeTerms();
       const confirmable = toConfirmableOrder({
         state: newState,
         product,
         quote,
-        paymentTerms: '30% deposit, 70% before shipment',
+        paymentTerms: terms?.paymentTerms ?? null,
+        incoterm: terms?.incoterm ?? null,
       });
       if (confirmable.ok) {
         // Reply text is finalized in commitTurn once the order reference exists.
@@ -365,10 +405,22 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       const sampleCtx = sampleRequested
         ? sampleAnswerContext(await tenant.catalog.samplePolicy())
         : null;
+      /**
+       * G5 — a closure of hers withheld the date. M44 made the date
+       * unstateable; this makes the REASON stateable, so the buyer is told why
+       * no date came instead of only noticing that none did. Her label may
+       * carry a year ("Spring Festival 2027"), and those digits are hers, so
+       * they are sourced like her taught facts.
+       */
+      const closureCtx = quote?.leadTimeBlocked
+        ? { note: closureNote(quote.leadTimeBlocked),
+            allow: extractNumerals(quote.leadTimeBlocked.closure.label).map((n) => n.value) }
+        : null;
       const numeralAllow = [
         ...(refusalCtx?.allow ?? []),
         ...knowledgeNumbers,
         ...(sampleCtx?.ok ? sampleCtx.allow : []),
+        ...(closureCtx?.allow ?? []),
       ];
 
       /**
@@ -384,7 +436,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
        * an instruction in a prompt.
        */
       if (asksOrderStatus(req.text)) {
-        const order = await tenant.orders.latestForConversation(req.conversationId);
+        // G4 — by buyer: his order was confirmed in a conversation that
+        // closed, and this question is in a new one.
+        const order = await tenant.orders.latestForClient(state.clientId);
         if (order) {
           const said = orderStatusReply({
             reference: order.reference,
@@ -396,7 +450,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           const guarded = clean.ok
             ? guardNumerals({ reply: clean.value, quote, state: newState, clientText: req.text, allow: said.allow })
             : null;
-          if (!clean.ok && clean.error.kind === 'forbidden_word') forbiddenHits = clean.error.terms;
+          // G8 — her order, her rule: tagged, and not the employee's failure.
+          if (!clean.ok && clean.error.kind === 'forbidden_word') {
+            forbiddenInHerText.push(...clean.error.terms.map((x) => ({ ...x, path: 'order_status' as const })));
+          }
           if (guarded?.ok) {
             reply = guarded.value;
             replyDeterministic = true;
@@ -423,7 +480,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         const guarded = wordSafe.ok
           ? guardNumerals({ reply: wordSafe.value, quote, state: newState, clientText: req.text, allow: answerAllow })
           : null;
-        if (!wordSafe.ok && wordSafe.error.kind === 'forbidden_word') forbiddenHits = wordSafe.error.terms;
+        // G8 — her taught answer uses a word she forbade: tagged, shown to her,
+        // not counted against the employee (who did not write it).
+        if (!wordSafe.ok && wordSafe.error.kind === 'forbidden_word') {
+          forbiddenInHerText.push(...wordSafe.error.terms.map((x) => ({ ...x, path: 'taught_answer' as const })));
+        }
         if (guarded?.ok) {
           reply = guarded.value;
           replyDeterministic = true;
@@ -446,6 +507,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           // Absent when she has stated nothing: the model is told nothing to
           // work from rather than being asked to be careful about samples.
           ...(sampleCtx?.ok ? { sampleNote: sampleCtx.note } : {}),
+          ...(closureCtx ? { closureNote: closureCtx.note } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;
@@ -479,8 +541,23 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       }
       if (reply === null) {
         // Two violations: the model does not get a third chance to invent a
-        // number. Deterministic fallback, sourced figures only.
-        reply = guardFallbackReply(quote, nextQuestion);
+        // number. Deterministic stand-in, sourced figures only — and G8:
+        //
+        //  · GUARDED like everything else. It used to go out unchecked, so the
+        //    analyser's question (model text) reached the buyer unguarded.
+        //  · Never an internal note. `nextQuestion` falls back to the refusal
+        //    context, which is guidance TO the writer ("Do not state a new
+        //    price."); the stand-in takes only the analyser's question.
+        //  · If even that fails, one fixed sentence with nothing to guard.
+        //  · And the turn is held for her (hold.ts): "it comes to you instead"
+        //    is what her forbidden-words page promises.
+        guardsFailedTwice = true;
+        const standIn = guardFallbackReply(quote, analysis?.intent.nextLogicalQuestion ?? null);
+        const numeralsOk = guardNumerals({ reply: standIn, quote, state: newState, clientText: req.text, allow: numeralAllow });
+        const passes = numeralsOk.ok
+          && guardClaims({ reply: standIn, policy: claimsPolicy }).ok
+          && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok;
+        reply = passes ? standIn : SAFE_REPLY;
         replyDeterministic = true;
       }
       timings.replyMs = Date.now() - tw;
@@ -509,6 +586,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     },
   };
 
+  // G7a — her rules that hold a reply, over whatever this turn produced.
+  // M34.5's heard quantity is one; her "ask me above this discount" line is
+  // the other. Provenance defaults to typed, so every caller that predates
+  // voice notes is unaffected.
+  const hold = holdReasonOf({ provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice });
+
   timings.totalMs = Date.now() - t0;
   return {
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
@@ -517,7 +600,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     provenance: { promptVersion, modelId },
     guardViolations,
     forbiddenHits,
+    forbiddenInHerText,
     sampleRequested,
+    hold,
     timings, usage,
     fingerprint,
   };
@@ -554,9 +639,11 @@ export async function commitTurn(
     const product = r.decision.product
       ? await tenant.catalog.product(r.decision.product.productId)
       : null;
+    const terms = await tenant.catalog.tradeTerms();
     const confirmable = toConfirmableOrder({
       state: r.newState, product, quote: r.quote,
-      paymentTerms: '30% deposit, 70% before shipment',
+      paymentTerms: terms?.paymentTerms ?? null,
+      incoterm: terms?.incoterm ?? null,
     });
     if (confirmable.ok && product) {
       const created = await tenant.orders.create(req.conversationId, confirmable.value);
@@ -566,7 +653,6 @@ export async function commitTurn(
         productName: product.name,
         quantity: confirmable.value.quantity.value,
         unit: confirmable.value.quantity.unit,
-        email: confirmable.value.email,
       });
       await tenant.events.append(req.conversationId, 'order_created', {
         orderId: created.orderId, alreadyExisted: created.alreadyExisted,
@@ -597,14 +683,47 @@ export async function commitTurn(
       total: r.quote.total,
       requiresHuman: r.quote.requiresHuman,
       appliedRules: r.quote.appliedRules,
+      // G5 — what the quote said about delivery: a lead time, or that her
+      // closure withheld one. The buyer's proof page reads THESE, not the
+      // product's lead time, which is exactly the number M44 refused.
+      leadTimeDays: r.quote.leadTimeDays,
+      leadTimeWithheld: r.quote.leadTimeBlocked ? withheldOf(r.quote.leadTimeBlocked) : null,
     });
     quoteId = rec.quoteId;
     await tenant.events.append(req.conversationId, 'quote_computed', { quoteId });
+
+    /**
+     * G11 — EVERY QUOTE SHE SENDS CARRIES A LINK, which is the first line of
+     * M35 and was never true: the owner had to tap a button afterwards and
+     * was then shown a relative path she could not send.
+     *
+     * Minted in THIS transaction (the quote it proves is not visible outside
+     * it yet), and appended AFTER the guards on purpose: a token's digits are
+     * not sourced figures and a segment like `-FOB-` is not an authorised
+     * claim, so a link inside the guarded text would be refused by the very
+     * rules that make the text safe.
+     */
+    if (reply !== null && ports.publicBaseUrl) {
+      const issued = await tenant.proofs.issue(quoteId);
+      const url = issued && proofUrl(ports.publicBaseUrl, issued.token);
+      if (url) {
+        reply = `${reply}\n\n${url}`;
+        await tenant.events.append(req.conversationId, 'proof_link_sent', { quoteId });
+      }
+    }
   }
 
   // Signals: persist fresh ones (idempotent per kind in the repo).
   for (const s of r.signals) {
     await tenant.signals.record(req.conversationId, s);
+  }
+
+  // G11 — the language he writes in, remembered on him rather than re-derived
+  // from a message each time. His proof page reads it, and a turn that runs no
+  // analysis (a fast path, an injection) still answers in it.
+  const detected = r.analysis?.language.detected?.slice(0, 2).toLowerCase();
+  if (detected && detected !== r.stateBefore.preferredLanguage) {
+    await tenant.clients.savePreferredLanguage(r.newState.clientId, detected);
   }
 
   // State + contact.
@@ -637,6 +756,15 @@ export async function commitTurn(
   if (r.decision.injectionDetected) {
     await tenant.events.append(req.conversationId, 'injection_blocked', {});
   }
+  // G8 — a word she forbade, found in her OWN text. Its own event type, so
+  // `loadCapabilityEvidence` (which counts 'guard_violation') never sees it:
+  // the employee did not write it. The conversation page reads it back.
+  if (r.forbiddenInHerText.length > 0) {
+    await tenant.events.append(req.conversationId, 'forbidden_in_her_text', {
+      hits: r.forbiddenInHerText.map((x) => ({ term: x.term, source: x.source, path: x.path })),
+    });
+  }
+
   // M13: which taught knowledge rows supported this reply (usage audit).
   if (r.knowledgeUsed.length > 0) {
     await tenant.events.append(req.conversationId, 'knowledge_used',
@@ -659,18 +787,15 @@ export async function commitTurn(
       const capability = capabilityOf(r.decision, r.quote !== null);
       const grants = await tenant.autonomy.grants();
       const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
-      // M34.5 — a quantity she HEARD, which then set the tier and the price,
-      // does not auto-send however the owner has set her autonomy. This never
-      // widens permission: auto becomes draft, draft stays draft.
-      const heardPrice = quantityWasHeardNotTyped({
-        provenance: req.provenance ?? 'typed', quote: r.quote, turnText: req.text,
-      });
+      // G7a — her hold rules (a quantity she HEARD, M34.5; a discount past her
+      // ask-first line) do not auto-send however her autonomy is set. This
+      // never widens permission: auto becomes draft, draft stays draft.
       // M34.6 — ops kill switches, applied last because they must win. Only
       // `forceDraft`/`silenceCapability` are resolved here; `globalSilence` is
       // enforced at the SEND gate, where it also catches replies queued before
       // the switch was thrown. `effectiveMode` is monotone by construction, so
       // this rung, like the one above it, can only ever remove authority.
-      const mode = effectiveMode(heardPrice ? 'draft' : policyMode, capability, await tenant.ops.switches());
+      const mode = effectiveMode(r.hold ? 'draft' : policyMode, capability, await tenant.ops.switches());
 
       // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
       //
@@ -722,7 +847,15 @@ export async function commitTurn(
           draftId: d.draftId, capability,
           // The audit trail says WHY this one waited, so a draft the owner did
           // not ask for is explicable rather than mysterious.
-          ...(heardPrice ? { heldBecause: 'quantity_heard_not_typed' } : {}),
+          // G7a — and the inbox reads it back, so the card says why too.
+          ...(r.hold ? { heldBecause: r.hold } : {}),
+          // G7b — both prices and both dates, whichever reason is named: a
+          // price above what he was told is on her card beside the new one.
+          ...(r.quote?.contradicts ? { contradicts: r.quote.contradicts } : {}),
+          // G8 — and when she could not write it, WHICH of the owner's words
+          // kept stopping her. The card names them (M37.5's promise).
+          ...(r.hold === 'guards_failed_twice' && r.forbiddenHits.length
+            ? { forbidden: r.forbiddenHits.map((x) => x.term) } : {}),
         });
       }
     }

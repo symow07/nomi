@@ -7,6 +7,7 @@ import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { countRefusals } from './refusals.js';
+import { checkBudget } from '../../core/budget.js';
 import { esc, deeper } from './layout.js';
 
 /**
@@ -53,6 +54,16 @@ export type OperationsSnapshot = {
     readonly recentlyTaught: number;
   };
   readonly channel: { readonly status: string; readonly provider: string };
+  /**
+   * G19 — the ceiling she is approaching, on the surface she watches.
+   *
+   * `checkBudget` has returned `soft_warn` since M51.2 and nobody read it: the
+   * send gate asks only whether the verdict is `pause`, so the one warning that
+   * exists to arrive BEFORE the stop arrived nowhere. Null until the day's use
+   * passes her soft-warn percentage; `stops` is what her own setting does at
+   * 100%, so the sentence she reads is her rule, not a general fact.
+   */
+  readonly budget: { readonly pctUsed: number; readonly stops: boolean } | null;
   /** True when any attention bucket is non-zero — the "you have work" signal. */
   readonly hasAttention: boolean;
 };
@@ -74,8 +85,33 @@ const EMPTY = (range: Range, provider: string): OperationsSnapshot => ({
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { status: 'not_connected', provider },
+  budget: null,
   hasAttention: false,
 });
+
+/**
+ * G19 — one rule, in `core/budget.ts`, asked here the way the send gate asks it.
+ * Anything below her soft-warn line is silence: a warning she sees every day is
+ * a warning she stops reading.
+ */
+const budgetOf = (r: {
+  daily_llm_calls: number; daily_tokens: string; soft_warn_pct: number; on_exceeded: string;
+  used_calls: number; used_tokens: string;
+} | null): OperationsSnapshot['budget'] => {
+  if (!r) return null;
+  const verdict = checkBudget(
+    { llmCalls: Number(r.used_calls), tokens: Number(r.used_tokens) },
+    {
+      dailyLlmCalls: Number(r.daily_llm_calls), dailyTokens: Number(r.daily_tokens),
+      softWarnPct: Number(r.soft_warn_pct), onExceeded: r.on_exceeded === 'pause' ? 'pause' : 'throttle',
+    },
+  );
+  const stops = r.on_exceeded === 'pause';
+  if (verdict.kind === 'soft_warn') return { pctUsed: verdict.pctUsed, stops };
+  // Past the ceiling: still worth saying, and the percentage is hers, not a cap.
+  if (verdict.kind === 'pause' || verdict.kind === 'throttle') return { pctUsed: 100, stops };
+  return null;
+};
 
 export async function loadOperationsSnapshot(
   db: Db, businessIdRaw: string, range: Range, provider = 'disabled',
@@ -86,7 +122,7 @@ export async function loadOperationsSnapshot(
   const unit = RANGE_UNIT[range];
 
   // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, counts, blockedMessages] = await Promise.all([
+  const [ops, channels, counts, blockedMessages, budgetRow] = await Promise.all([
     loadKnowledgeOps(db, businessIdRaw, range),
     loadChannels(db, businessIdRaw, provider !== 'disabled'),
     withTenantTx(db, B, async (tx) => {
@@ -119,6 +155,22 @@ export async function loadOperationsSnapshot(
     // M22 — counted by the database over persisted canceled rows, through the
     // SAME predicate that lists them, so the number and the list agree.
     countRefusals(db, businessIdRaw),
+    // G19 — the same numbers the send gate reads, judged by the same function.
+    // Absence of a budget row is "she has set no ceiling", never "stop".
+    withTenantTx(db, B, async (tx) => (await sql<{
+      daily_llm_calls: number; daily_tokens: string; soft_warn_pct: number; on_exceeded: string;
+      used_calls: number; used_tokens: string;
+    }>`
+      select b.daily_llm_calls, b.daily_tokens, b.soft_warn_pct, b.on_exceeded,
+             coalesce(u.llm_calls, 0) as used_calls,
+             coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) as used_tokens
+        from tenant_budgets b
+        left join usage_ledger u
+          on u.business_id = b.business_id
+         and u.day = (now() at time zone 'Asia/Shanghai')::date
+       where b.business_id = ${B}
+       limit 1
+    `.execute(tx)).rows[0] ?? null),
   ]);
 
   const attention = {
@@ -135,6 +187,7 @@ export async function loadOperationsSnapshot(
       recentlyTaught: ops.report.factsAdded,          // M14 (owner_confirmed in range)
     },
     channel: { status: channels.whatsapp.status, provider },
+    budget: budgetOf(budgetRow),
     hasAttention: attention.pendingApprovals + attention.handoffs
                 + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
   };
@@ -235,6 +288,15 @@ export function renderOperationsHome(
         ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
       </section>`;
 
+  // G19 — the ceiling she set, before it stops her rather than after.
+  // `checkBudget` has said `soft_warn` since M51.2 and nothing read it. It is a
+  // notice, not a demand: it sits under the attention rows and never counts as
+  // attention, so a quiet day stays quiet.
+  const budget = s.budget
+    ? `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.near', { name, pct: s.budget.pctUsed }))} ${
+        esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p></section>`
+    : '';
+
   // 2 · How often you stepped in — two real counts as a fraction, never a rate.
   //     The denominator is only shown when it is honest (needed ≤ handled).
   let stepIn = '';
@@ -298,6 +360,7 @@ export function renderOperationsHome(
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>
   ${attention}
+  ${budget}
   ${stepIn}
   ${learning}
   ${activity}
@@ -306,8 +369,8 @@ export function renderOperationsHome(
     /* .block is the shell's now — Today is where the pattern came from. */
     /* Not-live is neutral, not celebratory: no tick, no green. */
     /* Needs you: full-width tappable rows — one thumb, no hunting. */
-    .needs { display:flex; flex-direction:column; gap:10px; }
-    a.need { display:flex; align-items:center; gap:14px; background:var(--color-surface);
+    .needs { display:flex; flex-direction:column; gap:var(--space-8); }
+    a.need { display:flex; align-items:center; gap:var(--space-12); background:var(--color-surface);
              border:1px solid var(--color-border); border-radius:12px; padding:16px 18px; }
     a.need:hover, a.need:focus-visible { border-color:var(--color-jade-line); }
     .need-n { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); min-width:1.6em;
@@ -326,18 +389,18 @@ export function renderOperationsHome(
     /* Not live is not an achievement: the rule is quiet, not jade. */
     .calm-page.off .calm-rule { background:var(--color-border); }
     /* Plain count lines — no tiles, no grid, no colour coding. */
-    .counts { display:flex; flex-direction:column; gap:2px; }
-    .tline { display:flex; align-items:baseline; gap:12px; padding:7px 0;
+    .counts { display:flex; flex-direction:column; gap:var(--space-4); }
+    .tline { display:flex; align-items:baseline; gap:var(--space-12); padding:7px 0;
              border-bottom:1px solid var(--color-border); }
     .tline:last-child { border-bottom:0; }
     .tnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em;
             font-variant-numeric:tabular-nums; }
     .tlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-    .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 6px; }
+    .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 var(--space-8); }
     .sub { font-size:var(--font-size-caption); letter-spacing:0;
-           color:var(--color-ink-secondary); margin:16px 0 8px; font-weight:600; }
+           color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); font-weight:600; }
     .quiet { color:var(--color-ink-secondary); margin:0; }
-    .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:22px 0 0;
+    .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:var(--space-24) 0 0;
                padding-top:16px; border-top:1px solid var(--color-border); }
     @media (max-width:560px) {
       .need-n { font-size:var(--font-size-numeral); }

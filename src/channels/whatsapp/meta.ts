@@ -1,7 +1,9 @@
 import type { ChannelAdapter } from '../contract.js';
 import { parseWebhook } from './parse.js';
 import { whatsappClient, type FetchLike } from './client.js';
-import { whatsappMediaFetcher, type MediaFetcher } from './media.js';
+import {
+  whatsappAudioFetcher, whatsappMediaFetcher, type AudioFetcher, type MediaFetcher,
+} from './media.js';
 import { verifySignature } from './signature.js';
 
 /**
@@ -46,10 +48,25 @@ export function metaAdapter(cfg: MetaConfig): ChannelAdapter {
 /** Two-step media retrieval — media ids live at the Graph root, not under the
  * phone number; both hops carry the Bearer token, never exposed in URLs. */
 export function metaMediaFetcher(cfg: MetaConfig): MediaFetcher {
-  return whatsappMediaFetcher({
-    baseUrl: `${META_GRAPH_BASE}/${cfg.graphVersion}`,
-    apiKey: cfg.accessToken,
-    authHeaders: { Authorization: `Bearer ${cfg.accessToken}` },
-    ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
-  });
+  return whatsappMediaFetcher(metaMediaConfig(cfg));
 }
+
+/**
+ * G2b — voice notes, over the same two hops and the same token.
+ *
+ * `metaMediaFetcher` accepts IMAGES only — its MIME set is jpeg/png/webp — so
+ * handing it to the audio path would type-check and then refuse every voice
+ * note as `unsupported media: audio/ogg`. Audio gets its own fetcher for the
+ * same reason `whatsappAudioFetcher` is its own function: a different accepted
+ * set and a different size ceiling are different facts about different media.
+ */
+export function metaAudioFetcher(cfg: MetaConfig): AudioFetcher {
+  return whatsappAudioFetcher(metaMediaConfig(cfg));
+}
+
+const metaMediaConfig = (cfg: MetaConfig) => ({
+  baseUrl: `${META_GRAPH_BASE}/${cfg.graphVersion}`,
+  apiKey: cfg.accessToken,
+  authHeaders: { Authorization: `Bearer ${cfg.accessToken}` },
+  ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
+});

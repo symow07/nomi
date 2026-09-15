@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { cssVariables } from '../../src/core/owner/css.js';
+import { loginPage } from '../../src/api/web/layout.js';
 
 /**
  * M49 — the layout test, which catches what the typography tests cannot.
@@ -22,6 +23,16 @@ import { cssVariables } from '../../src/core/owner/css.js';
 
 const SHELL = new URL('../../src/api/web/layout.ts', import.meta.url);
 const WEB_DIR = new URL('../../src/api/web/', import.meta.url);
+
+/** Every renderer's source: its stylesheets and its inline styles alike. */
+const renderers = async (): Promise<readonly { readonly f: string; readonly src: string }[]> => {
+  const files = (await readdir(WEB_DIR)).filter((f) => f.endsWith('.ts'));
+  return Promise.all(files.map(async (f) => ({ f, src: await readFile(new URL(f, WEB_DIR), 'utf8') })));
+};
+
+/** CSS rules in a source file, as selector list and body. */
+const rules = (src: string) => [...src.matchAll(/([^{}<>`;]+)\{([^{}]*)\}/g)]
+  .map((m) => ({ selectors: m[1]!.split(',').map((x) => x.trim()).filter(Boolean), body: m[2]! }));
 
 const shellCss = async (): Promise<string> => {
   const src = await readFile(SHELL, 'utf8');
@@ -71,29 +82,45 @@ describe('M49 · one measure', () => {
 });
 
 describe('M49 · one vertical rhythm', () => {
-  it('every MARGIN in the shell comes from the scale', async () => {
+  it('every MARGIN and GAP, in every renderer and the login page, is a spacing token', async () => {
     /**
-     * Margins, not every padding. Page rhythm is made of the space BETWEEN
-     * things — and that is what had drifted to gaps of roughly 100px, 40px and
-     * 180px on one page. The padding inside a chip or a button is optical: a
-     * 10px inset on a pill is a decision about that pill, not about the page,
-     * and forcing it onto an 8-point grid would move every control's
+     * Margins and gaps, not every padding. Page rhythm is made of the space
+     * BETWEEN things — and that is what had drifted to gaps of roughly 100px,
+     * 40px and 180px on one page. The padding inside a chip or a button is
+     * optical: a 10px inset on a pill is a decision about that pill, not about
+     * the page, and forcing it onto an 8-point grid would move every control's
      * proportions to satisfy a rule that was never about them.
+     *
+     * G17 — this used to read the shell alone, and only `margin` and
+     * `margin-top`-shaped names. Fifteen renderers had 93 off-scale values the
+     * shell test could not see (a gap of 10 here, a margin of 14 there), and
+     * `margin-inline-end` slipped past the pattern. Every one is now a token,
+     * so the rule is simply: no raw pixels in the space between things.
      */
-    const css = await shellCss();
-    const scale = new Set(DESIGN_TOKENS.spacingPx.map(String));
     const rogue: string[] = [];
-    for (const [i, line] of css.split('\n').entries()) {
-      if (line.trim().startsWith('/*') || line.trim().startsWith('*')) continue;
-      for (const m of line.matchAll(/\bmargin(-[a-z]+)?\s*:\s*([^;]+);/g)) {
-        for (const part of m[2]!.split(/\s+/)) {
-          const px = /^(\d+)px$/.exec(part);
-          if (!px) continue;                       // var(), 0, auto, %, vh — fine
-          if (!scale.has(px[1]!)) rogue.push(`line ${i + 1}: margin ${part}`);
+    for (const { f, src } of await renderers()) {
+      for (const [i, line] of src.split('\n').entries()) {
+        const s = line.trim();
+        if (s.startsWith('//') || s.startsWith('/*') || s.startsWith('*')) continue;
+        for (const m of line.matchAll(/(?<![\w-])(margin(?:-[a-z]+)*|(?:row-|column-)?gap)\s*:\s*([^;"}]+)/g)) {
+          for (const part of m[2]!.split(/\s+/)) {
+            // var(--space-*), 0, auto, %, vh — fine. A pixel count is a new step.
+            if (/^-?\d+(\.\d+)?px$/.test(part)) rogue.push(`${f}:${i + 1}  ${m[1]}: ${part}`);
+          }
         }
       }
     }
-    expect(rogue, `off-scale margins in the shell:\n  ${rogue.join('\n  ')}`).toEqual([]);
+    expect(rogue, `spacing that is not a token:\n  ${rogue.join('\n  ')}`).toEqual([]);
+  });
+
+  it('and every token used is one the scale emits', async () => {
+    // A `var(--space-10)` would read as a token and resolve to nothing.
+    const emitted = new Set(DESIGN_TOKENS.spacingPx.map((v) => `--space-${v}`));
+    const rogue: string[] = [];
+    for (const { f, src } of await renderers()) {
+      for (const m of src.matchAll(/var\((--space-[\w-]+)\)/g)) if (!emitted.has(m[1]!)) rogue.push(`${f}  ${m[1]}`);
+    }
+    expect(rogue).toEqual([]);
   });
 
   it('and the page-level containers are spaced from it too', async () => {
@@ -168,6 +195,26 @@ describe('M49 · colour once or twice per screen', () => {
     expect(css).toMatch(/\.back \{[^}]*color:var\(--color-ink\)/);
   });
 
+  it('NO LINK in any renderer is jade — a link is ink, and only its hover may deepen', async () => {
+    // G17 — My factory's blocker links were jade: the one colour that means
+    // "this sends" spent on "this opens a page". Structural, not a list of
+    // selectors: any class a renderer puts on an <a> is checked where it is styled.
+    const rogue: string[] = [];
+    for (const { f, src } of await renderers()) {
+      const onLinks = new Set([...src.matchAll(/<a\b[^>]*?class="([^"$]+)"/g)].flatMap((m) => m[1]!.split(/\s+/)));
+      for (const r of rules(src)) {
+        if (!/(?<![\w-])color\s*:\s*var\(--color-jade/.test(r.body)) continue;
+        for (const sel of r.selectors) {
+          if (/:hover|:focus/.test(sel)) continue;          // feedback on the pointer, not a resting colour
+          const last = sel.split(/\s+/).pop() ?? '';
+          const isLink = /^a([.:[]|$)/.test(last) || [...last.matchAll(/\.([\w-]+)/g)].some((m) => onLinks.has(m[1]!));
+          if (isLink) rogue.push(`${f}  ${sel}`);
+        }
+      }
+    }
+    expect(rogue, `a link spends the send colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
+  });
+
   it('the SEND button keeps it — that is the one thing jade means', async () => {
     const css = await shellCss();
     expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-jade\)/);
@@ -219,9 +266,36 @@ describe('M49 · buttons and empty states', () => {
     expect(css).toMatch(/form \.btn, form button:not\(\.full\) \{ align-self:start; \}/);
   });
 
+  it('the login button too — it was the last one stretched to the field above it', () => {
+    const html = loginPage({ locale: 'en', path: '/login' });
+    expect(html).not.toMatch(/button \{[^}]*width:\s*100%/);
+  });
+
   it('empty states align like the page around them', async () => {
     const css = await shellCss();
     expect(css).toMatch(/\.empty \{ text-align:start;/);
     expect(css).not.toMatch(/\.empty \{[^}]*text-align:center/);
+  });
+
+  it('and no page centres a card of its own in place of the shared one', async () => {
+    /**
+     * G17 — Buyers' "nothing waiting" was an `.ok-card` of its own, centred,
+     * beside a left-aligned page: the exact accident the shared `.empty`
+     * exists to prevent. It uses `.empty` now. What remains centred is
+     * centred on purpose, and each is named here with its reason.
+     */
+    const CENTRED = new Map<string, string>([
+      ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
+      ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
+      ['pilot.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
+    ]);
+    const rogue: string[] = [];
+    for (const { f, src } of await renderers()) {
+      for (const r of rules(src)) {
+        if (!/text-align\s*:\s*center/.test(r.body)) continue;
+        for (const sel of r.selectors) if (!CENTRED.has(`${f}  ${sel}`)) rogue.push(`${f}  ${sel}`);
+      }
+    }
+    expect(rogue, `centred, and not on the list:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 });

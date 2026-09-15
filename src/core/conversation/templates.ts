@@ -12,18 +12,23 @@ import { currencySymbol } from '../types/money.js';
  * commitment in English beats a hallucination in the client's language.)
  */
 
+/**
+ * G4 — "A confirmation email is on its way" was a promise nothing in this
+ * product can keep: it sends no e-mail at all until M40 has a sender. The buyer
+ * was told to wait for a message that would never come. What happens next is
+ * the factory's own step, and that is what is said.
+ */
 export function orderConfirmedReply(input: {
   orderReference: string;
   productName: string;
   quantity: number;
   unit: string;
-  email: string;
 }): string {
-  const { orderReference, productName, quantity, unit, email } = input;
+  const { orderReference, productName, quantity, unit } = input;
   return (
     `Your order is confirmed — reference ${orderReference}: ` +
     `${quantity.toLocaleString('en-US')} ${unit} of ${productName}. ` +
-    `A confirmation email is on its way to ${email}.`
+    `The factory will send you the proforma invoice.`
   );
 }
 
@@ -55,16 +60,6 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
 
 export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allow: number[] } {
   switch (refusal.kind) {
-    // M36 — she does not quote past this; the owner decides. The note exists so
-    // the deterministic fallback says something true if it is ever reached, and
-    // the allowed numerals are the two REAL prices — nothing here may invent a
-    // third.
-    case 'contradicts_history':
-      return {
-        note: 'This buyer was already quoted a different price for this product. Do not state a new price.',
-        allow: [refusal.prior.unitPrice.amount, refusal.prior.quantity,
-                refusal.proposedUnitPrice.amount, refusal.proposedQuantity],
-      };
     case 'below_moq':
       return {
         note: `Quantity ${refusal.requested} is below the minimum of ${refusal.moq}.`,
@@ -81,7 +76,18 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
 export const HANDOFF_REPLY =
   'Thanks — one of our specialists will follow up with you personally, shortly.';
 
-/** Last-resort reply when generation failed the numeral guard twice. */
+/**
+ * G8 — the one reply that needs no guard: no figure, no claim, no promise, no
+ * word an owner could reasonably forbid. Used when even the stand-in below
+ * fails a guard, and always held for her (core/conversation/hold.ts).
+ */
+export const SAFE_REPLY = 'Thanks for your message — let me check the details and come back to you shortly.';
+
+/**
+ * Stand-in when generation failed the guards twice. G8: guarded before use
+ * (pipeline/turn.ts), and `nextQuestion` must be the analyser's question —
+ * never an internal note meant for the writer.
+ */
 export function guardFallbackReply(quote: Quote | null, nextQuestion: string | null): string {
   if (quote) {
     return (

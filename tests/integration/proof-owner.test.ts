@@ -70,6 +70,8 @@ d('M35.1 · the owner issues and revokes the buyer link (requires DATABASE_URL)'
       sessionSecret: 'a-test-session-secret-of-sufficient-length',
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
       secureCookie: false, messagingEnabled: false,
+      // G11 — the address a buyer reaches this installation at.
+      publicBaseUrl: 'https://nomi.example.com',
       kickOutbound: async () => {}, kickDrive: async () => {},
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
@@ -128,11 +130,55 @@ d('M35.1 · the owner issues and revokes the buyer link (requires DATABASE_URL)'
     expect(n).toBe(1);
   });
 
-  it('the owner sees the live link on the conversation', async () => {
+  it('the owner sees the WHOLE link on the conversation — one she can send', async () => {
+    // G11 — it used to print `/p/<token>`, a path with no host: not a link,
+    // and not something she could paste to a buyer.
     const res = await app.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(`/p/${token}`);
+    expect(res.body).toContain(`https://nomi.example.com/p/${token}`);
     expect(res.body).toContain('Turn it off');
+    expect(res.body).toContain('class="proofrow"');
+  });
+
+  it('G11 · with no public address set, she is told rather than shown half a link', async () => {
+    const Fastify2 = (await import('fastify')).default;
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    const bare = Fastify2({ logger: false });
+    registerWebApp(bare, {
+      db, businessId: BIZ, accessCode: CODE,
+      sessionSecret: 'a-test-session-secret-of-sufficient-length',
+      employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled',
+      secureCookie: false, messagingEnabled: false,
+      kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await bare.ready();
+    const login = await bare.inject({ method: 'POST', url: '/login',
+      payload: `code=${encodeURIComponent(CODE)}`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const c = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    const res = await bare.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie: c } });
+    expect(res.body).toContain('your public address is not set up yet');
+    expect(res.body).not.toContain(`/p/${token}`);
+    await bare.close();
+  });
+
+  it('G11 · the page is in the language HE writes in, and its band contains his quantity', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    // A second tier he did NOT buy in: 1,000–9,999. His 20,000 must not read
+    // as that band — the page's whole claim is where the price came from.
+    await withTenantTx(db, bid.value, (tx) => sql`
+      insert into price_tiers (product_id, min_qty, max_qty, unit_price_usd)
+      values (${PROD}, 1000, 9999, 0.45) on conflict do nothing`.execute(tx));
+    await withTenantTx(db, bid.value, (tx) => sql`
+      update clients set preferred_language = 'ar' where id = ${CLIENT}`.execute(tx));
+
+    const res = await app.inject({ method: 'GET', url: `/p/${token}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('dir="rtl"');
+    expect(res.body).toContain('10,000');      // the band he actually bought in
+    expect(res.body).not.toContain('9,999');
   });
 
   it('REVOKING makes it a 404 — never a 403, and never distinguishable', async () => {

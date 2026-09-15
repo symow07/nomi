@@ -240,6 +240,8 @@ put it one stray click away on every row of a list of live buyers.
 `message_fragments` sat in migration 0009 with no writer for eleven milestones
 and the batching it existed for was never wired; a table created ahead of its
 writer is that mistake with a schema attached.
+*(C4.a, later: it never shipped at all. The first sender counts the
+`outbound_messages` rows it already writes, so there is one record of the day.)*
 
 ---
 
@@ -297,7 +299,7 @@ inbound story, which the section now states in full.*
 
 ---
 
-### M40 — Email as the cold channel
+### M40 — Email as the cold channel ✅ BUILT except C4.d (deferred until the pilot is live)
 
 The real outbound engine. Owner connects her own sending domain — she provides
 the credentials, as you want, and it is her domain's reputation, not ours.
@@ -371,11 +373,178 @@ dead documentation. A test also caught a `null` inside the events array taking
 the endpoint down with a 500, which would have made the provider replay a batch
 that had already written permanent rows.*
 
-**Still to build in M40:** `outreach_log` and the outreach ceiling counter
-(M42's `ceilingReached` is a required field precisely so this cannot be
-forgotten), the sequence engine with kill-conditions, one-click unsubscribe,
-bounce and complaint handling, the reply-as-opt-in, and the adapter itself —
-whose arrival is what flips e-mail's `availableHere`.
+#### C4.a — one e-mail, written by her, sent to one contact ✅ BUILT
+
+Migration 0046, `src/channels/email/`, `src/outbound/writeFirst.ts`,
+`src/db/outreach.ts`, the "Write to them" page off `/app/contacts`, and her daily
+cap on the writing-first card. `REQUIRED_SCHEMA_VERSION` 46.
+
+- **The database could not hold an e-mail conversation.** `conversations.channel`
+  and `client_channels.channel` both refused `'email'`; the outbound row carried
+  no channel and no subject; `enqueueOutboundRow` resolved recipients from a join
+  pinned to `'whatsapp'`. 0046 widens the three channel lists, adds
+  `outbound_messages.channel` (defaulted `'whatsapp'`, so no existing row changes
+  meaning) and `subject`, admits `origin = 'outreach'`, and gives
+  `outreach_settings` her `daily_cap`.
+- **No second send path.** `writeFirst` is `ownerReply` with a different origin:
+  it queues through `enqueueOutboundRow`, and the ONE worker picks the adapter by
+  the row's own channel at the one call site the guard rails pin. A row whose
+  channel has no adapter is refused `channel_unavailable`, never dropped.
+- **The window is the channel's.** `channelSendPlan` asks the registry: e-mail's
+  `replyWindowHours` is null, so it has no window to be outside of — without this
+  every mail was refused `window_closed`, naming a WhatsApp rule. An unknown
+  channel is treated as windowed, the refusing answer.
+- **The outreach gate finally has its facts.** `outreachFacts` reads her switch,
+  her cap, her domain, his consent and his suppression for one buyer; `writeFirst`
+  asks it when she presses send and the outbound store asks it again when the row
+  leaves, so a bounce that lands in between still stops the mail. An outreach row
+  whose facts could not be resolved is refused `outreach_unchecked` — `gateOutbound`
+  only asks the outreach question when the field is present, so a missing field
+  must not read as a yes.
+- **No `outreach_log`.** The cap counts `outbound_messages` rows that actually
+  left today on that channel with origin `outreach`. One record of the day rather
+  than two that can disagree. The default is 50 a day — a quarter of the reply
+  ceiling or less, because what is at risk is the address she has used for years.
+- **Every first mail carries RFC 8058 headers**, minted at the composition root
+  with the key the `/u` page reads with, in the buyer's own language when his
+  client row knows it. No public address configured means no link, which means
+  the mail is refused `no_unsubscribe` rather than sent without a way out.
+- **Activation and the pilot allowlist are WhatsApp's, stated rather than joined.**
+  `channels` has a row for WhatsApp only, and `pilot_allowlist.phone` holds digits
+  only. For an e-mail conversation the store no longer reads either: what stands
+  between her and a stranger's inbox is her switch, her verified domain, his
+  consent, his suppression and her cap, every one absent by default. C4.d gives
+  e-mail its own row and its own list.
+- **An address another factory already holds writes nothing here.**
+  `client_channels` is unique on (channel, identity) globally; the conversation and
+  client created for him are rolled back rather than left as an empty thread.
+- **A buyer on two channels has two threads.** `ensureConversation` finds the
+  active conversation per channel, so a first mail can never be queued into his
+  WhatsApp thread and leave as a text message with no subject.
+- **When C4.a landed, nothing left production, and that was correct.** No
+  domain could verify without a sending provider, deployment mode runs no
+  outbound worker, and the transport was a recording fake. *Superseded by C6:*
+  mail now leaves through the mailbox she connects, and the fake is tests-only.
+  Deployment mode still runs no outbound worker, so the write page still says
+  messaging is not switched on before she types.
+
+*The mutation check that mattered: pinning the store's identity join back to
+`'whatsapp'`, or dropping the outreach facts, fails four of the twelve
+integration tests over the real composition — the send, the unsubscribe loop,
+the late suppression and the cap.*
+
+#### C4.b — a first e-mail and the follow-ups after it ✅ BUILT
+
+Migration 0047, `src/core/outreach/sequence.ts`, `src/db/sequences.ts`,
+`src/outbound/sequences.ts`, and `/app/sequences` (reached from her contact list).
+`REQUIRED_SCHEMA_VERSION` 47.
+
+- **The one feature that keeps writing to a stranger after she stops looking,**
+  so its whole policy is one pure function, `decideStep`. In order: out of use →
+  he replied → a suppression, by its own reason → a person holds the thread →
+  the previous mail did not arrive → nothing left (finished only once the last is
+  known to have gone) → not due yet → previous still pending (an hour, and only
+  once due, so the hour can delay a follow-up and never bring one forward) → the
+  outreach gate. Refusals true forever stop it; her cap and a lapsed domain check
+  HOLD it until tomorrow in Shanghai, and after `MAX_HOLD_DAYS` (7) stop it. The
+  refusal-to-meaning map is a mapped type over the gate's vocabulary, so a new
+  refusal fails to compile until someone decides.
+- **What goes out is what she approved, word for word — enforced by the
+  database.** A trigger freezes an approved sequence's steps and name; another
+  refuses any enrolment on a draft or archived one. The approve form carries a
+  SHA-256 fingerprint of the words on her screen, and approval is refused if a
+  colleague edited a step while she read. The step trigger locks the sequence
+  row `for share`, so an edit and the approval cannot commit on one snapshot.
+  Approving and taking out of use are owner-only; writing, adding someone and
+  stopping are anyone's, with the name recorded.
+- **The schedule is a table; the queue only wakes it.** Each enrolment holds
+  `next_due_at`; a pg-boss cron runs `runDueSteps` every minute. No delayed job
+  per step — a lost job would be a follow-up that silently never happens.
+  Each enrolment is taken `for update skip locked` in its own transaction, so a
+  throw on one retries next minute without taking the batch down.
+- **No step is sent twice**, by two independent defences: the row lock, and a
+  `sequence_sends` key claimed before the outbound row is queued in the same
+  transaction. A deferral is `greatest(next_due_at, until)` — found by mutation:
+  with the lock removed, a sweep that lost the race deferred the winner's
+  "in two days" to "in an hour", and the follow-up went a day early.
+- **A step is an ordinary outbound row** (origin `outreach`, her subject), so
+  the gate, his suppression, her cap and the unsubscribe headers all apply at
+  the moment it actually leaves.
+- **The ops kill switch holds every follow-up** — found while writing the
+  runbook, not by a test: C4.a had left `global_silence` binding only the
+  employee's messages, so a schedule would have kept mailing strangers through
+  an emergency stop. The sweep now looks at nothing while it is on, and the gate
+  refuses a step queued the moment before (`GateInput.automated`, resolved by the
+  store from `sequence_sends`). A first mail she typed herself is still not held,
+  which keeps the refusal's sentence — "reply yourself, you are not paused" —
+  true.
+- **Prechecks count queued mail too.** `outreachFacts` gained `counting:
+  'sent_or_queued'` (queued within the last day) for her write button and the
+  scheduler; the send-time gate still counts only the sent. Before this, sixty
+  first mails queued in a minute against a cap of fifty were all accepted and ten
+  refused later. `writeFirst` (C4.a) now uses it as well.
+- **An address another factory holds** stops the enrolment `unreachable`, with
+  the thread and client made for him rolled back rather than left empty.
+- **Her words follow their own direction.** Every subject and body field and
+  block is `dir="auto"`: the Arabic page's first screenshot laid an English mail
+  out right-to-left, comma first.
+
+*The sequence is drafted by a person, not by her employee. "She proposes the
+sequence" (below) needs a live model and its own guard rails for cold copy;
+the approval that makes a proposal safe is what C4.b built, so a drafting
+employee can land later behind it without changing what is enforced.*
+
+#### C4.c — the reply is the opt-in ✅ BUILT
+
+Migration 0048, `src/channels/email/inbound.ts`, `src/pipeline/emailReply.ts`,
+and `POST /hooks/email/inbound`. `REQUIRED_SCHEMA_VERSION` 48.
+
+- **His answer arrives at a signed webhook** in one provider-neutral shape
+  (`from`, `messageId`, `inReplyTo`/`references`, `subject`, `text`); the adapter
+  that comes with the provider (M52) maps its own payload onto it. Same secret,
+  same raw-bytes HMAC and the same 404-on-a-bad-signature as the events route —
+  one helper, `signedBody`, for both.
+- **The tenant cannot be forged.** The reply names the mail it answers by
+  Message-ID; `resolve_email_reply` (SECURITY DEFINER, like `resolve_tenant`)
+  finds that id among mails this product actually SENT and returns the business,
+  thread and address from her record. And the sender must BE that address: a
+  colleague or a forward is `not_the_recipient` and records nothing in his name.
+- **What his answer changes, in one transaction:** his words on the thread
+  (deduped on his Message-ID), `replied_to_email` consent for e-mail to his
+  address, the `email_reply` signal and the SAME handoff an unread document takes
+  (`handToPerson`, moved out of the worker closure so there is one copy). No
+  model runs on a stranger's first answer. His follow-ups stop by C4.b's own
+  rule — he has written since he was enrolled.
+- **She answers him through the one send path.** The owner precheck is
+  channel-aware (an e-mail thread has no WhatsApp lifecycle); her reply takes
+  "Re:" and the subject of the mail he answered — how every mail client names a
+  reply, not an invented subject — and threads under his with In-Reply-To and
+  References. The unsubscribe refusal now asks for `List-Unsubscribe` BY NAME:
+  it had been "no headers at all", which a threading header would have satisfied.
+- **E-mail has no delivery receipt to wait for.** The outbound sequencer held
+  each message until the one before it had a WhatsApp 'delivered' receipt or 90
+  seconds passed; for e-mail that was always the full 90 seconds on her answer.
+  The registry now says `deliveryReceipts: false` for e-mail (absent means yes,
+  the waiting behaviour), and a mail still in flight still blocks the next.
+- **Found while building it — M40.2 could never have matched a real provider's
+  bounce.** Its webhook reads the tenant from a signed `tag` on each event, and
+  nothing ever handed a transport that tag: it existed only inside the
+  List-Unsubscribe URL. `MailMessage.tag` now carries it, the transport contract
+  says to attach it as provider metadata, and an integration test posts a bounce
+  echoing the tag of a real sent mail and sees the right address suppressed.
+- **The transport contract, written down for M52:** on success,
+  `providerMessageId` is the RFC 5322 Message-ID the recipient's client sees —
+  a provider's internal job id there would make every reply unmatchable.
+
+*The roadmap said a reply "opens WhatsApp for them later". It does not, and
+cannot: consent belongs to the channel it was given on (M38), and answering a
+mail hands nobody his phone number. It opens e-mail; WhatsApp opens when he
+messages her there.*
+
+**Still to build in M40:** per-channel activation (C4.d). **Built already:** the
+sending domain (M40.1), bounce and complaint handling (M40.2, repaired in G14,
+matchable since C4.c), one-click unsubscribe, the first mail (C4.a), follow-ups
+(C4.b), and replies (C4.c).
 
 **Draft-first applies here too.** She proposes the sequence; the owner approves
 it. Autonomy is granted per capability and revocable in one tap, exactly as it
@@ -388,7 +557,7 @@ and it costs nothing because the reply had to happen anyway.
 
 ---
 
-### M41 — Apollo, and the connector shape
+### M41 — Apollo, and the connector shape ✅ BUILT as C5 (live call unverified until M52)
 
 Apollo is one source behind a generic interface, not a special case — so a
 second source (Lusha, Clay, a CSV, her own trade-show list) costs a file rather
@@ -411,6 +580,49 @@ than a rewrite.
 
 Owner supplies her own Apollo API key, stored with `encryptSecret` like every
 other credential.
+
+#### C5 — Apollo behind a connector ✅ BUILT
+
+Migration 0049, `src/connectors/` (the contract and Apollo), `src/prospects/service.ts`,
+`src/db/prospects.ts`, `/app/prospects`, and a company line on her contact list.
+`REQUIRED_SCHEMA_VERSION` 49.
+
+- **One contract, Apollo behind it.** `ProspectSource` speaks the product's words
+  (a company, a person, a search); the next source is a file beside `apollo.ts`.
+  The Apollo client puts her key in the `X-Api-Key` header only, turns every
+  status into a closed reason (`unauthorized`, `no_credits`, `rate_limited`,
+  `unavailable`, `unreadable`) and carries nothing a vendor said past the
+  boundary. It refuses an address Apollo will not stand behind — a placeholder
+  or an unverified one. **Not yet exercised against the live API**: there is no
+  key here and none belongs in a test; the first real call is M52's.
+- **Her key, locked.** `connector_credentials` holds AES-256-GCM ciphertext and a
+  fingerprint — the first production use of the M3 helpers. Owner-only (on the
+  `outreach` action); replacing archives, removing archives, nothing is erased; a
+  key written under another CREDENTIAL_KEY reads as unreadable, never guessed.
+- **Every credit is a click.** Search spends nothing. Adding a person (their
+  business address) and looking up a company each spend one, only on a button
+  that says so. A company is bought once per domain per 90 days; a personal
+  mailbox (gmail, qq, 163…) is never looked up — it would buy "works at Google".
+  No network call holds a database transaction.
+- **Enrichment is for people, never for her employee** — asserted at source level
+  as the roadmap asked, and as an IMPORT GRAPH rather than a word search: no
+  module under `src/pipeline`, `src/llm`, `src/core/conversation`, `src/trust`,
+  `src/worker` or `src/retrieval` can reach the prospects store, service or a
+  connector through any chain of imports; the table is queried in exactly one
+  module; no prompt names it. A planted import fails the test.
+- **Target lists she decides about, never a queue.** A result is a person with one
+  button. Adding them creates a contact with `source: 'apollo'` and a job title —
+  and **no consent**. Her list says so in the gate's own words, and enrolment
+  refuses them by the existing path. *Enrolment into C4's sequences therefore
+  works for an Apollo contact exactly when a lawful basis is recorded, and not
+  before.*
+- Vendor facts on the Arabic page are isolated fact by fact, not as one span — the
+  first screenshot read ": 60 عدد الموظفين".
+
+**Waiting on the owner, not on code:** whether a cold e-mail to a business address
+found in a search may rest on "legitimate interest" (and so on a new consent
+evidence) is a legal decision. M38's rule — no row means no consent — holds for
+purchased leads until she makes it.
 
 ---
 
@@ -450,9 +662,9 @@ Instagram cannot be written to first while the gate would have sent.
   first layer is checked first so no refusal ever advises an action that cannot
   help.
 - **`ceilingReached` is required, not optional** — the `silenced` precedent.
-  Nothing counts outreach attempts yet because nothing makes one; the counter
-  and `outreach_log` arrive with the first sender (M40), and a required field
-  makes the compiler name that sender when it is written.
+  Nothing counted outreach attempts because nothing made one; a required field
+  made the compiler name the first sender when it was written — which C4.a did,
+  counting `outbound_messages` rather than adding an `outreach_log`.
 - **`REFUSAL_REASONS` is now spread from `GATE_REFUSALS`** rather than
   hand-copied, and moved to `outbound/worker.ts` — the read model that renders
   it is forbidden from naming the gate at all. The test that guarded the copy
@@ -523,7 +735,11 @@ says why.** Seasonal — worthless in June, essential in December.
 ### M45 — Samples ✅ BUILT (2026-08-14)
 "Can you send a sample?" is the second question in nearly every Yiwu
 conversation. Sample cost, whether it is credited against the first order,
-courier account, address collection. She meets this on day one of the pilot.
+address collection. She meets this on day one of the pilot.
+**Decided 2026-09-10: no courier details, ever.** This entry used to promise a
+courier account. Nomi does not hold one, cannot book a collection, and a field
+asking for her courier number would be a promise about shipping that nothing
+behind it keeps. The credit reaches the proforma (G15); the parcel is hers.
 
 ### M46 — After the order ✅ BUILT (2026-08-14)
 `confirmable.ts` and `invoice.ts` exist; the trail stops at confirmation. Three
@@ -542,45 +758,57 @@ single point of failure for a business built on messaging.
 
 ---
 
-### M51 — Nothing left in limbo ✅ BUILT (2026-08-18)
+### M51 — Nothing left in limbo ✅ BUILT (2026-08-30)
 
-Four things have been held rather than decided, and holding is what makes a
-codebase feel unfinished long after the features are done. Each has a note in
-`tools/check-reachable.mjs` explaining why it was held; none of them has a
-reason that still applies.
+Six things had been held rather than decided, and holding is what makes a
+codebase feel unfinished long after the features are done. Each is now decided —
+three built, two deleted, one continuous. Written as outcomes in G21, because
+this section described intentions for three weeks after the work shipped, and a
+roadmap in the future tense about the past is the drift it exists to prevent.
 
-**M51.1 — debounce-and-batch.** The one with a deadline. `batching.ts` is
-exempted as EXPIRES AT META GO-LIVE, and ASSUMPTIONS P1 says plainly: buyers
-send four fragments in ten seconds — "hello" / "price?" / "the bags" /
-"5000pcs" — each analysed alone is meaningless, **build before shadow.** 92
-lines of core exist; `message_fragments` has existed since 0009 with no writer.
-This bites on the first real buyer, and the pilot is the next thing that
-happens.
+**M51.1 — debounce-and-batch. BUILT.** Fragments persist to `message_fragments`
+(the table had existed since 0009 with no writer); `decideBatch` closes a batch
+on quiet or on a cap, and one turn answers the merged text. Media never merges
+into text, but it flushes a pending batch first, so a photo cannot overtake the
+sentence before it. The timings are per tenant and are operator-only on purpose
+— see OPS-RUNBOOK (G19). ASSUMPTIONS P1 is closed.
 
-**M51.2 — the budget gate.** `budget.ts` was meant to run BEFORE the analyzer
-call, the expensive one. It never runs. Its pause rule is meanwhile
-re-implemented in SQL in `db/channels.ts` — the same rule in two places, one
-enforced and one merely tested. That is this repository's most expensive
-recurring defect, and it is sitting in the open.
+**M51.2 — the budget gate. BUILT, AND ITS ORIGINAL DESIGN REVERSED.** The rule
+now lives once, in `core/budget.ts`: the SQL in `db/channels.ts` supplies the
+numbers and core makes the judgement, so the tested copy is the one that runs.
+What did NOT get built is the thing this milestone was written to do — consult
+the budget BEFORE the analyzer call, to save the expensive tokens. Skipping the
+turn would save those tokens and cost the owner her record of it: the outbound
+row is what carries `cancel_reason`, and that row is what the refusal surface
+renders as what happened, why, and what to do. A saving that makes a held
+message invisible to her is not a saving. `BUDGET_PAUSE_REPLY` went with it —
+"we are experiencing very high volume… a member of our team will reply to you
+personally" invents both halves. G19 then wired the one verdict that was still
+being computed and discarded: her soft warning now reaches Today, before the
+ceiling stops her rather than after.
 
-**M51.3 — the degrade ladder.** `degrade.ts` models a night-shift hold ack and
-a five-minute owner alert. What runs today is: the turn throws, pg-boss retries
-five times, dead-letters, alerts the owner. The modelled behaviour is better
-than the running behaviour. Wire it or delete it — a module that is better than
-production and not in production is a lie about what the product does.
+**M51.3 — the degrade ladder. DELETED.** `degrade.ts` modelled a night-shift
+hold acknowledgement and a five-minute owner alert. What runs is: the turn
+throws, pg-boss retries five times with backoff, dead-letters, and alerts the
+owner. A module that is better than production and not in production is a lie
+about what the product does, so it is gone rather than aspirational.
 
-**M51.4 — `editScope.ts`.** Held to see whether it could weigh spot-check
-evidence by edit size. It classifies the SCOPE of what an edit teaches, not the
-SIZE of one, and every input it needs is a signal nothing derives.
+**M51.4 — `editScope.ts`. DELETED.** Held to see whether it could weigh
+spot-check evidence by edit size. It classifies the SCOPE of what an edit
+teaches, not the SIZE of one, and every input it needs is a signal nothing
+derives.
 
-**M51.5 — why did this month change.** Formerly M43.5, unassigned. Name the
-driver and give the two counts ("询盘从 40 变成 25"), rank by the size of the
-change, end each line in something to tap. No percentages — that is why the
-first version was deleted rather than wired.
+**M51.5 — why did this month change. BUILT.** The driver is named with its two
+counts ("询盘从 40 变成 25"), ranked by the size of the change, ending in
+something to tap. No percentages — that is why the first version was deleted
+rather than wired. G19 gave it its own place beside the three things to do,
+because `slice(0, 3)` was dropping it on exactly the busy months it explains.
 
-**M51.6 — the map matches the ground.** This file said M37 was NEXT after it
-shipped, carried no status on eight built milestones, and pointed WeChat at
-M47. A roadmap that lies about the past cannot be trusted about the future.
+**M51.6 — the map matches the ground. CONTINUOUS.** This file had said M37 was
+NEXT after it shipped, carried no status on eight built milestones, and pointed
+WeChat at M47. It is not a milestone that can be finished: G21 is the same work
+again (this section, M40's list below, the audit findings, the environment
+docs), and the lesson is that it needs doing at the END of a block, every time.
 
 ---
 
@@ -621,7 +849,7 @@ alignment, spacing drawn from the scale. Screenshots at three widths, three
 locales, reviewed by eye — five defects in this project have now been caught by
 a screenshot and missed by a green suite.
 
-### M50 — The connect surface
+### M50 — The connect surface ✅ BUILT as C6 (WhatsApp paste path deferred with C4.d)
 
 One settings page where every account links: WhatsApp, Google/Microsoft,
 Instagram, Facebook, Apollo. Each shows connected / not connected / needs
@@ -631,6 +859,104 @@ This is the page the whole niche rests on, so it gets designed, not assembled.
 The owner is not technical and may have no IT support: she connects everything
 with a few clicks. Built against dev-mode platform apps with test accounts;
 paste-credentials stays as the fallback path for factory #1.
+
+#### C6 — the connect surface, and the transport that finally sends ✅ BUILT
+
+Migration 0050, `src/connectors/oauth.ts`, `src/channels/email/{senders,accountTransport,connectMailbox}.ts`,
+`src/db/mailAccounts.ts`, and "Your accounts" on `/app/channels`. `REQUIRED_SCHEMA_VERSION` 50.
+
+- **A read model that holds more than one account.** Gmail, Outlook, Apollo,
+  Instagram and Messenger, each answering the same questions: connected, as what,
+  and what it lets her do. "Not connected" and "not set up here yet" are
+  different rows — no Connect button for an app this installation has no client
+  for. Instagram and Messenger say what the registry says (they can never write
+  first) and offer nothing to press. WhatsApp keeps its own card: its lifecycle
+  is the pilot's.
+- **Connect Gmail / Outlook with a few clicks** — OAuth 2.0 authorization code
+  with PKCE (S256), owner-only. The callback is tied to the person who pressed
+  Connect by a signed, ten-minute, HttpOnly cookie scoped to `/app/connect`
+  holding the verifier, a nonce and her person id; a missing, stale, forged,
+  other-provider or other-person callback connects nothing (login-CSRF closed).
+  The ID token's audience, issuer, expiry and — for Google — `email_verified`
+  are checked. Scopes: send only. **Nothing that reads her mailbox**; a test
+  holds both providers to it.
+- **The refresh token is stored locked** (AES-256-GCM, fingerprint), one live
+  mailbox per business, replacing archives, nothing erased. No access token is
+  ever stored: it lives in the sending process's memory until a minute before it
+  expires.
+- **Production no longer sends into the recording fake.** The outbound worker
+  binds an account-backed transport to each job's own business. It reads the
+  live mailbox on every send and REFUSES, saying why, when none is connected,
+  when the installation has no app for its provider, when the mailbox is not on
+  her verified domain, or when the token is dead. A dead token (`invalid_grant`,
+  or a second 401) is recorded on the row and the page asks her to connect again.
+  Microsoft's rotated refresh tokens replace the stored one.
+- **One MIME message for both providers**, because Graph's JSON message only
+  allows `x-` headers and so could never carry List-Unsubscribe. Header injection
+  is closed (no CR/LF in any value, reserved headers not overridable), non-ASCII
+  subjects are RFC 2047-encoded. The Message-ID is minted on her domain and read
+  back from Gmail / taken from Graph's `internetMessageId`, keeping C4.c's reply
+  contract.
+- **Her SPF is checked against the mailbox she connected** (`_spf.google.com`,
+  `spf.protection.outlook.com`) when the host names no include — the first time
+  the domain requirement can actually pass without an operator setting.
+- **Not exercised against Google or Microsoft from here.** Dev-mode OAuth needs
+  her own Google Cloud project and Entra app (M52 #3, #4). Everything on this
+  side of the wire is tested with a recording fake.
+
+**Deferred, on purpose — the WhatsApp paste-credentials path.** The running app
+builds its WhatsApp sender once from the host's settings; a pasted token would
+only mean something if the pilot-critical send path read credentials from the
+database per tenant. That is the same class of pre-go-live reshaping the owner
+chose to defer for C4.d, so it waits for the pilot too. Apollo's paste path
+exists (C5).
+
+**Known limits, for the owner to decide:** a buyer's reply to a mail sent through
+Gmail/Outlook lands in her own inbox, not in the product — reading it would need
+`gmail.readonly` / `Mail.Read`, which Google classes as restricted (paid security
+assessment). The inbound webhook (C4.c) serves an e-mail service provider
+instead. Because of that, follow-ups wait for a person (0051, below). And an
+Outlook send that fails between creating and sending leaves a draft in her
+Drafts folder.
+
+#### After C6 — what the last check found (0051) ✅ BUILT 2026-09-15
+
+A final read of Block C against the code, before calling it done, found five
+things that would have failed a real factory. Migration 0051,
+`src/outbound/domainCheck.ts`, and `docs/EMAIL-SETUP.md`.
+`REQUIRED_SCHEMA_VERSION` 51.
+
+- **A sequence would have kept writing to a man who had answered.** C4.b stops
+  on a reply the product *records*. Since C6 her mail leaves through her own
+  mailbox and his answer lands there, unread, so `repliedSinceEnrolment` could
+  never become true: the one thing a sequence must never do, made certain.
+  Now `decideStep` takes `repliesObservable` — required, the composition root
+  says `false` — and where replies cannot be seen every follow-up (never the
+  first mail) waits for a person: "Waiting for you" on the sequence page, a line
+  saying his answer would be in her own inbox, and **No answer yet — send it**,
+  recorded with the person's name. Nobody pressing it for `MAX_HOLD_DAYS` stops
+  the enrolment `unconfirmed`. It is asked after the refusals that end a
+  sequence (nobody releases a mail that could never go) and before her cap and
+  domain holds; releasing resets the hold clock. A stale page releases nothing:
+  the button carries the step it was shown for. Today counts the waiting ones.
+- **The domain check lapsed on its own after a week.** Only her "Look again"
+  button renewed it, so a week after setup every follow-up was held and a week
+  after that stopped, for a reason she had done nothing to cause. The sequence
+  cron now looks first — daily after a pass, hourly after a failure — through the
+  same function as her button, and it can only record what DNS says.
+- **An Outlook app registered for "this organization only" could not
+  connect.** Microsoft refuses such an app at `/common`, which is what a factory
+  registering inside its own Microsoft 365 naturally creates.
+  `MICROSOFT_OAUTH_TENANT` sends the requests to her own tenant.
+- **An expired app secret would have asked her to reconnect, forever.** A
+  provider's `invalid_client` (Entra secrets always expire) was read as her
+  token being dead: her mailbox was marked "Needs you", and connecting again
+  failed the same way. It is now `app_refused`: her row is untouched, the mail
+  is refused naming the secret, and connecting tells her it is the
+  installation's to fix.
+- **Nobody could have set e-mail up from the docs.** `docs/EMAIL-SETUP.md` is
+  the operator's and owner's path, from the Google Cloud project or Entra app to
+  the DNS records to the first follow-up.
 
 ---
 
@@ -705,7 +1031,641 @@ the degrade ladder and editScope DELETED, the month-change insight BUILT
 without a single rate, and this file made honest. DECLARED_UNWIRED's
 "decisions not yet made" section is empty.
 
-### BLOCK C · The outbound engine — IN PROGRESS (C1–C3 built)
+### BLOCK G · Finish what was marked built ✅ DONE (2026-09-10 → 2026-09-12)
+
+A full audit on 2026-09-10 (commit a0c02e5) read every milestone above against
+the code. Thirteen "BUILT" claims held. Nine were partly there: a named part
+missing, or built and tested but never reachable from a live path. Planning
+the fixes found more that the audit had missed, several of them in front of a
+buyer. None of it is new scope. It is the distance between what this file said
+and what the code did, closed before anything new is started.
+
+**Order, decided 2026-09-10:** Block G first, then Block E on a new dedicated
+number, then the rest of Block C. G1–G10 are the pilot's prerequisites.
+
+| # | Milestone | Priority | Status |
+|---|---|---|---|
+| G1 | CI green, and a suite that runs from any folder | High | ✅ 2026-09-10 |
+| G2a | M34 · the transcript correction accepts only a buyer's voice note, and saves | High | ✅ 2026-09-10 |
+| G2b | M34 + M4 · she can hear and see in production | High | ✅ 2026-09-10 |
+| G2c | M34 · unheard notes and other message types reach the owner | High | ✅ 2026-09-10 |
+| G3 | Connect the factory's number — nothing could, so every inbound message was dropped | High | ✅ 2026-09-10 |
+| G4 | M46 · "where is my order?" works after confirmation | High | ✅ 2026-09-10 |
+| G5 | M44 + M35 · the proof page states only what the quote said | High | ✅ 2026-09-11 |
+| G6 | M46 · payment terms and incoterm come from the owner | High | ✅ 2026-09-11 |
+| G7a | Price rules · her ask-first line holds the reply — one hold rule | High | ✅ 2026-09-11 |
+| G7b | M36 · a contradicting price waits for her, then becomes the baseline | High | ✅ 2026-09-11 |
+| G8 | M37.5 · nothing unguarded reaches a buyer | High | ✅ 2026-09-11 |
+| G9 | M47 · staff access is safe | High | ✅ 2026-09-11 |
+| G10 | The reply window per buyer, approvals that tell the truth, unlisted numbers | High | ✅ 2026-09-11 |
+| G11 | M35 · every quote carries a working proof link | Medium | ✅ 2026-09-11 |
+| G12 | M47 · hand a conversation to a named person | Medium | ✅ 2026-09-11 |
+| G13 | M34 · she can play the buyer's voice note | Medium | ✅ 2026-09-11 |
+| G14 | M40.1 + M40.2 · ready for the first sender | Medium | ✅ 2026-09-11 |
+| G15 | M45 · the sample credit reaches the proforma (no courier: decided 2026-09-10) | Medium | ✅ 2026-09-11 |
+| G16 | M37 · re-photographing updates what changed | Medium | ✅ 2026-09-11 |
+| G17 | M49 · finish the design pass, with Playwright screenshots | Medium | ✅ 2026-09-11 |
+| G18 | M43a + M43b · money shows its currency everywhere | Low | ✅ 2026-09-11 |
+| G19 | M51 follow-ups | Low | ✅ 2026-09-11 |
+| G20 | Guard rails for the invariants | Low | ✅ 2026-09-11 (0044) |
+| G21 | This file matches the ground again | Low | ✅ 2026-09-12 |
+| G22 | Her discount rule can actually fire | Low | ✅ 2026-09-12 |
+
+**G1.** `tests/parity/m40-domain.test.ts` compared a check dated 31 August
+against the real clock, and the seven-day TTL turned CI red on 7 September.
+Five files built paths with `URL.pathname`, which percent-encodes, so the suite
+could not start from a folder with a space in its path. CI now also runs
+`npm run build`, the config Railway compiles and CI never did.
+
+**G2a.** The correction route had never succeeded. Its audit insert named a
+column `channel_audit` does not have, so every correction rolled back, and the
+only test read the route's source text. It also accepted any message id in the
+conversation. It now takes only an inbound voice note, records the machine's
+reading of an unheard note as empty rather than null, so the page says
+"Corrected by you", and writes the audit row with the signed-in person.
+`tests/integration/hearing.test.ts` drives it for real and fails on the old
+route.
+
+**G2b.** Neither M34 nor M4.5 had ever run in production. `startWorker` took
+four optional strings that neither entrypoint passed, so the transcriber and
+both media fetchers were `undefined` for the life of the process, and every
+voice note and photo was refused — honestly, which is why nothing looked
+broken. The fetchers are now built from the provider credential the app
+already validates (`src/worker/mediaPorts.ts`), including a new
+`metaAudioFetcher`: the Meta image fetcher accepts only images and would have
+refused every voice note. `TRANSCRIBE_API_KEY` is the one new setting, checked
+at boot when set. Whisper's language names ("arabic") now become the codes the
+product reads ("ar"). The simulator gained voice notes and a media endpoint,
+and `tests/integration/hear-and-see.test.ts` takes a voice note and a photo
+from a signed webhook, through pg-boss and the real worker, to an answer.
+Getting that test to pass twice in a row exposed two old test-isolation holes:
+the simulator reused message ids across runs, which the dedup key then
+swallowed, and integration files ran in parallel with several production
+workers sharing one job queue. The runner now runs files one at a time.
+
+**G2c.** Three things the owner never saw. An unheard voice note and an
+unclear photo recorded their signal but left the conversation with her, so it
+never reached "needs you"; both now take the existing AI → waiting-for-a-person
+transition. Anything else WhatsApp sends — a document, a video, a location, a
+sticker, a reaction — arrived as empty text and got a reply. Now
+`core/conversation/inbound.ts` decides first: reactions and stickers are
+recorded and ignored, and everything else goes to a person under a new
+`media_unreadable` signal (migration 0039, `REQUIRED_SCHEMA_VERSION` 39), shown
+on the conversation page with what arrived and his caption. And Today's list of
+why she needed you was a hand copy that had never learned `audio_unheard`; the
+problem kinds now live once, in `core/scoring/signals.ts`, and both surfaces
+read them.
+
+**G3.** The pilot could not have received a single message. An inbound message
+finds its factory through `channel_credentials`, and only the demo seed ever
+wrote that table; for a real factory every message was acknowledged to Meta and
+dropped, and "Connect" led to a page of steps with no action. `/app/channels`
+now offers **Connect this number** when the host is configured with one and
+this factory has never been connected. It is owner-only, under the same
+decision as activation. It writes the credential, the channel and the audit
+row in one transaction, and the number comes from the validated host
+configuration, never from the form. A number another factory holds becomes a
+clear message instead of an error. Connecting lets messages in; activating is
+still what lets her send. `tests/integration/connect.test.ts` shows a message
+dropped before, received after, dropped on disconnect and received again on
+reconnect.
+
+**G4.** M46's defining scenario — "where is my order?" three weeks later —
+could never be reached. Confirming closes the conversation, his next message
+opens a new one, and the lookup searched only the conversation it was asked in.
+An order the pipeline created also had no first entry in its history, which is
+what the lookup reads, so even the same conversation got nothing. Orders are
+now looked up by buyer (`latestForClient`, on the indexed `orders.client_id`),
+`orders.create` writes the first `confirmed` entry through the one writer, and
+a legacy `pending_confirmation` order is reported as awaiting confirmation
+instead of falling through to the model. The buyer's latest order now appears,
+and opens, on the new conversation and his profile. The confirmation no longer
+promises "a confirmation email is on its way" — nothing here sends e-mail.
+`tests/integration/order-status.test.ts` creates the order the way the turn
+does and fails on the old code; the M46 test had inserted its order by hand,
+first entry included, and never saw either defect.
+
+**G5.** The date M44 refused went out by the side door. During one of her
+closures the quote drops its lead time and a reply cannot state one, but the
+quote row kept no lead time at all, so the buyer's proof page read the
+PRODUCT's and printed it, attributed to her catalogue. Migration 0040 records
+what each quote said: its lead time, or the closure that withheld it (her
+label and dates, and deliberately not the date the lead time would have
+promised). The proof page reads that, says "not yet — the factory is closed
+for …" when a closure is the reason, and renders money in the quote's own
+currency. The owner's closed-card now reads the same record instead of
+re-deriving from today's closures, which had let a closure added after a date
+was promised claim no date was promised. The reply writer gets a closure note
+with her label, so the buyer hears why, and the prompt's worked examples no
+longer model a lead time or promise an e-mail. Old quotes are not backfilled:
+guessing the product's lead time would re-create the leak, so their pages
+state none. `REQUIRED_SCHEMA_VERSION` 40.
+
+**G6.** Every order the pipeline confirmed was stamped "30% deposit, 70%
+before shipment", and every proforma said FOB — one a literal in the turn, the
+other a message key. The owner gave neither, and a proforma is the document a
+buyer pays against. The claims policy could not carry them: its payment terms
+are four fixed patterns and several incoterms can be allowed at once, while a
+proforma names one. Migration 0041 adds `trade_terms`, insert-only with the
+newest row in force (as `sample_policy` and `owner_rates`): her payment terms
+in her own words and the one delivery term she puts on a proforma, drawn from
+the claims guard's own incoterm list. She states them on
+`/app/settings/terms` (owner-only, under the price-rules decision), and saving
+also allows that incoterm as a claim, so her document and her employee say the
+same thing. Orders snapshot both at confirmation (`orders.incoterm` is new),
+so changing her terms rewrites no document a buyer holds. With none stated, the
+order is still recorded; its page shows no proforma and says where to state
+them. Both literals are gone. `REQUIRED_SCHEMA_VERSION` 41.
+
+**G7a.** Her answer to "above how much off should she ask you first?" was
+computed as `requiresHuman`, stored on every quote, and read by nothing: with
+`quote` in auto, a discount past her line went straight to the buyer. It was
+also computed before the floor clamp, so a quote the floor had cut to 6.67%
+still claimed to need her sign-off for the 20% nobody was being given.
+`requiresHuman` is now decided on the final discount, and
+`core/conversation/hold.ts` is the one rule for "this reply waits for her":
+a quantity heard in a voice note (M34.5, folded in) or a discount past her
+line. `computeTurn` decides the reason once; `commitTurn`, the trust harness
+and the sandbox all read that field, and a hold only narrows (auto becomes
+draft; a silenced capability stays silent). A new invariant,
+`heldTurnNeverAutoSends`, is on the sandbox watchlist, and the golden set
+gains `discount-above-ask-line-waits-for-owner` (24 scenarios). The draft
+card says why it is waiting. My factory now promises the ask line, and states
+the HIGHEST ceiling instead of the lowest — "never more than 8%" had been
+shown while a product on a 12% ceiling was given 12%. The price-rules
+questions say what the engine does: the ceiling is the most she may ever give,
+even with the owner's OK; the ask line is where she stops and asks.
+
+**G7b.** M36's guard refused a price above what the buyer already had — and a
+refusal meant no quote, so the turn fell to `recommend`, the owner was never
+asked, and the refusal note still put the new price on the reply's allowed
+list. Approving that reply recorded nothing, so he was refused again next time;
+and every drafted quote counted as history, including the ones she skipped, so
+a price he never saw could become his baseline. The contradiction is now a
+field on the quote and a hold reason (it outranks her discount line). The quote
+exists, the draft states it as a `quote`, and it waits for her; the card shows
+the price he already has, its date, and the new one, and names the worse case
+(more pieces at a higher price each). "History" is now what he was actually
+GIVEN: `priorQuotesForClient` counts a quote only if its reply went out on its
+own or she approved it unchanged. Pending, skipped, rewritten and expired
+drafts never count. So her 发送 is what makes a new price the baseline, in
+`applyOwnerCommand`'s own transaction. **No migration**, where the plan
+expected one. Whether a price was given is already recorded, in
+`drafts.status` joined through `turns.quote_id`, and a flag beside it could
+only drift from it. The golden set gains
+`higher-price-than-already-given-waits-for-owner` (25 scenarios).
+`tests/integration/contradiction.test.ts` runs real turns: approve, raise the
+price, held, skip, still held, approve, then nothing to hold.
+
+**G8.** Two failed attempts ended in a stand-in that went out unguarded, and
+when the analyser had no question it fell back to the refusal note, which is
+guidance TO the writer ("Quantity 10 is below the minimum of 1000."). The page
+of words she must never use promised a reply with one "comes to you instead",
+and nothing did. Now the stand-in takes only the analyser's question, passes
+the numeral, claims and forbidden-word guards, and if it cannot, becomes one
+fixed sentence with nothing to guard (`SAFE_REPLY`). The turn is held for her
+as `guards_failed_twice`, the fourth hold reason, and the card names the words
+that kept stopping it. Auto-demotion still keys off her grant, not the hold. A
+forbidden word found in her OWN text (her taught answer, or the order-status
+line) is its own event, `forbidden_in_her_text`, tagged by path. It is shown on
+the conversation for her latest turn, with a link to fix the answer, and it is
+never a `guard_violation`, so it cannot block promotion for words the employee
+did not write. The forbidden term's `note` is finally written and shown to her.
+And a correction to 0029, made here and not in the applied migration: its
+comment says re-adding an archived term revives it. It never did. Re-adding
+inserts a new row and the archived one keeps its history, which is the better
+rule. `tests/pipeline/guarded.test.ts` drives a forbidden term through every
+path. None reaches the buyer, and the owner gets a draft wherever the employee
+could not write the reply.
+
+**G9.** Staff access was safe on paper: every owner-only POST was gated. But
+a new colleague's access code travelled in the redirect's query string, which
+the production request log records. The pages behind the gates (her floor,
+and the form that hands someone a way in) opened for anyone signed in. And
+staff were shown buttons that could only refuse them.
+- **G9a.** The code now rides a five-minute HttpOnly cookie scoped to
+  `/app/settings/people`, read once and cleared. It is signed with its own
+  `staffcode:` HMAC, not the session codec: that codec signs any payload and
+  reads a person-less session as the owner, so a code token minted with it
+  would have verified as her session. One cookie writer now takes a name. The
+  people and price-rules pages refuse staff with the POST gate's own sentence.
+  My factory, Your employee and Channels hide the owner-only controls and say
+  "The owner decides this." A zh refusal that told staff "only YOU can do this"
+  now names the owner; the zh catalogue rule exempts the `staff.*` lines, the
+  one audience for whom she is 老板. The source tests that read 900 characters
+  after each route name are replaced by a walk signed in as staff, over every
+  owner-only route and page.
+- **G9b.** Every older write site in the web app wrote the literal `'owner'`
+  as its actor, so a sales assistant's actions were recorded as hers. They now
+  write the signed-in person, and the conversation page and My factory show a
+  NAME: "Taken over by Xiao Chen", or "you" for the reader, and never an id.
+  `applyOwnerCommand` no longer writes `drafts.decided_by`. That column
+  references the legacy `agents` table, and the old guard passed any UUID
+  through, so the first approval by someone with a `people` row, the owner
+  included, would have failed the foreign key. Who decided is recorded in the
+  event and `capability_events.actor`, as it always also was.
+
+**G10.** Three things a pilot would have met on day one, and a fourth found
+while building them. Migration 0042.
+- **What was said was not written down.** A voice note, a photo and a file each
+  had a writer into `messages`; a typed line had none, and neither did a reply
+  that went out. The demo seed wrote both directly, so every screen looked
+  right. In production her conversation page would have shown drafts and
+  refusals but never the buyer's words or her own — and `messages` is also
+  where Buyers' latest line, the analytics counts and a contact's "he wrote
+  first" consent evidence come from. A typed line is now recorded as it
+  arrives (before batching), and a reply when the provider accepts it.
+- **One window for every buyer.** WhatsApp allows a free-form reply for 24
+  hours after THAT buyer last wrote, and the send path read
+  `channels.last_inbound_at`, which any buyer's message moves. With two buyers,
+  one silent for a day, his window never closed as far as the gate could tell
+  and Meta rejects the reply it let through. The window now lives on
+  `client_channels` — per buyer, as Meta counts it — written by the webhook
+  with `greatest`, so out-of-order deliveries cannot wind it back.
+- **Approving said "sent" when the gate was about to refuse.** The approve
+  route now asks the same question the reply route asks, the buyer's window
+  included. Live, and he cannot be reached right now: the draft stays pending
+  and she is told why, so she can approve it when he writes again. Not live at
+  all: unchanged — an approval before go-live is her decision recorded.
+- **A number not on her list cost a model call.** During the pilot the gate
+  refuses any reply to one, so the turn only ever produced a draft that could
+  never leave. It is now recorded, named on her timeline, and handed to a
+  person with the reason (`unlisted_number`), before any transcription, vision
+  or model call. She replies herself, or adds the number and hands it back.
+  The rule binds only once messaging is on: before that nothing can reach
+  anyone and her drafts are rehearsal.
+`tests/integration/day-one.test.ts` walks all four through the production
+composition. `REQUIRED_SCHEMA_VERSION` 42.
+
+**G11.** M35 opens with "every quote she sends carries a link", and no quote
+ever did: the owner had to tap a button afterwards, and the page then showed
+her `/p/<token>` — a path with no host, which is not something she can paste to
+a buyer. The minting moved to one writer that takes the caller's transaction
+(`db/proofs.ts`), because the quote a link proves is not visible outside the
+turn's transaction until it commits; the owner's route and the turn now reach
+the same writer, and the turn mints as it records the quote. The link is
+appended AFTER the guards, deliberately: a token's digits are not sourced
+figures and a segment like `-FOB-` is not an authorised claim, so a link inside
+the guarded text would be refused by the very rules that make the text safe. A
+new `PUBLIC_BASE_URL` (https only, checked at boot) is what a whole link is
+built on; absent, no link is attached and the owner is told so on the
+conversation rather than shown half of one. The buyer's page is now in the
+language HE writes in — `clients.preferred_language`, written by the turn from
+the analyser, a column that had existed since the baseline with only the demo
+seed writing it. Two things the page stated that the quote did not: its tier
+band ignored the band's upper bound (a buyer who ordered 20,000 was shown
+"5,000–19,999"), and taught facts were scoped to the conversation rather than
+to the product quoted. Both fixed. The owner's row gained the whole link and
+the styles it never had.
+
+**G12 — and the routing decision, recorded.** M47 left routing out on purpose —
+"no roles, no permissions matrix, no routing" — and that was right while nobody
+could be handed anything. **Decided 2026-09-10: build handing to a named
+person, and nothing more.** Not roles, not a permissions matrix, not a queue —
+one person hands one conversation to one other person, and the ownership model
+that already existed is extended rather than replaced. With
+staff it leaves the boss holding a conversation she cannot answer and no way
+to put it in front of the person who can; a sales assistant has no phone
+number, so a conversation only reaches them through this product. `handTo`
+moves it from one person to another INSIDE `OWNER_CONTROLLED`, through the same
+`canTransition` gate as every other move — the one self-transition the state
+machine now allows, and the AI stays silent either way. Who may receive one is
+a fact about the people table, not a role: a live person of this business, so a
+removed colleague and an id from another tenant are both refused. The
+conversation offers "Hand to…" (everyone but whoever holds it), says whose it
+is by name, and records `handed_to` with both names; the inbox gains a "Mine"
+tab, which appears only once more than one person works there. The header in
+`core/conversation/people.ts` that said NO ROUTING now says what is true: one
+move, not a system.
+
+**G13.** M34 shows the owner what a voice note said and, when the machine could
+not make it out, asks her to type what was said — about a recording she had no
+way to hear. The provider's media id lived only inside the pg-boss job that
+processed the message, so once that job finished nothing could ask WhatsApp for
+the audio again. Migration 0043 keeps the id on the message (a handle, never a
+URL: download links are signed and expire, and never the bytes), and a
+session-gated route streams it back through the same fetcher the worker hears
+with — resolved from the ROW, so a media id in a URL cannot be used to fetch
+anything else. Staff can play it too: whoever holds the conversation needs to
+hear it. A note received before 0043 has no handle and says so; a recording
+WhatsApp no longer holds says it has expired rather than pretending. And once
+she has typed what he said, "Answer this now" hands the conversation back to
+the employee (`resumeAi`, which also settles the signal that flagged it) and
+runs the ORDINARY turn on her words — same guards, same price rules, and
+provenance `transcribed`, because the figures in them are still one human's
+reading of a recording. `REQUIRED_SCHEMA_VERSION` 43.
+
+**G14.** The e-mail pieces are idle until a sender exists, and two of them were
+broken in ways that would only have surfaced on the first real callback.
+- **The bounce webhook could not verify anything in live mode.** A signature is
+  taken over the BYTES a provider sends; this route re-serialised the parsed
+  body and hashed that. Worse, with messaging live the Command Center is mounted
+  on the ingress app, whose JSON parser hands every route a STRING — so it
+  hashed a quoted string and no real event could ever pass. It now lives in a
+  scope of its own with its own raw-body parser (removing the inherited one
+  first, which both modes have), verifies over the bytes, and parses only
+  after. A byte-exact provider sample now passes in both modes.
+- **A correct SPF record read as wrong.** With no provider configured there is
+  no `include:` to look for, and the check called that `malformed` — telling her
+  to fix DNS that was already right. It is now `no_sender`: her record is fine,
+  we cannot confirm it yet, and sending stays refused either way. A record that
+  DELEGATES with `redirect=` is no longer malformed (RFC 7208 forbids an `all`
+  beside it), and the include must match as a WHOLE token — `includes()` matched
+  our mechanism inside `include:mail.example.com.attacker.example`.
+- **A suppression from the webhook is normalised and guarded**, like the
+  unsubscribe page's: an address echoed in another case wrote a second row that
+  no send would ever match, and one bad tenant could turn a batch into a 500 the
+  provider replays.
+- Unsubscribe tokens are signed with a key DERIVED from the session secret for
+  that purpose, derived inside mint and read so no caller can hold the wrong
+  one. `/app/contacts` now gets the domain, so it and the connections page give
+  the same answer about who may be written to. `SENDING_SPF_INCLUDE` and
+  `EMAIL_WEBHOOK_SECRET` are documented.
+- **And a flaky integration failure got its name.** Three simulators in
+  boot.test shared one tag; each restarts its wamid counter, and
+  `provider_message_id` is unique across every tenant, so two of them collided
+  the moment both sent — intermittently, depending on which blocks sent
+  anything. Each instance now has its own tag.
+
+**G15.** "The sample comes off the first order" was a sentence she could state
+and the product never kept: the proforma charged the full total. It is now
+derived when the document renders, with no new storage, from three rows that
+already exist — his FIRST order (counted by `orders.client_id`, the key M46
+looks orders up by, so a second order gets no second credit), that he ASKED for
+a sample (`sample_requests`, reached through its conversation), and the policy
+IN FORCE WHEN HE ASKED (`sample_policy` is insert-only, so the promise he was
+given is the one that was current that day — and a buyer who asked before she
+had stated anything was promised nothing). The proforma shows two lines, never
+one adjusted total: the price he was quoted, the deduction he was promised, and
+what is due. A sample priced in another currency is NOT converted — her rate is
+a decision she states (M43b), and applying one silently to a document a buyer
+pays against is exactly the arithmetic this product refuses to invent; the page
+tells her to take it off herself. The dead branch in `samples.ts` (free-and-
+credited and free-and-not returning the same sentence through two arms) is one
+sentence now. **One lesson worth keeping:** the first version compared the
+order's timestamp against a JavaScript `Date` handed back from the previous
+query, and Postgres stores microseconds where a `Date` holds milliseconds — a
+sample asked for in the same transaction as the order read as 688µs in the
+future and the credit vanished. The comparison stays in the database.
+
+**G16.** A printed price list exists to say this year's prices, and a
+photograph of one could not change a single price: every line was an insert
+that skipped a product she already had, and she was told they were "already
+here". Each confirmed line is now compared with her catalogue by one pure rule
+(`core/onboard/catalogDiff.ts`) and lands in exactly one pile — **new**,
+**changed** (a different price or MOQ), **already as the page says**, or
+**held**. The review and the confirm both compute that diff from the same
+staged lines, so the form carries only which changes she kept ticked, never
+what the changes are: a posted id can choose among changes her own catalogue
+produced, and cannot invent one.
+- **Which product a line is.** Her article number when the line has one (M22).
+  Without one, the product's name (either of its names) — but only when exactly
+  one product has it. A shared name is held rather than guessed, because
+  guessing changes the price of the wrong one.
+- **A line never erases.** No price on the line keeps her price; no MOQ keeps
+  her MOQ. Names are not changed from a page: a misread letter would rename what
+  her buyers already know.
+- **Each change is its own tick, on by default,** beside the line it was read
+  from, so one misread price can be left out without throwing away the sheet.
+- **Changes go through the one audited edit** (`updateProduct`, now taking the
+  import's transaction): the entry tier moves with the list price, her floor
+  still refuses, and the audit row carries the page line that moved the price.
+  A price under her floor is held at the review, naming the rule but never her
+  number, since staff can open this page. A floor she raises between the review
+  and the confirm still wins, and she is told it refused, not "left as it is".
+- A sheet that changes nothing offers nothing to confirm and says so. Rejected
+  lines past the first eight are counted ("and N more") instead of cut. The
+  three upload failures are each named for what they are: `too_large` only for
+  the parser's size limit, `not_a_photo` for a PDF, and `upload_failed` for a
+  form with no file or a stream that broke off. Before, all of these read "too
+  large", and a PDF was told to try better light.
+
+**G17.** M49 set the rules for one measure, one rhythm and two voices, but its
+spacing test read only the shell. Fifteen renderers had 93 off-scale margins and
+gaps between them (a gap of 10 here, a margin of 14 there), the shell had 10
+more, and `margin-inline-end` slipped past the pattern entirely.
+- **G17a · the rhythm.** All 209 raw-pixel margins and gaps in `src/api/web`,
+  off-scale or not, are now `var(--space-N)`. Each moved to the nearest step on
+  the scale; on a tie, margins take the larger step (space between rows opens
+  up) and gaps the smaller (items in a row stay together, matching the shell's
+  own `.fld`). The layout test now reads every renderer, the login page
+  included, and every `margin-*` and `gap`. It refuses any raw pixel value in
+  the space between things, and any token the scale does not emit.
+  - My factory's blocker links were jade, the colour that means "this sends",
+    spent on "this opens a page". They are ink and underlined now. The rule is
+    structural: any class a renderer puts on an `<a>` is checked wherever it is
+    styled, and only a hover or focus may deepen to jade.
+  - Buyers' "nothing waiting" was an `.ok-card` of its own, centred beside a
+    left-aligned page. It uses the shared `.empty` now. Anything still centred
+    is on a named list with its reason: the phone tab bar, the line under the
+    sign-in card, and the rehearsal verdict.
+  - The login button is as wide as its word, like every other button.
+  - Each new rule was checked by reintroducing its defect and watching it fail.
+- **G17b · screenshots.** Playwright, a dev dependency, drives
+  `tools/screenshots.mjs` (`npm run screenshots`). It captures every owner page
+  at phone, tablet and desktop widths in all three languages, plus a contact
+  sheet, and flags pages that did not render, rendered in the wrong language,
+  or are wider than their screen. It is not a CI gate. The first full run was
+  234 captures with nothing flagged; the order page was skipped because the
+  demo tenant has no order.
+  - Two things it surfaced on the way. The smoke script's failure handler ran
+    `kill "${APP_PID:-0}"`: before launch that is `kill 0`, which signals the
+    whole process group, so any tool that called the script died with it. It
+    now stops only what it started.
+  - Locally, this checkout lives in an iCloud-synced folder, and part of
+    `node_modules` and `dist` had been evicted to placeholders that iCloud
+    would not deliver. `node dist/main.js` sat idle forever without printing a
+    line, while the test suites passed because they load other modules. The
+    run-nomi skill now documents the symptom and the check.
+
+**G18.** M43a made money a pair — an amount and the currency it is in — so that
+a euro price added to a dollar floor could not compile. The owner surfaces then
+undid it one row at a time: each read a stored amount and rebuilt it with
+`usd(...)`, so whatever the column said, the screen said "$". The type was
+honest and the page was not.
+- **Her month's total was one number made of every order**, summed across the
+  currency column and labelled in dollars. It is now one total PER currency,
+  grouped in SQL; an amount in a currency this build cannot price is dropped
+  rather than counted as dollars.
+- **An order in another currency showed her nothing at all** — the page
+  rendered a total and a proforma only when the order was in USD, so a ￥ order
+  was a blank where her own order should be. Both now render in the order's own
+  currency.
+- The inbox list, the conversation, the buyer profile, the product list and
+  detail, her price rules and the public proof page all read the currency
+  column beside the amount. Where the currency is one this build cannot price,
+  the row is left out instead of priced in dollars — on the proof page that
+  means the link reads as gone, which is the fail-closed answer it already
+  gives for a quote that no longer exists.
+- **A range is only a range inside one currency.** "She never quotes below
+  $0.30" was built from every floor she has; with two currencies that sentence
+  would be a number she never said, on the page where she checks what her
+  employee may promise. It is stated only when her floors agree.
+- The order total now shows the converted amount beside it, as the quote
+  already did — her own money, at the rate she stated, with the date she
+  stated it.
+- **What holds it shut:** a source rule that no owner surface may call `usd()`
+  on a value that came out of a row, and renderer tests written in ￥, because
+  a test that only ever passes dollars cannot fail. The five tables that still
+  refuse a second currency are pinned too: the day one of them widens, that
+  test fails and names the screens to look at. The comment in `money.ts` that
+  still said "USD is still the only currency" — eleven milestones after CNY
+  joined — says what is true now.
+
+**G19.** Three loose ends from M51, each a thing that was computed and then
+thrown away.
+- **The warning that arrives before the stop arrived nowhere.** `checkBudget`
+  has returned `soft_warn` since M51.2 and the send gate asks only "is it
+  pause?", so the owner learned about her ceiling by her employee going quiet.
+  Today now carries it: her percentage, and what HER setting does at 100% —
+  stops, or keeps answering — so the sentence is her rule rather than a general
+  fact about limits. It is a notice, never attention: a quiet day with a
+  warning on it is still a quiet day. Below her own soft-warn line nothing is
+  said, because a warning shown every day is a warning nobody reads.
+- **The month-change insight was dropped on exactly the month it explains.** It
+  was pushed onto the same list as the three things to DO and then cut by
+  `slice(0, 3)`: three drafts waiting, a quiet buyer and an unpriced product
+  crowded out "inquiries went from 12 to 30". It is a different kind of thing —
+  something to know, not something to do — and it now sits beside the three
+  instead of competing for one of their places. The cap still applies to the
+  things to do.
+- **The batching timings are documented as operator-only** (docs/OPS-RUNBOOK.md)
+  rather than put on a settings page. Every number she sets in this product is a
+  commercial rule she can state in her own words; "how many seconds to wait
+  before replying" is a tuning knob whose right value depends on provider jitter
+  and nothing she knows about her buyers. The runbook says what the columns are,
+  what changing them costs, and how.
+
+**G20.** Five invariants that were true and unguarded. An invariant with no
+guard rail is a convention, and the defect this repository keeps finding is a
+second implementation of a rule that agreed with the first until it did not.
+- **"Exactly one module decides whether a message may be sent" read four
+  directories one level deep.** A second gate in a subdirectory — or anywhere
+  in `src/pipeline`, which it never looked at — was invisible to it. It is
+  recursive over all of `src/` now, and the old copy is deleted rather than
+  left to disagree.
+- **The one sender outside that gate is named.** `deliverOwnerAlert` writes to
+  the owner's own phone, which is not a buyer message and is not subject to her
+  allowlist or the 24-hour window. It is a deliberate exception, and it is now
+  the only one that can exist without a test turning red.
+- **Only `enqueueOutboundRow` inserts an outbound message.** Every refusal the
+  owner reads — the cancel reason, the audit row, the what/why/what-to-do card
+  — is a row that function wrote. A second INSERT would produce a message with
+  no refusal story behind it.
+- **The app role holds no DELETE and no TRUNCATE in `public`.** Archive-never-
+  erase stops being a discipline and becomes a grant the role does not have.
+  The exception is the `pgboss` schema and it is not ours: a queue deletes
+  finished jobs, and those tables hold no business fact. Both halves are pinned,
+  and the exception is written down in the ops runbook.
+- **An applied migration that changed on disk is now an error** (0044). The
+  runner chose work by version number, so editing an applied file was silent:
+  it ran on every clean database and on none of the old ones, and the two
+  drifted with nothing saying so. Each applied migration records the sha256 of
+  what ran; a file that no longer matches stops the run, names itself, and says
+  to write a new migration instead. Rows that predate the column are backfilled
+  rather than judged.
+
+**G21.** The map matches the ground again — the same work M51.6 did, which is
+why it is now written down as the thing a block ENDS with rather than a
+milestone anyone finishes.
+- **The 2026-09-10 audit is closed, finding by finding** (table below). One of
+  its findings was wrong and is recorded as wrong rather than quietly dropped.
+- **M51 reads as outcomes**, with the real commit date (2026-08-30, not the
+  2026-08-18 this file claimed) and the decision it reversed: the budget gate
+  deliberately does NOT run before the analyzer, because skipping the turn would
+  save tokens and cost her the refusal row that tells her it happened.
+- **M40's "still to build" list no longer names work that shipped.** The sending
+  domain, bounce and complaint handling, and one-click unsubscribe were on it
+  after they were built, which hides what is actually left.
+- **The courier and routing decisions are recorded where the promise was made** —
+  M45 no longer offers a courier account Nomi cannot book, and M47 says what
+  "routing" was scoped to mean.
+- **The environment docs match the code**, and a test keeps them that way: every
+  `process.env` name in `src/` must appear in `docs/env-checklist.md`. The
+  `PORT` default said 8080 for four months while the code used 8787, and the
+  three pool settings were in `.env.example` and no table at all.
+- **The n8n-era documents moved to `docs/archive/`** with a README saying what
+  each one was: a setup guide that starts "create a Supabase project" is not a
+  historical curiosity when it sits beside the current one, it is a trap.
+- **ASSUMPTIONS.md has the closed section it asked for since M5.** Four entries
+  moved into it. Two of them (one send path, archive-never-erase) were never in
+  the register at all — an invariant everyone believes is exactly the one nobody
+  writes down.
+- **The demo factory can be replied to.** It seeded six buyers with phone
+  numbers and no `client_channels` row, so on the tenant a new factory is shown
+  first, approving a draft reported "sent" while `enqueueOutboundRow` returned
+  null: nothing queued, therefore nothing refused, therefore nothing on the
+  blocked list either. Every seeded buyer now has the number he can be reached
+  on and an open window.
+
+**G22.** Her "ask me above this discount" line could never fire, and neither
+could her ceiling. `computeQuote` derives a discount from `negotiation_rules`
+and from nowhere else, and no owner surface had ever written that table: every
+quote came out at `discountPct` 0, so "never more than 8% off" was a ceiling on
+nothing and the hold G7a built described an event the product could not
+produce. **Found by the pre-pilot walkthrough** — scenario 7 had to insert the
+row by hand, and a rehearsal that reaches into the database is rehearsing
+something the owner cannot do.
+- She writes it in her own terms on her price-limits page: which product (or
+  everything she sells), from how many pieces, how much off. Archived rather
+  than deleted when she stops offering it, and audited as the price rule it is
+  rather than under a second vocabulary for the same history.
+- **It refuses rather than clamping.** A discount above the most she said may
+  ever come off is rejected naming her own number — the engine would quietly
+  narrow it, which leaves her believing she has a rule she does not. One with
+  no limits stated at all is refused too: the floor is what makes a discount
+  safe, and M29's argument is that absence of a rule is never a default.
+- With none written, the page says plainly that she never offers one. That was
+  always true and never said.
+- The engine needed no change. It has always been able to discount; nothing
+  could tell it to.
+
+#### Found while planning C4 — fixed 2026-09-12 (0045)
+
+**Her "check my domain" button raised a 500, in production's own
+configuration.** G14 gave the SPF answer a fourth state, `no_sender` — her
+record is fine and we cannot confirm it until a sending provider exists — so
+the page would stop telling her to fix DNS that was already correct. The type
+gained the value and the CHECK on `sending_domains.spf_state` did not.
+`SENDING_SPF_INCLUDE` is unset in every production today, so `checkSpf` returns
+`no_sender` for every well-formed record and `recordDomainCheck` writes it
+unconditionally: a constraint violation on an owner action, in the one
+configuration nothing tested. The existing suite always passed an include, and
+so never produced the state the column refused.
+
+0045 widens all three state columns to the code's own vocabulary — they share
+one `RecordState`, so a column accepting a subset is the same defect waiting on
+a different record — and `RECORD_STATES` is now an exported array that an
+integration test compares against the constraints, so the type and the column
+cannot drift again. The regression test runs the configuration production runs
+in: no include, a correct record, and the check recorded rather than thrown.
+
+#### The 2026-09-10 audit, closed
+
+| # | What the audit (or the planning that followed it) found | Closed by |
+|---|---|---|
+| 1 | CI red since 7 September; `npm test` could not start in a path with a space | G1 |
+| 2 | The transcript correction had never once succeeded — its audit insert named a column that does not exist | G2a |
+| 3 | The worker never received a transcriber or media fetchers, so every voice note and photo was refused in production | G2b |
+| 4 | Stickers, documents, videos and locations arrived as empty text and ran a turn | G2c |
+| 5 | Nothing in the product could connect a real factory's number; inbound was acknowledged and dropped | G3 |
+| 6 | "Where is my order?" could not work: confirming closed the conversation and the lookup searched only that conversation | G4 |
+| 7 | The proof page printed a lead time the quote had withheld, and "$" whatever the currency | G5 |
+| 8 | Every order was stamped with payment terms and an incoterm the owner never gave | G6 |
+| 9 | Her "ask me above this discount" line was computed, stored, and never enforced | G7a |
+| 10 | A price contradicting one the buyer already had was refused outright, and never became the baseline | G7b |
+| 11 | A reply that failed the guards twice went out unguarded, carrying an internal note | G8 |
+| 12 | A new staff code travelled in a URL that production logs; owner-only pages were open to staff | G9 |
+| 13 | The 24-hour window was per business, so two buyers broke it; approving skipped the send precheck; an unlisted number ran a model turn | G10 |
+| 14 | The proof link the roadmap opens with was a relative path nobody could open | G11 |
+| 15 | A voice note could be corrected but never played | G13 |
+| 16 | The e-mail webhook could never verify a signature in live mode; a correct SPF record read as malformed | G14 |
+| 17 | "The sample comes off the first order" never reached the proforma | G15 |
+| 18 | Re-photographing a price sheet changed nothing — every line was an insert that skipped an existing product | G16 |
+| 19 | 103 off-scale spacings across sixteen renderers; a jade link; a centred empty state | G17a |
+| — | **WRONG FINDING:** the audit reported that "Turn off this link?" never appears. It does — every confirm button has an inline handler and no policy blocks it. Recorded rather than dropped: an audit that is never wrong is an audit nobody checked. | — |
+
+### BLOCK C · The outbound engine ✅ DONE except C4.d (2026-09-15)
 
 #### Block C in detail — built offline, plugged in at M52
 
@@ -717,9 +1677,9 @@ at all.** It was deferred as "blocked", and it is not.
 | C1 | **M38 contacts, consent, suppression** ✅ BUILT | None. Schema and owner surfaces. |
 | C2 | **M39 channel capability registry** ✅ BUILT | None — it is the thing that TELLS the owner what each channel can do. |
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
-| C4 | **M40 email from her own address** — M40.1, M40.2 built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
-| C5 | **M41 Apollo behind a connector** | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
-| C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
+| C4 | **M40 email from her own address** ✅ BUILT — M40.1, M40.2, C4.a, C4.b, C4.c; C4.d (per-channel activation) deferred until the pilot is live | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
+| C5 | **M41 Apollo behind a connector** ✅ BUILT (live call unverified until M52) | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
+| C6 | **M50 the connect surface** ✅ BUILT (WhatsApp paste path deferred with C4.d; providers unverified until M52) | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 
 Built in that order, each one ships with "not configured" as an honest state —
 the same shape M34 and M37 already use. When M52's credentials arrive they are

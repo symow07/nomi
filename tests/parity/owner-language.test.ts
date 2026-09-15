@@ -86,7 +86,7 @@ const emptyOps = renderOperationsHome({
   hasAttention: true,
   activity: { handled: 9, draftsCreated: 3, corrections: 1 },
   knowledge: { openGaps: 2, recentCorrections: 1, recentlyTaught: 4 },
-  channel: { provider: 'meta', status: 'connected' },
+  channel: { provider: 'meta', status: 'connected' }, budget: null,
 }, 'zh');
 
 const inboxList = renderInboxList({
@@ -112,7 +112,7 @@ const analytics = renderAnalytics({
   range: 'month', hasActivity: true,
   summary: { newClients: 4, activeConvos: 12, quotes: 3, orders: 1 },
   activity: { inbound: 12, replied: 9, waiting: 2 },
-  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totalValue: usd(7300) },
+  commerce: { quotes: 3, orders: 1, deals: [{ status: 'confirmed', n: 1 }], totals: [usd(7300)] },
   employee: { handled: 9, waiting: 2, edits: 1 },
 }, 'zh');
 

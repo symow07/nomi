@@ -1,4 +1,5 @@
 import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import type { TradeTerms } from '../core/commerce/terms.js';
 import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
@@ -96,6 +97,7 @@ class HarnessTenant implements Tenant {
     }
     if (s.allowedClaims) this.allowedClaims = [...s.allowedClaims];
     if (s.grants) (this.grantRows as AutonomyGrant[]).push(...s.grants);
+    if (s.priorQuotes) this.priorQuotes = s.priorQuotes.map((q) => ({ ...q, at: new Date(q.at) }));
     if (s.knowledge) this.knowledgeRows = s.knowledge.map((k, i) => ({ id: `sk-${i}`, productId: k.productId ?? (TRUST_PRODUCT_ID as string), kind: k.kind, label: k.label, content: k.content, source: k.source ?? 'owner_confirmed', status: 'active' as const }));
     this.state = emptyState(s.state);
   }
@@ -110,13 +112,17 @@ class HarnessTenant implements Tenant {
     assign: async () => {},
     close: async () => {},
   };
-  clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {} };
+  clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
+  /** G11 — the harness proves decisions, not links: no host, so no link. */
+  proofs: import('../db/ports.js').ProofRepo = { issue: async () => null };
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
   forbidden: string[] = [];
   /** M44 — days the factory is shut, as the owner stated them. */
   closures: FactoryClosure[] = [];
   /** M45 — what she has said about samples. Null unless a test sets it. */
   sample: SamplePolicy | null = null;
+  /** G6 — her proforma terms. Null (she has stated none) unless a test sets them. */
+  terms: TradeTerms | null = null;
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
@@ -126,6 +132,7 @@ class HarnessTenant implements Tenant {
     /** M44 — closures the owner stated. Empty unless a scenario sets them. */
     factoryClosures: async () => this.closures,
     samplePolicy: async () => this.sample,
+    tradeTerms: async () => this.terms,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],
@@ -133,7 +140,7 @@ class HarnessTenant implements Tenant {
   orders: OrderRepo = {
     create: async () => ({ orderId: `o-${++this.orderSeq}`, orderReference: `YW-${this.orderSeq}` }) as never,
     /** M46 — no order in the harness unless a test sets one. */
-    latestForConversation: async () => this.latestOrder,
+    latestForClient: async () => this.latestOrder,
   };
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
@@ -222,7 +229,11 @@ export async function evaluateScenario(
   const effects = await commitTurn(ports, req, result, Date.now());
 
   const capability = capabilityOf(result.decision, result.quote !== null);
-  const requestedMode = resolveMode({ capability, grants: tenant.grantRows, now, timeZone: BUSINESS_TZ });
+  // G7a — what HER rules resolve to: the grant, then her hold rules, read
+  // from the one field the pipeline decided. Re-deriving the mode from the
+  // grant alone would call every held turn an escalation failure.
+  const requestedMode = result.hold ? 'draft'
+    : resolveMode({ capability, grants: tenant.grantRows, now, timeZone: BUSINESS_TZ });
   const appliedMode: TurnOutcome['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (productId: string): number | null => tenant.floorFor(productId);
 

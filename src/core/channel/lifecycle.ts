@@ -76,15 +76,24 @@ export const canActivateChannel = (f: ChannelFacts): boolean => channelLifecycle
  * different things, and it is deliberately conservative: anything it is unsure
  * of, it stays quiet about and lets the gate decide.
  */
-export type SendPrecheck = 'ok' | 'not_activated' | 'not_connected' | 'not_allowlisted';
+export type SendPrecheck = 'ok' | 'not_activated' | 'not_connected' | 'not_allowlisted' | 'window_closed';
 
 export function precheckOwnerSend(
-  f: ChannelFacts, opts: { readonly recipientAllowed: boolean; readonly pilotMode: boolean },
+  f: ChannelFacts, opts: {
+    readonly recipientAllowed: boolean; readonly pilotMode: boolean;
+    /**
+     * G10b — what the window allows for THIS buyer right now (`sendPlan`).
+     * Absent means unknown, and unknown stays quiet: the gate decides.
+     */
+    readonly windowAction?: 'send_free' | 'send_template' | 'wait_for_buyer';
+  },
 ): SendPrecheck {
   const state = channelLifecycle(f);
   if (state === 'not_connected') return 'not_connected';
   if (state === 'paused') return 'not_activated';
   if (state === 'ready') return 'not_activated';        // connected, never started
   if (opts.pilotMode && !opts.recipientAllowed) return 'not_allowlisted';
+  // The gate's own order: the window after the allowlist.
+  if (opts.windowAction === 'wait_for_buyer') return 'window_closed';
   return 'ok';
 }

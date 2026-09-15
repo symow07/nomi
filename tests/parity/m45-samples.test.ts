@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import {
   asksForSample, sampleAnswerContext, validateSamplePolicy, type SamplePolicy,
 } from '../../src/core/commerce/samples.js';
@@ -158,7 +159,7 @@ describe('M45 · the production path', () => {
     const { execSync } = await import('node:child_process');
     const hits = execSync(
       'grep -rniE "samples are (usually|normally|typically) free|default sample|free sample" src || true',
-      { cwd: new URL('../../', import.meta.url).pathname, encoding: 'utf8' },
+      { cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8' },
     ).split('\n').filter((l) => l.trim() !== '');
     expect(hits, `a sample policy we invented:\n${hits.join('\n')}`).toEqual([]);
   });

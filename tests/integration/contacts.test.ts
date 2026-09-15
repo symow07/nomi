@@ -329,7 +329,8 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
      * Both people are refused, for DIFFERENT reasons, and both are the truth:
      *
      *   the e-mail contact — consent is on file and e-mail allows a first
-     *     message, but nothing here can send one yet (M40).
+     *     message, but her sending domain is not verified, so it cannot go
+     *     (M40.1; before C4.a the reason was that no adapter existed at all).
      *   the buyer who WhatsApped — no template is approved, so the channel
      *     cannot carry a first message whatever she decides.
      *
@@ -381,10 +382,15 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
   });
 
   it('M42 · a decision that cannot take effect is refused, not stored', async () => {
-    // Instagram can never carry a first message; e-mail has no adapter yet.
-    // Neither is merely hidden from the page — the writer refuses both, so a
-    // hand-made request cannot create a setting with nothing behind it.
-    for (const channel of ['instagram', 'email']) {
+    // Instagram and Messenger can never carry a first message. Neither is merely
+    // hidden from the page — the writer refuses both, so a hand-made request
+    // cannot create a setting with nothing behind it.
+    //
+    // C4.a — e-mail was on this list while it had no adapter, and came off it
+    // the day `src/channels/email/` landed with a send path. That is the rule
+    // this test pins working in the other direction: the switch becomes
+    // storable exactly when it can take effect (asserted below), not before.
+    for (const channel of ['instagram', 'messenger']) {
       const res = await post('/app/channels/outreach', `channel=${channel}&enabled=true`);
       expect(res.statusCode, channel).toBe(302);
       expect(res.headers['location'], channel).toContain(encodeURIComponent('did not save'));
@@ -393,6 +399,13 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
          where business_id = ${BIZ} and channel = ${channel}`.execute(t).then((r) => r.rows[0]!.n));
       expect(n, channel).toBe(0);
     }
+    // And the one that can take effect now is stored, with her decision on it.
+    const email = await post('/app/channels/outreach', 'channel=email&enabled=true');
+    expect(email.headers['location']).not.toContain(encodeURIComponent('did not save'));
+    const stored = await tx((t) => sql<{ n: number }>`
+      select count(*)::int as n from outreach_settings
+       where business_id = ${BIZ} and channel = 'email' and enabled`.execute(t).then((r) => r.rows[0]!.n));
+    expect(stored).toBe(1);
   });
 
   it('M40.2 · A BUYER UNSUBSCRIBES HIMSELF, and it is permanent', async () => {

@@ -32,6 +32,40 @@ export type OutboundMedia = {
   readonly caption: string;
 };
 
+/**
+ * C4.a — a message that needs more than a body.
+ *
+ * `sendText(to, body)` is the WhatsApp shape and it has no room for a subject.
+ * Deriving one from the first line was considered and rejected: the subject
+ * would become a side effect of how she phrased her opening sentence, and a
+ * long first line would arrive as an unreadable subject in her buyer's inbox.
+ * She writes the subject with the body and approves both together, so it
+ * travels with the body — here, and on the outbound row.
+ *
+ * `headers` carries the RFC 8058 unsubscribe pair. It is not optional in
+ * practice: every message this product sends to someone who did not write
+ * first must carry a way out, and the send path supplies it.
+ */
+export type MailMessage = {
+  readonly to: string;
+  readonly subject: string;
+  readonly text: string;
+  readonly headers: Readonly<Record<string, string>>;
+  /**
+   * C4.c — THE SIGNED TOKEN A PROVIDER MUST ECHO ON EVERY EVENT about this mail.
+   *
+   * M40.2's bounce and complaint webhook finds the tenant and the address from
+   * a signed `tag` on each event, and nothing handed a transport one: the token
+   * lived only inside the List-Unsubscribe URL. So no real provider could ever
+   * have echoed it, and every bounce would have been dropped as unsigned. A
+   * transport attaches this as the provider's own message metadata (SES message
+   * tags, Postmark metadata, a Mailgun variable) so its events carry it back.
+   * Null only where the installation has no signing context, and then the mail
+   * carries no unsubscribe link either and is refused before it gets here.
+   */
+  readonly tag: string | null;
+};
+
 export interface ChannelAdapter {
   readonly kind: ChannelKind;
   readonly provider: string;                    // '360dialog' | 'simulator'
@@ -47,6 +81,14 @@ export interface ChannelAdapter {
    * picture is a different message from the one the owner approved.
    */
   sendMedia?(to: string, media: OutboundMedia): Promise<SendResult>;
+  /**
+   * C4.a — optional for the same reason `sendMedia` is: an adapter that cannot
+   * carry a subject says so by omission rather than by throwing, and the
+   * worker refuses the row instead of silently sending something else. A
+   * WhatsApp adapter omits it; the e-mail adapter implements this one and not
+   * `sendText`, because a mail with no subject is not the message she wrote.
+   */
+  sendMail?(message: MailMessage): Promise<SendResult>;
 }
 
 /** Actions that must leave an audit record (who, when, outcome). */

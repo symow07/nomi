@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import {
   convertMoney, rateFor, validateRate, type OwnerRate,
 } from '../../src/core/commerce/exchange.js';
@@ -181,7 +182,7 @@ describe('M43b · no live rate can enter this product', () => {
     const { execSync } = await import('node:child_process');
     const hits = execSync(
       'grep -rniE "exchangerate|openexchange|fixer\\\\.io|currencyapi|fx ?rate api|latest.*rates" src || true',
-      { cwd: new URL('../../', import.meta.url).pathname, encoding: 'utf8' },
+      { cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8' },
     ).split('\n').filter((l) => l.trim() !== '');
     expect(hits, `a live rate source reached the code:\n${hits.join('\n')}`).toEqual([]);
   });

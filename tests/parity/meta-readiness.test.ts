@@ -34,7 +34,7 @@ const rb = (): PilotRunbook => ({
     attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
     activity: { handled: 0, draftsCreated: 0, corrections: 0 },
     knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-    channel: { status: 'not_connected', provider: 'disabled' },
+    channel: { status: 'not_connected', provider: 'disabled' }, budget: null,
     hasAttention: false,
   },
   rehearsal: {

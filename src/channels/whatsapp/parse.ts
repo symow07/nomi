@@ -20,7 +20,14 @@ export type InboundMessageEvent = {
   readonly phoneNumberId: string;        // merchant number id → resolves tenant
   readonly occurredAt: Date;
   readonly messageType: 'text' | 'image' | 'audio' | 'unsupported';
-  readonly text: string | null;          // body or image caption
+  /**
+   * G2c — the provider's own type, lower-cased ('document', 'sticker',
+   * 'reaction', 'location'…). `messageType` says which pipeline can READ it;
+   * this says what it WAS, so an unreadable message is handed to a person with
+   * a name ("he sent a document") instead of running a turn on empty text.
+   */
+  readonly received: string;
+  readonly text: string | null;          // body, or a photo / document / video caption
   readonly mediaId: string | null;
 };
 
@@ -89,9 +96,15 @@ export function parseWebhook(payload: unknown): ChannelEvent[] {
             : type === 'image' ? 'image'
             : type === 'audio' || type === 'voice' ? 'audio'
             : 'unsupported',
+          received: type.toLowerCase(),
+          // G2c — a document or video caption is the buyer's own words about
+          // the file ("RFQ attached"). It is kept so the owner reads it beside
+          // the note that a file arrived; it never becomes a turn's text.
           text:
             str(((m['text'] ?? {}) as J)['body']) ??
-            str(image['caption']),
+            str(image['caption']) ??
+            str(((m['document'] ?? {}) as J)['caption']) ??
+            str(((m['video'] ?? {}) as J)['caption']),
           mediaId: str(image['id']) ?? str(((m['audio'] ?? {}) as J)['id']),
         });
       }

@@ -25,6 +25,8 @@ export interface Database {
     business_id: string;
     display_name: string | null;
     email: string | null;
+    /** G11 — the language the BUYER writes in, from the analyser. */
+    preferred_language: string | null;
     last_seen_at: Timestamp;
   };
   client_channels: {
@@ -70,6 +72,8 @@ export interface Database {
     input_type: string;
     text_content: string | null;
     image_url: string | null;
+    /** G13 — the provider's handle for the audio, so she can play it. */
+    provider_media_id: string | null;
     detected_language: string | null;
     ai_analysis: unknown;
     sent_at: Timestamp;
@@ -183,6 +187,7 @@ export interface Database {
     tracking_reference: string | null;   // M46
     client_email: string | null;
     payment_terms: string | null;
+    incoterm: string | null;       // G6 (0041)
     status: string;
     quote_id: string | null;
     created_at: Generated<Timestamp>;
@@ -237,6 +242,10 @@ export interface Database {
     applied_rules: string[];
     engine_version: string;
     created_at: Generated<Timestamp>;
+    /** G5 (0040) — the lead time the quote stated; null when it stated none. */
+    lead_time_days: number | null;
+    /** G5 (0040) — {label, from, to} of her closure, when it withheld the date. */
+    lead_time_withheld: unknown | null;
   };
   'shadow.turn_decisions': {
     message_id: string;

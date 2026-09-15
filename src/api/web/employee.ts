@@ -8,6 +8,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
  * M9.6 + ADR-0008 — Employee Profile. A VIEW over the existing trust data
@@ -210,7 +211,7 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
 }
 
 export function renderEmployee(
-  e: EmployeeProfile, locale: Locale, flash: string | null, ctx?: HerContext,
+  e: EmployeeProfile, locale: Locale, flash: string | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
 ): string {
   const name = EMPLOYEE_NAME[locale];
   const capName = (c: string) => capabilityName(locale, c);
@@ -220,7 +221,7 @@ export function renderEmployee(
     <div class="emp-h"><span class="ava">👩‍💼</span>
       <div><div class="emp-name">${esc(name)}</div>
         <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
-    ${e.hireDate ? `<div class="muted" style="margin-top:8px">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
+    ${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
   </div>`;
 
   // 2 · What can she handle? Permission and trust boundaries — never a measure
@@ -290,7 +291,11 @@ export function renderEmployee(
 
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
   const revocable = e.capabilities.filter((c) => c.mode === 'auto');
-  const actions = (grantable.length || revocable.length)
+  // G9a — what she may do on her own is the owner's decision; staff see the
+  // ladder (above) but not the buttons that move her along it.
+  const actions = !viewer.isOwner
+    ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
+    : (grantable.length || revocable.length)
     ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
         ${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
             <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
@@ -319,35 +324,35 @@ const EMP_STYLE = `<style>
   /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
   .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
   .scheck:last-child { border-bottom:0; }
-  .sclabel { font-size:var(--font-size-micro); margin-top:8px; }
+  .sclabel { font-size:var(--font-size-micro); margin-top:var(--space-8); }
   .scsaid { padding:6px 0; }
   .scfix summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; padding:6px 0; }
   .scfix textarea { width:100%; }
   /* Phase C: plain count rows and tappable gap rows — no matrix, no dense table. */
-  .hrows { display:flex; flex-direction:column; gap:2px; }
-  .hrow { display:flex; align-items:baseline; gap:12px; padding:8px 0; border-bottom:1px solid var(--color-border); }
+  .hrows { display:flex; flex-direction:column; gap:var(--space-4); }
+  .hrow { display:flex; align-items:baseline; gap:var(--space-12); padding:8px 0; border-bottom:1px solid var(--color-border); }
   .hrow:last-child { border-bottom:0; }
   .hnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em; font-variant-numeric:tabular-nums; }
   .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-  .empty-p { margin:0 0 12px; }
-  .gaps { display:flex; flex-direction:column; gap:10px; }
-  a.gap { display:grid; grid-template-columns:1fr auto; gap:4px 12px; background:var(--color-paper-sunk);
+  .empty-p { margin:0 0 var(--space-12); }
+  .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
+  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper-sunk);
           border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
   a.gap:hover, a.gap:focus-visible { border-color:var(--color-jade-line); }
   .gq { font-size:var(--font-size-small); color:var(--color-ink); }
   .gmeta { font-size:var(--font-size-micro); grid-column:1; }
   .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-note); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
-  .emp-h { display:flex; align-items:center; gap:14px; }
+  .emp-h { display:flex; align-items:center; gap:var(--space-12); }
   .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-numeral); }
   .emp-name { font-size:var(--font-size-title); font-weight:700; }
-  .dgroup { margin-bottom:14px; } .dtitle { font-weight:600; margin-bottom:8px; }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:6px; font-size:var(--font-size-note); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
+  .dgroup { margin-bottom:var(--space-16); } .dtitle { font-weight:600; margin-bottom:var(--space-8); }
+  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-note); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
   .ditem.ok { color:var(--color-ok); } .ditem.warn { color:var(--color-waiting); } .ditem.no { color:var(--color-ink-secondary); }
   .growth { list-style:none; padding:0; margin:0; } .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .growth li:last-child { border-bottom:none; }
-  .pstage { margin:6px 0; font-size:var(--font-size-small); } .conds { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); } .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
   .cond { font-size:var(--font-size-note); color:var(--color-ink-secondary); } .cond.met { color:var(--color-ok); }
-  .actrow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .actrow:last-of-type { border-bottom:none; }
 </style>`;

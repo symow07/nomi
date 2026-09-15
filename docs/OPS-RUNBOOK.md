@@ -52,3 +52,52 @@ render < 16ms. Nothing enforces **approval card open < 1000ms**: that is an
 on-device budget and there is no device build. `PERF_BUDGETS.rendererMs` now
 measures nothing at all — the renderer it was pointed at (`core/owner/digest.ts`)
 was deleted in M34.8 and the live pages are HTML with no line budget.
+
+## Message batching — OPERATOR-ONLY, and deliberately not a setting (G19)
+
+A buyer who types three lines in ten seconds is one message, not three. The wait
+before her employee answers is per tenant, in `businesses`:
+
+| Column | Default | What it is |
+|---|---|---|
+| `batch_debounce_ms` | 6 000 | quiet time after the LAST line before the turn runs |
+| `batch_max_window_ms` | 20 000 | hard ceiling from the FIRST line — a monologue still gets an answer |
+| `batch_max_fragments` | 8 | fragment ceiling — burst protection |
+
+Defaults live in `core/conversation/batching.ts` (`DEFAULT_BATCH_CONFIG`); a
+column that is null or ≤ 0 falls back to its default (`db/fragments.ts`).
+
+**They are not on any owner screen, on purpose.** Every number the owner sets in
+this product is a commercial rule she can state in her own words — a floor, a
+discount she will allow, terms, a closure. "How many seconds to wait before
+replying" is not that: it is a tuning knob whose right value depends on the
+provider's delivery jitter and on nothing she knows about her buyers. Putting it
+in Settings would mean asking her to make an engineering decision and then
+living with her answer when a buyer waits twenty seconds for a price.
+
+Change it by hand when a tenant needs it (a fast-typing market, a demo):
+
+```sql
+update businesses set batch_debounce_ms = 3000, batch_max_window_ms = 10000 where id = '<tenant>';
+```
+
+Lowering it makes her quicker and more likely to answer half a question;
+raising it makes her more patient and slower. `tools/pre-pilot.mjs` sets 500 ms
+on its own throwaway tenant for exactly this reason — a rehearsal should not
+wait six seconds twelve times.
+
+## Archive, never erase — and the one exception (G20)
+
+The runtime role (`nomi_app`) holds **no DELETE and no TRUNCATE** on any table
+in `public`. That is not a convention the code follows; it is a grant the role
+does not have, so a stray `delete from` fails at the database rather than
+succeeding quietly. A product she stops selling is `is_active = false`; a
+forbidden term she removes keeps its history; a conversation that ends is
+closed.
+
+**The exception is the `pgboss` schema**, and it is not ours: pg-boss deletes
+completed jobs as part of how a queue works, and those tables hold no business
+fact — a deleted job is a job that ran, and what it did is in the rows it
+wrote. `tests/integration/grants.test.ts` pins both halves, so a DELETE grant
+outside that schema fails the suite and has to argue its case.
+

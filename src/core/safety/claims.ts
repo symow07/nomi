@@ -91,6 +91,14 @@ const PATTERNS: readonly Pattern[] = [
   { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bguaranteed delivery\b|\bdelivery (?:is )?guaranteed\b/i },
 ];
 
+/**
+ * G6 — the delivery terms this guard knows, from the SAME table it detects
+ * with. The owner's proforma names exactly one of these, so the term on her
+ * document and the term the guard recognises in a reply cannot drift apart.
+ */
+export const INCOTERM_KEYS: readonly string[] =
+  PATTERNS.filter((p) => p.kind === 'incoterm').map((p) => p.key);
+
 export function detectClaims(text: string): DetectedClaim[] {
   const out: DetectedClaim[] = [];
   for (const p of PATTERNS) {

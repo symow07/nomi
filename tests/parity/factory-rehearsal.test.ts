@@ -19,7 +19,7 @@ import { t } from '../../src/core/owner/i18n/messages.js';
  * Two things are on trial here. First, that the findings are TRUE of the rows
  * they came from: "no price is set" must mean no price is set, never "the probe
  * happened not to quote". Second — and this is the load-bearing half — that the
- * universal trust gate is untouched: the twenty-three golden scenarios that
+ * universal trust gate is untouched: the twenty-five golden scenarios that
  * decide whether the product is safe at all must be byte-identical whether or
  * not this feature exists.
  */
@@ -257,10 +257,17 @@ describe('M20.5 · the rehearsal cannot touch anything', () => {
 // ── the golden set is untouched ──────────────────────────────────────────────
 
 describe('M20.5 · the universal trust gate is exactly what it was', () => {
-  /** The twenty-three scenarios, frozen. Adding one here is a deliberate act. */
+  /**
+   * The twenty-five scenarios, frozen. Adding one here is a deliberate act.
+   * G7a added `discount-above-ask-line-waits-for-owner` and G7b
+   * `higher-price-than-already-given-waits-for-owner`: each made one of her
+   * rules a gate, and the golden set is where a gate is proven.
+   */
   const GOLDEN = [
     'price-floor-clamp-under-aggressive-discount', 'below-floor-catalog-is-refused-not-quoted',
-    'standard-volume-quote-within-authority', 'unsupported-ce-fda-claim-is-blocked',
+    'standard-volume-quote-within-authority', 'higher-price-than-already-given-waits-for-owner',
+    'discount-above-ask-line-waits-for-owner',
+    'unsupported-ce-fda-claim-is-blocked',
     'unsupported-refund-guarantee-is-blocked', 'unsupported-ddp-incoterm-is-blocked',
     'allowed-incoterm-claim-passes', 'explicit-human-request-escalates-en',
     'arabic-human-request-escalates', 'chinese-human-request-escalates',
@@ -273,14 +280,14 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'knowledge-authorised-cert-answer-passes',
   ];
 
-  it('the golden set is the same twenty-three scenarios, in the same order', () => {
+  it('the golden set is the same twenty-five scenarios, in the same order', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(GOLDEN);
   });
 
-  it('all twenty-three still pass', async () => {
+  it('all twenty-five still pass', async () => {
     const r = await runAll(SCENARIOS);
     expect(r.failed, r.scenarios.filter((s) => !s.passed).map((s) => s.id).join(', ')).toBe(0);
-    expect(r.passed).toBe(23);
+    expect(r.passed).toBe(25);
   });
 
   it('no derived probe id can ever appear in the golden set', () => {
@@ -297,7 +304,7 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     const { runScriptedPractice } = await import('../../src/api/web/sandbox.js');
     const r = await runScriptedPractice();
     expect(r.cases.map((c) => c.id)).toEqual(GOLDEN);
-    expect(r.total).toBe(23);
+    expect(r.total).toBe(25);
   });
 
   it('a failing invariant really does become a violation — the path is not decorative', async () => {
@@ -325,7 +332,7 @@ const view = (rehearsal: RehearsalReport | null): FactoryView => ({
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },
   rehearsal,
-  prices: { businessDefault: null, products: [], unanswered: 0 },
+  prices: { businessDefault: null, products: [], unanswered: 0, volume: [] },
 });
 
 const OFFLINE_CHANNEL: ChannelView = {
@@ -424,7 +431,7 @@ const runbook: PilotRunbook = {
     attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
     activity: { handled: 0, draftsCreated: 0, corrections: 0 },
     knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-    channel: { status: 'not_connected', provider: 'disabled' },
+    channel: { status: 'not_connected', provider: 'disabled' }, budget: null,
     hasAttention: false,
   },
   rehearsal: {

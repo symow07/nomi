@@ -1,6 +1,9 @@
 import { isAllowlisted } from '../channels/allowlist.js';
 import { checkBudget } from '../core/budget.js';
 import { loadKillSwitches } from './opsFlags.js';
+import { outreachFacts } from './outreach.js';
+import { CONTACT_CHANNELS } from '../core/outreach/consent.js';
+import { LOCALES } from '../core/owner/i18n/locale.js';
 import type { ChannelFacts } from '../core/channel/lifecycle.js';
 import type { TemplateState } from '../core/channel/window.js';
 import { DAILY_OUTBOUND_CEILING } from '../core/channel/limits.js';
@@ -48,11 +51,14 @@ export function channelStore(
       const res = await sql<{
         id: string; seq: number; status: OutboundStatus; requires_order: boolean;
         attempts: number; sent_at: Date | null; to_wa_id: string | null; body: string;
-        origin: 'employee' | 'owner'; sending_since: Date | null;
-        kind: string; media_url: string | null;
+        origin: 'employee' | 'owner' | 'outreach'; sending_since: Date | null;
+        kind: string; media_url: string | null; channel: string; subject: string | null;
+        automated: boolean;
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
-               origin, sending_since, kind, media_url
+               origin, sending_since, kind, media_url, channel, subject,
+               -- C4.b — released by a follow-up schedule rather than a person.
+               exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id) as automated
           from outbound_messages
          where conversation_id = ${conversationId}
            and (next_retry_at is null or next_retry_at <= now())
@@ -66,11 +72,13 @@ export function channelStore(
         used_calls: number | null; used_tokens: string | null;
         pilot_mode: boolean | null; activated_at: Date | null;
         buyer_wa_id: string | null; sent_today: number;
+        channel: string | null; buyer_locale: string | null;
       }>`
-        select c.assigned_to,
+        select c.assigned_to, c.channel, cl.preferred_language as buyer_locale,
                tb.daily_llm_calls, tb.daily_tokens, tb.soft_warn_pct, tb.on_exceeded,
                tb.used_calls, tb.used_tokens,
-               ch.last_inbound_at,
+               -- G10b — the BUYER's window, not the channel's.
+               cc.last_inbound_at,
                ch.pilot_mode, ch.activated_at,
                cc.channel_user_id as buyer_wa_id,
                (select count(*)::int from outbound_messages om
@@ -99,8 +107,23 @@ export function channelStore(
                and u.day = (now() at time zone 'Asia/Shanghai')::date
              where b.business_id = c.business_id limit 1
           ) tb on true
+          left join clients cl on cl.id = c.client_id
           left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
-          left join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
+          -- G10b — ONE row, deterministically. A buyer with two WhatsApp
+          -- identities on one client would otherwise multiply this query's
+          -- rows, and the first of them is whichever the planner returned:
+          -- his window would come and go between two identical calls.
+          --
+          -- C4.a — and on THIS conversation's own channel. It was the literal
+          -- 'whatsapp', so an e-mail conversation resolved no recipient and no
+          -- window: the gate then refused every mail as window_closed, naming a
+          -- rule e-mail does not have. Unchanged for every existing row, where
+          -- conversations.channel IS 'whatsapp'.
+          left join lateral (
+            select cc.channel_user_id, cc.last_inbound_at from client_channels cc
+             where cc.client_id = c.client_id and cc.channel = c.channel
+             order by cc.last_inbound_at desc nulls last limit 1
+          ) cc on true
          where c.id = ${conversationId}
       `.execute(tx);
       const c = ctxRes.rows[0];
@@ -110,14 +133,49 @@ export function channelStore(
         attempts: r.attempts, sentAt: r.sent_at, to: r.to_wa_id ?? '', body: r.body,
         origin: r.origin, sendingSince: r.sending_since,
         kind: r.kind, mediaUrl: r.media_url,
+        channel: r.channel, subject: r.subject,
+        ...(r.automated ? { automated: true } : {}),
       }));
+      /**
+       * C4.a — WHICH CHANNEL THIS CONVERSATION IS ON, because the three facts
+       * below belong to a channel and not to the business.
+       *
+       * `channels` holds one row per (business, kind) and only 'whatsapp' has
+       * one. Reading activation and pilot mode from it for an e-mail would make
+       * whether her mail may leave depend on whether her WhatsApp is live —
+       * two unrelated things joined by a literal. C4.d gives every channel its
+       * own row and this reads it the same way for all of them; until then the
+       * rule is stated here rather than implied by a join.
+       */
+      const channel = c?.channel ?? 'whatsapp';
+      const hasChannelRow = channel === 'whatsapp';
       // M18.2 — pilot mode + allowlist resolved INSIDE this transaction, so the
       // gate decides on current state. Both fail closed: a missing channel row
       // counts as pilot mode ON, an unresolved buyer number as not allowed.
       // M20.1 — CONNECTED is not ACTIVATED. `activated_at` is written only by
       // the owner's explicit decision; a missing channel row means not live.
-      const activated = c?.activated_at != null;
-      const pilotMode = c?.pilot_mode ?? true;
+      //
+      // C4.a — for a channel with no `channels` row, activation is not the gate
+      // that stops a message; the OUTREACH gate is. An e-mail needs no provider
+      // onboarding and no number to go live on: what stands between her and a
+      // stranger's inbox is her writing-first switch, her verified sending
+      // domain, his consent, his suppression and her daily cap — every one of
+      // them checked below, and every one of them absent by default. Reporting
+      // `not_activated` here instead would refuse for a reason she cannot act on
+      // and hide the five she can.
+      const activated = hasChannelRow ? c?.activated_at != null : true;
+      /**
+       * And the pilot allowlist is WhatsApp's list, by its own column: digits
+       * only (`pilot_allowlist.phone ~ '^[0-9]{7,15}$'`, 0021), so no address
+       * can be on it and enforcing it on e-mail would refuse every mail forever
+       * while telling her to add a buyer she has no way to add.
+       *
+       * What limits an e-mail instead is CONSENT, which is stronger than a list:
+       * a first mail may only go to someone who wrote to her or whom she named
+       * herself, and a suppression outranks both. E-mail gets its own list in
+       * C4.d, when activation becomes per channel.
+       */
+      const pilotMode = hasChannelRow ? (c?.pilot_mode ?? true) : false;
       const recipientAllowed = pilotMode
         ? await isAllowlisted(tx, businessId, c?.buyer_wa_id ?? null)
         : true;
@@ -125,6 +183,44 @@ export function channelStore(
       // allowlist, so the gate decides on the flag as it stands right now
       // rather than as it stood when the message was queued.
       const switches = await loadKillSwitches(tx, businessId);
+
+      /**
+       * C4.a — the outreach facts, resolved ONLY when a message here starts a
+       * conversation rather than continuing one.
+       *
+       * Read at send time like every other fact the gate uses: consent she
+       * recorded this morning and a suppression that arrived this afternoon must
+       * both bind a row queued yesterday. Resolved through `outreachFacts`, the
+       * same function her contacts page renders, so what she was told about this
+       * buyer and what happens to this row cannot disagree.
+       *
+       * Absent when nothing here is outreach — a reply costs no extra queries —
+       * and absent when the conversation's channel is not one an identity can
+       * exist on. The worker refuses an outreach row with no facts rather than
+       * sending it: `outreach_unchecked`.
+       */
+      const initiates = rows.some((r) => r.origin === 'outreach');
+      const reachable = CONTACT_CHANNELS.find((k) => k === channel);
+      const outreach = initiates && reachable && c?.buyer_wa_id
+        ? await outreachFacts(tx, businessId, {
+            channel: reachable, identity: c.buyer_wa_id,
+            templateState: opts.template ?? 'none', now: new Date(),
+          })
+        : null;
+      // G11 — his own language, for anything the BUYER will read: today the
+      // unsubscribe page a mail must link to. 'en' is not assumed here; a null
+      // stays null and the caller decides, because a wrong language stated
+      // confidently is worse than a fallback named as one.
+      const buyerLocale = LOCALES.find((l) => l === c?.buyer_locale) ?? null;
+      // C4.c — his latest e-mail's Message-ID, so what she sends into his thread
+      // threads under it. Stored as the message's external id, 'email:<id>'.
+      const inReplyTo = channel === 'email'
+        ? (await sql<{ id: string }>`
+            select substr(external_id, 7) as id from messages
+             where conversation_id = ${conversationId} and direction = 'inbound'
+               and external_id like 'email:%'
+             order by sent_at desc limit 1`.execute(tx)).rows[0]?.id ?? null
+        : null;
 
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
@@ -156,6 +252,9 @@ export function channelStore(
         // M18.5 — counts EMPLOYEE messages actually sent today, so an owner
         // reply is never blocked by the ceiling.
         dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,
+        ...(buyerLocale ? { buyerLocale } : {}),
+        ...(outreach ? { outreach } : {}),
+        ...(inReplyTo ? { inReplyTo } : {}),
       };
       return { rows, ctx };
     },
@@ -196,6 +295,19 @@ export function channelStore(
          where id = ${id}
       `.execute(tx);
       await logTransition(id, from, to, detail);
+      // G10a — what actually LEFT, on the timeline the owner reads. Nothing
+      // wrote a sent reply into `messages`, so her conversation page showed
+      // drafts and refusals and never the words that reached the buyer. At
+      // 'sent' — the provider accepted it — and once per outbound row.
+      if (to === 'sent') {
+        await sql`
+          insert into messages (conversation_id, external_id, direction, input_type, text_content, image_url, sent_at)
+          select conversation_id, ${'out:' + id}, 'outbound',
+                 case when media_url is null then 'text' else 'image' end, body, media_url, now()
+            from outbound_messages where id = ${id}
+          on conflict do nothing
+        `.execute(tx);
+      }
     },
 
     async recordProviderId(id, providerMessageId) {
@@ -260,46 +372,100 @@ export function channelStore(
 }
 
 /**
- * Find-or-create the client + active conversation for an inbound WhatsApp
- * identity. Tenant comes from the channel credential (caller resolved it) —
- * NEVER from the payload. Runs inside the caller's tenant transaction.
+ * G10c — the three facts that decide whether she may answer this buyer AT ALL
+ * during the pilot: is she live, is pilot mode on, is he on the owner's list.
+ * Read inside the worker's own transaction, like the send gate reads them. A
+ * missing channel row is "not live" — nothing can be sent, so a draft is
+ * still rehearsal — and an unresolved buyer is not on the list.
+ */
+export async function pilotFactsFor(
+  tx: Tx, businessId: BusinessId, conversationId: string,
+): Promise<{ activated: boolean; pilotMode: boolean; allowlisted: boolean }> {
+  const row = (await sql<{ activated: boolean | null; pilot_mode: boolean | null; wa_id: string | null }>`
+    select ch.activated_at is not null as activated, ch.pilot_mode, cc.channel_user_id as wa_id
+      from conversations c
+      left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
+      left join lateral (
+        select cc.channel_user_id from client_channels cc
+         where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+         order by cc.last_inbound_at desc nulls last limit 1
+      ) cc on true
+     where c.id = ${conversationId} limit 1`.execute(tx)).rows[0];
+  const pilotMode = row?.pilot_mode ?? true;
+  return {
+    activated: row?.activated === true,
+    pilotMode,
+    allowlisted: pilotMode ? await isAllowlisted(tx, businessId, row?.wa_id ?? null) : true,
+  };
+}
+
+/**
+ * Find-or-create the client + active conversation for a channel identity.
+ * Tenant comes from the channel credential (caller resolved it) — NEVER from
+ * the payload. Runs inside the caller's tenant transaction.
+ *
+ * C4.a — `channel` is a parameter rather than the literal 'whatsapp' it was,
+ * because the first e-mail she writes needs exactly this: a client, an identity
+ * row holding his address, and a conversation on 'email' so the whole product —
+ * her inbox, the timeline, the refusal cards, `enqueueOutboundRow` — reads it as
+ * the thread it is instead of as a WhatsApp thread with an address in it.
+ *
+ * Defaulted, so every existing caller writes precisely the rows it wrote before.
+ *
+ * ── WHY AN ACTIVE CONVERSATION IS FOUND PER CHANNEL ───────────────────────
+ *
+ * The lookup was "this client's newest active conversation", full stop. For one
+ * channel that is the same thing; for two it is not. A buyer mid-WhatsApp
+ * conversation who is also on her e-mail list would have had her first mail
+ * queued into his WhatsApp thread, where the recipient join resolves his number
+ * and the mail goes out as a text message with no subject. The channel is part
+ * of the identity of a conversation, so it is part of finding one.
  */
 export async function ensureConversation(
   tx: Tx,
   businessId: BusinessId,
-  waId: string,
+  identity: string,
   profileName: string | null,
+  channel: 'whatsapp' | 'email' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
   const existing = await sql<{ client_id: string }>`
     select client_id from client_channels
-     where channel = 'whatsapp' and channel_user_id = ${waId}
+     where channel = ${channel} and channel_user_id = ${identity}
   `.execute(tx);
   let clientId = existing.rows[0]?.client_id;
 
   if (!clientId) {
+    // `clients.phone` is the WhatsApp identity and nothing else: M38's derived
+    // consent reads it as "he wrote to us on WhatsApp", so putting an address
+    // there would manufacture a consent record out of a mail she sent HIM. The
+    // address goes in `clients.email`, which has existed since 0005 and which
+    // nothing derives consent from.
     const client = await sql<{ id: string }>`
-      insert into clients (business_id, display_name, phone)
-      values (${businessId}, ${profileName}, ${waId})
+      insert into clients (business_id, display_name, phone, email)
+      values (${businessId}, ${profileName},
+              ${channel === 'whatsapp' ? identity : null},
+              ${channel === 'email' ? identity : null})
       returning id
     `.execute(tx);
     clientId = client.rows[0]!.id;
     await sql`
       insert into client_channels (client_id, channel, channel_user_id)
-      values (${clientId}, 'whatsapp', ${waId})
+      values (${clientId}, ${channel}, ${identity})
       on conflict (channel, channel_user_id) do nothing
     `.execute(tx);
   }
 
   const active = await sql<{ id: string }>`
     select id from conversations
-     where client_id = ${clientId} and is_active order by created_at desc limit 1
+     where client_id = ${clientId} and channel = ${channel} and is_active
+     order by created_at desc limit 1
   `.execute(tx);
   let conversationId = active.rows[0]?.id;
 
   if (!conversationId) {
     const conv = await sql<{ id: string }>`
       insert into conversations (business_id, client_id, channel)
-      values (${businessId}, ${clientId}, 'whatsapp')
+      values (${businessId}, ${clientId}, ${channel})
       returning id
     `.execute(tx);
     conversationId = conv.rows[0]!.id;
@@ -321,28 +487,59 @@ export async function enqueueOutboundRow(
   businessId: BusinessId,
   conversationId: string,
   body: string,
-  origin: 'employee' | 'owner' = 'employee',
+  origin: 'employee' | 'owner' | 'outreach' = 'employee',
+  /**
+   * C4.a — what an e-mail needs and a WhatsApp message does not.
+   *
+   * Optional so every existing caller is unchanged, and the row it writes is
+   * byte-for-byte what it wrote before: channel defaults to 'whatsapp' in the
+   * column, and a subject has no meaning there.
+   */
+  mail: { readonly subject: string } | null = null,
 ): Promise<string | null> {
-  const to = await sql<{ channel_user_id: string }>`
-    select cc.channel_user_id
+  // C4.a — the identity to send to is the conversation's OWN channel, not
+  // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
+  // anything else, which is why an e-mail could be composed and never queued.
+  const to = await sql<{ channel_user_id: string; channel: string }>`
+    select cc.channel_user_id, c.channel
       from conversations c
-      join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp'
+      join client_channels cc on cc.client_id = c.client_id and cc.channel = c.channel
      where c.id = ${conversationId}
      limit 1
   `.execute(tx);
-  const waId = to.rows[0]?.channel_user_id;
-  if (!waId) return null;   // no channel identity — nothing to send to
+  const recipient = to.rows[0]?.channel_user_id;
+  const channel = to.rows[0]?.channel ?? 'whatsapp';
+  if (!recipient) return null;   // no channel identity — nothing to send to
+
+  /**
+   * C4.c — HER ANSWER TO HIS REPLY needs a subject, and the one it has is not
+   * invented: "Re: " and the subject of the mail he answered, which is how every
+   * mail client names a reply and what he will look for in his inbox. Only for a
+   * person answering on an e-mail thread; a first mail or a sequence step always
+   * carries the subject she wrote, and a thread with no subject to reply to
+   * stays without one — the worker then refuses it `subject_missing`, visibly.
+   */
+  let subject = mail?.subject ?? null;
+  if (subject === null && channel === 'email' && origin === 'owner') {
+    const last = (await sql<{ subject: string }>`
+      select subject from outbound_messages
+       where conversation_id = ${conversationId} and subject is not null
+       order by seq desc limit 1`.execute(tx)).rows[0]?.subject ?? null;
+    subject = last === null ? null : /^re:/i.test(last.trim()) ? last : `Re: ${last}`;
+  }
 
   // At-least-once jobs: a retry after commit must not queue the reply twice.
   // Employee replies dedupe on identical recent body; owner text never does
-  // (repeating yourself on purpose is a human right).
+  // (repeating yourself on purpose is a human right). Outreach does not dedupe
+  // on body either: two contacts can honestly receive the same first line.
   const row = await sql<{ id: string }>`
     insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id)
+      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject)
     select ${businessId}, ${conversationId},
-           coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${waId}
+           coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
+           ${channel}, ${subject}
       from outbound_messages where conversation_id = ${conversationId}
-    having ${origin} = 'owner' or not exists (
+    having ${origin} <> 'employee' or not exists (
       select 1 from outbound_messages
        where conversation_id = ${conversationId} and body = ${body}
          and origin = 'employee' and status not in ('failed','canceled')
@@ -358,18 +555,28 @@ export async function enqueueOutboundRow(
  */
 export async function ownerSendFacts(
   tx: Tx, businessId: BusinessId, conversationId: string, providerConfigured: boolean,
-): Promise<{ facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean }> {
+): Promise<{
+  facts: ChannelFacts; recipientAllowed: boolean; pilotMode: boolean; lastInboundAt: Date | null;
+  /** C4.c — the conversation's own channel; the precheck above is WhatsApp's. */
+  channel: string;
+}> {
   const row = (await sql<{
     status: string | null; activated_at: Date | null; disconnected_at: Date | null;
     pilot_mode: boolean | null; cred: boolean | null; buyer_wa_id: string | null;
+    last_inbound_at: Date | null; channel: string | null;
   }>`
-    select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode,
+    select ch.status, ch.activated_at, ch.disconnected_at, ch.pilot_mode, c.channel,
            (select bool_or(cc.is_active) from channel_credentials cc
              where cc.business_id = ${businessId} and cc.channel = 'whatsapp') as cred,
-           cc2.channel_user_id as buyer_wa_id
+           cc2.channel_user_id as buyer_wa_id, cc2.last_inbound_at
       from conversations c
       left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
-      left join client_channels cc2 on cc2.client_id = c.client_id and cc2.channel = 'whatsapp'
+      -- G10b — one identity, the most recently heard from (see load()).
+      left join lateral (
+        select cc.channel_user_id, cc.last_inbound_at from client_channels cc
+         where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+         order by cc.last_inbound_at desc nulls last limit 1
+      ) cc2 on true
      where c.id = ${conversationId} limit 1
   `.execute(tx)).rows[0];
 
@@ -385,5 +592,8 @@ export async function ownerSendFacts(
     },
     pilotMode,
     recipientAllowed: pilotMode ? await isAllowlisted(tx, businessId, row?.buyer_wa_id ?? null) : true,
+    // G10b — so she is told, when she presses send, that his window is shut.
+    lastInboundAt: row?.last_inbound_at ?? null,
+    channel: row?.channel ?? 'whatsapp',
   };
 }

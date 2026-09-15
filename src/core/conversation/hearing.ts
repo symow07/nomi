@@ -65,6 +65,34 @@ export type HearingInput = {
 /** A transcript of only punctuation or whitespace is not speech. */
 const isMeaningful = (s: string): boolean => /[\p{L}\p{N}]/u.test(s);
 
+/**
+ * G2b — the language the provider reported, as the code the rest of the
+ * product speaks.
+ *
+ * Whisper's `verbose_json` reports a language NAME ("arabic", "chinese"),
+ * while everything downstream — the proof page choosing the buyer's locale,
+ * the owner's view of what was heard — reads ISO 639-1 codes. The proof page
+ * took the first two letters, so "chinese" became "ch" and every Chinese
+ * buyer was shown English. A code the provider already sent passes through;
+ * a name outside this list is kept, lower-cased, rather than guessed — an
+ * honest "we heard Swahili" beats a wrong code.
+ */
+const LANGUAGE_CODES: Readonly<Record<string, string>> = {
+  english: 'en', chinese: 'zh', mandarin: 'zh', cantonese: 'zh', arabic: 'ar',
+  french: 'fr', spanish: 'es', portuguese: 'pt', russian: 'ru', turkish: 'tr',
+  german: 'de', italian: 'it', dutch: 'nl', polish: 'pl', ukrainian: 'uk',
+  persian: 'fa', urdu: 'ur', hindi: 'hi', bengali: 'bn', indonesian: 'id',
+  malay: 'ms', thai: 'th', vietnamese: 'vi', japanese: 'ja', korean: 'ko',
+  hebrew: 'he', greek: 'el', swahili: 'sw', amharic: 'am', hausa: 'ha',
+};
+
+const languageCode = (reported: string | null): string | null => {
+  const v = (reported ?? '').trim().toLowerCase();
+  if (v === '') return null;
+  if (/^[a-z]{2}$/.test(v)) return v;
+  return LANGUAGE_CODES[v] ?? v;
+};
+
 export function decideHearing(input: HearingInput): HearingOutcome {
   if (!input.transcriberConfigured) {
     return {
@@ -105,5 +133,5 @@ export function decideHearing(input: HearingInput): HearingOutcome {
   if (!isMeaningful(text)) {
     return { kind: 'unheard', reason: 'transcription_failed', retryable: false, detail: 'transcript contained no words' };
   }
-  return { kind: 'heard', transcript: text, language: input.transcript.language };
+  return { kind: 'heard', transcript: text, language: languageCode(input.transcript.language) };
 }

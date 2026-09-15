@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { seedRunTenant } from './tenant.js';
 
 /**
@@ -30,6 +31,7 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
   let cookie = '';
   let convId = '';
   let orderId = '';
+  let clientId = '';
   const CODE = 'after-order-code';
 
   const post = (url: string, payload?: string) =>
@@ -60,6 +62,7 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
       const client = (await sql<{ id: string }>`
         insert into clients (business_id, phone, display_name)
         values (${BIZ}, ${`+8613${RUN}`}, 'Ahmed') returning id::text as id`.execute(t)).rows[0]!.id;
+      clientId = client;
       convId = (await sql<{ id: string }>`
         insert into conversations (business_id, client_id, channel, phase)
         values (${BIZ}, ${client}::uuid, 'whatsapp', 'confirmation') returning id::text as id
@@ -67,9 +70,10 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
       orderId = (await sql<{ id: string }>`
         insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
                             quantity, unit, agreed_unit_price_usd, total_value_usd, currency,
-                            payment_terms, status, confirmed_at)
+                            payment_terms, incoterm, status, confirmed_at)
         values (${REF}, ${BIZ}, ${client}::uuid, ${convId}::uuid, ${PID}::uuid,
-                5000, 'pcs', 0.92, 4600, 'USD', '30% deposit', 'confirmed', now())
+                5000, 'pcs', 0.92, 4600, 'USD', '50% with order, balance against B/L copy', 'CIF',
+                'confirmed', now())
         returning id::text as id`.execute(t)).rows[0]!.id;
       // The order's first entry, exactly as the migration backfills for rows
       // that existed before this milestone.
@@ -168,7 +172,7 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
     // that writes. Asserted structurally, because a second writer added
     // tomorrow would pass every behavioural test until the day it disagreed.
     const { execSync } = await import('node:child_process');
-    const root = new URL('../../', import.meta.url).pathname;
+    const root = fileURLToPath(new URL('../../', import.meta.url));
     const inserts = execSync('grep -rn "insert into order_updates" src || true',
       { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => l.trim() !== '');
     expect(inserts.map((l) => l.split(':')[0])).toEqual(['src/db/orders.ts']);
@@ -206,7 +210,7 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
     const { orderStatusReply } = await import('../../src/core/commerce/orderState.js');
     const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
 
-    const latest = await tx((t) => tenantRepos(t, bid.value).orders.latestForConversation(convId as never));
+    const latest = await tx((t) => tenantRepos(t, bid.value).orders.latestForClient(clientId as never));
     expect(latest).not.toBeNull();
     expect(latest!.reference).toBe(REF);
     expect(latest!.update.state).toBe('shipped');
@@ -229,6 +233,9 @@ d('M46 · after the order (requires DATABASE_URL)', () => {
     expect(res.body).toContain('SF1234567890');
     // invoice.ts, reachable from a production route for the first time.
     expect(res.body).toContain('PROFORMA INVOICE');
+    // G6 — with the terms the order was confirmed under, never a default.
+    expect(res.body).toContain('50% with order, balance against B/L copy');
+    expect(res.body).toContain('Unit price: $0.92 CIF');
   });
 
   it('and the conversation links to it', async () => {

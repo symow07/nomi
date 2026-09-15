@@ -152,7 +152,7 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -171,6 +171,8 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
         // M45 — her sample policy, when she has stated one. Absent is absent:
         // no key, no sentence, nothing for the model to reason around.
         ...(sampleNote ? { sample_policy: sampleNote } : {}),
+        // G5 — her closure withheld the date; this is why, for the buyer.
+        ...(closureNote ? { closure_note: closureNote } : {}),
         // Taught knowledge to answer FROM (specs/materials/notes/answers).
         // Certifications are NOT here — those stay in claims_policy.
         knowledge: (knowledge ?? []).map((k) => ({ kind: k.kind, about: k.label, fact: k.content })),

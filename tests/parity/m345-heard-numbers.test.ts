@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { quantityWasHeardNotTyped } from '../../src/core/safety/heardNumbers.js';
+import { holdReasonOf, HOLD_REASONS } from '../../src/core/conversation/hold.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { product, tiers, policy } from './fixtures.js';
 
@@ -71,13 +72,15 @@ describe('M34.5 · a heard quantity that priced a quote does not auto-send', () 
 
 describe('M34.5 · the rule narrows permission and never widens it', () => {
   it('auto becomes draft; it can never turn a draft into an auto-send', async () => {
+    // G7a folded this rule into the one hold rule (core/conversation/hold.ts);
+    // what it forces did not change. The heard quantity is a hold reason...
+    expect(holdReasonOf({
+      provenance: 'transcribed', quote: quoteFor(20000), turnText: 'can you do 20000 pieces?',
+    })).toBe('quantity_heard_not_typed');
+    // ...and a hold forces the constant 'draft' — never the shape of the
+    // statement it sits in, which M34.6 and G7a each rewrapped.
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    // The invariant is that the FORCED value is the constant 'draft' — not the
-    // shape of the statement it sits in. Pinning `const mode = ...` broke the
-    // moment M34.6 wrapped this in effectiveMode() without changing what the
-    // rule does, which is a test asserting the wrong thing about the right code.
-    expect(src).toMatch(/heardPrice \? 'draft' : policyMode/);
-    expect(src).toMatch(/quantityWasHeardNotTyped\(\{/);
+    expect(src).toMatch(/r\.hold \? 'draft' : policyMode/);
   });
 
   it('the worker marks a transcript as transcribed, and typed text as typed', async () => {
@@ -90,7 +93,8 @@ describe('M34.5 · the rule narrows permission and never widens it', () => {
 
   it('the audit trail says why a draft the owner did not ask for is waiting', async () => {
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    expect(src).toContain("heldBecause: 'quantity_heard_not_typed'");
+    expect(src).toContain('heldBecause: r.hold');
+    expect(HOLD_REASONS).toContain('quantity_heard_not_typed');
   });
 
   it('provenance defaults to typed, so every existing caller is unaffected', async () => {

@@ -35,6 +35,11 @@ jobs:
 
       - run: npm run check      # typecheck + core purity + the full unit suite
       - run: npm run trust      # the 23 scripted trust scenarios
+      # G1 — the typecheck reads tsconfig.json (noEmit, src + tests); Railway
+      # builds with tsconfig.build.json (rootDir src, outDir dist). A failure
+      # only the second config sees would otherwise surface first as a failed
+      # deploy.
+      - run: npm run build
 
   # The integration suite: everything that needs a real Postgres, and the only
   # place several product invariants can be proved at all. Most of it is

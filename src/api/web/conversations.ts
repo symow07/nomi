@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { type Money, usd, moneyFromRow } from '../../core/types/money.js';
+import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -152,7 +152,8 @@ export type CustomerFile = {
   readonly context: {
     readonly products: readonly { readonly sku: string | null; readonly name: string | null; readonly nameZh: string | null }[];
     readonly latestQuote: { readonly qty: number; readonly unitPrice: Money; readonly total: Money } | null;
-    readonly order: { readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
+    /** G4 — `id` so the profile can open the order; optional for fixtures. */
+    readonly order: { readonly id?: string; readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
     readonly corrections: readonly string[];   // capability codes
   };
 };
@@ -199,13 +200,17 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
          union select o.product_id from orders o where o.conversation_id = ${conversationId})
     `.execute(tx)).rows.map((r) => ({ sku: r.sku, name: r.name, nameZh: r.name_zh }));
 
-    const latestQuoteRow = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string }>`
-      select quantity, unit_price_usd, total_usd from quotes
+    const latestQuoteRow = (await sql<{ quantity: number; unit_price_usd: string; total_usd: string; currency: string }>`
+      select quantity, unit_price_usd, total_usd, currency from quotes
        where conversation_id = ${conversationId} order by created_at desc limit 1`.execute(tx)).rows[0];
 
-    const orderRow = (await sql<{ status: string; order_reference: string; quantity: number; total_value_usd: string | null }>`
-      select status, order_reference, quantity, total_value_usd from orders
-       where conversation_id = ${conversationId} order by created_at desc limit 1`.execute(tx)).rows[0];
+    // G4 — the buyer's latest order, wherever it was confirmed: confirming
+    // closes a conversation, so the order he asks about later lives in an
+    // earlier one.
+    const orderRow = (await sql<{ id: string; status: string; order_reference: string; quantity: number; total_value_usd: string | null; currency: string }>`
+      select o.id::text as id, o.status, o.order_reference, o.quantity, o.total_value_usd, o.currency from orders o
+       where o.client_id = (select client_id from conversations where id = ${conversationId})
+       order by o.created_at desc limit 1`.execute(tx)).rows[0];
 
     const corrections = (await sql<{ capability: string }>`
       select distinct capability from drafts
@@ -250,6 +255,10 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       pending: head.pending, order_status: head.order_status, quote_count: head.quote_count,
       is_active: head.is_active, closed_at: head.closed_at, phase: head.phase,
     });
+    // G18 — the quote in its own currency; nothing shown if it is one this
+    // build cannot price, rather than a dollar sign over a number that is not.
+    const latestQuoteUnit = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.unit_price_usd), latestQuoteRow.currency) : null;
+    const latestQuoteTotal = latestQuoteRow ? moneyFromRow(Number(latestQuoteRow.total_usd), latestQuoteRow.currency) : null;
     const identified = (head.name || head.name_zh) ? [{ name: head.name, nameZh: head.name_zh }] : [];
     const profileProducts = products.length ? products.map((p) => ({ name: p.name, nameZh: p.nameZh })) : identified;
 
@@ -260,11 +269,13 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
       timeline: recent,
       context: {
         products,
-        latestQuote: latestQuoteRow
-          ? { qty: latestQuoteRow.quantity, unitPrice: usd(Number(latestQuoteRow.unit_price_usd)), total: usd(Number(latestQuoteRow.total_usd)) }
+        latestQuote: latestQuoteUnit && latestQuoteTotal && latestQuoteRow
+          ? { qty: latestQuoteRow.quantity, unitPrice: latestQuoteUnit, total: latestQuoteTotal }
           : null,
         order: orderRow
-          ? { status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity, total: orderRow.total_value_usd !== null ? usd(Number(orderRow.total_value_usd)) : null }
+          ? { id: orderRow.id, status: orderRow.status, reference: orderRow.order_reference, qty: orderRow.quantity,
+              // G18 — his order in the currency it was taken in.
+              total: orderRow.total_value_usd !== null ? moneyFromRow(Number(orderRow.total_value_usd), orderRow.currency) : null }
           : null,
         corrections,
       },
@@ -363,7 +374,11 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
       `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${pr.sku ? `<span class="muted"> · ${esc(pr.sku)}</span>` : ''}`).join('<br>')}</div></div>` : '',
     ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${esc(formatQty(locale, ctx.latestQuote.qty))}${esc(pcs)} · ${esc(formatMoney(ctx.latestQuote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(ctx.latestQuote.total))}</div></div>` : '',
-    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${esc(ctx.order.reference)} · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(formatMoney(ctx.order.total))}` : ''}</div></div>` : '',
+    ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
+      // G4 — the reference opens the order, so what she tells a buyer who asks
+      // after it is one tap away.
+      ctx.order.id ? `<a href="/app/orders/${encodeURIComponent(ctx.order.id)}">${esc(ctx.order.reference)}</a>` : esc(ctx.order.reference)
+    } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(formatMoney(ctx.order.total))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${ctx.corrections.map((c) => esc(capabilityName(locale, c))).join('、')}</div></div>` : '',
   ].filter(Boolean).join('');
   const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
@@ -388,29 +403,29 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
 }
 
 const CONV_STYLE = `<style>
-  .search { display:flex; gap:8px; align-items:center; margin-bottom:16px; }
+  .search { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-16); }
   .search input { flex:1; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .search .clear { font-size:var(--font-size-caption); }
   .cust { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
   .cust.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
   .cust:hover { border-color:var(--color-border); }
-  .cust-h { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .cust-b { font-size:var(--font-size-caption); margin-top:6px; } .cust-t { font-size:var(--font-size-micro); margin-top:8px; }
+  .cust-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
+  .cust-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .cust-t { font-size:var(--font-size-micro); margin-top:var(--space-8); }
   .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; margin-bottom:6px; }
-  .dhead { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; margin-bottom:var(--space-8); }
+  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .dhead .who { font-size:var(--font-size-small); }
-  .subline { font-size:var(--font-size-caption); margin-bottom:12px; }
-  .prow { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .prow:last-child { border-bottom:none; }
   .tl { list-style:none; padding:0; margin:0; }
-  .tl li { display:flex; gap:12px; padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:8px; padding-inline-start:16px; position:relative; }
+  .tl li { display:flex; gap:var(--space-12); padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:var(--space-8); padding-inline-start:16px; position:relative; }
   .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface); font-size:var(--font-size-small); line-height:1; }
-  .tl .tx { font-size:var(--font-size-note); } .tl .ts { font-size:var(--font-size-micro); margin-top:3px; }
+  .tl .tx { font-size:var(--font-size-note); } .tl .ts { font-size:var(--font-size-micro); margin-top:var(--space-4); }
   /* Event TYPES are told apart by their icons; colouring the text per type was
      colour carrying no state. The page's one state colour is the status pill. */
-  .cx { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .cx { display:flex; gap:var(--space-12); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
-  .need-card { display:flex; align-items:center; justify-content:space-between; gap:12px; border-color:var(--color-waiting-line); font-size:var(--font-size-note); }
+  .need-card { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); border-color:var(--color-waiting-line); font-size:var(--font-size-note); }
   @media (max-width:560px) { .cust, .card { border-radius:12px; } }
 </style>`;

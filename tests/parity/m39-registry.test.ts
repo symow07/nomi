@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import {
   CHANNEL_REGISTRY, INSTEAD, OUTREACH_CHANNELS, REQUIREMENTS, mayInitiate, mayInitiateWith,
-  type ChannelCapability, type Requirement,
+  type ChannelCapability, type Requirement, type OutreachChannel,
 } from '../../src/core/channel/registry.js';
 import { renderReach, satisfiedRequirements } from '../../src/api/web/channels.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -131,12 +131,12 @@ describe('M39 · the registry states what the APIs permit', () => {
 
 describe('M39 · what the installation actually satisfies', () => {
   it('an approved template satisfies its requirement, and nothing else', () => {
-    expect([...satisfiedRequirements('approved')]).toEqual(['approved_template']);
+    expect([...satisfiedRequirements('approved', null, new Date())]).toEqual(['approved_template']);
   });
 
   it('and no template state satisfies anything', () => {
     for (const s of ['none', 'rejected'] as const) {
-      expect([...satisfiedRequirements(s)], s).toEqual([]);
+      expect([...satisfiedRequirements(s, null, new Date())], s).toEqual([]);
     }
   });
 
@@ -144,7 +144,7 @@ describe('M39 · what the installation actually satisfies', () => {
     // Business verification and the privacy page are Meta's to confirm and hers
     // to supply. Reporting them satisfied would put "you can write first" in
     // front of an owner whose first send would be rejected.
-    const s = satisfiedRequirements('approved');
+    const s = satisfiedRequirements('approved', null, new Date());
     expect(s.has('business_verification')).toBe(false);
     expect(s.has('privacy_policy_url')).toBe(false);
     expect(mayInitiate('whatsapp', s).ok).toBe(false);
@@ -153,7 +153,7 @@ describe('M39 · what the installation actually satisfies', () => {
 
 describe('M39 · what she reads', () => {
   const page = (state: 'approved' | 'none' = 'none') =>
-    renderReach('en', satisfiedRequirements(state));
+    renderReach('en', satisfiedRequirements(state, null, new Date()));
 
   it('every channel appears, with the truth about it', () => {
     const html = page();
@@ -200,14 +200,30 @@ describe('M39 · what she reads', () => {
 
   it('WHAT THE CHANNEL ALLOWS IS NOT WHAT THIS PRODUCT CAN DO YET', () => {
     // The first version of this page said "Email · you can write first" beside
-    // a Connect button, when nothing here can send an email at all.
+    // a Connect button, when nothing here could send an e-mail at all.
+    //
+    // C4.a — e-mail can now, so it is no longer the example; the RULE is
+    // unchanged and is now read from the registry rather than from a channel
+    // name, which is what stopped this test from having to be rewritten a
+    // second time when the next adapter lands.
     const html = page();
-    const emailCard = html.slice(html.indexOf(t('en', 'reach.channel.email')));
-    expect(emailCard.slice(0, emailCard.indexOf('class="card reach"')))
-      .toContain(t('en', 'reach.notHere'));
-
-    const wa = html.slice(html.indexOf(t('en', 'reach.channel.whatsapp')));
-    expect(wa.slice(0, wa.indexOf('class="card reach"'))).not.toContain(t('en', 'reach.notHere'));
+    const cardFor = (c: OutreachChannel): string => {
+      const at = html.indexOf(t('en', `reach.channel.${c}` as MessageKey));
+      const rest = html.slice(at);
+      const end = rest.indexOf('class="card reach"');
+      return end === -1 ? rest : rest.slice(0, end);
+    };
+    for (const c of OUTREACH_CHANNELS) {
+      const card = cardFor(c);
+      if (CHANNEL_REGISTRY[c].availableHere) {
+        expect(card, `${c} is available here and still says it is not`).not.toContain(t('en', 'reach.notHere'));
+      } else {
+        expect(card, `${c} cannot send from here and does not say so`).toContain(t('en', 'reach.notHere'));
+      }
+    }
+    // …and at least one of each kind exists, so this cannot pass vacuously.
+    expect(OUTREACH_CHANNELS.some((c) => CHANNEL_REGISTRY[c].availableHere)).toBe(true);
+    expect(OUTREACH_CHANNELS.some((c) => !CHANNEL_REGISTRY[c].availableHere)).toBe(true);
   });
 
   it('and "available here" is checked against the adapters on disk, not asserted', async () => {
@@ -258,9 +274,15 @@ describe('M39 · what she reads', () => {
 
   it('and the Channel Center renders it', async () => {
     const src = await readFile(new URL('../../src/api/web/channels.ts', import.meta.url), 'utf8');
-    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain),');
+    // C4.a — the predicate moved to core/channel/requirements.ts so the SEND
+    // path can ask it too, and takes its clock explicitly there (core owns no
+    // clock). The rule this pins is unchanged: the page renders the predicate's
+    // answer, never a second derivation of it.
+    expect(src).toContain('renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),');
     expect(src).toContain('${reach}');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none')");
+    // G3 added the configured number as a fifth argument; what this pins is
+    // that the page is handed the REAL template state, not a default.
+    expect(app).toMatch(/loadChannels\(deps\.db, s\.businessId, messagingEnabled, deps\.templateState \?\? 'none'[,)]/);
   });
 });
