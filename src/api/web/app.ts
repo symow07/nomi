@@ -35,7 +35,7 @@ import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
 import { recordDomainCheck, sendingDomain, setSendingDomain } from '../../db/sendingDomain.js';
 import { checkDomain } from '../../core/outreach/domain.js';
 import { applyUnsubscribe, claimFrom, renderUnsubscribe, renderUnsubscribed } from './unsubscribe.js';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { suppressionFor } from '../../core/outreach/events.js';
 import { suppress as suppressIdentityRow } from '../../db/contacts.js';
 import { normalizeIdentity } from '../../core/outreach/consent.js';
@@ -44,6 +44,13 @@ import {
   loadContacts, reachOf, renderContacts, renderSuppressConfirm, renderWriteFirst, suppressIdentity,
 } from './contacts.js';
 import { writeFirst } from '../../outbound/writeFirst.js';
+import {
+  OAUTH_PROVIDERS, authorizeUrl, mintOAuthState, pkcePair, readOAuthState, sameNonce,
+  type OAuthClients, type OAuthFetch,
+} from '../../connectors/oauth.js';
+import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
+import { loadAccounts, renderAccounts, spfIncludeFor } from './connect.js';
+import { liveMailAccount } from '../../db/mailAccounts.js';
 import {
   addProspect, enrichmentsFor, keyStatus, lookUpCompany, removeKey, saveKey, searchProspects,
   type ProspectDeps,
@@ -168,6 +175,13 @@ export type WebDeps = {
   readonly credentialKey?: Buffer;
   /** C5 — builds a prospect source from her key (Apollo in production). */
   readonly prospectSourceFor?: ProspectSourceFor;
+  /**
+   * C6 — this installation's OAuth apps, per provider. A provider with no client
+   * here shows "not set up here", never a Connect button that can only fail.
+   */
+  readonly oauthClients?: OAuthClients;
+  /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
+  readonly oauthFetch?: OAuthFetch;
   /**
    * G13 — ask the worker to answer words a person typed for a voice note. The
    * models live in the worker; this hands it the job, and everything after is
@@ -1012,9 +1026,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
     const data = await loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none',
       deps.connectableNumber ?? null);
+    // C6 — every other account she links, read beside the WhatsApp card.
+    const bid = parseBusinessId(s.businessId);
+    const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
+      clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
+      apollo: await keyStatus(prospectDeps(), bid.value),
+    }) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
-      bodyHtml: renderChannels(data, locale, flash, personOf(s)),
+      bodyHtml: renderChannels(data, locale, flash, personOf(s), accounts ? renderAccounts(accounts, locale, personOf(s)) : ''),
     }));
   });
 
@@ -1642,7 +1662,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // The lookup is I/O and can fail; a failure returns empty lists, which read
     // as 'missing'. It is never allowed to read as "fine".
     const found = await deps.resolveDns(row.domain, row.dkimSelector);
-    const check = checkDomain(found, deps.sendingInclude ?? null);
+    // C6 — the mechanism to require is the connected mailbox's own (Google's or
+    // Microsoft's), when the host names none. Before a mailbox is connected
+    // there is still nothing to confirm, and the check says so (`no_sender`).
+    const mailbox = await withTenantTx(deps.db, bid.value, (tx) => liveMailAccount(tx, bid.value));
+    const check = checkDomain(found, deps.sendingInclude ?? spfIncludeFor(mailbox?.provider));
     await withTenantTx(deps.db, bid.value, (tx) =>
       recordDomainCheck(tx, bid.value, check, new Date()));
     return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.checked'))}`);
@@ -1708,6 +1732,77 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * person who took the card is the person who knows. Suppressing is open in
    * the safe direction — more hands able to stop a send is never the risk.
    */
+  /**
+   * C6 · M50 — CONNECT HER MAILBOX, with a few clicks.
+   *
+   * OWNER ONLY, on the `outreach` action: this is the address mail leaves as,
+   * in her name, to people who never wrote to her.
+   *
+   * THE CALLBACK IS TIED TO THE PERSON WHO STARTED IT. The start route puts a
+   * signed, ten-minute cookie on this browser holding the PKCE verifier, a nonce
+   * and her person id, scoped to `/app/connect`; the provider echoes the nonce in
+   * `state`. A callback with no cookie, a stale one, another provider's, another
+   * person's, or a mismatched nonce connects nothing — the shape of a login-CSRF
+   * that would otherwise attach an attacker's mailbox to her factory.
+   */
+  const OAUTH_COOKIE = 'yf_oauth';
+  const redirectUriFor = (provider: string) =>
+    `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/${provider}/callback`;
+  const channelsFlash = (locale: Locale, key: string, vars?: Record<string, string>) =>
+    `/app/channels?flash=${encodeURIComponent(t(locale, key as MessageKey, vars))}`;
+
+  app.get('/app/connect/:provider/start', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
+    const client = provider ? deps.oauthClients?.[provider] : undefined;
+    if (!provider || !client || !deps.publicBaseUrl || !deps.credentialKey) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    }
+    const { verifier, challenge } = pkcePair();
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, OAUTH_COOKIE, mintOAuthState(deps.sessionSecret, { provider, verifier, nonce, personId: personOf(s).id }, Date.now()),
+      { path: '/app/connect', maxAgeSec: 600 });
+    return reply.redirect(authorizeUrl(provider, client, { redirectUri: redirectUriFor(provider), state: nonce, challenge }));
+  });
+
+  app.get('/app/connect/:provider/callback', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
+    // Used once, whatever happens next.
+    writeCookie(reply, OAUTH_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
+    const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
+    if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
+        || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+    }
+    if (q.error || typeof q.code !== 'string' || !q.code) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.denied'));
+    }
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.rejected'));
+    const r = await completeMailConnection({
+      db: deps.db, credentialKey: deps.credentialKey ?? null, clients: deps.oauthClients ?? {},
+      fetchImpl: deps.oauthFetch ?? (fetch as unknown as OAuthFetch), now: () => new Date(),
+    }, {
+      businessId: bid.value, provider, code: q.code.slice(0, 2048), verifier: state.verifier,
+      redirectUri: redirectUriFor(provider), by: personOf(s).name,
+    });
+    return reply.redirect(r.outcome === 'connected'
+      ? channelsFlash(locale, 'connect.flash.connected', { address: r.address ?? '' })
+      : channelsFlash(locale, `connect.flash.${r.outcome}`));
+  });
+
+  app.post('/app/connect/mail/disconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
+    return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.flash.disconnected' : 'connect.flash.rejected'));
+  });
+
   /**
    * C5 — prospecting. The key is hers (owner-only, on the `outreach` action: it
    * is how she reaches people who never wrote first); searching, adding someone

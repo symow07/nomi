@@ -859,6 +859,64 @@ The owner is not technical and may have no IT support: she connects everything
 with a few clicks. Built against dev-mode platform apps with test accounts;
 paste-credentials stays as the fallback path for factory #1.
 
+#### C6 — the connect surface, and the transport that finally sends ✅ BUILT
+
+Migration 0050, `src/connectors/oauth.ts`, `src/channels/email/{senders,accountTransport,connectMailbox}.ts`,
+`src/db/mailAccounts.ts`, and "Your accounts" on `/app/channels`. `REQUIRED_SCHEMA_VERSION` 50.
+
+- **A read model that holds more than one account.** Gmail, Outlook, Apollo,
+  Instagram and Messenger, each answering the same questions: connected, as what,
+  and what it lets her do. "Not connected" and "not set up here yet" are
+  different rows — no Connect button for an app this installation has no client
+  for. Instagram and Messenger say what the registry says (they can never write
+  first) and offer nothing to press. WhatsApp keeps its own card: its lifecycle
+  is the pilot's.
+- **Connect Gmail / Outlook with a few clicks** — OAuth 2.0 authorization code
+  with PKCE (S256), owner-only. The callback is tied to the person who pressed
+  Connect by a signed, ten-minute, HttpOnly cookie scoped to `/app/connect`
+  holding the verifier, a nonce and her person id; a missing, stale, forged,
+  other-provider or other-person callback connects nothing (login-CSRF closed).
+  The ID token's audience, issuer, expiry and — for Google — `email_verified`
+  are checked. Scopes: send only. **Nothing that reads her mailbox**; a test
+  holds both providers to it.
+- **The refresh token is stored locked** (AES-256-GCM, fingerprint), one live
+  mailbox per business, replacing archives, nothing erased. No access token is
+  ever stored: it lives in the sending process's memory until a minute before it
+  expires.
+- **Production no longer sends into the recording fake.** The outbound worker
+  binds an account-backed transport to each job's own business. It reads the
+  live mailbox on every send and REFUSES, saying why, when none is connected,
+  when the installation has no app for its provider, when the mailbox is not on
+  her verified domain, or when the token is dead. A dead token (`invalid_grant`,
+  or a second 401) is recorded on the row and the page asks her to connect again.
+  Microsoft's rotated refresh tokens replace the stored one.
+- **One MIME message for both providers**, because Graph's JSON message only
+  allows `x-` headers and so could never carry List-Unsubscribe. Header injection
+  is closed (no CR/LF in any value, reserved headers not overridable), non-ASCII
+  subjects are RFC 2047-encoded. The Message-ID is minted on her domain and read
+  back from Gmail / taken from Graph's `internetMessageId`, keeping C4.c's reply
+  contract.
+- **Her SPF is checked against the mailbox she connected** (`_spf.google.com`,
+  `spf.protection.outlook.com`) when the host names no include — the first time
+  the domain requirement can actually pass without an operator setting.
+- **Not exercised against Google or Microsoft from here.** Dev-mode OAuth needs
+  her own Google Cloud project and Entra app (M52 #3, #4). Everything on this
+  side of the wire is tested with a recording fake.
+
+**Deferred, on purpose — the WhatsApp paste-credentials path.** The running app
+builds its WhatsApp sender once from the host's settings; a pasted token would
+only mean something if the pilot-critical send path read credentials from the
+database per tenant. That is the same class of pre-go-live reshaping the owner
+chose to defer for C4.d, so it waits for the pilot too. Apollo's paste path
+exists (C5).
+
+**Known limits, for the owner to decide:** a buyer's reply to a mail sent through
+Gmail/Outlook lands in her own inbox, not in the product — reading it would need
+`gmail.readonly` / `Mail.Read`, which Google classes as restricted (paid security
+assessment). The inbound webhook (C4.c) serves an e-mail service provider
+instead. And an Outlook send that fails between creating and sending leaves a
+draft in her Drafts folder.
+
 ---
 
 ### M52 — The things only the owner can provide  ⛔ LAST, ALWAYS
@@ -1580,7 +1638,7 @@ at all.** It was deferred as "blocked", and it is not.
 | C3 | **M42 the outreach gate** ✅ BUILT | None. `gateOutbound` learns four refusals over C1 and C2. |
 | C4 | **M40 email from her own address** — M40.1, M40.2, C4.a, C4.b, C4.c built | Only the final send. The sequence engine, the SPF/DKIM/DMARC verification, one-click unsubscribe writing to `suppressions`, bounce and complaint handling — all offline. |
 | C5 | **M41 Apollo behind a connector** ✅ BUILT (live call unverified until M52) | Only the live call. The connector, the enrichment surface and the rule that 小雅 may never SPEAK enrichment are testable against a fake. |
-| C6 | **M50 the connect surface** | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
+| C6 | **M50 the connect surface** ✅ BUILT (WhatsApp paste path deferred with C4.d; providers unverified until M52) | Only the OAuth handshake. The page, and M39's registry rendered on it, are what the owner reads BEFORE she connects anything. |
 
 Built in that order, each one ships with "not configured" as an honest state —
 the same shape M34 and M37 already use. When M52's credentials arrive they are

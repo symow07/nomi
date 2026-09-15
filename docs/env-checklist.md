@@ -79,7 +79,11 @@ media setting to keep in step with it.
 |---|---|---|
 | `TRANSCRIBE_API_KEY` | ≥ 20 chars, when set | Speech-to-text (Whisper). **Unset, she refuses every voice note** and tells the owner she could not hear it — never an answer to a question nobody heard. The one media setting that is its own account. |
 | `TRANSCRIBE_BASE_URL` | starts with `https://`, when set | Only for a Whisper-compatible provider other than OpenAI's. |
-| `SENDING_SPF_INCLUDE` | not checked at boot | The sending provider's own SPF mechanism (M40.1). Unset, SPF reads as `no_sender` — present but unconfirmable — and sending stays refused. |
+| `SENDING_SPF_INCLUDE` | not checked at boot | The sending provider's own SPF mechanism (M40.1). Unset, it is taken from the mailbox she connected (`_spf.google.com` for Gmail, `spf.protection.outlook.com` for Outlook, C6); with neither, SPF reads as `no_sender` — present but unconfirmable — and sending stays refused. |
+| `GOOGLE_OAUTH_CLIENT_ID` | both or neither, warned at boot | The installation's Google Cloud OAuth client, for "Connect Gmail" (C6). Needs `PUBLIC_BASE_URL`: the redirect is `<PUBLIC_BASE_URL>/app/connect/google/callback`. Scopes asked: `openid email gmail.send` — nothing that reads her mailbox. **Unset, Gmail shows "not set up here yet"** and no Connect button. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | both or neither, warned at boot | The secret of that client. Never shown; used only in the code exchange and token refresh. |
+| `MICROSOFT_OAUTH_CLIENT_ID` | both or neither, warned at boot | The installation's Microsoft Entra app, for "Connect Outlook" (C6). Redirect `<PUBLIC_BASE_URL>/app/connect/microsoft/callback`; scopes `openid email offline_access Mail.Send`. **Unset, Outlook shows "not set up here yet".** |
+| `MICROSOFT_OAUTH_CLIENT_SECRET` | both or neither, warned at boot | The secret of that app. |
 | `EMAIL_WEBHOOK_SECRET` | not checked at boot | Shared secret for the provider's callbacks: bounce/complaint events at `/hooks/email` (M40.2) and buyers' replies at `/hooks/email/inbound` (C4.c). **Unset mounts neither.** The signature is HMAC-SHA256 over the raw bytes, base64url, in `x-webhook-signature` (G14). |
 | `PUBLIC_BASE_URL` | starts with `https://`, when set | The address buyers reach this installation at. Every quote carries a proof link built on it (G11). **Unset, no link is attached** and the owner is told why on the conversation. https only: the link is forwarded to a stranger's phone. |
 

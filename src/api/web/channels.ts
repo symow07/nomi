@@ -552,6 +552,8 @@ export function renderReach(
 
 export function renderChannels(
   data: ChannelsData, locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
+  /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
+  accountsHtml = '',
 ): string {
   const w = data.whatsapp;
   const actions = w.connected
@@ -608,6 +610,7 @@ export function renderChannels(
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${whatsappCard}
+    ${accountsHtml}
     ${reach}
     ${alertsCard}
     ${soon}

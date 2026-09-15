@@ -17,7 +17,10 @@ import { templateState, parseApprovedTemplates } from './core/channel/templateRe
 import { resolveSendingRecords } from './outbound/dns.js';
 import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { emailAdapter } from './channels/email/adapter.js';
-import { fakeMailTransport, type MailTransport } from './channels/email/transport.js';
+import type { MailTransport } from './channels/email/transport.js';
+import { accountMailTransport } from './channels/email/accountTransport.js';
+import { gmailSender, graphSender } from './channels/email/senders.js';
+import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
@@ -381,6 +384,12 @@ export async function buildProduction(
   // cookies with it and C4.a's unsubscribe tokens are keyed from it, and two
   // copies of that line would be two secrets the day one of them is edited.
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
+  /**
+   * C6 — this installation's own OAuth apps. Each provider needs BOTH its id and
+   * its secret; half a pair is not configured, and says so at boot rather than
+   * sending her to a provider page that will refuse the app.
+   */
+  const oauthClients = oauthClientsFrom(process.env);
 
   const TEMPLATE_STATE = templateState({
     providerConfigured: cfg.provider !== 'disabled',
@@ -426,6 +435,8 @@ export async function buildProduction(
     // credential; Apollo is built from her key per request, never held.
     credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
     prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
+    // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
+    oauthClients,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
@@ -499,27 +510,38 @@ export async function buildProduction(
   // re-drive ticks (from status webhooks / wait-recheck).
   type DriveJob = { businessId: string; conversationId: string; reply?: string };
   /**
-   * C4.a — the adapters this installation has, by channel.
+   * C4.a / C6 — the adapters this installation has, by channel, FOR ONE BUSINESS.
    *
-   * WhatsApp is whichever provider the environment selected. E-mail is always
-   * present in the sense that the code exists; what decides whether a message
-   * can actually leave is her verified sending domain and her outreach switch,
-   * both of which the gate reads — not whether an object was constructed here.
-   * Until a real provider arrives with M52 the transport is the fake one, and
-   * it records rather than pretends, so what would have left is inspectable.
+   * WhatsApp is whichever provider the environment selected. E-mail leaves
+   * through the mailbox the business connected (`mail_accounts`, C6): the
+   * transport is bound to the job's own business, reads its live account on
+   * every send, and REFUSES — says why, never pretends — when none is connected,
+   * when the installation has no OAuth app for it, or when the mailbox is not on
+   * her verified domain. The recording fake that stood here until C6 said `ok` to
+   * mail that went nowhere; tests still pass one in as `overrides.mailTransport`.
    */
-  const mailTransport = overrides?.mailTransport ?? fakeMailTransport();
-  const email = emailAdapter({ transport: mailTransport });
-  const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
-  const adapterFor = (channel: string): ChannelAdapter | undefined => byChannel[channel];
+  const credentialKey = deriveKey(cfg.CREDENTIAL_KEY);
+  const oauthFetch = fetch as unknown as OAuthFetch;
+  const tokenCache = new Map<string, { token: string; until: number }>();
+  const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
+  const adaptersFor = (businessId: BusinessId) => {
+    const email = emailAdapter({
+      transport: overrides?.mailTransport ?? accountMailTransport({
+        db, businessId, credentialKey, clients: oauthClients, senders: mailSenders,
+        fetchImpl: oauthFetch, cache: tokenCache,
+      }),
+    });
+    const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
+    return (channel: string): ChannelAdapter | undefined => byChannel[channel];
+  };
 
   /**
    * C4.a — RFC 8058 headers, minted per message from the same signing key the
-   * unsubscribe page reads with. Empty when this installation has no public
-   * address to send anyone to, which is a refusal rather than a mail without a
-   * way out (`no_unsubscribe`).
+   * unsubscribe page reads with, for the business the mail is sent for. Empty
+   * when this installation has no public address to send anyone to, which is a
+   * refusal rather than a mail without a way out (`no_unsubscribe`).
    */
-  const mailHeaders = (
+  const mailHeadersFor = (businessId: BusinessId) => (
     row: { readonly to: string }, opts: { readonly locale: Locale },
   ): MailEnvelope => {
     if (!cfg.PUBLIC_BASE_URL) return { headers: {}, tag: null };
@@ -527,7 +549,7 @@ export async function buildProduction(
       // The BUYER's language, resolved by the store from his own client row: the
       // page behind this link is the one thing in her mail he reads that she did
       // not write, and it is no use to him in a language he does not read.
-      businessId: PILOT_BUSINESS_ID, channel: 'email', identity: row.to, locale: opts.locale,
+      businessId, channel: 'email', identity: row.to, locale: opts.locale,
     });
     // C4.c — the same token as the provider's event tag, so a bounce or a
     // complaint about this mail resolves to this business and this address.
@@ -549,7 +571,10 @@ export async function buildProduction(
       }
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       return driveConversationOutbound(
-        { store, adapter, adapters: adapterFor, mailHeaders, now: () => new Date() },
+        {
+          store, adapter, adapters: adaptersFor(businessId.value),
+          mailHeaders: mailHeadersFor(businessId.value), now: () => new Date(),
+        },
         job.data.conversationId,
       );
     });

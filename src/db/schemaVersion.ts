@@ -167,8 +167,13 @@ import type { Db } from './client.js';
  *      one live per connector), `organization_enrichments` (per domain, for
  *      people to read), and 'apollo' as a contact source with a title. Against
  *      a 48 database the prospects page fails on its first read.
+ *
+ * 50 = the mailbox her e-mail leaves from (0050, C6). `mail_accounts`, one live
+ *      per business, holding an encrypted refresh token and nothing that could
+ *      send by itself. The mail transport reads it on every send, so against a
+ *      49 database no e-mail can leave at all.
  */
-export const REQUIRED_SCHEMA_VERSION = 49;
+export const REQUIRED_SCHEMA_VERSION = 50;
 
 export type SchemaState = {
   readonly required: number;
