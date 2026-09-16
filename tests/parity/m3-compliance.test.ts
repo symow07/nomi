@@ -3,7 +3,7 @@ import {
   windowState, windowMsLeft, sendPlan, WINDOW_MS, CLOSING_SOON_MS,
 } from '../../src/core/channel/window.js';
 import {
-  applyStatus, retryDelayMs, onSendFailure, shouldReclaim,
+  applyStatus, retryDelayMs, onSendFailure, isUncertainSend,
   MAX_SEND_ATTEMPTS, RETRY_MAX_MS, SENDING_RECLAIM_MS,
 } from '../../src/core/channel/delivery.js';
 import { gateOutbound, cancelableOnTakeover } from '../../src/core/channel/sendGate.js';
@@ -95,10 +95,10 @@ describe('M3 · delivery-state reconciliation', () => {
     expect(onSendFailure({ retryable: false, error: '24h window' }, 1)).toEqual({ kind: 'fail_permanent' });
   });
 
-  it('restart safety: stuck sending rows get reclaimed', () => {
-    expect(shouldReclaim(new Date(NOW.getTime() - SENDING_RECLAIM_MS - 1), NOW)).toBe(true);
-    expect(shouldReclaim(new Date(NOW.getTime() - 1_000), NOW)).toBe(false);
-    expect(shouldReclaim(null, NOW)).toBe(false);
+  it('restart safety: a send that never reported back becomes UNCERTAIN, never re-queued (0052)', () => {
+    expect(isUncertainSend(new Date(NOW.getTime() - SENDING_RECLAIM_MS - 1), NOW)).toBe(true);
+    expect(isUncertainSend(new Date(NOW.getTime() - 1_000), NOW)).toBe(false);
+    expect(isUncertainSend(null, NOW)).toBe(false);
   });
 });
 

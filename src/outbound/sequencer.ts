@@ -11,7 +11,9 @@ import { CHANNEL_REGISTRY, type ChannelCapability } from '../core/channel/regist
  */
 
 export type OutboundStatus =
-  | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'canceled';
+  | 'queued' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'canceled'
+  /** 0052 — the provider was called and never answered. A person decides. */
+  | 'uncertain';
 
 export type OutboundRow = {
   readonly id: string;
@@ -33,8 +35,16 @@ const awaitsReceipt = (channel: string | undefined): boolean =>
   (CHANNEL_REGISTRY as Readonly<Record<string, ChannelCapability | undefined>>)[channel ?? 'whatsapp']
     ?.deliveryReceipts !== false;
 
-/** delivered/read = confirmed at handset; failed/canceled = will never block. */
-const TERMINAL = new Set<OutboundStatus>(['delivered', 'read', 'failed', 'canceled']);
+/**
+ * delivered/read = confirmed at handset; failed/canceled = will never block.
+ *
+ * 0052 — and 'uncertain' does not block either. It is out of the pipeline until
+ * a person decides, which may be hours: holding the rest of the conversation
+ * behind it would turn one unanswerable question into a silent buyer. Ordering
+ * is a courtesy about two messages arriving the wrong way round; leaving a man
+ * with no answer at all is worse, and she can still see both.
+ */
+const TERMINAL = new Set<OutboundStatus>(['delivered', 'read', 'failed', 'canceled', 'uncertain']);
 
 /** 'sent' but unconfirmed for this long → stop blocking successors (buyer may
  * have receipts off / flaky network). Coherence yields to responsiveness. */

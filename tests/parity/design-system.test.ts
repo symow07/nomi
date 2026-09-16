@@ -205,7 +205,7 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
       quote: null, order: null,
       messages: [{ direction: 'inbound', text: 'BUYERWORDS-5000', at: new Date('2026-07-27T09:00:00Z') }],
       pendingDraft: { draftId: 'd1', draftText: 'HERDRAFT-092', capability: 'quote' },
-      ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
+      ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
     };
     const html = renderConversationDetail(detail, 'en', new Date('2026-07-27T10:00:00Z'), null);
     // her draft is inside .proposed (voiced); the buyer's words inside .bubble

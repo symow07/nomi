@@ -113,7 +113,7 @@ const detail = (over: Partial<ConversationDetail> = {}): ConversationDetail => (
   conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: null,
   quote: null, order: null, messages: [], pendingDraft: null,
-  ownership: 'WAITING_HUMAN', refusals: [], handoffReasons: ['media_unreadable'],
+  ownership: 'WAITING_HUMAN', refusals: [], uncertainSends: [], handoffReasons: ['media_unreadable'],
   unheardReason: null, unreadable: 'document', lastHumanAction: null, knowledgeUsed: [],
   rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
   ...over,

@@ -61,7 +61,7 @@ describe('G8 · the owner sees them', () => {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'handled',
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: null, quote: null,
     order: null, messages: [], pendingDraft: null,
-    ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+    ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
     knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
     ...over,
   });

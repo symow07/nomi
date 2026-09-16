@@ -124,7 +124,7 @@ describe('G7a · the draft card says why it is waiting', () => {
     quote: { unitPrice: usd(0.41), total: usd(2050), quantity: 5000 },
     order: null, messages: [],
     pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.41/pc.', capability: 'quote', heldBecause },
-    ownership: 'AI', refusals: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+    ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
     knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
   });
 

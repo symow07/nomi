@@ -43,6 +43,8 @@ export type InsightAction =
   | { readonly kind: 'follow_up'; readonly href: string; readonly buyer: string }
   | { readonly kind: 'consider_promotion'; readonly href: '/app/employee'; readonly capability: string }
   | { readonly kind: 'fix_catalog'; readonly href: '/app/products' }
+  /** 0052 — a send nobody can account for; only she can close it. */
+  | { readonly kind: 'settle_uncertain'; readonly href: string; readonly buyer: string }
   /** 0051 — follow-ups that stop in a week unless someone looks in her inbox. */
   | { readonly kind: 'confirm_follow_ups'; readonly href: '/app/sequences' }
   /** M51.5 — a change in the month is a change in HER BUYERS. That is where
@@ -99,6 +101,29 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
         key: 'insight.quotedNoReply',
         params: { buyer: quoted.buyer },
         action: { kind: 'follow_up', href: `/app/inbox/${encodeURIComponent(quoted.conversation_id)}`, buyer: quoted.buyer },
+      });
+    }
+
+    // 1b. A message nobody can account for. Above drafts: a draft waiting is
+    //     work not yet done, while this one may ALREADY have reached a buyer,
+    //     and every hour it waits is an hour she does not know where she stands.
+    const unsure = (await sql<{ n: number; conversation_id: string | null; buyer: string | null }>`
+      select count(*)::int as n,
+             (array_agg(o.conversation_id::text order by o.created_at desc))[1] as conversation_id,
+             (array_agg(cl.display_name order by o.created_at desc))[1] as buyer
+        from outbound_messages o
+        join conversations c on c.id = o.conversation_id
+        left join clients cl on cl.id = c.client_id
+       where o.business_id = ${bid.value} and o.status = 'uncertain'`.execute(tx)).rows[0]!;
+    if (unsure.n > 0 && unsure.conversation_id) {
+      out.push({
+        key: 'insight.uncertainSends',
+        params: { count: unsure.n },
+        action: {
+          kind: 'settle_uncertain',
+          href: `/app/inbox/${encodeURIComponent(unsure.conversation_id)}`,
+          buyer: unsure.buyer ?? '',
+        },
       });
     }
 

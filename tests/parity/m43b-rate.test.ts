@@ -204,7 +204,7 @@ function detail(r: OwnerRate | null): ConversationDetail {
     quote: { unitPrice: money(0.92), total: money(4600), quantity: 5000 },
     order: null,
     messages: [{ direction: 'inbound', text: 'Price for 5000?', at: march }],
-    pendingDraft: null, ownership: 'AI', refusals: [], handoffReasons: [],
+    pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [],
     unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: r, leadTimeBlocked: null, sampleAsked: null,
     proof: { quoteId: null, token: null },
   };

@@ -13,6 +13,11 @@ import type { OutboundStatus } from '../../outbound/sequencer.js';
 
 const RANK: Record<OutboundStatus, number> = {
   queued: 0, sending: 1, sent: 2, delivered: 3, read: 4, failed: 5, canceled: 5,
+  // 0052 — ranked with 'sending', which is what it is: a send whose answer was
+  // lost. NOT terminal, so if a provider ever does report on it — a status
+  // webhook that finds its row — the receipt is believed and she is spared the
+  // question.
+  uncertain: 1,
 };
 
 const TERMINAL = new Set<OutboundStatus>(['failed', 'canceled']);
@@ -71,14 +76,31 @@ export function onSendFailure(failure: SendFailure, attempts: number): FailureDe
 
 /**
  * A row stuck in 'sending' longer than this was interrupted mid-send (crash,
- * deploy). Reclaim it to 'queued' so the loop resumes. The window is generous
- * because the provider POST may have succeeded without us recording it — a
- * rare duplicate send is the accepted cost of never losing a message; the
- * conversation-level advisory lock keeps reclaims race-free.
+ * deploy, dropped socket). The window is generous because the provider POST may
+ * have succeeded without us recording it.
+ *
+ * ── IT IS NOT RE-QUEUED, AND THAT IS THE POINT (0052) ─────────────────────
+ *
+ * This constant used to feed a reclaim back to 'queued', on the reasoning that
+ * "a rare duplicate send is the accepted cost of never losing a message". That
+ * trade was the wrong way round. A buyer who gets the same price, or the same
+ * first e-mail, twice learns something false about the factory — and a machine
+ * chose that for her, silently, in the one case where nobody could say what had
+ * happened. Losing the message is not the alternative: the row becomes
+ * 'uncertain', she is told it is not known whether it left, and she decides.
+ *
+ * No provider can settle it for us in general. WhatsApp will not answer for a
+ * message whose id we never received; SMTP has nothing to ask. So the honest
+ * answer is a person, and everything here exists to put the question in front
+ * of one rather than guess.
  */
 export const SENDING_RECLAIM_MS = 2 * 60_000;
 
-export function shouldReclaim(sendingSince: Date | null, now: Date): boolean {
+/**
+ * Whether a send that never reported back has waited long enough to be called
+ * unknown. Pure; the caller supplies the clock.
+ */
+export function isUncertainSend(sendingSince: Date | null, now: Date): boolean {
   if (!sendingSince) return false;
   return now.getTime() - sendingSince.getTime() >= SENDING_RECLAIM_MS;
 }

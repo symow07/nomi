@@ -144,11 +144,13 @@ describe('M3 · outbound worker drive', () => {
     expect((await drive(m.store))[0]).toEqual({ kind: 'canceled', id: 'a', reason: 'window_needs_owner' });
   });
 
-  it('restart safety: a row stuck in sending is reclaimed, then sent', async () => {
+  it('restart safety (0052): a row stuck in sending becomes UNCERTAIN — never re-sent', async () => {
     const m = memStore([{ id: 'a', status: 'sending', sendingSince: new Date(NOW.getTime() - 180_000) }]);
     const effects = await drive(m.store);
-    expect(effects).toContainEqual({ kind: 'reclaimed', id: 'a' });
-    expect(effects).toContainEqual(expect.objectContaining({ kind: 'sent', id: 'a' }));
+    expect(effects).toContainEqual({ kind: 'uncertain', id: 'a' });
+    // The old behaviour — reclaim to 'queued' and send it again — is the defect
+    // this replaced: the provider may already have accepted it.
+    expect(effects).not.toContainEqual(expect.objectContaining({ kind: 'sent', id: 'a' }));
   });
 });
 
