@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { parseMetaMessaging, metaMessagingSender, WEBHOOK_OBJECT } from '../../src/channels/meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, socialAppSecret, WEBHOOK_OBJECT } from '../../src/channels/meta/messaging.js';
 import { instagramAdapter } from '../../src/channels/instagram/adapter.js';
 import { messengerAdapter } from '../../src/channels/messenger/adapter.js';
 import { CHANNEL_REGISTRY, mayInitiate } from '../../src/core/channel/registry.js';
@@ -164,6 +164,23 @@ describe('C9 · she answers here, and can never start here', () => {
       expect(dirs).toContain(channel);
       expect(CHANNEL_REGISTRY[channel].availableHere).toBe(true);
     }
+  });
+});
+
+describe('C9 · whose app signs these webhooks', () => {
+  it('THEIR OWN APP\'S SECRET when they live apart from WhatsApp', () => {
+    // nomi-social signs Instagram and Messenger; nomi-pilot signs WhatsApp.
+    // Using one secret for both would 401 every genuine payload.
+    expect(socialAppSecret({ META_SOCIAL_APP_SECRET: 'social-secret' }, 'whatsapp-secret')).toBe('social-secret');
+  });
+
+  it('and WhatsApp\'s when one app carries all three', () => {
+    expect(socialAppSecret({}, 'whatsapp-secret')).toBe('whatsapp-secret');
+    expect(socialAppSecret({ META_SOCIAL_APP_SECRET: '   ' }, 'whatsapp-secret')).toBe('whatsapp-secret');
+  });
+
+  it('and nothing at all when neither app is configured — no channel is built', () => {
+    expect(socialAppSecret({}, undefined)).toBeUndefined();
   });
 });
 

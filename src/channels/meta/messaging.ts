@@ -109,6 +109,24 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
   return events;
 }
 
+/**
+ * Which app secret signs these webhooks.
+ *
+ * Instagram and Messenger need not live in the same Meta app as WhatsApp — and
+ * for this installation they do not: WhatsApp sits in `nomi-pilot` and these
+ * two in `nomi-social`, because mixing a channel under review with a live one
+ * puts both at the mercy of one app's standing. Each app signs with its OWN
+ * secret, so a single `META_APP_SECRET` would fail every webhook signature with
+ * a 401 that looks exactly like an attack.
+ *
+ * `META_SOCIAL_APP_SECRET` names the second app's secret. Unset, the WhatsApp
+ * app's secret is used, which is correct for an installation that keeps all
+ * three in one app.
+ */
+export const socialAppSecret = (
+  env: Record<string, string | undefined>, whatsappAppSecret: string | undefined,
+): string | undefined => env['META_SOCIAL_APP_SECRET']?.trim() || whatsappAppSecret;
+
 export type MetaFetch = (url: string, init: {
   method: string;
   headers: Record<string, string>;

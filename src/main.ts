@@ -23,6 +23,7 @@ import { accountMailTransport } from './channels/email/accountTransport.js';
 import { smtpMailTransport } from './channels/email/smtpTransport.js';
 import { smtpConfigFrom } from './channels/email/smtp.js';
 import { instagramAdapter } from './channels/instagram/adapter.js';
+import { socialAppSecret } from './channels/meta/messaging.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
@@ -409,18 +410,20 @@ export async function buildProduction(
   const pageToken = process.env['META_PAGE_ACCESS_TOKEN']?.trim();
   const pageId = process.env['META_PAGE_ID']?.trim();
   const igAccountId = process.env['META_IG_ACCOUNT_ID']?.trim();
-  const metaMessaging = cfg.META_APP_SECRET && pageToken
+  // These two may live in their own Meta app, which signs with its own secret.
+  const socialSecret = socialAppSecret(process.env, cfg.META_APP_SECRET);
+  const metaMessaging = socialSecret && pageToken
     ? {
       ...(pageId ? {
         messenger: messengerAdapter({
           accountId: pageId, accessToken: pageToken,
-          appSecret: cfg.META_APP_SECRET, graphVersion: cfg.META_GRAPH_API_VERSION,
+          appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION,
         }),
       } : {}),
       ...(igAccountId ? {
         instagram: instagramAdapter({
           accountId: igAccountId, accessToken: pageToken,
-          appSecret: cfg.META_APP_SECRET, graphVersion: cfg.META_GRAPH_API_VERSION,
+          appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION,
         }),
       } : {}),
     }
