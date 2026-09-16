@@ -136,3 +136,65 @@ export async function countRefusals(
     return Number(r?.n ?? 0);
   });
 }
+
+/**
+ * 0052 — messages whose fate nobody knows, and the two things she can do.
+ *
+ * A read model like the refusals above, and for the same reason: the worker
+ * already wrote the row and its reason, and nothing here re-decides anything.
+ * The difference is that a refusal is FINISHED — it did not go, and the gate
+ * said why — while this one is a QUESTION nobody but a person can close. So it
+ * carries what she needs to answer it: who it was for, what it said, and when
+ * the answer went missing.
+ */
+export type UncertainSend = {
+  readonly outboundId: string;
+  readonly conversationId: string;
+  readonly buyer: string | null;
+  /** Her own words, so she can judge what a second copy would look like. */
+  readonly body: string;
+  readonly at: Date;
+  readonly origin: 'employee' | 'owner' | 'outreach';
+};
+
+const UNCERTAIN = sql`status = 'uncertain'`;
+
+export async function loadUncertainSends(
+  db: Db, businessIdRaw: string,
+  opts: { readonly conversationId?: string; readonly limit?: number } = {},
+): Promise<readonly UncertainSend[]> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return [];
+
+  return withTenantTx(db, bid.value, async (tx) => {
+    const rows = (await sql<{
+      id: string; conversation_id: string; buyer: string | null; channel_user_id: string | null;
+      body: string; at: Date; origin: string;
+    }>`
+      select o.id, o.conversation_id, cl.display_name as buyer, cc.channel_user_id,
+             o.body, o.origin,
+             coalesce((select max(t.at) from outbound_transitions t
+                        where t.outbound_id = o.id and t.to_status = 'uncertain'),
+                      o.created_at) as at
+        from outbound_messages o
+        join conversations c on c.id = o.conversation_id
+        left join clients cl on cl.id = c.client_id
+        left join client_channels cc on cc.client_id = c.client_id and cc.channel = c.channel
+       where o.business_id = ${bid.value}
+         and ${UNCERTAIN}
+         ${opts.conversationId ? sql`and o.conversation_id = ${opts.conversationId}` : sql``}
+       order by at desc
+       limit ${opts.limit ?? 50}
+    `.execute(tx)).rows;
+
+    return rows.map((r) => ({
+      outboundId: r.id,
+      conversationId: r.conversation_id,
+      buyer: r.buyer ?? r.channel_user_id,
+      body: r.body,
+      at: r.at,
+      origin: r.origin === 'owner' ? 'owner' as const
+        : r.origin === 'outreach' ? 'outreach' as const : 'employee' as const,
+    }));
+  });
+}

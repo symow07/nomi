@@ -260,7 +260,7 @@ function detail(sampleAsked: { policyStated: boolean } | null): ConversationDeta
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
     quote: null, order: null,
     messages: [{ direction: 'inbound', text: 'Can you send a sample?', at: stated }],
-    pendingDraft: null, ownership: 'AI', refusals: [], handoffReasons: [],
+    pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [],
     unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null,
     leadTimeBlocked: null, sampleAsked,
     proof: { quoteId: null, token: null },

@@ -177,8 +177,12 @@ import type { Db } from './client.js';
  *      Confirmation columns on `sequence_enrollments` and the 'unconfirmed'
  *      stop. The sweep reads them every minute, so against a 50 database the
  *      first due follow-up fails.
+ * 52 = a send whose outcome is unknown waits for a person (0052). The
+ *      'uncertain' status. Against a 51 database the worker's first
+ *      interrupted send fails on the CHECK — which is safe, but it fails
+ *      every minute until someone migrates.
  */
-export const REQUIRED_SCHEMA_VERSION = 51;
+export const REQUIRED_SCHEMA_VERSION = 52;
 
 export type SchemaState = {
   readonly required: number;

@@ -1,7 +1,7 @@
 import { nextToSend, type OutboundRow } from './sequencer.js';
 import { ownershipOf, aiMaySpeak } from '../core/conversation/ownership.js';
 import {
-  onSendFailure, shouldReclaim,
+  onSendFailure, isUncertainSend,
 } from '../core/channel/delivery.js';
 import { GATE_REFUSALS, gateOutbound, cancelableOnTakeover, type GateRefusal } from '../core/channel/sendGate.js';
 import { channelSendPlan, type TemplateState } from '../core/channel/window.js';
@@ -153,7 +153,8 @@ export const REFUSAL_REASONS: readonly RefusalReason[] = [
 ];
 
 export type DriveEffect =
-  | { readonly kind: 'reclaimed'; readonly id: string }
+  /** 0052 — the provider was called and never answered; a person must decide. */
+  | { readonly kind: 'uncertain'; readonly id: string }
   | { readonly kind: 'canceled'; readonly id: string; readonly reason: RefusalReason }
   | { readonly kind: 'sent'; readonly id: string; readonly providerMessageId: string }
   | { readonly kind: 'retry_scheduled'; readonly id: string; readonly delayMs: number }
@@ -231,13 +232,18 @@ export async function driveConversationOutbound(
   const { rows, ctx } = await deps.store.load(conversationId);
   const now = deps.now();
 
-  // 1. Restart safety: reclaim rows stuck mid-send.
+  // 1. Restart safety: a send that never reported back STOPS HERE (0052).
+  //    It is not re-queued: the provider may have accepted it, and nothing in
+  //    this process can tell. She is shown the message and decides whether it
+  //    goes again — the one thing a machine must not choose on her behalf,
+  //    because both answers can reach a buyer.
   const live: OutboundWorkRow[] = [];
   for (const r of rows) {
-    if (r.status === 'sending' && shouldReclaim(r.sendingSince, now)) {
-      await deps.store.transition(r.id, 'queued', 'reclaimed: interrupted send');
-      effects.push({ kind: 'reclaimed', id: r.id });
-      live.push({ ...r, status: 'queued', sendingSince: null });
+    if (r.status === 'sending' && isUncertainSend(r.sendingSince, now)) {
+      await deps.store.transition(r.id, 'uncertain', 'interrupted: unknown whether it left');
+      effects.push({ kind: 'uncertain', id: r.id });
+      // Not pushed to `live`: an uncertain row is out of the pipeline until a
+      // person puts it back, and it must not hold up the messages behind it.
     } else {
       live.push(r);
     }

@@ -7,6 +7,7 @@ import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
+import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
   defaultFilter, type InboxFilter,
@@ -799,6 +800,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     return reply.redirect(takeoverFlash(req, cid, r.outcome));
   });
+
+  /**
+   * 0052 — her answer about a message nobody could account for.
+   *
+   * Not owner-only, for the reason taking a conversation over is not: whoever
+   * holds the thread is who can judge whether the buyer has it, and the name
+   * goes on the decision either way. "Send it" produces an ordinary queued row,
+   * so it meets the gate again like every other message; "leave it" closes it
+   * as canceled, which is the honest record — this product never saw it leave.
+   */
+  const uncertainAction = (path: string, decision: 'send_again' | 'leave_it'): void => {
+    app.post(path, async (req, reply) => {
+      const s = sessionOf(req); if (!s) return reply.redirect('/login');
+      const id = (req.params as { outboundId: string }).outboundId;
+      const locale = localeOf(req);
+      const r = await decideUncertainSend(deps.db, s.businessId, id, decision, personOf(s).name);
+      const flash = t(locale, r.done
+        ? (decision === 'send_again' ? 'unsure.flash.again' : 'unsure.flash.left')
+        : 'unsure.flash.gone');
+      // The worker is what sends; this only asks it to look again.
+      if (r.done && decision === 'send_again' && r.conversationId) {
+        await (deps.kickDrive ?? (async () => {}))(s.businessId, r.conversationId);
+      }
+      const where = r.conversationId ? `/app/inbox/${encodeURIComponent(r.conversationId)}` : '/app/inbox';
+      return reply.redirect(`${where}?flash=${encodeURIComponent(flash)}`);
+    });
+  };
+  uncertainAction('/app/outbound/:outboundId/send-again', 'send_again');
+  uncertainAction('/app/outbound/:outboundId/leave', 'leave_it');
 
   // G12 — hand it to a named colleague. Not owner-only: passing work to the
   // person who can answer it IS the job (core/conversation/people.ts).

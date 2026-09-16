@@ -47,7 +47,7 @@ describe('G12 · the conversation says whose it is', () => {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'paused',
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: null, quote: null,
     order: null, messages: [], pendingDraft: null, ownership: 'OWNER_CONTROLLED',
-    heldBy: chen.id, people, refusals: [], handoffReasons: [], unheardReason: null,
+    heldBy: chen.id, people, refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null,
     lastHumanAction: { type: 'handed_to', actor: owner.id, to: chen.id, at: NOW },
     knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null,
     proof: { quoteId: null, token: null }, ...over,

@@ -919,6 +919,38 @@ instead. Because of that, follow-ups wait for a person (0051, below). And an
 Outlook send that fails between creating and sending leaves a draft in her
 Drafts folder.
 
+#### C8 — a message is never sent twice by a machine (0052) ✅ BUILT 2026-09-16
+
+`migrations/0052_uncertain_sends.sql`, `src/outbound/uncertain.ts`, the
+'uncertain' status, and the card she answers on the conversation.
+`REQUIRED_SCHEMA_VERSION` 52.
+
+- **The defect, stated by the code that caused it.** `SENDING_RECLAIM_MS` said
+  a row stuck in 'sending' should be re-queued after two minutes, because "a
+  rare duplicate send is the accepted cost of never losing a message". The
+  worker marks 'sending', calls the provider, records the answer; a crash or a
+  deploy between the second and third step leaves a message that may already be
+  on a buyer's phone. It was then sent again.
+- **The trade was the wrong way round.** A buyer who receives the same price, or
+  the same first e-mail, twice learns something false about the factory — and a
+  machine chose it for her in the one case where nobody could say what had
+  happened. Losing the message is not the alternative: the row stops as
+  'uncertain', she sees her own words with two answers ("he did not get it —
+  send it" / "leave it"), and nothing happens until a person chooses.
+- **No provider can settle it in general.** WhatsApp will not answer about a
+  message whose id we never received; SMTP has nothing to ask. Where a receipt
+  does arrive later it is still believed — 'uncertain' is ranked with 'sending'
+  and is not terminal — so she is spared the question when the answer turns up.
+- **It does not block the conversation.** An uncertain row is out of the
+  pipeline until she decides, so the sequencer steps over it: one unanswerable
+  question must not leave a buyer with silence behind it.
+- **Her decision is a claim, not a toggle.** The update moves the row only from
+  'uncertain', so a double click, or a colleague on another screen, decides
+  nothing twice. "Send it" produces an ordinary queued row that meets the gate
+  again — the hours it waited may have closed the window or brought a
+  suppression. The write lives in `src/outbound/uncertain.ts`, not in the
+  refusals read model, which a parity test holds to reading only.
+
 #### C7 — her own mail provider, over SMTP ✅ BUILT 2026-09-16
 
 `src/channels/email/smtp.ts`, `src/channels/email/smtpTransport.ts`, and the

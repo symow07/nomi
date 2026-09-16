@@ -66,7 +66,7 @@ describe('G11 · the owner’s row', () => {
     conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'handled',
     product: { name: 'Vacuum cup', nameZh: '保温杯' }, quantity: 5000,
     quote: { unitPrice: usd(0.45), total: usd(2250), quantity: 5000 },
-    order: null, messages: [], pendingDraft: null, ownership: 'AI', refusals: [],
+    order: null, messages: [], pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [],
     handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [],
     rate: null, leadTimeBlocked: null, sampleAsked: null, proof,
   });

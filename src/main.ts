@@ -597,7 +597,7 @@ export async function buildProduction(
     });
 
     const waiting = effects.find((e) => e.kind === 'waiting');
-    const progressed = effects.some((e) => e.kind === 'sent' || e.kind === 'reclaimed');
+    const progressed = effects.some((e) => e.kind === 'sent');
     if (waiting && waiting.kind === 'waiting') {
       await boss.send(QUEUES.outbound,
         { businessId: job.data.businessId, conversationId: job.data.conversationId },

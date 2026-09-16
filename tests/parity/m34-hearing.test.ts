@@ -215,7 +215,7 @@ describe('M34 · the transcriber fails closed', () => {
 const detail = (over: Partial<ConversationDetail> = {}): ConversationDetail => ({
   conversationId: 'c1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: null, nameZh: null }, quantity: null, quote: null, order: null,
-  messages: [], pendingDraft: null, ownership: 'AI', refusals: [],
+  messages: [], pendingDraft: null, ownership: 'AI', refusals: [], uncertainSends: [],
   handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
   ...over,
 });

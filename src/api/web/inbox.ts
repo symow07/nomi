@@ -11,7 +11,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
-import { loadRefusals, type Refusal } from './refusals.js';
+import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -436,6 +436,13 @@ export type ConversationDetail = {
    * `gateOutbound` refused; nothing here re-decides anything.
    */
   readonly refusals: readonly Refusal[];
+  /**
+   * 0052 — messages the provider was asked to send and never answered about.
+   * Nobody can say whether the buyer has them, so they wait here for a person:
+   * the one decision this product will not make on her behalf, because both
+   * answers can reach him.
+   */
+  readonly uncertainSends: readonly UncertainSend[];
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
@@ -589,6 +596,7 @@ export async function loadConversationDetail(
     // the conversation, the inbox tab and Today can never disagree. Its own
     // tenant transaction (it is a read model, not a fragment of this query).
     const refusals = await loadRefusals(db, businessIdRaw, { conversationId });
+    const uncertainSends = await loadUncertainSends(db, businessIdRaw, { conversationId });
 
     // Takeover reason (M16.1): unresolved PROBLEM signals — stored data, no classifier.
     const signalRows = (await sql<{ kind: string; payload: Record<string, unknown> | null }>`
@@ -662,6 +670,7 @@ export async function loadConversationDetail(
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
       refusals,
+      uncertainSends,
       handoffReasons,
       unheardReason,
       unreadable,
@@ -814,6 +823,31 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: r
  *
  * Read-only. It renders `outbound_messages.cancel_reason` and can change nothing.
  */
+/**
+ * 0052 — "we do not know whether this went." Her words are shown back, because
+ * what she is judging is whether a second copy would embarrass her, and the two
+ * buttons are the whole decision. No default, no countdown: nothing happens
+ * until a person chooses.
+ */
+function uncertainCard(us: readonly UncertainSend[], locale: Locale, now: Date): string {
+  if (us.length === 0) return '';
+  return `<div class="card unsure">
+    <h3 class="rf-h">${esc(t(locale, 'unsure.title'))}</h3>
+    ${us.map((u) => `<div class="rf">
+      <div class="rf-w">${esc(t(locale, 'unsure.what'))}</div>
+      <blockquote class="unsure-q" dir="auto">${esc(u.body)}</blockquote>
+      <div class="rf-y muted">${esc(t(locale, 'unsure.why'))}</div>
+      <div class="rf-t muted">${esc(formatRelative(locale, u.at, now))}</div>
+      <div class="unsure-a">
+        <form method="post" action="/app/outbound/${esc(u.outboundId)}/send-again" class="inline">
+          <button class="btn send" type="submit">${esc(t(locale, 'unsure.again'))}</button></form>
+        <form method="post" action="/app/outbound/${esc(u.outboundId)}/leave" class="inline">
+          <button class="btn" type="submit">${esc(t(locale, 'unsure.leave'))}</button></form>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
 function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string {
   if (rs.length === 0) return '';
   const name = EMPLOYEE_NAME[locale];
@@ -1149,6 +1183,7 @@ export function renderConversationDetail(
     ${closedCard}
     ${herWordsCard}
     ${sampleCard}
+    ${uncertainCard(d.uncertainSends, locale, now)}
     ${refusalCard(d.refusals, locale, now)}
     ${takeoverCard(d, locale, now, viewer)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
@@ -1169,6 +1204,15 @@ const INBOX_STYLE = `<style>
   .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
   .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:var(--space-8); }
   .rf-t { font-size:var(--font-size-micro); margin-top:var(--space-4); }
+  /* 0052 — a question, not a refusal: the same amber, plus her own words and
+     the two answers. Nothing is pre-selected, because nothing may happen by
+     itself here. */
+  .card.unsure { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
+  .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
+    border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
+    font-size:var(--font-size-note); color:var(--color-ink); max-width:var(--measure-prose);
+    white-space:pre-wrap; }
+  .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
   .bgroup { margin-bottom:var(--space-24); }
   .bgroup-h { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary);

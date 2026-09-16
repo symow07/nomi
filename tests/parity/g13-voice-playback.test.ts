@@ -18,7 +18,7 @@ const NOW = new Date('2026-09-11T08:00:00Z');
 const detail = (m: TimelineMessage): ConversationDetail => ({
   conversationId: 'conv-1', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
   product: { name: null, nameZh: null }, quantity: null, quote: null, order: null,
-  messages: [m], pendingDraft: null, ownership: 'WAITING_HUMAN', refusals: [],
+  messages: [m], pendingDraft: null, ownership: 'WAITING_HUMAN', refusals: [], uncertainSends: [],
   handoffReasons: ['audio_unheard'], unheardReason: 'transcription_failed', lastHumanAction: null,
   knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null,
   proof: { quoteId: null, token: null },
