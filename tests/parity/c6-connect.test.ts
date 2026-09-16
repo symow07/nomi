@@ -253,7 +253,7 @@ describe('C6 · the message both providers receive', () => {
 
 describe('C6 · the accounts page', () => {
   const base: AccountsView = {
-    mail: null, connectable: { google: true, microsoft: false }, sendingDomain: 'yiwuhf.com',
+    mail: null, connectable: { google: true, microsoft: false }, sendingDomain: 'yiwuhf.com', smtpFrom: null,
     apollo: { kind: 'none' },
   };
 
@@ -297,7 +297,9 @@ describe('C6 · production no longer sends into the recording fake', () => {
     const main = await readFile(new URL('../../src/main.ts', import.meta.url), 'utf8');
     expect(main).not.toContain('fakeMailTransport');
     expect(main).toContain('accountMailTransport(');
-    // Tests may still hand one in.
-    expect(main).toContain('overrides?.mailTransport ?? accountMailTransport(');
+    // Tests may still hand one in, and an installation with its own mail
+    // provider (SMTP) sends through that instead — never through a fake.
+    expect(main).toContain('overrides?.mailTransport ?? (smtpConfig');
+    expect(main).toContain('smtpMailTransport({');
   });
 });

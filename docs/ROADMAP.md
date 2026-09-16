@@ -919,6 +919,40 @@ instead. Because of that, follow-ups wait for a person (0051, below). And an
 Outlook send that fails between creating and sending leaves a draft in her
 Drafts folder.
 
+#### C7 — her own mail provider, over SMTP ✅ BUILT 2026-09-16
+
+`src/channels/email/smtp.ts`, `src/channels/email/smtpTransport.ts`, and the
+`SMTP_*` settings. No migration: this is a third transport behind the same port,
+not a new path.
+
+- **Why.** C6 sends as her through Gmail or Outlook, at roughly $6–7 per factory
+  per month. Every other mail host on earth speaks SMTP submission, so a factory
+  on Zoho, Fastmail or its own server can now send without registering anything
+  with Google or Microsoft — and the first factory's own bill drops to about a
+  dollar a month.
+- **A provider, not a second send path.** It is a `MailTransport` like the
+  others: the same gate, the same unsubscribe headers, the same one worker, the
+  same MIME builder as C6. `SMTP_*` set OUTRANKS a connected mailbox, because an
+  operator who names a server means that server, and the accounts page says so
+  rather than showing a Gmail row that no longer sends.
+- **It will not send her password in the clear.** Port 465 connects wrapped;
+  anything else must offer STARTTLS or the send is refused rather than
+  downgraded. The one exception is a relay on the same machine, which is also
+  what makes the whole conversation testable against a real server.
+- **SMTP's codes mean the opposite of HTTP's** — 4xx temporary, 5xx permanent —
+  so the retry decision is inverted from every other transport in the product. A
+  wrong password is permanent on purpose: retrying one locks the account.
+- **The domain rule belongs to the domain, not to Gmail.** `SMTP_FROM` off the
+  verified sending domain is refused on every send, exactly as a connected
+  mailbox off the domain is.
+- **What SMTP cannot do, said plainly:** no provider metadata channel, so
+  `MailMessage.tag` cannot ride along and bounces arrive as ordinary mail in her
+  mailbox rather than as signed events. Her buyers' way out is unaffected: the
+  List-Unsubscribe headers are part of the message.
+- **Hand-rolled on node's own primitives,** like the DNS check, the MIME
+  message, OAuth and every webhook signature here — no dependency added to the
+  process that holds her buyers' data.
+
 #### After C6 — what the last check found (0051) ✅ BUILT 2026-09-15
 
 A final read of Block C against the code, before calling it done, found five

@@ -85,6 +85,11 @@ media setting to keep in step with it.
 | `MICROSOFT_OAUTH_CLIENT_ID` | both or neither, warned at boot | The installation's Microsoft Entra app, for "Connect Outlook" (C6). Redirect `<PUBLIC_BASE_URL>/app/connect/microsoft/callback`; scopes `openid email offline_access Mail.Send`. **Unset, Outlook shows "not set up here yet".** |
 | `MICROSOFT_OAUTH_CLIENT_SECRET` | both or neither, warned at boot | The secret of that app. |
 | `MICROSOFT_OAUTH_TENANT` | a tenant GUID or verified domain, warned at boot | The Entra directory the app is registered in. **Required when the app is single-tenant** ("Accounts in this organizational directory only"), which Microsoft refuses at `/common`. Unset uses `common`, which serves only a multitenant app. See `docs/EMAIL-SETUP.md`. |
+| `SMTP_HOST` | all five or none, warned at boot | Her own mail provider's submission host (`smtp.zoho.com`, `smtp.fastmail.com`, …). **Set, this is what sends, in place of a connected Gmail/Outlook mailbox** — an operator who names a server means that server. Unset, the mailbox path (C6) runs. |
+| `SMTP_PORT` | 1–65535, default `587` | `587` connects and upgrades with STARTTLS; `465` connects already wrapped in TLS. A server on any other port must still offer STARTTLS, or the send is refused rather than downgraded. |
+| `SMTP_USER` | all five or none | The login for that host — usually the full address. |
+| `SMTP_PASSWORD` | all five or none | Its password, or an app-specific password where the host issues one. Sent only over TLS; never logged. |
+| `SMTP_FROM` | an e-mail address | The address every mail leaves as. **It must be on the verified sending domain**, or each send is refused saying so, exactly as a mailbox off the domain is. |
 | `EMAIL_WEBHOOK_SECRET` | not checked at boot | Shared secret for the provider's callbacks: bounce/complaint events at `/hooks/email` (M40.2) and buyers' replies at `/hooks/email/inbound` (C4.c). **Unset mounts neither.** The signature is HMAC-SHA256 over the raw bytes, base64url, in `x-webhook-signature` (G14). |
 | `PUBLIC_BASE_URL` | starts with `https://`, when set | The address buyers reach this installation at. Every quote carries a proof link built on it (G11). **Unset, no link is attached** and the owner is told why on the conversation. https only: the link is forwarded to a stranger's phone. |
 
