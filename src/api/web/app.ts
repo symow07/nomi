@@ -7,6 +7,8 @@ import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
+import { connectMetaChannel, connectedMetaChannels } from './metaChannels.js';
+import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
@@ -183,6 +185,9 @@ export type WebDeps = {
   readonly oauthClients?: OAuthClients;
   /** The address this installation's own mail server sends as, when it has one. */
   readonly smtpFrom?: string | null;
+  /** C9 — the Instagram account and Page this installation can connect, if any. */
+  readonly instagramAccountId?: string | null;
+  readonly messengerPageId?: string | null;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
   /**
@@ -1031,6 +1036,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // G3 — connect the number the HOST is configured with. Owner-only under the
   // same decision as activation: it is the step that lets buyers' messages in.
   // The number is never read from the form.
+  /**
+   * C9 — connect the Page or the Instagram account buyers write to. Owner-only,
+   * on the same list as activating messaging: it decides whose conversations
+   * land in this factory's inbox. The account comes from the host's settings,
+   * never from the form.
+   */
+  for (const kind of ['instagram', 'messenger'] as const) {
+    app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
+      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      if (!s) return reply;
+      const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
+      const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
+      const key = r.code === 'connected' ? 'reach.inbound.flash.connected'
+        : r.code === 'already_connected' ? 'reach.inbound.flash.already'
+        : r.code === 'account_taken' ? 'reach.inbound.flash.taken'
+        : r.code === 'not_configured' ? 'reach.inbound.flash.notConfigured'
+        : 'channel.flash.failed';
+      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(localeOf(req), key as MessageKey))}`);
+    });
+  }
+
   app.post('/app/channels/whatsapp/connect', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
     if (!s) return reply;
@@ -1064,9 +1090,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
       smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
     }) : null;
+    // C9 — which inbound channels this host can offer, and which she connected.
+    const linked = await connectedMetaChannels(deps.db, s.businessId);
+    const inbound = new Map<OutreachChannel, { configured: boolean; connected: boolean }>([
+      ['instagram', { configured: (deps.instagramAccountId ?? null) !== null, connected: linked.instagram }],
+      ['messenger', { configured: (deps.messengerPageId ?? null) !== null, connected: linked.messenger }],
+    ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
-      bodyHtml: renderChannels(data, locale, flash, personOf(s), accounts ? renderAccounts(accounts, locale, personOf(s)) : ''),
+      bodyHtml: renderChannels(data, locale, flash, personOf(s),
+        accounts ? renderAccounts(accounts, locale, personOf(s)) : '', inbound),
     }));
   });
 

@@ -22,6 +22,8 @@ import type { MailTransport } from './channels/email/transport.js';
 import { accountMailTransport } from './channels/email/accountTransport.js';
 import { smtpMailTransport } from './channels/email/smtpTransport.js';
 import { smtpConfigFrom } from './channels/email/smtp.js';
+import { instagramAdapter } from './channels/instagram/adapter.js';
+import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
@@ -395,6 +397,35 @@ export async function buildProduction(
    * today. Unset, this is null and the mailbox path (C6) is what runs.
    */
   const smtpConfig = smtpConfigFrom(process.env);
+  /**
+   * C9 — Instagram and Messenger, when this installation has a Page.
+   *
+   * Both ride the Meta app that WhatsApp already uses: the same app secret
+   * signs their webhooks, and one Page access token authorises the Page and the
+   * Instagram account connected to it. Absent, they are simply not built, and
+   * the channels page says they are not connected — the same honest absence as
+   * a missing mail app.
+   */
+  const pageToken = process.env['META_PAGE_ACCESS_TOKEN']?.trim();
+  const pageId = process.env['META_PAGE_ID']?.trim();
+  const igAccountId = process.env['META_IG_ACCOUNT_ID']?.trim();
+  const metaMessaging = cfg.META_APP_SECRET && pageToken
+    ? {
+      ...(pageId ? {
+        messenger: messengerAdapter({
+          accountId: pageId, accessToken: pageToken,
+          appSecret: cfg.META_APP_SECRET, graphVersion: cfg.META_GRAPH_API_VERSION,
+        }),
+      } : {}),
+      ...(igAccountId ? {
+        instagram: instagramAdapter({
+          accountId: igAccountId, accessToken: pageToken,
+          appSecret: cfg.META_APP_SECRET, graphVersion: cfg.META_GRAPH_API_VERSION,
+        }),
+      } : {}),
+    }
+    : {};
+
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
   /**
    * C6 — this installation's own OAuth apps. Each provider needs BOTH its id and
@@ -450,6 +481,9 @@ export async function buildProduction(
     prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
     oauthClients,
+    // C9 — the accounts buyers write to, when the host configured them.
+    instagramAccountId: igAccountId ?? null,
+    messengerPageId: pageId ?? null,
     // Her own mail server (SMTP), so the accounts page can say what actually sends.
     smtpFrom: smtpConfig?.from ?? null,
       sandboxBusinessId: SANDBOX_ID,
@@ -510,10 +544,17 @@ export async function buildProduction(
         baseUrl: cfg.D360_BASE_URL!, apiKey: cfg.D360_API_KEY!, webhookSecret: cfg.WEBHOOK_SECRET!,
       }));
 
-  /** Tenant from the channel credential — NEVER from the payload. */
-  async function resolveTenant(phoneNumberId: string): Promise<BusinessId | null> {
+  /**
+   * Tenant from the channel credential — NEVER from the payload.
+   *
+   * C9 — by CHANNEL as well as by account id: one Meta app carries WhatsApp,
+   * Instagram and the Page, and the same number-shaped id could in principle
+   * exist on two of them. The credential row says which business owns which
+   * account on which channel, and nothing else is trusted.
+   */
+  async function resolveTenant(accountId: string, channel = 'whatsapp'): Promise<BusinessId | null> {
     const r = await sql<{ business_id: string }>`
-      select business_id from resolve_tenant('whatsapp', ${phoneNumberId})
+      select business_id from resolve_tenant(${channel}, ${accountId})
     `.execute(db);
     const raw = r.rows[0]?.business_id;
     if (!raw) return null;
@@ -548,7 +589,7 @@ export async function buildProduction(
           fetchImpl: oauthFetch, cache: tokenCache,
         })),
     });
-    const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
+    const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email, ...metaMessaging };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
   };
 
@@ -656,18 +697,24 @@ export async function buildProduction(
     adapter,
     verifyToken: cfg.WEBHOOK_VERIFY_TOKEN,
     logger: overrides?.logger ?? true,
+    // C9 — one path per channel, so a payload delivered to the wrong one is a
+    // 401 rather than a message parsed into the wrong conversation.
+    also: [
+      ...(metaMessaging.instagram ? [{ path: '/webhook/instagram', adapter: metaMessaging.instagram }] : []),
+      ...(metaMessaging.messenger ? [{ path: '/webhook/messenger', adapter: metaMessaging.messenger }] : []),
+    ],
 
-    persistEvent: async (e, rawPayload) => {
-      const bid = await resolveTenant(e.phoneNumberId);
+    persistEvent: async (e, rawPayload, channel) => {
+      const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return 'duplicate';   // unknown credential: ack, never process
       return withTenantTx(db, bid, async (tx) => {
         const r = await sql<{ id: string }>`
           insert into channel_events
             (id, business_id, channel, provider, event_type, conversation_external_id, payload, occurred_at)
           values
-            (${e.dedupKey}, ${bid}, 'whatsapp', ${adapter.provider},
+            (${e.dedupKey}, ${bid}, ${channel}, ${adapter.provider},
              ${e.kind === 'message' ? 'message.inbound' : 'status'},
-             ${e.kind === 'message' ? `whatsapp:${e.waId}:${e.phoneNumberId}` : null},
+             ${e.kind === 'message' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
              ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
           on conflict (id) do nothing
           returning id
@@ -676,18 +723,19 @@ export async function buildProduction(
       });
     },
 
-    onNewEvent: async (e) => {
-      const bid = await resolveTenant(e.phoneNumberId);
+    onNewEvent: async (e, channel) => {
+      const bid = await resolveTenant(e.phoneNumberId, channel);
       if (!bid) return;
 
       if (e.kind === 'message') {
         const { conversationId } = await withTenantTx(db, bid, async (tx) => {
-          const conv = await ensureConversation(tx, bid, e.waId, e.profileName);
+          const conv = await ensureConversation(tx, bid, e.waId, e.profileName,
+            channel as 'whatsapp' | 'instagram' | 'messenger');
           // Health signals live on the channel row: "when did anything arrive".
           await sql`
             update channels
                set last_inbound_at = ${e.occurredAt}, last_webhook_at = now(), updated_at = now()
-             where business_id = ${bid} and kind = 'whatsapp'
+             where business_id = ${bid} and kind = ${channel}
           `.execute(tx);
           // G10b — the 24-hour window is THIS buyer's. It lived on the channel
           // row, which any buyer's message moved, so one chatty buyer kept a
@@ -696,7 +744,7 @@ export async function buildProduction(
           await sql`
             update client_channels
                set last_inbound_at = greatest(coalesce(last_inbound_at, '-infinity'::timestamptz), ${e.occurredAt})
-             where channel = 'whatsapp' and channel_user_id = ${e.waId}
+             where channel = ${channel} and channel_user_id = ${e.waId}
           `.execute(tx);
           return conv;
         });
