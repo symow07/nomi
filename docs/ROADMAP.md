@@ -919,6 +919,48 @@ instead. Because of that, follow-ups wait for a person (0051, below). And an
 Outlook send that fails between creating and sending leaves a draft in her
 Drafts folder.
 
+#### C9 — Instagram and Messenger: the channels a buyer starts (0053) ✅ BUILT 2026-09-16
+
+`src/channels/meta/messaging.ts`, `src/channels/{instagram,messenger}/adapter.ts`,
+`src/api/web/metaChannels.ts`, and two webhook paths. `REQUIRED_SCHEMA_VERSION` 53.
+
+- **The half that was always possible.** M39 recorded that neither channel can
+  ever be written to first — Meta answers only inside 24 hours, there is no
+  template and no one-time notification — and stopped there, so the product
+  carried neither at all. What it could always do is the half this product is
+  built around: a buyer comments, taps an ad or sends a DM, and 小雅 answers
+  inside the window. That is now wired end to end.
+- **One wire, two channels.** Meta carries both over the same Graph messaging
+  API, so the parser and the sender live once in `meta/messaging.ts` and the
+  adapters are thin. Each reads only its own webhook `object` (`instagram`,
+  `page`), which is what keeps a Page message out of an Instagram conversation
+  when one app serves all three products.
+- **Reply-only is enforced three times over**: the registry says `never`,
+  `mayInitiate` refuses whatever requirements are satisfied, and `gateOutbound`
+  refuses an `outreach` row on either channel. An integration test drives a cold
+  message through the real worker and watches it be canceled.
+- **A defect found while building it.** `channelSendPlan` fell back to
+  `send_template` for ANY windowed channel once the window closed. Instagram and
+  Messenger have no templates, so that plan produced a send Meta refuses and
+  this product recorded as sent. Templates now reopen a window only where the
+  registry says the channel has them (`reopenWithTemplate`, WhatsApp alone).
+- **Connecting is hers, the account is the host's.** `connectMetaChannel`
+  mirrors G3: the id comes from the environment, never the form, the token is
+  NAMED in `secret_ref` and never stored, and the credential is what
+  `resolve_tenant` uses. Until she presses Connect, a buyer's message is
+  acknowledged to Meta and dropped — which the test asserts, because silently
+  dropping is exactly what a missing credential row caused before G3.
+- **No activation switch and no allowlist** on these two, for the reason e-mail
+  has none: there is no cold message to hold back. C4.d gives every channel its
+  own activation when the pilot is live.
+
+**X (Twitter), researched and not built.** Its DM API is real but a poor fit
+today: X closed its flat tiers to new customers in February 2026 and charges
+per call, DMs may only be sent to people who have consented to receive them
+(so it is reply-only in practice, like these two), and the webhook side needs
+access this project does not have. It also needs an X developer account, which
+is the owner's to create. Revisit when a factory actually asks for it.
+
 #### C8 — a message is never sent twice by a machine (0052) ✅ BUILT 2026-09-16
 
 `migrations/0052_uncertain_sends.sql`, `src/outbound/uncertain.ts`, the

@@ -181,8 +181,11 @@ import type { Db } from './client.js';
  *      'uncertain' status. Against a 51 database the worker's first
  *      interrupted send fails on the CHECK — which is safe, but it fails
  *      every minute until someone migrates.
+ * 53 = Instagram and Messenger (0053). The channel lists widen and
+ *      `channel_credentials` learns 'messenger'; against a 52 database a
+ *      buyer's Instagram message is acknowledged to Meta and dropped.
  */
-export const REQUIRED_SCHEMA_VERSION = 52;
+export const REQUIRED_SCHEMA_VERSION = 53;
 
 export type SchemaState = {
   readonly required: number;

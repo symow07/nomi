@@ -107,6 +107,16 @@ export type ChannelCapability = {
    * so a channel added without thinking about this keeps it.
    */
   readonly deliveryReceipts?: boolean;
+  /**
+   * C9 — can an APPROVED TEMPLATE reopen a closed window on this channel?
+   *
+   * Only WhatsApp has such a thing. Instagram and Messenger have none: outside
+   * the 24 hours the answer is to wait for the buyer, full stop. Defaulting to
+   * true would be the dangerous direction — the send plan would promise a
+   * template send that Meta refuses, and the product would count it as sent —
+   * so a channel that does not say `true` cannot reopen anything.
+   */
+  readonly reopenWithTemplate?: boolean;
 };
 
 export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapability>> = {
@@ -129,16 +139,20 @@ export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapabilit
     // before ANY template send at all (Meta, Jan 2026) — not per message.
     requires: ['approved_template', 'business_verification', 'privacy_policy_url'],
     replyWindowHours: 24, instead: [],
+    // The one channel where an approved template reopens a closed window.
+    reopenWithTemplate: true,
   },
   instagram: {
-    availableHere: false, channel: 'instagram', coldInitiate: 'never', requires: [],
+    // C9 — the adapter exists, so she can ANSWER here. Writing first is still
+    // impossible, which is what `coldInitiate` says and the gate enforces.
+    availableHere: true, channel: 'instagram', coldInitiate: 'never', requires: [],
     // The API replies only within 24h of a user-initiated message. Message tags
     // are non-promotional only, and one-time notifications do not exist here.
     replyWindowHours: 24,
     instead: ['comment_to_dm', 'click_to_whatsapp', 'buyer_writes_first'],
   },
   messenger: {
-    availableHere: false, channel: 'messenger', coldInitiate: 'never', requires: [],
+    availableHere: true, channel: 'messenger', coldInitiate: 'never', requires: [],
     // The human-agent tag extends replies to 7 days. Still not cold: it extends
     // a conversation the buyer started, which is a different thing entirely.
     replyWindowHours: 24,

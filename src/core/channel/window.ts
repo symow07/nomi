@@ -121,5 +121,12 @@ export function channelSendPlan(
   // entry must never read as a missing window — those are opposite answers, and
   // only one of them is safe.
   const windowed = cap === undefined ? true : channelHasWindow(cap.replyWindowHours);
-  return sendPlan(windowed ? windowState(lastInboundAt, now) : 'open', 'reply', template);
+  /**
+   * C9 — a template can only reopen a window where the channel HAS templates.
+   * Instagram and Messenger have none, so outside the 24 hours the honest plan
+   * is to wait for the buyer. Treating her approved WhatsApp template as usable
+   * there would produce a send Meta refuses and this product records as sent.
+   */
+  const reopenable = cap?.reopenWithTemplate === true ? template : 'none';
+  return sendPlan(windowed ? windowState(lastInboundAt, now) : 'open', 'reply', reopenable);
 }

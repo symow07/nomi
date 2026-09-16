@@ -426,7 +426,7 @@ export async function ensureConversation(
   businessId: BusinessId,
   identity: string,
   profileName: string | null,
-  channel: 'whatsapp' | 'email' = 'whatsapp',
+  channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
   const existing = await sql<{ client_id: string }>`
     select client_id from client_channels

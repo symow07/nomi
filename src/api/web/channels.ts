@@ -443,6 +443,13 @@ export function renderReach(
   domain: SendingDomain | null = null,
   viewer: Viewer = OWNER_VIEW,
   caps: ReadonlyMap<OutreachChannel, number | null> = new Map(),
+  /**
+   * C9 — the channels a buyer STARTS: whether the host has an account for one,
+   * and whether this business has connected it. Only these two states exist
+   * here; there is no activation switch, because there is no cold message to
+   * hold back on a channel that can only answer.
+   */
+  inbound: ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }> = new Map(),
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -470,6 +477,22 @@ export function renderReach(
     // What the channel allows is not what this product can do yet.
     const notHere = cap.availableHere ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.notHere'))}</div>`;
+
+    /**
+     * C9 — connecting the account buyers write to. Shown only where answering
+     * is the whole story (`coldInitiate: 'never'`), so it can never be mistaken
+     * for a way to start a conversation. Without an account in the host's
+     * settings there is no button, for the reason there is no Connect button
+     * for a mail app this installation has no client for.
+     */
+    const link = inbound.get(channel);
+    const connect = cap.coldInitiate !== 'never' || !cap.availableHere || !link?.configured ? ''
+      : link.connected
+        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</div>`
+        : viewer.isOwner
+          ? `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
+              <button class="btn send" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`
+          : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
 
     const window = cap.replyWindowHours === null ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
@@ -513,7 +536,7 @@ export function renderReach(
       <!-- What this product can do comes FIRST. The e-mail card put it after
            the whole DNS form, so a page of work read as available and the line
            saying it was not landed under the Save button. -->
-      ${notHere}${reqs}${dom}${window}${instead}${toggle}
+      ${notHere}${reqs}${dom}${window}${instead}${connect}${toggle}
     </div>`;
   }).join('');
 
@@ -554,6 +577,8 @@ export function renderChannels(
   data: ChannelsData, locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
   /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
   accountsHtml = '',
+  /** C9 — the channels a buyer starts: configured by the host, connected by her. */
+  inbound: ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }> = new Map(),
 ): string {
   const w = data.whatsapp;
   const actions = w.connected
@@ -588,7 +613,7 @@ export function renderChannels(
 
   // M39 — what each channel allows, before she connects one.
   const reach = renderReach(locale, satisfiedRequirements(data.templateState, data.domain, new Date()),
-    data.outreach, data.domain, viewer, data.outreachCaps);
+    data.outreach, data.domain, viewer, data.outreachCaps, inbound);
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
