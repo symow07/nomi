@@ -91,7 +91,18 @@ Exit 0 = all checks passed; exit 1 = first failure, with detail.
 
    It runs between build and deploy, inside Railway's private network, with the
    service's own variables — so it reaches `postgres.railway.internal` directly
-   and needs no TCP proxy. **A non-zero exit aborts the deploy**: Railway does
+   and needs no TCP proxy.
+
+   **Railway stops reading `railway.json` on 2026-12-01.** Before then, put the
+   same command in the dashboard (service → Settings → Deploy → Pre-deploy
+   Command), where it is stored on the service and survives the file's removal,
+   then delete the file. **Do NOT migrate it with `railway config migrate`**,
+   which was tried on 2026-09-16 and is a trap in two ways: the file it writes
+   drops the pre-deploy command to a comment, and the format describes a service
+   EXHAUSTIVELY — `railway config plan` proposed deleting all twenty environment
+   variables (`CREDENTIAL_KEY` and `DATABASE_URL` among them) and unlinking the
+   GitHub source, because a repository file cannot hold the secrets and so does
+   not declare them. Nothing was applied; the plan output is the whole warning. **A non-zero exit aborts the deploy**: Railway does
    not retry it and does not start the new build, so a failed migration leaves
    the PREVIOUS build serving rather than a crashed one.
 

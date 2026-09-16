@@ -20,9 +20,9 @@ jobs:
     name: typecheck · boundaries · unit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Read from .nvmrc so this file, package.json's engines, and Railway
           # cannot drift apart. TypeScript 7 is a native compiler that resolves a
@@ -78,9 +78,9 @@ jobs:
       DATABASE_URL: postgresql://nomi_app:nomi_app@127.0.0.1:5432/nomi
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
