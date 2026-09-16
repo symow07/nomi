@@ -5,8 +5,19 @@ marked **Owner**. About an hour of dashboard work, plus however long her domain
 host takes to publish DNS records.
 
 What you end up with: first e-mails and follow-ups that leave from **her own
-Google Workspace or Microsoft 365 address**, on her own domain, signed and
-authorised by that domain. Nothing here reads her mailbox.
+address**, on her own domain, signed and authorised by that domain. Nothing here
+reads her mailbox.
+
+Three ways to send, and you pick ONE:
+
+| | Section | What it costs | Who it suits |
+|---|---|---|---|
+| **Her own mail provider, over SMTP** | **2b** | whatever her mail host charges (Zoho Mail Lite is about $1/user/month) | any host that speaks SMTP; nothing to register with Google or Microsoft |
+| Google Workspace mailbox | 1 | about $7/user/month | a factory already on Google |
+| Microsoft 365 mailbox | 2 | about $6/user/month | a factory already on Microsoft |
+
+**SMTP outranks the other two.** With `SMTP_*` set, that is what sends, even if
+a mailbox is also connected, and the accounts page says so.
 
 > **Not yet exercised against Google or Microsoft from this repository.** Every
 > step on this side of the wire is tested. The first real connection is the
@@ -15,10 +26,10 @@ authorised by that domain. Nothing here reads her mailbox.
 
 ## 0 · What must already be true
 
-- **A mailbox on her own domain.** Google Workspace or Microsoft 365, e.g.
-  `sales@yourfactory.com`. A `@gmail.com` or `@outlook.com` address cannot be
-  used: the mailbox must be on the domain she verifies in step 3, or nothing is
-  sent from it (the page says so).
+- **A mailbox on her own domain**, e.g. `sales@yourfactory.com`. A `@gmail.com`,
+  `@outlook.com` or `@zohomail.com` address cannot be used: the address must be
+  on the domain she verifies in step 3, or nothing is sent from it (the page
+  says so).
 - **`PUBLIC_BASE_URL`** is set to the installation's https address. The
   providers redirect back to it, and every mail's unsubscribe link is built on it.
 - **`WHATSAPP_PROVIDER` is not `disabled`.** The outbound worker and the
@@ -29,8 +40,8 @@ authorised by that domain. Nothing here reads her mailbox.
 - Migrations are applied through **0051**. The app refuses to boot on an older
   schema.
 
-Do **one** of section 1 (Google) or section 2 (Microsoft), whichever hosts her
-mailbox.
+Do **one** of section 1 (Google), section 2 (Microsoft) or **section 2b (any
+other host, over SMTP)**.
 
 ## 1 · Google Workspace
 
@@ -96,12 +107,56 @@ External app means Google's verification (M52 #9).
 The mailbox needs an Exchange Online licence. Sending uses Microsoft Graph, not
 SMTP, so SMTP AUTH can stay off.
 
+## 2b · Her own mail provider, over SMTP
+
+Any host that offers SMTP submission works. This is the cheapest path and needs
+no app registration anywhere — only a mailbox and its password.
+
+1. **Buy a mailbox on `yourfactory.com`.** With Zoho, the **free plan cannot
+   send programmatically**: it has no SMTP at all, so **Mail Lite** (about $1 per
+   user per month) is the smallest plan that works. Any other host with SMTP is
+   equally fine.
+2. **Get the submission details from the host.** For Zoho they are
+   `smtp.zoho.com`, port `465` (TLS) or `587` (STARTTLS), and the mailbox's own
+   address as the user. Hosts in other regions use their own name, such as
+   `smtp.zoho.eu`.
+3. **If the mailbox has two-step sign-in, create an app-specific password** for
+   this installation, and use that instead of her own password.
+4. Set these in the host's environment, then restart:
+
+   | Setting | Example | Note |
+   |---|---|---|
+   | `SMTP_HOST` | `smtp.zoho.com` | |
+   | `SMTP_PORT` | `587` | `465` connects already encrypted |
+   | `SMTP_USER` | `lily@yourfactory.com` | usually the full address |
+   | `SMTP_PASSWORD` | | app-specific password where the host issues one |
+   | `SMTP_FROM` | `lily@yourfactory.com` | must be on the verified domain |
+   | `SENDING_SPF_INCLUDE` | `zohomail.com` | the host's own SPF mechanism |
+
+   All five `SMTP_*` or none: a half-set sender is treated as unset, and a
+   warning says which part is missing.
+5. **The connection must be encrypted.** Port 465 connects wrapped; any other
+   port must offer STARTTLS, and a server that does not is refused rather than
+   sending her password in the clear. The only exception is a relay on the same
+   machine (`localhost`).
+6. Skip section 4: there is no mailbox to connect. `/app/channels` shows **Your
+   own mail provider — Connected**, with the address, and warns if that address
+   is not on her verified domain.
+
+**What SMTP does not give you:** bounces and complaints come back as ordinary
+mail in her mailbox, not as signed events the product can read. So a dead
+address keeps its place on her contact list until she suppresses it herself, and
+follow-ups wait for confirmation as described in section 5.
+
 ## 3 · Her domain's three records
 
 **Owner, with whoever holds her domain.** On `/app/channels`, under the domain
 card, enter the domain her mailbox is on and **the name on your signature**
 (the DKIM selector), then Save. The page then lists exactly which host each
 record goes on.
+
+With SMTP (section 2b), the host publishes its own instructions for all three;
+Zoho's are in its admin console under **Domains → Email Configuration**.
 
 | Record | Host | Google Workspace | Microsoft 365 |
 |---|---|---|---|
@@ -113,10 +168,11 @@ record goes on.
   it. Do not publish a second record: two SPF records fail both.
 - Any DMARC policy passes the check, `p=none` included. Tightening it later is
   her decision.
-- The SPF check requires her **connected mailbox's** include. Until step 4 is
-  done it reads *"there — it can be checked once the mail account exists"*.
-  That is expected, not an error. An operator sending through another service
-  sets `SENDING_SPF_INCLUDE` to that service's include instead.
+- The SPF check requires an include to look for: `SENDING_SPF_INCLUDE` when the
+  host names one (**required with SMTP**), else the connected mailbox's own
+  (`_spf.google.com`, `spf.protection.outlook.com`). With neither it reads
+  *"there — it can be checked once the mail account exists"*, which is expected
+  rather than an error.
 - **Look again** checks at once. After that, the installation looks again by
   itself every day while the records pass, and every hour while they do not. A
   check older than a week never counts as passing.
@@ -189,6 +245,9 @@ Anything refused after that is shown on the conversation.
 |---|---|---|
 | *Messaging is not switched on here yet…* | `WHATSAPP_PROVIDER=disabled` | Section 0 |
 | Gmail / Outlook: *Not set up here yet* | OAuth variables missing | Section 1 or 2, then restart |
+| A mail failed with *smtp auth 535* | Wrong SMTP user or password | Section 2b, steps 3–4 |
+| A mail failed with *smtp server offers no STARTTLS* | The host will not encrypt on that port | Section 2b, step 5: use port 465 |
+| A mail failed with *…not on the verified sending domain* | `SMTP_FROM` and the verified domain differ | Section 2b, step 4 |
 | Gmail / Outlook: *Needs you* | Her grant revoked or expired | Section 4, *Needs you* |
 | *…refused this installation, not you…*, or a mail failed with *client secret may have expired* | The app secret expired or is wrong | Section 4, expired secret |
 | *That way of reaching buyers does not allow a first message — or does not allow one yet.* | A domain record is missing, wrong or unchecked | Section 3 |

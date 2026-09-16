@@ -20,6 +20,8 @@ import { whatsappAdapter } from './channels/whatsapp/adapter.js';
 import { emailAdapter } from './channels/email/adapter.js';
 import type { MailTransport } from './channels/email/transport.js';
 import { accountMailTransport } from './channels/email/accountTransport.js';
+import { smtpMailTransport } from './channels/email/smtpTransport.js';
+import { smtpConfigFrom } from './channels/email/smtp.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
@@ -385,6 +387,14 @@ export async function buildProduction(
   // One derivation of the web session secret: the Command Center signs its
   // cookies with it and C4.a's unsubscribe tokens are keyed from it, and two
   // copies of that line would be two secrets the day one of them is edited.
+  /**
+   * Her own mail server, when the host configured one. It TAKES PRECEDENCE over
+   * a connected mailbox: an operator who set SMTP_* said which server this
+   * installation sends through, and silently preferring a mailbox somebody
+   * connected months ago would send her mail from an address she did not choose
+   * today. Unset, this is null and the mailbox path (C6) is what runs.
+   */
+  const smtpConfig = smtpConfigFrom(process.env);
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
   /**
    * C6 — this installation's own OAuth apps. Each provider needs BOTH its id and
@@ -440,6 +450,8 @@ export async function buildProduction(
     prospectSourceFor: (apiKey: string) => apolloSource({ apiKey }),
     // C6 — connecting her mailbox; the redirect goes back to PUBLIC_BASE_URL.
     oauthClients,
+    // Her own mail server (SMTP), so the accounts page can say what actually sends.
+    smtpFrom: smtpConfig?.from ?? null,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
@@ -529,10 +541,12 @@ export async function buildProduction(
   const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
   const adaptersFor = (businessId: BusinessId) => {
     const email = emailAdapter({
-      transport: overrides?.mailTransport ?? accountMailTransport({
-        db, businessId, credentialKey, clients: oauthClients, senders: mailSenders,
-        fetchImpl: oauthFetch, cache: tokenCache,
-      }),
+      transport: overrides?.mailTransport ?? (smtpConfig
+        ? smtpMailTransport({ db, businessId, config: smtpConfig })
+        : accountMailTransport({
+          db, businessId, credentialKey, clients: oauthClients, senders: mailSenders,
+          fetchImpl: oauthFetch, cache: tokenCache,
+        })),
     });
     const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];

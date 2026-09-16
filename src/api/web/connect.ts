@@ -32,12 +32,22 @@ export type AccountsView = {
   readonly connectable: Readonly<Record<OAuthProvider, boolean>>;
   /** The verified-domain name, to warn when the mailbox is not on it. */
   readonly sendingDomain: string | null;
+  /**
+   * The address this installation's own mail server sends as, when the host
+   * configured one. It OUTRANKS a connected mailbox, so the page must say so:
+   * a row reading "connected" beside a Gmail nobody sends through any more is
+   * the kind of quiet lie this page exists to refuse.
+   */
+  readonly smtpFrom: string | null;
   readonly apollo: KeyStatus;
 };
 
 export async function loadAccounts(
   db: Db, businessId: BusinessId,
-  o: { readonly clients: OAuthClients; readonly publicBaseUrl: string | null; readonly apollo: KeyStatus },
+  o: {
+    readonly clients: OAuthClients; readonly publicBaseUrl: string | null;
+    readonly apollo: KeyStatus; readonly smtpFrom?: string | null;
+  },
 ): Promise<AccountsView> {
   const { mail, domain } = await withTenantTx(db, businessId, async (tx) => ({
     mail: await liveMailAccount(tx, businessId),
@@ -51,6 +61,7 @@ export async function loadAccounts(
     connectable: Object.fromEntries(OAUTH_PROVIDERS.map((p) =>
       [p, o.publicBaseUrl !== null && o.clients[p] !== undefined])) as Record<OAuthProvider, boolean>,
     sendingDomain: domain?.domain ?? null,
+    smtpFrom: o.smtpFrom ?? null,
     apollo: o.apollo,
   };
 }
@@ -81,8 +92,10 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
   if (mine) {
     const offDomain = v.sendingDomain !== null && !mine.address.endsWith(`@${v.sendingDomain}`);
     return {
-      name, tone: offDomain ? 'warn' : 'ok', state: t(locale, 'connect.state.connected'),
-      body: `<p>${withAddress(locale, 'connect.mail.sendsAs', mine.address)}</p>
+      name, tone: offDomain || v.smtpFrom ? 'warn' : 'ok', state: t(locale, 'connect.state.connected'),
+      body: `<p>${v.smtpFrom
+        ? withAddress(locale, 'connect.mail.outranked', mine.address)
+        : withAddress(locale, 'connect.mail.sendsAs', mine.address)}</p>
         <p class="muted">${esc(t(locale, 'connect.mail.connectedBy', { who: mine.connectedBy, date: formatDate(locale, mine.connectedAt) }))}</p>
         ${offDomain ? `<p class="muted warn-line">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
         ${viewer.isOwner ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
@@ -100,9 +113,27 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
   };
 }
 
+/**
+ * The installation's own mail server. Nothing to press: whoever runs the
+ * installation set it, and she cannot change it from here — so the row says what
+ * it is, and whether the address matches the domain she verified.
+ */
+function smtpRow(locale: Locale, v: AccountsView): Row {
+  const from = v.smtpFrom!;
+  const offDomain = v.sendingDomain !== null && !from.endsWith(`@${v.sendingDomain}`);
+  return {
+    name: t(locale, 'connect.smtp.name'), tone: offDomain ? 'warn' : 'ok',
+    state: t(locale, 'connect.state.connected'),
+    body: `<p>${withAddress(locale, 'connect.mail.sendsAs', from)}</p>
+      <p class="muted">${esc(t(locale, 'connect.smtp.what'))}</p>
+      ${offDomain ? `<p class="muted warn-line">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}`,
+  };
+}
+
 export function renderAccounts(v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const apolloStored = v.apollo.kind === 'stored' && v.apollo.readable;
   const rows: Row[] = [
+    ...(v.smtpFrom ? [smtpRow(locale, v)] : []),
     mailRow(locale, v, 'google', viewer),
     mailRow(locale, v, 'microsoft', viewer),
     {

@@ -180,6 +180,8 @@ export type WebDeps = {
    * here shows "not set up here", never a Connect button that can only fail.
    */
   readonly oauthClients?: OAuthClients;
+  /** The address this installation's own mail server sends as, when it has one. */
+  readonly smtpFrom?: string | null;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
   /**
@@ -1030,7 +1032,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
       clients: deps.oauthClients ?? {}, publicBaseUrl: deps.publicBaseUrl ?? null,
-      apollo: await keyStatus(prospectDeps(), bid.value),
+      smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
     }) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
