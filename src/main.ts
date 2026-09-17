@@ -23,7 +23,9 @@ import { accountMailTransport } from './channels/email/accountTransport.js';
 import { smtpMailTransport } from './channels/email/smtpTransport.js';
 import { smtpConfigFrom } from './channels/email/smtp.js';
 import { instagramAdapter } from './channels/instagram/adapter.js';
-import { socialAppSecret, type MetaFetch } from './channels/meta/messaging.js';
+import { socialAppSecret, metaProfileLookup, type MetaFetch } from './channels/meta/messaging.js';
+import { metaLoginFrom, metaAccountToken } from './channels/meta/connect.js';
+import { liveMetaAccount, markMetaAccountNeedsAttention, type MetaAccount } from './db/metaAccounts.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
@@ -448,10 +450,35 @@ export async function buildProduction(
    * withholds its number: the Page token was set, the routes were never
    * mounted, and Meta's verification failed against a 404.
    */
+  /**
+   * C10 — the login a business connects its OWN Page with: the social app's id
+   * and a login configuration, beside the secret that already signs webhooks.
+   * With it, the two webhook routes are mounted for the app secret alone — a
+   * Page connected through the dialog must be able to deliver before any
+   * account is in the environment. The environment's account, when set, stays
+   * the answer for a business that connected nothing: this one, today.
+   */
+  const metaLogin = metaLoginFrom(process.env, socialSecret);
+  const metaFetch: MetaFetch = overrides?.metaFetch ?? (fetch as unknown as MetaFetch);
+  const socialIngress: Partial<Record<'instagram' | 'messenger', ChannelAdapter>> =
+    socialSecret && (metaLogin !== null || Object.keys(metaMessaging).length > 0)
+      ? {
+        // With no account in the environment these verify and parse only: a
+        // send through them would be refused by Meta, and nothing routes a
+        // send here — `adaptersFor` answers with the business's own account.
+        instagram: metaMessaging.instagram ?? instagramAdapter({
+          accountId: '', accessToken: '', appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch,
+        }),
+        messenger: metaMessaging.messenger ?? messengerAdapter({
+          accountId: '', accessToken: '', appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch,
+        }),
+      }
+      : {};
+
   const whatsappHere = overrides?.adapter !== undefined || cfg.provider !== 'disabled';
   const channelsHere: readonly string[] = [
     ...(whatsappHere ? ['whatsapp'] : []),
-    ...Object.keys(metaMessaging),
+    ...Object.keys(socialIngress),
   ];
 
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
@@ -512,6 +539,13 @@ export async function buildProduction(
     // C9 — the accounts buyers write to, when the host configured them.
     instagramAccountId: igAccountId ?? null,
     messengerPageId: pageId ?? null,
+    // C10 — the login a business connects its OWN Page with, and what it takes
+    // to finish the connection when Meta sends her back.
+    metaLogin,
+    metaConnect: {
+      db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
+      fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
+    },
     // Her own mail server (SMTP), so the accounts page can say what actually sends.
     smtpFrom: smtpConfig?.from ?? null,
       sandboxBusinessId: SANDBOX_ID,
@@ -622,7 +656,38 @@ export async function buildProduction(
   const oauthFetch = fetch as unknown as OAuthFetch;
   const tokenCache = new Map<string, { token: string; until: number }>();
   const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
-  const adaptersFor = (businessId: BusinessId) => {
+  /**
+   * C10 — the Page and Instagram adapters for ONE business, from the account
+   * it connected itself. The token is opened for this drive and held in
+   * memory only. A token Meta refuses (401) is recorded on the row, so the
+   * page asks her to connect again and every later reply says why instead of
+   * failing with nobody told. A row that already needs her answers with no
+   * adapter — `channel_unavailable`, the honest refusal — never with the
+   * environment's account, which would be someone else's Page.
+   */
+  const metaAdaptersFor = (businessId: BusinessId, account: MetaAccount | null): Partial<Record<string, ChannelAdapter>> => {
+    if (!account) return metaMessaging;
+    if (account.needsAttention) return {};
+    const token = metaAccountToken(account, credentialKey);
+    if (!token) return {};
+    const noted = (a: ChannelAdapter): ChannelAdapter => ({
+      ...a,
+      sendText: async (to, body) => {
+        const r = await a.sendText(to, body);
+        if (!r.ok && !r.retryable && r.error === 'meta 401') {
+          await withTenantTx(db, businessId, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
+        }
+        return r;
+      },
+    });
+    const common = { accessToken: token, appSecret: socialSecret ?? '', graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch };
+    return {
+      messenger: noted(messengerAdapter({ accountId: account.pageId, ...common })),
+      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ accountId: account.igAccountId, ...common })) } : {}),
+    };
+  };
+
+  const adaptersFor = (businessId: BusinessId, metaAccount: MetaAccount | null = null) => {
     const email = emailAdapter({
       transport: overrides?.mailTransport ?? (smtpConfig
         ? smtpMailTransport({ db, businessId, config: smtpConfig })
@@ -631,8 +696,8 @@ export async function buildProduction(
           fetchImpl: oauthFetch, cache: tokenCache,
         })),
     });
-    const byChannel: Record<string, ChannelAdapter> = {
-      ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaMessaging,
+    const byChannel: Record<string, ChannelAdapter | undefined> = {
+      ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaAdaptersFor(businessId, metaAccount),
     };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
   };
@@ -672,9 +737,12 @@ export async function buildProduction(
         await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply);
       }
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
+      // C10 — read inside the same transaction as the send it authorises, so a
+      // disconnect takes effect on the next reply, not the next boot.
+      const metaAccount = await liveMetaAccount(tx, businessId.value);
       return driveConversationOutbound(
         {
-          store, ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId.value),
+          store, ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId.value, metaAccount),
           mailHeaders: mailHeadersFor(businessId.value), now: () => new Date(),
         },
         job.data.conversationId,
@@ -748,7 +816,7 @@ export async function buildProduction(
   // adapter's for every channel, which on a 360dialog installation would have
   // recorded an Instagram message as theirs.
   const inboundAdapters: Record<string, ChannelAdapter> = Object.fromEntries(
-    [...(adapter ? [adapter] : []), ...Object.values(metaMessaging)].map((a) => [a.kind, a]),
+    [...(adapter ? [adapter] : []), ...Object.values(socialIngress)].map((a) => [a.kind, a]),
   );
   const providerOf: Record<string, string> = Object.fromEntries(
     Object.values(inboundAdapters).map((a) => [a.kind, a.provider]),
@@ -763,11 +831,17 @@ export async function buildProduction(
    */
   const nameFor = async (bid: BusinessId, channel: string, e: { waId: string; profileName: string | null }) => {
     if (e.profileName) return e.profileName;
-    const ask = inboundAdapters[channel]?.nameOf;
-    if (!ask) return null;
+    if (channel !== 'instagram' && channel !== 'messenger') return null;
     const known = await withTenantTx(db, bid, (tx) => knownClientName(tx, channel, e.waId));
     if (known) return known;
-    return ask(e.waId);
+    // C10 — with the business's OWN Page token when it connected one; the
+    // environment's account otherwise.
+    const account = await withTenantTx(db, bid, (tx) => liveMetaAccount(tx, bid));
+    const token = account && !account.needsAttention ? metaAccountToken(account, credentialKey) : null;
+    const ask = token
+      ? metaProfileLookup({ channel, accessToken: token, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch })
+      : inboundAdapters[channel]?.nameOf;
+    return ask ? ask(e.waId) : null;
   };
 
   const app = buildIngressApp({
@@ -777,8 +851,8 @@ export async function buildProduction(
     // C9 — one path per channel, so a payload delivered to the wrong one is a
     // 401 rather than a message parsed into the wrong conversation.
     also: [
-      ...(metaMessaging.instagram ? [{ path: '/webhook/instagram', adapter: metaMessaging.instagram }] : []),
-      ...(metaMessaging.messenger ? [{ path: '/webhook/messenger', adapter: metaMessaging.messenger }] : []),
+      ...(socialIngress.instagram ? [{ path: '/webhook/instagram', adapter: socialIngress.instagram }] : []),
+      ...(socialIngress.messenger ? [{ path: '/webhook/messenger', adapter: socialIngress.messenger }] : []),
     ],
 
     persistEvent: async (e, rawPayload, channel) => {

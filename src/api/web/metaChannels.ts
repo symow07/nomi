@@ -73,18 +73,41 @@ export async function connectMetaChannel(
   });
 }
 
-/** Which of these channels this business has connected, for her page. */
-export async function connectedMetaChannels(
-  db: Db, businessIdRaw: string,
-): Promise<Readonly<Record<MetaMessagingKind, boolean>>> {
+/**
+ * C10 — what her page shows for the two channels: which are connected, and
+ * through which Page and Instagram account when she connected them herself
+ * (a `meta_accounts` row), with the one thing that needs her if the token died.
+ */
+export type MetaLinkStatus = {
+  readonly instagram: boolean;
+  readonly messenger: boolean;
+  readonly account: {
+    readonly pageName: string;
+    readonly igUsername: string | null;
+    readonly hasInstagram: boolean;
+    readonly needsAttention: 'revoked' | 'refused' | null;
+    readonly connectedAt: Date;
+  } | null;
+};
+
+export async function metaLinkStatus(db: Db, businessIdRaw: string): Promise<MetaLinkStatus> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { instagram: false, messenger: false };
+  if (!bid.ok) return { instagram: false, messenger: false, account: null };
+  const { liveMetaAccount } = await import('../../db/metaAccounts.js');
   return withTenantTx(db, bid.value, async (tx) => {
     const rows = (await sql<{ channel: string }>`
       select channel from channel_credentials
        where business_id = ${bid.value} and is_active and channel in ('instagram','messenger')`
       .execute(tx)).rows;
     const has = (k: MetaMessagingKind): boolean => rows.some((r) => r.channel === k);
-    return { instagram: has('instagram'), messenger: has('messenger') };
+    const a = await liveMetaAccount(tx, bid.value);
+    return {
+      instagram: has('instagram'), messenger: has('messenger'),
+      account: a ? {
+        pageName: a.pageName, igUsername: a.igUsername, hasInstagram: a.igAccountId !== null,
+        needsAttention: a.needsAttention, connectedAt: a.connectedAt,
+      } : null,
+    };
   });
 }
+
