@@ -62,6 +62,27 @@ are invisible from it.
    `instagram_manage_messages` and `pages_messaging`. This is the next Meta
    milestone, and it needs a screencast of the flow above.
 
+## A business connecting its own Page (C10)
+
+Everything above is the HOST's account, set in the environment. A business
+that signs up connects its own through **Connect your Facebook Page and
+Instagram** on `/app/channels`, which opens Meta's login dialog; nomi keeps the
+Page's own token encrypted (`meta_accounts`, 0054) and answers as that Page.
+What the operator sets up once, in the app dashboard:
+
+1. **Facebook Login for Business → Settings → Valid OAuth Redirect URIs**:
+   `https://app.nomidoes.com/app/connect/meta/callback`.
+2. **Facebook Login for Business → Configurations → Create**: login variation
+   *General*; assets *Pages* and *Instagram accounts*; permissions the seven
+   from § 6; token type *User access token*. Copy the **Configuration ID**.
+3. Railway: `META_SOCIAL_APP_ID=4070579106584338`, `META_LOGIN_CONFIG_ID=<that
+   id>`; redeploy. The button appears; the environment's own account stays the
+   answer for a business that connected nothing.
+
+Until App Review, the dialog grants the scopes only to accounts with a role on
+the app — enough to connect this installation's own Page through it and to
+record the screencast the review wants.
+
 ## How to tell which gate you are behind
 
 - No `POST /webhook/instagram` in the logs at all → gates 4–7 (Meta never

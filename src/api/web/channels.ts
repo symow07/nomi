@@ -449,7 +449,7 @@ export function renderReach(
    * here; there is no activation switch, because there is no cold message to
    * hold back on a channel that can only answer.
    */
-  inbound: ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }> = new Map(),
+  inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
 ): string {
   const rows = OUTREACH_CHANNELS.map((channel: OutreachChannel) => {
     const cap = CHANNEL_REGISTRY[channel];
@@ -486,13 +486,28 @@ export function renderReach(
      * for a mail app this installation has no client for.
      */
     const link = inbound.get(channel);
+    /**
+     * C10 — connected through Meta's login, it says AS WHOM, and the owner can
+     * disconnect it here; a token Meta refused says so and offers the login
+     * again. Connecting goes to the login when this installation offers one,
+     * else (C9) posts the host's own account.
+     */
+    const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
+      ? (link?.connectHref
+        ? `<a class="btn send" href="${esc(link.connectHref)}">${esc(t(locale, key))}</a>`
+        : `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
+            <button class="btn send" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
+      : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
     const connect = cap.coldInitiate !== 'never' || !cap.availableHere || !link?.configured ? ''
       : link.connected
-        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</div>`
-        : viewer.isOwner
-          ? `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
-              <button class="btn send" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`
-          : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
+        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</div>
+          ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
+          ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
+          ${link.connectedAs && viewer.isOwner && !link.needsAttention
+            ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
+                <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
+        : `${link.noInstagram ? `<div class="muted win">${esc(t(locale, 'reach.inbound.noInstagram'))}</div>` : ''}
+          ${loginButton(link.connectHref ? 'reach.inbound.connectMeta' : 'reach.inbound.connect')}`;
 
     const window = cap.replyWindowHours === null ? '' :
       `<div class="muted win">${esc(t(locale, 'reach.window', { hours: String(cap.replyWindowHours) }))}</div>`;
@@ -573,12 +588,31 @@ export function renderReach(
   </div>`;
 }
 
+/**
+ * C9 / C10 — one of the channels a buyer starts, as the page sees it.
+ * `configured`: something here can connect it — the host's account (C9) or
+ * Meta's login (C10). `connectHref`: the login, when this installation offers
+ * it; absent, the C9 button posts the host's account. `connectedAs`: the Page
+ * or handle she connected herself, which is also what makes it hers to
+ * disconnect here.
+ */
+export type InboundLink = {
+  readonly configured: boolean;
+  readonly connected: boolean;
+  readonly connectHref?: string;
+  readonly connectedAs?: string;
+  /** Meta refused the token: connect again. */
+  readonly needsAttention?: boolean;
+  /** Her Page is connected but has no Instagram account linked. */
+  readonly noInstagram?: boolean;
+};
+
 export function renderChannels(
   data: ChannelsData, locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
   /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
   accountsHtml = '',
   /** C9 — the channels a buyer starts: configured by the host, connected by her. */
-  inbound: ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }> = new Map(),
+  inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
 ): string {
   const w = data.whatsapp;
   const actions = w.connected

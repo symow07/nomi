@@ -7,7 +7,13 @@ import { loadOperationsSnapshot, renderOperationsHome } from './operations.js';
 import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, loadProofLinkState } from './proof.js';
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
-import { connectMetaChannel, connectedMetaChannels } from './metaChannels.js';
+import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
+import { renderMetaPagePicker } from './metaConnect.js';
+import {
+  metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount,
+  type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
+} from '../../channels/meta/connect.js';
+import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms } from './legal.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
@@ -202,6 +208,12 @@ export type WebDeps = {
   /** C9 — the Instagram account and Page this installation can connect, if any. */
   readonly instagramAccountId?: string | null;
   readonly messengerPageId?: string | null;
+  /**
+   * C10 — Meta's login for a business to connect its OWN Page and Instagram.
+   * Absent, the Connect button posts the host's account (C9) or is absent.
+   */
+  readonly metaLogin?: MetaLogin | null;
+  readonly metaConnect?: MetaConnectDeps;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
   /**
@@ -1126,10 +1138,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
     }) : null;
     // C9 — which inbound channels this host can offer, and which she connected.
-    const linked = await connectedMetaChannels(deps.db, s.businessId);
-    const inbound = new Map<OutreachChannel, { configured: boolean; connected: boolean }>([
-      ['instagram', { configured: (deps.instagramAccountId ?? null) !== null, connected: linked.instagram }],
-      ['messenger', { configured: (deps.messengerPageId ?? null) !== null, connected: linked.messenger }],
+    const linked = await metaLinkStatus(deps.db, s.businessId);
+    // C10 — the login is offered whenever this installation has one; a Page she
+    // connected herself is named, and is hers to disconnect.
+    const login = deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect
+      ? { connectHref: '/app/connect/meta/start' } : {};
+    const own = linked.account;
+    const inboundLink = (kind: 'instagram' | 'messenger', hostConfigured: boolean, connected: boolean): InboundLink => ({
+      configured: hostConfigured || 'connectHref' in login, connected, ...login,
+      ...(own ? {
+        connectedAs: kind === 'instagram' && own.igUsername ? `${own.pageName} · @${own.igUsername}` : own.pageName,
+        ...(own.needsAttention ? { needsAttention: true } : {}),
+        ...(kind === 'instagram' && !own.hasInstagram ? { noInstagram: true } : {}),
+      } : {}),
+    });
+    const inbound = new Map<OutreachChannel, InboundLink>([
+      ['instagram', inboundLink('instagram', (deps.instagramAccountId ?? null) !== null, linked.instagram)],
+      ['messenger', inboundLink('messenger', (deps.messengerPageId ?? null) !== null, linked.messenger)],
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
@@ -1913,6 +1938,95 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
     return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.flash.disconnected' : 'connect.flash.rejected'));
+  });
+
+  /**
+   * C10 — a business connects its OWN Page and Instagram through Meta's login.
+   * Owner-only under the same decision as activating messaging: it decides
+   * whose conversations land in this inbox, and as whom the replies leave.
+   * The state cookie ties the callback to the person who pressed Connect;
+   * when she manages several Pages, the user token she granted rides in that
+   * state — encrypted — for the one round trip her choice takes.
+   */
+  const META_COOKIE = 'yf_meta';
+  const metaRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/meta/callback`;
+  const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;
+  const metaFlash = (locale: Locale, r: MetaConnectOutcome): string => {
+    switch (r.outcome) {
+      case 'connected': return channelsFlash(locale, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page });
+      case 'no_pages': case 'page_taken': case 'subscribe_failed': case 'unavailable':
+        return channelsFlash(locale, `connect.meta.flash.${r.outcome}`);
+      case 'not_configured': return channelsFlash(locale, 'connect.flash.not_configured');
+      default: return channelsFlash(locale, 'connect.flash.rejected');
+    }
+  };
+
+  app.get('/app/connect/meta/start', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const mc = metaReady();
+    if (!mc || !deps.metaLogin) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    const nonce = randomBytes(24).toString('base64url');
+    writeCookie(reply, META_COOKIE,
+      mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
+      { path: '/app/connect', maxAgeSec: 600 });
+    return reply.redirect(metaDialogUrl(deps.metaLogin, { redirectUri: metaRedirectUri(), state: nonce, graphVersion: mc.graphVersion }));
+  });
+
+  app.get('/app/connect/meta/callback', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const q = req.query as { code?: string; state?: string; error?: string };
+    const cookie = parseCookies(req.headers.cookie)[META_COOKIE];
+    // Used once, whatever happens next.
+    writeCookie(reply, META_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    const state = readMetaState(deps.sessionSecret, cookie, Date.now());
+    if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+    }
+    if (q.error || typeof q.code !== 'string' || !q.code) return reply.redirect(channelsFlash(locale, 'connect.flash.denied'));
+    const mc = metaReady();
+    const bid = parseBusinessId(s.businessId);
+    if (!mc || !bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    const r = await completeMetaConnection(mc, {
+      businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(), code: q.code.slice(0, 2048),
+    });
+    if (r.outcome === 'choose') {
+      const carried = mintMetaState(deps.sessionSecret,
+        { nonce: state.nonce, personId: personOf(s).id, tokenCiphertext: r.tokenCiphertext }, Date.now());
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'connect.meta.choose.title'), active: 'channels',
+        bodyHtml: renderMetaPagePicker(r.pages, carried, locale),
+      }));
+    }
+    return reply.redirect(metaFlash(locale, r));
+  });
+
+  app.post('/app/connect/meta/choose', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
+    if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) {
+      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+    }
+    const mc = metaReady();
+    const bid = parseBusinessId(s.businessId);
+    if (!mc || !bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    const pageId = typeof b['page_id'] === 'string' ? b['page_id'].slice(0, 40) : '';
+    const r = await completeMetaConnection(mc, {
+      businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(),
+      userTokenCiphertext: state.tokenCiphertext, pageId,
+    });
+    return reply.redirect(r.outcome === 'choose' ? channelsFlash(locale, 'connect.flash.rejected') : metaFlash(locale, r));
+  });
+
+  app.post('/app/connect/meta/disconnect', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const mc = metaReady();
+    const bid = parseBusinessId(s.businessId);
+    const done = mc !== null && bid.ok && await disconnectMetaAccount(mc, { businessId: bid.value, by: personOf(s).name });
+    return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected'));
   });
 
   /**

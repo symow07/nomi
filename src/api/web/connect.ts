@@ -10,6 +10,7 @@ import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/message
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { esc } from './layout.js';
+import type { InboundLink } from './channels.js';
 
 /**
  * C6 · M50 — every account she links, in one place, each honest about itself.
@@ -135,7 +136,7 @@ function smtpRow(locale: Locale, v: AccountsView): Row {
  * of them she connected. The reach cards below read the same map; this list
  * must not answer differently.
  */
-export type InboundLinks = ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }>;
+export type InboundLinks = ReadonlyMap<OutreachChannel, InboundLink>;
 
 export function renderAccounts(
   v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW, inbound: InboundLinks = new Map(),
@@ -169,7 +170,9 @@ export function renderAccounts(
         state: t(locale, !here ? 'connect.state.notHere'
           : link?.connected ? 'connect.state.connected' : 'connect.state.notConnected'),
         body: `<p class="muted">${esc(t(locale, 'reach.cold.never'))}</p>${here && link?.connected
-          ? `<p class="muted">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</p>` : ''}`,
+          ? `<p class="muted">${esc(link.connectedAs
+            ? t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs })
+            : t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</p>` : ''}`,
       };
     }),
   ];

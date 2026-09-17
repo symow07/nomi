@@ -1009,7 +1009,24 @@ per call, DMs may only be sent to people who have consented to receive them
 access this project does not have. It also needs an X developer account, which
 is the owner's to create. Revisit when a factory actually asks for it.
 
-#### C10 — Connect your own Page and Instagram · PLANNED 2026-09-18, awaiting the owner's go
+#### C10 — Connect your own Page and Instagram (0054) ✅ BUILT 2026-09-18
+
+Built the day it was planned, on the owner's go. What landed, against the plan
+below: `meta_accounts` (0054) holds the Page's own token encrypted, one live
+row per business and one business per Page; `src/channels/meta/connect.ts` is
+the login — dialog, signed state (the user token rides in it encrypted for the
+one round trip a choice of Page takes), code → long-lived user token → the
+Page's token and its Instagram account, `subscribed_apps`, then the credential
+rows that route; the outbound worker reads the business's row inside the same
+transaction as the send, so a disconnect takes effect on the next reply; a
+token Meta refuses (401) is recorded once and the page asks for a reconnect;
+the name lookup uses the business's own token. The two webhook routes now
+mount for the app secret alone, because a Page connected through the dialog
+must be able to deliver before any account is in the environment. Operator
+setup (redirect URI, login configuration, two variables) is in
+`docs/META-SOCIAL-SETUP.md`; the gate for strangers' Pages is still App Review.
+
+*The plan as written that morning:*
 
 **Why.** Today the Instagram account and the Page nomi answers from are the
 host's, set in the environment (`META_PAGE_ID`, `META_IG_ACCOUNT_ID`,
