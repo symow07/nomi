@@ -105,7 +105,21 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   it('needsOwner links to the inbox — no approval form here', () => {
     const html = renderCustomerFile(file, 'en', NOW);
     expect(html).toContain('href="/app/inbox/c1"');
-    expect(html).not.toContain('<form method="post"');
+    // Approving is the inbox's, and only the inbox's: no draft command posts
+    // from this page. The one form here (2026-09-18) names the buyer — it
+    // posts to this page's own route and carries no draft, no command.
+    const forms = [...html.matchAll(/<form[^>]*action="([^"]+)"/g)].map((m) => m[1]);
+    expect(forms).toEqual(['/app/conversations/c1/name']);
+    expect(html).not.toContain('name="command"');
+    expect(html).not.toContain('name="draftId"');
+  });
+
+  it('what she calls him is hers to change here — prefilled, capped, escaped', () => {
+    const html = renderCustomerFile({ ...file, buyer: 'Ahmed "the Fast" <Al-Farsi>' }, 'en', NOW);
+    expect(html).toContain('value="Ahmed &quot;the Fast&quot; &lt;Al-Farsi&gt;"');
+    expect(html).toContain('maxlength="80"');
+    // And a saved change is confirmed on the page she lands back on.
+    expect(renderCustomerFile(file, 'zh', NOW, '称呼已保存。')).toContain('称呼已保存。');
   });
 
   it('escapes buyer text and messages (no XSS)', () => {

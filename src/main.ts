@@ -23,7 +23,7 @@ import { accountMailTransport } from './channels/email/accountTransport.js';
 import { smtpMailTransport } from './channels/email/smtpTransport.js';
 import { smtpConfigFrom } from './channels/email/smtp.js';
 import { instagramAdapter } from './channels/instagram/adapter.js';
-import { socialAppSecret } from './channels/meta/messaging.js';
+import { socialAppSecret, type MetaFetch } from './channels/meta/messaging.js';
 import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
@@ -32,7 +32,7 @@ import { deriveKey } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
-import { channelStore, ensureConversation, enqueueOutboundRow } from './db/channels.js';
+import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type MailEnvelope } from './outbound/worker.js';
 import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
 import { runDueSteps } from './outbound/sequences.js';
@@ -323,6 +323,12 @@ export async function buildProduction(
      * and the unsubscribe headers rather than only that something was called.
      */
     mailTransport?: MailTransport;
+    /**
+     * The fetch the Instagram and Messenger adapters call Meta with — tests
+     * only, so a name lookup or a send never leaves the process. Production
+     * uses the platform fetch.
+     */
+    metaFetch?: MetaFetch;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -420,12 +426,14 @@ export async function buildProduction(
         messenger: messengerAdapter({
           accountId: pageId, accessToken: pageToken,
           appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION,
+          ...(overrides?.metaFetch ? { fetchImpl: overrides.metaFetch } : {}),
         }),
       } : {}),
       ...(igAccountId ? {
         instagram: instagramAdapter({
           accountId: igAccountId, accessToken: pageToken,
           appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION,
+          ...(overrides?.metaFetch ? { fetchImpl: overrides.metaFetch } : {}),
         }),
       } : {}),
     }
@@ -739,9 +747,28 @@ export async function buildProduction(
   // Instagram, whichever was selected for WhatsApp. It was the WhatsApp
   // adapter's for every channel, which on a 360dialog installation would have
   // recorded an Instagram message as theirs.
-  const providerOf: Record<string, string> = Object.fromEntries(
-    [...(adapter ? [adapter] : []), ...Object.values(metaMessaging)].map((a) => [a.kind, a.provider]),
+  const inboundAdapters: Record<string, ChannelAdapter> = Object.fromEntries(
+    [...(adapter ? [adapter] : []), ...Object.values(metaMessaging)].map((a) => [a.kind, a]),
   );
+  const providerOf: Record<string, string> = Object.fromEntries(
+    Object.values(inboundAdapters).map((a) => [a.kind, a.provider]),
+  );
+
+  /**
+   * The buyer's name for a channel whose webhook carries none. Asked ONLY when
+   * it would fill a blank — a known, named buyer costs no call — and outside
+   * the tenant transaction, because it is a network call and a name is not
+   * worth holding a connection for. Whatever the channel answers, the message
+   * is recorded; she can name him on his page.
+   */
+  const nameFor = async (bid: BusinessId, channel: string, e: { waId: string; profileName: string | null }) => {
+    if (e.profileName) return e.profileName;
+    const ask = inboundAdapters[channel]?.nameOf;
+    if (!ask) return null;
+    const known = await withTenantTx(db, bid, (tx) => knownClientName(tx, channel, e.waId));
+    if (known) return known;
+    return ask(e.waId);
+  };
 
   const app = buildIngressApp({
     ...(adapter ? { adapter } : {}),
@@ -778,8 +805,9 @@ export async function buildProduction(
       if (!bid) return;
 
       if (e.kind === 'message') {
+        const profileName = await nameFor(bid, channel, e);
         const { conversationId } = await withTenantTx(db, bid, async (tx) => {
-          const conv = await ensureConversation(tx, bid, e.waId, e.profileName,
+          const conv = await ensureConversation(tx, bid, e.waId, profileName,
             channel as 'whatsapp' | 'instagram' | 'messenger');
           // Health signals live on the channel row: "when did anything arrive".
           await sql`

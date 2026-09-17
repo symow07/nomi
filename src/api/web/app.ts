@@ -71,7 +71,7 @@ import {
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
 import {
-  loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile,
+  loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile, renameBuyer,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
@@ -1510,10 +1510,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'conv.title'), active: 'conversations',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
     }));
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
-      bodyHtml: renderCustomerFile(file, locale, new Date()),
+      bodyHtml: renderCustomerFile(file, locale, new Date(), flash),
     }));
+  });
+
+  // What she calls him — owner or staff, whoever is looking after him. The
+  // channel's own name fills the blank first; this is the correction.
+  app.post('/app/conversations/:conversationId/name', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const raw = String((req.body as { name?: unknown } | undefined)?.name ?? '');
+    const r = await renameBuyer(deps.db, s.businessId, conversationId, raw, personOf(s).name);
+    if (r === 'not_found') return reply.redirect('/app/conversations');
+    const key = `conv.flash.name${r === 'saved' ? 'Saved' : r === 'cleared' ? 'Cleared' : 'Invalid'}` as MessageKey;
+    return reply.redirect(`/app/conversations/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(
+      t(locale, key, { buyer: t(locale, 'common.buyer') }))}`);
   });
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────

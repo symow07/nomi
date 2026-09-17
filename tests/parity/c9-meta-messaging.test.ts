@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { parseMetaMessaging, metaMessagingSender, socialAppSecret, WEBHOOK_OBJECT } from '../../src/channels/meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, metaProfileLookup, socialAppSecret, WEBHOOK_OBJECT } from '../../src/channels/meta/messaging.js';
 import { instagramAdapter } from '../../src/channels/instagram/adapter.js';
 import { messengerAdapter } from '../../src/channels/messenger/adapter.js';
 import { CHANNEL_REGISTRY, mayInitiate } from '../../src/core/channel/registry.js';
@@ -188,7 +188,7 @@ describe('C9 · handing a reply to Meta', () => {
   const sender = (status: number, body: unknown) => metaMessagingSender({
     accountId: '102000000000000', accessToken: 'page-token', graphVersion: 'v23.0',
     fetchImpl: async (url, init) => {
-      calls.push({ url, body: init.body, auth: init.headers['Authorization'] ?? '' });
+      calls.push({ url, body: init.body ?? "", auth: init.headers['Authorization'] ?? '' });
       return { status, text: async () => JSON.stringify(body) };
     },
   });
@@ -221,6 +221,56 @@ describe('C9 · handing a reply to Meta', () => {
     calls = [];
     const r = await sender(403, { error: { message: 'This person is not available: PSID_BUYER' } })('PSID', 'hi');
     expect(r).toEqual({ ok: false, retryable: false, error: 'meta 403' });
+  });
+});
+
+describe('C9 · his name, asked after the fact', () => {
+  type Seen = { url: string; method: string; body: string | undefined; auth: string };
+  const lookup = (channel: 'instagram' | 'messenger', status: number, body: unknown, seen: Seen[] = []) =>
+    metaProfileLookup({
+      channel, accessToken: 'page-token', graphVersion: 'v23.0',
+      fetchImpl: async (url, init) => {
+        seen.push({ url, method: init.method, body: init.body, auth: init.headers['Authorization'] ?? '' });
+        if (status < 0) throw new Error('unreachable');
+        return { status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) };
+      },
+    });
+
+  it('Instagram: the profile name, else the handle as @handle; Messenger: first and last', async () => {
+    expect(await lookup('instagram', 200, { name: ' Ahmed Al-Farsi ', username: 'ahmed.f' })('IGSID')).toBe('Ahmed Al-Farsi');
+    expect(await lookup('instagram', 200, { username: 'kareem_trading' })('IGSID')).toBe('@kareem_trading');
+    expect(await lookup('messenger', 200, { first_name: 'Fatima', last_name: 'Zahra' })('PSID')).toBe('Fatima Zahra');
+    expect(await lookup('messenger', 200, { first_name: 'Fatima' })('PSID')).toBe('Fatima');
+    // Nothing usable is no name, never an empty string she would see as blank.
+    expect(await lookup('instagram', 200, { name: '  ' })('IGSID')).toBeNull();
+    expect(await lookup('messenger', 200, {})('PSID')).toBeNull();
+  });
+
+  it('asks with a GET and no body, the fields Meta names, and the Page token', async () => {
+    const seen: Seen[] = [];
+    await lookup('instagram', 200, { name: 'x' }, seen)('17841400000000001');
+    await lookup('messenger', 200, { first_name: 'x' }, seen)('PSID_1');
+    expect(seen[0]).toMatchObject({
+      url: 'https://graph.facebook.com/v23.0/17841400000000001?fields=name,username',
+      method: 'GET', body: undefined, auth: 'Bearer page-token',
+    });
+    expect(seen[1]!.url).toBe('https://graph.facebook.com/v23.0/PSID_1?fields=first_name,last_name');
+  });
+
+  it('NEVER THROWS — no permission, a bad minute, garbage: all read as no name', async () => {
+    expect(await lookup('instagram', 400, { error: { message: 'missing permission' } })('IGSID')).toBeNull();
+    expect(await lookup('messenger', 503, {})('PSID')).toBeNull();
+    expect(await lookup('instagram', 200, 'not json')('IGSID')).toBeNull();
+    expect(await lookup('instagram', -1, {})('IGSID')).toBeNull();
+  });
+
+  it('a name is capped where the page would wrap it', async () => {
+    expect((await lookup('messenger', 200, { first_name: 'a'.repeat(200) })('PSID'))?.length).toBe(80);
+  });
+
+  it('and both adapters offer it, WhatsApp does not need to', () => {
+    expect(typeof ig.nameOf).toBe('function');
+    expect(typeof fb.nameOf).toBe('function');
   });
 });
 

@@ -24,6 +24,24 @@ const IG_ACCOUNT = `1784${runDigits(RUN, 10)}`;
 const PAGE_ID = `1020${runDigits(RUN, 10)}`;
 const buyer = (who: string) => `PSID_${who}_${RUN}`;
 
+/**
+ * Meta, as far as this test lets it be reached: a profile for the buyers it
+ * knows, and for a send the 400 the real thing answers a fake token with.
+ */
+const PROFILES: Record<string, Record<string, string>> = {
+  [buyer('ahmed')]: { name: 'Ahmed Al-Farsi', username: 'ahmed.f' },
+  [buyer('handle')]: { username: 'kareem_trading' },
+  [buyer('page')]: { first_name: 'Fatima', last_name: 'Zahra' },
+};
+const metaFetch: import('../../src/channels/meta/messaging.js').MetaFetch = async (url, init) => {
+  if (init.method === 'GET') {
+    const id = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+    const profile = PROFILES[id];
+    return { status: profile ? 200 : 400, text: async () => JSON.stringify(profile ?? { error: {} }) };
+  }
+  return { status: 400, text: async () => JSON.stringify({ error: { message: 'not a real token' } }) };
+};
+
 d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
@@ -97,7 +115,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
       META_APP_SECRET: APP_SECRET,
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'mt-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: whatsappSimulator([], { tag: `mt${RUN}` }).adapter, logger: false });
+    }, { adapter: whatsappSimulator([], { tag: `mt${RUN}` }).adapter, logger: false, metaFetch });
 
     await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Meta Factory')
                         on conflict (id) do nothing`.execute(x));
@@ -206,6 +224,54 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     });
     expect(JSON.parse(first.body)).toMatchObject({ received: 1 });
     expect(JSON.parse(second.body), 'a retried webhook was processed twice').toMatchObject({ received: 0 });
+  }, 60_000);
+
+  const nameOf = (channel: string, id: string) => tx((x) => sql<{ n: string | null }>`
+    select cl.display_name as n from clients cl
+      join client_channels cc on cc.client_id = cl.id
+     where cc.channel = ${channel} and cc.channel_user_id = ${id}`.execute(x).then((r) => r.rows[0]?.n ?? null));
+
+  it('HE ARRIVES WITH HIS NAME — asked from Meta, since the webhook carries only an id', async () => {
+    // Until 2026-09-18 every Instagram and Page buyer was "Buyer": the payload
+    // has no name, and nothing asked for one.
+    await inbound('/webhook/instagram', 'instagram', { sender: buyer('ahmed'), recipient: IG_ACCOUNT, text: 'hi' });
+    await inbound('/webhook/instagram', 'instagram', { sender: buyer('handle'), recipient: IG_ACCOUNT, text: 'hi' });
+    await inbound('/webhook/messenger', 'page', { sender: buyer('page'), recipient: PAGE_ID, text: 'hi' });
+    expect(await nameOf('instagram', buyer('ahmed'))).toBe('Ahmed Al-Farsi');
+    expect(await nameOf('instagram', buyer('handle')), 'a profile with no name shows its handle').toBe('@kareem_trading');
+    expect(await nameOf('messenger', buyer('page'))).toBe('Fatima Zahra');
+    // A buyer Meta will not name is still a conversation — an honest blank.
+    expect(await nameOf('instagram', buyer('twice'))).toBeNull();
+    // And her list says who, not "Buyer".
+    expect((await get('/app/inbox?filter=all')).body).toContain('Ahmed Al-Farsi');
+  }, 60_000);
+
+  it('SHE CAN CALL HIM WHAT SHE LIKES — hers wins, and clearing it is an honest blank', async () => {
+    const conv = (await conversations()).find((c) => c.external === buyer('ahmed'))!;
+    expect(conv, 'the named buyer has a conversation').toBeTruthy();
+    const r = await post(`/app/conversations/${conv.id}/name`, { name: '  Ahmed   (Dubai) ' });
+    expect(r.statusCode).toBe(302);
+    expect(String(r.headers['location'])).toContain(encodeURIComponent(t('en', 'conv.flash.nameSaved')));
+    expect((await get(`/app/conversations/${conv.id}`)).body).toContain('Ahmed (Dubai)');
+
+    // A name the channel sends later fills a blank, never overwrites hers.
+    await inbound('/webhook/instagram', 'instagram', { sender: buyer('ahmed'), recipient: IG_ACCOUNT, text: 'again' });
+    expect(await nameOf('instagram', buyer('ahmed'))).toBe('Ahmed (Dubai)');
+
+    // The change is on the conversation's record, with who made it.
+    const ev = await tx((x) => sql<{ payload: { from: string | null; to: string | null; by: string } }>`
+      select payload from conversation_events where conversation_id = ${conv.id} and type = 'buyer_renamed'
+       order by created_at desc limit 1`.execute(x).then((q) => q.rows[0]?.payload));
+    expect(ev).toMatchObject({ from: 'Ahmed Al-Farsi', to: 'Ahmed (Dubai)' });
+    expect(ev?.by).toBeTruthy();
+
+    // Cleared: "Buyer" again — never a placeholder pretending to be a name.
+    await post(`/app/conversations/${conv.id}/name`, { name: '   ' });
+    expect(await nameOf('instagram', buyer('ahmed'))).toBeNull();
+    expect((await get(`/app/conversations/${conv.id}`)).body).toContain(esc(t('en', 'common.buyer')));
+    // Too long is refused, and says so.
+    const long = await post(`/app/conversations/${conv.id}/name`, { name: 'x'.repeat(81) });
+    expect(String(long.headers['location'])).toContain(encodeURIComponent(t('en', 'conv.flash.nameInvalid')));
   }, 60_000);
 
   it('HER REPLY LEAVES ON THE CHANNEL HE WROTE ON, to his own scoped id', async () => {
