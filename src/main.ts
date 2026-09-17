@@ -508,6 +508,9 @@ export async function buildProduction(
     smtpFrom: smtpConfig?.from ?? null,
       sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
+      // Named on /privacy and /data-deletion; absent, those pages say to write
+      // to the business from the account you used.
+      legalContact: process.env['LEGAL_CONTACT_EMAIL']?.trim() || null,
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
       // their emoji, unchanged. The small cut, because the header avatar is 30px.
       avatar: process.env['EMPLOYEE_AVATAR'] ?? markSmall(30, null),

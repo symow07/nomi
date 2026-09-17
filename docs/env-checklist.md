@@ -109,6 +109,7 @@ media setting to keep in step with it.
 | `SANDBOX_BUSINESS_ID` | the seeded sandbox | The practice tenant. Must never equal `PILOT_BUSINESS_ID`. |
 | `SANDBOX_LIVE_AI` | unset | `1` offers Live-AI mode in the sandbox. It spends tokens; scripted is the default. |
 | `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | 小雅 · the Nomi mark | What the owner calls her. When `EMPLOYEE_AVATAR` is unset the header shows the brand mark (inline SVG, small cut); setting it to an emoji still wins, unchanged. |
+| `LEGAL_CONTACT_EMAIL` | an address, optional | Named on the public `/privacy` and `/data-deletion` pages as where a person writes to ask what is kept or to have it removed. Unset, the pages say to write to the business from the account used — never a blank. Whoever reads that mailbox must answer within the thirty days the page promises (see `docs/LEGAL.md`). |
 | `ENGINE_VERSION` | `dev` | Stamped into quote audit rows (`db/repos.ts`). |
 | `DATABASE_POOL_MAX` | `10` | Connections in the pool (`db/client.ts`). |
 | `DATABASE_CONNECT_TIMEOUT_MS` | `10000` | How long a connection attempt waits. |

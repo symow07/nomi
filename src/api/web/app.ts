@@ -8,6 +8,7 @@ import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, 
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, connectedMetaChannels } from './metaChannels.js';
+import { renderPrivacy, renderDataDeletion } from './legal.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
@@ -137,6 +138,12 @@ export type WebDeps = {
    * passes true while `provider` stays 'disabled'.
    */
   readonly messagingEnabled?: boolean;
+  /**
+   * The address named on the legal pages (`LEGAL_CONTACT_EMAIL`). Absent, the
+   * pages say to write to the business from the account you used, which is
+   * always true; they never show a blank where an address should be.
+   */
+  readonly legalContact?: string | null;
   /** M25 — the installation's real template capability, derived at boot.
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
@@ -254,6 +261,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/u', why: 'M40.2 — one-click unsubscribe. Suppresses exactly the address the signature names' },
   { method: 'POST', url: '/hooks/email', why: 'M40.2 — provider bounce/complaint events, HMAC-verified before a byte of body is read' },
   { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
+  { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
+  { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -607,6 +616,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .header('x-robots-tag', 'noindex, nofollow')
       .send(renderProof(view));
   });
+
+  // The legal pages. Public and indexable — Meta fetches them before the app
+  // may leave development mode, and a buyer follows them from a Page. They
+  // read nothing from the database and name no tenant, so there is nothing
+  // here for a stranger to probe.
+  app.get('/privacy', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null)));
+  app.get('/data-deletion', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
 
   // ── Auth ────────────────────────────────────────────────────────────────
   app.get('/', async (req, reply) =>
