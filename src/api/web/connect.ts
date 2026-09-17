@@ -2,7 +2,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { liveMailAccount, type MailAccount } from '../../db/mailAccounts.js';
 import { sendingDomain } from '../../db/sendingDomain.js';
 import { OAUTH_PROVIDERS, type OAuthClients, type OAuthProvider } from '../../connectors/oauth.js';
-import { CHANNEL_REGISTRY } from '../../core/channel/registry.js';
+import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import type { KeyStatus } from '../../prospects/service.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -130,7 +130,16 @@ function smtpRow(locale: Locale, v: AccountsView): Row {
   };
 }
 
-export function renderAccounts(v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
+/**
+ * C9 — what the host configured for the two channels buyers start, and which
+ * of them she connected. The reach cards below read the same map; this list
+ * must not answer differently.
+ */
+export type InboundLinks = ReadonlyMap<OutreachChannel, { readonly configured: boolean; readonly connected: boolean }>;
+
+export function renderAccounts(
+  v: AccountsView, locale: Locale, viewer: Viewer = OWNER_VIEW, inbound: InboundLinks = new Map(),
+): string {
   const apolloStored = v.apollo.kind === 'stored' && v.apollo.readable;
   const rows: Row[] = [
     ...(v.smtpFrom ? [smtpRow(locale, v)] : []),
@@ -145,13 +154,24 @@ export function renderAccounts(v: AccountsView, locale: Locale, viewer: Viewer =
         <a class="btn" href="/app/prospects">${esc(t(locale, apolloStored ? 'connect.apollo.open' : 'connect.apollo.add'))}</a>`,
     },
     // M39 — what the platform permits, said as the registry says it: these two
-    // can only ever answer someone who wrote first, and this product does not
-    // carry them yet. No button, because there is nothing to connect to.
-    ...(['instagram', 'messenger'] as const).map((ch): Row => ({
-      name: t(locale, `reach.channel.${ch}` as MessageKey), tone: 'stop',
-      state: t(locale, CHANNEL_REGISTRY[ch].availableHere ? 'connect.state.notConnected' : 'connect.state.notHere'),
-      body: `<p class="muted">${esc(t(locale, 'reach.cold.never'))}</p>`,
-    })),
+    // can only ever answer someone who wrote first. C9 made them connectable,
+    // and until 2026-09-17 this row went on saying "not connected" above a
+    // card that said "connected" — two answers on one page. The Connect button
+    // stays on the card below, where the rule it is subject to is explained;
+    // here is only the state, the same three states as the mail rows: no
+    // account configured on this host, configured and hers to connect, connected.
+    ...(['instagram', 'messenger'] as const).map((ch): Row => {
+      const link = inbound.get(ch);
+      const here = CHANNEL_REGISTRY[ch].availableHere && link?.configured === true;
+      return {
+        name: t(locale, `reach.channel.${ch}` as MessageKey),
+        tone: !here ? 'stop' : link?.connected ? 'ok' : 'warn',
+        state: t(locale, !here ? 'connect.state.notHere'
+          : link?.connected ? 'connect.state.connected' : 'connect.state.notConnected'),
+        body: `<p class="muted">${esc(t(locale, 'reach.cold.never'))}</p>${here && link?.connected
+          ? `<p class="muted">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</p>` : ''}`,
+      };
+    }),
   ];
 
   return `<div class="block accounts">

@@ -1113,7 +1113,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash, personOf(s),
-        accounts ? renderAccounts(accounts, locale, personOf(s)) : '', inbound),
+        accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound),
     }));
   });
 
