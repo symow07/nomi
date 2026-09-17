@@ -8,8 +8,9 @@ import {
 import { gmailSender, graphSender, mimeMessage } from '../../src/channels/email/senders.js';
 import { renderAccounts, type AccountsView } from '../../src/api/web/connect.js';
 import type { ConnectOutcome } from '../../src/channels/email/connectMailbox.js';
-import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -283,6 +284,25 @@ describe('C6 · the accounts page', () => {
     const html = renderAccounts(base, 'zh');
     expect(html).toContain(esc(t('zh', 'reach.channel.instagram')));
     expect(html).toContain(esc(t('zh', 'reach.cold.never')));
+    // Nothing configured on this host: "not set up here", never "not connected"
+    // — the latter would suggest a button that is nowhere on the page.
+    const ig = html.slice(html.indexOf(`<span class="ch-name">${esc(t('zh', 'reach.channel.instagram'))}`)).split('</li>')[0]!;
+    expect(ig).toContain(esc(t('zh', 'connect.state.notHere')));
+    expect(ig).not.toContain(esc(t('zh', 'connect.state.notConnected')));
+  });
+
+  it('C9 · THE ROW AGREES WITH THE CARD: a connected Page reads connected here too', () => {
+    const inbound = new Map([
+      ['messenger', { configured: true, connected: true }],
+      ['instagram', { configured: true, connected: false }],
+    ] as const);
+    const html = renderAccounts(base, 'en', OWNER_VIEW, inbound);
+    const row = (ch: string) => html.slice(html.indexOf(`<span class="ch-name">${esc(t('en', `reach.channel.${ch}` as MessageKey))}`)).split('</li>')[0]!;
+    expect(row('messenger')).toContain(`class="pill ok">${esc(t('en', 'connect.state.connected'))}`);
+    expect(row('messenger')).toContain(esc(t('en', 'reach.inbound.connected', { name: EMPLOYEE_NAME.en })));
+    expect(row('instagram')).toContain(`class="pill warn">${esc(t('en', 'connect.state.notConnected'))}`);
+    // The button itself stays on the reach card, beside the rule it answers to.
+    expect(html).not.toContain('/app/channels/messenger/connect');
   });
 
   it('her SPF must list the provider she connected', () => {
