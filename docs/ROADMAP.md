@@ -987,6 +987,11 @@ Drafts folder.
   `instagram_manage_messages` and `pages_messaging`, which is what lets a
   stranger — a buyer — write in. It needs a screencast of the flow, which the
   live setup can now record.
+- **Model moved to Haiku 4.5 (2026-09-18).** The owner's call, on cost: about
+  a third of Sonnet's price per buyer message. The pin in `src/llm/anthropic.ts`
+  says what the trade is — no figure or claim can be invented, because those
+  are gated downstream; a sentence can be worse — and the LEARNING-PLAN's
+  "would you send this?" row is the test that decides whether it holds.
 
 **X (Twitter), researched and not built.** Its DM API is real but a poor fit
 today: X closed its flat tiers to new customers in February 2026 and charges

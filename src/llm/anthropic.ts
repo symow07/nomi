@@ -8,13 +8,22 @@ import { parseProductId } from '../core/types/ids.js';
 /**
  * Anthropic implementations of the LLM ports.
  *
- * MODEL PARITY NOTE: claude-sonnet-4-6 is pinned DELIBERATELY — it is the model
- * the n8n engine uses. During the shadow phase both engines must run the same
- * model, or the diff conflates engine differences with model differences.
- * Upgrading the model is a separate experiment, run after cutover, measured by
- * the same decision metrics.
+ * THE MODEL IS PINNED, and the pin is a decision with a date. Until 2026-09-18
+ * it was claude-sonnet-4-6, for parity with the n8n engine during the shadow
+ * phase (a diff between engines must not conflate engine and model). Cutover
+ * is long done; on the day the first real Instagram and Messenger messages
+ * arrived, the owner chose Haiku 4.5 on cost — roughly a third of Sonnet's
+ * price per buyer message — over the newer, cheaper-than-4.6 Sonnet 5.
+ *
+ * What that trades: every figure and claim a reply can carry is still gated
+ * downstream (guardNumerals, the claims policy, draft-first), so a smaller
+ * model cannot invent a price; what it can do is write a worse sentence. The
+ * check that decides whether the trade holds is the LEARNING-PLAN's "would you
+ * send this?" test on real threads, not the scripted trust scenarios, which
+ * never call a model. Haiku 4.5 takes no adaptive thinking and no `effort`;
+ * none is sent here.
  */
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'claude-haiku-4-5';
 
 /**
  * Prompts are versioned by content hash so the turns table records provenance.
