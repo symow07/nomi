@@ -274,7 +274,7 @@ async function setup() {
     step('checking the key before spending twelve turns on it');
     try {
       const c = await client();
-      await c.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] });
+      await c.messages.create({ model: 'claude-haiku-4-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] });
     } catch (err) {
       console.error(`\n  the model refused the key: ${err.message?.split('\n')[0] ?? err}`);
       console.error('  set a working ANTHROPIC_API_KEY, or run without --live for the scripted pass.\n');
