@@ -976,6 +976,18 @@ Drafts folder.
   promise: the thirty days the page names, and the deletion an operator does
   with the migrate role, because the app role can delete nothing (G20).
 
+- **Live on Meta (2026-09-18), and what the platform actually gates.** The
+  first Facebook message and the first Instagram DM reached `/app/inbox` on
+  production. Two of the gates are invisible from the dashboard and are written
+  down in `docs/META-SOCIAL-SETUP.md`: the Page token Messenger's *Generate*
+  button mints carries no Instagram scope (Meta then forwards no Instagram
+  webhook at all), and a published app with standard access receives messages
+  only from people who hold a role on it — the admin's own Facebook, an
+  Instagram account added as a tester. **Next Meta milestone: App Review** for
+  `instagram_manage_messages` and `pages_messaging`, which is what lets a
+  stranger — a buyer — write in. It needs a screencast of the flow, which the
+  live setup can now record.
+
 **X (Twitter), researched and not built.** Its DM API is real but a poor fit
 today: X closed its flat tiers to new customers in February 2026 and charges
 per call, DMs may only be sent to people who have consented to receive them
