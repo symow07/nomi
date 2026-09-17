@@ -8,7 +8,7 @@ import { loadProof, renderProof, notFoundPage, issueProofLink, revokeProofLink, 
 import { proofUrl } from '../../db/proofs.js';
 import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, connectedMetaChannels } from './metaChannels.js';
-import { renderPrivacy, renderDataDeletion } from './legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms } from './legal.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
@@ -263,6 +263,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/hooks/email/inbound', why: 'C4.c — a buyer\'s reply to her e-mail, HMAC-verified; the tenant comes from the mail he quoted' },
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
+  { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -625,6 +626,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null)));
   app.get('/data-deletion', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
+  app.get('/terms', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
 
   // ── Auth ────────────────────────────────────────────────────────────────
   app.get('/', async (req, reply) =>
