@@ -1,6 +1,6 @@
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
-import { parseMetaMessaging, metaMessagingSender, type MetaFetch } from '../meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
 
 /**
  * Facebook Messenger conversations, as this product's contract sees them.
@@ -28,11 +28,16 @@ export function messengerAdapter(cfg: {
     accountId: cfg.accountId, accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
     ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
   });
+  const nameOf = metaProfileLookup({
+    channel: 'messenger', accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
+    ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
+  });
   return {
     kind: 'messenger',
     provider: 'meta',
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
     parseWebhook: (payload) => parseMetaMessaging('messenger', payload),
     sendText: send,
+    nameOf,
   };
 }

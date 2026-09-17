@@ -1,6 +1,6 @@
 import type { ChannelAdapter } from '../contract.js';
 import { verifySignature } from '../whatsapp/signature.js';
-import { parseMetaMessaging, metaMessagingSender, type MetaFetch } from '../meta/messaging.js';
+import { parseMetaMessaging, metaMessagingSender, metaProfileLookup, type MetaFetch } from '../meta/messaging.js';
 
 /**
  * Instagram direct messages, as this product's contract sees them.
@@ -27,11 +27,16 @@ export function instagramAdapter(cfg: {
     accountId: cfg.accountId, accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
     ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
   });
+  const nameOf = metaProfileLookup({
+    channel: 'instagram', accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
+    ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
+  });
   return {
     kind: 'instagram',
     provider: 'meta',
     verifyWebhook: (rawBody, header) => verifySignature(rawBody, header, cfg.appSecret),
     parseWebhook: (payload) => parseMetaMessaging('instagram', payload),
     sendText: send,
+    nameOf,
   };
 }

@@ -428,11 +428,20 @@ export async function ensureConversation(
   profileName: string | null,
   channel: 'whatsapp' | 'email' | 'instagram' | 'messenger' = 'whatsapp',
 ): Promise<{ conversationId: string; clientId: string }> {
-  const existing = await sql<{ client_id: string }>`
-    select client_id from client_channels
-     where channel = ${channel} and channel_user_id = ${identity}
+  const existing = await sql<{ client_id: string; display_name: string | null }>`
+    select cc.client_id, cl.display_name from client_channels cc
+      join clients cl on cl.id = cc.client_id
+     where cc.channel = ${channel} and cc.channel_user_id = ${identity}
   `.execute(tx);
   let clientId = existing.rows[0]?.client_id;
+
+  // A name that arrives later fills a blank, never overwrites: the first
+  // Instagram and Page messages carried no name at all (a scoped id is all the
+  // webhook has), so a buyer she already knows as "Buyer" gets his name the
+  // next time he writes. One she typed herself stays — hers wins.
+  if (clientId && profileName && existing.rows[0]?.display_name == null) {
+    await sql`update clients set display_name = ${profileName} where id = ${clientId}`.execute(tx);
+  }
 
   if (!clientId) {
     // `clients.phone` is the WhatsApp identity and nothing else: M38's derived
@@ -475,6 +484,22 @@ export async function ensureConversation(
     `.execute(tx);
   }
   return { conversationId, clientId };
+}
+
+/**
+ * Whether the person behind an identity is already known by name — so the
+ * composition asks the channel for one only when it would fill a blank, not on
+ * every message. `undefined`: never seen; `null`: seen, unnamed.
+ */
+export async function knownClientName(
+  tx: Tx, channel: string, identity: string,
+): Promise<string | null | undefined> {
+  const r = await sql<{ display_name: string | null }>`
+    select cl.display_name from client_channels cc
+      join clients cl on cl.id = cc.client_id
+     where cc.channel = ${channel} and cc.channel_user_id = ${identity} limit 1
+  `.execute(tx);
+  return r.rows.length === 0 ? undefined : r.rows[0]!.display_name;
 }
 
 /**

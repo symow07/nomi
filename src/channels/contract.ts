@@ -89,6 +89,14 @@ export interface ChannelAdapter {
    * `sendText`, because a mail with no subject is not the message she wrote.
    */
   sendMail?(message: MailMessage): Promise<SendResult>;
+  /**
+   * The sender's display name, for a channel whose webhook carries only an id
+   * (Instagram and the Page; WhatsApp sends the name in the payload). Optional
+   * for the same reason the others are: an adapter that cannot ask says so by
+   * omission, and the conversation is created either way — she can name him
+   * herself on his page. Must never throw.
+   */
+  nameOf?(externalId: string): Promise<string | null>;
 }
 
 /** Actions that must leave an audit record (who, when, outcome). */

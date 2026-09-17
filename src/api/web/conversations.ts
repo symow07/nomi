@@ -350,7 +350,37 @@ function milestoneText(locale: Locale, m: Milestone): string {
   }
 }
 
-export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): string {
+/**
+ * What she calls him. The channel's name fills the blank when a conversation
+ * begins (WhatsApp sends one; Instagram and the Page are asked, see
+ * `nameOf`); this is where she corrects it, or names a buyer no channel could.
+ * Empty clears it, and he is "Buyer" again — an honest blank, never a
+ * placeholder pretending to be a name. The change is on the conversation's
+ * own record with who made it.
+ */
+export async function renameBuyer(
+  db: Db, businessIdRaw: string, conversationId: string, rawName: string, by: string,
+): Promise<'saved' | 'cleared' | 'invalid' | 'not_found'> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(conversationId)) return 'not_found';
+  const name = rawName.replace(/\s+/g, ' ').trim();
+  if (name.length > 80) return 'invalid';
+  return withTenantTx(db, bid.value, async (tx) => {
+    const row = (await sql<{ client_id: string; display_name: string | null }>`
+      select c.client_id, cl.display_name from conversations c
+        join clients cl on cl.id = c.client_id
+       where c.id = ${conversationId} limit 1`.execute(tx)).rows[0];
+    if (!row) return 'not_found';
+    await sql`update clients set display_name = ${name || null} where id = ${row.client_id}`.execute(tx);
+    await sql`
+      insert into conversation_events (business_id, conversation_id, type, payload)
+      values (${bid.value}, ${conversationId}, 'buyer_renamed',
+              ${JSON.stringify({ from: row.display_name, to: name || null, by })}::jsonb)`.execute(tx);
+    return name ? 'saved' : 'cleared';
+  });
+}
+
+export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, flash: string | null = null): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
   const productsLabel = p.products.map((pr) => productName(locale, pr)).filter(Boolean).join('、');
@@ -360,7 +390,16 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${p.quoteCount}</b></div>` : '',
     p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${p.orderCount}</b></div>` : '',
   ].filter(Boolean).join('');
+  const nameForm = `<form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/name" class="name-form">
+      <label for="buyer-name">${esc(t(locale, 'conv.file.name'))}</label>
+      <div class="name-row">
+        <input id="buyer-name" name="name" maxlength="80" value="${esc(f.buyer ?? '')}" placeholder="${esc(t(locale, 'common.buyer'))}">
+        <button class="btn" type="submit">${esc(t(locale, 'conv.file.nameSave'))}</button>
+      </div>
+      <div class="muted hint">${esc(t(locale, 'conv.file.nameHint', { buyer: t(locale, 'common.buyer') }))}</div>
+    </form>`;
   const profile = `<div class="block"><h2>${esc(t(locale, 'conv.file.title'))}</h2>
+    ${nameForm}
     ${profileRows || `<div class="empty muted">${esc(t(locale, 'conv.file.noMore'))}</div>`}</div>`;
 
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
@@ -395,6 +434,7 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date): 
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
     <div class="muted subline">${esc(channelName(locale, f.channel))}</div>
+    ${flash ? `<div class="flash">${esc(flash)}</div>` : ''}
     ${actLink}
     ${profile}
     ${timeline}
@@ -416,6 +456,11 @@ const CONV_STYLE = `<style>
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .dhead .who { font-size:var(--font-size-small); }
   .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+  .name-form { margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
+  .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
+  .name-row { display:flex; gap:var(--space-8); align-items:center; }
+  .name-row input { flex:1; min-width:0; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .name-form .hint { font-size:var(--font-size-micro); margin-top:var(--space-4); }
   .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
   .prow:last-child { border-bottom:none; }
   .tl { list-style:none; padding:0; margin:0; }

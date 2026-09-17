@@ -992,6 +992,15 @@ Drafts folder.
   says what the trade is — no figure or claim can be invented, because those
   are gated downstream; a sentence can be worse — and the LEARNING-PLAN's
   "would you send this?" row is the test that decides whether it holds.
+- **Buyers by name (2026-09-18).** The first Instagram and Page buyers were
+  "Buyer": those webhooks carry only a scoped id, and nothing asked for a name.
+  The adapters now offer `nameOf` — the profile lookup the Page token is
+  allowed once it holds the messaging scopes (Messenger: first and last name;
+  Instagram: the profile name, else `@handle`) — asked only when it would fill
+  a blank, outside the tenant transaction, and never able to stop a message.
+  The buyer's page gained a **Name** field: hers wins over the channel's, empty
+  is an honest "Buyer" again, and the change is on the conversation's record
+  with who made it (`buyer_renamed`).
 
 **X (Twitter), researched and not built.** Its DM API is real but a poor fit
 today: X closed its flat tiers to new customers in February 2026 and charges

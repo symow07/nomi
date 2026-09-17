@@ -130,9 +130,51 @@ export const socialAppSecret = (
 export type MetaFetch = (url: string, init: {
   method: string;
   headers: Record<string, string>;
-  body: string;
+  /** Absent on a GET: a body on a GET is a TypeError in the real fetch. */
+  body?: string;
   signal?: AbortSignal;
 }) => Promise<{ status: number; text(): Promise<string> }>;
+
+export const LOOKUP_TIMEOUT_MS = 5_000;
+
+/**
+ * The sender's name, looked up after the webhook: Meta's payload carries only
+ * a scoped id, and the Page token — once it holds `pages_messaging` for the
+ * Page and `instagram_manage_messages` for the account — may ask the profile
+ * for a name. Messenger answers with first and last name; Instagram with a
+ * profile name and a username, and the username is offered as `@handle` when
+ * the profile has no name, because a handle is what she would recognise.
+ *
+ * It NEVER throws and never blocks a conversation: a name is a courtesy, the
+ * message is the point. No token, no permission, a bad minute at Meta — all
+ * read as "no name", and she can type one on the buyer's page.
+ */
+export function metaProfileLookup(cfg: {
+  readonly channel: 'instagram' | 'messenger';
+  readonly accessToken: string;
+  readonly graphVersion: string;
+  readonly fetchImpl?: MetaFetch;
+}) {
+  const doFetch: MetaFetch = cfg.fetchImpl ?? (fetch as unknown as MetaFetch);
+  const fields = cfg.channel === 'instagram' ? 'name,username' : 'first_name,last_name';
+  return async (senderId: string): Promise<string | null> => {
+    try {
+      const res = await doFetch(
+        `https://graph.facebook.com/${cfg.graphVersion}/${encodeURIComponent(senderId)}?fields=${fields}`,
+        { method: 'GET', headers: { Authorization: `Bearer ${cfg.accessToken}` }, signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS) },
+      );
+      if (res.status < 200 || res.status >= 300) return null;
+      const o = obj(JSON.parse(await res.text()));
+      const handle = str(o['username'])?.trim();
+      const name = cfg.channel === 'instagram'
+        ? (str(o['name'])?.trim() || (handle ? `@${handle}` : null))
+        : [str(o['first_name']), str(o['last_name'])].map((s) => s?.trim() ?? '').filter(Boolean).join(' ') || null;
+      return name ? name.slice(0, 80) : null;
+    } catch {
+      return null;
+    }
+  };
+}
 
 export const SEND_TIMEOUT_MS = 15_000;
 
