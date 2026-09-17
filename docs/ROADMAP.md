@@ -966,6 +966,15 @@ Drafts folder.
   one — is the number configured, and does anything queued here leave — and
   `Production.channels` names what is mounted. A defect fixed on the way: every
   channel's event was recorded under the WhatsApp adapter's provider.
+- **The legal pages (2026-09-17).** Instagram delivers messages only to a
+  *published* app, and Meta will not publish one without a privacy policy and
+  data-deletion instructions it can fetch. `/privacy` and `/data-deletion` are
+  the first pages a stranger may read that name nothing and nobody: what is
+  kept about the people who write in, who sees it, how long, and how they have
+  it removed — in plain words, three locales, bound by the same catalogue scan
+  as everything the owner reads. `docs/LEGAL.md` is the operator's side of the
+  promise: the thirty days the page names, and the deletion an operator does
+  with the migrate role, because the app role can delete nothing (G20).
 
 **X (Twitter), researched and not built.** Its DM API is real but a poor fit
 today: X closed its flat tiers to new customers in February 2026 and charges
