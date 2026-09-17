@@ -14,7 +14,7 @@ deploy without changing anything.
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
 | Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`. |
-| Messaging | `WHATSAPP_PROVIDER=disabled` — no Meta credentials, no webhook mounted |
+| Messaging | `WHATSAPP_PROVIDER=disabled` — no WhatsApp number yet (Meta has not offered one). Instagram and Messenger run from `META_PAGE_*` + `META_SOCIAL_APP_SECRET` since 2026-09-17; only `/webhook/whatsapp` is unmounted. |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
 > and every secret value. Fill in the URL below once, locally — do not commit it
@@ -69,7 +69,7 @@ the sandbox, and never sends a message. Safe against production. It checks:
 - `/health` is `ok` **and** `db:true`, and leaks no build information
 - every owner surface (`/app`, `/app/inbox`, `/app/factory`, `/app/onboarding`, `/app/sandbox`) redirects when signed out
 - an owner **action** rejects anonymous callers
-- while messaging is disabled, `/webhook/whatsapp` is **404** (not mounted)
+- while WhatsApp is disabled, `/webhook/whatsapp` is **404** (not mounted); `/webhook/messenger` and `/webhook/instagram` answer the handshake (403 on a wrong token) once `META_PAGE_*` is set
 - the session cookie is `Secure` + `HttpOnly` + `SameSite=Lax` (over https)
 - Today, My factory, Buyers, the go-live runbook and Knowledge all render for a logged-in owner
 - reports the running version

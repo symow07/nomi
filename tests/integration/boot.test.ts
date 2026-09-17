@@ -96,6 +96,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'active' });
+    expect(prod.channels).toEqual(['whatsapp']);
   });
 
   it('verification handshake is mounted', async () => {
@@ -264,6 +265,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
+    expect(prod.channels, 'deployment mode mounted a channel').toEqual([]);
   });
 
   it('M9 command center: / and /app require login; /login serves the form', async () => {

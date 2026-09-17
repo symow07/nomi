@@ -213,17 +213,19 @@ export type MailHeadersFor = (
   opts: { readonly locale: Locale },
 ) => MailEnvelope;
 
-const adapterFor = (deps: { adapter: ChannelAdapter; adapters?: AdapterFor }, channel: string | undefined)
+const adapterFor = (deps: { adapter?: ChannelAdapter; adapters?: AdapterFor }, channel: string | undefined)
   : ChannelAdapter | undefined => {
   const wanted = channel ?? 'whatsapp';
   if (deps.adapters) return deps.adapters(wanted);
-  // One adapter and no map: it serves its own kind, and nothing else.
-  return deps.adapter.kind === wanted ? deps.adapter : undefined;
+  // One adapter and no map: it serves its own kind, and nothing else. No
+  // adapter at all serves nothing — the row is refused, below, not dropped.
+  return deps.adapter?.kind === wanted ? deps.adapter : undefined;
 };
 
 export async function driveConversationOutbound(
   deps: {
-    store: OutboundStore; adapter: ChannelAdapter; adapters?: AdapterFor;
+    /** WhatsApp, when the installation has it; the map answers for the rest. */
+    store: OutboundStore; adapter?: ChannelAdapter; adapters?: AdapterFor;
     mailHeaders?: MailHeadersFor; now: () => Date;
   },
   conversationId: string,

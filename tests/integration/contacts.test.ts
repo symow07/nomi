@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, runDigits } from './tenant.js';
 
 /**
  * M38 — who may be written to, end to end.
@@ -24,7 +24,7 @@ const BIZ = `dd380000-0000-4000-8000-${RUN}0001`;
 const OTHER = `dd380000-0000-4000-8000-${RUN}0002`;
 // wa_id form: digits only. `client_channels` is unique on (channel, user id)
 // GLOBALLY, so the run id keeps two runs from colliding.
-const WA = `8613${RUN.replace(/\D/g, '').padEnd(8, '7').slice(0, 8)}`;
+const WA = `8613${runDigits(RUN, 8)}`;
 const CARD = `mei-${RUN}@example.com`;
 // A second person, added late, so the suppression the rest of this file records
 // against CARD does not take the only writable contact out of play.

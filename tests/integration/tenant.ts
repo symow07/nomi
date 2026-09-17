@@ -47,6 +47,19 @@ export const RUN_BIZ = nsId('0000000000b1');
  */
 export const runPhone = (phone: string): string => demoPhone(phone, RUN_NS);
 
+/**
+ * Digits unique to a run, for the identities Postgres holds unique across ALL
+ * tenants — `client_channels (channel, channel_user_id)` and
+ * `channel_credentials (channel, external_ref)`, both `on conflict do nothing`
+ * at their one writer. Taken from the run id's hex VALUE, not from whichever
+ * of its characters happen to be digits: a run whose id held two digits used
+ * to produce the same padded number as every other such run, the row then
+ * belonged to an earlier tenant, and the insert quietly did nothing — which
+ * read as "the conversation never appeared" thirty seconds later.
+ */
+export const runDigits = (run: string, length: number): string =>
+  BigInt(`0x${run}`).toString().padStart(length, '7').slice(-length);
+
 let warned = false;
 let seeded = false;
 

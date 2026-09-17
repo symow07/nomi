@@ -297,6 +297,8 @@ export type Production = {
   readonly boss: PgBoss;
   readonly ownerAccessCode: string;
   readonly ownerAccessCodeGenerated: boolean;
+  /** The channels with a webhook mounted here — empty in deployment mode. */
+  readonly channels: readonly string[];
   close(): Promise<void>;
 };
 
@@ -429,6 +431,21 @@ export async function buildProduction(
     }
     : {};
 
+  /**
+   * What this installation can carry. WhatsApp is here when a provider is
+   * selected (or a test injected one); Instagram and Messenger when the host
+   * configured the Page. Deployment mode is the case where this is EMPTY — and
+   * only that case. Until 2026-09-17 it was "no WhatsApp provider", which
+   * silently swallowed the two channels a factory can have while Meta still
+   * withholds its number: the Page token was set, the routes were never
+   * mounted, and Meta's verification failed against a 404.
+   */
+  const whatsappHere = overrides?.adapter !== undefined || cfg.provider !== 'disabled';
+  const channelsHere: readonly string[] = [
+    ...(whatsappHere ? ['whatsapp'] : []),
+    ...Object.keys(metaMessaging),
+  ];
+
   const webSessionSecret = createHmac('sha256', cfg.CREDENTIAL_KEY).update('yf-web-session').digest('hex');
   /**
    * C6 — this installation's own OAuth apps. Each provider needs BOTH its id and
@@ -495,6 +512,9 @@ export async function buildProduction(
       // their emoji, unchanged. The small cut, because the header avatar is 30px.
       avatar: process.env['EMPLOYEE_AVATAR'] ?? markSmall(30, null),
       provider: cfg.provider,
+      // Whether anything queued from these pages will leave: the outbound
+      // worker runs whenever some channel is here, WhatsApp or not.
+      messagingEnabled: channelsHere.length > 0,
       secureCookie: process.env['NODE_ENV'] === 'production',
       // The EXISTING outbound path — the same QUEUES.outbound worker the turn
       // pipeline uses. applyOwnerCommand (inbox actions) sends through this.
@@ -515,6 +535,7 @@ export async function buildProduction(
   let closing = false;
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'],
+    channels: channelsHere,
     async close() {
       if (closing) return;
       closing = true;
@@ -525,27 +546,34 @@ export async function buildProduction(
   });
 
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
-  // webhook routes, no outbound worker — for hosting before provider
-  // onboarding completes. An override adapter (tests) always takes the
-  // provider path so composition stays covered.
-  if (cfg.provider === 'disabled' && !overrides?.adapter) {
+  // webhook routes, no outbound worker — for hosting before ANY channel is
+  // configured. An override adapter (tests) always takes the messaging path so
+  // composition stays covered.
+  if (channelsHere.length === 0) {
     const app = Fastify({ logger: overrides?.logger ?? true });
     mountHealth(app, 'disabled');
     mountCommandCenter(app);
-    app.log.warn('No messaging provider configured. Running in deployment mode.');
+    app.log.warn('No messaging channel configured. Running in deployment mode.');
     return finalize(app);
   }
 
-  const adapter = overrides?.adapter ?? (cfg.provider === 'meta'
+  // WhatsApp, when a provider is selected. Absent — the Page configured, the
+  // number not yet — nothing here stands in for it: the outbound worker refuses
+  // a WhatsApp row as `channel_unavailable`, owner alerts have nowhere to go,
+  // and `/webhook/whatsapp` is not mounted. The same honest absence as e-mail
+  // with no mailbox, rather than a stub that answers for a channel it is not.
+  const adapter: ChannelAdapter | undefined = overrides?.adapter ?? (cfg.provider === 'meta'
     ? metaAdapter({
         accessToken: cfg.META_WHATSAPP_ACCESS_TOKEN!,
         phoneNumberId: cfg.META_WHATSAPP_PHONE_NUMBER_ID!,
         appSecret: cfg.META_APP_SECRET!,
         graphVersion: cfg.META_GRAPH_API_VERSION,
       })
-    : whatsappAdapter({
-        baseUrl: cfg.D360_BASE_URL!, apiKey: cfg.D360_API_KEY!, webhookSecret: cfg.WEBHOOK_SECRET!,
-      }));
+    : cfg.provider === '360dialog'
+      ? whatsappAdapter({
+          baseUrl: cfg.D360_BASE_URL!, apiKey: cfg.D360_API_KEY!, webhookSecret: cfg.WEBHOOK_SECRET!,
+        })
+      : undefined);
 
   /**
    * Tenant from the channel credential — NEVER from the payload.
@@ -592,7 +620,9 @@ export async function buildProduction(
           fetchImpl: oauthFetch, cache: tokenCache,
         })),
     });
-    const byChannel: Record<string, ChannelAdapter> = { [adapter.kind]: adapter, email, ...metaMessaging };
+    const byChannel: Record<string, ChannelAdapter> = {
+      ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaMessaging,
+    };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
   };
 
@@ -633,7 +663,7 @@ export async function buildProduction(
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       return driveConversationOutbound(
         {
-          store, adapter, adapters: adaptersFor(businessId.value),
+          store, ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId.value),
           mailHeaders: mailHeadersFor(businessId.value), now: () => new Date(),
         },
         job.data.conversationId,
@@ -691,13 +721,27 @@ export async function buildProduction(
 
   // P3: owner alerts. QUEUES.notify → resolve owner locale/destination → send the
   // localized alert through the SAME adapter. Registered only with messaging live.
+  // An alert travels by WhatsApp. Without it, the job is consumed and dropped as
+  // a permanent failure — never left queued for a number connected weeks later,
+  // when it would announce a conversation long since resolved.
+  const noNumberForAlerts = {
+    sendText: async () => ({ ok: false as const, retryable: false, error: 'no WhatsApp adapter: owner alerts need a number' }),
+  };
   await boss.work<NotifyJob>(QUEUES.notify, async ([job]: { data: NotifyJob }[]) => {
     if (!job) return;
-    await deliverOwnerAlert({ db, adapter }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
+  // The provider that carried THIS channel's event: Meta for the Page and
+  // Instagram, whichever was selected for WhatsApp. It was the WhatsApp
+  // adapter's for every channel, which on a 360dialog installation would have
+  // recorded an Instagram message as theirs.
+  const providerOf: Record<string, string> = Object.fromEntries(
+    [...(adapter ? [adapter] : []), ...Object.values(metaMessaging)].map((a) => [a.kind, a.provider]),
+  );
+
   const app = buildIngressApp({
-    adapter,
+    ...(adapter ? { adapter } : {}),
     verifyToken: cfg.WEBHOOK_VERIFY_TOKEN,
     logger: overrides?.logger ?? true,
     // C9 — one path per channel, so a payload delivered to the wrong one is a
@@ -715,7 +759,7 @@ export async function buildProduction(
           insert into channel_events
             (id, business_id, channel, provider, event_type, conversation_external_id, payload, occurred_at)
           values
-            (${e.dedupKey}, ${bid}, ${channel}, ${adapter.provider},
+            (${e.dedupKey}, ${bid}, ${channel}, ${providerOf[channel] ?? 'unknown'},
              ${e.kind === 'message' ? 'message.inbound' : 'status'},
              ${e.kind === 'message' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
              ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
@@ -773,7 +817,9 @@ export async function buildProduction(
     },
   });
 
-  mountHealth(app, 'active');
+  // /health's `provider` is WhatsApp's, as it always was: 'disabled' here means
+  // the number is not configured, while `channels` on the process says what is.
+  mountHealth(app, whatsappHere ? 'active' : 'disabled');
   mountCommandCenter(app);
   return finalize(app);
 }
@@ -806,8 +852,8 @@ if (isMain) {
     prod.app.log.warn(`command center login code (set OWNER_ACCESS_CODE to fix): ${prod.ownerAccessCode}`);
   }
   prod.app.log.info(
-    { port: v.cfg.PORT, provider: v.cfg.provider },
-    v.cfg.provider === 'disabled'
+    { port: v.cfg.PORT, provider: v.cfg.provider, channels: prod.channels },
+    prod.channels.length === 0
       ? 'nomi up in deployment mode (health + worker infra, no messaging)'
       : 'nomi production up (webhook + worker)',
   );

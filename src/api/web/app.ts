@@ -130,6 +130,13 @@ export type WebDeps = {
   readonly employeeName: string;
   readonly avatar: string;
   readonly provider: string;
+  /**
+   * Whether the outbound worker runs here and some channel can carry a message.
+   * Absent, "a WhatsApp provider is selected" — the whole answer until
+   * 2026-09-17. A social-only installation (Page configured, number not yet)
+   * passes true while `provider` stays 'disabled'.
+   */
+  readonly messagingEnabled?: boolean;
   /** M25 — the installation's real template capability, derived at boot.
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
@@ -382,7 +389,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * the buyer's own 24-hour window.
    */
   const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => {
-    const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, messagingEnabled));
+    const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, whatsappConfigured));
     /**
      * C4.c — an e-mail thread has no WhatsApp lifecycle to be in. Her answer to
      * his reply is refused only by what binds e-mail: messaging must be live
@@ -693,7 +700,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // M34.10 — plus the insights, which are the only part of this page that
     // tells the owner what to DO rather than what happened.
     const [snapshot, feedback, insights] = await Promise.all([
-      loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider),
+      loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider, messagingEnabled),
       loadPilotFeedback(deps.db, deps.businessId, 'today'),
       loadInsights(deps.db, deps.businessId),
     ]);
@@ -1023,7 +1030,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M9.4 Channel Center: connection state over the existing channel layer ──
-  const messagingEnabled = deps.provider !== 'disabled';
+  // Two questions that were one until 2026-09-17. `whatsappConfigured` is about
+  // the NUMBER: its lifecycle, activation, the Connect button, the test action.
+  // `messagingEnabled` is about the WORKER: whether anything queued from these
+  // pages leaves. A social-only installation answers no to the first and yes to
+  // the second; one flag for both told her messaging was off while buyers were
+  // writing to her Page.
+  const whatsappConfigured = deps.provider !== 'disabled';
+  const messagingEnabled = deps.messagingEnabled ?? whatsappConfigured;
   app.get('/app/channels/whatsapp/connect', authed('channels', (_s, _req, locale) => renderConnectGuide(locale)));
 
   const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
@@ -1065,7 +1079,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
-  channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, messagingEnabled));
+  channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, whatsappConfigured));
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
@@ -1082,7 +1096,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
-    const data = await loadChannels(deps.db, s.businessId, messagingEnabled, deps.templateState ?? 'none',
+    const data = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
       deps.connectableNumber ?? null);
     // C6 — every other account she links, read beside the WhatsApp card.
     const bid = parseBusinessId(s.businessId);
@@ -1110,7 +1124,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/factory', authed('factory', async (s, req, locale) => {
     const flash = typeof (req.query as { flash?: string }).flash === 'string'
       ? (req.query as { flash: string }).flash : null;
-    return renderFactory(await loadFactory(deps.db, s.businessId, messagingEnabled), locale, flash, personOf(s));
+    return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured), locale, flash, personOf(s));
   }));
 
   // M20.3 — going live, and coming back. Both go through the EXISTING service:
@@ -1128,7 +1142,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
-    const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: messagingEnabled });
+    const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: whatsappConfigured });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
     return reply.redirect(r.ok
@@ -1365,7 +1379,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const [e, ops, snapshot, feedback] = await Promise.all([
       loadEmployee(deps.db, s.businessId),
       loadKnowledgeOps(deps.db, s.businessId, 'month'),
-      loadOperationsSnapshot(deps.db, s.businessId, 'month', deps.provider),
+      loadOperationsSnapshot(deps.db, s.businessId, 'month', deps.provider, messagingEnabled),
       loadPilotFeedback(deps.db, s.businessId, 'month'),
     ]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
@@ -1512,7 +1526,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         graphVersion: process.env['META_GRAPH_API_VERSION'] ?? 'v23.0',
       },
       provider: deps.provider,
-      channelStatus: (await loadChannels(deps.db, s.businessId, messagingEnabled)).whatsapp.status,
+      channelStatus: (await loadChannels(deps.db, s.businessId, whatsappConfigured)).whatsapp.status,
     });
     // M20.5: invariant violations on this factory's REAL rows are an engine
     // defect, so they surface here — beside the build version — and nowhere the

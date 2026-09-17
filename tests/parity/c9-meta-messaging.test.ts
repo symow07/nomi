@@ -223,3 +223,34 @@ describe('C9 · handing a reply to Meta', () => {
     expect(r).toEqual({ ok: false, retryable: false, error: 'meta 403' });
   });
 });
+
+describe('C9 · an installation with a Page and no number', () => {
+  it('MOUNTS THE PAGE WITHOUT WHATSAPP — and nothing stands in for the missing one', async () => {
+    // Production went live this way (Meta had not offered the number), and the
+    // ingress could only be built around a WhatsApp adapter: with none, there
+    // was no webhook at all, and Meta's verification met a 404.
+    const { buildIngressApp } = await import('../../src/api/ingress.js');
+    const seen: string[] = [];
+    const app = buildIngressApp({
+      verifyToken: 'vt-social',
+      also: [{ path: '/webhook/messenger', adapter: fb }],
+      persistEvent: async (e) => { seen.push(e.dedupKey); return 'new'; },
+      onNewEvent: async () => {},
+      now: () => new Date(1789600000000 + 1000),
+    });
+    const wa = await app.inject({ method: 'GET',
+      url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=vt-social&hub.challenge=c1' });
+    expect(wa.statusCode, 'a WhatsApp route with no adapter behind it').toBe(404);
+
+    const handshake = await app.inject({ method: 'GET',
+      url: '/webhook/messenger?hub.mode=subscribe&hub.verify_token=vt-social&hub.challenge=c1' });
+    expect([handshake.statusCode, handshake.body]).toEqual([200, 'c1']);
+
+    const body = JSON.stringify(envelope('page', { text: 'hi', recipient: '102000000000000' }));
+    const r = await app.inject({ method: 'POST', url: '/webhook/messenger', payload: body,
+      headers: { 'content-type': 'application/json', 'x-hub-signature-256': sign(body) } });
+    expect(JSON.parse(r.body)).toMatchObject({ received: 1 });
+    expect(seen).toEqual(['mid.abc123']);
+    await app.close();
+  });
+});
