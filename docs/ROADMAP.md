@@ -1009,6 +1009,55 @@ per call, DMs may only be sent to people who have consented to receive them
 access this project does not have. It also needs an X developer account, which
 is the owner's to create. Revisit when a factory actually asks for it.
 
+#### C10 — Connect your own Page and Instagram · PLANNED 2026-09-18, awaiting the owner's go
+
+**Why.** Today the Instagram account and the Page nomi answers from are the
+host's, set in the environment (`META_PAGE_ID`, `META_IG_ACCOUNT_ID`,
+`META_PAGE_ACCESS_TOKEN`): every reply on this installation goes out as
+*Nomi does*. A business that signs up must be able to press **Connect**,
+choose *its* Page and Instagram, and have every reply leave as itself —
+without pasting a token, and without anyone at Nomi touching its accounts.
+
+**What is already in place.** Inbound routing needs nothing new:
+`resolve_tenant(channel, external_ref)` already finds the business by the
+Page or Instagram id the credential row names, and `connectMetaChannel`
+already writes those rows. Sending is already per business
+(`adaptersFor(businessId)` — e-mail leaves through the mailbox each business
+connected, C6). The encryption helpers and the `mail_accounts` shape (a
+long-lived token per business, encrypted with `CREDENTIAL_KEY`, key version
+recorded, `needs_attention` when it dies) are the pattern; Meta gets the same.
+
+**The build, ~2 days.**
+1. Migration 0054 `meta_accounts`: business, Page id, Instagram id, the Page
+   token encrypted, key version, who connected it and when, `needs_attention`.
+   `channel_credentials.secret_ref` points at the row (`meta_accounts:<id>`)
+   instead of `env:META_PAGE_ACCESS_TOKEN`.
+2. Facebook Login for Business, mirroring C6's mail connect:
+   `/app/connect/meta/start` opens Meta's dialog (a login *configuration* on
+   the app carrying the seven scopes from `docs/META-SOCIAL-SETUP.md` § 6);
+   `/app/connect/meta/callback` exchanges the code for a long-lived user
+   token, reads `/me/accounts`, lets her pick the Page when she has more than
+   one, takes the Page's own token and its `instagram_business_account`,
+   subscribes the Page to the app (`subscribed_apps`, `messages`), stores the
+   row and writes both credential rows. One press, no token seen by anyone.
+3. `adaptersFor(businessId)` builds the Instagram and Messenger adapters from
+   the business's row (decrypted per job, never held), with the environment
+   as the fallback for an installation that has no row — this one, today.
+   The name lookup (`nameOf`) uses the same token.
+4. The accounts page shows the connected Page and handle by name, with
+   Disconnect (revokes the subscription, keeps history) and Reconnect when
+   the token dies — `needs_attention`, as for a mailbox.
+5. Tests as C6 has them: the OAuth round trip against a fake Meta, a business
+   whose reply leaves with *its* token, two businesses whose Pages route to
+   their own inboxes, a dead token that says so.
+
+**The gate that is not ours.** Until Meta grants **advanced access** to the
+seven scopes (App Review) and verifies the *Nomi does* business, Connect
+works only for accounts that hold a role on the app — which is enough to
+build it and to record the screencast the review requires. Start the review
+the day the flow exists; it is measured in weeks, and nothing else on the
+roadmap waits on it.
+
 #### C8 — a message is never sent twice by a machine (0052) ✅ BUILT 2026-09-16
 
 `migrations/0052_uncertain_sends.sql`, `src/outbound/uncertain.ts`, the
