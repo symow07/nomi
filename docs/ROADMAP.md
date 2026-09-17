@@ -953,6 +953,19 @@ Drafts folder.
 - **No activation switch and no allowlist** on these two, for the reason e-mail
   has none: there is no cold message to hold back. C4.d gives every channel its
   own activation when the pilot is live.
+- **Found going live, 2026-09-17: deployment mode swallowed them.** Production
+  runs with `WHATSAPP_PROVIDER=disabled` because Meta has not offered the
+  number, and that one flag chose "no messaging surface at all" — the Page
+  token was set, neither webhook was mounted, Meta's verification met a 404,
+  and Today would have said messaging was off while buyers wrote to the Page.
+  Deployment mode is now the case where NO channel is configured. With a Page
+  and no number the messaging path runs with WhatsApp honestly absent: no
+  `/webhook/whatsapp`, a `channel_unavailable` refusal for a WhatsApp row,
+  owner alerts dropped as permanent failures rather than queued for a number
+  connected weeks later. The owner surfaces ask two questions where they asked
+  one — is the number configured, and does anything queued here leave — and
+  `Production.channels` names what is mounted. A defect fixed on the way: every
+  channel's event was recorded under the WhatsApp adapter's provider.
 
 **X (Twitter), researched and not built.** Its DM API is real but a poor fit
 today: X closed its flat tiers to new customers in February 2026 and charges

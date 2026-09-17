@@ -53,7 +53,17 @@ export type OperationsSnapshot = {
     readonly recentCorrections: number;
     readonly recentlyTaught: number;
   };
-  readonly channel: { readonly status: string; readonly provider: string };
+  readonly channel: {
+    readonly status: string;
+    /** WhatsApp's provider — what the number runs on, 'disabled' without one. */
+    readonly provider: string;
+    /**
+     * Whether messages are being sent and received here at all. Absent, it is
+     * read off `provider`, which was the whole answer until a Page could be
+     * connected without a number (2026-09-17).
+     */
+    readonly live?: boolean;
+  };
   /**
    * G19 — the ceiling she is approaching, on the surface she watches.
    *
@@ -79,12 +89,12 @@ export const ATTENTION_PRIORITY =
   ['blockedMessages', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
 export type AttentionKind = (typeof ATTENTION_PRIORITY)[number];
 
-const EMPTY = (range: Range, provider: string): OperationsSnapshot => ({
+const EMPTY = (range: Range, provider: string, live = provider !== 'disabled'): OperationsSnapshot => ({
   range,
   attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-  channel: { status: 'not_connected', provider },
+  channel: { status: 'not_connected', provider, live },
   budget: null,
   hasAttention: false,
 });
@@ -115,9 +125,11 @@ const budgetOf = (r: {
 
 export async function loadOperationsSnapshot(
   db: Db, businessIdRaw: string, range: Range, provider = 'disabled',
+  /** Whether anything is sent or received here; WhatsApp's presence, by default. */
+  live: boolean = provider !== 'disabled',
 ): Promise<OperationsSnapshot> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return EMPTY(range, provider);
+  if (!bid.ok) return EMPTY(range, provider, live);
   const B = bid.value;
   const unit = RANGE_UNIT[range];
 
@@ -186,7 +198,7 @@ export async function loadOperationsSnapshot(
       recentCorrections: ops.report.answersCorrected, // M14 (owner_corrected in range)
       recentlyTaught: ops.report.factsAdded,          // M14 (owner_confirmed in range)
     },
-    channel: { status: channels.whatsapp.status, provider },
+    channel: { status: channels.whatsapp.status, provider, live },
     budget: budgetOf(budgetRow),
     hasAttention: attention.pendingApprovals + attention.handoffs
                 + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
@@ -261,7 +273,7 @@ export function renderOperationsHome(
   // was switched off and she was looking after nobody. The signal is the same
   // one `notLive` below already uses — no second derivation of channel state,
   // and nothing here re-answers the M20.3 lifecycle question.
-  const live = s.channel.provider !== 'disabled';
+  const live = s.channel.live ?? s.channel.provider !== 'disabled';
   const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="needs">${rows}</div></section>`
@@ -355,7 +367,7 @@ export function renderOperationsHome(
   </section>`;
 
   // Messaging state is only worth an owner's attention when it is NOT live.
-  const notLive = s.channel.provider === 'disabled'
+  const notLive = !(s.channel.live ?? s.channel.provider !== 'disabled')
     ? `<p class="notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>

@@ -183,8 +183,11 @@ describe('M26 · no real media delivery exists yet', () => {
     const meta = await readFile(new URL('../../src/channels/whatsapp/meta.ts', import.meta.url), 'utf8');
     expect(meta).toContain('sendMedia');
     const main = await readFile(new URL('../../src/main.ts', import.meta.url), 'utf8');
-    // Disabled mode mounts no adapter at all, so no media can leave regardless.
-    expect(main).toContain("cfg.provider === 'disabled'");
+    // No WhatsApp provider → no WhatsApp adapter (the composition leaves it
+    // undefined rather than standing anything in), so no media can leave
+    // regardless of what else is mounted.
+    expect(main).toContain("const whatsappHere = overrides?.adapter !== undefined || cfg.provider !== 'disabled'");
+    expect(main).toMatch(/const adapter: ChannelAdapter \| undefined = overrides\?\.adapter \?\? \(cfg\.provider === 'meta'/);
   });
 
   it('the picture itself is not stored — only a link to the owner’s own image', async () => {

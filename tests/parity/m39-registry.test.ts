@@ -285,7 +285,9 @@ describe('M39 · what she reads', () => {
     expect(src).toContain('${reach}');
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // G3 added the configured number as a fifth argument; what this pins is
-    // that the page is handed the REAL template state, not a default.
-    expect(app).toMatch(/loadChannels\(deps\.db, s\.businessId, messagingEnabled, deps\.templateState \?\? 'none'[,)]/);
+    // that the page is handed the REAL template state, not a default. The
+    // third argument is whether the NUMBER is configured (`whatsappConfigured`
+    // since 2026-09-17, when it parted from "does the worker run").
+    expect(app).toMatch(/loadChannels\(deps\.db, s\.businessId, whatsappConfigured, deps\.templateState \?\? 'none'[,)]/);
   });
 });

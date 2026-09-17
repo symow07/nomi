@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
+import { runDigits } from './tenant.js';
 
 /**
  * C9 — Instagram and Messenger over the REAL composition.
@@ -19,8 +20,8 @@ const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd540000-0000-4000-8000-${RUN}0001`;
 const CREDENTIAL_KEY = 'b'.repeat(64);
 const APP_SECRET = `meta-app-secret-${RUN}`;
-const IG_ACCOUNT = `1784${RUN.replace(/\D/g, '').padEnd(10, '7')}`;
-const PAGE_ID = `1020${RUN.replace(/\D/g, '').padEnd(10, '9')}`;
+const IG_ACCOUNT = `1784${runDigits(RUN, 10)}`;
+const PAGE_ID = `1020${runDigits(RUN, 10)}`;
 const buyer = (who: string) => `PSID_${who}_${RUN}`;
 
 d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
@@ -269,4 +270,106 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     expect(effects.some((e) => e.kind === 'canceled'), JSON.stringify(effects)).toBe(true);
     expect(sent.length, 'a cold message went out on Messenger').toBe(before);
   }, 90_000);
+});
+
+/**
+ * The installation this product actually went live on: a Page and an Instagram
+ * account, and no WhatsApp number yet, because Meta had not offered one. Until
+ * 2026-09-17 that booted as deployment mode — no webhook, no outbound worker —
+ * and Meta's verification met a 404 while Today said messaging was off.
+ */
+d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABASE_URL)', () => {
+  const BIZ2 = `dd540000-0000-4000-8000-${RUN}0002`;
+  const PAGE2 = `1021${runDigits(RUN, 10)}`;
+  const IG2 = `1785${runDigits(RUN, 10)}`;
+  let prod: import('../../src/main.js').Production;
+  let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
+  let esc: typeof import('../../src/api/web/layout.js')['esc'];
+  let cookie = '';
+  const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  const post = (url: string) => prod.app.inject({
+    method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '',
+  });
+  const signed = (path: string, body: string) => prod.app.inject({
+    method: 'POST', url: path, payload: body,
+    headers: {
+      'content-type': 'application/json',
+      'x-hub-signature-256': `sha256=${createHmac('sha256', APP_SECRET).update(body, 'utf8').digest('hex')}`,
+    },
+  });
+  const tenant = async () => {
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const b = parseBusinessId(BIZ2); if (!b.ok) throw new Error('fixture');
+    return b.value;
+  };
+
+  beforeAll(async () => {
+    process.env['PILOT_BUSINESS_ID'] = BIZ2;
+    process.env['OWNER_ACCESS_CODE'] = `social-${RUN}`;
+    // Their own app signs these two; there is no WhatsApp app to fall back on.
+    process.env['META_SOCIAL_APP_SECRET'] = APP_SECRET;
+    process.env['META_PAGE_ACCESS_TOKEN'] = 'page-token-not-real';
+    process.env['META_PAGE_ID'] = PAGE2;
+    process.env['META_IG_ACCOUNT_ID'] = IG2;
+    const { buildProduction } = await import('../../src/main.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    ({ t } = await import('../../src/core/owner/i18n/messages.js'));
+    ({ esc } = await import('../../src/api/web/layout.js'));
+    prod = await buildProduction({
+      provider: 'disabled', DATABASE_URL: DATABASE_URL!,
+      ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'social-verify-token',
+      CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
+    }, { logger: false });   // no adapter override: the real no-WhatsApp path
+    await withTenantTx(prod.db, await tenant(), (x) => sql`
+      insert into businesses (id, name) values (${BIZ2}, 'Page Only Factory') on conflict (id) do nothing`.execute(x));
+    const login = await prod.app.inject({
+      method: 'POST', url: '/login', payload: `code=${encodeURIComponent(prod.ownerAccessCode)}`,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+    cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+  }, 90_000);
+
+  afterAll(async () => { await prod?.close(); });
+
+  it('IS NOT DEPLOYMENT MODE: both webhooks are up, WhatsApp is not, and /health still tells the truth', async () => {
+    expect([...prod.channels].sort()).toEqual(['instagram', 'messenger']);
+    const health = await prod.app.inject({ method: 'GET', url: '/health' });
+    // `provider` is WhatsApp's, and there is none — that stays true.
+    expect(health.json()).toEqual({ ok: true, db: true, worker: true, provider: 'disabled' });
+    const wa = await prod.app.inject({ method: 'GET',
+      url: '/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=social-verify-token&hub.challenge=c1' });
+    expect(wa.statusCode, 'a WhatsApp route with nothing behind it').toBe(404);
+    for (const path of ['/webhook/messenger', '/webhook/instagram']) {
+      const ok = await prod.app.inject({ method: 'GET',
+        url: `${path}?hub.mode=subscribe&hub.verify_token=social-verify-token&hub.challenge=c1` });
+      expect([ok.statusCode, ok.body], path).toEqual([200, 'c1']);
+      const wrong = await prod.app.inject({ method: 'GET',
+        url: `${path}?hub.mode=subscribe&hub.verify_token=guess&hub.challenge=c1` });
+      expect(wrong.statusCode, path).toBe(403);
+    }
+  }, 60_000);
+
+  it('A BUYER WRITING TO THE PAGE REACHES HER — and Today does not say messaging is off', async () => {
+    expect((await post('/app/channels/messenger/connect')).statusCode).toBe(302);
+    const body = JSON.stringify({
+      object: 'page',
+      entry: [{ id: PAGE2, time: Date.now(), messaging: [{
+        sender: { id: `PSID_page_${RUN}` }, recipient: { id: PAGE2 }, timestamp: Date.now(),
+        message: { mid: `mid.${randomUUID()}`, text: 'Do you ship to Casablanca?' },
+      }] }],
+    });
+    expect(JSON.parse((await signed('/webhook/messenger', body)).body)).toMatchObject({ received: 1 });
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const rows = await withTenantTx(prod.db, await tenant(), (x) => sql<{ channel: string; provider: string }>`
+      select c.channel, e.provider
+        from conversations c
+        join channel_events e on e.business_id = c.business_id
+       where c.business_id = ${BIZ2}`.execute(x).then((r) => r.rows));
+    // And the event is recorded as Meta's, not as some WhatsApp provider's.
+    expect(rows).toEqual([{ channel: 'messenger', provider: 'meta' }]);
+    const today = await get('/app');
+    expect(today.statusCode).toBe(200);
+    expect(today.body, 'Today told her messaging was off').not.toContain(esc(t('en', 'ops.system.notLive')));
+  }, 60_000);
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, runDigits } from './tenant.js';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 
 /**
@@ -21,7 +21,7 @@ const d = DATABASE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd100000-0000-4000-8000-${RUN}0001`;
-const buyer = (n: number) => `9715${RUN.replace(/\D/g, '').padEnd(6, '7').slice(0, 6)}${n}`;
+const buyer = (n: number) => `9715${runDigits(RUN, 6)}${n}`;
 const A = buyer(1); const B = buyer(2); const C = buyer(3);
 const HOURS = 3600 * 1000;
 

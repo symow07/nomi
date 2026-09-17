@@ -14,7 +14,12 @@ import { isStaleEvent } from '../channels/whatsapp/signature.js';
  */
 
 export type IngressDeps = {
-  readonly adapter: ChannelAdapter;
+  /**
+   * WhatsApp, when this installation has it. Absent, `/webhook/whatsapp` is not
+   * mounted — a 404, the same answer as before any channel existed — while the
+   * channels in `also` are. Nothing stands in for the missing one.
+   */
+  readonly adapter?: ChannelAdapter;
   /** Meta subscription-verification token (GET handshake). */
   readonly verifyToken: string;
   /**
@@ -46,46 +51,13 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
     done(null, body);
   });
 
-  // C9 — every extra channel gets the same handshake, signature check, parse,
-  // persist and enqueue. The shape is identical because the contract is: an
-  // adapter that verifies and parses, and a store that dedups on the event id.
+  // Every channel gets the same handshake, signature check, parse, persist and
+  // enqueue, each at its own path. The shape is identical because the contract
+  // is: an adapter that verifies and parses, and a store that dedups on the
+  // event id. WhatsApp's payloads also carry STATUSES; those are events of the
+  // same parse, and `persistEvent` records them by kind.
+  if (deps.adapter) mountChannel(app, '/webhook/whatsapp', deps.adapter, deps, now);
   for (const mount of deps.also ?? []) mountChannel(app, mount.path, mount.adapter, deps, now);
-
-  // Subscription handshake (Meta GET verification).
-  app.get('/webhook/whatsapp', async (request, reply) => {
-    const q = request.query as Record<string, string | undefined>;
-    if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === deps.verifyToken) {
-      return reply.code(200).send(q['hub.challenge'] ?? '');
-    }
-    return reply.code(403).send('forbidden');
-  });
-
-  app.post('/webhook/whatsapp', async (request, reply) => {
-    const rawBody = typeof request.body === 'string' ? request.body : '';
-    const signature = request.headers['x-hub-signature-256'];
-
-    if (!deps.adapter.verifyWebhook(rawBody, typeof signature === 'string' ? signature : undefined)) {
-      return reply.code(401).send({ ok: false });
-    }
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      return reply.code(200).send({ ok: true, received: 0 }); // ack garbage; never retry-loop it
-    }
-
-    let received = 0;
-    for (const event of deps.adapter.parseWebhook(payload)) {
-      if (isStaleEvent(event.occurredAt, now())) continue;
-      const outcome = await deps.persistEvent(event, payload, deps.adapter.kind);
-      if (outcome === 'new') {
-        await deps.onNewEvent(event, deps.adapter.kind);
-        received += 1;
-      }
-    }
-    return reply.code(200).send({ ok: true, received });
-  });
 
   return app;
 }
@@ -94,9 +66,9 @@ export function buildIngressApp(deps: IngressDeps): FastifyInstance {
  * One channel's webhook, mounted at its own path: the handshake Meta uses to
  * subscribe, and the POST that carries messages.
  *
- * It is a copy of nothing — the WhatsApp routes above are the original and stay
- * where they are, because their payload path also carries STATUSES, which these
- * channels do not send. What is shared is the contract, not the branching.
+ * Until 2026-09-17 the WhatsApp routes were written out beside this, line for
+ * line the same, and only they could be mounted without the others. An
+ * installation with a Page and no number then had no webhook at all.
  */
 function mountChannel(
   app: FastifyInstance, path: string, adapter: ChannelAdapter,

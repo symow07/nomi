@@ -63,7 +63,7 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 
 | Variable | What it is |
 |---|---|
-| `WHATSAPP_PROVIDER` | `meta`, `360dialog`, or `disabled` (the default). While disabled there is no adapter, no webhook route and no outbound worker. |
+| `WHATSAPP_PROVIDER` | `meta`, `360dialog`, or `disabled` (the default). While disabled there is no WhatsApp adapter and no `/webhook/whatsapp`. Deployment mode — no outbound worker at all — is only when no other channel is configured either; with `META_PAGE_*` set, Instagram and Messenger run without a number (2026-09-17). |
 | `META_WHATSAPP_ACCESS_TOKEN` · `META_WHATSAPP_PHONE_NUMBER_ID` · `META_WHATSAPP_BUSINESS_ACCOUNT_ID` · `META_APP_SECRET` | Required when the provider is `meta`. Shapes are defined once in `core/channel/metaReadiness.ts`, so the boot check and the owner-facing readiness page cannot disagree. |
 | `META_GRAPH_API_VERSION` | e.g. `v23.0`. Defaults to `v23.0`. |
 | `META_TEMPLATE_NAMES` | Comma-separated names of message templates Meta has **actually approved**. Empty (the default) means a conversation older than 24 hours goes back to the owner instead of being re-opened. Nothing in the product calls Meta to check this — an operator records what was granted. |
@@ -86,7 +86,7 @@ media setting to keep in step with it.
 | `MICROSOFT_OAUTH_CLIENT_SECRET` | both or neither, warned at boot | The secret of that app. |
 | `MICROSOFT_OAUTH_TENANT` | a tenant GUID or verified domain, warned at boot | The Entra directory the app is registered in. **Required when the app is single-tenant** ("Accounts in this organizational directory only"), which Microsoft refuses at `/common`. Unset uses `common`, which serves only a multitenant app. See `docs/EMAIL-SETUP.md`. |
 | `META_SOCIAL_APP_SECRET` | not checked at boot | The app secret of the Meta app that owns Instagram and Messenger, when that is a DIFFERENT app from WhatsApp's (this installation: `nomi-social` vs `nomi-pilot`). Each app signs its own webhooks, so the wrong secret rejects every payload with a 401. Unset, `META_APP_SECRET` is used — correct when one app carries all three. |
-| `META_PAGE_ACCESS_TOKEN` | not checked at boot | The Page access token, which authorises BOTH Messenger and the Instagram account connected to that Page (C9). Unset, neither channel is built and both say "not connected". |
+| `META_PAGE_ACCESS_TOKEN` | not checked at boot | The Page access token, which authorises BOTH Messenger and the Instagram account connected to that Page (C9). Unset, neither channel is built and both say "not connected". Set with `WHATSAPP_PROVIDER=disabled`, the service runs messaging for these two alone. |
 | `META_PAGE_ID` | digits | The Facebook Page buyers message. With it (and the token) the Messenger webhook mounts at `/webhook/messenger` and the owner gets a Connect button. |
 | `META_IG_ACCOUNT_ID` | digits | The Instagram professional account id. Same as above for `/webhook/instagram`. |
 | `SMTP_HOST` | all five or none, warned at boot | Her own mail provider's submission host (`smtp.zoho.com`, `smtp.fastmail.com`, …). **Set, this is what sends, in place of a connected Gmail/Outlook mailbox** — an operator who names a server means that server. Unset, the mailbox path (C6) runs. |
