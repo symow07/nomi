@@ -1,8 +1,10 @@
 # The legal pages, and what they oblige the operator to do
 
-Two public pages live at `/privacy` and `/data-deletion`
+Three public pages live at `/privacy`, `/data-deletion` and `/terms`
 (`src/api/web/legal.ts`, strings under `legal.*` in the catalogue, three
-locales). They exist because Meta reads both before an app may leave
+locales). The terms are the BUSINESS's — what it accepts by using the product,
+which is who Meta's "Terms of Service URL" is about — and say in their first
+paragraph that the people who write in are covered by the privacy page instead. They exist because Meta reads both before an app may leave
 development mode — and Instagram messages are delivered only to a published
 app — and because a person who writes to a business through this product is
 owed a plain answer to "what do you keep about me, and how do I make you stop".

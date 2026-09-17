@@ -204,7 +204,23 @@ export async function startWorker(
     });
   };
 
+  // WHY a turn failed is logged here, redacted, before the retry. Until
+  // 2026-09-17 the only trace of a failed reply was the dead letter's job
+  // data — the message, never the reason — and the first real Messenger
+  // message in production dead-lettered on an invalid model key that took a
+  // query of the job table to find.
   await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
+    try {
+      await onInbound(job);
+    } catch (e) {
+      console.error('[inbound failed]', redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 300));
+      throw e;
+    }
+  });
+
+  // A declaration, hoisted on purpose: a job can arrive the moment the queue
+  // is worked, before the lines below this call have run.
+  async function onInbound(job: { data: InboundJob } | undefined): Promise<void> {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
     const conversationId = parseConversationId(job.data.conversationId);
@@ -387,7 +403,7 @@ export async function startWorker(
         : seen?.kind === 'words' ? 'photo' : 'typed',
       heard, seen, mediaId: job.data.mediaId ?? null, fragmentIds: [], started,
     });
-  });
+  }
 
   // Dead letters become alerts, not silence: an exhausted retry is a page.
   for (const name of Object.values(QUEUES)) {

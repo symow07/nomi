@@ -74,8 +74,32 @@ export function renderPrivacy(l: Locale, email: string | null): string {
     <p>${esc(t(l, 'legal.privacy.who.nobody'))}</p>
     ${section('legal.privacy.howLong.title', 'legal.privacy.howLong.body')}
     ${section('legal.privacy.choices.title', 'legal.privacy.choices.body')}
-    <p><a href="/data-deletion">${esc(t(l, 'legal.privacy.deletionLink'))}</a></p>
+    <p><a href="/data-deletion">${esc(t(l, 'legal.privacy.deletionLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email)}
+    ${updated(l)}`);
+}
+
+/**
+ * The terms — for the BUSINESS that uses this product, which is who Meta's
+ * "Terms of Service URL" is about. The people who write in are covered by the
+ * privacy page, and the first paragraph says so.
+ */
+export function renderLegalTerms(l: Locale, email: string | null): string {
+  const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
+  const list = (keys: readonly string[]) => `<ul>${keys.map((x) => `<li>${k(x)}</li>`).join('')}</ul>`;
+  return SHELL(l, t(l, 'legal.terms.title'), `
+    <h1>${k('legal.terms.title')}</h1>
+    <p>${k('legal.terms.intro')}</p>
+    <h2>${k('legal.terms.service.title')}</h2><p>${k('legal.terms.service.body')}</p>
+    <h2>${k('legal.terms.yours.title')}</h2>
+    ${list(['legal.terms.yours.you1', 'legal.terms.yours.you2', 'legal.terms.yours.you3'])}
+    <h2>${k('legal.terms.ours.title')}</h2>
+    ${list(['legal.terms.ours.we1', 'legal.terms.ours.we2', 'legal.terms.ours.we3', 'legal.terms.ours.we4'])}
+    <h2>${k('legal.terms.fees.title')}</h2><p>${k('legal.terms.fees.body')}</p>
+    <h2>${k('legal.terms.liability.title')}</h2><p>${k('legal.terms.liability.body')}</p>
+    <h2>${k('legal.terms.changes.title')}</h2><p>${k('legal.terms.changes.body')}</p>
+    ${contact(l, email)}
+    <p><a href="/privacy">${k('legal.privacyLink')}</a></p>
     ${updated(l)}`);
 }
 
@@ -90,6 +114,6 @@ export function renderDataDeletion(l: Locale, email: string | null): string {
     </ol>
     <p>${esc(t(l, 'legal.deletion.revoked'))}</p>
     ${contact(l, email)}
-    <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a></p>
+    <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${updated(l)}`);
 }
