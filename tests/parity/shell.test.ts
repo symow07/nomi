@@ -234,8 +234,8 @@ describe('Phase F · direction', () => {
 
   it('every locale renders the whole shell without leaking another locale’s words', () => {
     for (const l of LOCALES) expect(page(l).length).toBeGreaterThan(1000);
-    expect(page('ar')).not.toContain('My factory');
-    expect(page('zh')).not.toContain('My factory');
+    expect(page('ar')).not.toContain('My business');
+    expect(page('zh')).not.toContain('My business');
   });
 });
 

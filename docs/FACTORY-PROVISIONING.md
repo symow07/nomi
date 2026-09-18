@@ -180,8 +180,9 @@ it for as long as the factory's data-retention agreement requires.
 
 ## A factory signs itself up (A1)
 
-`/signup` asks four things — the factory's name, her name, an e-mail and a
-password — and makes a business, its owner and her login **together or not at
+`/signup` asks about the business (its name, what kind it is, what it sells,
+country, website, team size, where buyers write today) and about her (name,
+e-mail, password), and makes a business, its owner and her login **together or not at
 all**. She is signed in to an empty, honest workspace; readiness starts at
 every item `○`, exactly as above. From then on she signs in at `/login` with
 that e-mail and password. Nobody copies an id, and nothing is redeployed.

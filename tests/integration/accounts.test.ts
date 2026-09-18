@@ -16,17 +16,20 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `a1550000-0000-4000-8000-${RUN}0001`;
-const A = { factory: `Atlas Canvas ${RUN}`, name: 'Mei', email: `mei-${RUN}@atlas.example`, password: `atlas-password-${RUN}` };
-const B = { factory: `Bolt Tools ${RUN}`, name: 'Omar', email: `omar-${RUN}@bolt.example`, password: `bolt-password-${RUN}` };
+const ABOUT = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'atlas.example', teamSize: '2-5' };
+const A = { factory: `Atlas Canvas ${RUN}`, name: 'Mei', email: `mei-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, ...ABOUT };
+const B = { factory: `Bolt Tools ${RUN}`, name: 'Omar', email: `omar-${RUN}@bolt.example`, password: `bolt-password-${RUN}`, ...ABOUT, kind: 'agency', country: 'AE', website: '' };
+const PROFILE = { kind: 'other', sells: 'Things', country: 'CN', website: null, teamSize: '1', channels: [] as string[] };
 
 d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
 
-  const form = (url: string, fields: Record<string, string>, cookie = '') => prod.app.inject({
+  const form = (url: string, fields: Record<string, string>, cookie = '', channels: readonly string[] = []) => prod.app.inject({
     method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', ...(cookie ? { cookie } : {}) },
-    payload: new URLSearchParams(fields).toString(),
+    // Each ticked box posts its own name, as the page renders them.
+    payload: new URLSearchParams({ ...fields, ...Object.fromEntries(channels.map((c) => [`channel_${c}`, 'on'])) }).toString(),
   });
   const get = (url: string, cookie: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
   const cookieOf = (r: { headers: Record<string, unknown> }) =>
@@ -77,7 +80,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const page = await prod.app.inject({ method: 'GET', url: `/signup?invite=${ticketA}` });
     expect(page.body).toContain(`value="${ticketA}"`);
 
-    const r = await form('/signup', { ...A, email: `  ${A.email.toUpperCase()} `, invite: ticketA });
+    const r = await form('/signup', { ...A, email: `  ${A.email.toUpperCase()} `, invite: ticketA }, '', ['whatsapp', 'instagram', 'smoke-signals']);
     expect(r.statusCode, r.body.slice(0, 300)).toBe(302);
     expect(String(r.headers['location'])).toContain('/app/factory?flash=');
     cookieA = cookieOf(r);
@@ -90,6 +93,16 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(row).toMatchObject({ factory: A.factory, person: 'Mei', is_owner: true, email: A.email, spent: true });
     expect(row.password_hash).toMatch(/^scrypt\$/);
     expect(row.password_hash).not.toContain(A.password);
+
+    // A2 — what she said about the business is on the business, tidied: the
+    // address made https, the country upper-cased, a channel that is not one dropped,
+    // and what she sells already in her profile so the first setup step is half done.
+    const about = (await admin.query(
+      `select kind, country, website, team_size, channels_used, description from businesses where name = $1`, [A.factory])).rows[0];
+    expect(about).toEqual({
+      kind: 'manufacturer', country: 'MA', website: 'https://atlas.example', team_size: '2-5',
+      channels_used: ['whatsapp', 'instagram'], description: 'Custom canvas bags',
+    });
 
     const settings = await get('/app/settings', cookieA);
     expect(settings.statusCode).toBe(200);
@@ -133,6 +146,27 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(seen.rows[0]!.n).toBe('1');
   });
 
+  it('A2 · SHE CAN CHANGE WHAT KIND OF BUSINESS IT IS — and a workspace that was never asked can answer for the first time', async () => {
+    const page = await get('/app/settings/business', cookieB);
+    expect(page.body).toContain('<option value="agency" selected>');
+    expect(page.body).toContain('<option value="AE" selected>');
+
+    const saved = await form('/app/settings/business', { kind: 'services', country: 'sa', website: 'WWW.Bolt.Example/' }, cookieB);
+    expect(new URL(String(saved.headers['location']), 'https://x.test').searchParams.get('flash')).toBe(t('en', 'business.kind.saved'));
+    expect((await admin.query(`select kind, country, website from businesses where name = $1`, [B.factory])).rows[0])
+      .toEqual({ kind: 'services', country: 'SA', website: 'https://www.bolt.example' });
+
+    const bad = await form('/app/settings/business', { kind: 'pyramid', country: 'SA', website: '' }, cookieB);
+    expect(new URL(String(bad.headers['location']), 'https://x.test').searchParams.get('flash')).toBe(t('en', 'business.kind.invalid'));
+    expect((await admin.query(`select kind from businesses where name = $1`, [B.factory])).rows[0].kind, 'a refused answer changes nothing').toBe('services');
+
+    // The environment's business was made long before sign-up asked anything.
+    const pilot = cookieOf(await form('/login', { code: prod.ownerAccessCode }));
+    const never = await get('/app/settings/business', pilot);
+    expect(never.statusCode).toBe(200);
+    expect(never.body).not.toContain(' selected>');
+  });
+
   it('the application role still cannot see or mint an invitation', async () => {
     await expect(sql`select count(*) from signup_invites`.execute(prod.db)).rejects.toThrow(/permission denied/);
     await expect(sql`insert into signup_invites (note) values ('mine')`.execute(prod.db)).rejects.toThrow(/permission denied/);
@@ -143,13 +177,19 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const { hashPassword } = await import('../../src/security/password.js');
     const passwordHash = await hashPassword('whatever-password');
     expect(await provisionAccount(prod.db, {
-      factory: 'Copycat', language: 'en', ownerName: 'X', email: A.email, passwordHash, invite: null, inviteRequired: false,
+      factory: 'Copycat', language: 'en', ownerName: 'X', email: A.email, passwordHash, invite: null, inviteRequired: false, profile: PROFILE,
     })).toEqual({ code: 'email_taken' });
     expect((await admin.query(`select 1 from businesses where name = 'Copycat'`)).rowCount, 'nothing half-made is left behind').toBe(0);
 
     const open = await provisionAccount(prod.db, {
-      factory: `Open ${RUN}`, language: 'xx', ownerName: 'Y', email: `open-${RUN}@open.example`, passwordHash, invite: null, inviteRequired: false,
+      factory: `Open ${RUN}`, language: 'xx', ownerName: 'Y', email: `open-${RUN}@open.example`, passwordHash, invite: null, inviteRequired: false, profile: PROFILE,
     });
+    // The columns check it AGAIN: a kind that is not one makes no business at all.
+    expect(await provisionAccount(prod.db, {
+      factory: `Bogus ${RUN}`, language: 'en', ownerName: 'Z', email: `bogus-${RUN}@open.example`, passwordHash, invite: null, inviteRequired: false,
+      profile: { ...PROFILE, kind: 'pyramid-scheme' },
+    })).toEqual({ code: 'failed' });
+    expect((await admin.query(`select 1 from businesses where name = $1`, [`Bogus ${RUN}`])).rowCount).toBe(0);
     expect(open.code).toBe('created');
     expect((await admin.query(`select default_language from businesses where name = $1`, [`Open ${RUN}`])).rows[0].default_language,
       'a language the product does not speak becomes English').toBe('en');

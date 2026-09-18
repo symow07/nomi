@@ -11,8 +11,8 @@ Order of work. Each item ships and deploys on its own.
 |---|---|---|
 | A1 | A business signs itself up; e-mail + password | ✅ live 2026-09-18 |
 | S1 | Removing someone signs them out | ✅ live 2026-09-18 |
-| D1 | Her answer for everything switches her catalogue on | ✅ built 2026-09-18 |
-| A2 | Sign-up asks about the business; nothing says "factory" | next |
+| D1 | Her answer for everything switches her catalogue on | ✅ live 2026-09-18 |
+| A2 | Sign-up asks about the business; nothing says "factory" | ✅ built 2026-09-18 (0056) |
 | A4 | Team page: everyone, who is online, last seen | after A2 |
 | A3 | E-mail codes at sign-up and on a new device | built behind a switch; needs a system mailbox |
 | A5 | Several assistants: name, role, channels | plan below — owner confirms before it is built |

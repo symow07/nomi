@@ -1024,6 +1024,23 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A2 · Sign-up asks about the business, and nothing says "factory" (2026-09-18,
+  migration 0056).** Nomi was built for one factory and said so everywhere. It is
+  for any business that talks to buyers on social channels, so sign-up now asks
+  which KIND — manufacturer, trading company, wholesaler, brand, retail, agency,
+  services, other — what it sells, its country, website, team size and where
+  buyers write today. What it sells becomes the profile description, so the
+  first setup step arrives half done. The answers live on the business row and
+  are checked twice (the form's validation and the column checks); kind, country
+  and website are hers to change under Settings. With eight kinds a word per
+  kind is not workable, so the copy went neutral in all three languages —
+  "business" / 公司 / شركة for her, "the company" for a buyer on the proof page —
+  and a test now fails if any sentence says "factory" outside the one category
+  that is one. A tenant is still made in one place: a NEW definer function,
+  `provision_workspace`, because the app and the schema deploy seconds apart
+  and the old name must keep answering the old code. Found on the way: this
+  app's form reader keeps only the LAST of a repeated field name, so ticked
+  boxes must each carry their own name.
 - **D1 · Her answer for everything covers everything it can (2026-09-18).**
   The first thing every new business hit: she pasted a price list, answered
   "what is the least you would accept?" once for everything — as the page

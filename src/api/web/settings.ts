@@ -218,6 +218,7 @@ export function renderSettings(
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
     ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
+    ${deeper('/app/settings/business', t(locale, 'business.kind.label'))}
     ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${deeper('/app/settings/account', t(locale, 'account.title'))}
     ${SETTINGS_STYLE}`;

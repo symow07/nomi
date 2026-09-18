@@ -19,7 +19,12 @@ import { t } from '../../src/core/owner/i18n/messages.js';
  */
 
 const opts = (mode: 'open' | 'invite' | 'closed') => ({ mode, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX });
-const good = { factory: ' Atlas Canvas ', name: ' Mei ', email: ' Mei@Atlas.Example ', password: 'correct horse battery', invite: '' };
+const good = {
+  factory: ' Atlas Canvas ', name: ' Mei ', email: ' Mei@Atlas.Example ', password: 'correct horse battery', invite: '',
+  kind: 'manufacturer', sells: '  Custom   canvas bags ', country: 'ma', website: 'atlas.example', teamSize: '2-5',
+  channels: ['whatsapp', 'carrier-pigeon', 'whatsapp', 'email'],
+};
+const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'] };
 const INVITE = '0b6c2f3a-1d4e-4f5a-8b9c-0d1e2f3a4b5c';
 
 describe('A1 · a password is kept so that it cannot be read back', () => {
@@ -55,12 +60,12 @@ describe('A1 · who may create a workspace', () => {
 
   it('trims what she typed, lower-cases the address, and keeps the password exactly', () => {
     const v = validateSignup(good, opts('open'));
-    expect(v).toEqual({ ok: true, value: { factory: 'Atlas Canvas', name: 'Mei', email: 'mei@atlas.example', password: 'correct horse battery', invite: null } });
+    expect(v).toEqual({ ok: true, value: { factory: 'Atlas Canvas', name: 'Mei', email: 'mei@atlas.example', password: 'correct horse battery', invite: null, profile } });
     expect(normalizeEmail('  A@B.Co ')).toBe('a@b.co');
   });
 
   it('names the field that is wrong, one sentence each', () => {
-    const v = validateSignup({ factory: ' ', name: '', email: 'not-an-address', password: 'short', invite: '' }, opts('open'));
+    const v = validateSignup({ ...good, factory: ' ', name: '', email: 'not-an-address', password: 'short' }, opts('open'));
     expect(v).toEqual({ ok: false, problems: { factory: 'factory_missing', name: 'name_missing', email: 'email_invalid', password: 'password_short' } });
     expect(validateSignup({ ...good, password: 'x'.repeat(PASSWORD_MAX + 1) }, opts('open'))).toMatchObject({ problems: { password: 'password_long' } });
     expect(validateSignup({ ...good, password: 'MEI@atlas.example' }, opts('open'))).toMatchObject({ problems: { password: 'password_is_email' } });
