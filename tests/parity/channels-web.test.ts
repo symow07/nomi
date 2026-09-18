@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderChannels, renderConnectGuide, type ChannelsData } from '../../src/api/web/channels.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import type { Viewer } from '../../src/core/conversation/people.js';
 
 const connected: ChannelsData = {
   whatsapp: {
@@ -112,5 +113,56 @@ describe('M9.4 · security + language (every locale)', () => {
 
   it('mobile-first: no tables', () => {
     expect(renderChannels(connected, 'en', null)).not.toContain('<table');
+  });
+});
+
+/**
+ * C10 — the Page and Instagram cards, in each state the page can be in. What
+ * this pins: the login is offered wherever it can change something, including
+ * over a connection the HOST's account made (the day it shipped, the owner's
+ * own page showed "Connected." and no button, and read as "nothing changed");
+ * a Page she connected herself is named and is hers to disconnect; a token
+ * Meta refused says so and offers the login; the C9 form posts only when no
+ * login is offered.
+ */
+describe('C10 · connect your own Page and Instagram, as the cards show it', () => {
+  const OWNER: Viewer = { id: 'owner', isOwner: true };
+  const links = (l: { configured: boolean; connected: boolean; connectHref?: string; connectedAs?: string; needsAttention?: boolean; noInstagram?: boolean }) =>
+    new Map([['instagram', l], ['messenger', l]] as const);
+  const render = (l: Parameters<typeof links>[0], viewer: Viewer = OWNER) =>
+    renderChannels(connected, 'en', null, viewer, '', links(l));
+
+  it('connected through the host\'s account, with a login offered: the login button is still there', () => {
+    const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start' });
+    expect(html).toContain('href="/app/connect/meta/start"');
+    expect(html).not.toContain('action="/app/connect/meta/disconnect"');
+  });
+
+  it('connected by herself: named, and hers to disconnect — no second Connect', () => {
+    const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start', connectedAs: 'Nomi does · @nomidoes_' });
+    expect(html).toContain('Nomi does · @nomidoes_');
+    expect(html).toContain('action="/app/connect/meta/disconnect"');
+    expect(html).not.toContain('href="/app/connect/meta/start"');
+  });
+
+  it('a token Meta refused says so and offers the login, not Disconnect', () => {
+    const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start', connectedAs: 'Nomi does', needsAttention: true });
+    expect(html).toContain('href="/app/connect/meta/start"');
+    expect(html).not.toContain('action="/app/connect/meta/disconnect"');
+  });
+
+  it('not connected: the login when offered, the host\'s account form only when it is not', () => {
+    const login = render({ configured: true, connected: false, connectHref: '/app/connect/meta/start' });
+    expect(login).toContain('href="/app/connect/meta/start"');
+    expect(login).not.toContain('action="/app/channels/messenger/connect"');
+    const host = render({ configured: true, connected: false });
+    expect(host).toContain('action="/app/channels/messenger/connect"');
+    expect(host).not.toContain('/app/connect/meta/start');
+  });
+
+  it('staff see the state and no button either way', () => {
+    const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start' }, { id: 'p2', isOwner: false });
+    expect(html).not.toContain('href="/app/connect/meta/start"');
+    expect(html).not.toContain('action="/app/connect/meta/disconnect"');
   });
 });
