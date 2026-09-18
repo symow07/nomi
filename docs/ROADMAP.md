@@ -1024,6 +1024,16 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A5.4 · She hands one buyer to another assistant (2026-09-19).** Who answers
+  is decided when a conversation starts; this is the only other writer of it.
+  On the conversation page, once there is more than one assistant, the owner
+  sees who answers and can change it — only someone still on the team can be
+  chosen, a finished conversation offers nothing, and saying it twice writes no
+  second line. It changes who SPEAKS and nothing about what may be said, and it
+  is recorded in the conversation's own history with who did it. Owner-only,
+  through the same gate as the team page. **Known limit:** messages already
+  sent are labelled with whoever answers now; a message does not yet remember
+  which assistant wrote it.
 - **A5.3 · The reply writer knows who is speaking, and for whom (2026-09-19).**
   Every reply was written by "a business representative for a Yiwu, China export
   trading company" — for an agency in Casablanca too. The three instruction

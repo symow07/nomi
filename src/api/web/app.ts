@@ -43,6 +43,7 @@ import {
   addAssistantFromForm, archiveAssistantById, assistantFlash, loadAssistants, updateAssistantFromForm,
 } from './assistants.js';
 import { assistantNameOfConversation, mainAssistantName } from '../../db/assistants.js';
+import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
 import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
@@ -1284,6 +1285,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ? t(locale, 'takeover.flash.handed', { name: r.toName ?? '' })
       : t(locale, `takeover.flash.${r.outcome}` as MessageKey);
     return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(msg)}`);
+  });
+
+  // A5.4 — hand this buyer to another assistant. Owner-only, by the rule the
+  // team page follows: who answers a buyer is who is on the team.
+  app.post('/app/inbox/:conversationId/assistant', async (req, reply) => {
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const back = `/app/inbox/${encodeURIComponent(cid)}`;
+    const s = await ownerOnly(req, reply, 'people', back);
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/inbox');
+    const to = String((req.body as { assistant?: string } | undefined)?.assistant ?? '');
+    const r = await handToAssistant(deps.db,
+      { businessId: bid.value, conversationId: cid, assistantId: to, actor: personOf(s).id });
+    const locale = localeOf(req);
+    const msg = r.outcome === 'changed' || r.outcome === 'same'
+      ? t(locale, `conv.assistant.flash.${r.outcome}` as MessageKey, { who: r.name })
+      : t(locale, 'people.flash.failed');
+    return reply.redirect(`${back}?flash=${encodeURIComponent(msg)}`);
   });
 
   app.post('/app/inbox/:conversationId/reply', async (req, reply) => {

@@ -418,6 +418,11 @@ export type ConversationDetail = {
    * assistant, else the main one. Null when the business has no row yet.
    */
   readonly assistantName?: string | null;
+  /**
+   * A5.4 — who she could hand this buyer to: every live assistant, with the one
+   * answering now marked. Present only when there is more than one.
+   */
+  readonly assistantChoices?: readonly { readonly id: string; readonly name: string; readonly current: boolean }[];
   readonly country: string | null;
   readonly status: InboxStatus;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -701,6 +706,14 @@ export async function loadConversationDetail(
       heldBy: head.assigned_to,
       answeredBy: head.assistants > 1 ? head.answered_by : null,
       assistantName: head.answered_by,
+      ...(head.assistants > 1 ? { assistantChoices: (await sql<{ id: string; name: string; current: boolean }>`
+        select a.id::text as id, a.name,
+               a.id = coalesce((select c.assistant_id from conversations c where c.id = ${conversationId}),
+                               (select d.id from assistants d
+                                 where d.business_id = a.business_id and d.is_default and d.archived_at is null)) as current
+          from assistants a
+         where a.business_id = ${bid.value}::uuid and a.archived_at is null
+         order by a.is_default desc, a.created_at`.execute(tx)).rows } : {}),
       refusals,
       uncertainSends,
       handoffReasons,
@@ -1043,6 +1056,26 @@ function inHerMoney(total: Money, rate: OwnerRate | null, locale: Locale): strin
     esc(t(locale, 'rate.at', { date: formatDate(locale, rate.statedAt) }))}</span></span>`;
 }
 
+/**
+ * A5.4 — hand this buyer to another assistant. Only the owner decides who
+ * answers, so only she is shown it; and with one assistant there is no choice
+ * to offer. A closed conversation has nobody answering it.
+ */
+function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer): string {
+  const choices = d.assistantChoices ?? [];
+  if (!viewer.isOwner || choices.length < 2 || d.status === 'done') return '';
+  return `<form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/assistant" class="as-hand">
+      <label class="muted" for="as-hand">${esc(t(locale, 'conv.assistant.label'))}</label>
+      <select id="as-hand" name="assistant">${choices.map((c) =>
+        `<option value="${esc(c.id)}"${c.current ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+      <button class="btn" type="submit">${esc(t(locale, 'conv.assistant.button'))}</button>
+    </form>
+    <style>
+      .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
+                 margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-note); }
+    </style>`;
+}
+
 export function renderConversationDetail(
   d: ConversationDetail, locale: Locale, now: Date, flash: string | null, viewer: Viewer = OWNER_VIEW,
 ): string {
@@ -1211,6 +1244,7 @@ export function renderConversationDetail(
       ${d.ownership === 'AI' ? statusPill(locale, d.status, d.pendingDraft !== null) : ''}
     </div>
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
+    ${assistantControl(d, locale, viewer)}
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
     ${unheardCard}

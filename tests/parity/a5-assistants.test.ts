@@ -6,6 +6,7 @@ import {
 } from '../../src/core/owner/assistants.js';
 import { assistantFlash, channelsFromForm, renderAssistantsSection } from '../../src/api/web/assistants.js';
 import { renderPeople } from '../../src/api/web/people.js';
+import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 /**
@@ -105,5 +106,41 @@ describe('A5 · only the owner decides who answers', () => {
     expect(m).toMatch(/grant select, insert, update on assistants to nomi_app/i);
     expect(m).not.toMatch(/grant[^;]*delete[^;]*on assistants/i);
     expect(m).toMatch(/assistant_added','assistant_changed','assistant_archived/);
+  });
+});
+
+describe('A5.4 · handing one buyer to another assistant', () => {
+  const base: ConversationDetail = {
+    conversationId: '33333333-3333-4333-8333-333333333333', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
+    product: { name: null, nameZh: null }, quantity: null, quote: null, order: null, messages: [], pendingDraft: null,
+    ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null,
+    knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
+  };
+  const choices = [{ id: lily.id, name: 'Lily', current: true }, { id: noor.id, name: 'Noor', current: false }];
+  const NOW = new Date('2026-09-19T08:00:00Z');
+
+  it('the owner is offered every live assistant, with the one answering now chosen', () => {
+    const html = renderConversationDetail({ ...base, assistantChoices: choices }, 'en', NOW, null);
+    expect(html).toContain(`action="/app/inbox/${base.conversationId}/assistant"`);
+    expect(html).toMatch(new RegExp(`<option value="${lily.id}" selected>Lily</option>`));
+    expect(html).toContain(`<option value="${noor.id}">Noor</option>`);
+  });
+
+  it('not with one assistant, not to staff, and not on a finished conversation', () => {
+    const form = '/assistant"';
+    expect(renderConversationDetail(base, 'en', NOW, null)).not.toContain(form);
+    expect(renderConversationDetail({ ...base, assistantChoices: [choices[0]!] }, 'en', NOW, null)).not.toContain(form);
+    expect(renderConversationDetail({ ...base, assistantChoices: choices }, 'en', NOW, null, { isOwner: false })).not.toContain(form);
+    expect(renderConversationDetail({ ...base, status: 'done', assistantChoices: choices }, 'en', NOW, null)).not.toContain(form);
+  });
+
+  it('is the only other writer of who answers, is owner-only, and leaves a line in the history', () => {
+    const step = read('src/conversations/assistant.ts');
+    expect(step).toMatch(/update conversations set assistant_id/);
+    expect(step).toMatch(/events\.append\(\s*input\.conversationId as ConversationId, 'assistant_changed'/);
+    expect(step).toMatch(/archived_at is null/);
+    const app = read('src/api/web/app.ts');
+    const route = app.slice(app.indexOf("app.post('/app/inbox/:conversationId/assistant'"));
+    expect(route.slice(0, 400)).toContain("ownerOnly(req, reply, 'people', back)");
   });
 });

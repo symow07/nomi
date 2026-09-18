@@ -152,6 +152,44 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     expect(nobody).toBeNull();
   });
 
+  it('A5.4 — she hands ONE buyer to another assistant: the page, the writer and the history all follow', async () => {
+    const wa = await startConversation('whatsapp', `+8613${RUN}01`);
+    const noor = (await rows()).find((x) => x.name === 'Noor')!;
+    const before = await app.inject({ method: 'GET', url: `/app/inbox/${wa.conversationId}`, headers: { cookie: ownerCookie } });
+    expect(before.body).toContain(`action="/app/inbox/${wa.conversationId}/assistant"`);
+    expect(before.body).toContain('Answered by Lily');
+
+    const res = await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${noor.id}`);
+    expect(res.statusCode).toBe(302);
+    expect(flashOf(res)).toContain('Noor answers this buyer from now on.');
+    const after = await app.inject({ method: 'GET', url: `/app/inbox/${wa.conversationId}`, headers: { cookie: ownerCookie } });
+    expect(after.body).toContain('Answered by Noor');
+
+    const { tenantRepos } = await import('../../src/db/repos.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const [speaker, events] = await tx(async (t) => [
+      await tenantRepos(t, bid.value).conversations.speaker(wa.conversationId as never),
+      (await sql<{ payload: { actor?: string; to?: string } }>`
+        select payload from conversation_events where conversation_id = ${wa.conversationId}::uuid and type = 'assistant_changed'`.execute(t)).rows,
+    ] as const);
+    expect(speaker?.name).toBe('Noor');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload.to).toBe(noor.id);
+    expect(events[0]!.payload.actor).toBeTruthy();
+
+    // Saying it twice changes nothing and writes no second line of history.
+    expect(flashOf(await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${noor.id}`))).toContain('already answers');
+    // Someone who is not on the team cannot be handed a buyer.
+    expect(flashOf(await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, 'assistant=00000000-0000-4000-8000-000000000000'))).toMatch(/did not save/);
+    const again = await tx(async (t) => (await sql<{ n: string }>`
+      select count(*)::text as n from conversation_events where conversation_id = ${wa.conversationId}::uuid and type = 'assistant_changed'`.execute(t)).rows[0]!.n);
+    expect(again).toBe('1');
+
+    // And back, so the rest of this walk reads as it did.
+    await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${(await rows()).find((x) => x.is_default)!.id}`);
+  });
+
   it('she changes the name and the job; the main one is never given channels', async () => {
     const all = await rows();
     const noor = all.find((x) => x.name === 'Noor')!; const lily = all.find((x) => x.is_default)!;
@@ -231,5 +269,12 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
       expect(r.statusCode).toBe(302);
     }
     expect(await rows()).toEqual(before);
+    // A5.4 — nor may they hand a buyer to another assistant, and they are not shown the control.
+    const wa = await startConversation('whatsapp', `+8613${RUN}01`);
+    const held = async () => tx(async (t) => (await sql<{ a: string | null }>`
+      select assistant_id::text as a from conversations where id = ${wa.conversationId}::uuid`.execute(t)).rows[0]!.a);
+    const was = await held();
+    await post(staff, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${lily.id}`);
+    expect(await held()).toBe(was);
   });
 });
