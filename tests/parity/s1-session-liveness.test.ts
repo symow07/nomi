@@ -69,6 +69,13 @@ describe('S1 · one question a minute, and none after she removes someone', () =
 describe('S1 · the routes that make it true', () => {
   const app = readFileSync(fileURLToPath(new URL('../../src/api/web/app.ts', import.meta.url)), 'utf8');
 
+  it('A4 · the asking is what records "last seen" — and only the asking that means she is here', () => {
+    expect(app).toMatch(/readLiveness\(deps\.db, bid\.value, person\.id, true\)/);
+    // Reading which password a NEW session was opened with is not her being here.
+    expect(app).toMatch(/readLiveness\(deps\.db, bid\.value, personId\)\.catch/);
+    expect(app.match(/readLiveness\([^)]*, true\)/g)?.length).toBe(1);
+  });
+
   it('every workspace request is asked, before any handler runs', () => {
     expect(app).toMatch(/app\.addHook\('onRequest'[\s\S]{0,200}req\.url\.startsWith\('\/app'\)/);
     expect(app).toContain('sessionStands(v, s.pv)');
@@ -95,8 +102,8 @@ describe('S1 · she is told what Remove does before it does it', () => {
   it('the button asks first, in her language, naming the person', () => {
     const html = renderPeople({
       people: [
-        { id: 'p1', name: 'Mei', isOwner: true, addedAt: new Date('2026-09-01T00:00:00Z') },
-        { id: 'p2', name: 'Xiao <Chen>', isOwner: false, addedAt: new Date('2026-09-02T00:00:00Z') },
+        { id: 'p1', name: 'Mei', isOwner: true, addedAt: new Date('2026-09-01T00:00:00Z'), signsInWithEmail: true, lastSeenAt: null },
+        { id: 'p2', name: 'Xiao <Chen>', isOwner: false, addedAt: new Date('2026-09-02T00:00:00Z'), signsInWithEmail: false, lastSeenAt: null },
       ],
       justIssued: null,
     } as unknown as Parameters<typeof renderPeople>[0], 'en', null);

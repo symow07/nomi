@@ -391,6 +391,22 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(owner[0]!.name).toBe('People Test Factory');
   });
 
+  it('A4 · THE TEAM PAGE SAYS WHO IS HERE NOW — read off what people do, since no session store exists to ask', async () => {
+    // The owner has been clicking through this whole file; the check wrote it down.
+    const seen = await tx((t) => sql<{ name: string; last_seen_at: Date | null; is_owner: boolean }>`
+      select name, last_seen_at, is_owner from people where business_id = ${BIZ} and archived_at is null order by is_owner desc
+    `.execute(t).then((r) => r.rows));
+    const owner = seen.find((p) => p.is_owner)!;
+    expect(owner.last_seen_at).not.toBeNull();
+    expect(Date.now() - owner.last_seen_at!.getTime()).toBeLessThan(5 * 60_000);
+
+    const page = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Online now');
+    expect(page.body).toContain('Signs in with an access code');
+    expect(page.body).toMatch(/\d+ people work here\. \d+ online now\./);
+  });
+
   it('S1 · REMOVING SOMEONE SIGNS THEM OUT NOW — the cookie they hold stops opening anything', async () => {
     // A colleague of her own, so the people the earlier tests rely on stay.
     const added = await post(ownerCookie, '/app/settings/people', 'name=Temp%20Hire');
