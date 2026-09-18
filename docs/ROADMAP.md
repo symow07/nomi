@@ -993,6 +993,14 @@ Drafts folder.
   read his last message from his WhatsApp identity, so an Instagram or Page
   buyer had none and his window read as shut. It now reads the channel he
   wrote on — the store's own rule, which the worker had followed all along.
+- **Found on the second Instagram reply (2026-09-18).** With the window open
+  the reply reached Meta and came back `meta 400`. Instagram replies were
+  posted to the Instagram account's own id, `/{ig-account}/messages`, which
+  graph.facebook.com does not serve: under Facebook Login one Page token sends
+  for both channels from the Page, `/{page}/messages`, and Meta routes to
+  Instagram by the buyer's scoped id. The Instagram adapter now takes the Page
+  id, and a refused send records Meta's numeric code beside the status —
+  `meta 400 (#100)` — so the next one names its rule without a repro.
 - **Model moved to Haiku 4.5 (2026-09-18).** The owner's call, on cost: about
   a third of Sonnet's price per buyer message. The pin in `src/llm/anthropic.ts`
   says what the trade is — no figure or claim can be invented, because those

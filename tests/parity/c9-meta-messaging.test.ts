@@ -22,7 +22,7 @@ const sign = (body: string): string =>
   `sha256=${createHmac('sha256', APP_SECRET).update(body, 'utf8').digest('hex')}`;
 
 const ig = instagramAdapter({
-  accountId: '17841400000000000', accessToken: 'page-token', appSecret: APP_SECRET, graphVersion: 'v23.0',
+  pageId: '102000000000000', accessToken: 'page-token', appSecret: APP_SECRET, graphVersion: 'v23.0',
 });
 const fb = messengerAdapter({
   accountId: '102000000000000', accessToken: 'page-token', appSecret: APP_SECRET, graphVersion: 'v23.0',
@@ -221,6 +221,28 @@ describe('C9 · handing a reply to Meta', () => {
     calls = [];
     const r = await sender(403, { error: { message: 'This person is not available: PSID_BUYER' } })('PSID', 'hi');
     expect(r).toEqual({ ok: false, retryable: false, error: 'meta 403' });
+  });
+
+  it('— except its numeric code, which names the rule without quoting the buyer', async () => {
+    calls = [];
+    const r = await sender(400, { error: { message: 'Unsupported post request. Object with ID 178 does not exist', code: 100, error_subcode: 33 } })('PSID', 'hi');
+    expect(r).toEqual({ ok: false, retryable: false, error: 'meta 400 (#100/33)' });
+    expect(await sender(400, { error: { code: 10 } })('PSID', 'hi')).toMatchObject({ error: 'meta 400 (#10)' });
+    expect(await sender(400, { error: { code: '100' } })('PSID', 'hi')).toMatchObject({ error: 'meta 400' });
+  });
+
+  it('AN INSTAGRAM REPLY LEAVES FROM THE PAGE, never from the Instagram account id', async () => {
+    const seen: string[] = [];
+    const fetchImpl = async (url: string) => { seen.push(url); return { status: 200, text: async () => JSON.stringify({ message_id: 'mid.out.ig' }) }; };
+    const viaPage = instagramAdapter({ pageId: '102000000000000', accessToken: 'page-token', appSecret: APP_SECRET, graphVersion: 'v23.0', fetchImpl });
+    const page = messengerAdapter({ accountId: '102000000000000', accessToken: 'page-token', appSecret: APP_SECRET, graphVersion: 'v23.0', fetchImpl });
+    expect(await viaPage.sendText('IGSID_BUYER', 'hi')).toMatchObject({ ok: true });
+    expect(await page.sendText('PSID_BUYER', 'hi')).toMatchObject({ ok: true });
+    // One Page token, one Page id, both channels — Meta routes by the recipient.
+    expect(seen).toEqual([
+      'https://graph.facebook.com/v23.0/102000000000000/messages',
+      'https://graph.facebook.com/v23.0/102000000000000/messages',
+    ]);
   });
 });
 

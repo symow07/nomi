@@ -431,9 +431,10 @@ export async function buildProduction(
           ...(overrides?.metaFetch ? { fetchImpl: overrides.metaFetch } : {}),
         }),
       } : {}),
-      ...(igAccountId ? {
+      // Instagram replies leave through the Page, so the Page id is needed too.
+      ...(igAccountId && pageId ? {
         instagram: instagramAdapter({
-          accountId: igAccountId, accessToken: pageToken,
+          pageId, accessToken: pageToken,
           appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION,
           ...(overrides?.metaFetch ? { fetchImpl: overrides.metaFetch } : {}),
         }),
@@ -467,7 +468,7 @@ export async function buildProduction(
         // send through them would be refused by Meta, and nothing routes a
         // send here — `adaptersFor` answers with the business's own account.
         instagram: metaMessaging.instagram ?? instagramAdapter({
-          accountId: '', accessToken: '', appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch,
+          pageId: '', accessToken: '', appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch,
         }),
         messenger: metaMessaging.messenger ?? messengerAdapter({
           accountId: '', accessToken: '', appSecret: socialSecret, graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch,
@@ -674,7 +675,7 @@ export async function buildProduction(
       ...a,
       sendText: async (to, body) => {
         const r = await a.sendText(to, body);
-        if (!r.ok && !r.retryable && r.error === 'meta 401') {
+        if (!r.ok && !r.retryable && r.error.startsWith('meta 401')) {
           await withTenantTx(db, businessId, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
         }
         return r;
@@ -683,7 +684,7 @@ export async function buildProduction(
     const common = { accessToken: token, appSecret: socialSecret ?? '', graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: metaFetch };
     return {
       messenger: noted(messengerAdapter({ accountId: account.pageId, ...common })),
-      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ accountId: account.igAccountId, ...common })) } : {}),
+      ...(account.igAccountId ? { instagram: noted(instagramAdapter({ pageId: account.pageId, ...common })) } : {}),
     };
   };
 

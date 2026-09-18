@@ -14,8 +14,13 @@ import { parseMetaMessaging, metaMessagingSender, metaProfileLookup, type MetaFe
  * before any of this code is reached.
  */
 export function instagramAdapter(cfg: {
-  /** The Instagram professional account's id — the tenant's own handle. */
-  readonly accountId: string;
+  /**
+   * The Facebook Page the Instagram account is connected to. A reply is posted
+   * to `/{page}/messages` with the Page token and Meta routes it to Instagram
+   * by the buyer's scoped id. Posting to the Instagram account's own id on
+   * graph.facebook.com is refused with a 400 — found on the first live reply.
+   */
+  readonly pageId: string;
   /** The Page access token that authorises the connected Instagram account. */
   readonly accessToken: string;
   /** The Meta app secret, which signs every webhook. */
@@ -24,7 +29,7 @@ export function instagramAdapter(cfg: {
   readonly fetchImpl?: MetaFetch;
 }): ChannelAdapter {
   const send = metaMessagingSender({
-    accountId: cfg.accountId, accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
+    accountId: cfg.pageId, accessToken: cfg.accessToken, graphVersion: cfg.graphVersion,
     ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
   });
   const nameOf = metaProfileLookup({
