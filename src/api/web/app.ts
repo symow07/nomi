@@ -115,6 +115,7 @@ import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js'
 import { shell, loginPage, signupPage, esc, back } from './layout.js';
 import { renderAccount } from './account.js';
 import { makeThrottle, callerKey } from './throttle.js';
+import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
@@ -385,6 +386,49 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
   const setCookie = (reply: FastifyReply, token: string, maxAgeSec: number) =>
     writeCookie(reply, COOKIE, token, { path: '/', maxAgeSec });
+
+  /**
+   * S1 — A REMOVED PERSON IS SIGNED OUT, and so is every other session of
+   * someone who changed her password.
+   *
+   * The cookie alone kept verifying for seven days whatever happened to the
+   * person it named. Every workspace request now asks whether that person still
+   * works here — once a minute at most, and at once in this process after a
+   * removal or a password change (the cache entry is dropped there).
+   *
+   * THE TWO DIRECTIONS OF FAILURE ARE DIFFERENT, as they are at the door. If
+   * the question cannot be asked, the OWNER still gets in: her way into her own
+   * business must not depend on a query. Anyone else is sent to sign in again,
+   * cookie intact, so they are back the moment the database is.
+   *
+   * The environment's owner before M47 has no person row ('owner'); there is
+   * nothing to look up and her code is her credential, so she is let through.
+   */
+  const liveness = makeLivenessCache();
+  const PERSON_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  app.addHook('onRequest', async (req, reply) => {
+    if (!req.url.startsWith('/app')) return;
+    const s = sessionOf(req);
+    const person = s?.person;
+    if (!s || !person || !PERSON_ID.test(person.id)) return;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return;
+    const key = livenessKey(s.businessId, person.id);
+    const now = Date.now();
+    let v = liveness.get(key, now);
+    if (!v) {
+      try {
+        v = await readLiveness(deps.db, bid.value, person.id);
+        liveness.set(key, v, now);
+      } catch {
+        if (person.isOwner) return;
+        return reply.redirect('/login');
+      }
+    }
+    if (sessionStands(v, s.pv)) return;
+    setCookie(reply, '', 0);
+    return reply.redirect('/login');
+  });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
   const localeOf = (req: FastifyRequest): Locale =>
@@ -661,8 +705,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
   const html = (reply: FastifyReply, code: number, body: string) =>
     reply.code(code).type('text/html; charset=utf-8').send(body);
-  const signIn = (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app') => {
-    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person }), Math.floor(SESSION_TTL_MS / 1000));
+  /**
+   * Opens a session. `pv` is WHICH password it was opened with (S1) — read
+   * back from the row, so a later change can end this session by no longer
+   * matching it. An access code has no password and passes none.
+   */
+  const passwordVersionOf = async (businessId: string, personId: string): Promise<number | undefined> => {
+    const bid = parseBusinessId(businessId);
+    if (!bid.ok) return undefined;
+    return (await readLiveness(deps.db, bid.value, personId).catch(() => null))?.passwordChangedAt ?? undefined;
+  };
+  const signIn = (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app', pv?: number) => {
+    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person, ...(pv === undefined ? {} : { pv }) }),
+      Math.floor(SESSION_TTL_MS / 1000));
     return reply.redirect(next);
   };
 
@@ -724,7 +779,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
     }
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
-      `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`);
+      `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`,
+      await passwordVersionOf(made.businessId, made.personId));
   });
 
   app.post('/login', async (req, reply) => {
@@ -753,7 +809,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const ok = password.length <= PASSWORD_MAX && await verifyPassword(password, login.passwordHash);
       await recordLoginAttempt(deps.db, login.loginId, ok).catch(() => undefined);
       if (!ok) return refuse(401, 'password');
-      return signIn(reply, login.businessId, login.person);
+      return signIn(reply, login.businessId, login.person, '/app', await passwordVersionOf(login.businessId, login.person.id));
     }
 
     /**
@@ -833,6 +889,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const next = String(b.next ?? '');
     if (next.length < PASSWORD_MIN || next.length > PASSWORD_MAX) return done('account.flash.short');
     const saved = await setPassword(deps.db, bid.value, personOf(s).id, await hashPassword(next)).catch(() => false);
+    if (saved) {
+      // S1 — every OTHER session she has open ends now; this one is re-issued
+      // with the new password's stamp, so she stays on the page she is on.
+      liveness.evict(livenessKey(s.businessId, personOf(s).id));
+      const pv = await passwordVersionOf(s.businessId, personOf(s).id);
+      setCookie(reply, codec.sign({ businessId: s.businessId, exp: Date.now() + SESSION_TTL_MS, person: personOf(s), ...(pv === undefined ? {} : { pv }) }),
+        Math.floor(SESSION_TTL_MS / 1000));
+    }
     return done(saved ? 'account.flash.changed' : 'account.flash.failed');
   });
 
@@ -1900,6 +1964,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const locale = localeOf(req);
     const r = await removePerson(deps.db, s.businessId, (req.params as { id: string }).id);
+    // S1 — signed out NOW, not within the minute the answer is remembered for.
+    liveness.evict(livenessKey(s.businessId, (req.params as { id: string }).id));
     return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
       t(locale, r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed'))}`);
   });

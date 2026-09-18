@@ -96,7 +96,7 @@ source lines, and found the following that the walk could not see. Items marked
 
 ### One security defect
 
-**S1 · Removing a staff member does not sign them out — verified.** The session
+**S1 · Removing a staff member does not sign them out — verified. ✅ FIXED 2026-09-18** (every workspace request now asks whether the person still works there, at most once a minute and at once after a removal or a password change; the Remove button asks first and says so). The session
 is a stateless signed cookie that lives seven days
 (`src/api/web/session.ts:25`), and no request path looks at
 `people.archived_at` (`src/api/web/app.ts` never names the column). *Remove*

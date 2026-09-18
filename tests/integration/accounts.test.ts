@@ -210,10 +210,19 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const flash = (r: { headers: Record<string, unknown> }) => new URL(String(r.headers['location']), 'https://x.test').searchParams.get('flash');
     expect(flash(await form('/app/settings/account/password', { current: 'not-it', next: 'a-brand-new-password' }, cookieB))).toBe(t('en', 'account.flash.wrong'));
     expect(flash(await form('/app/settings/account/password', { current: B.password, next: 'short' }, cookieB))).toBe(t('en', 'account.flash.short', { n: 10 }));
-    expect(flash(await form('/app/settings/account/password', { current: B.password, next: 'a-brand-new-password' }, cookieB))).toBe(t('en', 'account.flash.changed'));
+    const changed = await form('/app/settings/account/password', { current: B.password, next: 'a-brand-new-password' }, cookieB);
+    expect(flash(changed)).toBe(t('en', 'account.flash.changed'));
+    const reissued = cookieOf(changed);
+    expect(reissued, 'the page she is on is re-issued a session dated after the change').not.toBe('');
+    expect((await get('/app/settings/account', reissued)).statusCode).toBe(200);
 
     expect((await form('/login', { email: B.email, password: B.password })).statusCode).toBe(401);
     expect((await form('/login', { email: B.email, password: 'a-brand-new-password' })).statusCode).toBe(302);
+
+    // S1 — the session she had open BEFORE the change is ended by it; the one
+    // the change itself re-issued still stands.
+    const old = await get('/app/settings', cookieB);
+    expect([old.statusCode, old.headers['location']], 'every other session ends').toEqual([302, '/login']);
 
     const pilot = cookieOf(await form('/login', { code: prod.ownerAccessCode }));
     expect((await get('/app/settings/account', pilot)).body, 'a code has no password to change').toContain(t('en', 'account.codeOnly'));

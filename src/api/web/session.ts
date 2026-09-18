@@ -20,6 +20,16 @@ export type OwnerSession = {
    * changing it means nobody is logged out by a deploy.
    */
   readonly person?: { readonly id: string; readonly name: string; readonly isOwner: boolean };
+  /**
+   * S1 — WHICH password this session was opened with: the login's
+   * `password_changed_at`, in ms, as the database wrote it. Optional for the
+   * same reason `person` is — a cookie signed before this milestone, or opened
+   * with an access code, has none and still verifies. A session whose stamp is
+   * no longer the login's is one she ended by changing her password
+   * (liveness.ts). Compared for EQUALITY, never against a clock: the process
+   * and the database do not share one.
+   */
+  readonly pv?: number;
 };
 
 export const SESSION_TTL_MS = 7 * 24 * 3600 * 1000;

@@ -212,7 +212,8 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: string | null
         <span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
           <span class="muted">${esc(formatDate(locale, p.addedAt))}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
-          <button class="btn" type="submit">${esc(t(locale, 'people.remove'))}</button></form>`}
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
       </li>`).join('')}</ul>
       <form method="post" action="/app/settings/people" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'people.add.label'))}</span>
