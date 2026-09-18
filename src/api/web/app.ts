@@ -114,6 +114,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
 import { shell, loginPage, signupPage, esc, back } from './layout.js';
 import { renderAccount } from './account.js';
+import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
@@ -747,14 +748,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/signup', async (req, reply) => {
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    // One name per box (`channel_whatsapp`), like the languages on her profile:
+    // this app's form reader keeps the LAST of a repeated name, so a shared
+    // name would silently keep one tick and drop the rest.
     const raw = {
       factory: String(b['factory'] ?? ''), name: String(b['name'] ?? ''), email: String(b['email'] ?? ''),
       password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
+      kind: String(b['kind'] ?? ''), sells: String(b['sells'] ?? ''), country: String(b['country'] ?? ''),
+      website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''),
+      channels: Object.keys(b).filter((k) => k.startsWith('channel_') && b[k] !== undefined).map((k) => k.slice('channel_'.length)).slice(0, 12),
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
       html(reply, code, signupPage({
         locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
-        values: { factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite }, ...extra,
+        values: {
+          factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
+          country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels,
+        }, ...extra,
       }));
     if (signupMode === 'closed') return again(403, {});
     if (!signupThrottle.allow(callerOf(req), Date.now())) return again(429, { error: t(locale, 'signup.error.slow') });
@@ -774,6 +784,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
+      profile: v.value.profile,
     });
     if (made.code !== 'created') {
       return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
@@ -1844,6 +1855,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: renderSettings(profile, locale, flash),
     }));
   });
+  // ── A2 · what kind of business this is ────────────────────────────────────
+  // Sign-up asks once; this is where she changes it, and where a workspace made
+  // before sign-up asked gives the answer for the first time.
+  app.get('/app/settings/business', authed('settings', async (s, req, locale) => {
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.settings'));
+  }));
+  app.post('/app/settings/business', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveBusinessKind(deps.db, s.businessId,
+      { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
+    return reply.redirect(`/app/settings/business?flash=${encodeURIComponent(
+      t(localeOf(req), r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid'))}`);
+  });
+
   // ── M37.5 · the words she may never say ───────────────────────────────────
   // Reached from settings. Without this surface the guard would be M35 again:
   // something buyers are subject to that no owner can configure.

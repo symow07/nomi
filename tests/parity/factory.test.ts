@@ -56,8 +56,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('every section is present, in the order an owner thinks about them', () => {
     const html = renderFactory(complete, 'en');
     const at = (s: string) => html.indexOf(s);
-    expect(at('About your factory')).toBeGreaterThan(-1);
-    expect(at('What you sell')).toBeGreaterThan(at('About your factory'));
+    expect(at('About your business')).toBeGreaterThan(-1);
+    expect(at('What you sell')).toBeGreaterThan(at('About your business'));
     expect(at('What you promise buyers')).toBeGreaterThan(at('What you sell'));
     expect(at('Where buyers reach you')).toBeGreaterThan(at('What you promise buyers'));
     // each section carries the owner's own question
@@ -197,11 +197,11 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('renders fully in every locale and each keeps its own words', () => {
     for (const l of LOCALES) expect(renderFactory(complete, l).length).toBeGreaterThan(800);
     const zh = renderFactory(complete, 'zh');
-    expect(zh).toContain('我的工厂'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对买家的承诺');
-    expect(zh).not.toContain('About your factory');
+    expect(zh).toContain('我的公司'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对买家的承诺');
+    expect(zh).not.toContain('About your business');
     const ar = renderFactory(complete, 'ar');
-    expect(ar).toContain('مصنعي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain('ما تعد به المشترين');
-    expect(ar).not.toContain('About your factory');
+    expect(ar).toContain('شركتي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain('ما تعد به المشترين');
+    expect(ar).not.toContain('About your business');
   });
 
   it('the empty and next-step states are localized too — no English leaks', () => {

@@ -64,13 +64,19 @@ export async function provisionAccount(db: Db, input: {
   readonly factory: string; readonly language: string; readonly ownerName: string;
   readonly email: string; readonly passwordHash: string;
   readonly invite: string | null; readonly inviteRequired: boolean;
+  /** A2 — what sign-up asked about the business. Checked again by the columns of 0056. */
+  readonly profile: {
+    readonly kind: string; readonly sells: string; readonly country: string;
+    readonly website: string | null; readonly teamSize: string; readonly channels: readonly string[];
+  };
 }): Promise<ProvisionOutcome> {
   try {
     const r = (await sql<{ business_id: string; person_id: string }>`
       select business_id::text as business_id, person_id::text as person_id
-        from provision_account(${input.factory}, ${input.language}, ${input.ownerName},
-                               ${input.email}, ${input.passwordHash},
-                               ${input.invite}::uuid, ${input.inviteRequired})`.execute(db)).rows[0];
+        from provision_workspace(${input.factory}, ${input.language}, ${input.ownerName},
+                                 ${input.email}, ${input.passwordHash},
+                                 ${input.invite}::uuid, ${input.inviteRequired},
+                                 ${JSON.stringify(input.profile)}::jsonb)`.execute(db)).rows[0];
     return r ? { code: 'created', businessId: r.business_id, personId: r.person_id } : { code: 'failed' };
   } catch (e) {
     const pg = e as { code?: string; message?: string };

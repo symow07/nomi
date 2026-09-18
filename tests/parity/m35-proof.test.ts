@@ -122,20 +122,20 @@ describe('M35 · the facts that justify the quote, with their source', () => {
     expect(html).toContain('10,000–50,000 pcs');
     expect(html).toContain('1,000 pcs');
     expect(html).toContain('25 days');
-    expect(html).toContain("From the factory's product list");
+    expect(html).toContain("From the company's product list");
   });
 
   it('certifications appear only as AUTHORISED, never as a bare claim', () => {
     const html = visible(renderProof(VIEW));
     expect(html).toContain('BSCI');
-    expect(html).toContain('Authorised by the factory');
+    expect(html).toContain('Authorised by the company');
   });
 
   it('taught facts are shown in the second voice — a person said them', () => {
     const html = renderProof(VIEW);
     // <bdi> isolates the text from the page direction — see proof.ts.
     expect(html).toMatch(/<p class="voice"><bdi>Double-stitched handles/);
-    expect(visible(html)).toContain('Confirmed by the factory');
+    expect(visible(html)).toContain('Confirmed by the company');
   });
 
   it('a quote with no certifications and no taught facts renders neither section', () => {

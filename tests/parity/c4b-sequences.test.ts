@@ -181,6 +181,16 @@ describe('0051 · where his answer cannot be seen, a follow-up waits for a perso
     expect(worker.indexOf('refreshDomainCheckIfDue(')).toBeGreaterThan(-1);
     expect(worker.indexOf('refreshDomainCheckIfDue(')).toBeLessThan(worker.indexOf('runDueSteps('));
   });
+
+  it('A MINUTE\'S WORK FITS IN A MINUTE — it leaves on shutdown, gives way to the next minute, and looks up few domains at a time', () => {
+    const main = readFileSync(fileURLToPath(new URL('../../src/main.ts', import.meta.url)), 'utf8');
+    const worker = /boss\.work<SequenceSweepJob>[\s\S]*?\n {2}\}\);/.exec(main)?.[0] ?? '';
+    expect(worker).toMatch(/const spent = \(\): boolean => closing \|\| Date\.now\(\) - started > SWEEP_BUDGET_MS/);
+    expect(worker.match(/if \(spent\(\)\) return;/g)?.length, 'asked before each look-up AND before each send').toBe(2);
+    expect(worker).toMatch(/if \(lookedUp < DOMAIN_CHECKS_PER_SWEEP\)/);
+    expect(main).toMatch(/const SWEEP_BUDGET_MS = 40_000;/);
+    expect(main).toMatch(/const DOMAIN_CHECKS_PER_SWEEP = 3;/);
+  });
 });
 
 describe('C4.b · the ops kill switch silences the machine, not her', () => {

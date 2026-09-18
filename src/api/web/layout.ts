@@ -1,3 +1,4 @@
+import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { cssVariables } from '../../core/owner/css.js';
@@ -396,6 +397,15 @@ const DOOR_STYLE = `
     background:var(--color-jade); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { background:var(--color-jade-deep); }
+  select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-card);
+    border:1px solid var(--color-border); background:var(--color-paper-sunk);
+    color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
+  .login h2 { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:var(--space-24) 0 var(--space-8); font-weight:600; }
+  .login form > h2:first-child { margin-top:0; }
+  fieldset.checks { border:0; padding:0; margin:0 0 var(--space-16); }
+  fieldset.checks legend { color:var(--color-ink-secondary); font-size:var(--font-size-caption); padding:0; margin-bottom:var(--space-8); }
+  label.check { display:inline-flex; align-items:center; gap:var(--space-8); min-height:44px; margin-inline-end:var(--space-16); color:var(--color-ink); }
+  label.check input { width:auto; margin:0; }
   .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .fld-err { color:var(--color-warn); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
   .hint { color:var(--color-ink-secondary); font-size:var(--font-size-micro); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
@@ -464,9 +474,14 @@ export type SignupPageInput = {
   readonly mode: 'open' | 'invite' | 'closed';
   readonly passwordMin: number;
   readonly contact?: string | null;
-  readonly values?: { readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string };
-  /** Sentence keys, already chosen by the route: one per field, plus one for the whole form. */
-  readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite', string>>;
+  readonly values?: {
+    readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string;
+    readonly kind?: string; readonly sells?: string; readonly country?: string; readonly website?: string;
+    readonly teamSize?: string; readonly channels?: readonly string[];
+  };
+  /** Sentences, already chosen by the route: one per field, plus one for the whole form. */
+  readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
+    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize', string>>;
   readonly error?: string | null;
 };
 
@@ -486,14 +501,47 @@ export function signupPage(input: SignupPageInput): string {
       <label for="su-invite">${esc(t(locale, 'signup.invite'))}</label>
       <input id="su-invite" type="text" name="invite" value="${esc(v.invite ?? '')}" required autocomplete="off" autocapitalize="none" spellcheck="false" />
       ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}</div>`}` : '';
+  // A2 — about the business. Every answer but two is a choice from a list.
+  const option = (value: string, label: string, chosen: string | undefined): string =>
+    `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
+  const pick = `<option value="">${esc(t(locale, 'signup.pick'))}</option>`;
+  const used = new Set(v.channels ?? []);
+  const about = `
+      <h2>${esc(t(locale, 'signup.about'))}</h2>
+      <label for="su-factory">${esc(t(locale, 'signup.factory'))}</label>
+      <input id="su-factory" type="text" name="factory" value="${esc(v.factory ?? '')}" required maxlength="120" autocomplete="organization" autofocus />
+      ${fieldErr('factory')}
+      <label for="su-kind">${esc(t(locale, 'signup.kind'))}</label>
+      <select id="su-kind" name="kind" required>${pick}${BUSINESS_KINDS.map((k) =>
+        option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select>
+      ${fieldErr('kind')}
+      <label for="su-sells">${esc(t(locale, 'signup.sells'))}</label>
+      <input id="su-sells" type="text" name="sells" value="${esc(v.sells ?? '')}" required maxlength="300"
+        placeholder="${esc(t(locale, 'signup.sells.placeholder'))}" />
+      ${fieldErr('sells')}
+      <label for="su-country">${esc(t(locale, 'signup.country'))}</label>
+      <select id="su-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
+        option(c.code, c.name, v.country)).join('')}</select>
+      ${fieldErr('country')}
+      <label for="su-website">${esc(t(locale, 'signup.website'))}</label>
+      <input id="su-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
+        inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" placeholder="yourbusiness.com" />
+      ${fieldErr('website')}
+      <label for="su-team">${esc(t(locale, 'signup.teamSize'))}</label>
+      <select id="su-team" name="teamSize" required>${pick}${TEAM_SIZES.map((s) =>
+        option(s, t(locale, `business.team.${s}` as MessageKey), v.teamSize)).join('')}</select>
+      ${fieldErr('teamSize')}
+      <fieldset class="checks"><legend>${esc(t(locale, 'signup.channels'))}</legend>
+        ${CHANNELS_USED.map((c) => `<label class="check"><input type="checkbox" name="channel_${c}"${used.has(c) ? ' checked' : ''} />
+          <span>${esc(t(locale, `business.channel.${c}` as MessageKey))}</span></label>`).join('')}
+      </fieldset>`;
   const card = `
     <h1>${esc(t(locale, 'signup.title'))}</h1>
     <p class="lead">${esc(t(locale, 'signup.lead'))}</p>
     ${input.error ? `<div class="err" role="alert">${esc(input.error)}</div>` : ''}
     <form method="post" action="/signup">
-      <label for="su-factory">${esc(t(locale, 'signup.factory'))}</label>
-      <input id="su-factory" type="text" name="factory" value="${esc(v.factory ?? '')}" required maxlength="120" autocomplete="organization" autofocus />
-      ${fieldErr('factory')}
+      ${about}
+      <h2>${esc(t(locale, 'signup.you'))}</h2>
       <label for="su-name">${esc(t(locale, 'signup.name'))}</label>
       <input id="su-name" type="text" name="name" value="${esc(v.name ?? '')}" required maxlength="80" autocomplete="name" />
       ${fieldErr('name')}
