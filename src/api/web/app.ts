@@ -969,7 +969,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const mailed = await deps.systemMail!.send({
       to: email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
     }).catch(() => ({ ok: false as const, error: 'unreachable' }));
-    if (!mailed.ok) return 'mail';
+    if (!mailed.ok) {
+      // Said in the log, because the page can only say "try again": a fixed
+      // phrase or a status code per way tried — never the address or the code.
+      reply.log.warn({ reason: mailed.error, purpose }, 'system mail could not be sent');
+      return 'mail';
+    }
     writeCookie(reply, OTP_COOKIE, mintPendingOtp(deps.sessionSecret, { id, email, purpose }, Date.now()),
       { path: '/verify', maxAgeSec: Math.floor(PENDING_TTL_MS / 1000) });
     return 'sent';

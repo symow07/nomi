@@ -218,6 +218,41 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     expect(new URLSearchParams(refreshes.at(-1)!.body!).get('refresh_token')).toBe(`refresh-g-${RUN}`);
   });
 
+  it('A3 — THE INSTALLATION\'S MAIL goes out through the operator\'s mailbox over HTTPS: from the alias, only the named mailbox, no domain check', async () => {
+    const { accountMailTransport } = await import('../../src/channels/email/accountTransport.js');
+    const { mailboxSystemMailer, firstThatSends } = await import('../../src/channels/email/systemMail.js');
+    const sent: { from: string; to: string; headers: Readonly<Record<string, string>>; tag: unknown }[] = [];
+    const senders = {
+      google: async (_t: string, m: { from: string; to: string; headers: Readonly<Record<string, string>>; tag: unknown }) => {
+        sent.push({ from: m.from, to: m.to, headers: m.headers, tag: m.tag }); return { ok: true as const, providerMessageId: 'sys-1' };
+      },
+      microsoft: async () => ({ ok: false as const, retryable: false, error: 'unused' }),
+    };
+    const through = (onlyMailbox: string) => mailboxSystemMailer(`no-reply@${DOMAIN}`, () => accountMailTransport({
+      db, businessId: BIZ_ID, credentialKey, clients: { google: GOOGLE, microsoft: MS }, fetchImpl, senders,
+      system: { from: `no-reply@${DOMAIN}`, onlyMailbox },
+    }));
+    const BIZ_ID = await bid();
+    const code = { to: 'new-owner@elsewhere.test', subject: '123456 is your code', text: 'Your code is 123456.' };
+
+    // The mailbox the operator named: sent, FROM the installation's address, marked automatic, no business tag.
+    expect(await through(`LILY@${DOMAIN}`).send(code)).toEqual({ ok: true });
+    expect(sent).toEqual([{ from: `no-reply@${DOMAIN}`, to: 'new-owner@elsewhere.test',
+      headers: { 'Auto-Submitted': 'auto-generated' }, tag: null }]);
+
+    // Any other mailbox is not the installation's to use, whoever connected it.
+    expect(await through(`someone-else@${DOMAIN}`).send(code)).toEqual({ ok: false, error: 'the connected mailbox is not the one named for system mail' });
+    expect(sent).toHaveLength(1);
+
+    // And when the first way cannot, the next is tried; when none can, one line says why for each.
+    const smtpDown = { from: `no-reply@${DOMAIN}`, send: async () => ({ ok: false as const, error: 'smtp connect ECONNREFUSED' }) };
+    const both = firstThatSends([{ name: 'mailbox', mailer: through(`someone-else@${DOMAIN}`) }, { name: 'smtp', mailer: smtpDown }]);
+    expect(await both.send(code)).toEqual({ ok: false,
+      error: 'mailbox: the connected mailbox is not the one named for system mail · smtp: smtp connect ECONNREFUSED' });
+    const rescued = firstThatSends([{ name: 'smtp', mailer: smtpDown }, { name: 'mailbox', mailer: through(`lily@${DOMAIN}`) }]);
+    expect(await rescued.send(code)).toEqual({ ok: true });
+  });
+
   it('AN EXPIRED APP SECRET is the installation\'s to fix: the mail is refused saying so, and her mailbox is NOT marked for reconnecting', async () => {
     const { accountMailTransport } = await import('../../src/channels/email/accountTransport.js');
     refreshAnswer = { status: 401, body: { error: 'invalid_client' } };
