@@ -3,7 +3,8 @@ import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
 import { esc, deeper, back } from './layout.js';
@@ -338,7 +339,7 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
 }
 
 function milestoneText(locale: Locale, m: Milestone): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   switch (m.kind) {
     case 'buyer_text': return t(locale, 'conv.tl.buyer_text', { text: m.text ?? '' });

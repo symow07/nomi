@@ -132,7 +132,9 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
       expect(new Set(Object.keys(messages[l])), l).toEqual(en);
       if (l === 'en') continue;
       const untranslated = entries(l)
-        .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s))
+        // A5.2 — a placeholder is not English: `{name}` alone is her name, in
+        // whatever language it was given, and there is nothing to translate.
+        .filter(([k, s]) => messages.en[k] === s && /[a-zA-Z]{4}/.test(s.replace(/\{\w+\}/g, '')))
         .filter(([k, v]) => !k.startsWith('claim.') && !k.startsWith('country.')
           && !k.includes('unit') && !isOperator(k) && !isPlatformName(k) && !isExample(k) && k !== 'nav.channels')
         .map(([k, s]) => `${l}/${k}: ${s}`);

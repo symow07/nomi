@@ -4,7 +4,8 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc } from './layout.js';
 
@@ -253,7 +254,7 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
 
 export function renderInsights(d: InsightsData, locale: Locale): string {
   if (d.insights.length === 0 && !d.monthChange) return '';
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const row = (i: Insight): string => {
     const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
       ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });

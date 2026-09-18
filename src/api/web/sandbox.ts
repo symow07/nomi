@@ -13,7 +13,8 @@ import type { BusinessId } from '../../core/types/ids.js';
 import { parseBusinessId, parseConversationId } from '../../core/types/ids.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney } from '../../core/owner/i18n/format.js';
 import {
   SCENARIOS, analysis as buildAnalysis, candidate as toCandidate,
@@ -486,16 +487,16 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
     </li>`).join('');
   return `<div class="card">
     <h2>${esc(t(locale, 'practice.scripted.title'))}</h2>
-    <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
     <div class="pcount">${report.passed} / ${report.total}</div>
     <ul class="pcases">${rows}</ul>
-    <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: EMPLOYEE_NAME[locale] }))}</p>
-    <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>
+    <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: assistantName(locale) }))}</p>
   </div>`;
 }
 
 export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null; prefill?: string }): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
   const flashHtml = opts.flash ? `<div class="flash" role="status">${esc(opts.flash)}</div>` : '';

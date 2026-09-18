@@ -30,15 +30,20 @@ export async function listAssistants(tx: Tx, businessId: BusinessId): Promise<re
  * never adds a second one sees no difference. Safe to call concurrently: the
  * partial unique index lets one insert win and the rest read it.
  */
-export async function ensureDefaultAssistant(tx: Tx, businessId: BusinessId): Promise<Assistant> {
+export async function ensureDefaultAssistant(tx: Tx, businessId: BusinessId, nameIfNew?: string): Promise<Assistant> {
   const read = async () => (await sql<Row>`
     select id::text as id, name, role, note, channels, is_default from assistants
      where business_id = ${businessId}::uuid and is_default and archived_at is null limit 1`.execute(tx)).rows[0];
   const existing = await read();
   if (existing) return toAssistant(existing);
-  const b = (await sql<{ owner_locale: string | null }>`
-    select owner_locale from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0];
-  const name = EMPLOYEE_NAME[parseLocale(b?.owner_locale ?? 'en') ?? 'en'];
+  // The name she has been READING: the caller's page language when there is
+  // one, else the language the business's alerts are written in.
+  let name = nameIfNew?.trim();
+  if (!name) {
+    const b = (await sql<{ owner_locale: string | null }>`
+      select owner_locale from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0];
+    name = EMPLOYEE_NAME[parseLocale(b?.owner_locale ?? 'en') ?? 'en'];
+  }
   await sql`insert into assistants (business_id, name, role, is_default, created_by)
             values (${businessId}::uuid, ${name}, 'sales', true, 'system')
             on conflict do nothing`.execute(tx);
@@ -73,10 +78,10 @@ const audit = (tx: Tx, businessId: BusinessId, action: 'assistant_added' | 'assi
   sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
       values (${businessId}::uuid, null, ${action}, ${actor}, ${JSON.stringify(detail)}::jsonb)`.execute(tx);
 
-export async function addAssistant(tx: Tx, businessId: BusinessId, v: ValidAssistant, actor: string): Promise<AssistantWrite> {
+export async function addAssistant(tx: Tx, businessId: BusinessId, v: ValidAssistant, actor: string, mainNameIfNew?: string): Promise<AssistantWrite> {
   // The one she has always had exists before a second one does, so the new one
   // can never become the default by being first.
-  await ensureDefaultAssistant(tx, businessId);
+  await ensureDefaultAssistant(tx, businessId, mainNameIfNew);
   if (await channelTaken(tx, businessId, v.channels, null)) return 'channel_taken';
   const r = await sql<{ id: string }>`
     insert into assistants (business_id, name, role, note, channels, created_by)
@@ -110,4 +115,28 @@ export async function archiveAssistant(tx: Tx, businessId: BusinessId, id: strin
   await sql`update conversations set assistant_id = null where business_id = ${businessId}::uuid and assistant_id = ${id}::uuid and is_active`.execute(tx);
   await audit(tx, businessId, 'assistant_archived', actor, { id });
   return 'saved';
+}
+
+/**
+ * A5.2 — the name a page about the WHOLE business says: the main assistant's.
+ * Null when she has never opened the team page, which reads as the product's
+ * constant for her language — the name that row would be given anyway.
+ */
+export async function mainAssistantName(tx: Tx, businessId: BusinessId): Promise<string | null> {
+  const r = await sql<{ name: string }>`
+    select name from assistants
+     where business_id = ${businessId}::uuid and is_default and archived_at is null limit 1`.execute(tx);
+  return r.rows[0]?.name ?? null;
+}
+
+/**
+ * The name a page or an alert about ONE conversation says: its own assistant's
+ * — archived or not, because a conversation she held still names her — else
+ * the main one's.
+ */
+export async function assistantNameOfConversation(tx: Tx, businessId: BusinessId, conversationId: string): Promise<string | null> {
+  const r = await sql<{ name: string | null }>`
+    select (select a.name from assistants a where a.id = c.assistant_id) as name
+      from conversations c where c.business_id = ${businessId}::uuid and c.id = ${conversationId}::uuid`.execute(tx);
+  return r.rows[0]?.name ?? mainAssistantName(tx, businessId);
 }

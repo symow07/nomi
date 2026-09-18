@@ -20,7 +20,8 @@ import { withTenantTx } from '../../db/client.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney, formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { productName } from './inbox.js';
@@ -441,7 +442,7 @@ const section = (title: string, question: string, body: string, href: string | n
 export function renderFactory(
   f: FactoryView, locale: Locale, flash: string | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const p = f.profile;
 
   // A new factory gets ONE next step. A finished one gets nothing at all —

@@ -8,7 +8,8 @@ import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, countryName, orderStatusName, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
@@ -75,6 +76,8 @@ export type ConversationSummary = {
    * speak; this is only the label beside it.
    */
   readonly heldBy: string | null;
+  /** A5 — which assistant answers it. Set only when the business has more than one. */
+  readonly answeredBy?: string | null;
   /** Phase D — her reply is written and waiting for you to review it. */
   readonly awaitingReview: boolean;
   /** The stored problem-signal that caused the handoff. Never inferred. */
@@ -120,8 +123,15 @@ export async function loadInboxList(
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null;
       is_active: boolean; pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
+      answered_by: string | null; assistants: number;
     }>`
       select c.id, cl.display_name as buyer, cl.country,
+             coalesce(
+               (select a.name from assistants a where a.id = c.assistant_id),
+               (select a.name from assistants a
+                 where a.business_id = c.business_id and a.is_default and a.archived_at is null)) as answered_by,
+             (select count(*)::int from assistants a
+               where a.business_id = c.business_id and a.archived_at is null) as assistants,
              p.name_zh, p.name, cs.inquiry_quantity as qty,
              c.assigned_to, c.closed_at, c.is_active,
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
@@ -159,6 +169,7 @@ export async function loadInboxList(
         status: st.status, needsAction: st.needs,
         ownership: ownershipOf(r.assigned_to),
         heldBy: r.assigned_to,
+        answeredBy: r.assistants > 1 ? r.answered_by : null,
         awaitingReview: r.pending > 0,
         handoffReason: r.handoff_reason,
         latestMessage: r.last_text, latestAt: r.last_at,
@@ -402,6 +413,11 @@ export type ConversationDetail = {
    * business has more than one: with one, saying so tells her nothing.
    */
   readonly answeredBy?: string | null;
+  /**
+   * A5.2 — the name every sentence on THIS page says: the conversation's own
+   * assistant, else the main one. Null when the business has no row yet.
+   */
+  readonly assistantName?: string | null;
   readonly country: string | null;
   readonly status: InboxStatus;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -684,6 +700,7 @@ export async function loadConversationDetail(
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
       answeredBy: head.assistants > 1 ? head.answered_by : null,
+      assistantName: head.answered_by,
       refusals,
       uncertainSends,
       handoffReasons,
@@ -726,7 +743,7 @@ export function renderInboxList(
    */
   people: readonly Person[] = [],
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
     `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'mine' && (data.mineCount ?? 0) > 0 ? ` (${data.mineCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}</a>`;
@@ -779,7 +796,7 @@ export function renderInboxList(
       // WHICH human. With nobody added, `heldByName` resolves the old sentinel
       // and the label is the one this page always showed.
       const who = people.length === 0 ? null : heldByName(c.heldBy, people, {
-        ai: EMPLOYEE_NAME[locale], waiting: t(locale, 'people.held.waiting'),
+        ai: assistantName(locale), waiting: t(locale, 'people.held.waiting'),
         owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
       });
       return `<span class="tag you">${esc(who ? t(locale, 'people.holding', { who }) : t(locale, 'buyers.badge.yours'))}</span>`;
@@ -798,7 +815,10 @@ export function renderInboxList(
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
       ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
       ${c.latestMessage ? `<div class="buyer-m voice"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
-      <div class="buyer-t muted">${c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : ''}</div>
+      <div class="buyer-t muted">${[
+        c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : '',
+        c.answeredBy ? `<bdi>${esc(t(locale, 'conv.answeredBy', { who: c.answeredBy }))}</bdi>` : '',
+      ].filter(Boolean).join(' · ')}</div>
     </a>`;
   };
 
@@ -823,7 +843,7 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: r
   const who = actorName(a.type === 'handed_to' ? a.to ?? null : a.actor, people, viewer, {
     you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
   });
-  const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: EMPLOYEE_NAME[locale] });
+  const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: assistantName(locale) });
   const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
   return `<div class="lastact muted">${esc(t(locale, 'takeover.lastLabel'))}: ${esc(phrase + when)}</div>`;
 }
@@ -865,7 +885,7 @@ function uncertainCard(us: readonly UncertainSend[], locale: Locale, now: Date):
 
 function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string {
   if (rs.length === 0) return '';
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   return `<div class="card refused">
     <h3 class="rf-h">${esc(t(locale, 'refused.title'))}</h3>
     ${rs.map((r) => `<div class="rf">
@@ -1041,7 +1061,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
-          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(EMPLOYEE_NAME[locale])}</div>
+          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(assistantName(locale))}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
 
@@ -1050,7 +1070,7 @@ export function renderConversationDetail(
         <h2>${esc(t(locale, 'buyers.review.title'))}</h2>
         <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
         ${d.pendingDraft.heldBecause
-          ? `<p class="held-why" role="note">${esc(t(locale, `inbox.draft.held.${d.pendingDraft.heldBecause}` as MessageKey, { name: EMPLOYEE_NAME[locale] }))}</p>`
+          ? `<p class="held-why" role="note">${esc(t(locale, `inbox.draft.held.${d.pendingDraft.heldBecause}` as MessageKey, { name: assistantName(locale) }))}</p>`
           : ''}
         ${d.pendingDraft.contradicts ? contradictionBlock(d.pendingDraft.contradicts, locale) : ''}
         ${d.pendingDraft.forbidden?.length
@@ -1092,7 +1112,7 @@ export function renderConversationDetail(
     ? `<div class="card refused">
         <h3 class="rf-h">${esc(t(locale, 'unheard.title'))}</h3>
         <div class="rf">
-          <div class="rf-w">${esc(t(locale, 'unheard.what', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-w">${esc(t(locale, 'unheard.what', { name: assistantName(locale) }))}</div>
           <div class="rf-y muted">${esc(t(locale, `unheard.why.${d.unheardReason}` as MessageKey))}</div>
           <div class="rf-d">${esc(t(locale, `unheard.do.${d.unheardReason}` as MessageKey))}</div>
         </div>
@@ -1108,7 +1128,7 @@ export function renderConversationDetail(
         <h3 class="rf-h">${esc(t(locale, 'unreadable.title'))}</h3>
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unreadable.what', {
-            name: EMPLOYEE_NAME[locale],
+            name: assistantName(locale),
             what: t(locale, `received.${d.unreadable}` as MessageKey),
           }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unreadable.why'))}</div>
@@ -1125,8 +1145,8 @@ export function renderConversationDetail(
     ? `<div class="card refused">
         <h3 class="rf-h">${esc(t(locale, 'unlisted.title'))}</h3>
         <div class="rf">
-          <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: EMPLOYEE_NAME[locale] }))}</div>
-          <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: assistantName(locale) }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: assistantName(locale) }))}</div>
           <div class="rf-d"><a href="/app/factory">${esc(t(locale, 'unlisted.do'))}</a></div>
         </div>
       </div>`
@@ -1160,7 +1180,7 @@ export function renderConversationDetail(
     ? `<div class="card refused">
         <h3 class="rf-h">${esc(t(locale, 'herwords.title'))}</h3>
         ${d.herWords.map((w) => `<div class="rf">
-          <div class="rf-y muted"><bdi>${esc(t(locale, `herwords.${w.path}` as MessageKey, { terms: quoted(locale, w.terms), name: EMPLOYEE_NAME[locale] }))}</bdi></div>
+          <div class="rf-y muted"><bdi>${esc(t(locale, `herwords.${w.path}` as MessageKey, { terms: quoted(locale, w.terms), name: assistantName(locale) }))}</bdi></div>
           <div class="rf-d"><a href="${w.path === 'taught_answer' ? '/app/knowledge' : '/app/settings/forbidden'}">${
             esc(t(locale, `herwords.action.${w.path}` as MessageKey))}</a></div>
         </div>`).join('')}
@@ -1176,7 +1196,7 @@ export function renderConversationDetail(
     ? `<div class="card${d.sampleAsked.policyStated ? '' : ' refused'}">
         <h3 class="rf-h">${esc(t(locale, 'samples.asked.title'))}</h3>
         ${d.sampleAsked.policyStated ? '' : `<div class="rf">
-          <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: EMPLOYEE_NAME[locale] }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: assistantName(locale) }))}</div>
           <div class="rf-d"><a href="/app/settings/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
         </div>`}
       </div>`

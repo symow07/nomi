@@ -42,6 +42,7 @@ import {
 import {
   addAssistantFromForm, archiveAssistantById, assistantFlash, loadAssistants, updateAssistantFromForm,
 } from './assistants.js';
+import { assistantNameOfConversation, mainAssistantName } from '../../db/assistants.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
 import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
@@ -131,7 +132,8 @@ import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWOR
 import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, makeNameCache, withAssistantName } from './say.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -448,6 +450,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (sessionStands(v, s.pv)) return;
     setCookie(reply, '', 0);
     return reply.redirect('/login');
+  });
+
+  /**
+   * A5.2 — her name, for this request. Every sentence that says `{name}` is
+   * filled from the MAIN assistant of the signed-in business; a page about one
+   * conversation narrows it to that conversation's own. Callback-style and on
+   * preHandler on purpose: the handler must run INSIDE the scope, and a scope
+   * opened before the body is read is lost by the time the handler is called.
+   * A failed look-up names her as the product always did — never an error page.
+   */
+  const names = makeNameCache();
+  app.addHook('preHandler', (req, _reply, done) => {
+    if (!req.url.startsWith('/app')) return done();
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!s || !bid || !bid.ok) return done();
+    const now = Date.now();
+    const hit = names.get(s.businessId, now);
+    if (hit !== undefined) return withAssistantName(hit, done);
+    withTenantTx(deps.db, bid.value, (tx) => mainAssistantName(tx, bid.value)).then(
+      (name) => { names.set(s.businessId, name, now); withAssistantName(name, done); },
+      () => done(),
+    );
   });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
@@ -1153,7 +1178,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
-      bodyHtml: renderConversationDetail(withProof, locale, now, flash, personOf(s)),
+      // A5.2 — this page is about ONE conversation, so it says its assistant's name.
+      bodyHtml: withAssistantName(detail.assistantName, () =>
+        renderConversationDetail(withProof, locale, now, flash, personOf(s))),
     }));
   });
 
@@ -1735,7 +1762,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = t(locale, r.activatedCount > 0 ? 'prices.flash.savedActivated'
       : r.activated ? 'prices.flash.savedAndLive'
       : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
-      { name: deps.employeeName, n: r.activatedCount });
+      { n: r.activatedCount });
     return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
   });
 
@@ -1758,7 +1785,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }));
     }
     return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(
-      t(locale, 'prices.flash.volumeAdded', { name: deps.employeeName }))}`);
+      t(locale, 'prices.flash.volumeAdded'))}`);
   });
 
   app.post('/app/factory/prices/volume/:id/archive', async (req, reply) => {
@@ -2052,7 +2079,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
     const flash = r.code === 'set'
-      ? t(locale, 'rate.flash.set', { name: deps.employeeName, rate: r.rate.rate })
+      ? t(locale, 'rate.flash.set', { rate: r.rate.rate })
       : t(locale, `rate.flash.${r.code}` as MessageKey);
     return reply.redirect(`/app/settings/rate?flash=${encodeURIComponent(flash)}`);
   });
@@ -2072,7 +2099,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
     });
     const flash = r.code === 'added'
-      ? t(locale, 'closures.flash.added', { name: deps.employeeName, label: r.label })
+      ? t(locale, 'closures.flash.added', { label: r.label })
       : t(locale, `closures.flash.${r.code}` as MessageKey);
     return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(flash)}`);
   });
@@ -2121,7 +2148,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (cookie !== undefined) writeCookie(reply, ISSUED_COOKIE, '', { path: ISSUED_PATH, maxAgeSec: 0 });
     return renderPeople({
       people: await loadPeople(deps.db, sess.businessId), justIssued,
-      assistants: await loadAssistants(deps.db, sess.businessId),
+      assistants: await loadAssistants(deps.db, sess.businessId, locale),
     }, locale,
       typeof (req.query as { flash?: string }).flash === 'string'
         ? (req.query as { flash: string }).flash : null);
@@ -2150,7 +2177,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/settings/people/assistants', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
-    const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
+    const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id, localeOf(req));
+    names.evict(s.businessId);
     return teamFlash(reply, assistantFlash(localeOf(req), r.outcome, 'added', r.name));
   });
 
@@ -2159,6 +2187,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const outcome = await updateAssistantFromForm(deps.db, s.businessId, (req.params as { id: string }).id,
       (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
+    names.evict(s.businessId);
     return teamFlash(reply, assistantFlash(localeOf(req), outcome, 'saved'));
   });
 
@@ -2800,7 +2829,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
     });
     const flash = r.code === 'saved'
-      ? t(locale, 'samples.flash.saved', { name: deps.employeeName })
+      ? t(locale, 'samples.flash.saved')
       : t(locale, `samples.flash.${r.code}` as MessageKey);
     return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(flash)}`);
   });

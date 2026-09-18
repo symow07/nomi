@@ -4,7 +4,8 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { formatMoneyCompact } from '../../core/owner/format.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, orderStatusName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { esc } from './layout.js';
 
 /**
@@ -107,7 +108,7 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
 /** ── Renderer (pure, mobile-first, localized) ─────────────────────────────── */
 
 export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const rangeLabel = t(locale, `analytics.range.${d.range}` as MessageKey);
   const stat = (value: number, key: MessageKey): string =>
     `<div class="stat"><div class="v">${value}</div><div class="l">${esc(t(locale, key))}</div></div>`;

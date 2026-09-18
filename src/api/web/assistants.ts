@@ -1,7 +1,8 @@
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import {
   ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, validateAssistant,
   type Assistant, type AssistantProblem,
@@ -19,11 +20,11 @@ import { esc } from './layout.js';
  */
 
 /** Everyone who answers, the main one first — made the first time the page is opened. */
-export async function loadAssistants(db: Db, businessIdRaw: string): Promise<readonly Assistant[]> {
+export async function loadAssistants(db: Db, businessIdRaw: string, locale: Locale): Promise<readonly Assistant[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => {
-    await ensureDefaultAssistant(tx, bid.value);
+    await ensureDefaultAssistant(tx, bid.value, EMPLOYEE_NAME[locale]);
     return listAssistants(tx, bid.value);
   });
 }
@@ -40,13 +41,13 @@ const inputFrom = (body: Record<string, unknown>) => ({
 });
 
 export async function addAssistantFromForm(
-  db: Db, businessIdRaw: string, body: Record<string, unknown>, actor: string,
+  db: Db, businessIdRaw: string, body: Record<string, unknown>, actor: string, locale: Locale,
 ): Promise<{ outcome: AssistantOutcome; name: string }> {
   const v = validateAssistant(inputFrom(body));
   if (!v.ok) return { outcome: v.problem, name: '' };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { outcome: 'not_found', name: '' };
-  const outcome = await withTenantTx(db, bid.value, (tx) => addAssistant(tx, bid.value, v.value, actor));
+  const outcome = await withTenantTx(db, bid.value, (tx) => addAssistant(tx, bid.value, v.value, actor, EMPLOYEE_NAME[locale]));
   return { outcome, name: v.value.name };
 }
 

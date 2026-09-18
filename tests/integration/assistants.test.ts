@@ -155,6 +155,38 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     expect(open).toBe('0');
   });
 
+  it('A5.2 — she renames the main one, and every page says the new name at once', async () => {
+    const before = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
+    expect(before.body).toContain('Lily');
+    const lily = (await rows()).find((x) => x.is_default)!;
+    await post(ownerCookie, `/app/settings/people/assistants/${lily.id}`, 'name=Sara&role=sales');
+    const after = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
+    expect(after.statusCode).toBe(200);
+    expect(after.body).toContain('Sara');
+    expect(after.body).not.toContain('Lily');
+  });
+
+  it('A5.2 — and a form she posts answers in that name too (the scope outlives reading the body)', async () => {
+    const res = await post(ownerCookie, '/app/settings/closures', 'label=Spring%20Festival&from=2030-02-01&to=2030-02-10');
+    expect(res.statusCode).toBe(302);
+    expect(flashOf(res)).toContain('Sara');
+    expect(flashOf(res)).not.toContain('Lily');
+  });
+
+  it('A5.2 — a conversation page says ITS assistant, even one since removed; the rest of the app says the main one', async () => {
+    const c = await tx(async (t) => (await sql<{ id: string }>`
+      select c.id::text as id from conversations c join assistants a on a.id = c.assistant_id
+       where c.business_id = ${BIZ}::uuid and a.name = 'Nora' order by c.created_at limit 1`.execute(t)).rows[0]);
+    // Removing Nora handed her OPEN conversations back, so none still names her…
+    expect(c).toBeUndefined();
+    // …and the one that was hers now reads as the main assistant's.
+    const conv = await startConversation('instagram', `ig-${RUN}`);
+    const page = await app.inject({ method: 'GET', url: `/app/inbox/${conv.conversationId}`, headers: { cookie: ownerCookie } });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Sara');
+    expect(page.body).not.toContain('Lily');
+  });
+
   it('the app cannot erase one even if it tried', async () => {
     await expect(tx((t) => sql`delete from assistants where business_id = ${BIZ}::uuid`.execute(t))).rejects.toThrow(/permission denied/);
   });

@@ -1024,6 +1024,20 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A5.2 · Her name is the business's, on every page (2026-09-19).** The name
+  was one constant per language, filled into every sentence that says `{name}`
+  — about 150 of them — so a renamed assistant was still "Lily" everywhere. The
+  name is now a fact about the request: the main assistant's on a page about
+  the whole business, the conversation's own on a page about one conversation
+  (even one since removed — a conversation she held still names her), and the
+  same on the alert to the owner's phone and the buyer's proof page. The
+  catalogue stays pure, so the web layer wraps it (`src/api/web/say.ts`); the
+  scope opens on `preHandler`, because one opened before the body is read is
+  gone by the time a form's handler runs. Remembered a minute per business and
+  forgotten on a rename. An account that never renamed anyone reads exactly as
+  before; the main assistant is named in the language she was browsing in when
+  it was made. Fixed on the way: five save messages were handed the
+  installation's one configured name, so English pages said "小雅".
 - **A5.1 · More than one assistant: name, job, channels (2026-09-18, migration
   0059).** A business asked for several assistants for different reasons. v1, as
   decided: they differ by name, job (sales, support, after-sales, other) and the
@@ -1035,10 +1049,9 @@ Drafts folder.
   decided once, where a conversation is created, and written on it; a
   conversation from before keeps a blank, read as the main one. Removing one
   archives it and hands its open conversations back; the app role cannot erase
-  one. Owner-only, by the same rule as adding a person. **Not yet:** her name in
-  the rest of the copy is still one constant per language (A5.2), and the reply
-  writer is not yet told who is speaking (A5.3) — so today the difference is
-  who is named, not how they sound.
+  one. Owner-only, by the same rule as adding a person. **Not yet:** the reply
+  writer is not yet told who is speaking (A5.3) — so the difference is who is
+  named, not how they sound.
 - **A3 · A code by e-mail, at sign-up and on a new browser (2026-09-18,
   migration 0058).** A password does not prove the address is hers, and does not
   stop someone who learned it elsewhere. With a sender configured
