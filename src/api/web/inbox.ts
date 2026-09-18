@@ -397,6 +397,11 @@ export type LastHumanAction = {
 export type ConversationDetail = {
   readonly conversationId: string;
   readonly buyer: string | null;
+  /**
+   * A5 — which assistant answers this conversation. Named only when the
+   * business has more than one: with one, saying so tells her nothing.
+   */
+  readonly answeredBy?: string | null;
   readonly country: string | null;
   readonly status: InboxStatus;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -516,9 +521,18 @@ export async function loadConversationDetail(
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
+      answered_by: string | null; assistants: number;
     }>`
       select c.id, cl.display_name as buyer, cl.country, p.name_zh, p.name,
              cs.inquiry_quantity as qty, c.assigned_to, c.closed_at,
+             -- A5: the conversation's own assistant; one that started before
+             -- there was a second belongs to the main one.
+             coalesce(
+               (select a.name from assistants a where a.id = c.assistant_id),
+               (select a.name from assistants a
+                 where a.business_id = c.business_id and a.is_default and a.archived_at is null)) as answered_by,
+             (select count(*)::int from assistants a
+               where a.business_id = c.business_id and a.archived_at is null) as assistants,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending
         from conversations c
         left join clients cl on cl.id = c.client_id
@@ -669,6 +683,7 @@ export async function loadConversationDetail(
         : null,
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
+      answeredBy: head.assistants > 1 ? head.answered_by : null,
       refusals,
       uncertainSends,
       handoffReasons,
@@ -1175,6 +1190,7 @@ export function renderConversationDetail(
       <div class="who">${who(locale, d.buyer, d.country)}</div>
       ${d.ownership === 'AI' ? statusPill(locale, d.status, d.pendingDraft !== null) : ''}
     </div>
+    ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
     ${flashHtml}
     ${unheardCard}

@@ -39,6 +39,9 @@ import {
   loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
+import {
+  addAssistantFromForm, archiveAssistantById, assistantFlash, loadAssistants, updateAssistantFromForm,
+} from './assistants.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
 import { DAILY_OUTREACH_CEILING } from '../../core/channel/limits.js';
@@ -2116,7 +2119,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cookie = parseCookies(req.headers.cookie)[ISSUED_COOKIE];
     const justIssued = readIssuedCode(deps.sessionSecret, cookie, Date.now());
     if (cookie !== undefined) writeCookie(reply, ISSUED_COOKIE, '', { path: ISSUED_PATH, maxAgeSec: 0 });
-    return renderPeople({ people: await loadPeople(deps.db, sess.businessId), justIssued }, locale,
+    return renderPeople({
+      people: await loadPeople(deps.db, sess.businessId), justIssued,
+      assistants: await loadAssistants(deps.db, sess.businessId),
+    }, locale,
       typeof (req.query as { flash?: string }).flash === 'string'
         ? (req.query as { flash: string }).flash : null);
   }));
@@ -2135,6 +2141,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { path: ISSUED_PATH, maxAgeSec: Math.floor(ISSUED_TTL_MS / 1000) });
     return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
       t(locale, 'people.flash.added', { name: r.name }))}`);
+  });
+
+  // A5 — who answers buyers. Owner-only by the same rule as people: it is the team.
+  const teamFlash = (reply: FastifyReply, text: string) =>
+    reply.redirect(`/app/settings/people?flash=${encodeURIComponent(text)}#assistants`);
+
+  app.post('/app/settings/people/assistants', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
+    return teamFlash(reply, assistantFlash(localeOf(req), r.outcome, 'added', r.name));
+  });
+
+  app.post('/app/settings/people/assistants/:id', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const outcome = await updateAssistantFromForm(deps.db, s.businessId, (req.params as { id: string }).id,
+      (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
+    return teamFlash(reply, assistantFlash(localeOf(req), outcome, 'saved'));
+  });
+
+  app.post('/app/settings/people/assistants/:id/archive', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const outcome = await archiveAssistantById(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id);
+    return teamFlash(reply, assistantFlash(localeOf(req), outcome, 'archived'));
   });
 
   app.post('/app/settings/people/:id/remove', async (req, reply) => {

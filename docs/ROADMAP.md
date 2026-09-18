@@ -1024,6 +1024,21 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A5.1 · More than one assistant: name, job, channels (2026-09-18, migration
+  0059).** A business asked for several assistants for different reasons. v1, as
+  decided: they differ by name, job (sales, support, after-sales, other) and the
+  channels they answer on; what is sold, what was taught, price limits and what
+  may be done alone stay the business's, so nothing here can widen what a buyer
+  may be told. The assistant she always had becomes the main one, made the first
+  time the team page is opened and carrying the same name, and it answers every
+  channel nobody else was given. A channel has one answerer. Who answers is
+  decided once, where a conversation is created, and written on it; a
+  conversation from before keeps a blank, read as the main one. Removing one
+  archives it and hands its open conversations back; the app role cannot erase
+  one. Owner-only, by the same rule as adding a person. **Not yet:** her name in
+  the rest of the copy is still one constant per language (A5.2), and the reply
+  writer is not yet told who is speaking (A5.3) — so today the difference is
+  who is named, not how they sound.
 - **A3 · A code by e-mail, at sign-up and on a new browser (2026-09-18,
   migration 0058).** A password does not prove the address is hers, and does not
   stop someone who learned it elsewhere. With a sender configured
