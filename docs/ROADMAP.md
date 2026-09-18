@@ -1009,6 +1009,21 @@ Drafts folder.
   Instagram by the buyer's scoped id. The Instagram adapter now takes the Page
   id, and a refused send records Meta's numeric code beside the status —
   `meta 400 (#100)` — so the next one names its rule without a repro.
+- **A1 · A factory signs itself up (2026-09-18, migration 0055).** One access
+  code in the environment opened one business; a second factory could not exist
+  without the operator making its row by hand and redeploying — which locked the
+  first one out. Now `/signup` makes a business, its owner and her login
+  together, she signs in with her own e-mail and password, and staff codes name
+  their own business. Invite-only unless `SIGNUP_MODE` says otherwise, because
+  every workspace spends this installation's reply-writing key. The tenant is
+  still made in exactly one place — a definer function; the application role
+  still cannot insert a business. Passwords are scrypt with their parameters in
+  the stored string; five wrong tries lock a login for a quarter of an hour; the
+  door never says which addresses exist. Found on the way: Today read the
+  ENVIRONMENT's business instead of the session's, and the minute's sweep
+  (follow-ups, the domain check) ran for that one business only — both would
+  have been invisible until the second factory. Not built: password reset by
+  mail (no installation-wide sender exists), e-mail logins for staff.
 - **WhatsApp receives in production (2026-09-18).** The missing number was
   never a number problem: this developer account is simply not offered the
   WhatsApp product. What worked instead is written down as §8 of

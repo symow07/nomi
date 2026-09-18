@@ -1,5 +1,10 @@
 # Provisioning a factory (M17.5)
 
+> **Since A1 (2026-09-18) a factory can sign ITSELF up** — see
+> "A factory signs itself up" at the end. What follows is still how the FIRST
+> factory of an installation is made (the one `PILOT_BUSINESS_ID` names and
+> the environment's access code opens), and it is unchanged.
+
 How a new factory tenant is created. **This is deliberately an operator
 procedure, not a self-service signup** — there is no public registration, and
 creating a tenant requires database admin access. That is a security property,
@@ -172,3 +177,50 @@ it for as long as the factory's data-retention agreement requires.
   enforced and tested per tenant); it is the **owner login** that is single-tenant.
 - **Per-user accounts / RBAC** — documented as a future need since M15; no
   authentication changes have been made.
+
+## A factory signs itself up (A1)
+
+`/signup` asks four things — the factory's name, her name, an e-mail and a
+password — and makes a business, its owner and her login **together or not at
+all**. She is signed in to an empty, honest workspace; readiness starts at
+every item `○`, exactly as above. From then on she signs in at `/login` with
+that e-mail and password. Nobody copies an id, and nothing is redeployed.
+
+**Who may do it is the operator's decision, `SIGNUP_MODE`:**
+
+| Mode | What a stranger meets |
+|---|---|
+| `invite` (default) | The form, which also asks for an invitation. No valid one, no workspace. |
+| `open` | The form. Anyone who reaches it gets a workspace. |
+| `closed` | One sentence and no form. |
+
+Make an invitation (admin access, like everything else in this document):
+
+```bash
+MIGRATE_DATABASE_URL=<admin url> PUBLIC_BASE_URL=https://app.example.com \
+  node tools/invite-factory.mjs "Atlas Canvas — met at Canton Fair" 14
+```
+
+It prints a link, `/signup?invite=<id>`, good for one workspace and for the
+number of days given (14 if omitted).
+
+**The security property above still stands.** The application role still cannot
+insert into `businesses`. A tenant is made by one definer function,
+`provision_account` (migration 0055), which takes nothing that could name an
+existing tenant and spends the invitation in the same transaction. To the
+application role `signup_invites` does not exist: it can ask whether a ticket
+is good and nothing else, so nothing that faces the internet can mint one.
+
+**What every workspace shares, and what it does not.** Its data never (row-level
+security, as before). The installation's WhatsApp number can belong to one
+workspace only — a second one is told it is taken. Instagram, Messenger and
+Gmail are connected per workspace. **The reply-writing key is shared**: every
+workspace's drafts and live practice are paid for by this installation, which is
+why `open` is a decision and `invite` is the default. The `SMTP_*` sender is
+also installation-wide; leave it unset on an installation with more than one
+factory, because a domain's DNS records are public and would let one factory
+"verify" another's domain.
+
+**Not built yet:** a forgotten password is reset by the operator (there is no
+installation-wide mail sender to send a reset link with), and staff still sign
+in with the access codes their owner hands them.

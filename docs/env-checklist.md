@@ -56,8 +56,9 @@ channel must be re-authorised — see `SECRET-ROTATION.md`.
 
 | Variable | What it is |
 |---|---|
-| `PILOT_BUSINESS_ID` | **Which factory this deployment serves.** Boot refuses if it is unset, names a business that does not exist, or names the practice sandbox. Get it from `tools/provision-factory.mjs`. |
-| `OWNER_ACCESS_CODE` | The owner's only credential. If unset a random one is generated **per boot** and logged once — set it explicitly, or the code changes on every deploy. |
+| `PILOT_BUSINESS_ID` | **The one factory the access code below opens.** Boot refuses if it is unset, names a business that does not exist, or names the practice sandbox. Get it from `tools/provision-factory.mjs`. Since A1 it is no longer the only factory: others sign themselves up (`SIGNUP_MODE`) and sign in with their own e-mail and password. |
+| `OWNER_ACCESS_CODE` | The credential of THAT factory's owner, and only hers. If unset a random one is generated **per boot** and logged once — set it explicitly, or the code changes on every deploy. Factories that signed up never use it. |
+| `SIGNUP_MODE` | A1 — who may create a workspace at `/signup`: `invite` (the default, and what unset or anything unrecognised means) needs a single-use link from `tools/invite-factory.mjs`; `open` lets anyone who reaches the page; `closed` shows a sentence and no form. Every workspace shares this installation's reply-writing key, so `open` is a decision about who may spend it. |
 
 ## Messaging — off unless set
 

@@ -287,6 +287,7 @@ describe('M49 · buttons and empty states', () => {
     const CENTRED = new Map<string, string>([
       ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
+      ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
       ['pilot.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
     ]);
     const rogue: string[] = [];

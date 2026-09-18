@@ -100,7 +100,10 @@ describe('M34.10 · every insight carries somewhere to go', () => {
 
   it('the production caller renders it on Today', async () => {
     const src = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(src).toContain('loadInsights(deps.db, deps.businessId)');
+    // A1 — HER business, from her session: Today read the environment's one
+    // business until a second factory could sign in.
+    expect(src).toContain('loadInsights(deps.db, s.businessId)');
+    expect(src).not.toContain('loadInsights(deps.db, deps.businessId)');
     expect(src).toContain('renderInsights(insights, locale)');
   });
 });

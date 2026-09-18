@@ -36,7 +36,7 @@ import {
 } from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
-  loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson,
+  loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
@@ -112,7 +112,12 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, esc, back } from './layout.js';
+import { shell, loginPage, signupPage, esc, back } from './layout.js';
+import { renderAccount } from './account.js';
+import { makeThrottle, callerKey } from './throttle.js';
+import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
+import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
+import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -133,7 +138,9 @@ export type WebDeps = {
   readonly db: Db;
   readonly sessionSecret: string;      // derived from CREDENTIAL_KEY
   readonly accessCode: string;         // owner login (env or generated)
-  readonly businessId: string;         // pilot: the demo/pilot business
+  readonly businessId: string;         // the ONE business the environment's access code opens
+  /** A1 — who may create a workspace here. Absent means 'invite'. */
+  readonly signupMode?: SignupMode;
   readonly employeeName: string;
   readonly avatar: string;
   readonly provider: string;
@@ -266,7 +273,9 @@ export const PUBLIC_ROUTES: readonly {
 }[] = [
   { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way' },
   { method: 'GET', url: '/login', why: 'the login form itself' },
-  { method: 'POST', url: '/login', why: 'submitting the access code' },
+  { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
+  { method: 'GET', url: '/signup', why: 'A1 — how a factory gets a workspace; names no tenant, and says nothing about which e-mails have one' },
+  { method: 'POST', url: '/signup', why: 'A1 — creates a tenant through provision_account only; throttled, and gated by SIGNUP_MODE' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
@@ -645,13 +654,107 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/', async (req, reply) =>
     reply.redirect(sessionOf(req) ? '/app' : '/login'));
 
+  const signupMode: SignupMode = deps.signupMode ?? 'invite';
+  // The second line of defence; the first is the per-login lock in the database.
+  const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
+  const signupThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
+  const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
+  const html = (reply: FastifyReply, code: number, body: string) =>
+    reply.code(code).type('text/html; charset=utf-8').send(body);
+  const signIn = (reply: FastifyReply, businessId: string, person: NonNullable<OwnerSession['person']>, next = '/app') => {
+    setCookie(reply, codec.sign({ businessId, exp: Date.now() + SESSION_TTL_MS, person }), Math.floor(SESSION_TTL_MS / 1000));
+    return reply.redirect(next);
+  };
+
   app.get('/login', async (req, reply) =>
     sessionOf(req)
       ? reply.redirect('/app')
-      : reply.type('text/html; charset=utf-8').send(loginPage({ locale: localeOf(req), path: req.url })));
+      : reply.type('text/html; charset=utf-8').send(
+        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed' })));
+
+  /**
+   * A1 — a factory makes its own workspace.
+   *
+   * The page never says whether an address has an account before she submits,
+   * and after she does it says so only about the address SHE typed — which she
+   * could learn by trying to sign in anyway. The tenant is made by one definer
+   * function (0055); this route cannot insert a business any other way.
+   */
+  app.get('/signup', async (req, reply) => {
+    if (sessionOf(req)) return reply.redirect('/app');
+    const invite = String((req.query as { invite?: string }).invite ?? '').trim().slice(0, 64);
+    return html(reply, 200, signupPage({
+      locale: localeOf(req), path: req.url, mode: signupMode, passwordMin: PASSWORD_MIN,
+      contact: deps.legalContact ?? null, values: { invite },
+    }));
+  });
+
+  app.post('/signup', async (req, reply) => {
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const raw = {
+      factory: String(b['factory'] ?? ''), name: String(b['name'] ?? ''), email: String(b['email'] ?? ''),
+      password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
+    };
+    const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
+      html(reply, code, signupPage({
+        locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
+        values: { factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite }, ...extra,
+      }));
+    if (signupMode === 'closed') return again(403, {});
+    if (!signupThrottle.allow(callerOf(req), Date.now())) return again(429, { error: t(locale, 'signup.error.slow') });
+
+    const v = validateSignup(raw, { mode: signupMode, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX });
+    if (!v.ok) {
+      const sentence = (p: SignupProblem): string => t(locale, `signup.problem.${p}` as MessageKey, { n: PASSWORD_MIN });
+      const problems: Partial<Record<SignupField, string>> = {};
+      for (const [field, p] of Object.entries(v.problems) as [SignupField, SignupProblem][]) problems[field] = sentence(p);
+      return again(400, { problems });
+    }
+    // Checked BEFORE the slow hash is spent, so a bad ticket costs nothing.
+    if (signupMode === 'invite' && !(await inviteIsOpen(deps.db, v.value.invite!).catch(() => false))) {
+      return again(400, { error: t(locale, 'signup.error.invite_not_open') });
+    }
+    const made = await provisionAccount(deps.db, {
+      factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
+      passwordHash: await hashPassword(v.value.password),
+      invite: v.value.invite, inviteRequired: signupMode === 'invite',
+    });
+    if (made.code !== 'created') {
+      return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
+    }
+    return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
+      `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`);
+  });
 
   app.post('/login', async (req, reply) => {
-    const code = String((req.body as { code?: string } | undefined)?.code ?? '');
+    const body = (req.body ?? {}) as { code?: string; email?: string; password?: string };
+    const code = String(body.code ?? '');
+
+    /**
+     * A1 — HER OWN E-MAIL AND PASSWORD, for a factory that signed itself up.
+     *
+     * The e-mail names the business, so nobody is asked "which factory?". An
+     * unknown address spends the same slow verification a known one does and
+     * gets the same sentence, so the door does not say which addresses exist.
+     * A locked login is told to wait WITHOUT its password being checked: the
+     * lock must not become an oracle that still answers right-or-wrong.
+     */
+    if (typeof body.email === 'string' && body.email.trim() !== '') {
+      const locale = localeOf(req);
+      const email = normalizeEmail(body.email);
+      const password = String(body.password ?? '');
+      const refuse = (status: number, problem: 'password' | 'locked' | 'slow') =>
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed' }));
+      if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
+      const login = await lookupLogin(deps.db, email).catch(() => null);
+      if (!login) { await spendAVerification(password); return refuse(401, 'password'); }
+      if (login.lockedUntil && login.lockedUntil.getTime() > Date.now()) return refuse(429, 'locked');
+      const ok = password.length <= PASSWORD_MAX && await verifyPassword(password, login.passwordHash);
+      await recordLoginAttempt(deps.db, login.loginId, ok).catch(() => undefined);
+      if (!ok) return refuse(401, 'password');
+      return signIn(reply, login.businessId, login.person);
+    }
 
     /**
      * M47 — TWO WAYS IN, AND THE OWNER'S IS UNCHANGED.
@@ -681,18 +784,56 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
        * be verified must not be accepted. An unreachable database means nobody
        * new gets in, which is the safe direction.
        */
-      const staff = await personForCode(deps.db, deps.businessId, deps.sessionSecret, code)
-        .catch(() => null);
-      if (!staff) {
-        return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login', error: true }));
+      // A1 — a staff code names its OWN business (0055, person_for_code), so
+      // the people a second factory adds can sign in too. It is tried against
+      // the environment's business first, exactly as before, so nothing about
+      // the pilot's staff depends on the new lookup.
+      if (!loginThrottle.allow(callerOf(req), Date.now())) {
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed' }));
       }
-      person = staff;
+      const mine = code.trim() === '' ? null
+        : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
+      const theirs = mine || code.trim() === '' ? null
+        : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
+      if (!mine && !theirs) {
+        return reply.code(401).type('text/html; charset=utf-8')
+          .send(loginPage({ locale: localeOf(req), path: '/login', error: true, signupOpen: signupMode !== 'closed' }));
+      }
+      if (theirs) return signIn(reply, theirs.businessId, theirs.person);
+      person = mine!;
     }
 
-    const token = codec.sign({ businessId: deps.businessId, exp: Date.now() + SESSION_TTL_MS, person });
-    setCookie(reply, token, Math.floor(SESSION_TTL_MS / 1000));
-    return reply.redirect('/app');
+    return signIn(reply, deps.businessId, person);
+  });
+
+  /**
+   * A1 — "how do I sign in?" Her own e-mail, and her own password changed only
+   * against the one she has now: a session left open on a shared computer must
+   * not be enough to lock her out of her own factory.
+   */
+  app.get('/app/settings/account', authed('settings', async (s, req, locale) => {
+    const bid = parseBusinessId(s.businessId);
+    const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.settings'));
+  }));
+
+  app.post('/app/settings/account/password', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as { current?: string; next?: string };
+    const done = (key: MessageKey) =>
+      reply.redirect(`/app/settings/account?flash=${encodeURIComponent(t(locale, key, { n: PASSWORD_MIN }))}`);
+    const bid = parseBusinessId(s.businessId);
+    const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
+    if (!bid.ok || !mine) return done('account.flash.failed');
+    if (!loginThrottle.allow(`pw:${personOf(s).id}`, Date.now())) return done('account.flash.failed');
+    if (!(await verifyPassword(String(b.current ?? ''), mine.passwordHash))) return done('account.flash.wrong');
+    const next = String(b.next ?? '');
+    if (next.length < PASSWORD_MIN || next.length > PASSWORD_MAX) return done('account.flash.short');
+    const saved = await setPassword(deps.db, bid.value, personOf(s).id, await hashPassword(next)).catch(() => false);
+    return done(saved ? 'account.flash.changed' : 'account.flash.failed');
   });
 
   app.get('/logout', async (_req, reply) => {
@@ -727,15 +868,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The landing page now renders the M16.2a operations snapshot: the read model
   // is the boundary, so this route composes loadOperationsSnapshot +
   // renderOperationsHome and queries nothing else. Counts only; no new metrics.
-  app.get('/app', authed('home', async (_s, _req, locale) => {
+  app.get('/app', authed('home', async (s, _req, locale) => {
     // Phase B: Today composes two EXISTING read models — the operations snapshot
     // and the pilot feedback loop. No new query, no new storage.
     // M34.10 — plus the insights, which are the only part of this page that
     // tells the owner what to DO rather than what happened.
     const [snapshot, feedback, insights] = await Promise.all([
-      loadOperationsSnapshot(deps.db, deps.businessId, 'today', deps.provider, messagingEnabled),
-      loadPilotFeedback(deps.db, deps.businessId, 'today'),
-      loadInsights(deps.db, deps.businessId),
+      // A1 — HER business, from her session. This read the environment's one
+      // business, which was the same thing until a second factory could sign in.
+      loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
+      loadPilotFeedback(deps.db, s.businessId, 'today'),
+      loadInsights(deps.db, s.businessId),
     ]);
     return renderInsights(insights, locale) + renderOperationsHome(snapshot, locale, {
       conversationsNeedingYou: feedback.conversationsNeedingYou,
