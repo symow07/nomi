@@ -583,6 +583,9 @@ export async function buildProduction(
   };
 
   let closing = false;
+  /** The minute's sweep gives way to the next minute, and looks up few domains at a time. */
+  const SWEEP_BUDGET_MS = 40_000;
+  const DOMAIN_CHECKS_PER_SWEEP = 3;
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'],
     channels: channelsHere,
@@ -803,18 +806,41 @@ export async function buildProduction(
      *
      * One factory's failure must not cost the others their minute.
      */
+    /**
+     * A MINUTE'S WORK FITS IN A MINUTE, AND STOPS WHEN TOLD TO.
+     *
+     * With one business this loop could not run long. With many it can: a
+     * domain check is three DNS look-ups, and a name that does not resolve
+     * waits out its timeout — a few hundred of those held the process open
+     * past its shutdown deadline (found on a test database full of workspaces
+     * whose domains never existed). So: it leaves the moment the process is
+     * closing, it stops after forty seconds so the next minute never overlaps
+     * it, and it looks up at most three domains a minute. A checked domain is
+     * not due again for an hour at least, so the next minute takes the next
+     * three and nobody is starved. The ORDER is unchanged: her domain is looked
+     * at before her sends in the same minute, so a follow-up is not held for
+     * want of someone pressing "Look again".
+     */
+    const started = Date.now();
     const listed = await liveBusinessIds(db).catch(() => [] as readonly string[]);
-    for (const id of new Set([PILOT_BUSINESS_ID, ...listed])) {
-      const tenant = parseBusinessId(id);
-      if (!tenant.ok) continue;
+    const tenants = [...new Set([PILOT_BUSINESS_ID, ...listed])]
+      .map((id) => parseBusinessId(id)).flatMap((b) => (b.ok ? [b.value] : []));
+    const spent = (): boolean => closing || Date.now() - started > SWEEP_BUDGET_MS;
+
+    let lookedUp = 0;
+    for (const tenant of tenants) {
+      if (spent()) return;
       // Her domain check lapses after a week by design; the clock looks again
-      // before it does, so a follow-up is never held for want of someone pressing
-      // "Look again". Its failure must not cost the minute's sends — and cannot
-      // authorise one: a lookup that fails records `missing`.
-      await refreshDomainCheckIfDue({
-        db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
-      }, tenant.value, new Date()).catch((e: unknown) => console.warn('[domain-check]', e instanceof Error ? e.message : e));
-      await runDueSteps(sequenceDeps, tenant.value)
+      // before it does. Its failure must not cost the minute's sends — and
+      // cannot authorise one: a lookup that fails records `missing`.
+      if (lookedUp < DOMAIN_CHECKS_PER_SWEEP) {
+        const r = await refreshDomainCheckIfDue({
+          db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
+        }, tenant, new Date()).catch((e: unknown) => { console.warn('[domain-check]', e instanceof Error ? e.message : e); return 'checked' as const; });
+        if (r === 'checked') lookedUp++;
+      }
+      if (spent()) return;
+      await runDueSteps(sequenceDeps, tenant)
         .catch((e: unknown) => console.warn('[sequences]', e instanceof Error ? e.message : e));
     }
   });
