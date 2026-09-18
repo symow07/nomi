@@ -1,4 +1,6 @@
 import { sql } from 'kysely';
+import { assistantIdForChannel } from './assistants.js';
+import type { AssistantRole } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
 import { writeOrderState } from './orders.js';
@@ -135,6 +137,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
           business_id: businessId, client_id: clientId, channel,
           phase: 'warm_intake', is_active: true, assigned_to: null,
           assigned_at: null, closed_at: null,
+          // A5 — who answers is decided wherever a conversation is created.
+          assistant_id: await assistantIdForChannel(tx, businessId, channel),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -169,6 +173,27 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .set({ phase: 'closed', is_active: false, closed_at: new Date() })
         .where('id', '=', id)
         .execute();
+    },
+    // A5.3 — the conversation's own assistant, archived or not (a conversation
+    // she held still names her); else the main one; else nobody.
+    async speaker(id) {
+      const r = (await sql<{
+        a_name: string | null; a_role: AssistantRole | null; a_note: string | null;
+        b_name: string; b_kind: string | null; b_country: string | null; b_description: string | null;
+      }>`
+        select a.name as a_name, a.role as a_role, a.note as a_note,
+               b.name as b_name, b.kind as b_kind, b.country as b_country, b.description as b_description
+          from conversations c
+          join businesses b on b.id = c.business_id
+          left join assistants a on a.id = coalesce(c.assistant_id,
+               (select d.id from assistants d
+                 where d.business_id = c.business_id and d.is_default and d.archived_at is null))
+         where c.id = ${id}::uuid and c.business_id = ${businessId}::uuid`.execute(tx)).rows[0];
+      if (!r) return null;
+      return {
+        name: r.a_name, role: r.a_role, note: r.a_note,
+        business: { name: r.b_name, kind: r.b_kind, country: r.b_country, description: r.b_description },
+      };
     },
   };
 

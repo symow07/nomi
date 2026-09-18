@@ -1024,6 +1024,55 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A5.4 · She hands one buyer to another assistant (2026-09-19).** Who answers
+  is decided when a conversation starts; this is the only other writer of it.
+  On the conversation page, once there is more than one assistant, the owner
+  sees who answers and can change it — only someone still on the team can be
+  chosen, a finished conversation offers nothing, and saying it twice writes no
+  second line. It changes who SPEAKS and nothing about what may be said, and it
+  is recorded in the conversation's own history with who did it. Owner-only,
+  through the same gate as the team page. **Known limit:** messages already
+  sent are labelled with whoever answers now; a message does not yet remember
+  which assistant wrote it.
+- **A5.3 · The reply writer knows who is speaking, and for whom (2026-09-19).**
+  Every reply was written by "a business representative for a Yiwu, China export
+  trading company" — for an agency in Casablanca too. The three instruction
+  files now assume nothing about the business; what it is comes from what the
+  owner said (name, kind, country, what it sells), and who the writer is comes
+  from the conversation's assistant: name, job, and her own note on how this one
+  should sound, which the team page now asks for. A key is present only when she
+  said something. It shapes tone and focus and is never a source of facts: the
+  guards run on the output as before, a number in her note stays unsayable, and
+  only a digit inside the assistant's or the business's NAME is sourced — hers
+  the way a closure's label is — so signing off cannot fail the guard. Who
+  answers is now also set on the repository's own create path, not only where a
+  channel message arrives.
+- **A5.2 · Her name is the business's, on every page (2026-09-19).** The name
+  was one constant per language, filled into every sentence that says `{name}`
+  — about 150 of them — so a renamed assistant was still "Lily" everywhere. The
+  name is now a fact about the request: the main assistant's on a page about
+  the whole business, the conversation's own on a page about one conversation
+  (even one since removed — a conversation she held still names her), and the
+  same on the alert to the owner's phone and the buyer's proof page. The
+  catalogue stays pure, so the web layer wraps it (`src/api/web/say.ts`); the
+  scope opens on `preHandler`, because one opened before the body is read is
+  gone by the time a form's handler runs. Remembered a minute per business and
+  forgotten on a rename. An account that never renamed anyone reads exactly as
+  before; the main assistant is named in the language she was browsing in when
+  it was made. Fixed on the way: five save messages were handed the
+  installation's one configured name, so English pages said "小雅".
+- **A5.1 · More than one assistant: name, job, channels (2026-09-18, migration
+  0059).** A business asked for several assistants for different reasons. v1, as
+  decided: they differ by name, job (sales, support, after-sales, other) and the
+  channels they answer on; what is sold, what was taught, price limits and what
+  may be done alone stay the business's, so nothing here can widen what a buyer
+  may be told. The assistant she always had becomes the main one, made the first
+  time the team page is opened and carrying the same name, and it answers every
+  channel nobody else was given. A channel has one answerer. Who answers is
+  decided once, where a conversation is created, and written on it; a
+  conversation from before keeps a blank, read as the main one. Removing one
+  archives it and hands its open conversations back; the app role cannot erase
+  one. Owner-only, by the same rule as adding a person.
 - **A3 · A code by e-mail, at sign-up and on a new browser (2026-09-18,
   migration 0058).** A password does not prove the address is hers, and does not
   stop someone who learned it elsewhere. With a sender configured

@@ -8,7 +8,8 @@ import {
 import { buildInvoice, renderInvoiceEn } from '../../core/commerce/invoice.js';
 import { moneyFromRow, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import { esc, back, deeper } from './layout.js';
 
@@ -187,7 +188,7 @@ export async function recordOrderUpdate(
 }
 
 export function renderOrder(v: OrderView, locale: Locale, flash: string | null): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   // G18 — the order's own money, in the order's own currency. Both of these
   // used to be rebuilt as dollars and then hidden unless the order WAS in
   // dollars, so an order taken in ￥ showed her no total and no proforma at

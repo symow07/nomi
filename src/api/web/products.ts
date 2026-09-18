@@ -5,7 +5,8 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
 import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
@@ -325,7 +326,7 @@ export const importFlash = (
   // class: an imported product is not learned, because the floor that decides
   // what she may never go below has not been stated by anyone. It says what
   // was added and what is still needed before she can quote any of it.
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const parts: string[] = [];
   // G16 — "Added 0 products" is not news when the page changed prices instead.
   if (r.added > 0 || !(r.updated || r.alreadyHere || r.refused)) {
@@ -358,11 +359,11 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
   const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
-    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: EMPLOYEE_NAME[locale] }))}
+    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: assistantName(locale) }))}
       <a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a></p></div>` : ''}`;
   if (items.length === 0) {
     return `${head}
-      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
+      <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: assistantName(locale) }))}</span>
       <div style="margin-top:var(--space-16)"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
   }
   const cards = items.map((p) => {
@@ -392,7 +393,7 @@ export function renderProductDetail(
   // M29 — the edit form. Everything an owner can change about a product she
   // already has; the price limits are their own page because they are three
   // questions about the business, not fields on a row.
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const ferr = (f: ProductEditField): string =>
     errors[f] ? `<p class="perr">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   const val = (f: string, fallback: string): string =>
@@ -420,7 +421,7 @@ export function renderProductDetail(
 
   const aliases = d.aliases.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
-        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: EMPLOYEE_NAME[locale] }))}</p></div>`
+        <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: assistantName(locale) }))}</p></div>`
     : '';
 
   const images = d.images.length
@@ -436,7 +437,7 @@ export function renderProductDetail(
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.status)}</div>
-    ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
+    ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}

@@ -7,7 +7,8 @@ import {
 } from '../../db/sequences.js';
 import type { ContactRow } from '../../db/contacts.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';

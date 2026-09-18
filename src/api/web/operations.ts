@@ -5,7 +5,8 @@ import { ownershipOf } from '../../core/conversation/ownership.js';
 import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { countRefusals } from './refusals.js';
 import { checkBudget } from '../../core/budget.js';
 import { esc, deeper } from './layout.js';
@@ -252,7 +253,7 @@ const countLine = (value: number, label: string): string =>
 export function renderOperationsHome(
   s: OperationsSnapshot, locale: Locale, takeover?: TakeoverObservation,
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
 
   // 1 · Needs your attention — one tappable row per real concern, in priority
   //     order. Nothing to do ⇒ a calm state that says so and stops.

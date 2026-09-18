@@ -4,7 +4,8 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { detectClaims } from '../../core/safety/claims.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 

@@ -15,7 +15,7 @@ Order of work. Each item ships and deploys on its own.
 | A2 | Sign-up asks about the business; nothing says "factory" | ✅ live 2026-09-18 (0056) |
 | A4 | Team page: everyone, who is online, last seen | ✅ built 2026-09-18 (0057) |
 | A3 | E-mail codes at sign-up and on a new device | ✅ built 2026-09-18 (0058) — OFF until `SYSTEM_SMTP_*` is set |
-| A5 | Several assistants: name, role, channels | plan below — owner confirms before it is built |
+| A5 | Several assistants: name, role, channels | owner said go 2026-09-18 · A5.1 built (0059): table, main assistant, team page, routing · A5.2 built: her name per request · A5.3 built: the reply writer is told who speaks and for which business · A5.4 built: the owner hands one buyer to another assistant · known limit: a sent message does not remember which assistant wrote it |
 
 ## A2 · Sign-up asks about the business, and the product stops saying "factory"
 
@@ -59,7 +59,7 @@ again when signing in from a browser not seen before.
   login; clearing cookies or a new device asks for a code again.
 - The same sender makes **"forgot my password"** possible; it follows A3.
 
-## A5 · Several assistants — for the owner to confirm
+## A5 · Several assistants — confirmed 2026-09-18
 
 **Decision taken:** v1 assistants differ by **name, role and channels**.
 Products, taught facts, price limits and what-she-may-do-alone stay shared by

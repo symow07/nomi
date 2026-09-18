@@ -2,7 +2,8 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey, EMPLOYEE_NAME } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -213,7 +214,7 @@ export function renderSettings(
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${form}${categories}
     ${deeper('/app/settings/forbidden',
-      t(locale, 'forbidden.title', { name: EMPLOYEE_NAME[locale] }))}
+      t(locale, 'forbidden.title', { name: assistantName(locale) }))}
     ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
@@ -309,7 +310,7 @@ export async function removeForbidden(
 }
 
 export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string | null): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <section class="block">
@@ -419,7 +420,7 @@ export async function setRate(
 }
 
 export function renderRate(v: RateView, locale: Locale, flash: string | null): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: formatDate(locale, r.statedAt) }))}</span>`;
   return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
@@ -512,7 +513,7 @@ export async function removeClosure(
 }
 
 export function renderClosures(v: ClosureView, locale: Locale, flash: string | null): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: formatDate(locale, c.from), to: formatDate(locale, c.to) });
   return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
@@ -658,7 +659,7 @@ export async function saveTerms(
 }
 
 export function renderTerms(v: TermsView, locale: Locale, flash: string | null): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
        <p class="muted">${esc(t(locale, 'terms.setOn', { date: formatDate(locale, v.terms.statedAt) }))}</p>`
@@ -717,7 +718,7 @@ export async function markSampleHandled(
 }
 
 export function renderSamples(v: SamplesView, locale: Locale, flash: string | null, now: Date): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const stated = v.policy
     ? `<p class="stated-now">${
         v.policy.price.amount === 0

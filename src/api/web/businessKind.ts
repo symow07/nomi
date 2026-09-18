@@ -1,7 +1,8 @@
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { BUSINESS_KINDS, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';

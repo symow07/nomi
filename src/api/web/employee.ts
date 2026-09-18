@@ -5,7 +5,8 @@ import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spo
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, capabilityName, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -213,7 +214,7 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
 export function renderEmployee(
   e: EmployeeProfile, locale: Locale, flash: string | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const capName = (c: string) => capabilityName(locale, c);
   const stageLabel = t(locale, `employee.stage.${e.stage}` as MessageKey);
 

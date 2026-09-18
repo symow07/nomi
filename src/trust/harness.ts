@@ -111,6 +111,7 @@ class HarnessTenant implements Tenant {
     create: async () => { throw new Error('harness: create not used'); },
     assign: async () => {},
     close: async () => {},
+    speaker: async () => null,
   };
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
   /** G11 — the harness proves decisions, not links: no host, so no link. */

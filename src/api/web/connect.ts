@@ -6,7 +6,8 @@ import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/regis
 import type { KeyStatus } from '../../prospects/service.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { esc } from './layout.js';
@@ -172,14 +173,14 @@ export function renderAccounts(
         body: `<p class="muted">${esc(t(locale, 'reach.cold.never'))}</p>${here && link?.connected
           ? `<p class="muted">${esc(link.connectedAs
             ? t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs })
-            : t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</p>` : ''}`,
+            : t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</p>` : ''}`,
       };
     }),
   ];
 
   return `<div class="block accounts">
     <h2>${esc(t(locale, 'connect.title'))}</h2>
-    <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: assistantName(locale) }))}</p>
     <ul class="accs">${rows.map((r) => `<li class="acc">
       <div class="acc-h"><span class="ch-name">${esc(r.name)}</span><span class="pill ${r.tone}">${esc(r.state)}</span></div>
       ${r.body}

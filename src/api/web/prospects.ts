@@ -2,7 +2,8 @@ import type { SearchFilter, SearchOutcome, SourceFailureReason } from '../../con
 import type { KeyStatus, NoSource } from '../../prospects/service.js';
 import type { Enrichment } from '../../db/prospects.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, esc } from './layout.js';

@@ -4,9 +4,12 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../../core/conversation/people.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import { formatDate, formatRelative } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
+import { renderAssistantsSection } from './assistants.js';
+import type { Assistant } from '../../core/owner/assistants.js';
 
 /**
  * M47 — the people who can log in, and the codes that let them.
@@ -104,6 +107,8 @@ export type PeopleView = {
   readonly people: readonly TeamMember[];
   /** Shown ONCE, immediately after creating someone. Never stored. */
   readonly justIssued: { readonly name: string; readonly code: string } | null;
+  /** A5 — who answers buyers. Absent on a caller that shows only people. */
+  readonly assistants?: readonly Assistant[];
 };
 
 export async function loadPeople(db: Db, businessIdRaw: string): Promise<readonly TeamMember[]> {
@@ -250,6 +255,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: string | null
         <button class="btn send" type="submit">${esc(t(locale, 'people.add.button'))}</button>
       </form>
     </section>
+    ${v.assistants ? renderAssistantsSection(v.assistants, locale) : ''}
     <section class="block">
       <h2>${esc(t(locale, 'people.ownerOnly.title'))}</h2>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.intro'))}</p>

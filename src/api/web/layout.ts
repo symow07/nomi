@@ -1,6 +1,7 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, faviconDataUri } from '../../core/owner/brand.js';
 
@@ -347,7 +348,7 @@ export function shell(input: {
   readonly bodyHtml: string;
 }): string {
   const { locale } = input;
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const nav = NAV.map((n) =>
     `<a href="${n.href}" class="navlink ${n.id === input.active ? 'active' : ''}"
        >${esc(t(locale, `nav.${n.id}` as MessageKey))}</a>`).join('');

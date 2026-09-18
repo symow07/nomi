@@ -16,7 +16,8 @@ import {
   DNS_RECORDS, mayUseDomain, recordHost, type DnsRecordKind,
 } from '../../core/outreach/domain.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
@@ -311,7 +312,7 @@ export async function testChannel(db: Db, businessIdRaw: string, actor: string, 
 
 /** Localize an action result for the flash — called by the route (has locale). */
 export const channelFlash = (locale: Locale, code: ChannelFlash): string =>
-  t(locale, `channel.flash.${code}` as MessageKey, { name: EMPLOYEE_NAME[locale] });
+  t(locale, `channel.flash.${code}` as MessageKey, { name: assistantName(locale) });
 
 /** ── Renderers (pure, mobile-first, localized, no secrets) ────────────────── */
 
@@ -332,7 +333,7 @@ const COMING_SOON: readonly ({ literal: string } | { key: MessageKey })[] = [
 ];
 
 function problemBlock(locale: Locale, code: Exclude<ChannelProblem, null>): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const what = t(locale, `channel.problem.${code}.what` as MessageKey);
   const doing = t(locale, `channel.problem.${code}.doing` as MessageKey, { name });
   const youKey = `channel.problem.${code}.youDo` as MessageKey;
@@ -500,7 +501,7 @@ export function renderReach(
       : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
     const connect = cap.coldInitiate !== 'never' || !cap.availableHere || !link?.configured ? ''
       : link.connected
-        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</div>
+        ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: assistantName(locale) }))}</div>
           ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
           ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
           ${!link.connectedAs && !link.needsAttention && link.connectHref && viewer.isOwner
@@ -631,7 +632,7 @@ export function renderChannels(
         ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
       : data.canConnect
         ? `<form method="post" action="/app/channels/whatsapp/connect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.connectNumber'))}</button></form>
-           <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: EMPLOYEE_NAME[locale] }))}</div>`
+           <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: assistantName(locale) }))}</div>`
         : `<a class="btn send" href="/app/channels/whatsapp/connect">${esc(t(locale, 'channel.action.connect'))}</a>`;
 
   const pill = w.connected ? `${esc(t(locale, 'channel.status.connected'))} ✓` : esc(t(locale, `channel.status.${w.status}` as MessageKey));
@@ -656,7 +657,7 @@ export function renderChannels(
 
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
-    <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: EMPLOYEE_NAME[locale] }))}</p>
+    <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
     <form method="post" action="/app/settings/owner-phone" class="ownerform">
       <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" />
@@ -683,7 +684,7 @@ export function renderChannels(
 }
 
 export function renderConnectGuide(locale: Locale): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'channel.connect.title'))}</h1>
     <div class="block">
       <p>${esc(t(locale, 'channel.connect.intro', { name }))}</p>

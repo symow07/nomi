@@ -1,4 +1,4 @@
-import { t } from '../../core/owner/i18n/messages.js';
+import { t } from './say.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { esc } from './layout.js';

@@ -4,7 +4,8 @@ import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney, formatQty } from '../../core/owner/i18n/format.js';
 import { esc, back } from './layout.js';
 import { productName } from './inbox.js';
@@ -407,7 +408,7 @@ export function renderPriceRules(
   draft: { productId?: string | null } = {},
   volumeErrors: Partial<Record<VolumeField, VolumeError>> = {},
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const err = (f: PriceRuleField): string =>
     errors[f] ? `<p class="perr">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
@@ -504,7 +505,7 @@ export function renderPriceRules(
 function volumeSection(
   v: PriceRulesView, locale: Locale, errors: Partial<Record<VolumeField, VolumeError>>,
 ): string {
-  const name = EMPLOYEE_NAME[locale];
+  const name = assistantName(locale);
   const err = (f: VolumeField): string =>
     errors[f] ? `<p class="perr">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 

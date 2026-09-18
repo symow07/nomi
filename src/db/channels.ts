@@ -1,4 +1,5 @@
 import { isAllowlisted } from '../channels/allowlist.js';
+import { assistantIdForChannel } from './assistants.js';
 import { checkBudget } from '../core/budget.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { outreachFacts } from './outreach.js';
@@ -472,9 +473,13 @@ export async function ensureConversation(
   let conversationId = active.rows[0]?.id;
 
   if (!conversationId) {
+    // A5 — who answers is decided once, when the conversation starts: the
+    // assistant given this channel, else the default. Null while the business
+    // has a single assistant and no row for her yet, which reads as the default.
+    const assistantId = await assistantIdForChannel(tx, businessId, channel);
     const conv = await sql<{ id: string }>`
-      insert into conversations (business_id, client_id, channel)
-      values (${businessId}, ${clientId}, ${channel})
+      insert into conversations (business_id, client_id, channel, assistant_id)
+      values (${businessId}, ${clientId}, ${channel}, ${assistantId}::uuid)
       returning id
     `.execute(tx);
     conversationId = conv.rows[0]!.id;

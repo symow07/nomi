@@ -3,8 +3,10 @@ import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { issueProofLinkTx } from '../../db/proofs.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { assistantNameOfConversation, mainAssistantName } from '../../db/assistants.js';
 import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
 import { formatMoney } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 import { cssVariables } from '../../core/owner/css.js';
@@ -76,6 +78,12 @@ export type ProofView = {
   readonly issuedAt: Date;
   /** The BUYER's language, from their own messages — not the owner's setting. */
   readonly locale: Locale;
+  /**
+   * A5.2 — who the page says checked these facts: the assistant of the
+   * conversation the quote was made in, else the main one. Absent (a fixture,
+   * a business with no row yet) it is the product's constant, as it always was.
+   */
+  readonly assistantName?: string | null;
 };
 
 /**
@@ -230,6 +238,9 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       taught: taught.map((x) => ({ label: x.label, content: x.content })),
       issuedAt: q.created_at,
       locale,
+      assistantName: r.conversation_id
+        ? await assistantNameOfConversation(tx, bid.value, r.conversation_id)
+        : await mainAssistantName(tx, bid.value),
     };
   });
 }
@@ -269,7 +280,7 @@ async function buyerLocale(tx: Tx, conversationId: string | null): Promise<Local
  */
 export function renderProof(v: ProofView): string {
   const l = v.locale;
-  const name = EMPLOYEE_NAME[l];
+  const name = v.assistantName ?? assistantName(l);
   const dir = l === 'ar' ? 'rtl' : 'ltr';
 
   const sourceLabel = (s: FactSource): string =>
