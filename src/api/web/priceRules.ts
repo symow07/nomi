@@ -177,7 +177,9 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
 }
 
 export type SaveRulesResult =
-  | { readonly ok: true; readonly changed: readonly PriceRuleField[]; readonly activated: boolean }
+  | { readonly ok: true; readonly changed: readonly PriceRuleField[]; readonly activated: boolean;
+      /** D1 — how many products her answer FOR EVERYTHING made sellable. 0 for a single product's answer. */
+      readonly activatedCount: number }
   | { readonly ok: false; readonly errors: Partial<Record<PriceRuleField, PriceRuleError>> };
 
 /**
@@ -246,10 +248,37 @@ export async function savePriceRules(
     // A priced product with a stated floor is sellable. This is the ONLY place
     // that turns one on, and it is an owner action, never an inference.
     let activated = false;
+    let activatedCount = 0;
     if (input.productId && listPrice !== null && product && !product.is_active) {
       await sql`update products set is_active = true, updated_at = now()
                  where business_id = ${bid.value} and id = ${input.productId}`.execute(tx);
       activated = true;
+    }
+    /**
+     * D1 — HER ANSWER FOR EVERYTHING COVERS EVERYTHING IT CAN.
+     *
+     * The page says "answer once and it covers every product", and the quote
+     * already fell back to this row — but only a single product's answer ever
+     * switched a product on. So an owner who answered once had a catalogue the
+     * checklist still called empty, with every product reading "Needs a price"
+     * beside its price, and the only way forward was a tick box one page deep,
+     * one product at a time.
+     *
+     * It switches on exactly the products she has NOT decided about: priced, in
+     * the same currency, not below her floor, with no answer of their own, and
+     * untouched since they were imported (`updated_at = created_at`). A product
+     * she switched off herself has been touched, and stays off.
+     */
+    if (!input.productId) {
+      const on = await sql`
+        update products p set is_active = true, updated_at = now()
+         where p.business_id = ${bid.value} and not p.is_active
+           and p.price_usd_per_unit is not null and p.updated_at = p.created_at
+           and p.currency = ${v.value.floor.currency} and p.price_usd_per_unit >= ${v.value.floor.amount}
+           and not exists (select 1 from pricing_policy own
+                            where own.business_id = p.business_id and own.product_id = p.id)`.execute(tx);
+      activatedCount = Number(on.numAffectedRows ?? 0);
+      activated = activatedCount > 0;
     }
 
     await sql`
@@ -257,11 +286,11 @@ export async function savePriceRules(
       values (${bid.value}, null, 'price_rules_set', ${actor},
               ${JSON.stringify({
                 productId: input.productId, scope: input.productId ? 'product' : 'business_default',
-                changes, activated,
+                changes, activated, activatedCount,
               })}::jsonb)
     `.execute(tx);
 
-    return { ok: true, changed: Object.keys(changes) as PriceRuleField[], activated };
+    return { ok: true, changed: Object.keys(changes) as PriceRuleField[], activated, activatedCount };
   });
 }
 
@@ -402,9 +431,19 @@ export function renderPriceRules(
     </form>`;
 
   // Products she cannot sell yet come first — they are the reason to be here.
-  const needing = v.products.filter((p) => p.listPrice !== null && p.own === null && !p.inheritsDefault);
+  // D1 — a general floor ABOVE a product's own price cannot cover it, so that
+  // product still needs an answer of its own and says so.
+  const beyondDefault = (p: ProductRules): boolean =>
+    p.listPrice !== null && v.businessDefault !== null
+    && (p.listPrice.currency !== v.businessDefault.floor.currency || p.listPrice.amount < v.businessDefault.floor.amount);
+  const needing = v.products.filter((p) => p.listPrice !== null && p.own === null && (!p.inheritsDefault || beyondDefault(p)));
   const answered = v.products.filter((p) => p.own !== null);
+  // D8 — and the ones it DOES cover stay listed. They vanished the moment she
+  // answered for everything, under a sentence still promising "you can set a
+  // different answer for any single product below".
+  const covered = v.products.filter((p) => p.listPrice !== null && p.own === null && p.inheritsDefault && !beyondDefault(p));
 
+  const isCovered = (p: ProductRules): boolean => covered.includes(p);
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
@@ -414,10 +453,12 @@ export function renderPriceRules(
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
              floor: formatMoney(p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
-        : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
-      ${open || p.own === null
+        : isCovered(p) && v.businessDefault
+          ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: formatMoney(v.businessDefault.floor) }))}</p>`
+          : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
+      ${open || (p.own === null && !isCovered(p))
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '')
-        : `<a class="blink" href="/app/factory/prices?product=${encodeURIComponent(p.productId)}">${esc(t(locale, 'prices.change'))}</a>`}
+        : `<a class="blink" href="/app/factory/prices?product=${encodeURIComponent(p.productId)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}</a>`}
     </li>`;
   };
 
@@ -439,6 +480,11 @@ export function renderPriceRules(
     ${answered.length > 0 ? `<section class="fblock">
       <h2>${esc(t(locale, 'prices.answered.title'))}</h2>
       <ul class="plist">${answered.map(productRow).join('')}</ul>
+    </section>` : ''}
+
+    ${covered.length > 0 ? `<section class="fblock">
+      <h2>${esc(t(locale, 'prices.inherited.title'))}</h2>
+      <ul class="plist">${covered.map(productRow).join('')}</ul>
     </section>` : ''}
 
     ${volumeSection(v, locale, volumeErrors)}
