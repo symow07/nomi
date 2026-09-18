@@ -1444,8 +1444,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
-  app.get('/app/products', authed('products', async (s, _req, locale) =>
-    renderProductList(await loadProductList(deps.db, s.businessId), locale)));
+  app.get('/app/products', authed('products', async (s, req, locale) => {
+    // D2 — the import redirects here with what it did; the page dropped it.
+    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash);
+  }));
   app.get('/app/products/add', authed('products', (_s, _req, locale) => renderAddForm(locale)));
   app.get('/app/products/:id', authed('products', async (s, req, locale) => {
     const id = (req.params as { id: string }).id;
@@ -1569,9 +1572,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           r.errors, { productId }),
       }));
     }
-    const flash = t(locale, r.activated ? 'prices.flash.savedAndLive'
+    const flash = t(locale, r.activatedCount > 0 ? 'prices.flash.savedActivated'
+      : r.activated ? 'prices.flash.savedAndLive'
       : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
-      { name: deps.employeeName });
+      { name: deps.employeeName, n: r.activatedCount });
     return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
   });
 

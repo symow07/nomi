@@ -235,9 +235,15 @@ describe('M29 · the importer no longer writes a rule the owner did not give', (
     // Asserted on the STATEMENT, not the word: the comment explaining why the
     // insert is gone mentions pricing_policy, and should.
     expect(fn).not.toMatch(/insert\s+into\s+pricing_policy/i);
-    // and it no longer marks anything sellable on arrival
+    // and it marks nothing sellable on arrival BY ITSELF. D1 refined this on
+    // purpose: a line is sellable on arrival only where HER OWN answer for
+    // everything already covers it — read from her row, never a literal true,
+    // and never a rule the import wrote (the assertion above still stands).
     expect(fn).toContain('is_active');
-    expect(fn).toMatch(/price_usd_per_unit, currency, is_active\)[\s\S]*false\)/);
+    expect(fn).toMatch(/price_usd_per_unit, currency, is_active\)[\s\S]*\$\{coveredByGeneral\(p\.price\)\}\)/);
+    expect(fn).not.toMatch(/is_active\)[\s\S]{0,220},\s*true\)/);
+    expect(fn).toMatch(/from pricing_policy[\s\S]{0,120}product_id is null/);
+    expect(fn).toMatch(/price\.amount >= Number\(general\.floor\)/);
   });
 
   it('savePriceRules is the only writer of pricing_policy in the owner surface', async () => {

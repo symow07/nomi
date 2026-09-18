@@ -5,15 +5,16 @@ import {
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 const items: ProductListItem[] = [
-  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd(0.92), learned: true, imageMatchable: true, isActive: true },
-  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPrice: null, learned: false, imageMatchable: false, isActive: true },
+  { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd(0.92), learned: true, status: 'learned', imageMatchable: true, isActive: true },
+  { id: 'p2', name: 'New sample', nameZh: '新样品', sku: 'NEW-1', moq: 100, unit: 'pcs', entryQty: null, entryPrice: null, learned: false, status: 'needs_price', imageMatchable: false, isActive: true },
 ];
 
 const detail: ProductDetail = {
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
-  unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, isActive: true, imageMatchable: true,
+  unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
   tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) }],
   aliases: ['canvas bag', 'tote bag', '帆布包'],
   images: [],
@@ -116,3 +117,36 @@ describe('M9.5 · owner language + mobile (every locale)', () => {
   });
   it('no tables', () => { expect(renderProductList(items, 'en')).not.toContain('<table'); });
 });
+
+/**
+ * D1 — "Needs a price" beside a price. Every imported product said that, and
+ * what it actually needed was one page away and unnamed. The badge now says
+ * which of three different things is missing.
+ */
+describe('D1 · the badge says WHAT is missing', () => {
+  it('four states from three facts, and a priced product never reads "needs a price"', async () => {
+    const { productStatus } = await import('../../src/api/web/products.js');
+    expect(productStatus({ isActive: false, hasPrice: false, hasLimits: false })).toBe('needs_price');
+    expect(productStatus({ isActive: true, hasPrice: false, hasLimits: true }), 'no price is never learned').toBe('needs_price');
+    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: false })).toBe('needs_limits');
+    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: true })).toBe('not_offered');
+    expect(productStatus({ isActive: true, hasPrice: true, hasLimits: true })).toBe('learned');
+  });
+
+  it('the list names the next step once, with a way there, and shows what the import said', () => {
+    const waiting: ProductListItem[] = [
+      { ...items[0]!, id: 'w1', learned: false, status: 'needs_limits', isActive: false },
+      { ...items[0]!, id: 'w2', learned: false, status: 'needs_limits', isActive: false },
+      { ...items[0]!, id: 'o1', learned: false, status: 'not_offered', isActive: false },
+    ];
+    const html = renderProductList(waiting, 'en', 'Added 3 products.');
+    expect(html).toContain('Added 3 products.');
+    expect(html).toContain(t('en', 'product.list.needLimits', { n: 2 }));
+    expect(html).toContain('href="/app/factory/prices"');
+    expect(html.split(t('en', 'product.status.needsLimits')).length - 1).toBe(2);
+    expect(html).toContain(t('en', 'product.status.notOffered'));
+    expect(html).not.toContain(t('en', 'product.status.needsConfirm'));
+    expect(renderProductList(items, 'en'), 'nothing waiting, nothing said').not.toContain('/app/factory/prices');
+  });
+});
+

@@ -1024,6 +1024,19 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **D1 · Her answer for everything covers everything it can (2026-09-18).**
+  The first thing every new business hit: she pasted a price list, answered
+  "what is the least you would accept?" once for everything — as the page
+  invites — and her catalogue stayed switched off, every product reading "Needs
+  a price" beside its price, with the per-product forms gone. Only a SINGLE
+  product's answer ever switched a product on. Now her general answer switches
+  on exactly what she has not decided about: priced, same currency, not below
+  her floor, no answer of its own, untouched since import. A later import
+  arrives ready where that answer already covers it (M29 stands: a human stated
+  the floor; the import still writes no rule). The badge has four states instead
+  of one lie, the list says once where to go, the import's message is finally
+  shown, and the products her answer covers stay on the price page with a way
+  to give one its own.
 - **S1 · Removing someone signs them out (2026-09-18).** The session is a
   stateless signed cookie that lives seven days, and nothing looked at
   `people.archived_at`: someone she removed could read and answer buyers for a

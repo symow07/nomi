@@ -36,10 +36,25 @@ export type ProductListItem = {
   readonly entryQty: number | null;
   readonly entryPrice: Money | null;
   readonly learned: boolean;
+  /** D1 — WHAT is missing, so the badge can say it instead of "Needs a price" beside a price. */
+  readonly status: ProductStatus;
   readonly imageMatchable: boolean;
   /** Deactivated products stay in the list but are not something you sell. */
   readonly isActive: boolean;
 };
+
+/**
+ * D1 — four states, because "not learned" was three different things and the
+ * badge named only one of them:
+ *   needs_price    no price at all
+ *   needs_limits   priced, but no price limits cover it — her next step is one page away
+ *   not_offered    priced and covered, and switched off (by her, or a floor above its price)
+ *   learned        she sells it
+ */
+export type ProductStatus = 'learned' | 'needs_price' | 'needs_limits' | 'not_offered';
+
+export const productStatus = (p: { readonly isActive: boolean; readonly hasPrice: boolean; readonly hasLimits: boolean }): ProductStatus =>
+  !p.hasPrice ? 'needs_price' : p.isActive ? 'learned' : p.hasLimits ? 'not_offered' : 'needs_limits';
 
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
   const bid = parseBusinessId(businessIdRaw);
@@ -47,10 +62,12 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
   return withTenantTx(db, bid.value, async (tx) => (await sql<{
     id: string; name: string; name_zh: string | null; sku: string; moq: number; unit: string;
     is_active: boolean; price: string | null; currency: string;
-    entry_qty: number | null; entry_price: string | null; extras: number;
+    entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean;
   }>`
     select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
            p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
+           exists (select 1 from pricing_policy pp where pp.business_id = p.business_id
+                    and (pp.product_id = p.id or pp.product_id is null)) as has_limits,
            (select count(*) from product_aliases a where a.product_id = p.id)
              + (select count(*) from product_images i where i.product_id = p.id) as extras
       from products p
@@ -66,6 +83,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       // G18 — her product's own currency, not an assumed dollar.
       entryPrice: entryPrice === null ? null : moneyFromRow(entryPrice, r.currency),
       learned: r.is_active && entryPrice !== null,
+      status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits }),
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
     };
@@ -83,6 +101,7 @@ export type ProductDetail = {
   readonly leadTimeDays: number | null;
   readonly customizable: boolean;
   readonly learned: boolean;
+  readonly status: ProductStatus;
   readonly imageMatchable: boolean;
   /** M29 — whether she offers it to buyers. Archive-never-erase: false, not gone. */
   readonly isActive: boolean;
@@ -99,9 +118,11 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     const p = (await sql<{
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
       unit: string; moq: number; lead_time_days: number | null; customizable: boolean;
-      is_active: boolean; price: string | null; currency: string;
+      is_active: boolean; price: string | null; currency: string; has_limits: boolean;
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
-              price_usd_per_unit as price, currency
+              price_usd_per_unit as price, currency,
+              exists (select 1 from pricing_policy pp where pp.business_id = products.business_id
+                       and (pp.product_id = products.id or pp.product_id is null)) as has_limits
          from products where id = ${productId} limit 1`.execute(tx)).rows[0];
     if (!p) return null;
 
@@ -131,6 +152,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       id: p.id, name: p.name, nameZh: p.name_zh, sku: p.sku,
       category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
       customizable: p.customizable, learned, isActive: p.is_active,
+      status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
     };
@@ -202,6 +224,8 @@ export type ImportResult = {
    * done, and never as "left as it is".
    */
   readonly refused: number;
+  /** D1 — of the rows created, how many her answer for everything already made sellable. */
+  readonly ready: number;
 };
 
 /** G16 — who confirmed, and which of the changes the review offered she kept ticked. */
@@ -216,15 +240,23 @@ export async function confirmImport(
   db: Db, businessIdRaw: string, rawText: string, approval?: ImportApproval,
 ): Promise<ImportResult> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 0 };
+  if (!bid.ok) return { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 0, ready: 0 };
   const { accepted } = reviewImport(rawText);
-  let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0;
+  let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0, ready = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
     // The SAME diff the review showed, from the same staged lines — recomputed
     // here rather than trusted from the form, so a posted product id can only
     // choose among changes this business's own catalogue produced.
     const diff = diffAgainstCatalogue(accepted, await catalogueFor(tx, bid.value));
+    // D1 — has she already answered FOR EVERYTHING? Then a priced line her floor
+    // does not exceed arrives sellable: M29's rule is that a human states the
+    // floor, and she has. Without that answer nothing changes — still off.
+    const general = (await sql<{ floor: string; currency: string }>`
+      select floor_price_usd as floor, currency from pricing_policy
+       where business_id = ${bid.value} and product_id is null limit 1`.execute(tx)).rows[0];
+    const coveredByGeneral = (price: { amount: number; currency: string } | null): boolean =>
+      price !== null && general !== undefined && price.currency === general.currency && price.amount >= Number(general.floor);
     for (let i = 0; i < diff.added.length; i++) {
       const p = diff.added[i]!;
       // Her article number is who this product IS — to her, her buyers and her
@@ -241,11 +273,12 @@ export async function confirmImport(
       const ins = await sql<{ id: string }>`
         insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, currency, is_active)
         values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq},
-                ${p.price?.amount ?? null}, ${p.price?.currency ?? 'USD'}, false)
+                ${p.price?.amount ?? null}, ${p.price?.currency ?? 'USD'}, ${coveredByGeneral(p.price)})
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
       if (!id) { alreadyHere++; continue; }        // written by someone else since the review
       added++;
+      if (coveredByGeneral(p.price)) ready++;
       if (p.price !== null) {
         withPrice++;
         await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
@@ -281,12 +314,12 @@ export async function confirmImport(
       else alreadyHere++;
     }
   });
-  return { added, withPrice, updated, alreadyHere, refused };
+  return { added, withPrice, updated, alreadyHere, refused, ready };
 }
 
 /** Localized confirm flash — called by the route (has locale). */
 export const importFlash = (
-  locale: Locale, r: { added: number; withPrice: number; updated?: number; alreadyHere?: number; refused?: number },
+  locale: Locale, r: { added: number; withPrice: number; updated?: number; alreadyHere?: number; refused?: number; ready?: number },
 ): string => {
   // M29 — this used to say "Learned N products", which was the false-success
   // class: an imported product is not learned, because the floor that decides
@@ -296,7 +329,10 @@ export const importFlash = (
   const parts: string[] = [];
   // G16 — "Added 0 products" is not news when the page changed prices instead.
   if (r.added > 0 || !(r.updated || r.alreadyHere || r.refused)) {
-    parts.push(r.withPrice > 0
+    parts.push((r.ready ?? 0) > 0 && r.ready === r.withPrice
+      // D1 — every priced one is already covered by her answer for everything.
+      ? t(locale, 'product.flash.addedReady', { added: r.added, ready: r.ready ?? 0, name })
+      : r.withPrice > 0
       ? t(locale, 'product.flash.addedNeedRules', { added: r.added, withPrice: r.withPrice, name })
       : t(locale, 'product.flash.addedNeedPrice', { added: r.added, name }));
   }
@@ -310,13 +346,20 @@ export const importFlash = (
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
 
-const statusPill = (locale: Locale, learned: boolean): string =>
-  learned
+const STATUS_KEY = {
+  needs_price: 'product.status.needsConfirm', needs_limits: 'product.status.needsLimits', not_offered: 'product.status.notOffered',
+} as const;
+const statusPill = (locale: Locale, status: ProductStatus): string =>
+  status === 'learned'
     ? `<span class="pill ok">${esc(t(locale, 'product.status.learned'))} ✓</span>`
-    : `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>`;
+    : `<span class="pill warn">${esc(t(locale, STATUS_KEY[status]))}</span>`;
 
-export function renderProductList(items: readonly ProductListItem[], locale: Locale): string {
-  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>`;
+export function renderProductList(items: readonly ProductListItem[], locale: Locale, flash: string | null = null): string {
+  const waiting = items.filter((p) => p.status === 'needs_limits').length;
+  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>
+    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: EMPLOYEE_NAME[locale] }))}
+      <a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a></p></div>` : ''}`;
   if (items.length === 0) {
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: EMPLOYEE_NAME[locale] }))}</span>
@@ -326,7 +369,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
     const u = unitLabel(locale, p.unit);
     return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
-      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(locale, p.learned)}</div>
+      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(locale, p.status)}</div>
       <div class="prod-b muted">
         ${p.entryPrice !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatMoney(p.entryPrice))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
         ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
@@ -392,7 +435,7 @@ export function renderProductDetail(
   return `
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
-      <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.learned)}</div>
+      <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.status)}</div>
     ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: EMPLOYEE_NAME[locale] }))}</div>` : ''}
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
