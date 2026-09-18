@@ -1024,6 +1024,27 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A3 · A code by e-mail, at sign-up and on a new browser (2026-09-18,
+  migration 0058).** A password does not prove the address is hers, and does not
+  stop someone who learned it elsewhere. With a sender configured
+  (`SYSTEM_SMTP_*`), sign-up sends six digits and WAITS: the whole sign-up —
+  her answers and the password hash, never the password — sits in
+  `login_codes`, and nothing becomes a tenant, and no invitation is spent, until
+  the code comes back. Signing in with the right password from a browser we
+  have not seen for that login asks for a code too; a signed 180-day cookie is
+  what "seen" means. Five tries and ten minutes per code, six codes an hour per
+  address — counted in the database, where a restart cannot reset them; the
+  application role cannot read the table. **Without a sender nothing asks for a
+  code**, so this shipped before the mailbox exists; and a sender that is DOWN
+  lets an owner with the right password in rather than locking every business
+  out. The installation's sender is its own small thing, never a business's
+  outreach path: no consent gate, no unsubscribe header and no domain check
+  apply to it, so it can carry only a subject and a text to one address.
+- **A4 · The team page says who is here now (2026-09-18, migration 0057).** The
+  account's admin asked who works there and who is signed in. There is no
+  session store to ask, so it is read off what people do: the once-a-minute
+  check S1 added records when it ran. "Online now" is "seen in the last five
+  minutes", said in words; the page also says how each person gets in.
 - **A2 · Sign-up asks about the business, and nothing says "factory" (2026-09-18,
   migration 0056).** Nomi was built for one factory and said so everywhere. It is
   for any business that talks to buyers on social channels, so sign-up now asks

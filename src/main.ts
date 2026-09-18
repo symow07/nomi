@@ -10,6 +10,7 @@ import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
+import { systemSmtpConfigFrom, systemMailer, type SystemMail } from './channels/email/systemMail.js';
 import { liveBusinessIds } from './db/accounts.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
@@ -311,6 +312,8 @@ export async function buildProduction(
   overrides?: {
     adapter?: ChannelAdapter;
     logger?: boolean;
+    /** A3 — tests read the code out of what would have been mailed. */
+    systemMail?: SystemMail;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -410,6 +413,9 @@ export async function buildProduction(
    * today. Unset, this is null and the mailbox path (C6) is what runs.
    */
   const smtpConfig = smtpConfigFrom(process.env);
+  // A3 — mail from the INSTALLATION (sign-in codes), never a business's outreach.
+  const systemSmtp = systemSmtpConfigFrom(process.env);
+  const systemMail: SystemMail | null = overrides?.systemMail ?? (systemSmtp ? systemMailer(systemSmtp) : null);
   /**
    * C9 — Instagram and Messenger, when this installation has a Page.
    *
@@ -514,6 +520,8 @@ export async function buildProduction(
       businessId: PILOT_BUSINESS_ID,
       // A1 — who may create a workspace here. Unset is 'invite'.
       signupMode: signupModeFrom(process.env['SIGNUP_MODE']),
+      // A3 — the installation's own sender. Unset, nothing ever asks for a code.
+      systemMail,
       templateState: TEMPLATE_STATE,
       // G11 — so the owner's copy of a proof link is one she can send.
       publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,

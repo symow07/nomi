@@ -557,3 +557,33 @@ export function signupPage(input: SignupPageInput): string {
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other);
 }
+
+/**
+ * A3 — "enter the code we sent you". The third page a stranger may see.
+ *
+ * It shows the address only masked: whoever is looking at this screen should
+ * recognise it as theirs, not read it off someone else's.
+ */
+export function verifyPage(input: {
+  readonly locale: Locale; readonly path: string; readonly maskedEmail: string;
+  readonly purpose: 'signup' | 'device'; readonly error?: string | null; readonly notice?: string | null;
+}): string {
+  const { locale } = input;
+  const card = `
+    <h1>${esc(t(locale, 'verify.title'))}</h1>
+    <p class="lead"><bdi>${esc(t(locale, input.purpose === 'device' ? 'verify.lead.device' : 'verify.lead', { email: input.maskedEmail }))}</bdi></p>
+    ${input.notice ? `<div class="hint" role="status">${esc(input.notice)}</div>` : ''}
+    ${input.error ? `<div class="err" role="alert">${esc(input.error)}</div>` : ''}
+    <form method="post" action="/verify">
+      <label for="otp-code">${esc(t(locale, 'verify.code'))}</label>
+      <input id="otp-code" type="text" name="code" required autofocus inputmode="numeric" pattern="[0-9 ]{6,8}"
+        maxlength="8" autocomplete="one-time-code" />
+      <button type="submit">${esc(t(locale, 'verify.submit'))}</button>
+    </form>
+    <details>
+      <summary>${esc(t(locale, 'verify.resend'))}</summary>
+      <form method="post" action="/verify/resend"><button type="submit">${esc(t(locale, 'verify.resend'))}</button></form>
+    </details>`;
+  const other = `<p class="other"><a href="${input.purpose === 'device' ? '/login' : '/signup'}">${esc(t(locale, 'verify.back'))}</a></p>`;
+  return doorFrame(locale, input.path, t(locale, 'verify.title'), card, other);
+}
