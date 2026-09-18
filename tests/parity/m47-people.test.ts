@@ -160,8 +160,35 @@ describe('M47 · the codes', () => {
 });
 
 describe('M47 · the page', () => {
-  const view = { people: [{ ...owner, addedAt: new Date('2026-01-01T00:00:00Z') },
-    { ...staff, addedAt: new Date('2026-08-01T00:00:00Z') }], justIssued: null };
+  const NOW = new Date('2026-09-18T10:00:00Z');
+  const view = { people: [
+    { ...owner, addedAt: new Date('2026-01-01T00:00:00Z'), signsInWithEmail: true, lastSeenAt: new Date('2026-09-18T09:58:00Z') },
+    { ...staff, addedAt: new Date('2026-08-01T00:00:00Z'), signsInWithEmail: false, lastSeenAt: new Date('2026-09-17T03:00:00Z') },
+  ], justIssued: null };
+
+  /**
+   * A4 — the account's admin asked who works there and who is signed in now.
+   * There is no session store to read that from, so it is read off what people
+   * do: the once-a-minute check S1 added records when it ran.
+   */
+  it('A4 · says WHO IS HERE NOW, in words — and how each of them gets in', async () => {
+    const { isOnline, ONLINE_WITHIN_MS } = await import('../../src/api/web/people.js');
+    expect(ONLINE_WITHIN_MS).toBe(5 * 60 * 1000);
+    expect(isOnline(view.people[0]!, NOW)).toBe(true);
+    expect(isOnline(view.people[1]!, NOW)).toBe(false);
+    expect(isOnline({ lastSeenAt: null }, NOW)).toBe(false);
+    expect(isOnline({ lastSeenAt: new Date(NOW.getTime() - ONLINE_WITHIN_MS) }, NOW), 'five minutes ago is not now').toBe(false);
+
+    const html = renderPeople(view, 'en', null, NOW);
+    expect(html).toContain('2 people work here. 1 online now.');
+    expect(html.split('Online now').length - 1, 'one pill, for the one who is').toBe(1);
+    expect(html).toContain('Last seen');
+    expect(html).toContain('Signs in with e-mail');
+    expect(html).toContain('Signs in with an access code');
+    const never = renderPeople({ people: [{ ...staff, addedAt: NOW, signsInWithEmail: false, lastSeenAt: null }], justIssued: null }, 'en', null, NOW);
+    expect(never).toContain('Not seen here yet');
+    expect(never).toContain('1 people work here. 0 online now.');
+  });
 
   it('lists everyone, marks the owner, and offers to remove only the others', () => {
     const html = renderPeople(view, 'en', null);

@@ -23,8 +23,19 @@ export type Liveness = {
   readonly passwordChangedAt: number | null;
 };
 
-export async function readLiveness(db: Db, businessId: BusinessId, personId: string): Promise<Liveness> {
+/**
+ * A4 — and the asking is recorded. This runs at most once a minute per person
+ * (the cache in front of it), so "last seen" costs one small update a minute
+ * for someone who is working and nothing for someone who is not. `touch` is off
+ * where the question is asked for another reason (reading which password a new
+ * session was opened with): that is not the person being here.
+ */
+export async function readLiveness(db: Db, businessId: BusinessId, personId: string, touch = false): Promise<Liveness> {
   return withTenantTx(db, businessId, async (tx) => {
+    if (touch) {
+      await sql`update people set last_seen_at = now()
+                 where id = ${personId}::uuid and business_id = ${businessId}::uuid and archived_at is null`.execute(tx);
+    }
     const r = (await sql<{ live: boolean; pwd: string | null }>`
       select (p.archived_at is null and b.is_active) as live,
              (select (extract(epoch from l.password_changed_at) * 1000)::bigint::text

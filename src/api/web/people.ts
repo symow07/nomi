@@ -5,7 +5,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../../core/conversation/people.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+import { formatDate, formatRelative } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
 
 /**
@@ -86,21 +86,40 @@ export function readIssuedCode(
   } catch { return null; }
 }
 
+/** A4 — how someone gets in, and when they were last here. */
+export type TeamMember = Person & {
+  readonly addedAt: Date;
+  /** She signs in with her own e-mail and password; otherwise with a code the owner handed her. */
+  readonly signsInWithEmail: boolean;
+  /** Null: not seen since the page began to look (migration 0057). */
+  readonly lastSeenAt: Date | null;
+};
+
+/** Seen in the last five minutes. The check writes at most once a minute, so this is never stale by more than that. */
+export const ONLINE_WITHIN_MS = 5 * 60 * 1000;
+export const isOnline = (m: { readonly lastSeenAt: Date | null }, now: Date): boolean =>
+  m.lastSeenAt !== null && now.getTime() - m.lastSeenAt.getTime() < ONLINE_WITHIN_MS;
+
 export type PeopleView = {
-  readonly people: readonly (Person & { readonly addedAt: Date })[];
+  readonly people: readonly TeamMember[];
   /** Shown ONCE, immediately after creating someone. Never stored. */
   readonly justIssued: { readonly name: string; readonly code: string } | null;
 };
 
-export async function loadPeople(db: Db, businessIdRaw: string): Promise<readonly (Person & { addedAt: Date })[]> {
+export async function loadPeople(db: Db, businessIdRaw: string): Promise<readonly TeamMember[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => {
-    const r = await sql<{ id: string; name: string; is_owner: boolean; created_at: Date }>`
-      select id::text as id, name, is_owner, created_at from people
-       where business_id = ${bid.value}::uuid and archived_at is null
-       order by is_owner desc, created_at`.execute(tx);
-    return r.rows.map((x) => ({ id: x.id, name: x.name, isOwner: x.is_owner, addedAt: x.created_at }));
+    const r = await sql<{ id: string; name: string; is_owner: boolean; created_at: Date; last_seen_at: Date | null; has_login: boolean }>`
+      select p.id::text as id, p.name, p.is_owner, p.created_at, p.last_seen_at,
+             exists (select 1 from logins l where l.person_id = p.id and l.archived_at is null) as has_login
+        from people p
+       where p.business_id = ${bid.value}::uuid and p.archived_at is null
+       order by p.is_owner desc, p.created_at`.execute(tx);
+    return r.rows.map((x) => ({
+      id: x.id, name: x.name, isOwner: x.is_owner, addedAt: x.created_at,
+      signsInWithEmail: x.has_login, lastSeenAt: x.last_seen_at,
+    }));
   });
 }
 
@@ -194,7 +213,14 @@ export async function removePerson(
   });
 }
 
-export function renderPeople(v: PeopleView, locale: Locale, flash: string | null): string {
+export function renderPeople(v: PeopleView, locale: Locale, flash: string | null, now: Date = new Date()): string {
+  // A4 — who is here. Said in words, never by colour alone.
+  const online = v.people.filter((p) => isOnline(p, now)).length;
+  const presence = (p: TeamMember): string => isOnline(p, now)
+    ? `<span class="pill ok">${esc(t(locale, 'people.online'))}</span>`
+    : `<span class="muted">${esc(p.lastSeenAt
+        ? t(locale, 'people.lastSeen', { when: formatRelative(locale, p.lastSeenAt, now) })
+        : t(locale, 'people.notSeen'))}</span>`;
   const issued = v.justIssued
     ? `<div class="card issued">
         <h3 class="rf-h">${esc(t(locale, 'people.issued.title', { name: v.justIssued.name }))}</h3>
@@ -208,9 +234,11 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: string | null
     ${issued}
     <section class="block">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
+      <p class="team-sum">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
       <ul class="people">${v.people.map((p) => `<li>
-        <span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
+        <span class="who"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
           <span class="muted">${esc(formatDate(locale, p.addedAt))}</span></span>
+          <span class="how"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
@@ -235,6 +263,9 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: string | null
                    gap:var(--space-12); padding:var(--space-8) 0;
                    border-bottom:1px solid var(--color-border); }
       .people li:last-child { border-bottom:0; }
+      .team-sum { margin:var(--space-8) 0 var(--space-16); font-size:var(--font-size-note); }
+      .people .who { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+      .people .how { font-size:var(--font-size-caption); }
       .ownerOnly li { padding:var(--space-4) 0; color:var(--color-ink-secondary);
                       font-size:var(--font-size-note); }
       .issued .code { font-size:var(--font-size-numeral); font-weight:600;

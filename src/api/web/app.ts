@@ -419,7 +419,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     let v = liveness.get(key, now);
     if (!v) {
       try {
-        v = await readLiveness(deps.db, bid.value, person.id);
+        v = await readLiveness(deps.db, bid.value, person.id, true);
         liveness.set(key, v, now);
       } catch {
         if (person.isOwner) return;
