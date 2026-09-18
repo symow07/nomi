@@ -52,3 +52,24 @@ export function assistantFor(assistants: readonly Assistant[], channel: string):
   return assistants.find((a) => !a.isDefault && (a.channels as readonly string[]).includes(channel))
     ?? assistants.find((a) => a.isDefault) ?? null;
 }
+
+/**
+ * A5.3 — who is speaking in a conversation, as the reply writer is told it.
+ *
+ * `name`, `role` and `note` are the conversation's assistant (its own, else the
+ * main one); all three are null while the business has named nobody, and the
+ * writer is then told nothing about a speaker, as before. `business` is what
+ * the owner said about her own business at sign-up and under Settings.
+ *
+ * None of it is a fact a buyer may be quoted: numbers, claims and forbidden
+ * words are guarded exactly as they were, whoever is speaking.
+ */
+export type Speaker = {
+  readonly name: string | null;
+  readonly role: AssistantRole | null;
+  readonly note: string | null;
+  readonly business: {
+    readonly name: string; readonly kind: string | null;
+    readonly country: string | null; readonly description: string | null;
+  };
+};

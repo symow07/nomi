@@ -45,6 +45,8 @@ export interface Database {
     assigned_to: string | null;
     assigned_at: Timestamp | null;
     closed_at: Timestamp | null;
+    /** A5 — the assistant answering it; null reads as the main one. */
+    assistant_id: string | null;
   };
   conversation_state: {
     id: Generated<string>;

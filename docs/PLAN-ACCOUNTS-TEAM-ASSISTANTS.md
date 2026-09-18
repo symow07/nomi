@@ -15,7 +15,7 @@ Order of work. Each item ships and deploys on its own.
 | A2 | Sign-up asks about the business; nothing says "factory" | ✅ live 2026-09-18 (0056) |
 | A4 | Team page: everyone, who is online, last seen | ✅ built 2026-09-18 (0057) |
 | A3 | E-mail codes at sign-up and on a new device | ✅ built 2026-09-18 (0058) — OFF until `SYSTEM_SMTP_*` is set |
-| A5 | Several assistants: name, role, channels | owner said go 2026-09-18 · A5.1 built (0059): table, main assistant, team page, routing · A5.2 built: her name per request · A5.3 the reply writer |
+| A5 | Several assistants: name, role, channels | owner said go 2026-09-18 · A5.1 built (0059): table, main assistant, team page, routing · A5.2 built: her name per request · A5.3 built: the reply writer is told who speaks and for which business · open: "hand to Yasmin" (moving a conversation between assistants) |
 
 ## A2 · Sign-up asks about the business, and the product stops saying "factory"
 

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber } from './ports.js';
 import type { Analysis } from '../core/conversation/decide.js';
@@ -157,14 +158,39 @@ function parseAnalysis(j: Record<string, unknown>, currentPhase: Phase): Analysi
   };
 }
 
+/**
+ * A5.3 — what the writer is told about who it is. Exported so a test can read
+ * exactly what reaches the model without a network call. A key is present only
+ * when the owner said something: the model is given nothing to reason around.
+ */
+export function speakerContext(speaker: Speaker | null | undefined): Record<string, unknown> {
+  if (!speaker) return {};
+  const b = speaker.business;
+  const business = {
+    name: b.name,
+    ...(b.kind ? { kind: b.kind } : {}),
+    ...(b.country ? { country: b.country } : {}),
+    ...(b.description ? { what_it_sells: b.description } : {}),
+  };
+  const who = speaker.name
+    ? { speaker: {
+        name: speaker.name,
+        ...(speaker.role ? { job: speaker.role } : {}),
+        ...(speaker.note ? { how_to_sound: speaker.note } : {}),
+      } }
+    : {};
+  return { business, ...who };
+}
+
 export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote, speaker }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
+        ...speakerContext(speaker),
         // The ONLY numbers the model ever sees are the quote's + the identified
         // product's taught facts. (ADR-0006 + M13; guardNumerals enforces it.)
         quote: quote && {

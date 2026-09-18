@@ -130,6 +130,28 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     expect(page.body).toContain('Answered by Noor');
   });
 
+  it('A5.3 — the writer is told who answers THIS conversation, and whose business it is', async () => {
+    const { tenantRepos } = await import('../../src/db/repos.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const ig = await startConversation('instagram', `ig-${RUN}`);
+    const wa = await startConversation('whatsapp', `+8613${RUN}01`);
+    const [noors, mains, nobody] = await tx(async (t) => {
+      await sql`update businesses set kind = 'agency', country = 'MA', description = 'Campaigns for hotels' where id = ${BIZ}::uuid`.execute(t);
+      const repos = tenantRepos(t, bid.value);
+      return [
+        await repos.conversations.speaker(ig.conversationId as never),
+        await repos.conversations.speaker(wa.conversationId as never),
+        await repos.conversations.speaker('00000000-0000-4000-8000-000000000000' as never),
+      ];
+    });
+    expect(noors).toMatchObject({ name: 'Noor', role: 'support',
+      business: { name: 'Assistants Test Co', kind: 'agency', country: 'MA', description: 'Campaigns for hotels' } });
+    // Started before there was a second one: it has no assistant of its own, so the main one speaks.
+    expect(mains).toMatchObject({ name: 'Lily', role: 'sales' });
+    expect(nobody).toBeNull();
+  });
+
   it('she changes the name and the job; the main one is never given channels', async () => {
     const all = await rows();
     const noor = all.find((x) => x.name === 'Noor')!; const lily = all.find((x) => x.is_default)!;

@@ -4,7 +4,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import {
-  ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, validateAssistant,
+  ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, NOTE_MAX, validateAssistant,
   type Assistant, type AssistantProblem,
 } from '../../core/owner/assistants.js';
 import {
@@ -93,7 +93,10 @@ function fields(locale: Locale, a: Assistant | null, idPrefix: string): string {
       <input id="${idPrefix}-name" name="name" required maxlength="${NAME_MAX}" value="${esc(a?.name ?? '')}" /></div>
     <div class="fld"><label for="${idPrefix}-role">${esc(t(locale, 'assistants.field.role'))}</label>
       <select id="${idPrefix}-role" name="role">${roleOptions}</select></div>
-    ${boxes}`;
+    ${boxes}
+    <div class="fld"><label for="${idPrefix}-note">${esc(t(locale, 'assistants.field.note'))}</label>
+      <textarea id="${idPrefix}-note" name="note" rows="2" maxlength="${NOTE_MAX}">${esc(a?.note ?? '')}</textarea>
+      <span class="muted as-hint">${esc(t(locale, 'assistants.field.note.hint'))}</span></div>`;
 }
 
 export function renderAssistantsSection(assistants: readonly Assistant[], locale: Locale): string {
@@ -137,6 +140,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       .as-edit .pform, .as-add .pform { margin-top:var(--space-12); }
       .as-ch { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
       .as-ch legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
+      .as-hint { font-size:var(--font-size-caption); }
       .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-note); }
     </style>`;
 }

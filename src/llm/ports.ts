@@ -3,6 +3,7 @@ import type { ConversationState } from '../core/types/conversation.js';
 import type { Quote } from '../core/types/commerce.js';
 import type { RetrievedProduct } from '../retrieval/ports.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
+import type { Speaker } from '../core/owner/assistants.js';
 
 /**
  * LLM ports. The pipeline depends on these, never on a vendor SDK — which is
@@ -59,6 +60,12 @@ export interface ReplyWriter {
     nextQuestion: string | null;
     /** second attempt after a numeral violation — be stricter */
     retryAfterViolation: boolean;
+    /**
+     * A5.3 — who is speaking and for which business, in the owner's own words.
+     * Tone and focus only: it carries no fact a buyer may be quoted, and the
+     * guards run on the output exactly as before. ABSENT when nothing is known.
+     */
+    speaker?: Speaker | null;
     /** M13: the identified product's facts + business-level knowledge to answer
      *  FROM. Prose only — numbers are still gated by guardNumerals (which now
      *  sources the identified product's knowledge numbers). */

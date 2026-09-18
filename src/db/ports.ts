@@ -21,6 +21,7 @@ import type { AllowedClaim } from '../core/safety/claims.js';
 import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { KillSwitches } from '../core/ops/killSwitch.js';
+import type { Speaker } from '../core/owner/assistants.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -190,6 +191,8 @@ export interface ConversationRepo {
   /** Handoff: non-null pauses the AI; null returns control. */
   assign(id: ConversationId, agent: string | null): Promise<void>;
   close(id: ConversationId): Promise<void>;
+  /** A5.3 — who answers this conversation, and for which business. Null: no such conversation. */
+  speaker(id: ConversationId): Promise<Speaker | null>;
 }
 
 export interface CatalogRepo {

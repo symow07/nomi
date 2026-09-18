@@ -1024,6 +1024,19 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A5.3 · The reply writer knows who is speaking, and for whom (2026-09-19).**
+  Every reply was written by "a business representative for a Yiwu, China export
+  trading company" — for an agency in Casablanca too. The three instruction
+  files now assume nothing about the business; what it is comes from what the
+  owner said (name, kind, country, what it sells), and who the writer is comes
+  from the conversation's assistant: name, job, and her own note on how this one
+  should sound, which the team page now asks for. A key is present only when she
+  said something. It shapes tone and focus and is never a source of facts: the
+  guards run on the output as before, a number in her note stays unsayable, and
+  only a digit inside the assistant's or the business's NAME is sourced — hers
+  the way a closure's label is — so signing off cannot fail the guard. Who
+  answers is now also set on the repository's own create path, not only where a
+  channel message arrives.
 - **A5.2 · Her name is the business's, on every page (2026-09-19).** The name
   was one constant per language, filled into every sentence that says `{name}`
   — about 150 of them — so a renamed assistant was still "Lily" everywhere. The
@@ -1049,9 +1062,7 @@ Drafts folder.
   decided once, where a conversation is created, and written on it; a
   conversation from before keeps a blank, read as the main one. Removing one
   archives it and hands its open conversations back; the app role cannot erase
-  one. Owner-only, by the same rule as adding a person. **Not yet:** the reply
-  writer is not yet told who is speaking (A5.3) — so the difference is who is
-  named, not how they sound.
+  one. Owner-only, by the same rule as adding a person.
 - **A3 · A code by e-mail, at sign-up and on a new browser (2026-09-18,
   migration 0058).** A password does not prove the address is hers, and does not
   stop someone who learned it elsewhere. With a sender configured

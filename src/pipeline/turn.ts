@@ -416,11 +416,22 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         ? { note: closureNote(quote.leadTimeBlocked),
             allow: extractNumerals(quote.leadTimeBlocked.closure.label).map((n) => n.value) }
         : null;
+      /**
+       * A5.3 — who is speaking, and for which business. Tone and focus only.
+       * The two NAMES are hers the way a closure's label is, so a digit inside
+       * one ("Studio 54") is sourced and a sign-off cannot fail the guard. Her
+       * note about how to sound is not: a number in it stays unsayable.
+       */
+      const speaker = await tenant.conversations.speaker(req.conversationId);
+      const nameNumbers = speaker
+        ? [speaker.name ?? '', speaker.business.name].flatMap((n) => extractNumerals(n).map((x) => x.value))
+        : [];
       const numeralAllow = [
         ...(refusalCtx?.allow ?? []),
         ...knowledgeNumbers,
         ...(sampleCtx?.ok ? sampleCtx.allow : []),
         ...(closureCtx?.allow ?? []),
+        ...nameNumbers,
       ];
 
       /**
@@ -508,6 +519,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           // work from rather than being asked to be careful about samples.
           ...(sampleCtx?.ok ? { sampleNote: sampleCtx.note } : {}),
           ...(closureCtx ? { closureNote: closureCtx.note } : {}),
+          ...(speaker ? { speaker } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;

@@ -42,6 +42,8 @@ export class FakeTenant implements Tenant {
   turnsRecorded: unknown[] = [];
   emailsSaved: Array<{ clientId: string; email: string }> = [];
   closed: string[] = [];
+  /** A5.3 — who the turn is told is speaking. Null: nobody named, as before. */
+  speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = null;
 
   products = new Map<string, Product>([[mkProduct().id, mkProduct()]]);
   tiers = new Map<string, PriceTier[]>([[mkProduct().id, mkTiers()]]);
@@ -66,6 +68,7 @@ export class FakeTenant implements Tenant {
       if (s) this.states.set(id, { ...s, assignedTo: agent as ConversationState['assignedTo'] });
     },
     close: async (id) => { this.closed.push(id); },
+    speaker: async () => this.speakerIs,
   };
 
   /** G11 — the language remembered for this buyer, if a turn wrote one. */
@@ -266,7 +269,10 @@ export class FakeReplyWriter implements ReplyWriter {
   calls = 0;
   /** queue of replies; last one repeats */
   replies: string[] = ['Happy to help with that.'];
-  async write(): Promise<{ reply: string; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
+  /** A5.3 — what the writer was handed, most recent last. */
+  inputs: Parameters<ReplyWriter['write']>[0][] = [];
+  async write(input?: Parameters<ReplyWriter['write']>[0]): Promise<{ reply: string; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
+    if (input) this.inputs.push(input);
     const reply = this.replies[Math.min(this.calls, this.replies.length - 1)] ?? '';
     this.calls++;
     return { reply, promptVersion: 'resp@1', modelId: 'fake-model', usage: { inputTokens: 300, outputTokens: 80 } };
