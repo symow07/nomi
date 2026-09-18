@@ -1009,6 +1009,15 @@ Drafts folder.
   Instagram by the buyer's scoped id. The Instagram adapter now takes the Page
   id, and a refused send records Meta's numeric code beside the status —
   `meta 400 (#100)` — so the next one names its rule without a repro.
+- **WhatsApp receives in production (2026-09-18).** The missing number was
+  never a number problem: this developer account is simply not offered the
+  WhatsApp product. What worked instead is written down as §8 of
+  `docs/META-CLOUD-API-SETUP.md` — an account created from Business settings
+  with a Meta-issued number, a fresh app that does list the WhatsApp
+  permissions, everything in one portfolio, the generic Webhooks product, and
+  a published app. `WHATSAPP_PROVIDER=meta`; the boot log names all three
+  channels. Replying on WhatsApp still waits on the pilot workspace's own
+  activation checklist, which is empty — by design, not a defect.
 - **Model moved to Haiku 4.5 (2026-09-18).** The owner's call, on cost: about
   a third of Sonnet's price per buyer message. The pin in `src/llm/anthropic.ts`
   says what the trade is — no figure or claim can be invented, because those

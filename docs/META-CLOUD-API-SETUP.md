@@ -66,3 +66,45 @@ body). No extra configuration.
 - Limits to know: test-number recipients capped at 5; free conversation tier
   is far above pilot volume; media URLs from Graph expire in ~5 minutes
   (we download immediately, two-step, Bearer-authenticated).
+
+## 8 · When Meta hides the WhatsApp product (what worked on 2026-09-18)
+
+Some developer accounts are never offered WhatsApp: no **WhatsApp** tile under
+*Add product*, no WhatsApp use case when creating an app, and the dev-console
+URL redirects to the dashboard. Sections 1–4 above cannot be followed then —
+there is no API Setup page and no test number. This path needs neither:
+
+1. **The account, from Business settings, not from the app.** In the portfolio
+   that will own everything: *Settings → WhatsApp accounts → Add → Create a new
+   WhatsApp Business account*. It refuses with `#2655102` until the
+   portfolio's **Business info** is complete (legal name, address, phone, a
+   website that loads). At the phone step, **Use a display name only** gives a
+   free Meta-issued `+1 555` number, already *Connected* on the Cloud API —
+   no SIM, no code. That choice exists only in this create flow; *Add phone
+   number* inside WhatsApp Manager asks for a real number.
+2. **An app that can hold the permissions.** Apps differ even inside one
+   account: an older Business app listed no `whatsapp_business_*` permission
+   when generating a system-user token, while one created the same week did.
+   Create a fresh Business app **in the same portfolio as the account** and
+   check the token dialog before anything else.
+3. **One portfolio for all of it.** A system user only reaches assets of its
+   own portfolio, and sharing a WhatsApp account to a second portfolio as a
+   partner failed with *"Unable to add a partner"*. Keep the app, the system
+   user and the WhatsApp account together. *System users → Add (Admin) →
+   Assign assets* (the app, and the WhatsApp account, full control) →
+   *Generate token*, expiry never, the two WhatsApp permissions.
+4. **The ids without an API Setup page.** The account id is in the Business
+   settings URL (`selected_asset_id`); the number's id comes from
+   `GET /{account-id}/phone_numbers` with the token. The token cannot list
+   accounts by itself — that needs `business_management`.
+5. **The webhook through the generic product.** *Add product → Webhooks →
+   WhatsApp Business Account*: the callback and verify token of §5, then
+   subscribe **messages** only. Then `POST /{account-id}/subscribed_apps` with
+   the token, once. `META_APP_SECRET` is the secret of THIS app — when
+   Instagram and Messenger run from a different app, that one's secret stays in
+   `META_SOCIAL_APP_SECRET`.
+6. **Publish the app.** Unpublished, Meta delivers test webhooks only — nothing
+   a real phone sends arrives. Privacy, terms and data-deletion URLs plus a
+   category in *App settings → Basic*, then App Mode **Live**.
+7. Set the four variables of §2 and `WHATSAPP_PROVIDER=meta`, restart, press
+   **Connect** on `/app/channels`, and write to the number from a phone.
