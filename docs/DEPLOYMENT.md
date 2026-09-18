@@ -14,7 +14,7 @@ deploy without changing anything.
 | Process | one Node service — Fastify (`/health` + `/app/*`) **and** the pg-boss worker in the same process (`src/main.ts` → `buildProduction`) |
 | Database | Postgres 18 (Railway). The schema version this build requires is `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts` — read it there rather than from a number written down here, which is how this row came to say 0021 while the build needed 24. |
 | Database name | `railway` — Railway's default, and the only application database on this cluster. The cluster holds exactly `postgres`, `railway`, `template0`, `template1`. |
-| Messaging | `WHATSAPP_PROVIDER=disabled` — no WhatsApp number yet (Meta has not offered one). Instagram and Messenger run from `META_PAGE_*` + `META_SOCIAL_APP_SECRET` since 2026-09-17; only `/webhook/whatsapp` is unmounted. |
+| Messaging | `WHATSAPP_PROVIDER=meta` since 2026-09-18: a Meta-issued `+1 555` number on the Cloud API, signed by its own Meta app (`META_APP_SECRET`), reached the way `docs/META-CLOUD-API-SETUP.md` §8 describes because the WhatsApp product tile is hidden for this developer account. Instagram and Messenger run beside it from the owner's self-connected Page and `META_SOCIAL_APP_SECRET` (a different Meta app). WhatsApp receives; replying waits on the workspace's own activation checklist. |
 
 > **Not recorded here on purpose:** the production URL, the owner access code,
 > and every secret value. Fill in the URL below once, locally — do not commit it
