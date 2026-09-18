@@ -987,6 +987,12 @@ Drafts folder.
   `instagram_manage_messages` and `pages_messaging`, which is what lets a
   stranger — a buyer — write in. It needs a screencast of the flow, which the
   live setup can now record.
+- **Found on the first Instagram reply (2026-09-18).** The owner typed an
+  answer to an Instagram buyer minutes after he wrote and was told "you can't
+  message this buyer right now". The owner-reply precheck (`ownerSendFacts`)
+  read his last message from his WhatsApp identity, so an Instagram or Page
+  buyer had none and his window read as shut. It now reads the channel he
+  wrote on — the store's own rule, which the worker had followed all along.
 - **Model moved to Haiku 4.5 (2026-09-18).** The owner's call, on cost: about
   a third of Sonnet's price per buyer message. The pin in `src/llm/anthropic.ts`
   says what the trade is — no figure or claim can be invented, because those

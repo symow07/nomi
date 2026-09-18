@@ -246,6 +246,26 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     expect((await get('/app/inbox?filter=all')).body).toContain('Ahmed Al-Farsi');
   }, 60_000);
 
+  it('SHE CAN ANSWER HIM HERSELF inside his window — the precheck measures it on HIS channel', async () => {
+    // Until 2026-09-18 the owner's precheck read the buyer's last message from
+    // his WhatsApp identity, so an Instagram buyer had none and every reply she
+    // typed was refused as "outside his window", minutes after he wrote.
+    // His own thread, so the row this queues does not sit ahead of the one the
+    // reply test below drives by hand on Ahmed's.
+    const conv = (await conversations()).find((c) => c.external === buyer('handle'))!;
+    expect((await post(`/app/inbox/${conv.id}/takeover`)).statusCode).toBe(302);
+    const r = await post(`/app/inbox/${conv.id}/reply`, { text: 'Yes, 500 is fine — $0.92 each.' });
+    expect(r.statusCode).toBe(302);
+    const flash = new URL(String(r.headers['location']), 'https://x.test').searchParams.get('flash') ?? '';
+    expect(flash, 'her reply was refused').not.toBe(t('en', 'inbox.blocked.window_closed'));
+    expect(flash).not.toBe(t('en', 'inbox.blocked.not_connected'));
+    const row = await tx((x) => sql<{ status: string; channel: string }>`
+      select status, channel from outbound_messages where conversation_id = ${conv.id} and origin = 'owner'
+       order by created_at desc limit 1`.execute(x).then((q) => q.rows[0]));
+    expect(row, 'no reply was queued').toBeTruthy();
+    expect(row!.channel).toBe('instagram');
+  }, 60_000);
+
   it('SHE CAN CALL HIM WHAT SHE LIKES — hers wins, and clearing it is an honest blank', async () => {
     const conv = (await conversations()).find((c) => c.external === buyer('ahmed'))!;
     expect(conv, 'the named buyer has a conversation').toBeTruthy();
