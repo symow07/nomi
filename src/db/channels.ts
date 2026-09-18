@@ -597,9 +597,13 @@ export async function ownerSendFacts(
       from conversations c
       left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
       -- G10b — one identity, the most recently heard from (see load()).
+      -- The buyer's window is measured on the channel HE wrote on. This said
+      -- 'whatsapp' until 2026-09-18, so an Instagram or Page buyer had no last
+      -- message at all here and every reply she typed was refused as "outside
+      -- his window" — minutes after he wrote.
       left join lateral (
         select cc.channel_user_id, cc.last_inbound_at from client_channels cc
-         where cc.client_id = c.client_id and cc.channel = 'whatsapp'
+         where cc.client_id = c.client_id and cc.channel = c.channel
          order by cc.last_inbound_at desc nulls last limit 1
       ) cc2 on true
      where c.id = ${conversationId} limit 1
