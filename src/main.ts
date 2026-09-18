@@ -9,6 +9,8 @@ import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
+import { signupModeFrom } from './core/owner/signup.js';
+import { liveBusinessIds } from './db/accounts.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { assertSchemaCurrent } from './db/schemaVersion.js';
@@ -510,6 +512,8 @@ export async function buildProduction(
       sessionSecret: webSessionSecret,
       accessCode: ownerAccessCode,
       businessId: PILOT_BUSINESS_ID,
+      // A1 — who may create a workspace here. Unset is 'invite'.
+      signupMode: signupModeFrom(process.env['SIGNUP_MODE']),
       templateState: TEMPLATE_STATE,
       // G11 — so the owner's copy of a proof link is one she can send.
       publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,
@@ -787,16 +791,32 @@ export async function buildProduction(
   await boss.schedule(QUEUES.sequences, '* * * * *', { businessId: PILOT_BUSINESS_ID } satisfies SequenceSweepJob);
   await boss.work<SequenceSweepJob>(QUEUES.sequences, async ([job]: { data: SequenceSweepJob }[]) => {
     if (!job) return;
-    const tenant = parseBusinessId(PILOT_BUSINESS_ID);
-    if (!tenant.ok) return;
-    // Her domain check lapses after a week by design; the clock looks again
-    // before it does, so a follow-up is never held for want of someone pressing
-    // "Look again". Its failure must not cost the minute's sends — and cannot
-    // authorise one: a lookup that fails records `missing`.
-    await refreshDomainCheckIfDue({
-      db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
-    }, tenant.value, new Date()).catch((e: unknown) => console.warn('[domain-check]', e instanceof Error ? e.message : e));
-    await runDueSteps(sequenceDeps, tenant.value);
+    /**
+     * A1 — THE CLOCK LOOKS AT EVERY FACTORY. It looked at the one business the
+     * environment named, so a factory that signed itself up would have had
+     * follow-ups that never left and a domain check that lapsed. The schedule
+     * still carries one id (it is what is already queued); the list comes from
+     * `live_business_ids` — the businesses with a follow-up still running or a
+     * sending domain, not every workspace that exists. The environment's
+     * business is ALWAYS among them, listed or not, and is the whole list if
+     * the read fails: the behaviour before this milestone, never less.
+     *
+     * One factory's failure must not cost the others their minute.
+     */
+    const listed = await liveBusinessIds(db).catch(() => [] as readonly string[]);
+    for (const id of new Set([PILOT_BUSINESS_ID, ...listed])) {
+      const tenant = parseBusinessId(id);
+      if (!tenant.ok) continue;
+      // Her domain check lapses after a week by design; the clock looks again
+      // before it does, so a follow-up is never held for want of someone pressing
+      // "Look again". Its failure must not cost the minute's sends — and cannot
+      // authorise one: a lookup that fails records `missing`.
+      await refreshDomainCheckIfDue({
+        db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
+      }, tenant.value, new Date()).catch((e: unknown) => console.warn('[domain-check]', e instanceof Error ? e.message : e));
+      await runDueSteps(sequenceDeps, tenant.value)
+        .catch((e: unknown) => console.warn('[sequences]', e instanceof Error ? e.message : e));
+    }
   });
 
   // P3: owner alerts. QUEUES.notify → resolve owner locale/destination → send the

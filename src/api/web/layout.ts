@@ -374,41 +374,138 @@ export function shell(input: {
 </div></body></html>`;
 }
 
-export function loginPage(input: { readonly locale: Locale; readonly path: string; readonly error?: boolean }): string {
-  const { locale } = input;
-  return `<!doctype html>
-<html lang="${locale}" dir="${dirOf(locale)}"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nomi · ${esc(t(locale, 'login.title'))}</title>
-<link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}
-  .login { max-width: var(--measure-form); margin: 12vh auto; padding: 0 var(--space-16); }
+/**
+ * A1 — the two pages a stranger may see: the door, and how to get a key.
+ *
+ * They share one frame because they are one decision ("do I have a workspace
+ * yet?") and each links to the other. Neither names a tenant, and neither says
+ * whether an e-mail address has an account.
+ */
+const DOOR_STYLE = `
+  .login { max-width: var(--measure-form); margin: 10vh auto; padding: 0 var(--space-16); }
   .login .top-sw { display:flex; justify-content:center; margin-bottom:var(--space-16); }
   .login .card { padding: var(--space-24); }
   .login .brand { font-weight:700; font-size:var(--font-size-title); margin-bottom:var(--space-8); padding:0; }
+  .login h1 { font-size:var(--font-size-base); margin:0 0 var(--space-8); }
+  .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
   input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
     border:1px solid var(--color-border); background:var(--color-paper-sunk);
-    color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-16); }
+    color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
   button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-card);
     background:var(--color-jade); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
   button:hover { background:var(--color-jade-deep); }
   .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
-  label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .fld-err { color:var(--color-warn); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
+  .hint { color:var(--color-ink-secondary); font-size:var(--font-size-micro); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
+  label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
+  details { margin-top:var(--space-24); border-top:1px solid var(--color-border); padding-top:var(--space-16); }
+  summary { cursor:pointer; color:var(--color-ink-secondary); font-size:var(--font-size-caption); min-height:44px; display:flex; align-items:center; }
+  details form { margin-top:var(--space-8); }
+  .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
   .login .foot { text-align:center; font-size:var(--font-size-micro); }
-</style></head>
+`;
+
+const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string): string => `<!doctype html>
+<html lang="${locale}" dir="${dirOf(locale)}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomi · ${esc(title)}</title>
+<link rel="icon" href="${faviconDataUri()}">
+<style>${STYLE}${DOOR_STYLE}</style></head>
 <body><div class="login">
-  <div class="top-sw">${switcher(locale, input.path)}</div>
+  <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
-  <div class="card">
-    ${input.error ? `<div class="err">${esc(t(locale, 'login.error'))}</div>` : ''}
-    <form method="post" action="/login">
-      <label>${esc(t(locale, 'login.passwordLabel'))}</label>
-      <input type="password" name="code" autofocus autocomplete="current-password" />
-      <button type="submit">${esc(t(locale, 'login.submit'))}</button>
-    </form>
-  </div>
+  <div class="card">${card}</div>
+  ${other}
   <p class="muted foot">${esc(t(locale, 'login.footer'))}</p>
 </div></body></html>`;
+
+export type LoginProblem = 'code' | 'password' | 'locked' | 'slow';
+
+export function loginPage(input: {
+  readonly locale: Locale; readonly path: string;
+  /** Kept for the callers that only know "it failed": the access-code sentence. */
+  readonly error?: boolean; readonly problem?: LoginProblem;
+  readonly email?: string; readonly signupOpen?: boolean;
+}): string {
+  const { locale } = input;
+  const problem: LoginProblem | null = input.problem ?? (input.error ? 'code' : null);
+  const sentence = problem === 'password' ? t(locale, 'login.errorPassword')
+    : problem === 'locked' ? t(locale, 'login.locked')
+    : problem === 'slow' ? t(locale, 'login.slow')
+    : problem === 'code' ? t(locale, 'login.error') : null;
+  const card = `
+    ${sentence && problem !== 'code' ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
+    <form method="post" action="/login">
+      <label for="login-email">${esc(t(locale, 'login.emailLabel'))}</label>
+      <input id="login-email" type="email" name="email" value="${esc(input.email ?? '')}" required
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" ${problem === 'code' ? '' : 'autofocus'} />
+      <label for="login-password">${esc(t(locale, 'login.secretLabel'))}</label>
+      <input id="login-password" type="password" name="password" required autocomplete="current-password" />
+      <button type="submit">${esc(t(locale, 'login.submit'))}</button>
+    </form>
+    <details${problem === 'code' ? ' open' : ''}>
+      <summary>${esc(t(locale, 'login.codeToggle'))}</summary>
+      ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
+      <form method="post" action="/login">
+        <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
+        <input id="login-code" type="password" name="code" required autocomplete="off" ${problem === 'code' ? 'autofocus' : ''} />
+        <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
+      </form>
+    </details>`;
+  const other = input.signupOpen === false ? ''
+    : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`;
+  return doorFrame(locale, input.path, t(locale, 'login.title'), card, other);
+}
+
+export type SignupPageInput = {
+  readonly locale: Locale; readonly path: string;
+  readonly mode: 'open' | 'invite' | 'closed';
+  readonly passwordMin: number;
+  readonly contact?: string | null;
+  readonly values?: { readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string };
+  /** Sentence keys, already chosen by the route: one per field, plus one for the whole form. */
+  readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite', string>>;
+  readonly error?: string | null;
+};
+
+export function signupPage(input: SignupPageInput): string {
+  const { locale } = input;
+  const v = input.values ?? {};
+  const p = input.problems ?? {};
+  const other = `<p class="other"><a href="/login">${esc(t(locale, 'signup.toLogin'))}</a></p>`;
+  if (input.mode === 'closed') {
+    const contact = input.contact
+      ? `<p class="lead">${esc(t(locale, 'signup.closedContact', { email: input.contact }))}</p>` : '';
+    return doorFrame(locale, input.path, t(locale, 'signup.title'),
+      `<h1>${esc(t(locale, 'signup.title'))}</h1><p class="lead">${esc(t(locale, 'signup.closed'))}</p>${contact}`, other);
+  }
+  const fieldErr = (k: keyof typeof p): string => (p[k] ? `<div class="fld-err" role="alert">${esc(p[k]!)}</div>` : '');
+  const invite = input.mode === 'invite' ? `
+      <label for="su-invite">${esc(t(locale, 'signup.invite'))}</label>
+      <input id="su-invite" type="text" name="invite" value="${esc(v.invite ?? '')}" required autocomplete="off" autocapitalize="none" spellcheck="false" />
+      ${fieldErr('invite') || `<div class="hint">${esc(t(locale, 'signup.inviteHint'))}</div>`}` : '';
+  const card = `
+    <h1>${esc(t(locale, 'signup.title'))}</h1>
+    <p class="lead">${esc(t(locale, 'signup.lead'))}</p>
+    ${input.error ? `<div class="err" role="alert">${esc(input.error)}</div>` : ''}
+    <form method="post" action="/signup">
+      <label for="su-factory">${esc(t(locale, 'signup.factory'))}</label>
+      <input id="su-factory" type="text" name="factory" value="${esc(v.factory ?? '')}" required maxlength="120" autocomplete="organization" autofocus />
+      ${fieldErr('factory')}
+      <label for="su-name">${esc(t(locale, 'signup.name'))}</label>
+      <input id="su-name" type="text" name="name" value="${esc(v.name ?? '')}" required maxlength="80" autocomplete="name" />
+      ${fieldErr('name')}
+      <label for="su-email">${esc(t(locale, 'signup.email'))}</label>
+      <input id="su-email" type="email" name="email" value="${esc(v.email ?? '')}" required maxlength="254"
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" />
+      ${fieldErr('email')}
+      <label for="su-password">${esc(t(locale, 'signup.password'))}</label>
+      <input id="su-password" type="password" name="password" required minlength="${input.passwordMin}" autocomplete="new-password" />
+      ${fieldErr('password') || `<div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>`}
+      ${invite}
+      <button type="submit">${esc(t(locale, 'signup.submit'))}</button>
+    </form>`;
+  return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other);
 }
