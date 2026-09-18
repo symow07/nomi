@@ -865,6 +865,14 @@ paste-credentials stays as the fallback path for factory #1.
 Migration 0050, `src/connectors/oauth.ts`, `src/channels/email/{senders,accountTransport,connectMailbox}.ts`,
 `src/db/mailAccounts.ts`, and "Your accounts" on `/app/channels`. `REQUIRED_SCHEMA_VERSION` 50.
 
+- **Google proven live, 2026-09-18.** The pilot's domain moved to Google
+  Workspace; an Internal app in the domain's own Cloud organisation, the
+  mailbox connected as the owner, the three records done, and the first e-mail
+  written on a contact reached an outside inbox. Two warts logged in
+  `docs/EMAIL-SETUP.md`: a registrar's wrapped SPF include, which the domain
+  check does not follow, and Save resetting a passing check. Outlook remains
+  untried live.
+
 - **A read model that holds more than one account.** Gmail, Outlook, Apollo,
   Instagram and Messenger, each answering the same questions: connected, as what,
   and what it lets her do. "Not connected" and "not set up here yet" are

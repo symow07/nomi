@@ -19,10 +19,20 @@ Three ways to send, and you pick ONE:
 **SMTP outranks the other two.** With `SMTP_*` set, that is what sends, even if
 a mailbox is also connected, and the accounts page says so.
 
-> **Not yet exercised against Google or Microsoft from this repository.** Every
-> step on this side of the wire is tested. The first real connection is the
+> **Google: exercised live on 2026-09-18.** A Workspace mailbox on the pilot's
+> own domain connected through section 1 (Internal app), the three records read
+> done, and the first e-mail written on a contact arrived in an outside inbox,
+> not in spam. **Microsoft is still untried from this repository.** Every step
+> on this side of the wire is tested; the first real Outlook connection is its
 > first live test, so do it yourself before the owner relies on it, and read
 > the connection result on `/app/channels` rather than assuming.
+>
+> Two things found on that first run. A registrar's "connect Google" button may
+> write SPF as `include:dc-…._spfm.<domain>` — a wrapper that itself includes
+> `_spf.google.com`. Mail servers follow it; the domain check here reads only
+> the top record, so flatten it to `v=spf1 include:_spf.google.com ~all`. And
+> pressing Save on the domain form resets the check to "not looked at yet" even
+> with unchanged values — press Look again, not Save.
 
 ## 0 · What must already be true
 
