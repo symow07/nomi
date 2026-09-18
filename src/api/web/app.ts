@@ -112,7 +112,13 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, esc, back } from './layout.js';
+import { shell, loginPage, signupPage, verifyPage, esc, back } from './layout.js';
+import type { SystemMail } from '../../channels/email/systemMail.js';
+import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
+import {
+  newOtpCode, otpHash, mintPendingOtp, readPendingOtp, mintKnownDevice, isKnownDevice, maskEmail,
+  OTP_TTL_SECONDS, PENDING_TTL_MS, DEVICE_TTL_MS, type OtpPurpose,
+} from '../../security/otp.js';
 import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
@@ -143,6 +149,13 @@ export type WebDeps = {
   readonly businessId: string;         // the ONE business the environment's access code opens
   /** A1 — who may create a workspace here. Absent means 'invite'. */
   readonly signupMode?: SignupMode;
+  /**
+   * A3 — the installation's own sender. With one, a code is e-mailed when an
+   * account is made and when an unknown browser signs in. WITHOUT ONE NOTHING
+   * ASKS FOR A CODE: sign-up and sign-in work exactly as before, because a
+   * product that demands a code it cannot send locks everyone out.
+   */
+  readonly systemMail?: SystemMail | null;
   readonly employeeName: string;
   readonly avatar: string;
   readonly provider: string;
@@ -278,6 +291,9 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
   { method: 'GET', url: '/signup', why: 'A1 — how a factory gets a workspace; names no tenant, and says nothing about which e-mails have one' },
   { method: 'POST', url: '/signup', why: 'A1 — creates a tenant through provision_account only; throttled, and gated by SIGNUP_MODE' },
+  { method: 'GET', url: '/verify', why: 'A3 — where the e-mailed code is typed; renders only for a browser holding the signed pending cookie, and shows the address masked' },
+  { method: 'POST', url: '/verify', why: 'A3 — redeems a code: five tries and ten minutes per code, counted in the database' },
+  { method: 'POST', url: '/verify/resend', why: 'A3 — a new code for the same waiting sign-up; six an hour per address, counted in the database' },
   { method: 'GET', url: '/locale', why: 'switching language before signing in' },
   { method: 'GET', url: '/p/:token', why: 'M35 — the buyer proof link. The unguessable token IS the credential' },
   { method: 'GET', url: '/u', why: 'M40.2 — one-click unsubscribe. Renders only; the signed token is the credential' },
@@ -780,12 +796,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (signupMode === 'invite' && !(await inviteIsOpen(deps.db, v.value.invite!).catch(() => false))) {
       return again(400, { error: t(locale, 'signup.error.invite_not_open') });
     }
-    const made = await provisionAccount(deps.db, {
+    const wanted = {
       factory: v.value.factory, language: locale, ownerName: v.value.name, email: v.value.email,
       passwordHash: await hashPassword(v.value.password),
       invite: v.value.invite, inviteRequired: signupMode === 'invite',
       profile: v.value.profile,
-    });
+    };
+    // A3 — with a sender, the address has to answer first. An address that
+    // already has a workspace is told so NOW, as before: she could learn it by
+    // trying to sign in, and a code sent to it would only confuse its owner.
+    if (otpOn) {
+      if (await lookupLogin(deps.db, wanted.email).catch(() => null)) return again(400, { error: t(locale, 'signup.error.email_taken') });
+      const sent = await sendCode(reply, locale, wanted.email, 'signup', wanted, null);
+      if (sent !== 'sent') return again(sent === 'slow' ? 429 : 502, { error: t(locale, sent === 'slow' ? 'verify.error.slow' : 'verify.error.mail') });
+      return reply.redirect('/verify');
+    }
+    const made = await provisionAccount(deps.db, wanted);
     if (made.code !== 'created') {
       return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
     }
@@ -820,6 +846,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const ok = password.length <= PASSWORD_MAX && await verifyPassword(password, login.passwordHash);
       await recordLoginAttempt(deps.db, login.loginId, ok).catch(() => undefined);
       if (!ok) return refuse(401, 'password');
+      // A3 — the password was right. From a browser we have not seen for THIS
+      // login, the address has to answer too. If the code cannot be sent she is
+      // let in: a sender that is down must not lock every owner out.
+      if (otpOn && !isKnownDevice(deps.sessionSecret, parseCookies(req.headers.cookie)[DEVICE_COOKIE], login.loginId, Date.now())) {
+        const sent = await sendCode(reply, locale, email, 'device', null, login.loginId);
+        if (sent === 'sent') return reply.redirect('/verify');
+        if (sent === 'slow') return refuse(429, 'slow');
+      }
       return signIn(reply, login.businessId, login.person, '/app', await passwordVersionOf(login.businessId, login.person.id));
     }
 
@@ -871,6 +905,118 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
 
     return signIn(reply, deps.businessId, person);
+  });
+
+  /**
+   * A3 — A CODE BY E-MAIL, when an account is made and when a browser we have
+   * not seen signs in.
+   *
+   * What waits is in the DATABASE (0058), not in the cookie: the cookie only
+   * says WHICH waiting code this browser may type, signed, for half an hour.
+   * For a sign-up the row holds everything she typed and the password HASH, so
+   * nothing becomes a tenant — and no invitation is spent — until the code
+   * comes back. A code is never logged and never stored; only its keyed hash.
+   */
+  const OTP_COOKIE = 'yf_otp';
+  const DEVICE_COOKIE = 'yf_dev';
+  const otpOn = Boolean(deps.systemMail);
+  const verifyThrottle = makeThrottle({ max: 30, windowMs: 10 * 60_000 });
+
+  type PendingSignup = {
+    readonly factory: string; readonly language: string; readonly ownerName: string; readonly email: string;
+    readonly passwordHash: string; readonly invite: string | null; readonly inviteRequired: boolean;
+    readonly profile: Parameters<typeof provisionAccount>[1]['profile'];
+  };
+
+  /** Issues a code, mails it, and points the browser at /verify. False: tell her why not. */
+  const sendCode = async (
+    reply: FastifyReply, locale: Locale, email: string, purpose: OtpPurpose, payload: PendingSignup | null, loginId: string | null,
+  ): Promise<'sent' | 'slow' | 'mail'> => {
+    const code = newOtpCode();
+    const id = await issueOtp(deps.db, {
+      email, purpose, codeHash: otpHash(deps.sessionSecret, email, purpose, code), payload, loginId, ttlSeconds: OTP_TTL_SECONDS,
+    }).catch(() => null);
+    if (!id) return 'slow';
+    const mailed = await deps.systemMail!.send({
+      to: email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
+    }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    if (!mailed.ok) return 'mail';
+    writeCookie(reply, OTP_COOKIE, mintPendingOtp(deps.sessionSecret, { id, email, purpose }, Date.now()),
+      { path: '/verify', maxAgeSec: Math.floor(PENDING_TTL_MS / 1000) });
+    return 'sent';
+  };
+  const pendingOf = (req: FastifyRequest) =>
+    readPendingOtp(deps.sessionSecret, parseCookies(req.headers.cookie)[OTP_COOKIE], Date.now());
+  const rememberDevice = (reply: FastifyReply, loginId: string) =>
+    writeCookie(reply, DEVICE_COOKIE, mintKnownDevice(deps.sessionSecret, loginId, Date.now()),
+      { path: '/', maxAgeSec: Math.floor(DEVICE_TTL_MS / 1000) });
+
+  app.get('/verify', async (req, reply) => {
+    const pending = pendingOf(req);
+    if (!pending) return reply.redirect('/login');
+    const notice = (req.query as { sent?: string }).sent === '1' ? t(localeOf(req), 'verify.resent') : null;
+    return html(reply, 200, verifyPage({
+      locale: localeOf(req), path: '/verify', maskedEmail: maskEmail(pending.email), purpose: pending.purpose, notice,
+    }));
+  });
+
+  app.post('/verify', async (req, reply) => {
+    const locale = localeOf(req);
+    const pending = pendingOf(req);
+    if (!pending) return reply.redirect('/login');
+    const again = (status: number, key: MessageKey) => html(reply, status, verifyPage({
+      locale, path: '/verify', maskedEmail: maskEmail(pending.email), purpose: pending.purpose, error: t(locale, key),
+    }));
+    if (!verifyThrottle.allow(callerOf(req), Date.now())) return again(429, 'verify.error.slow');
+    const code = String((req.body as { code?: string } | undefined)?.code ?? '');
+    const r = await redeemOtp(deps.db, pending.id, otpHash(deps.sessionSecret, pending.email, pending.purpose, code))
+      .catch(() => ({ ok: false as const, reason: 'gone' as const }));
+    if (!r.ok) return again(r.reason === 'wrong' ? 401 : 400, `verify.error.${r.reason}` as MessageKey);
+
+    writeCookie(reply, OTP_COOKIE, '', { path: '/verify', maxAgeSec: 0 });
+    if (r.purpose === 'signup') {
+      const p = r.payload as PendingSignup;
+      const made = await provisionAccount(deps.db, p);
+      if (made.code !== 'created') {
+        // The address was taken, or the invitation spent, while the code was in her inbox.
+        return html(reply, 400, signupPage({
+          locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
+          values: { factory: p.factory, name: p.ownerName, email: p.email, invite: p.invite ?? '' },
+          error: t(locale, `signup.error.${made.code}` as MessageKey),
+        }));
+      }
+      const login = await lookupLogin(deps.db, p.email).catch(() => null);
+      if (login) rememberDevice(reply, login.loginId);
+      return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
+        `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`,
+        await passwordVersionOf(made.businessId, made.personId));
+    }
+    // A browser we had not seen, and now have.
+    const login = await lookupLogin(deps.db, r.email).catch(() => null);
+    if (!login || login.loginId !== r.loginId) return reply.redirect('/login');
+    rememberDevice(reply, login.loginId);
+    return signIn(reply, login.businessId, login.person, '/app', await passwordVersionOf(login.businessId, login.person.id));
+  });
+
+  app.post('/verify/resend', async (req, reply) => {
+    const locale = localeOf(req);
+    const pending = pendingOf(req);
+    if (!pending || !otpOn) return reply.redirect('/login');
+    const fail = (status: number, key: MessageKey) => html(reply, status, verifyPage({
+      locale, path: '/verify', maskedEmail: maskEmail(pending.email), purpose: pending.purpose, error: t(locale, key),
+    }));
+    if (!verifyThrottle.allow(callerOf(req), Date.now())) return fail(429, 'verify.error.slow');
+    const code = newOtpCode();
+    const next = await reissueOtp(deps.db, pending.id, otpHash(deps.sessionSecret, pending.email, pending.purpose, code), OTP_TTL_SECONDS)
+      .catch(() => null);
+    if (!next) return fail(429, 'verify.error.slow');
+    const mailed = await deps.systemMail!.send({
+      to: next.email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
+    }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    if (!mailed.ok) return fail(502, 'verify.error.mail');
+    writeCookie(reply, OTP_COOKIE, mintPendingOtp(deps.sessionSecret, { id: next.id, email: next.email, purpose: next.purpose }, Date.now()),
+      { path: '/verify', maxAgeSec: Math.floor(PENDING_TTL_MS / 1000) });
+    return reply.redirect('/verify?sent=1');
   });
 
   /**
