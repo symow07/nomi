@@ -32,9 +32,11 @@ a mailbox is also connected, and the accounts page says so.
   says so).
 - **`PUBLIC_BASE_URL`** is set to the installation's https address. The
   providers redirect back to it, and every mail's unsubscribe link is built on it.
-- **`WHATSAPP_PROVIDER` is not `disabled`.** The outbound worker and the
-  follow-up schedule only run when messaging is on. In deployment mode the write
-  page says messaging is not switched on, and nothing is sent.
+- **Messaging is switched on**: a WhatsApp provider, or (since 2026-09-17) the
+  Meta social channels with `WHATSAPP_PROVIDER=disabled`. The outbound worker
+  and the follow-up schedule only run when something can send. With neither the
+  installation is in deployment mode: the write page says messaging is not
+  switched on, and nothing is sent.
 - **`CREDENTIAL_KEY`** is set. The connected mailbox's refresh token is stored
   encrypted with it.
 - Migrations are applied through **0051**. The app refuses to boot on an older
@@ -243,7 +245,7 @@ Anything refused after that is shown on the conversation.
 
 | What she sees | Cause | Fix |
 |---|---|---|
-| *Messaging is not switched on here yet…* | `WHATSAPP_PROVIDER=disabled` | Section 0 |
+| *Messaging is not switched on here yet…* | No WhatsApp provider and no Meta social channel | Section 0 |
 | Gmail / Outlook: *Not set up here yet* | OAuth variables missing | Section 1 or 2, then restart |
 | A mail failed with *smtp auth 535* | Wrong SMTP user or password | Section 2b, steps 3–4 |
 | A mail failed with *smtp server offers no STARTTLS* | The host will not encrypt on that port | Section 2b, step 5: use port 465 |
