@@ -1024,6 +1024,19 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **S1 · Removing someone signs them out (2026-09-18).** The session is a
+  stateless signed cookie that lives seven days, and nothing looked at
+  `people.archived_at`: someone she removed could read and answer buyers for a
+  week. Every `/app` request now asks whether the person behind the cookie
+  still works there — once a minute at most, and at once in this process after
+  a removal (the remembered answer is dropped in the same request). A password
+  change ends every other session she has open: a session carries WHICH password
+  opened it (the row's own timestamp, compared for equality — the process and
+  the database do not share a clock), and the page she is on is re-issued one.
+  If the question cannot be asked the owner still gets in and nobody else does,
+  the same two directions of failure as at the door. The Remove button now asks
+  first, in a sentence that says they are signed out now. Found by the source
+  audit in `docs/SITE-REVIEW-2026-09-18.md`.
 - **WhatsApp receives in production (2026-09-18).** The missing number was
   never a number problem: this developer account is simply not offered the
   WhatsApp product. What worked instead is written down as §8 of

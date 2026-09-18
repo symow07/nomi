@@ -391,6 +391,40 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect(owner[0]!.name).toBe('People Test Factory');
   });
 
+  it('S1 · REMOVING SOMEONE SIGNS THEM OUT NOW — the cookie they hold stops opening anything', async () => {
+    // A colleague of her own, so the people the earlier tests rely on stay.
+    const added = await post(ownerCookie, '/app/settings/people', 'name=Temp%20Hire');
+    const issued = String(added.headers['set-cookie'] ?? '').split(';')[0]!;
+    const page = await app.inject({ method: 'GET', url: String(added.headers['location']), headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const code = page.body.match(/<p class="code"><bdi>([A-Z2-9]{5}-[A-Z2-9]{5})<\/bdi><\/p>/)?.[1] ?? '';
+    const temp = await login(code);
+    expect(temp.status).toBe(302);
+    expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie: temp.cookie } })).statusCode).toBe(200);
+
+    const tempId = await tx((t) => sql<{ id: string }>`
+      select id::text as id from people where business_id = ${BIZ} and name = 'Temp Hire' and archived_at is null
+    `.execute(t).then((r) => r.rows[0]!.id));
+    expect((await post(ownerCookie, `/app/settings/people/${tempId}/remove`, '')).statusCode).toBe(302);
+
+    // The very next request, with the SAME cookie — not "within a minute".
+    for (const url of ['/app', '/app/inbox', `/app/inbox/${convId}`]) {
+      const r = await app.inject({ method: 'GET', url, headers: { cookie: temp.cookie } });
+      expect([r.statusCode, r.headers['location']], url).toEqual([302, '/login']);
+    }
+    const out = await app.inject({ method: 'GET', url: '/app', headers: { cookie: temp.cookie } });
+    expect(String(out.headers['set-cookie'] ?? ''), 'and the cookie is taken back').toMatch(/Max-Age=0/);
+    const tried = await post(temp.cookie, `/app/inbox/${convId}/reply`, 'text=still%20here');
+    expect([tried.statusCode, tried.headers['location']], 'nor can it write').toEqual([302, '/login']);
+    expect((await login(code)).status, 'and the code no longer opens the door').toBe(401);
+
+    // Everyone else is untouched.
+    expect((await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } })).statusCode).toBe(200);
+    // …and the colleague an earlier test in this file removed is out as well.
+    // Before S1 that cookie went on opening the workspace for a week.
+    const earlier = await app.inject({ method: 'GET', url: '/app', headers: { cookie: staffCookie } });
+    expect([earlier.statusCode, earlier.headers['location']]).toEqual([302, '/login']);
+  });
+
   it('and HER login never depended on any of it', async () => {
     // Her code is the environment's. This is the guarantee that a people table
     // cannot lock the owner out of her own business.
