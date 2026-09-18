@@ -1,5 +1,6 @@
 import { smtpDeliver, type SmtpConfig, type SmtpDeps } from './smtp.js';
 import { mimeMessage, mintMessageId } from './senders.js';
+import type { MailTransport } from './transport.js';
 
 /**
  * A3 — mail from the INSTALLATION, not from a business.
@@ -49,6 +50,50 @@ export function systemMailer(config: SmtpConfig, deps: { readonly smtp?: SmtpDep
         mintMessageId(config.from), (deps.now ?? (() => new Date()))());
       const sent = await smtpDeliver(config, { to: message.to, data }, deps.smtp);
       return sent.ok ? { ok: true } : { ok: false, error: sent.error };
+    },
+  };
+}
+
+/**
+ * The same mail over HTTPS, through the operator's connected mailbox.
+ *
+ * WHY THIS EXISTS: the first host this ran on (Railway, Hobby plan) blocks
+ * every outgoing SMTP port, so the sender above could never reach Google and
+ * every sign-up answered "we could not send the e-mail". The Gmail and Graph
+ * APIs are HTTPS and are not blocked anywhere.
+ *
+ * `transport` is a thunk because production builds the mailbox transport later
+ * than this mailer, and a send only ever happens at request time.
+ */
+export function mailboxSystemMailer(from: string, transport: () => MailTransport): SystemMail {
+  return {
+    from,
+    async send(message) {
+      const sent = await transport().send({
+        to: message.to, subject: message.subject, text: message.text,
+        headers: { 'Auto-Submitted': 'auto-generated' }, tag: null,
+      });
+      return sent.ok ? { ok: true } : { ok: false, error: sent.error };
+    },
+  };
+}
+
+/**
+ * Try each way in order and stop at the first that sends. When none does, the
+ * error names every way and why it failed — a fixed phrase or a status code,
+ * never an address or a secret — so one log line says what to fix.
+ */
+export function firstThatSends(ways: readonly { readonly name: string; readonly mailer: SystemMail }[]): SystemMail {
+  return {
+    from: ways[0]!.mailer.from,
+    async send(message) {
+      const why: string[] = [];
+      for (const w of ways) {
+        const r = await w.mailer.send(message).catch(() => ({ ok: false as const, error: 'unreachable' }));
+        if (r.ok) return r;
+        why.push(`${w.name}: ${r.error}`);
+      }
+      return { ok: false, error: why.join(' · ') };
     },
   };
 }

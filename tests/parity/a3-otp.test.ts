@@ -162,3 +162,27 @@ describe('A3 · the rules that make it safe', () => {
     expect(verify).toEqual(['GET /verify', 'POST /verify', 'POST /verify/resend']);
   });
 });
+
+describe('A3 · a host that blocks SMTP still sends the code', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
+
+  it('production tries the operator\'s connected mailbox (HTTPS) BEFORE SMTP, and only the mailbox she named', () => {
+    const main = read('src/main.ts');
+    const mailbox = main.indexOf("{ name: 'mailbox', mailer: mailboxSystemMailer(");
+    const smtp = main.indexOf("{ name: 'smtp', mailer: systemMailer(systemSmtp) }");
+    expect(mailbox).toBeGreaterThan(-1);
+    expect(smtp).toBeGreaterThan(mailbox);
+    expect(main).toMatch(/system: \{ from: systemSmtp\.from, onlyMailbox: systemSmtp\.user \}/);
+    expect(main).toMatch(/parseBusinessId\(PILOT_BUSINESS_ID\)/);
+  });
+
+  it('a business\'s own mail keeps its verified-domain check: only `system` skips it', () => {
+    const t = read('src/channels/email/accountTransport.ts');
+    expect(t).toMatch(/if \(deps\.system\) \{[\s\S]*?\} else \{[\s\S]*?not on the verified sending domain/);
+  });
+
+  it('a send that fails says why in the log, and never the address or the code', () => {
+    const app = read('src/api/web/app.ts');
+    expect(app).toMatch(/reply\.log\.warn\(\{ reason: mailed\.error, purpose \}, 'system mail could not be sent'\)/);
+  });
+});

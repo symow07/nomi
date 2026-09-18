@@ -1024,6 +1024,18 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **A3.1 · The code is sent over HTTPS where the host blocks SMTP (2026-09-19).**
+  The first real sign-up with codes on answered "we could not send the e-mail".
+  The mailbox, alias and app password were right; Railway's Hobby plan blocks
+  every outgoing SMTP port, which A3 never checked. The installation's mail now
+  goes first through the operator's connected mailbox over the provider's HTTPS
+  API — only the mailbox named as `SYSTEM_SMTP_USER`, only in the operator's own
+  workspace, sent from the `SYSTEM_SMTP_FROM` alias — with SMTP as the fallback.
+  A business's own mail keeps its verified-domain check; only system mail, which
+  can carry a subject and a text to one address, skips it. A send that fails now
+  says why in the log for each way tried, never the address or the code: the
+  failure that prompted this was silent, and had to be inferred from a response
+  time.
 - **A5.4 · She hands one buyer to another assistant (2026-09-19).** Who answers
   is decided when a conversation starts; this is the only other writer of it.
   On the conversation page, once there is more than one assistant, the owner

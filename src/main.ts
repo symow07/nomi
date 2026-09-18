@@ -10,7 +10,7 @@ import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
-import { systemSmtpConfigFrom, systemMailer, type SystemMail } from './channels/email/systemMail.js';
+import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
 import { liveBusinessIds } from './db/accounts.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
@@ -415,7 +415,13 @@ export async function buildProduction(
   const smtpConfig = smtpConfigFrom(process.env);
   // A3 — mail from the INSTALLATION (sign-in codes), never a business's outreach.
   const systemSmtp = systemSmtpConfigFrom(process.env);
-  const systemMail: SystemMail | null = overrides?.systemMail ?? (systemSmtp ? systemMailer(systemSmtp) : null);
+  // The operator's connected mailbox first (HTTPS — works where the host blocks
+  // SMTP, as Railway's Hobby plan does), then SMTP. Only the mailbox the
+  // operator NAMED as SYSTEM_SMTP_USER, and only in the operator's own workspace.
+  const systemMail: SystemMail | null = overrides?.systemMail ?? (systemSmtp ? firstThatSends([
+    { name: 'mailbox', mailer: mailboxSystemMailer(systemSmtp.from, () => systemMailboxTransport()) },
+    { name: 'smtp', mailer: systemMailer(systemSmtp) },
+  ]) : null);
   /**
    * C9 — Instagram and Messenger, when this installation has a Page.
    *
@@ -672,6 +678,18 @@ export async function buildProduction(
   const oauthFetch = fetch as unknown as OAuthFetch;
   const tokenCache = new Map<string, { token: string; until: number }>();
   const mailSenders = { google: gmailSender(oauthFetch), microsoft: graphSender(oauthFetch) };
+  // A3 — built here, where its parts exist; called only when a code is mailed.
+  function systemMailboxTransport(): MailTransport {
+    const operator = parseBusinessId(PILOT_BUSINESS_ID);
+    if (!operator.ok || !systemSmtp) {
+      return { provider: 'account', send: async () => ({ ok: false, retryable: false, error: 'no operator workspace' }) };
+    }
+    return accountMailTransport({
+      db, businessId: operator.value, credentialKey, clients: oauthClients, senders: mailSenders,
+      fetchImpl: oauthFetch, cache: tokenCache,
+      system: { from: systemSmtp.from, onlyMailbox: systemSmtp.user },
+    });
+  }
   /**
    * C10 — the Page and Instagram adapters for ONE business, from the account
    * it connected itself. The token is opened for this drive and held in

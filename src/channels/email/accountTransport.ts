@@ -49,6 +49,19 @@ export function accountMailTransport(deps: {
   readonly now?: () => Date;
   /** Shared across transports built for the same process, so a token is refreshed once. */
   readonly cache?: Map<string, Cached>;
+  /**
+   * A3 — the INSTALLATION's own mail (a sign-in code), sent through the
+   * operator's connected mailbox because the host may allow nothing else: a
+   * platform that blocks outgoing SMTP still lets an HTTPS call through.
+   *
+   * It differs from a business's mail in exactly three ways, all stated here
+   * and nowhere implied: it goes out only through the ONE mailbox the operator
+   * named; it is sent FROM the installation's address (an alias of that
+   * mailbox), not the mailbox's own; and the verified-sending-domain check does
+   * not apply, because that check protects a business's outreach and this is
+   * not outreach — `SystemMail` can carry a subject and a text to one address.
+   */
+  readonly system?: { readonly from: string; readonly onlyMailbox: string };
 }): MailTransport {
   const now = deps.now ?? (() => new Date());
   const cache = deps.cache ?? new Map<string, Cached>();
@@ -65,9 +78,15 @@ export function accountMailTransport(deps: {
       if (account.needsAttention) return refuse('the mail account must be connected again');
       const client = deps.clients[account.provider];
       if (!client) return refuse(`no ${account.provider} app is configured for this installation`);
-      const accountDomain = account.address.slice(account.address.lastIndexOf('@') + 1);
-      if (!domain || domain.domain !== accountDomain) {
-        return refuse('the connected mailbox is not on the verified sending domain');
+      if (deps.system) {
+        if (account.address.toLowerCase() !== deps.system.onlyMailbox.toLowerCase()) {
+          return refuse('the connected mailbox is not the one named for system mail');
+        }
+      } else {
+        const accountDomain = account.address.slice(account.address.lastIndexOf('@') + 1);
+        if (!domain || domain.domain !== accountDomain) {
+          return refuse('the connected mailbox is not on the verified sending domain');
+        }
       }
 
       let refreshToken: string;
@@ -109,7 +128,7 @@ export function accountMailTransport(deps: {
       for (const force of [false, true]) {
         const token = await accessToken(force);
         if (typeof token !== 'string') return token;
-        const r = await send(token, { ...message, from: account.address });
+        const r = await send(token, { ...message, from: deps.system?.from ?? account.address });
         if (!('unauthorized' in r)) return r;
         // A 401 with a token we believed fresh: refresh once and try again. A
         // second 401 means the grant itself no longer lets us send.
