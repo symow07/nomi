@@ -184,8 +184,26 @@ export const SEND_TIMEOUT_MS = 15_000;
  *
  * Errors are classified by status alone — 4xx is permanent (an expired window
  * stays expired; retrying it burns the account's standing with Meta), 5xx and
- * 429 are the network having a bad minute.
+ * 429 are the network having a bad minute. Meta's numeric error code rides
+ * along for the record; its message never does.
  */
+/**
+ * Meta's numeric error code — ` (#100)`, ` (#10/2534022)` — so a refused row
+ * names the rule that refused it. The code alone: the message beside it can
+ * quote the buyer's id, and provider text never comes back through here.
+ */
+function metaErrorCode(text: string): string {
+  try {
+    const e = obj(obj(JSON.parse(text))['error']);
+    const code = e['code'];
+    const sub = e['error_subcode'];
+    if (typeof code !== 'number') return '';
+    return typeof sub === 'number' ? ` (#${code}/${sub})` : ` (#${code})`;
+  } catch {
+    return '';
+  }
+}
+
 export function metaMessagingSender(cfg: {
   readonly accountId: string;
   readonly accessToken: string;
@@ -212,8 +230,9 @@ export function metaMessagingSender(cfg: {
         // match the status webhooks Meta sends about it.
         return id ? { ok: true, providerMessageId: id } : { ok: false, retryable: true, error: 'meta accepted without an id' };
       }
-      if (res.status === 429 || res.status >= 500) return { ok: false, retryable: true, error: `meta ${res.status}` };
-      return { ok: false, retryable: false, error: `meta ${res.status}` };
+      const status = `meta ${res.status}${metaErrorCode(text)}`;
+      if (res.status === 429 || res.status >= 500) return { ok: false, retryable: true, error: status };
+      return { ok: false, retryable: false, error: status };
     } catch {
       return { ok: false, retryable: true, error: 'meta unreachable' };
     }

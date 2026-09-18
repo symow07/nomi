@@ -88,6 +88,9 @@ record the screencast the review wants.
 - No `POST /webhook/instagram` in the logs at all → gates 4–7 (Meta never
   sent it). `GET /{page}/conversations?platform=instagram` with the Page token
   returning `[]` while `platform=messenger` lists your own thread is gate 7.
+- A reply row whose `last_error` is `meta 400 (#100)` → the send went to an
+  id graph.facebook.com does not serve. Instagram replies leave from the Page
+  (`/{page}/messages`, Page token), never from the Instagram account id.
 - A POST and `[inbound failed] 401/400` from Anthropic → the reply, not Meta:
   `ANTHROPIC_API_KEY` invalid, or the account has no credits.
 - A POST with `received: 0` → the credential row: press Connect on
