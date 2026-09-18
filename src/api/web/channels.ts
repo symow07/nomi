@@ -503,6 +503,11 @@ export function renderReach(
         ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connected', { name: EMPLOYEE_NAME[locale] }))}</div>
           ${link.connectedAs ? `<div class="muted win">${esc(t(locale, 'reach.inbound.connectedAs', { page: link.connectedAs }))}</div>` : ''}
           ${link.needsAttention ? `<div class="warn-line">${esc(t(locale, 'reach.inbound.attention'))}</div>${loginButton('reach.inbound.connectMeta')}` : ''}
+          ${!link.connectedAs && !link.needsAttention && link.connectHref && viewer.isOwner
+            // Connected through the HOST's account (C9), with the login now
+            // offered: she may still connect her own Page here, and the row
+            // moves from the environment's account to hers.
+            ? loginButton('reach.inbound.connectMeta') : ''}
           ${link.connectedAs && viewer.isOwner && !link.needsAttention
             ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
                 <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
