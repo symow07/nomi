@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  agreesOnEverything, compareWithModel, detectLanguage, extractQuantity, pickProduct,
+  agreesOnEverything, compareWithModel, detectLanguage, extractQuantity, nameCoverage, pickProduct,
   soundsLikeComplaint, stageFor, understand, SURE,
 } from '../../src/core/conversation/understand.js';
 import { SCENARIOS } from '../../src/trust/scenarios.js';
@@ -99,6 +99,24 @@ describe('N2a · which product, and how sure', () => {
     expect(pickProduct('price for BAG-01?', [bags], emptyState()).confidence).toBeGreaterThanOrEqual(SURE);
     expect(pickProduct('I think those bags, maybe', [bags], emptyState()).confidence)
       .toBeLessThan(pickProduct('those bags', [bags], emptyState()).confidence);
+  });
+
+  it('she wrote the product\'s whole name: that is the product, and sure — whatever the search scored', () => {
+    const tote = { productId: PRODUCT as string, relevance: 0.33, sku: 'TOTE-38', name: 'Canvas Tote Bag 38x40cm' };
+    expect(pickProduct('I want 10000 canvas tote bags.', [tote], emptyState())).toEqual({ productId: PRODUCT, confidence: 0.95 });
+    expect(nameCoverage('I want 10000 canvas tote bags.', tote.name)).toEqual({ covered: 1, words: 3 });
+    // Two products share the words she used: she cannot tell which, from the name alone.
+    const other = { productId: 'other', relevance: 0.3, sku: 'TOTE-45', name: 'Canvas Tote Bag 45x50cm' };
+    expect(pickProduct('canvas tote bags please', [tote, other], emptyState()).productId).toBeNull();
+    // Chinese has no spaces: matched by pairs of characters.
+    expect(nameCoverage('这个帆布手提袋多少钱', '帆布手提袋').covered).toBe(1);
+  });
+
+  it('one of its words, and it is the only thing her catalogue offered: a guess she asks about', () => {
+    const tote = { productId: PRODUCT as string, relevance: 0.18, name: 'Canvas Tote Bag 38x40cm' };
+    const r = pickProduct('Can you tell me about your bags?', [tote], emptyState());
+    expect(r.productId).toBe(PRODUCT);
+    expect(r.confidence).toBeLessThan(SURE);
   });
 
   it('nothing named now: the conversation\'s own product stands', () => {
