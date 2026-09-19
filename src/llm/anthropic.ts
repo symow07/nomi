@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { DEFAULT_MODEL } from './provider.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import { readFileSync } from 'node:fs';
 import type { Analyzer, ReplyWriter, VisionDescriber, PageTranscriber } from './ports.js';
@@ -24,7 +25,7 @@ import { parseProductId } from '../core/types/ids.js';
  * never call a model. Haiku 4.5 takes no adaptive thinking and no `effort`;
  * none is sent here.
  */
-const MODEL = 'claude-haiku-4-5';
+const MODEL = DEFAULT_MODEL;
 
 /**
  * Prompts are versioned by content hash so the turns table records provenance.
@@ -57,7 +58,7 @@ const PHASES_SET = new Set<Phase>([
   'commercial_discussion', 'confirmation', 'escalated', 'closed',
 ]);
 
-export function anthropicAnalyzer(client: Anthropic): Analyzer {
+export function anthropicAnalyzer(client: Anthropic, model: string = MODEL): Analyzer {
   const prompt = loadPrompt('analysis.txt');
 
   return {
@@ -71,7 +72,7 @@ export function anthropicAnalyzer(client: Anthropic): Analyzer {
         .join('\n');
 
       const res = await client.messages.create({
-        model: MODEL,
+        model,
         max_tokens: 1200,
         temperature: 0.2,
         system: prompt.text,
@@ -100,7 +101,7 @@ export function anthropicAnalyzer(client: Anthropic): Analyzer {
           recommendedPhase: state.phase,
         };
       }
-      return { analysis, promptVersion: prompt.version, modelId: MODEL,
+      return { analysis, promptVersion: prompt.version, modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
@@ -182,7 +183,7 @@ export function speakerContext(speaker: Speaker | null | undefined): Record<stri
   return { business, ...who };
 }
 
-export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
+export function anthropicReplyWriter(client: Anthropic, model: string = MODEL): ReplyWriter {
   const prompt = loadPrompt('response.txt');
 
   return {
@@ -221,7 +222,7 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
         : '';
 
       const res = await client.messages.create({
-        model: MODEL,
+        model,
         max_tokens: 600,
         temperature: 0.3,
         system: prompt.text + guard,
@@ -239,19 +240,19 @@ export function anthropicReplyWriter(client: Anthropic): ReplyWriter {
       } catch {
         reply = raw || 'Thanks for your message — let me get back to you shortly.';
       }
-      return { reply, promptVersion: prompt.version, modelId: MODEL,
+      return { reply, promptVersion: prompt.version, modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
 }
 
-export function anthropicVision(client: Anthropic): VisionDescriber {
+export function anthropicVision(client: Anthropic, model: string = MODEL): VisionDescriber {
   const prompt = loadPrompt('image_analysis.txt');
 
   return {
     async describe({ imageBase64, mediaType, caption }) {
       const res = await client.messages.create({
-        model: MODEL,
+        model,
         max_tokens: 500,
         temperature: 0,
         system: prompt.text,
@@ -283,7 +284,7 @@ export function anthropicVision(client: Anthropic): VisionDescriber {
         }
       } catch { /* unparseable vision output = no description; caller falls back */ }
 
-      return { searchText, attributes, promptVersion: prompt.version, modelId: MODEL,
+      return { searchText, attributes, promptVersion: prompt.version, modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens } };
     },
   };
@@ -303,12 +304,12 @@ export function anthropicVision(client: Anthropic): VisionDescriber {
  * deterministic parser produces PRODUCTS. No price can exist that no line
  * contains, because the parser only ever reads lines.
  */
-export function anthropicPageTranscriber(client: Anthropic): PageTranscriber {
+export function anthropicPageTranscriber(client: Anthropic, model: string = MODEL): PageTranscriber {
   const PROMPT_VERSION = 'page-transcribe-1';
   return {
     async transcribe({ imageBase64, mediaType }) {
       const res = await client.messages.create({
-        model: MODEL,
+        model,
         max_tokens: 2000,
         system:
           'You transcribe printed pages. Output ONLY the text that is visibly ' +
@@ -331,7 +332,7 @@ export function anthropicPageTranscriber(client: Anthropic): PageTranscriber {
         text: text === 'UNREADABLE' ? '' : text,
         unreadable: text === 'UNREADABLE' || text.length === 0,
         promptVersion: PROMPT_VERSION,
-        modelId: MODEL,
+        modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },
       };
     },

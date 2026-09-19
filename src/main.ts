@@ -2,12 +2,12 @@ import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
-import Anthropic from '@anthropic-ai/sdk';
 import { startWorker } from './worker/main.js';
 import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
+import { llmClient, llmProviderFrom } from './llm/provider.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
@@ -508,15 +508,18 @@ export async function buildProduction(
     providerConfigured: cfg.provider !== 'disabled',
     approvedTemplates: parseApprovedTemplates(process.env['META_TEMPLATE_NAMES']),
   });
+  // N6a — one provider for every model-backed part of this process.
+  const llm = llmProviderFrom(process.env, cfg.ANTHROPIC_API_KEY);
+  if (llm.name === 'custom') console.log(`Model provider: ${new URL(llm.baseURL!).host} · ${llm.model}`);
   // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
   // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
-    ? ((c) => ({ analyzer: anthropicAnalyzer(c), replyWriter: anthropicReplyWriter(c) }))(new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY }))
+    ? ((c) => ({ analyzer: anthropicAnalyzer(c, llm.model), replyWriter: anthropicReplyWriter(c, llm.model) }))(llmClient(llm))
     : {};
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
-  const pageTranscriber = anthropicPageTranscriber(new Anthropic({ apiKey: cfg.ANTHROPIC_API_KEY }));
+  const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model);
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,

@@ -86,7 +86,8 @@ What can be built and said truthfully, in order:
 | N3 | E-mail history import and the style profile | |
 | N4 | The interview, driven by gaps in the history | |
 | N5 | The reply memory | |
-| N6 | Provider-neutral fallback, with identities removed | |
+| N6a | Another provider by configuration (same message format, another address) | ✅ built 2026-09-19 — brought forward: the owner chose DeepSeek over paying the Anthropic balance |
+| N6b | Identities removed before anything is sent to a model | |
 
 ### N1 · as built
 
