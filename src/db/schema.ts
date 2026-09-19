@@ -233,6 +233,8 @@ export interface Database {
     input_tokens: number | null;
     output_tokens: number | null;
     analyser_avoidable: boolean | null;
+    /** N2a — her own rules' reading of the message and where it agrees with the model's. A shadow. */
+    own_understanding: unknown;
     created_at: Generated<Timestamp>;
   };
   quotes: {

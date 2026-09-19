@@ -1024,6 +1024,19 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **N2a · Her own understanding of a message, by rules, in shadow (2026-09-19,
+  migration 0061).** The rules that decide a turn use only four things from a
+  model's analysis — product, quantity, stage, complaint — and the language to
+  answer in, so her own understanding is rules rather than a model
+  (`core/conversation/understand.ts`; `null` means "I cannot tell", never a
+  guess). It is computed beside the model's analysis on every analysed turn,
+  compared field by field, stored on the turn, and read by nothing that decides
+  one; a test counts the places that touch it. Two scoreboards: all but the
+  three memory-dependent quantities agree on the 20 hand-labelled scenarios the
+  rules were tuned on, and on the rehearsal through the real product search
+  language, quantity and complaint agree fully while product (46%) and stage
+  (23%) do not. Nothing stops asking a model on that evidence; N2b starts from
+  the disagreeing rows.
 - **N1 · Who answered each turn, and what it cost (2026-09-19, migration 0060).**
   The owner's direction: she answers on her own power and a model is the
   fallback (`docs/PLAN-OWN-POWER.md`). Nothing can be moved off a model honestly

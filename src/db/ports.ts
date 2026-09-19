@@ -23,6 +23,7 @@ import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { KillSwitches } from '../core/ops/killSwitch.js';
 import type { Speaker } from '../core/owner/assistants.js';
 import type { AnswerPath } from '../core/conversation/answerPath.js';
+import type { Agreement, OwnUnderstanding } from '../core/conversation/understand.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -178,6 +179,8 @@ export interface AuditRepo {
     measure?: {
       readonly path: AnswerPath; readonly analyserAvoidable: boolean;
       readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number;
+      /** N2a — her own reading beside the model's. Null when no model analysed the message. */
+      readonly ownUnderstanding?: { readonly own: OwnUnderstanding; readonly agrees: Agreement; readonly onEverything: boolean } | null;
     };
   }): Promise<void>;
 }

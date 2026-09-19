@@ -600,6 +600,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         input_tokens: t.measure?.inputTokens ?? null,
         output_tokens: t.measure?.outputTokens ?? null,
         analyser_avoidable: t.measure?.analyserAvoidable ?? null,
+        own_understanding: t.measure?.ownUnderstanding ? JSON.stringify(t.measure.ownUnderstanding) : null,
       })
       .onConflict((oc) => oc.column('message_id').doNothing()) // replays are idempotent
       .execute();

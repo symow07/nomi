@@ -81,7 +81,8 @@ What can be built and said truthfully, in order:
 | # | Milestone | State |
 |---|---|---|
 | N1 | Measure who answered each turn and what it cost | ✅ built 2026-09-19 (0060) |
-| N2 | Her own understanding, in shadow beside the model | next |
+| N2a | Her own understanding by RULES, in shadow beside the model | ✅ built 2026-09-19 (0061) |
+| N2b | Make the shadow agree: product and stage first; embeddings only where rules cannot | next |
 | N3 | E-mail history import and the style profile | |
 | N4 | The interview, driven by gaps in the history | |
 | N5 | The reply memory | |
@@ -98,3 +99,32 @@ teaching. One tested sum feeds both. A first run over the twelve rehearsal
 scenarios (synthetic, not real traffic): 5 of 14 replies were hers, and the two
 turns where the guards failed twice made six model calls and sent none of the
 model's words.
+
+### N2a · as built
+
+A finding first: the rules that decide a turn use only FOUR things from a
+model's analysis — the product, the quantity, the stage, and whether it is a
+complaint — plus the language to answer in. So her own understanding
+(`src/core/conversation/understand.ts`) is rules, not a model: language by
+script and small words, a quantity as a number beside a unit (a price, a size
+or a duration is not one; a weight only when it is asked for), the product as a
+clear leader in the search she already runs, a complaint by its words unless it
+asks about a case that has not happened, and the stage from what is known.
+`null` always means "I cannot tell".
+
+It runs in SHADOW: computed beside the model's analysis on every analysed
+turn, compared field by field, stored on `turns.own_understanding`, and read by
+nothing that decides a turn. `tools/answer-paths.mjs` prints the agreement.
+
+Two scoreboards, and they disagree — which is the point of measuring:
+
+- Against the 20 hand-labelled scenarios: language, product, complaint and
+  stage agree on all 20; quantity on 17 — the three misses ("the same volume
+  again") need MEMORY of the conversation, not better rules. These rules were
+  tuned on this set, so it flatters them.
+- Against the twelve-scenario rehearsal, through the real product search:
+  language, quantity and complaint 100%, **product 46%, stage 23%**, right
+  about everything on 3 of 13 turns. Part of that is the rehearsal's scripted
+  analyser answering the same product whatever was asked; part is real. Nothing
+  may stop asking a model on this evidence. N2b starts from the disagreeing
+  rows, and real traffic (once a model is analysing again) is the judge.

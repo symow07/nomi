@@ -79,9 +79,36 @@ try {
     console.log(`    Estimated cost at list prices: ${money(s.estimatedCost)}${s.estimatedCost !== null && s.turns ? ` · about ${money({ amount: (s.estimatedCost.amount / s.turns) * 1000, currency: s.estimatedCost.currency })} per 1,000 buyer messages` : ''}`);
     console.log(`    Analyser calls that bought nothing: ${s.avoidableAnalyserCalls} (${pct(s.avoidableAnalyserCalls, s.llmCalls)} of all model calls)\n`);
   }
+  // N2a — her own reading of each message beside the model's. A shadow: this
+  // only says how often her rules would have been right, per field.
+  const a = (await client.query(
+    `select count(*)::int as n,
+            count(*) filter (where (own_understanding->'agrees'->>'language') = 'true')::int as language,
+            count(*) filter (where (own_understanding->'agrees'->>'language') is null
+                                or (own_understanding->'agrees'->>'language') = 'null')::int as language_unsure,
+            count(*) filter (where (own_understanding->'agrees'->>'quantity') = 'true')::int as quantity,
+            count(*) filter (where (own_understanding->'agrees'->>'product') = 'true')::int as product,
+            count(*) filter (where (own_understanding->'agrees'->>'complaint') = 'true')::int as complaint,
+            count(*) filter (where (own_understanding->'agrees'->>'phase') = 'true')::int as phase,
+            count(*) filter (where (own_understanding->>'onEverything') = 'true')::int as everything
+       from turns
+      where created_at > now() - ($1 || ' days')::interval
+        and ($2::uuid is null or business_id = $2::uuid)
+        and own_understanding is not null`,
+    [String(days), business],
+  )).rows[0];
+  if (a.n > 0) {
+    console.log(`  Her own reading of the message, beside the model's — ${a.n} turn${a.n === 1 ? '' : 's'} where both ran:`);
+    console.log(`    language   ${pct(a.language, a.n - a.language_unsure).padStart(4)} agree${a.language_unsure ? ` · could not tell on ${a.language_unsure}` : ''}`);
+    for (const f of ['quantity', 'product', 'complaint']) console.log(`    ${f.padEnd(10)} ${pct(a[f], a.n).padStart(4)} agree`);
+    console.log(`    stage      ${pct(a.phase, a.n).padStart(4)} agree`);
+    console.log(`  ✓ Right about all of it: ${a.everything} of ${a.n} (${pct(a.everything, a.n)}) — the turns that would not have needed a model to be understood\n`);
+  } else if (s.turns > 0) {
+    console.log('  Her own reading beside the model\'s: nothing to compare yet (no model analysed a message in this range).\n');
+  }
 } catch (e) {
   console.error(`\n  ✗ ${e instanceof Error ? e.message : String(e)}`);
-  console.error('    Is migration 0060 applied? Run tools/migrate.mjs first.\n');
+  console.error('    Are migrations 0060 and 0061 applied? Run tools/migrate.mjs first.\n');
   process.exitCode = 1;
 } finally {
   await client.end();
