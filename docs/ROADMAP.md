@@ -1024,6 +1024,18 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **F1 · The pilot list is WhatsApp's list — at the door in, too (2026-09-19).**
+  The day the owner started her, WhatsApp answered and Instagram did not. The
+  worker's gate (`pilotFactsFor`) read the buyer's WHATSAPP identity for every
+  conversation; an Instagram account, a Page visitor or an e-mail address has
+  none, read as "not on the list", and was tagged `unlisted_number`, handed to a
+  person and never answered — silently, on three of four channels. The send
+  path had known since C4.a that the list is digits only and WhatsApp's alone;
+  the door in did not. A conversation on another channel is no longer subject
+  to it: a buyer there wrote first, a reply is only possible inside the
+  platform's own window, and e-mail is limited by consent. WhatsApp keeps its
+  list unchanged. Found from the turn record N1 added — no turn at all for the
+  message, and two `unlisted_number` signals beside it.
 - **T1 · How much she does on her own is the owner's choice (2026-09-19).** The
   evidence ladder was the only door: fifteen handled, twelve approved untouched,
   two spot checks and five days before "Hi there!" could go out without a tap.

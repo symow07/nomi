@@ -228,6 +228,29 @@ d('G10 · day-one WhatsApp (requires DATABASE_URL)', { timeout: 40_000 }, () => 
     expect(page.body).toContain('Hi, send me your catalogue');
   });
 
+  it('c · THE LIST IS WHATSAPP\'S: a buyer on Instagram, Messenger or e-mail is never "not on her list"', async () => {
+    // What happened on 2026-09-19: the owner started her, and from that minute
+    // every Instagram message was tagged `unlisted_number` and handed to a
+    // person — because this read the buyer's WHATSAPP identity for every
+    // conversation, and an Instagram account has none. The list is digits only;
+    // nobody on another channel can ever be on it.
+    const { ensureConversation, pilotFactsFor } = await import('../../src/db/channels.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const facts = async (channel: 'instagram' | 'messenger' | 'email', identity: string) => tx(async (t) => {
+      const c = await ensureConversation(t, bid.value, identity, 'Buyer', channel);
+      return pilotFactsFor(t, bid.value, c.conversationId);
+    });
+    for (const [channel, identity] of [['instagram', `ig-${RUN}`], ['messenger', `psid-${RUN}`], ['email', `buyer-${RUN}@example.com`]] as const) {
+      const f = await facts(channel, identity);
+      expect(f, channel).toEqual({ activated: true, pilotMode: true, allowlisted: true });
+    }
+    // …while WhatsApp keeps its list: C is still not on it, A still is.
+    const onWhatsApp = async (from: string) => tx(async (t) => pilotFactsFor(t, bid.value, await convOf(from)));
+    expect((await onWhatsApp(C)).allowlisted).toBe(false);
+    expect((await onWhatsApp(A)).allowlisted).toBe(true);
+  });
+
   it('c · a buyer ON her list is still answered while live', async () => {
     await post(sim.inboundText({ from: A, text: 'Do you do custom printing?' }));
     const convA = await convOf(A);
