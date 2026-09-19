@@ -1024,6 +1024,16 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **N6a · Another model provider, by configuration (2026-09-19).** A model is her
+  fallback, and it may be whichever provider the installation pays for; the
+  owner chose DeepSeek. Several providers speak Anthropic's message format at
+  their own address, so this is not a second implementation: `LLM_BASE_URL`,
+  `LLM_API_KEY` and `LLM_MODEL` — all three or none — point the one client
+  somewhere else, for the analyser, the reply writer, the photo reader and the
+  price-sheet reader alike. A half-set trio is no switch: a warning names the
+  missing variable, never a value, and Anthropic stays. Everything that makes a
+  reply safe sits after the model and does not care who it is. What does change
+  is where buyers' messages are sent, which the privacy notice must say.
 - **N2b.1 · She knows a product by its name (2026-09-19).** The shadow's
   disagreeing rows showed why she found no product where the model did: a search
   score is diluted by the rest of the buyer's sentence, while every word of the

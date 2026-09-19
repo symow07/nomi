@@ -20,7 +20,8 @@ exits with the names of anything missing or malformed; it never prints a value.*
 | Variable | Shape the boot check enforces | What it is |
 |---|---|---|
 | `DATABASE_URL` | starts with `postgres` | The **runtime** connection, as `nomi_app`. Boot refuses if this role is a superuser or bypasses RLS. |
-| `ANTHROPIC_API_KEY` | ≥ 20 chars | Model calls. Never a source of prices or claims. |
+| `ANTHROPIC_API_KEY` | ≥ 20 chars | Model calls. Never a source of prices or claims. Still required by the boot check when another provider is selected below; it is then unused. |
+| `LLM_BASE_URL` · `LLM_API_KEY` · `LLM_MODEL` | **all three or none** — an `https://` address, a key of ≥ 16 chars, a model name | N6a — another model provider that speaks Anthropic's message format at its own address. DeepSeek: `https://api.deepseek.com/anthropic` and `deepseek-flash`. A half-set trio is treated as unset: a warning names the missing part and Anthropic keeps being used. Unset, nothing changes. **Buyers' messages are then sent to that company, under its terms and in its country — the privacy notice must name it.** The cost estimate in `tools/answer-paths.mjs` reads *unknown* for a model with no listed price. |
 | `WEBHOOK_VERIFY_TOKEN` | ≥ 16 chars | The string the provider echoes back during webhook verification. You choose it. |
 | `CREDENTIAL_KEY` | 64 hex chars | Encrypts stored channel credentials, and derives the owner session secret. **Boot refuses in production if this was generated rather than supplied** — see below. |
 
