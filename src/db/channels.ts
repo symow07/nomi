@@ -382,8 +382,8 @@ export function channelStore(
 export async function pilotFactsFor(
   tx: Tx, businessId: BusinessId, conversationId: string,
 ): Promise<{ activated: boolean; pilotMode: boolean; allowlisted: boolean }> {
-  const row = (await sql<{ activated: boolean | null; pilot_mode: boolean | null; wa_id: string | null }>`
-    select ch.activated_at is not null as activated, ch.pilot_mode, cc.channel_user_id as wa_id
+  const row = (await sql<{ activated: boolean | null; pilot_mode: boolean | null; wa_id: string | null; channel: string | null }>`
+    select ch.activated_at is not null as activated, ch.pilot_mode, cc.channel_user_id as wa_id, c.channel
       from conversations c
       left join channels ch on ch.business_id = c.business_id and ch.kind = 'whatsapp'
       left join lateral (
@@ -393,10 +393,26 @@ export async function pilotFactsFor(
       ) cc on true
      where c.id = ${conversationId} limit 1`.execute(tx)).rows[0];
   const pilotMode = row?.pilot_mode ?? true;
+  /**
+   * F1 — THE PILOT LIST IS WHATSAPP'S LIST, here as on the send path.
+   *
+   * It is digits only (0021): an Instagram account, a Page visitor or an e-mail
+   * address cannot be on it. This read the buyer's WHATSAPP identity for every
+   * conversation, so the moment the owner started her (2026-09-19) every buyer
+   * on another channel had no such identity, read as "not on the list", and was
+   * recorded and never answered — silently, on three of four channels, while
+   * WhatsApp worked. The send path already knew (`sendFactsFor`: "the pilot
+   * allowlist is WhatsApp's list, by its own column"); the door in did not.
+   *
+   * What limits those channels instead is theirs: a buyer there wrote FIRST, a
+   * reply is only possible inside the platform's own window, and e-mail is
+   * limited by consent. An unknown conversation is still treated as WhatsApp.
+   */
+  const onWhatsApp = (row?.channel ?? 'whatsapp') === 'whatsapp';
   return {
     activated: row?.activated === true,
     pilotMode,
-    allowlisted: pilotMode ? await isAllowlisted(tx, businessId, row?.wa_id ?? null) : true,
+    allowlisted: pilotMode && onWhatsApp ? await isAllowlisted(tx, businessId, row?.wa_id ?? null) : true,
   };
 }
 
