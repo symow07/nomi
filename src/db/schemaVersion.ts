@@ -185,7 +185,7 @@ import type { Db } from './client.js';
  *      `channel_credentials` learns 'messenger'; against a 52 database a
  *      buyer's Instagram message is acknowledged to Meta and dropped.
  */
-export const REQUIRED_SCHEMA_VERSION = 59;
+export const REQUIRED_SCHEMA_VERSION = 60;
 
 export type SchemaState = {
   readonly required: number;

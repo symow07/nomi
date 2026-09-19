@@ -329,6 +329,7 @@ const EN = {
   'analytics.employee.handled': 'Inquiries handled',
   'analytics.employee.waiting': 'Replies waiting for your OK',
   'analytics.employee.edits': 'Your corrections',
+  'analytics.employee.own': '{hers} of {replies} replies came straight from your rules and what you taught her. The rest she wrote fresh.',
   'analytics.employee.foot': 'This covers {range}.',
   // channels
   'channel.whatsapp.desc': 'Buyers message this number; {name} writes the reply and you decide what goes out',
@@ -2125,6 +2126,7 @@ const ZH: Record<MessageKey, string> = {
   'analytics.employee.handled': '已处理询盘',
   'analytics.employee.waiting': '等你确认的回复',
   'analytics.employee.edits': '你改过的',
+  'analytics.employee.own': '{replies}条回复里，{hers}条直接来自你定的规矩和你教过的内容，其余是她现写的。',
   'analytics.employee.foot': '这些都是{range}的记录。',
   'channel.whatsapp.desc': '买家发到这个号码；{name}写好回复，发不发你说了算',
   'channel.status.connected': '已连接',
@@ -3859,6 +3861,7 @@ const AR: Record<MessageKey, string> = {
   'analytics.employee.handled': 'استفسارات منجزة',
   'analytics.employee.waiting': 'بانتظار موافقتك',
   'analytics.employee.edits': 'تصحيحاتك',
+  'analytics.employee.own': 'من أصل {replies} ردًّا، جاء {hers} مباشرةً من قواعدكِ وممّا علّمتِها، والباقي كتبته من جديد.',
   'analytics.employee.foot': 'هذا يغطي {range}.',
   'channel.whatsapp.desc': 'يراسل المشترون هذا الرقم؛ تكتب {name} الرد وأنت تقرر ما يُرسَل',
   'channel.status.connected': 'متصل',
