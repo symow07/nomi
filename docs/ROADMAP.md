@@ -1024,6 +1024,17 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **N6a.1 · A provider that thinks out loud (2026-09-19).** The day the owner
+  switched to DeepSeek, one real call showed its answer arrives as a `thinking`
+  block FIRST and the text second — and all four model adapters read
+  `content[0]`. Every analysis would have been unparseable and every reply
+  replaced by the stand-in sentence, silently. They now read the first TEXT
+  block wherever it sits, and a provider selected by `LLM_*` is told not to
+  think (`thinking: disabled`): the same one-sentence reply took 26 output
+  tokens and 1.7 s instead of 115. Anthropic's pinned model is sent nothing
+  extra, as before. Proven with the real analyser and reply writer against
+  DeepSeek: a French question read correctly (language, 500 pcs, a price
+  request) and answered in French with no invented price.
 - **N6a · Another model provider, by configuration (2026-09-19).** A model is her
   fallback, and it may be whichever provider the installation pays for; the
   owner chose DeepSeek. Several providers speak Anthropic's message format at

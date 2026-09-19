@@ -50,6 +50,15 @@ export function llmProviderFrom(env: Record<string, string | undefined>, anthrop
   return { name: 'custom', apiKey, baseURL: baseURL.replace(/\/+$/, ''), model };
 }
 
+/**
+ * What every request to this provider carries besides the message. Anthropic's
+ * pinned model is sent nothing extra, exactly as before. Another provider's
+ * model may think by default (DeepSeek's does: a thinking block first, four
+ * times the output tokens for one short sentence), so it is told not to.
+ */
+export const requestExtrasFor = (p: LlmProvider): { readonly thinking?: { readonly type: 'disabled' } } =>
+  p.name === 'custom' ? { thinking: { type: 'disabled' } } : {};
+
 /** The one client. Another provider is the same client at another address. */
 export const llmClient = (p: LlmProvider): Anthropic =>
   new Anthropic({ apiKey: p.apiKey, ...(p.baseURL ? { baseURL: p.baseURL } : {}) });

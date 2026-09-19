@@ -7,7 +7,7 @@ import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
-import { llmClient, llmProviderFrom } from './llm/provider.js';
+import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
@@ -514,12 +514,12 @@ export async function buildProduction(
   // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
   // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
-    ? ((c) => ({ analyzer: anthropicAnalyzer(c, llm.model), replyWriter: anthropicReplyWriter(c, llm.model) }))(llmClient(llm))
+    ? ((c) => ({ analyzer: anthropicAnalyzer(c, llm.model, requestExtrasFor(llm)), replyWriter: anthropicReplyWriter(c, llm.model, requestExtrasFor(llm)) }))(llmClient(llm))
     : {};
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
-  const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model);
+  const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model, requestExtrasFor(llm));
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,

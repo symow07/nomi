@@ -50,6 +50,26 @@ function loadPrompt(file: string): { text: string; version: string } {
   return { text, version: `${file}@${(h >>> 0).toString(16)}` };
 }
 
+/**
+ * What a provider needs added to every request. Anthropic's pinned model takes
+ * nothing; a provider whose model thinks by default is told not to — her
+ * analysis and her replies are short, and paying to think about "do you sell
+ * tote bags?" quadruples the tokens and the wait for the same sentence.
+ */
+export type RequestExtras = { readonly thinking?: { readonly type: 'disabled' } };
+
+/**
+ * N6a.1 — the answer is the first TEXT block, wherever it sits.
+ *
+ * This read `content[0]`, which is the text only for a provider that does not
+ * think out loud. DeepSeek's endpoint puts a `thinking` block first, so every
+ * analysis and every reply would have been read as empty: the analyser's JSON
+ * unparseable, the writer's words replaced by the stand-in sentence. Found with
+ * one real call the day the owner switched, before a buyer met it.
+ */
+const firstText = (content: readonly { readonly type: string }[]): { type: 'text'; text: string } | undefined =>
+  content.find((b): b is { type: 'text'; text: string } => b.type === 'text');
+
 const stripFences = (s: string): string =>
   s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
@@ -58,7 +78,7 @@ const PHASES_SET = new Set<Phase>([
   'commercial_discussion', 'confirmation', 'escalated', 'closed',
 ]);
 
-export function anthropicAnalyzer(client: Anthropic, model: string = MODEL): Analyzer {
+export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): Analyzer {
   const prompt = loadPrompt('analysis.txt');
 
   return {
@@ -73,6 +93,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL): Ana
 
       const res = await client.messages.create({
         model,
+        ...extra,
         max_tokens: 1200,
         temperature: 0.2,
         system: prompt.text,
@@ -84,7 +105,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL): Ana
         }],
       });
 
-      const block = res.content[0];
+      const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '{}';
 
       let analysis: Analysis;
@@ -183,7 +204,7 @@ export function speakerContext(speaker: Speaker | null | undefined): Record<stri
   return { business, ...who };
 }
 
-export function anthropicReplyWriter(client: Anthropic, model: string = MODEL): ReplyWriter {
+export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): ReplyWriter {
   const prompt = loadPrompt('response.txt');
 
   return {
@@ -223,6 +244,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL): 
 
       const res = await client.messages.create({
         model,
+        ...extra,
         max_tokens: 600,
         temperature: 0.3,
         system: prompt.text + guard,
@@ -232,7 +254,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL): 
         }],
       });
 
-      const block = res.content[0];
+      const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '';
       let reply: string;
       try {
@@ -246,13 +268,14 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL): 
   };
 }
 
-export function anthropicVision(client: Anthropic, model: string = MODEL): VisionDescriber {
+export function anthropicVision(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): VisionDescriber {
   const prompt = loadPrompt('image_analysis.txt');
 
   return {
     async describe({ imageBase64, mediaType, caption }) {
       const res = await client.messages.create({
         model,
+        ...extra,
         max_tokens: 500,
         temperature: 0,
         system: prompt.text,
@@ -265,7 +288,7 @@ export function anthropicVision(client: Anthropic, model: string = MODEL): Visio
         }],
       });
 
-      const block = res.content[0];
+      const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '{}';
       let searchText = '';
       let attributes: string[] = [];
@@ -304,12 +327,13 @@ export function anthropicVision(client: Anthropic, model: string = MODEL): Visio
  * deterministic parser produces PRODUCTS. No price can exist that no line
  * contains, because the parser only ever reads lines.
  */
-export function anthropicPageTranscriber(client: Anthropic, model: string = MODEL): PageTranscriber {
+export function anthropicPageTranscriber(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): PageTranscriber {
   const PROMPT_VERSION = 'page-transcribe-1';
   return {
     async transcribe({ imageBase64, mediaType }) {
       const res = await client.messages.create({
         model,
+        ...extra,
         max_tokens: 2000,
         system:
           'You transcribe printed pages. Output ONLY the text that is visibly ' +
@@ -326,7 +350,7 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
           ],
         }],
       });
-      const block = res.content[0];
+      const block = firstText(res.content);
       const text = block?.type === 'text' ? block.text.trim() : '';
       return {
         text: text === 'UNREADABLE' ? '' : text,

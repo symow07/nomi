@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_MODEL, llmClient, llmProviderFrom } from '../../src/llm/provider.js';
+import { DEFAULT_MODEL, llmClient, llmProviderFrom, requestExtrasFor } from '../../src/llm/provider.js';
 import { anthropicAnalyzer, anthropicReplyWriter } from '../../src/llm/anthropic.js';
 import { emptyState } from './fixtures.js';
 
@@ -19,6 +20,12 @@ const KEY = 'sk-ant-not-a-real-key-000000000000';
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
 afterEach(() => vi.restoreAllMocks());
+
+/** The one method the adapters call, typed — so a fake cannot drift from what they read. */
+type Answer = { content: ({ type: 'text'; text: string } | { type: 'thinking'; thinking: string })[]; usage: { input_tokens: number; output_tokens: number } };
+const clientThat = (create: (req: Record<string, unknown>) => Promise<Answer>): Anthropic =>
+  ({ messages: { create } }) as unknown as Anthropic;
+
 
 describe('N6a · choosing the provider', () => {
   it('unset, nothing changes: Anthropic, her key, the pinned model', () => {
@@ -49,12 +56,10 @@ describe('N6a · choosing the provider', () => {
 });
 
 describe('N6a · the model name reaches the request and the record', () => {
-  const fakeClient = (seen: { model?: string }) => ({
-    messages: { create: async (req: { model: string }) => {
-      seen.model = req.model;
-      return { content: [{ type: 'text', text: '{"reply_text":"Hello there."}' }], usage: { input_tokens: 10, output_tokens: 5 } };
-    } },
-  }) as never;
+  const fakeClient = (seen: { model?: string }) => clientThat(async (req) => {
+    seen.model = String(req['model']);
+    return { content: [{ type: 'text', text: '{"reply_text":"Hello there."}' }], usage: { input_tokens: 10, output_tokens: 5 } };
+  });
 
   it('the reply writer asks for the provider\'s model and says so on the turn', async () => {
     const seen: { model?: string } = {};
@@ -74,13 +79,49 @@ describe('N6a · the model name reaches the request and the record', () => {
     expect(typeof anthropicAnalyzer).toBe('function');
   });
 
+  it('N6a.1 — a provider that thinks out loud: the answer is the first TEXT block, not whatever comes first', async () => {
+    // What DeepSeek really returned on 2026-09-19: a thinking block, then the text.
+    const thinker = clientThat(async () => ({
+      content: [{ type: 'thinking', thinking: 'The buyer asks about tote bags…' }, { type: 'text', text: '{"reply_text":"Yes, we do."}' }],
+      usage: { input_tokens: 61, output_tokens: 115 },
+    }));
+    const w = await anthropicReplyWriter(thinker, 'deepseek-flash').write({
+      state: emptyState(), text: 'do you sell tote bags?', quote: null, replyLanguage: 'en', nextQuestion: null, retryAfterViolation: false,
+    });
+    expect(w.reply).toBe('Yes, we do.');   // it used to be read as empty, and the stand-in sentence went out
+
+    const a = await anthropicAnalyzer(clientThat(async () => ({
+      content: [{ type: 'thinking', thinking: '…' }, { type: 'text', text: JSON.stringify({
+        language: { detected: 'fr', reply_in: 'fr' },
+        intent: { primary: 'inquiry', quantity_mentioned: 500, quantity_unit: 'pcs' }, recommended_phase: 'clarification' }) }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })), 'deepseek-flash').analyze({ text: 'combien pour 500 sacs ?', state: emptyState(), candidates: [], recentMessages: [] });
+    expect(a.analysis.language.detected).toBe('fr');
+    expect(a.analysis.intent.quantityMentioned?.value).toBe(500);
+  });
+
+  it('N6a.1 — such a provider is told not to think; Anthropic\'s pinned model is sent nothing extra, as before', async () => {
+    expect(requestExtrasFor({ name: 'custom', apiKey: 'k', baseURL: 'https://x.test', model: 'm' })).toEqual({ thinking: { type: 'disabled' } });
+    expect(requestExtrasFor({ name: 'anthropic', apiKey: 'k', baseURL: null, model: DEFAULT_MODEL })).toEqual({});
+    const sent: Record<string, unknown>[] = [];
+    const spy = clientThat(async (req) => {
+      sent.push(req);
+      return { content: [{ type: 'text', text: '{"reply_text":"ok"}' }], usage: { input_tokens: 1, output_tokens: 1 } };
+    });
+    const input = { state: emptyState(), text: 'hi', quote: null, replyLanguage: 'en', nextQuestion: null, retryAfterViolation: false };
+    await anthropicReplyWriter(spy, 'deepseek-flash', { thinking: { type: 'disabled' } }).write(input);
+    await anthropicReplyWriter(spy).write(input);
+    expect(sent[0]!['thinking']).toEqual({ type: 'disabled' });
+    expect('thinking' in sent[1]!).toBe(false);
+  });
+
   it('every model-backed part of production is built from the ONE provider', () => {
     const main = read('src/main.ts'); const worker = read('src/worker/main.ts');
     expect(main).not.toMatch(/new Anthropic\(/);
     expect(worker).not.toMatch(/new Anthropic\(/);
-    expect(worker).toMatch(/anthropicAnalyzer\(anthropic, llm\.model\)/);
-    expect(worker).toMatch(/anthropicReplyWriter\(anthropic, llm\.model\)/);
-    expect(worker).toMatch(/anthropicVision\(anthropic, llm\.model\)/);
-    expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm\), llm\.model\)/);
+    expect(worker).toMatch(/anthropicAnalyzer\(anthropic, llm\.model, extras\)/);
+    expect(worker).toMatch(/anthropicReplyWriter\(anthropic, llm\.model, extras\)/);
+    expect(worker).toMatch(/anthropicVision\(anthropic, llm\.model, extras\)/);
+    expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm\), llm\.model, requestExtrasFor\(llm\)\)/);
   });
 });
