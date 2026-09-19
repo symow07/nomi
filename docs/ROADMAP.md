@@ -1024,6 +1024,18 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **N1 · Who answered each turn, and what it cost (2026-09-19, migration 0060).**
+  The owner's direction: she answers on her own power and a model is the
+  fallback (`docs/PLAN-OWN-POWER.md`). Nothing can be moved off a model honestly
+  until each turn says what happened, so `turns` now records who WORDED the
+  reply (nine paths; only `model` means a model wrote it), the turn's model
+  calls and tokens, and whether the analyser's call bought anything. The label
+  is set beside every branch that decides the words, so it cannot drift from
+  the branch. `tools/answer-paths.mjs` reports it for the operator with an
+  estimated cost — money with its currency, unknown rather than partial when a
+  model has no listed price — and Results tells the owner how many replies came
+  straight from her rules and teaching. One tested sum feeds both. Turns from
+  before 0060 are counted apart, never as free.
 - **A3.1 · The code is sent over HTTPS where the host blocks SMTP (2026-09-19).**
   The first real sign-up with codes on answered "we could not send the e-mail".
   The mailbox, alias and app password were right; Railway's Hobby plan blocks

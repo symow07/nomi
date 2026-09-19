@@ -227,6 +227,12 @@ export interface Database {
     prompt_version: string | null;
     model_id: string | null;
     latency_ms: number | null;
+    /** N1 — who worded the reply, and what the turn cost. Null on turns from before 0060. */
+    answer_path: string | null;
+    llm_calls: number | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    analyser_avoidable: boolean | null;
     created_at: Generated<Timestamp>;
   };
   quotes: {

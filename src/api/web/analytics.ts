@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { summarizePaths, type AnswerPath } from '../../core/conversation/answerPath.js';
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -38,7 +39,15 @@ export type AnalyticsData = {
      */
     readonly totals: readonly Money[];
   };
-  readonly employee: { readonly handled: number; readonly waiting: number; readonly edits: number };
+  readonly employee: {
+    readonly handled: number; readonly waiting: number; readonly edits: number;
+    /**
+     * N1 — of the replies in this range, how many she worded from the owner's
+     * own rules and teaching rather than writing fresh. Absent when no turn in
+     * the range was measured (everything before migration 0060).
+     */
+    readonly answered?: { readonly replies: number; readonly hers: number };
+  };
 };
 
 export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range): Promise<AnalyticsData> {
@@ -95,12 +104,23 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
     const hasActivity =
       c.new_clients + c.active_convos + c.quotes + c.orders + c.inbound + c.replied + c.handled > 0;
 
+    // N1 — the same sum the operator's report uses, so the two cannot disagree.
+    const measured = (await sql<{ path: AnswerPath; n: number }>`
+      select answer_path as path, count(*)::int as n from turns
+       where created_at >= ${cutoff} and answer_path is not null group by answer_path`.execute(tx)).rows;
+    const paths = summarizePaths(measured.flatMap((m) => Array.from({ length: m.n }, () => ({
+      path: m.path, modelId: null, llmCalls: 0, inputTokens: 0, outputTokens: 0, analyserAvoidable: false,
+    }))));
+
     return {
       range, hasActivity,
       summary: { newClients: c.new_clients, activeConvos: c.active_convos, quotes: c.quotes, orders: c.orders },
       activity: { inbound: c.inbound, replied: c.replied, waiting: c.waiting },
       commerce: { quotes: c.quotes, orders: c.orders, deals, totals },
-      employee: { handled: c.handled, waiting: c.waiting, edits: c.edits },
+      employee: {
+        handled: c.handled, waiting: c.waiting, edits: c.edits,
+        ...(paths.replies > 0 ? { answered: { replies: paths.replies, hers: paths.repliesWordedByHer } } : {}),
+      },
     };
   });
 }
@@ -161,6 +181,8 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
       ${stat(d.employee.waiting, 'analytics.employee.waiting')}
       ${stat(d.employee.edits, 'analytics.employee.edits')}
     </div>
+    ${d.employee.answered ? `<p class="own-line">${esc(t(locale, 'analytics.employee.own', {
+      hers: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
     <p class="muted foot">${esc(t(locale, 'analytics.employee.foot', { range: rangeLabel }))}</p></div>`;
 
   return `${title}${tabs}${summary}${activity}${commerce}${employee}${ANALYTICS_STYLE}`;
@@ -172,5 +194,6 @@ const ANALYTICS_STYLE = `<style>
   .deals 
   .deals .total { width:100%; font-size:var(--font-size-note); margin-top:var(--space-8); }
   .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:var(--space-8); }
+  .own-line { margin:var(--space-12) 0 0; font-size:var(--font-size-note); }
   .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-micro); }
 </style>`;

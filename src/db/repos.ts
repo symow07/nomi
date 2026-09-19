@@ -595,6 +595,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         prompt_version: t.promptVersion,
         model_id: t.modelId,
         latency_ms: t.latencyMs,
+        answer_path: t.measure?.path ?? null,
+        llm_calls: t.measure?.llmCalls ?? null,
+        input_tokens: t.measure?.inputTokens ?? null,
+        output_tokens: t.measure?.outputTokens ?? null,
+        analyser_avoidable: t.measure?.analyserAvoidable ?? null,
       })
       .onConflict((oc) => oc.column('message_id').doNothing()) // replays are idempotent
       .execute();

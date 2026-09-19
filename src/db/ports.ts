@@ -22,6 +22,7 @@ import type { AutonomyGrant, Capability } from '../core/conversation/autonomy.js
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import type { KillSwitches } from '../core/ops/killSwitch.js';
 import type { Speaker } from '../core/owner/assistants.js';
+import type { AnswerPath } from '../core/conversation/answerPath.js';
 
 /**
  * Database ports. Interfaces in Week 1; Kysely implementations in Week 2.
@@ -173,6 +174,11 @@ export interface AuditRepo {
     promptVersion: string | null;
     modelId: string | null;
     latencyMs: number;
+    /** N1 — who worded the reply and what the turn cost. Optional: an old caller records none. */
+    measure?: {
+      readonly path: AnswerPath; readonly analyserAvoidable: boolean;
+      readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number;
+    };
   }): Promise<void>;
 }
 

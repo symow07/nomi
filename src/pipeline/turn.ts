@@ -15,6 +15,7 @@ import { effectiveMode } from '../core/ops/killSwitch.js';
 import type { TextProvenance } from '../core/safety/heardNumbers.js';
 import { holdReasonOf, type HoldReason } from '../core/conversation/hold.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
+import { analyserWasAvoidable, type AnswerPath } from '../core/conversation/answerPath.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
@@ -122,6 +123,9 @@ export type TurnResult = {
   quoteRefusal: QuoteRefusal | null;
   reply: string | null;           // null = silent (handed off)
   replyDeterministic: boolean;    // true when the reply came from a template / taught answer
+  /** N1 — WHO worded the reply, and whether the analyser's call bought anything. */
+  answerPath: AnswerPath;
+  analyserAvoidable: boolean;
   /** M13: taught facts provided to this reply (identified product + business-level). */
   knowledge: readonly KnowledgeSnippet[];
   /** M13: the knowledge row ids that SUPPORTED the reply (audit). */
@@ -319,6 +323,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // ── The reply. Commitments are templates; prose is the model, guarded. ─────
   let reply: string | null = null;
   let replyDeterministic = false;
+  // N1 — set beside every place that decides the words, so the label cannot
+  // drift from the branch that produced them. `model` until something else did.
+  let answerPath: AnswerPath = 'model';
+  /** The product the taught-answer search ran under, for `analyserWasAvoidable`. */
+  let productSearchedUnder: string | null = null;
   let guardViolations = 0;
   /** M37.5 — which forbidden terms stopped a draft, so the owner is told WHICH. */
   let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
@@ -334,16 +343,20 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     case 'silent':
       reply = null;
       replyDeterministic = true;
+      answerPath = 'silent';
       break;
 
     case 'canned_reply':
       reply = decision.action.reply;
       replyDeterministic = true;
+      // A bare yes/no to her own question never reached a model at all.
+      answerPath = detectFastPath(req.text, state).matched ? 'fast_path' : 'canned';
       break;
 
     case 'handoff':
       reply = HANDOFF_REPLY;
       replyDeterministic = true;
+      answerPath = 'handoff';
       break;
 
     case 'confirm_order': {
@@ -357,6 +370,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         paymentTerms: terms?.paymentTerms ?? null,
         incoterm: terms?.incoterm ?? null,
       });
+      answerPath = 'order_flow';
       if (confirmable.ok) {
         // Reply text is finalized in commitTurn once the order reference exists.
         reply = null;
@@ -384,6 +398,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // product's rows (decision 1) — business-level facts inform prose, never
       // license a number. Certifications are absent here (they gate via claims).
       const identifiedProductId = decision.product?.productId ?? null;
+      productSearchedUnder = identifiedProductId;
       knowledge = await tenant.knowledge.retrieve({ query: req.text, productId: identifiedProductId, k: 6 });
       const knowledgeNumbers = identifiedProductId === null ? [] : knowledge
         .filter((s) => s.productId === identifiedProductId)
@@ -468,6 +483,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           if (guarded?.ok) {
             reply = guarded.value;
             replyDeterministic = true;
+            answerPath = 'order_status';
             break;
           }
         }
@@ -499,6 +515,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         if (guarded?.ok) {
           reply = guarded.value;
           replyDeterministic = true;
+          answerPath = 'taught_answer';
           knowledgeUsed = [faq.id];
         }
         // guards failed → fall through to the (also guarded) generative path;
@@ -571,6 +588,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           && guardForbidden({ reply: standIn, ownerTerms: forbiddenTerms }).ok;
         reply = passes ? standIn : SAFE_REPLY;
         replyDeterministic = true;
+        answerPath = 'stand_in';
       }
       timings.replyMs = Date.now() - tw;
       break;
@@ -608,6 +626,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   return {
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
     reply, replyDeterministic, knowledge, knowledgeUsed, newState, signals,
+    answerPath,
+    analyserAvoidable: analyserWasAvoidable({
+      path: answerPath, analyserCalled: analysis !== null,
+      productBefore: state.product?.productId ?? null, productUsed: productSearchedUnder,
+    }),
     stateBefore: state,
     provenance: { promptVersion, modelId },
     guardViolations,
@@ -758,6 +781,10 @@ export async function commitTurn(
     promptVersion: r.provenance.promptVersion,
     modelId: r.provenance.modelId,
     latencyMs: Date.now() - startedAt,
+    measure: {
+      path: r.answerPath, analyserAvoidable: r.analyserAvoidable,
+      llmCalls: r.usage.llmCalls, inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens,
+    },
   });
 
   // Funnel events.
