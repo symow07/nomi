@@ -1,0 +1,122 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import Fastify from 'fastify';
+import { sql } from 'kysely';
+import { randomUUID } from 'node:crypto';
+import { seedRunTenant } from './tenant.js';
+
+/**
+ * T1 — the owner chooses how much she does on her own, from day one.
+ *
+ * Postgres and a real request prove what the rules cannot: that one press moves
+ * every capability the level means and no other, that `confirm_order` is never
+ * among them, that the record says HE decided it (not that she earned it), that
+ * choosing again writes only what changes, and that a sales assistant cannot.
+ */
+
+const DATABASE_URL = process.env['DATABASE_URL'];
+const d = DATABASE_URL ? describe : describe.skip;
+
+const RUN = randomUUID().slice(0, 8);
+const BIZ = `dd710000-0000-4000-8000-${RUN}0001`;
+const SECRET = 'a-test-session-secret-of-sufficient-length';
+const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+
+d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
+  let app: import('fastify').FastifyInstance;
+  let db: import('../../src/db/client.js').Db;
+  let ownerCookie = '';
+  const CODE = 'autonomy-test-owner-code';
+
+  const login = async (code: string) => {
+    const res = await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM });
+    return String(res.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+  };
+  const post = (cookie: string, url: string, payload = '') => app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
+  const tx = async <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    return withTenantTx(db, bid.value, fn);
+  };
+  const modes = () => tx(async (t) => Object.fromEntries((await sql<{ capability: string; mode: string }>`
+    select capability, mode from autonomy_policy where business_id = ${BIZ}::uuid`.execute(t)).rows.map((r) => [r.capability, r.mode])));
+  const events = () => tx(async (t) => (await sql<{ capability: string; to_mode: string; reasons: string[]; actor: string }>`
+    select capability, to_mode, reasons, actor from capability_events where business_id = ${BIZ}::uuid order by at, capability`.execute(t)).rows);
+
+  beforeAll(async () => {
+    await seedRunTenant();
+    const { createDb } = await import('../../src/db/client.js');
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    db = createDb(DATABASE_URL!);
+    await tx(async (t) => { await sql`insert into businesses (id, name) values (${BIZ}, 'Autonomy Test Co') on conflict (id) do nothing`.execute(t); });
+    process.env['PILOT_BUSINESS_ID'] = BIZ;
+    app = Fastify({ logger: false });
+    registerWebApp(app, {
+      db, businessId: BIZ, accessCode: CODE, sessionSecret: SECRET, employeeName: 'Lily', avatar: '👩‍💼',
+      provider: 'disabled', secureCookie: false, messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await app.ready();
+    ownerCookie = await login(CODE);
+    expect(ownerCookie).not.toBe('');
+  }, 60_000);
+
+  afterAll(async () => { await app?.close(); await db?.destroy(); });
+
+  it('her page offers the choice, and a new workspace starts with everything waiting', async () => {
+    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: ownerCookie } });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('id="on-her-own"');
+    expect(page.body).toMatch(/name="level" value="waits" checked/);
+  });
+
+  it('THE PRODUCTION CALLER: she chooses "talks" — four kinds of reply go out alone, prices and orders still wait', async () => {
+    const res = await post(ownerCookie, '/app/employee/autonomy', 'level=talks');
+    expect(res.statusCode).toBe(302);
+    expect(decodeURIComponent(String(res.headers['location']))).toContain('works this way');
+    const m = await modes();
+    for (const c of ['greet', 'qualify', 'recommend', 'follow_up']) expect(m[c], c).toBe('auto');
+    for (const c of ['quote', 'negotiate', 'confirm_order']) expect(m[c] ?? 'draft', c).toBe('draft');
+    const e = await events();
+    expect(e.map((x) => x.capability).sort()).toEqual(['follow_up', 'greet', 'qualify', 'recommend']);
+    expect(e.every((x) => x.reasons.includes('owner_chose_talks') && x.to_mode === 'auto' && x.actor !== '')).toBe(true);
+    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: ownerCookie } });
+    expect(page.body).toMatch(/name="level" value="talks" checked/);
+  });
+
+  it('"sells" adds quoting and negotiating, writes ONLY those two, and never an order', async () => {
+    await post(ownerCookie, '/app/employee/autonomy', 'level=sells');
+    const m = await modes();
+    expect(m['quote']).toBe('auto'); expect(m['negotiate']).toBe('auto');
+    expect(m['confirm_order'] ?? 'draft').toBe('draft');
+    const added = (await events()).filter((x) => x.reasons.includes('owner_chose_sells'));
+    expect(added.map((x) => x.capability).sort()).toEqual(['negotiate', 'quote']);
+  });
+
+  it('she can take it all back in one press, and the record keeps every step', async () => {
+    await post(ownerCookie, '/app/employee/autonomy', 'level=waits');
+    expect(Object.values(await modes()).every((v) => v === 'draft')).toBe(true);
+    const back = (await events()).filter((x) => x.reasons.includes('owner_chose_waits'));
+    expect(back).toHaveLength(6);
+    expect(back.every((x) => x.to_mode === 'draft')).toBe(true);
+  });
+
+  it('a level nobody defined changes nothing', async () => {
+    const before = await events();
+    const res = await post(ownerCookie, '/app/employee/autonomy', 'level=everything');
+    expect(decodeURIComponent(String(res.headers['location']))).toContain('did not save');
+    expect(await events()).toEqual(before);
+  });
+
+  it('a sales assistant cannot decide it, and is not shown it', async () => {
+    const add = await post(ownerCookie, '/app/settings/people', 'name=Xiao%20Chen');
+    const issued = String(add.headers['set-cookie'] ?? '').split(';')[0]!;
+    const people = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: `${ownerCookie}; ${issued}` } });
+    const staff = await login(/class="code"><bdi>([^<]+)</.exec(people.body)?.[1] ?? '');
+    expect(staff).not.toBe('');
+    const before = await modes();
+    await post(staff, '/app/employee/autonomy', 'level=sells');
+    expect(await modes()).toEqual(before);
+    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: staff } });
+    expect(page.body).not.toContain('id="on-her-own"');
+  });
+});

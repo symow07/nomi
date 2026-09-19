@@ -4,6 +4,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spotChecks.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
+import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -290,6 +291,28 @@ export function renderEmployee(
       `<div class="cond ${c.met ? 'met' : ''}">${c.met ? '✓' : '○'} ${esc(t(locale, `employee.promo.cond.${c.cond}` as MessageKey))}</div>`).join('')}</div>` : ''}
   </div>`;
 
+  // T1 — her choice, from day one. The ladder below stays as advice about what
+  // she has EARNED; this is what the owner has DECIDED. Owner only, like it.
+  const level = levelOf(Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode])));
+  const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
+      <h2>${esc(t(locale, 'autonomy.title'))}</h2>
+      <p class="muted">${esc(t(locale, 'autonomy.intro'))}</p>
+      <form method="post" action="/app/employee/autonomy" class="levels">
+        ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
+          <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
+          <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
+        ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}
+        <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
+      </form>
+      <style>
+        .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
+        .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
+        .level > span { display:flex; flex-direction:column; gap:var(--space-4); }
+        .lnote { font-size:var(--font-size-caption); }
+        .levels .btn { align-self:flex-start; }
+      </style>
+    </div>`;
+
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
   const revocable = e.capabilities.filter((c) => c.mode === 'auto');
   // G9a — what she may do on her own is the owner's decision; staff see the
@@ -313,6 +336,7 @@ export function renderEmployee(
   return `<h1 class="page">${esc(name)}</h1>
     ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
     ${card}
+    ${autonomy}
     ${knowsSection(e, ctx, locale)}
     ${duties}
     ${spotChecks}

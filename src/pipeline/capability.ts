@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { modesFor, type AutonomyLevel } from '../core/conversation/autonomyLevel.js';
 import { withTenantTx, type Db, type Tx } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import type { Capability } from '../core/conversation/autonomy.js';
@@ -102,6 +103,41 @@ async function changeMode(
       values (${bid.value}, ${capability}, ${action}, ${fromMode}, ${toMode}, array[${reason}], ${actor})`.execute(tx);
   });
   return { ok: true, code: toMode === 'auto' ? 'promoted' : 'revoked' };
+}
+
+/**
+ * T1 — the owner chose a LEVEL. Every capability is moved to the mode that
+ * level means, in one transaction, and only the ones that actually change are
+ * written to the record — with their own reason, so the history can tell "she
+ * earned it" from "he decided it". `confirm_order` is never touched.
+ */
+export async function chooseAutonomyLevel(
+  db: Db, businessIdRaw: string, level: AutonomyLevel, actor: string,
+): Promise<{ ok: boolean; changed: number }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { ok: false, changed: 0 };
+  const want = modesFor(level);
+  const changed = await withTenantTx(db, bid.value, async (tx) => {
+    const rows = (await sql<{ capability: string; mode: string }>`
+      select capability, mode from autonomy_policy where business_id = ${bid.value}`.execute(tx)).rows;
+    const now = new Map(rows.map((r) => [r.capability, r.mode === 'auto' ? 'auto' as const : 'draft' as const]));
+    let n = 0;
+    for (const [capability, toMode] of Object.entries(want)) {
+      if (NON_PROMOTABLE.includes(capability)) continue;
+      const fromMode = now.get(capability) ?? 'draft';
+      if (fromMode === toMode) continue;
+      await sql`
+        insert into autonomy_policy (business_id, capability, mode) values (${bid.value}, ${capability}, ${toMode})
+        on conflict (business_id, capability) do update set mode = ${toMode}, updated_at = now()`.execute(tx);
+      await sql`
+        insert into capability_events (business_id, capability, action, from_mode, to_mode, reasons, actor)
+        values (${bid.value}, ${capability}, ${toMode === 'auto' ? 'promote' : 'pause'}, ${fromMode}, ${toMode},
+                array[${`owner_chose_${level}`}], ${actor})`.execute(tx);
+      n++;
+    }
+    return n;
+  });
+  return { ok: true, changed };
 }
 
 export const promoteCapability = (db: Db, biz: string, cap: string, actor: string) =>

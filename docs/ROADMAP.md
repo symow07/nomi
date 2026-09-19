@@ -1024,6 +1024,19 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **T1 · How much she does on her own is the owner's choice (2026-09-19).** The
+  evidence ladder was the only door: fifteen handled, twelve approved untouched,
+  two spot checks and five days before "Hi there!" could go out without a tap.
+  On his first real day the owner said an assistant that waits for approval on
+  every message is not one — and it is his risk to weigh. The ladder stays as
+  advice about what she has EARNED; her page now opens with what he has DECIDED:
+  everything waits · she talks on her own and prices wait · she also quotes and
+  negotiates inside his price rules. One press moves every capability the level
+  means, writes only what changed, and records that he chose it. No level lets
+  her confirm an order; a turn her rules hold still waits (the hold overrides
+  the mode where the mode is read); numbers still come only from her engine; a
+  violation still takes a capability back by itself. Owner-only. A waiting draft
+  now points to the choice. New workspaces still start with everything waiting.
 - **N6a.1 · A provider that thinks out loud (2026-09-19).** The day the owner
   switched to DeepSeek, one real call showed its answer arrives as a `thinking`
   block FIRST and the text second — and all four model adapters read
