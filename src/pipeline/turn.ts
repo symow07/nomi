@@ -16,6 +16,7 @@ import type { TextProvenance } from '../core/safety/heardNumbers.js';
 import { holdReasonOf, type HoldReason } from '../core/conversation/hold.js';
 import { detectFastPath } from '../core/conversation/fastpath.js';
 import { analyserWasAvoidable, type AnswerPath } from '../core/conversation/answerPath.js';
+import { agreesOnEverything, compareWithModel, understand, type Agreement, type OwnUnderstanding } from '../core/conversation/understand.js';
 import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
@@ -126,6 +127,12 @@ export type TurnResult = {
   /** N1 — WHO worded the reply, and whether the analyser's call bought anything. */
   answerPath: AnswerPath;
   analyserAvoidable: boolean;
+  /**
+   * N2a — what HER OWN rules made of the message, and where that agrees with
+   * the model's analysis. A shadow: recorded, never read to decide anything.
+   * Null when no model analysed the message — there is nothing to compare with.
+   */
+  ownUnderstanding: { readonly own: OwnUnderstanding; readonly agrees: Agreement; readonly onEverything: boolean } | null;
   /** M13: taught facts provided to this reply (identified product + business-level). */
   knowledge: readonly KnowledgeSnippet[];
   /** M13: the knowledge row ids that SUPPORTED the reply (audit). */
@@ -211,6 +218,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let analysis: Analysis | null = null;
   let promptVersion: string | null = null;
   let modelId: string | null = null;
+  let ownUnderstanding: TurnResult['ownUnderstanding'] = null;
 
   if (!gated) {
     const tr = Date.now();
@@ -230,6 +238,15 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     analysis = a.analysis;
     promptVersion = a.promptVersion;
     modelId = a.modelId;
+    // N2a — her own reading of the same message, from the same candidates, for
+    // the record only. Computed HERE so it sees exactly what the model saw.
+    const own = understand({
+      text: req.text, state,
+      candidates: retrieved.map((c) => ({ productId: c.productId, relevance: c.relevance, sku: c.sku })),
+    });
+    const agrees = compareWithModel(own, a.analysis, state);
+    // The one number that matters later: on how many turns she would have been right about ALL of it.
+    ownUnderstanding = { own, agrees, onEverything: agreesOnEverything(agrees) };
 
     // The model may hallucinate a product id. A candidate is only real if WE
     // retrieved it for this tenant, or it is already the conversation's product.
@@ -627,6 +644,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     decision, analysis, retrieved, quote, quoteInputs, quoteRefusal,
     reply, replyDeterministic, knowledge, knowledgeUsed, newState, signals,
     answerPath,
+    ownUnderstanding,
     analyserAvoidable: analyserWasAvoidable({
       path: answerPath, analyserCalled: analysis !== null,
       productBefore: state.product?.productId ?? null, productUsed: productSearchedUnder,
@@ -784,6 +802,7 @@ export async function commitTurn(
     measure: {
       path: r.answerPath, analyserAvoidable: r.analyserAvoidable,
       llmCalls: r.usage.llmCalls, inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens,
+      ownUnderstanding: r.ownUnderstanding,
     },
   });
 

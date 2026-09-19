@@ -64,6 +64,22 @@ d('N1 · who answered, on the row (requires DATABASE_URL)', () => {
     });
   });
 
+  it('N2a — her own reading of the message is kept beside the model\'s, as it was compared', async () => {
+    const shadow = {
+      own: { language: 'fr', quantity: { value: 500, unit: 'pcs' }, productId: null, productConfidence: 0, complaint: false, phase: 'clarification' },
+      agrees: { language: true, quantity: true, product: true, complaint: true, phase: false },
+      onEverything: false,
+    };
+    await record(`n1-${RUN}-d`, { path: 'model', analyserAvoidable: false, llmCalls: 2, inputTokens: 3000, outputTokens: 200, ownUnderstanding: shadow });
+    const stored = await tx(async (t) => (await sql<{ o: unknown }>`
+      select own_understanding as o from turns where message_id = ${`n1-${RUN}-d`}`.execute(t)).rows[0]!.o);
+    expect(stored).toEqual(shadow);
+    // …and a turn no model analysed keeps none.
+    const none = await tx(async (t) => (await sql<{ o: unknown }>`
+      select own_understanding as o from turns where message_id = ${`n1-${RUN}-a`}`.execute(t)).rows[0]!.o);
+    expect(none).toBeNull();
+  });
+
   it('a turn recorded the old way still records, and says nothing about itself', async () => {
     await record(`n1-${RUN}-b`);
     expect(await row(`n1-${RUN}-b`)).toEqual({
