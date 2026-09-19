@@ -32,8 +32,8 @@ export type OwnUnderstanding = {
   readonly phase: Phase;
 };
 
-/** Just enough of a retrieved candidate: an id, how strongly it matched (0..1), and its code. */
-export type Candidate = { readonly productId: string; readonly relevance: number; readonly sku?: string };
+/** Just enough of a retrieved candidate: an id, how strongly it matched (0..1), its code and its name. */
+export type Candidate = { readonly productId: string; readonly relevance: number; readonly sku?: string; readonly name?: string };
 
 /* ── language ───────────────────────────────────────────────────────────── */
 
@@ -155,19 +155,62 @@ const HEDGE = /\b(i think|maybe|perhaps|not sure|something like|similar to|kind 
 /** Sure enough that the buyer need not be asked — the rules' own threshold. */
 export const SURE = 0.9;
 
+/**
+ * How much of a product's NAME the buyer wrote. A search score is diluted by
+ * everything else in her sentence — "I want 10000 canvas tote bags" scores 0.33
+ * against "Canvas Tote Bag 38x40cm" — but every word of the name is there, and
+ * that is what a person would go by. Sizes and codes in the name are ignored;
+ * a plural is its singular; Chinese, which has no spaces, is matched by pairs
+ * of characters.
+ */
+export function nameCoverage(text: string, name: string): { readonly covered: number; readonly words: number } {
+  const lower = text.toLowerCase();
+  if (/[\u4e00-\u9fff]/.test(name)) {
+    const chars = [...name].filter((c) => /[\u4e00-\u9fff]/.test(c));
+    const pairs = chars.slice(0, -1).map((c, i) => c + chars[i + 1]!);
+    if (pairs.length === 0) return { covered: 0, words: 0 };
+    return { covered: pairs.filter((p2) => lower.includes(p2)).length / pairs.length, words: pairs.length };
+  }
+  const stem = (w: string) => (w.length > 3 ? w.replace(/(es|s)$/u, '') : w);
+  const said = new Set((lower.match(/\p{L}{3,}/gu) ?? []).map(stem));
+  const words = [...new Set((name.toLowerCase().match(/\p{L}{3,}/gu) ?? []).map(stem))];
+  if (words.length === 0) return { covered: 0, words: 0 };
+  return { covered: words.filter((w) => said.has(w)).length / words.length, words: words.length };
+}
+
 export function pickProduct(
   text: string, candidates: readonly Candidate[], state: ConversationState,
 ): { readonly productId: string | null; readonly confidence: number } {
+  const hedge = HEDGE.test(text) ? 0.25 : 0;
+  const found = (productId: string, confidence: number) => ({ productId, confidence: Math.max(0, confidence - hedge) });
+
+  // 1. Her own product code, typed out, is as sure as a buyer gets.
+  const byCode = candidates.filter((c) => c.sku !== undefined && c.sku.length >= 3 && text.toLowerCase().includes(c.sku.toLowerCase()));
+  if (byCode.length === 1) return found(byCode[0]!.productId, 0.97);
+
+  // 2. She wrote the whole name of exactly one product.
+  const named = candidates
+    .map((c) => ({ c, cov: c.name ? nameCoverage(text, c.name) : { covered: 0, words: 0 } }))
+    .sort((a, b) => b.cov.covered - a.cov.covered);
+  const whole = named.filter((n) => n.cov.covered >= 0.99 && n.cov.words >= 2);
+  if (whole.length === 1) return found(whole[0]!.c.productId, 0.95);
+
+  // 3. A clear leader in the search — but a score alone is never "sure": the
+  //    two labelled sets disagree about what a 0.9 means, and asking a buyer to
+  //    confirm costs one message while a wrong product costs the conversation.
   const sorted = [...candidates].sort((a, b) => b.relevance - a.relevance);
   const [first, second] = sorted;
   if (first && first.relevance >= PRODUCT_MIN_RELEVANCE && first.relevance - (second?.relevance ?? 0) >= PRODUCT_MIN_LEAD) {
-    // Her own product code, typed out, is as sure as a buyer gets. Otherwise a
-    // search score is never "sure" on its own: a buyer is asked to confirm.
-    const namedByCode = first.sku !== undefined && first.sku.length >= 3
-      && text.toLowerCase().includes(first.sku.toLowerCase());
-    const confidence = namedByCode ? 0.97 : Math.min(first.relevance, 0.85) - (HEDGE.test(text) ? 0.25 : 0);
-    return { productId: first.productId, confidence: Math.max(0, confidence) };
+    return found(first.productId, Math.min(first.relevance, 0.85));
   }
+
+  // 4. Most of one name, and no other product comes close: probably it — ask.
+  const [best, next] = named;
+  if (best && best.cov.covered >= 0.5 && best.cov.covered - (next?.cov.covered ?? 0) >= 0.25) return found(best.c.productId, 0.7);
+
+  // 5. The only thing her catalogue offered, and she used one of its words: a guess to confirm.
+  if (candidates.length === 1 && best && best.cov.covered > 0) return found(best.c.productId, 0.6);
+
   // Nothing in this message names a product clearly: the conversation's own
   // product stands, which is what a buyer saying "and for 5,000?" means.
   return state.product

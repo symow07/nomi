@@ -242,7 +242,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     // the record only. Computed HERE so it sees exactly what the model saw.
     const own = understand({
       text: req.text, state,
-      candidates: retrieved.map((c) => ({ productId: c.productId, relevance: c.relevance, sku: c.sku })),
+      candidates: retrieved.map((c) => ({ productId: c.productId, relevance: c.relevance, sku: c.sku, name: c.name })),
     });
     const agrees = compareWithModel(own, a.analysis, state);
     // The one number that matters later: on how many turns she would have been right about ALL of it.

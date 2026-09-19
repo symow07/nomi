@@ -1024,6 +1024,16 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **N2b.1 · She knows a product by its name (2026-09-19).** The shadow's
+  disagreeing rows showed why she found no product where the model did: a search
+  score is diluted by the rest of the buyer's sentence, while every word of the
+  product's name is right there. Her own reading now goes by the name — whole
+  name of exactly one product: that product, and sure; most of a name, or one
+  word of the only candidate: a guess the buyer is asked to confirm; a score
+  alone is still never "sure". Still a shadow. Rehearsal agreement on the
+  product went from 46% to 11 of 12 turns, and on everything from 3 of 13 to
+  7 of 12; the stage of a message that names no product is what remains, and
+  the two labelled sets contradict each other there, so real traffic decides.
 - **N2a · Her own understanding of a message, by rules, in shadow (2026-09-19,
   migration 0061).** The rules that decide a turn use only four things from a
   model's analysis — product, quantity, stage, complaint — and the language to

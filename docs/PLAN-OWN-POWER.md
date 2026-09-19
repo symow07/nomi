@@ -82,7 +82,7 @@ What can be built and said truthfully, in order:
 |---|---|---|
 | N1 | Measure who answered each turn and what it cost | ✅ built 2026-09-19 (0060) |
 | N2a | Her own understanding by RULES, in shadow beside the model | ✅ built 2026-09-19 (0061) |
-| N2b | Make the shadow agree: product and stage first; embeddings only where rules cannot | next |
+| N2b | Make the shadow agree: product and stage first; embeddings only where rules cannot | in progress — product by its written name ✅ 2026-09-19 |
 | N3 | E-mail history import and the style profile | |
 | N4 | The interview, driven by gaps in the history | |
 | N5 | The reply memory | |
@@ -128,3 +128,17 @@ Two scoreboards, and they disagree — which is the point of measuring:
   analyser answering the same product whatever was asked; part is real. Nothing
   may stop asking a model on this evidence. N2b starts from the disagreeing
   rows, and real traffic (once a model is analysing again) is the judge.
+
+### N2b · so far
+
+The disagreeing rows said why she found no product: a search score is diluted
+by the rest of the sentence ("I want 10000 canvas tote bags" scores 0.33 against
+"Canvas Tote Bag 38x40cm"), yet every word of the name is there. She now goes by
+the NAME as a person would — the whole name of exactly one product is that
+product, and sure; most of one name, or one word of the only thing her catalogue
+offered, is a guess she asks the buyer to confirm. A score alone is still never
+"sure": the two labelled sets disagree about what a 0.9 means, and asking costs
+one message while a wrong product costs the conversation. On the rehearsal:
+product 46% → 11 of 12, right about everything 3 of 13 → 7 of 12. What remains
+is the STAGE for a message that names no product, where the two labelled sets
+contradict each other — so real traffic has to be the judge, not more tuning.
