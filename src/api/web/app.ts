@@ -110,7 +110,8 @@ import {
   runScriptedPractice, renderPractice,
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
-import { promoteCapability, revokeCapability } from '../../pipeline/capability.js';
+import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
+import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
@@ -1874,6 +1875,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const r = await run(s.businessId, cap, personOf(s).id);
       return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, `employee.flash.${r.code}` as MessageKey))}`);
     });
+  // T1 — how much she does on her own is the owner's choice, from day one. The
+  // same gate as a single grant: it is the same decision, made for several at once.
+  app.post('/app/employee/autonomy', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', '/app/employee');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const level = String((req.body as { level?: string } | undefined)?.level ?? '');
+    const r = isAutonomyLevel(level)
+      ? await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id).catch(() => ({ ok: false, changed: 0 }))
+      : { ok: false, changed: 0 };
+    return reply.redirect(`/app/employee?flash=${encodeURIComponent(
+      t(locale, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed'))}#on-her-own`);
+  });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
 

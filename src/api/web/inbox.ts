@@ -1120,6 +1120,7 @@ export function renderConversationDetail(
           >${esc(t(locale, 'inbox.action.revoke'))}</button>
         </form>
         <p class="muted revoke-note">${esc(t(locale, 'inbox.action.revoke.note'))}</p>
+        ${viewer.isOwner ? `<p class="muted revoke-note"><a href="/app/employee#on-her-own">${esc(t(locale, 'autonomy.hint'))}</a></p>` : ''}
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="editform">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
