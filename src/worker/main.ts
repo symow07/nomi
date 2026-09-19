@@ -8,7 +8,7 @@ import {
   recordFragment, pendingFragments, markFragmentsProcessed, batchConfigFor,
 } from '../db/fragments.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicVision } from '../llm/anthropic.js';
-import { llmClient, llmProviderFrom } from '../llm/provider.js';
+import { llmClient, llmProviderFrom, requestExtrasFor } from '../llm/provider.js';
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
@@ -65,9 +65,10 @@ export async function startWorker(
   const anthropic = llmClient(llm);
 
   const { transcriber, audio, image: mediaFetcher } = media;
-  const analyzer = models.analyzer ?? anthropicAnalyzer(anthropic, llm.model);
-  const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic, llm.model);
-  const vision = models.vision ?? anthropicVision(anthropic, llm.model);
+  const extras = requestExtrasFor(llm);
+  const analyzer = models.analyzer ?? anthropicAnalyzer(anthropic, llm.model, extras);
+  const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic, llm.model, extras);
+  const vision = models.vision ?? anthropicVision(anthropic, llm.model, extras);
 
 
   /**
