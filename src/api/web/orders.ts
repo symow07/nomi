@@ -12,6 +12,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import { esc, back, deeper } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * M46 — one order, everything she knows about it, and the one thing she can do.
@@ -187,7 +188,7 @@ export async function recordOrderUpdate(
   });
 }
 
-export function renderOrder(v: OrderView, locale: Locale, flash: string | null): string {
+export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   // G18 — the order's own money, in the order's own currency. Both of these
   // used to be rebuilt as dollars and then hidden unless the order WAS in
@@ -260,7 +261,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: string | null):
 
   return `<div class="dhead">${back(`/app/inbox/${esc(v.conversationId)}`, t(locale, 'order.back'))}</div>
     <h1 class="page"><bdi>${esc(v.reference)}</bdi></h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       ${latest ? `<p class="stated-now">${esc(stateName(latest.state))} <span class="muted">${
         esc(t(locale, 'order.since', { date: formatDate(locale, latest.at) }))}</span></p>` : ''}

@@ -8,6 +8,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate, formatRelative } from '../../core/owner/i18n/format.js';
 import { esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
 
@@ -218,7 +219,7 @@ export async function removePerson(
   });
 }
 
-export function renderPeople(v: PeopleView, locale: Locale, flash: string | null, now: Date = new Date()): string {
+export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null, now: Date = new Date()): string {
   // A4 — who is here. Said in words, never by colour alone.
   const online = v.people.filter((p) => isOnline(p, now)).length;
   const presence = (p: TeamMember): string => isOnline(p, now)
@@ -235,7 +236,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: string | null
     : '';
 
   return `<h1 class="page">${esc(t(locale, 'people.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${issued}
     <section class="block">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>

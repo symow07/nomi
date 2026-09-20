@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 import type { PageTranscriber } from '../../src/llm/ports.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
@@ -86,8 +86,7 @@ d('G16 · re-photographing updates what changed (requires DATABASE_URL)', () => 
     headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams([['text', text], ...apply.map((id) => [`apply:${id}`, 'on'] as [string, string])]).toString(),
   });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location']), 'http://x').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, 'a-test-session-secret-of-sufficient-length');
 
   const catalogue = () => tx((t) => sql<{ id: string; sku: string; price: string | null; moq: number; active: boolean; tier: string | null }>`
     select p.id::text as id, p.sku, p.price_usd_per_unit as price, p.moq, p.is_active as active,

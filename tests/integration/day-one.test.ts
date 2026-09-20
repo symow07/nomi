@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant, runDigits } from './tenant.js';
+import { seedRunTenant, runDigits, flashSaid} from './tenant.js';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
+import { createHmac } from 'node:crypto';
+
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', 'b'.repeat(64)).update('yf-web-session').digest('hex');
 
 /**
  * G10 — day-one WhatsApp, through the PRODUCTION composition: a signed webhook
@@ -182,7 +186,7 @@ d('G10 · day-one WhatsApp (requires DATABASE_URL)', { timeout: 40_000 }, () => 
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: `draftId=${draft}&command=${encodeURIComponent('发送')}` });
     expect(res.statusCode).toBe(302);
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('As soon as they reply, you can continue');
+    expect(flashSaid(res, WEB_SECRET)).toContain('As soon as they reply, you can continue');
     const status = await tx((t) => sql<{ status: string }>`select status from drafts where id = ${draft}::uuid`
       .execute(t).then((r) => r.rows[0]!.status));
     expect(status).toBe('pending');

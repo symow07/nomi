@@ -10,6 +10,7 @@ import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.
 import { t, assistantName } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
@@ -213,7 +214,7 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
 }
 
 export function renderEmployee(
-  e: EmployeeProfile, locale: Locale, flash: string | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
+  e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
 ): string {
   const name = assistantName(locale);
   const capName = (c: string) => capabilityName(locale, c);
@@ -334,7 +335,7 @@ export function renderEmployee(
   // growth sit last: they are the mechanics behind the relationship, not the
   // headline.
   return `<h1 class="page">${esc(name)}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${card}
     ${autonomy}
     ${knowsSection(e, ctx, locale)}

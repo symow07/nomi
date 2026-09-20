@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
-import { seedRunTenant, RUN_BIZ, RUN_NS, runPhone } from './tenant.js';
+import { seedRunTenant, RUN_BIZ, RUN_NS, runPhone, flashSaid} from './tenant.js';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import type { Transcriber } from '../../src/llm/transcribe.js';
 import type { VisionDescriber } from '../../src/llm/ports.js';
+import { createHmac } from 'node:crypto';
+
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
 
 /**
  * G2b — a voice note and a photo, through the PRODUCTION composition.
@@ -245,7 +249,7 @@ d('G2b · she hears a voice note and sees a photo in production (requires DATABA
       `messageId=${row.id}&heard=${encodeURIComponent('Do you make bamboo cutting boards?')}`)).statusCode).toBe(302);
     const asked = await form(`/app/inbox/${row.conv}/answer-now`, `messageId=${row.id}`);
     expect(asked.statusCode).toBe(302);
-    expect(decodeURIComponent(String(asked.headers['location']))).toContain('answering your words');
+    expect(flashSaid(asked, WEB_SECRET)).toContain('answering your words');
 
     // Her words, answered through the same pipeline as anything else.
     const answer = await until(() => tenant((tx) => sql<{ text: string }>`

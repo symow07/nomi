@@ -8,6 +8,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatMoney, formatQty } from '../../core/owner/i18n/format.js';
 import { esc, back } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import {
   validatePriceRules, priceRuleChanges,
@@ -403,7 +404,7 @@ export async function archiveVolumeDiscount(
 }
 
 export function renderPriceRules(
-  v: PriceRulesView, locale: Locale, flash: string | null = null,
+  v: PriceRulesView, locale: Locale, flash: Flash | null = null,
   errors: Partial<Record<PriceRuleField, PriceRuleError>> = {},
   draft: { productId?: string | null } = {},
   volumeErrors: Partial<Record<VolumeField, VolumeError>> = {},
@@ -464,7 +465,7 @@ export function renderPriceRules(
   };
 
   return `<h1 class="page">${esc(t(locale, 'prices.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'prices.lede', { name }))}</p>
 
     <section class="fblock">

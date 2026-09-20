@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { fakeProspectSource } from '../connectors/fakeSource.js';
+import { flashSaid } from './tenant.js';
 
 /**
  * C5 · M41 — prospecting over Postgres and her own routes.
@@ -62,8 +63,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, SECRET);
   const login = async (code: string) => String((await app.inject({
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -118,7 +118,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
       ['/app/channels/outreach/cap', { channel: 'email', cap: '5' }],
     ] as const) {
       const res = await post(staffCookie, url, fields);
-      expect(decodeURIComponent(String(res.headers['location'])), url).toContain('Only the owner');
+      expect(flashSaid(res, SECRET), url).toContain('Only the owner');
     }
     expect(await tx((x) => sql<{ n: number }>`select count(*)::int as n from connector_credentials
       where business_id = ${BIZ}`.execute(x).then((r) => r.rows[0]!.n))).toBe(0);
@@ -157,7 +157,7 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     const res = await post(ownerCookie, '/app/prospects/add', {
       sourceId: 'p-omar', name: 'Omar Haddad', title: 'Purchasing Manager', organization: 'Souk Home', back,
     });
-    expect(String(res.headers['location'])).toContain('/app/prospects?search=1&page=1&titles=Purchasing&flash=');
+    expect(String(res.headers['location'])).toBe('/app/prospects?search=1&page=1&titles=Purchasing');
     expect(flashOf(res)).toBe(t('en', 'prospects.flash.added'));
     expect(current.calls.filter((c) => c.op === 'reveal')).toHaveLength(1);
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant, runDigits } from './tenant.js';
+import { seedRunTenant, runDigits, flashSaid} from './tenant.js';
 
 /**
  * M38 — who may be written to, end to end.
@@ -229,7 +229,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
        where business_id = ${BIZ} and identity = ${CARD}`.execute(t).then((r) => r.rows[0]!.n));
     const res = await post('/app/contacts/consent', `channel=email&identity=${encodeURIComponent(CARD)}`);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain(encodeURIComponent('That did not save'));
+    expect(flashSaid(res, 'a-test-session-secret-of-sufficient-length')).toContain('That did not save');
     const after = await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from contact_consent
        where business_id = ${BIZ} and identity = ${CARD}`.execute(t).then((r) => r.rows[0]!.n));
@@ -348,7 +348,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
   it('M42 · she turns writing-first on, and it is recorded with her name', async () => {
     const on = await post('/app/channels/outreach', 'channel=whatsapp&enabled=true');
     expect(on.statusCode).toBe(302);
-    expect(on.headers['location']).toContain(encodeURIComponent('may now write first'));
+    expect(flashSaid(on, 'a-test-session-secret-of-sufficient-length')).toContain('may now write first');
 
     const rows = await tx((t) => sql<{ enabled: boolean; by_actor: string }>`
       select enabled, by_actor from outreach_settings
@@ -393,7 +393,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     for (const channel of ['instagram', 'messenger']) {
       const res = await post('/app/channels/outreach', `channel=${channel}&enabled=true`);
       expect(res.statusCode, channel).toBe(302);
-      expect(res.headers['location'], channel).toContain(encodeURIComponent('did not save'));
+      expect(flashSaid(res, 'a-test-session-secret-of-sufficient-length'), channel).toContain('did not save');
       const n = await tx((t) => sql<{ n: number }>`
         select count(*)::int as n from outreach_settings
          where business_id = ${BIZ} and channel = ${channel}`.execute(t).then((r) => r.rows[0]!.n));
@@ -401,7 +401,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     }
     // And the one that can take effect now is stored, with her decision on it.
     const email = await post('/app/channels/outreach', 'channel=email&enabled=true');
-    expect(email.headers['location']).not.toContain(encodeURIComponent('did not save'));
+    expect(flashSaid(email, 'a-test-session-secret-of-sufficient-length')).not.toContain('did not save');
     const stored = await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from outreach_settings
        where business_id = ${BIZ} and channel = 'email' and enabled`.execute(t).then((r) => r.rows[0]!.n));
@@ -465,7 +465,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     for (const [channel, bad] of [['email', 'mei at example'], ['whatsapp', 'call me']] as const) {
       const res = await post('/app/contacts', `channel=${channel}&identity=${encodeURIComponent(bad)}`);
       expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toContain(encodeURIComponent('does not look like'));
+      expect(flashSaid(res, 'a-test-session-secret-of-sufficient-length')).toContain('does not look like');
     }
     expect((await list()).length).toBe(before);
   });

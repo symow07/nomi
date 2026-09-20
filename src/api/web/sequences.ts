@@ -13,6 +13,7 @@ import { formatDate } from '../../core/owner/i18n/format.js';
 import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * C4.b — a first e-mail and the follow-ups after it, as she reads and writes them.
@@ -132,7 +133,7 @@ const statePill = (locale: Locale, state: SequenceSummary['state']): string =>
   `<span class="pill ${STATE_TONE[state]}">${esc(t(locale, `seq.state.${state}` as MessageKey))}</span>`;
 
 export function renderSequenceList(
-  list: readonly SequenceSummary[], locale: Locale, flash: string | null,
+  list: readonly SequenceSummary[], locale: Locale, flash: Flash | null,
 ): string {
   const rows = list.map((s) => `<li class="sq ${s.state === 'archived' ? 'gone' : ''}">
       <div class="sq-h"><a class="sq-name" href="/app/sequences/${esc(s.id)}"><bdi>${esc(s.name)}</bdi></a>
@@ -145,7 +146,7 @@ export function renderSequenceList(
 
   return `${back('/app/contacts', t(locale, 'contacts.title'))}
     <h1 class="page">${esc(t(locale, 'seq.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'seq.intro'))}</p>
       ${list.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.empty'))}</div>` : `<ul class="sqs">${rows}</ul>`}
@@ -228,7 +229,7 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
 }
 
 export function renderSequenceDetail(
-  d: SequenceDetail, locale: Locale, flash: string | null,
+  d: SequenceDetail, locale: Locale, flash: Flash | null,
   opts: {
     readonly viewer?: Viewer;
     /** E-mail contacts the outreach gate says may be written to now. */
@@ -303,7 +304,7 @@ export function renderSequenceDetail(
 
   return `${back('/app/sequences', t(locale, 'seq.title'))}
     <h1 class="page"><bdi>${esc(d.name)}</bdi> ${statePill(locale, d.state)}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, draft ? 'seq.draft.hint' : 'seq.frozen.hint'))}</p>
       ${approvedLine}

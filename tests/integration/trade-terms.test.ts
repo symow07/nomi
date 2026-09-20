@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 
 /**
  * G6 — the terms on a proforma are hers, end to end.
@@ -144,7 +144,7 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
   it('a term outside the guard’s vocabulary is refused, and nothing is written', async () => {
     const res = await post(ownerCookie, '/app/settings/terms', `payment=${encodeURIComponent(HERS)}&incoterm=XYZ`);
     expect(res.statusCode).toBe(302);
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('delivery term');
+    expect(flashSaid(res, SECRET)).toContain('delivery term');
     expect(await termsRows()).toEqual([]);
   });
 

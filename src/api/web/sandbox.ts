@@ -22,6 +22,7 @@ import {
 } from '../../trust/scenarios.js';
 import { runCheck, type CheckResult, type TurnOutcome } from '../../trust/invariants.js';
 import { esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * M12.2 — Interactive pilot sandbox.
@@ -495,11 +496,11 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: string | null; prefill?: string }): string {
+export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: Flash | null; prefill?: string }): string {
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
-  const flashHtml = opts.flash ? `<div class="flash" role="status">${esc(opts.flash)}</div>` : '';
+  const flashHtml = flashBanner(opts.flash);
 
   const timeline = view.messages.length
     ? `<div class="timeline">${view.messages.map((m) => `
