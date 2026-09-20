@@ -72,7 +72,8 @@ describe('M17.2 · Meta credential validation (pure, offline)', () => {
     // malformed must not. If these ever diverge, the readiness page would lie.
     const base = {
       DATABASE_URL: 'postgres://u@h/db', ANTHROPIC_API_KEY: 'k'.repeat(40),
-      WEBHOOK_VERIFY_TOKEN: GOOD.verifyToken, CREDENTIAL_KEY: 'a'.repeat(64),
+      WEBHOOK_VERIFY_TOKEN: GOOD.verifyToken,
+      LEGAL_CONTACT_EMAIL: 'privacy@example.test', CREDENTIAL_KEY: 'a'.repeat(64),
       WHATSAPP_PROVIDER: 'meta', META_GRAPH_API_VERSION: GOOD.graphVersion,
       META_WHATSAPP_ACCESS_TOKEN: GOOD.accessToken,
       META_WHATSAPP_PHONE_NUMBER_ID: GOOD.phoneNumberId,

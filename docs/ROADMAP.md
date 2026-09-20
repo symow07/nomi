@@ -1024,6 +1024,25 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **PR 2 · Stop promising what nothing does (2026-09-20).** From the audit's P0s.
+  `docs/kb/08` quoted ￥399 and ￥899 a month, a 14-day trial, WeChat Pay, Alipay
+  and 增值税专票 against **three orphan tables and no code at all**: nothing in
+  `src/` reads or writes `subscriptions` or `payments` (the only grep hit is a
+  sentence in the terms), both are empty in production, and the `core/billing`
+  that migration 0013 refers to was never written. The tables are **left in
+  place on purpose** — dropping one is a decision about a feature nobody has
+  designed, and 0013 is applied everywhere, so editing that file would fail the
+  checksum guard G20 added. The customer-facing article now says the price is
+  not announced; `docs/kb/09` says self-serve export is not built and deletion
+  is a person's work; `landing-zh.md` keeps its thinking under a NOT YET BUILT
+  banner with its three untrue claims corrected (the ￥ figures, "export
+  anytime", and a headline describing auto-send while the default is
+  draft-first). `/data-deletion` no longer says the product removes anything:
+  a person does, by hand, and the page says so in three languages — the old
+  test pinned the SENTENCE "30 days", which read as assurance the promise was
+  covered when the app role holds no `DELETE` on any table. And the boot now
+  refuses without `LEGAL_CONTACT_EMAIL`: both public pages tell a buyer to write
+  in, and with it unset the contact block rendered nothing at all.
 - **D3–D7 · Four small truths (2026-09-20).** Each is something the owner met in
   his first days, from `docs/SITE-REVIEW-2026-09-18.md`. **D3:** the Customers
   page printed `conv.channel.email` and `conv.channel.messenger` at him as

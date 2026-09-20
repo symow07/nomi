@@ -165,6 +165,7 @@ describe('provider selection (validateEnv)', () => {
     ANTHROPIC_API_KEY: 'sk-ant-not-real-shape-ok-xx',
     WEBHOOK_VERIFY_TOKEN: 'verify-token-16chars',
     CREDENTIAL_KEY: 'a'.repeat(64),
+    LEGAL_CONTACT_EMAIL: 'privacy@example.test',
   };
   const metaVars = {
     META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok',

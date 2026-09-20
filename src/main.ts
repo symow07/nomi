@@ -76,6 +76,13 @@ export type ProdConfig = {
   ANTHROPIC_API_KEY: string;
   WEBHOOK_VERIFY_TOKEN: string;
   CREDENTIAL_KEY: string;
+  /**
+   * The address on the public privacy and deletion pages. `validateEnv` REQUIRES
+   * it — those pages promise a way to write in — but the type leaves it optional
+   * so a test that composes a config by hand is not forced to carry the whole
+   * boot's checklist. The boot is where the rule lives; the type is not a rule.
+   */
+  LEGAL_CONTACT_EMAIL?: string;
   PORT: number;
   // 360dialog (present iff provider === '360dialog')
   D360_API_KEY?: string;
@@ -116,6 +123,19 @@ const BASE_SHAPES: Record<string, Shape> = {
  * kind of secret that leaks. Either is now enough, and neither is not.
  */
 const ANTHROPIC_SHAPE: Shape = (v) => v.length >= 20;
+
+/**
+ * SOMEWHERE TO WRITE — the address on the privacy and deletion pages.
+ *
+ * Both pages tell a buyer to ask for their data, and `/data-deletion` is the
+ * URL Meta requires. Unset, the contact block rendered NOTHING: a page that
+ * says "ask us" and then offers no way to ask. It is a public promise with no
+ * door, so the boot refuses rather than serving it.
+ *
+ * A plain address — no display name, no `mailto:` — because that is what the
+ * page puts inside a `mailto:` link.
+ */
+const LEGAL_CONTACT_SHAPE: Shape = (v) => /^[A-Za-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(v);
 const D360_SHAPES: Record<string, Shape> = {
   D360_API_KEY: (v) => v.length >= 8,
   D360_BASE_URL: (v) => v.startsWith('https://'),
@@ -161,6 +181,11 @@ export function validateEnv(env: Record<string, string | undefined>):
     else if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
     else if (!shape(v)) problems.push(`${name}: invalid shape`);
   }
+  // The public legal pages must have a working address on them.
+  const legalContact = env['LEGAL_CONTACT_EMAIL'];
+  if (!legalContact) problems.push('LEGAL_CONTACT_EMAIL: missing (the privacy and data-deletion pages are public and must carry an address a buyer can write to)');
+  else if (!LEGAL_CONTACT_SHAPE(legalContact)) problems.push('LEGAL_CONTACT_EMAIL: invalid shape (a plain address, e.g. privacy@example.com — no display name, no mailto:)');
+
   // N6a — the model provider: Anthropic's key, or another provider's trio.
   const anthropicKey = env['ANTHROPIC_API_KEY'];
   const otherProvider = llmProviderFrom(env, '').name === 'custom';
@@ -192,6 +217,7 @@ export function validateEnv(env: Record<string, string | undefined>):
       DATABASE_URL: env['DATABASE_URL']!,
       ANTHROPIC_API_KEY: env['ANTHROPIC_API_KEY'] ?? '',
       WEBHOOK_VERIFY_TOKEN: env['WEBHOOK_VERIFY_TOKEN']!,
+      LEGAL_CONTACT_EMAIL: env['LEGAL_CONTACT_EMAIL']!.trim(),
       CREDENTIAL_KEY: env['CREDENTIAL_KEY']!,
       PORT: Number(env['PORT']) || 8787,
       META_GRAPH_API_VERSION: graphVersion,
@@ -600,7 +626,7 @@ export async function buildProduction(
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // Named on /privacy and /data-deletion; absent, those pages say to write
       // to the business from the account you used.
-      legalContact: process.env['LEGAL_CONTACT_EMAIL']?.trim() || null,
+      legalContact: cfg.LEGAL_CONTACT_EMAIL ?? null,
       legalFacts,
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
       // their emoji, unchanged. The small cut, because the header avatar is 30px.
