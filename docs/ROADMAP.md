@@ -1050,14 +1050,47 @@ Drafts folder.
   out in the renderer; all four now live in the catalogue, and a test walks the
   registry. **D4:** a reply HE typed was signed with his employee's name; the
   transcript now joins the sent row and labels by its `origin`, so his line says
-  "You". **D5** (a refusal painted in the success colour) is deliberately left:
-  the flash travels as text in about sixty redirects and carrying a tone is its
-  own change. **D6:** My business said "Connected" and, two lines below, "until
+  "You". **D5** (a refusal painted in the success colour) was
+  deliberately left here and is closed by PR 3 below, which made the notice a
+  key rather than text and gave it a tone. **D6:** My business said "Connected" and, two lines below, "until
   this is connected she cannot answer" — the line knew only active-or-not and
   now follows the lifecycle. **D7:** Getting ready said "Live — she is talking to
   real buyers" while she had never been started, on the very day every send was
   refused with "messaging is switched off"; `live` now requires `activated_at`,
   and a connected channel nobody started says exactly that.
+- **PR 3 · Two pages nobody wrote, a list that named six countries twice, and
+  a notice that lied about its own tone (2026-09-21).** Phase 1's third group,
+  against `docs/AUDIT-2026-09-20.md`. **CC-19 / A13:** a mistyped address
+  answered `{"message":"Route GET:/app/nope not found"}` in Fastify's English
+  to an owner reading Arabic, and a thrown route answered the same way with a
+  500 that could carry an internal message. Both are pages now, in three
+  languages; the 500 says nothing but a reference that ties a report to one log
+  line. They sit on the root instance, which also carries `/hooks/*` and
+  `/health`, so both negotiate on `Accept` — Meta's retries and the uptime probe
+  see exactly the JSON they saw before, and a 4xx a route threw on purpose is
+  still the framework's to answer. **The country list:** `Intl.DisplayNames`
+  names six superseded codes identically to codes in force (DY/BJ, HV/BF,
+  NH/VU, RH/ZW, UK/GB, VD/VN), so the sign-up dropdown listed "Benin" above
+  "Benin" with nothing to tell them apart and stored the same country two ways.
+  The superseded six are dropped from the list and KEPT AS A READING:
+  `canonicalCountry` maps each to its successor, `isCountryCode` still accepts
+  them, and both write sites store the code in force — nobody who already
+  answered is made to answer again. **A1 + D5:** the notice after a POST
+  travelled as rendered text in ~70 `?flash=` redirects. It was spoofable (a
+  link anyone can write, spoken in the product's voice), stale (translated by
+  the request that POSTed, so switching language left it behind), and written
+  into every access log, browser history and proxy — including sentences naming
+  a buyer. It now rides a signed, HttpOnly, one-minute cookie carrying the KEY,
+  and the page that draws it translates it. The tone came with it: one `.flash`
+  class painted "Only the owner can do that" in the jade of a success. Which
+  sentences are refusals is decided once, in `src/core/owner/flashTone.ts`, and
+  a test holds every flash key in exactly one of the two lists — so a new
+  sentence cannot ship without someone deciding how it looks. An unclassified
+  key draws as a refusal, which is the right way to be wrong. Found on the way:
+  one redirect hid its `flash=` behind a template expression and slipped a
+  narrower version of that test; and `tests/integration/accounts.test.ts` picked
+  its session cookie as "the first one that is not empty", which sign-up's new
+  welcome notice quietly stole.
 - **E1 · She reads the inbox (2026-09-20, migration 0062).** E-mail was
   send-only: the Google connection asked for `gmail.send` alone, and a buyer's
   mail landed in the owner's Gmail unread by this product — which its page

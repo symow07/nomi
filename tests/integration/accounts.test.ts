@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
+
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
 
 /**
  * A1 — two factories sign themselves up on one installation and never see each
@@ -32,8 +37,12 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     payload: new URLSearchParams({ ...fields, ...Object.fromEntries(channels.map((c) => [`channel_${c}`, 'on'])) }).toString(),
   });
   const get = (url: string, cookie: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
+  // A1 + A3 — NAMED, not "the first one that is not empty". Sign-up sets the
+  // session AND (A1) the welcome notice, so "first non-empty" started picking
+  // the notice and every page after it rendered as signed-out.
   const cookieOf = (r: { headers: Record<string, unknown> }) =>
-    ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? []).map((c) => c.split(';')[0]!).find((c) => !c.endsWith('=')) ?? '';
+    ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? [])
+      .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_session=') && c !== 'yf_session=') ?? '';
   const invite = async (note: string, interval = '14 days') =>
     (await admin.query(`insert into signup_invites (note, expires_at) values ($1, now() + $2::interval) returning id::text as id`, [note, interval])).rows[0].id as string;
 
@@ -82,7 +91,8 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
 
     const r = await form('/signup', { ...A, email: `  ${A.email.toUpperCase()} `, invite: ticketA }, '', ['whatsapp', 'instagram', 'smoke-signals']);
     expect(r.statusCode, r.body.slice(0, 300)).toBe(302);
-    expect(String(r.headers['location'])).toContain('/app/factory?flash=');
+    expect(String(r.headers['location'])).toBe('/app/factory');
+    expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'signup.welcome'));
     cookieA = cookieOf(r);
     expect(cookieA).not.toBe('');
 
@@ -152,12 +162,12 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(page.body).toContain('<option value="AE" selected>');
 
     const saved = await form('/app/settings/business', { kind: 'services', country: 'sa', website: 'WWW.Bolt.Example/' }, cookieB);
-    expect(new URL(String(saved.headers['location']), 'https://x.test').searchParams.get('flash')).toBe(t('en', 'business.kind.saved'));
+    expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'business.kind.saved'));
     expect((await admin.query(`select kind, country, website from businesses where name = $1`, [B.factory])).rows[0])
       .toEqual({ kind: 'services', country: 'SA', website: 'https://www.bolt.example' });
 
     const bad = await form('/app/settings/business', { kind: 'pyramid', country: 'SA', website: '' }, cookieB);
-    expect(new URL(String(bad.headers['location']), 'https://x.test').searchParams.get('flash')).toBe(t('en', 'business.kind.invalid'));
+    expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'business.kind.invalid'));
     expect((await admin.query(`select kind from businesses where name = $1`, [B.factory])).rows[0].kind, 'a refused answer changes nothing').toBe('services');
 
     // The environment's business was made long before sign-up asked anything.
@@ -247,7 +257,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(page.body).toContain(B.email);
     expect(page.body).not.toContain(A.email);
 
-    const flash = (r: { headers: Record<string, unknown> }) => new URL(String(r.headers['location']), 'https://x.test').searchParams.get('flash');
+    const flash = (r: { headers: Record<string, unknown> }) => flashSaid(r, WEB_SECRET);
     expect(flash(await form('/app/settings/account/password', { current: 'not-it', next: 'a-brand-new-password' }, cookieB))).toBe(t('en', 'account.flash.wrong'));
     expect(flash(await form('/app/settings/account/password', { current: B.password, next: 'short' }, cookieB))).toBe(t('en', 'account.flash.short', { n: 10 }));
     const changed = await form('/app/settings/account/password', { current: B.password, next: 'a-brand-new-password' }, cookieB);

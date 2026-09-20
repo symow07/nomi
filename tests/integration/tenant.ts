@@ -1,4 +1,6 @@
 import { DEMO_NAMESPACE, demoPhone } from '../../src/demo/factory.js';
+import { FLASH_COOKIE, readFlash } from '../../src/api/web/flash.js';
+import type { Locale } from '../../src/core/owner/i18n/locale.js';
 
 /**
  * M34.8 — one tenant per RUN, for every integration file.
@@ -116,4 +118,39 @@ export async function seedRunTenant(): Promise<void> {
   } finally {
     await client.end();
   }
+}
+
+/**
+ * A1 — what the app just told her, read the way a browser would.
+ *
+ * The notice used to be in the redirect's query string, so every file wrote
+ * `new URL(location).searchParams.get('flash')` and read the finished sentence.
+ * It rides a signed, one-shot cookie now (`src/api/web/flash.ts`), which is the
+ * point: a URL is written to the access log, and anyone can compose one.
+ *
+ * These tests do not hold the session secret's twin, so this verifies the token
+ * with the SAME secret the app under test was built with — the caller passes
+ * it, exactly as it passes it to `registerWebApp`.
+ */
+export function flashSaid(
+  res: { headers: Record<string, unknown> }, sessionSecret: string, locale: Locale = 'en',
+): string {
+  const raw = res.headers['set-cookie'];
+  const all = Array.isArray(raw) ? raw.map(String) : [String(raw ?? '')];
+  const cookie = all.find((c) => c.startsWith(`${FLASH_COOKIE}=`));
+  if (!cookie) return '';
+  const token = cookie.slice(FLASH_COOKIE.length + 1).split(';')[0] ?? '';
+  return readFlash(sessionSecret, token, locale, Date.now())?.text ?? '';
+}
+
+/** The same notice's tone — D5's half: did what she asked actually happen? */
+export function flashWasRefusal(
+  res: { headers: Record<string, unknown> }, sessionSecret: string,
+): boolean {
+  const raw = res.headers['set-cookie'];
+  const all = Array.isArray(raw) ? raw.map(String) : [String(raw ?? '')];
+  const cookie = all.find((c) => c.startsWith(`${FLASH_COOKIE}=`));
+  if (!cookie) return false;
+  const token = cookie.slice(FLASH_COOKIE.length + 1).split(';')[0] ?? '';
+  return readFlash(sessionSecret, token, 'en', Date.now())?.bad ?? false;
 }

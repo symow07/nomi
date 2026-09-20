@@ -228,10 +228,17 @@ ${cssVariables()}
      order is in. It is a READING, not a KPI tile. */
   .stated-now { font-size:var(--font-size-numeral); margin:var(--space-12) 0; }
 
-  /* One notice. */
+  /* One notice — in two tones, because one of them is a refusal.
+     D5: every notice was painted in the jade of a success, so "Only the owner
+     may do that" and "Sent" looked alike at a glance. The bad tone carries
+     a line as well as a wash, since the two washes are close enough in
+     value that colour alone would be the whole signal. */
   .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
+    border:1px solid transparent;
     border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
     margin-bottom:var(--space-16); font-size:var(--font-size-note); }
+  .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
+    border-color:var(--color-warn-line); }
 
   /* One tab row. */
   .tabs { display:flex; gap:var(--space-8); margin-bottom:var(--space-16); }
@@ -587,4 +594,38 @@ export function verifyPage(input: {
     </details>`;
   const other = `<p class="other"><a href="${input.purpose === 'device' ? '/login' : '/signup'}">${esc(t(locale, 'verify.back'))}</a></p>`;
   return doorFrame(locale, input.path, t(locale, 'verify.title'), card, other);
+}
+
+/**
+ * CC-19 / A13 — the two pages nobody designed, which every product shows anyway.
+ *
+ * Until now a mistyped address answered `{"message":"Route GET:/app/nope not
+ * found","error":"Not Found","statusCode":404}` — Fastify's own voice, in
+ * English, to an owner reading an Arabic product. A thrown route answered the
+ * same way with a 500. Both are the product speaking a language it does not
+ * speak anywhere else, and the second one can leak an internal message.
+ *
+ * They use the door's frame, not the shell: an error may reach someone with no
+ * session, and a navigation rail whose links might also 404 is not a comfort.
+ * The only way out is offered as a LINK to a place that exists, never "go
+ * back", because the thing she just did is what produced this.
+ *
+ * `crash` says nothing about what broke. The reason goes to the log with a
+ * reference she can quote; the page carries the reference and no more.
+ */
+export function errorPage(input: {
+  readonly locale: Locale; readonly path: string;
+  readonly kind: 'notfound' | 'crash';
+  /** Shown only for `crash`, so a report can be tied to one log line. */
+  readonly reference?: string | null;
+}): string {
+  const { locale, kind } = input;
+  const title = t(locale, kind === 'notfound' ? 'error.notfound.title' : 'error.crash.title');
+  const card = `
+    <h1>${esc(title)}</h1>
+    <p class="lead">${esc(t(locale, kind === 'notfound' ? 'error.notfound.body' : 'error.crash.body'))}</p>
+    ${kind === 'crash' && input.reference
+      ? `<p class="hint">${esc(t(locale, 'error.reference', { ref: input.reference }))}</p>` : ''}`;
+  const other = `<p class="other"><a href="/app">${esc(t(locale, 'error.home'))}</a></p>`;
+  return doorFrame(locale, input.path, title, card, other);
 }

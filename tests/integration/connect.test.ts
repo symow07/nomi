@@ -3,6 +3,10 @@ import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { flashSaid } from './tenant.js';
+import { createHmac } from 'node:crypto';
+const CREDENTIAL_KEY = 'b'.repeat(64);
+const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session').digest('hex');
 
 /**
  * G3 — the factory's number can be connected, and then messages arrive.
@@ -69,8 +73,7 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
   };
 
   const act = (path: string) => prod.app.inject({ method: 'POST', url: path, headers: { cookie } });
-  const flashOf = (res: { headers: Record<string, unknown> }) =>
-    decodeURIComponent(String(res.headers['location']).split('flash=')[1] ?? '');
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
 
   beforeAll(async () => {
     const { buildProduction } = await import('../../src/main.js');

@@ -119,7 +119,7 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
     expect(html).toContain('value="Ahmed &quot;the Fast&quot; &lt;Al-Farsi&gt;"');
     expect(html).toContain('maxlength="80"');
     // And a saved change is confirmed on the page she lands back on.
-    expect(renderCustomerFile(file, 'zh', NOW, '称呼已保存。')).toContain('称呼已保存。');
+    expect(renderCustomerFile(file, 'zh', NOW, { text: '称呼已保存。', bad: false })).toContain('称呼已保存。');
   });
 
   it('escapes buyer text and messages (no XSS)', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 
 /**
  * M40.1 — the sending domain, end to end.
@@ -220,7 +220,7 @@ d('M40.1 · the sending domain (requires DATABASE_URL)', () => {
     const before = await row();
     const res = await post('/app/channels/domain', 'domain=not a domain&selector=k1');
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain(encodeURIComponent('does not look like'));
+    expect(flashSaid(res, 'a-test-session-secret-of-sufficient-length')).toContain('does not look like');
     expect((await row())!.domain).toBe(before!.domain);
   });
 });

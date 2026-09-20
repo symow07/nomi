@@ -1,6 +1,7 @@
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { back, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * A1 — "how do I sign in, and how do I change it?"
@@ -15,7 +16,7 @@ import { back, esc } from './layout.js';
  */
 export type AccountView = { readonly email: string | null; readonly passwordMin: number };
 
-export function renderAccount(v: AccountView, locale: Locale, flash: string | null, backLabel: string): string {
+export function renderAccount(v: AccountView, locale: Locale, flash: Flash | null, backLabel: string): string {
   const body = v.email === null
     ? `<p class="muted">${esc(t(locale, 'account.codeOnly'))}</p>`
     : `<p><bdi>${esc(t(locale, 'account.email', { email: v.email }))}</bdi></p>
@@ -29,6 +30,6 @@ export function renderAccount(v: AccountView, locale: Locale, flash: string | nu
        </form>`;
   return `${back('/app/settings', backLabel)}
     <h1 class="page">${esc(t(locale, 'account.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">${body}</section>`;
 }

@@ -1,5 +1,5 @@
 import {
-  isBusinessKind, isTeamSize, isChannelUsed, isCountryCode, normalizeWebsite,
+  isBusinessKind, isTeamSize, isChannelUsed, isCountryCode, canonicalCountry, normalizeWebsite,
   type BusinessKind, type TeamSize, type ChannelUsed,
 } from './business.js';
 
@@ -99,7 +99,7 @@ export function validateSignup(
     ok: true,
     value: {
       factory, name, email, password: input.password, invite: UUID.test(invite) ? invite.toLowerCase() : null,
-      profile: { kind, sells, country, website: website.value, teamSize, channels },
+      profile: { kind, sells, country: canonicalCountry(country), website: website.value, teamSize, channels },
     },
   };
 }

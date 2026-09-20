@@ -192,12 +192,12 @@ describe('G16 · each upload failure says what it is', () => {
 
 describe('G16 · the flash after confirm', () => {
   it('a page that only changed prices does not announce "added 0"', () => {
-    const f = importFlash('en', { added: 0, withPrice: 0, updated: 1, alreadyHere: 2, refused: 0 });
-    expect(f).toBe(`${t('en', 'product.flash.updated', { n: 1 })} ${t('en', 'product.flash.alreadyHere', { n: 2 })}`);
+    const f = importFlash({ added: 0, withPrice: 0, updated: 1, alreadyHere: 2, refused: 0 });
+    expect(f.map((p) => p.key)).toEqual(['product.flash.updated', 'product.flash.alreadyHere']);
   });
 
   it('a change her rules refused at the last moment is said, never folded into done', () => {
-    const f = importFlash('zh', { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 1 });
-    expect(f).toContain(t('zh', 'product.flash.refused', { n: 1 }));
+    const f = importFlash({ added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 1 });
+    expect(f.map((p) => p.key)).toContain('product.flash.refused');
   });
 });

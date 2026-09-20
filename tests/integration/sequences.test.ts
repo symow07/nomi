@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
 
 /**
  * C4.b — a first e-mail and its follow-ups, over the REAL production
@@ -47,8 +48,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const get = (url: string, as = cookie) => prod.app.inject({ method: 'GET', url, headers: { cookie: as } });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const login = async (code: string) => {
     const r = await prod.app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,

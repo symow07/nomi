@@ -24,6 +24,7 @@ import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatMoney, formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
 import { loadProductList } from './products.js';
@@ -440,7 +441,7 @@ const section = (title: string, question: string, body: string, href: string | n
   </section>`;
 
 export function renderFactory(
-  f: FactoryView, locale: Locale, flash: string | null = null, viewer: Viewer = OWNER_VIEW,
+  f: FactoryView, locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const name = assistantName(locale);
   const p = f.profile;
@@ -645,7 +646,7 @@ export function renderFactory(
   const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name) : '';
 
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <p class="lede">${esc(t(locale, 'factory.lede', { name }))}</p>
     ${next}
     ${section(t(locale, 'factory.about.title'), t(locale, 'factory.about.q'), aboutBody, '/app/settings', t(locale, 'factory.about.more'))}

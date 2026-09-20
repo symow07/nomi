@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 
 /**
  * M47 — more than one human, end to end.
@@ -167,14 +167,14 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     ] as const) {
       const res = await post(staffCookie, url, payload);
       expect(res.statusCode, url).toBe(302);
-      expect(decodeURIComponent(String(res.headers['location'])), url).toContain('Only the owner');
+      expect(flashSaid(res, SECRET), url).toContain('Only the owner');
     }
     // G9a — and the PAGES behind the two most sensitive forms: her floor, and
     // the form that hands someone a way in.
     for (const url of ['/app/settings/people', '/app/factory/prices']) {
       const res = await app.inject({ method: 'GET', url, headers: { cookie: staffCookie } });
       expect(res.statusCode, url).toBe(302);
-      expect(decodeURIComponent(String(res.headers['location'])), url).toContain('Only the owner');
+      expect(flashSaid(res, SECRET), url).toContain('Only the owner');
     }
     // and nothing happened: no second person, no price rule
     expect(await tx((t) => sql<{ n: number }>`
@@ -216,7 +216,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     ] as const) {
       const res = await post(staffCookie, url, payload);
       expect(res.statusCode, url).toBeLessThan(500);
-      expect(decodeURIComponent(String(res.headers['location'] ?? '')), url).not.toContain('Only the owner');
+      expect(flashSaid(res, SECRET), url).not.toContain('Only the owner');
     }
   });
 
@@ -309,7 +309,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     expect((await post(ownerCookie, `/app/inbox/${g12Conv}/takeover`)).statusCode).toBe(302);
     const res = await post(ownerCookie, `/app/inbox/${g12Conv}/handto`, `personId=${staffId}`);
     expect(res.statusCode).toBe(302);
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('Handed to Xiao Chen');
+    expect(flashSaid(res, SECRET)).toContain('Handed to Xiao Chen');
 
     // The column names WHICH human, and the ownership model is unchanged.
     const held = await tx((t) => sql<{ assigned_to: string | null }>`
@@ -336,7 +336,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
 
   it('G12 · nobody who does not work here can be handed one', async () => {
     const res = await post(ownerCookie, `/app/inbox/${g12Conv}/handto`, `personId=${randomUUID()}`);
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('Nobody by that name');
+    expect(flashSaid(res, SECRET)).toContain('Nobody by that name');
     const held = await tx((t) => sql<{ assigned_to: string | null }>`
       select assigned_to from conversations where id = ${g12Conv}`.execute(t).then((r) => r.rows[0]!.assigned_to));
     expect(held).toBe(staffId);                            // unchanged

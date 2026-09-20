@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
-import { runDigits } from './tenant.js';
+import { runDigits, flashSaid} from './tenant.js';
 
 /**
  * C10 — a business connects its OWN Page and Instagram, over the REAL
@@ -22,6 +22,7 @@ const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd550000-0000-4000-8000-${RUN}0001`;
 const OTHER = `dd550000-0000-4000-8000-${RUN}0002`;
 const CREDENTIAL_KEY = 'c'.repeat(64);
+const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session').digest('hex');
 const APP_SECRET = `meta-app-secret-${RUN}`;
 const V = 'v23.0';
 const PAGE_A = `1030${runDigits(RUN, 10)}`;
@@ -95,7 +96,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const location = (r: { headers: Record<string, unknown> }) => String(r.headers['location'] ?? '');
-  const flashOf = (r: { headers: Record<string, unknown> }) => new URL(location(r), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const stateCookie = (r: { headers: Record<string, unknown> }) => {
     const raw = ([] as string[]).concat(r.headers['set-cookie'] as string | string[] ?? []).find((c) => c.startsWith('yf_meta='));
     return raw?.split(';')[0] ?? '';

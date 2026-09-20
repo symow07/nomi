@@ -110,7 +110,7 @@ describe('M9.3 · conversation detail (localized)', () => {
   });
 
   it('flash shown when present', () => {
-    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, '已发送。')).toContain('已发送。');
+    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, { text: '已发送。', bad: false })).toContain('已发送。');
   });
 });
 

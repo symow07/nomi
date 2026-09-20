@@ -139,7 +139,7 @@ describe('D1 · the badge says WHAT is missing', () => {
       { ...items[0]!, id: 'w2', learned: false, status: 'needs_limits', isActive: false },
       { ...items[0]!, id: 'o1', learned: false, status: 'not_offered', isActive: false },
     ];
-    const html = renderProductList(waiting, 'en', 'Added 3 products.');
+    const html = renderProductList(waiting, 'en', { text: 'Added 3 products.', bad: false });
     expect(html).toContain('Added 3 products.');
     expect(html).toContain(t('en', 'product.list.needLimits', { n: 2 }));
     expect(html).toContain('href="/app/factory/prices"');

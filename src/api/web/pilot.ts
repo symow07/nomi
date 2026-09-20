@@ -14,6 +14,7 @@ import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
 import { esc, deeper } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 
 /**
@@ -373,8 +374,8 @@ function attestRow(key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at:
     </form></div>`;
 }
 
-export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: string | null): string {
-  const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
+export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: Flash | null): string {
+  const flashHtml = flashBanner(flash);
   const detectedOrder: DetectedKey[] = ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale)).join('');
 
@@ -630,7 +631,7 @@ out: ${esc(v.engine)}</pre>
 }
 
 export function renderPilotRunbook(
-  rb: PilotRunbook, locale: Locale, flash: string | null,
+  rb: PilotRunbook, locale: Locale, flash: Flash | null,
   deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
   rehearsal?: RehearsalReport | null,
   templateState: TemplateState = 'none',

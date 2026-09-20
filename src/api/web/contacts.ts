@@ -20,6 +20,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { companyLineHtml } from './prospects.js';
 import { companyDomainOf } from '../../core/outreach/companyDomain.js';
 import type { Enrichment } from '../../db/prospects.js';
@@ -186,7 +187,7 @@ export function reachOf(v: ContactsView, c: ContactRow): ReturnType<typeof gateO
 const shown = (c: ContactRow): string =>
   c.channel === 'whatsapp' ? displayPhone(c.identity) : c.identity;
 
-export function renderContacts(v: ContactsView, locale: Locale, flash: string | null): string {
+export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | null): string {
   const rows = v.contacts.map((c) => {
     const decision = mayContact({ consent: c.consent, suppression: c.suppression });
     const hidden = `<input type="hidden" name="channel" value="${esc(c.channel)}" />
@@ -291,7 +292,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: string | 
     : `<ul class="cts">${rows}</ul>`;
 
   return `<h1 class="page">${esc(t(locale, 'contacts.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.intro'))}</p>
       ${deeper('/app/sequences', t(locale, 'seq.title'))}
@@ -399,13 +400,13 @@ export function renderWriteFirst(
   opts: {
     /** What she had typed, kept when the page comes back to her. */
     readonly draft?: { readonly subject: string; readonly body: string };
-    readonly flash?: string | null;
+    readonly flash?: Flash | null;
   } = {},
 ): string {
   const name = who.displayName ?? (who.channel === 'whatsapp' ? displayPhone(who.identity) : who.identity);
   const draft = opts.draft ?? { subject: '', body: '' };
   return `<h1 class="page">${esc(t(locale, 'contacts.write.title', { who: name }))}</h1>
-    ${opts.flash ? `<div class="flash" role="status">${esc(opts.flash)}</div>` : ''}
+    ${flashBanner(opts.flash ?? null)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'contacts.write.hint'))}</p>
       <form method="post" action="/app/contacts/write" class="wform">

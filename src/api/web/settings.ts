@@ -17,6 +17,7 @@ import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
 import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
 import { deeper, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * M11.1 — Business Profile & Owner Settings. A VIEW + edit over the EXISTING
@@ -170,7 +171,7 @@ export async function saveBusinessProfile(
 export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
 
 export function renderSettings(
-  p: BusinessProfile, locale: Locale, flash: string | null,
+  p: BusinessProfile, locale: Locale, flash: Flash | null,
   draft: ProfileDraft = {}, errors: ProfileErrors = {},
 ): string {
   // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
@@ -211,7 +212,7 @@ export function renderSettings(
   </div>`;
 
   return `<h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${form}${categories}
     ${deeper('/app/settings/forbidden',
       t(locale, 'forbidden.title', { name: assistantName(locale) }))}
@@ -309,10 +310,10 @@ export async function removeForbidden(
   });
 }
 
-export function renderForbidden(v: ForbiddenView, locale: Locale, flash: string | null): string {
+export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   return `<h1 class="page">${esc(t(locale, 'forbidden.title', { name }))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'forbidden.intro', { name }))}</p>
       <form method="post" action="/app/settings/forbidden" class="fld">
@@ -419,12 +420,12 @@ export async function setRate(
   });
 }
 
-export function renderRate(v: RateView, locale: Locale, flash: string | null): string {
+export function renderRate(v: RateView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: formatDate(locale, r.statedAt) }))}</span>`;
   return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'rate.intro', { name }))}</p>
       ${v.current
@@ -512,12 +513,12 @@ export async function removeClosure(
   });
 }
 
-export function renderClosures(v: ClosureView, locale: Locale, flash: string | null): string {
+export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
     t(locale, 'closures.range', { from: formatDate(locale, c.from), to: formatDate(locale, c.to) });
   return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'closures.intro', { name }))}</p>
       <form method="post" action="/app/settings/closures" class="pform">
@@ -658,7 +659,7 @@ export async function saveTerms(
   });
 }
 
-export function renderTerms(v: TermsView, locale: Locale, flash: string | null): string {
+export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
@@ -667,7 +668,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: string | null):
   const options = INCOTERM_KEYS.map((k) =>
     `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
   return `<h1 class="page">${esc(t(locale, 'terms.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
@@ -717,7 +718,7 @@ export async function markSampleHandled(
   });
 }
 
-export function renderSamples(v: SamplesView, locale: Locale, flash: string | null, now: Date): string {
+export function renderSamples(v: SamplesView, locale: Locale, flash: Flash | null, now: Date): string {
   const name = assistantName(locale);
   const stated = v.policy
     ? `<p class="stated-now">${
@@ -749,7 +750,7 @@ export function renderSamples(v: SamplesView, locale: Locale, flash: string | nu
       </li>`).join('')}</ul>`;
 
   return `<h1 class="page">${esc(t(locale, 'samples.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}

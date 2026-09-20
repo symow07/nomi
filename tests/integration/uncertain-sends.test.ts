@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
 
 /**
  * 0052 — a message is never sent twice by a machine, over the REAL composition.
@@ -46,8 +47,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const get = (url: string, as = cookie) => prod.app.inject({ method: 'GET', url, headers: { cookie: as } });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const login = async (code: string) => {
     const r = await prod.app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,
