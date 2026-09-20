@@ -43,12 +43,27 @@ describe('E1 · one Gmail message, read', () => {
   });
 
   it('a machine wrote it: bounces, notices, lists, no-reply — never answered', () => {
-    for (const headers of [{ 'Auto-Submitted': 'auto-replied' }, { Precedence: 'bulk' }, { 'List-Id': '<news.x.test>' }, { From: 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>' }, { From: 'no-reply@shop.test' }]) {
+    for (const headers of [
+      { 'Auto-Submitted': 'auto-replied' }, { Precedence: 'bulk' }, { 'List-Id': '<news.x.test>' },
+      { From: 'Mail Delivery Subsystem <mailer-daemon@googlemail.com>' }, { From: 'no-reply@shop.test' },
+      // What she actually answered in the first hour: Google's own welcome mail.
+      // "noreply" is in the MIDDLE of the name, and the only header it carries
+      // is the unsubscribe one every bulk sender puts on.
+      { From: 'The Google Workspace Team <workspace-noreply@google.com>', 'List-Unsubscribe': '<https://google.com/u>' },
+      { From: 'workspace-noreply@google.com' },
+      { From: 'news@shop.test', 'Feedback-ID': '1:2:3:mailer' },
+      { From: 'auto@x.test', 'X-Auto-Response-Suppress': 'All' },
+      { From: 'bounces+abc@sendgrid.test' },
+    ]) {
       const r = readGmailMessage(msg({ text: 'x', headers }));
       expect(!('skipped' in r) && r.automatic, JSON.stringify(headers)).toBe(true);
     }
-    const person = readGmailMessage(msg({ text: 'x', headers: { 'Auto-Submitted': 'no' } }));
-    expect(!('skipped' in person) && person.automatic).toBe(false);
+    // A false positive costs a buyer his answer, so a person's mail stays a person's.
+    for (const headers of [{ 'Auto-Submitted': 'no' }, { From: 'Noor Trading <noor@buyer.test>' },
+      { From: 'replies@buyer.test' }, { From: 'sales.reply@buyer.test' }, { From: 'ahmed@nobounce.test' }]) {
+      const person = readGmailMessage(msg({ text: 'x', headers }));
+      expect(!('skipped' in person) && person.automatic, JSON.stringify(headers)).toBe(false);
+    }
   });
 
   it('what cannot be read is skipped and says why, never guessed', () => {
