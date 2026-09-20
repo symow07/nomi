@@ -1024,6 +1024,25 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **E1 · She reads the inbox (2026-09-20, migration 0062).** E-mail was
+  send-only: the Google connection asked for `gmail.send` alone, and a buyer's
+  mail landed in the owner's Gmail unread by this product — which its page
+  promised, and which the owner found out by e-mailing her and getting nothing.
+  Reading is now a grant she makes on purpose: a box beside Connect asks for
+  `gmail.readonly`, and whether it was granted is read off what Google returned.
+  With it, the minute sweep asks for mail newer than the last look, records each
+  buyer's mail on his e-mail conversation with its subject, and queues the same
+  turn a WhatsApp message gets; her answer leaves as "Re:" what he wrote, from
+  the same mailbox. Never answered: her own mail and its aliases, and anything a
+  machine wrote. A mailbox connected before this sends but does not read until
+  connected again, and the page says so. **A minute's work still fits in a
+  minute:** reading is network work sharing the sweep's budget with her sends,
+  so reading happens in its own pass AFTER every send in the minute, every call
+  is bounded (8 s), the whole read is bounded (10 s), at most three mailboxes
+  are read a minute, and a read that stops halfway leaves its watermark alone — Gmail answers newest first, and moving the mark past mail it
+  never saw would lose it. Caught by the suite: unbounded, one mailbox took the
+  whole forty seconds and the follow-ups of every other business went nowhere.
+  Google only; the reader is one module and Microsoft's would be its twin.
 - **F1 · The pilot list is WhatsApp's list — at the door in, too (2026-09-19).**
   The day the owner started her, WhatsApp answered and Instagram did not. The
   worker's gate (`pilotFactsFor`) read the buyer's WHATSAPP identity for every

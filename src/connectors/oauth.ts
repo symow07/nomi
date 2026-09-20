@@ -61,6 +61,10 @@ export const PROVIDER = {
     tokenUrl: 'https://oauth2.googleapis.com/token',
     scopes: ['openid', 'email', 'https://www.googleapis.com/auth/gmail.send'],
     sendScope: 'https://www.googleapis.com/auth/gmail.send',
+    // E1 — asked for ONLY when the owner ticks "let her read". Google classes it
+    // as restricted: an Internal app may use it freely; an external app must
+    // pass Google's review first.
+    readScope: 'https://www.googleapis.com/auth/gmail.readonly',
     issuer: (iss: string) => iss === 'https://accounts.google.com' || iss === 'accounts.google.com',
     /** The SPF mechanism her domain must publish for Google to send as it. */
     spfInclude: '_spf.google.com',
@@ -69,6 +73,7 @@ export const PROVIDER = {
     authorizeUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
     scopes: ['openid', 'email', 'offline_access', 'https://graph.microsoft.com/Mail.Send'],
+    readScope: 'https://graph.microsoft.com/Mail.Read',
     sendScope: 'https://graph.microsoft.com/Mail.Send',
     issuer: (iss: string) => /^https:\/\/login\.microsoftonline\.com\/[0-9a-f-]{36}\/v2\.0$/.test(iss),
     spfInclude: 'spf.protection.outlook.com',
@@ -118,13 +123,14 @@ export function pkcePair(): { readonly verifier: string; readonly challenge: str
 
 export function authorizeUrl(
   provider: OAuthProvider, client: OAuthClient,
-  o: { readonly redirectUri: string; readonly state: string; readonly challenge: string },
+  o: { readonly redirectUri: string; readonly state: string; readonly challenge: string; readonly read?: boolean },
 ): string {
   const p = new URLSearchParams({
     client_id: client.clientId,
     redirect_uri: o.redirectUri,
     response_type: 'code',
-    scope: PROVIDER[provider].scopes.join(' '),
+    // E1 — reading is asked for only when she asked for it.
+    scope: [...PROVIDER[provider].scopes, ...(o.read ? [PROVIDER[provider].readScope] : [])].join(' '),
     state: o.state,
     code_challenge: o.challenge,
     code_challenge_method: 'S256',
@@ -332,4 +338,10 @@ export async function refreshAccessToken(
     expiresInSec: typeof r.json['expires_in'] === 'number' ? r.json['expires_in'] : 3600,
     rotatedRefreshToken: typeof rotated === 'string' && rotated && rotated !== refreshToken ? rotated : null,
   };
+}
+
+/** E1 — did the grant include reading the mailbox? Read off what the provider returned, never off what was asked. */
+export function grantsReading(provider: OAuthProvider, scopes: string): boolean {
+  const read = PROVIDER[provider].readScope;
+  return scopes.split(/\s+/).some((x) => x === read || (provider === 'microsoft' && x === 'Mail.Read'));
 }

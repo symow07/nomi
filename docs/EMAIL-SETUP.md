@@ -196,8 +196,17 @@ Zoho's are in its admin console under **Domains → Email Configuration**.
 1. `/app/channels` → **Your accounts** → Gmail or Outlook → **Connect**. If it
    says *"Not set up here yet"*, the section 1 or 2 variables are not set, or
    the app was not restarted.
-2. Sign in **as the mailbox she sends from**, and allow sending.
-3. Back on the page: *"Your e-mail now leaves as sales@yourfactory.com."* If it
+2. **To let her answer e-mails, tick "Also let her read buyers' e-mails in
+   this mailbox" before pressing Connect** (E1). Sign in **as the mailbox she
+   sends from**, and allow what Google asks — sending, and reading if you
+   ticked the box. Reading is Google's `gmail.readonly` scope: an **Internal**
+   app (section 1) may use it at once; an External app must pass Google's
+   restricted-scope review first. Add the scope to the consent screen's scope
+   list too, or Google shows a warning at sign-in.
+3. Back on the page: *"Your e-mail now leaves as sales@yourfactory.com."* With
+   reading granted it also says *"Also reads new e-mails to …, once a minute."*
+   Without it: *"Sends only. Connect again with the box ticked…"* — a mailbox
+   connected before E1 sends but does not read until connected again. If it
    warns that the address is not on her domain, the mailbox and the domain in
    step 3 differ, and nothing is sent until they match.
 4. Press **Look again** on the domain card. All three records should read
@@ -228,6 +237,20 @@ doing anything.
 3. One e-mail: **Write to them** on the contact. Follow-ups: `/app/sequences` →
    write them → **Approve**. Only the owner can approve, and approved words
    cannot change.
+
+### She reads the inbox, once a minute (E1)
+
+With reading granted, the minute sweep asks Google for mail newer than the
+last look, records each buyer's mail on his e-mail conversation, and queues the
+same turn a WhatsApp message gets; her answer leaves through the same mailbox
+as *"Re: "* his subject. Never answered, and not recorded: her own mail (the
+mailbox and its aliases, including the installation's `no-reply@` codes), and
+anything a machine wrote — bounces, vacation notices, lists. Up to 25 mails a
+minute, and at most three mailboxes across the installation in one minute —
+reading shares the minute with her follow-ups, so every call is given eight
+seconds and the whole read ten. A read that stops halfway starts again from the
+same place next minute. A revoked grant marks the mailbox *Needs you*, like a
+failed send. Google only: a Microsoft mailbox still sends only.
 
 ### Follow-ups wait for someone to look in her inbox
 

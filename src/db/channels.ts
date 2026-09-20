@@ -566,11 +566,17 @@ export async function enqueueOutboundRow(
    * stays without one — the worker then refuses it `subject_missing`, visibly.
    */
   let subject = mail?.subject ?? null;
-  if (subject === null && channel === 'email' && origin === 'owner') {
+  if (subject === null && channel === 'email' && (origin === 'owner' || origin === 'employee')) {
+    // E1 — and for HER answer too, now that a buyer's mail can start a thread:
+    // the subject of the last mail on it, hers or his, whichever is newer.
     const last = (await sql<{ subject: string }>`
-      select subject from outbound_messages
-       where conversation_id = ${conversationId} and subject is not null
-       order by seq desc limit 1`.execute(tx)).rows[0]?.subject ?? null;
+      select subject from (
+        select subject, created_at as at from outbound_messages
+         where conversation_id = ${conversationId} and subject is not null
+        union all
+        select subject, sent_at as at from messages
+         where conversation_id = ${conversationId} and direction = 'inbound' and subject is not null
+      ) s order by at desc limit 1`.execute(tx)).rows[0]?.subject ?? null;
     subject = last === null ? null : /^re:/i.test(last.trim()) ? last : `Re: ${last}`;
   }
 
