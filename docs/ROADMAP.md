@@ -1043,6 +1043,15 @@ Drafts folder.
   never saw would lose it. Caught by the suite: unbounded, one mailbox took the
   whole forty seconds and the follow-ups of every other business went nowhere.
   Google only; the reader is one module and Microsoft's would be its twin.
+  **E1.1, the same morning:** within an hour of reading going live she answered
+  Google's own "Welcome to Google Workspace" mail. `workspace-noreply@google.com`
+  has the word in the MIDDLE of the name, which the first filter (anchored at
+  the start) missed, and the mail carries no `Auto-Submitted` and no
+  `Precedence` — only the unsubscribe header every bulk sender puts on. Machine
+  mail is now recognised by the word anywhere in the name and by the headers
+  that mean "sent to a list" (`List-Unsubscribe`, `Feedback-ID`,
+  `X-Auto-Response-Suppress`), with a buyer writing from `replies@` or
+  `sales.reply@` pinned as a person: a false positive costs a buyer his answer.
 - **F1 · The pilot list is WhatsApp's list — at the door in, too (2026-09-19).**
   The day the owner started her, WhatsApp answered and Instagram did not. The
   worker's gate (`pilotFactsFor`) read the buyer's WHATSAPP identity for every

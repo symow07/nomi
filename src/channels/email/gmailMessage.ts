@@ -44,6 +44,35 @@ const header = (p: GmailPart | undefined, name: string): string | null => {
   return h?.value?.trim() || null;
 };
 
+/**
+ * Did a MACHINE write this?
+ *
+ * Found the hour reading went live: she answered Google's own "Welcome to
+ * Google Workspace" mail. Its sender is `workspace-noreply@google.com` — which
+ * the first version missed, because it looked for "noreply" at the START of the
+ * address — and it carries no `Auto-Submitted` and no `Precedence`, only the
+ * unsubscribe header every bulk sender puts on. So: the word anywhere in the
+ * name, and the headers that mean "sent to a list", not only "sent by a robot".
+ *
+ * A false positive costs a buyer an answer, so each rule is one a person would
+ * not trip: nobody writing to a supplier by hand has "noreply" in their address
+ * or an unsubscribe link in their mail.
+ */
+export function wroteByMachine(p: GmailPart | undefined, address: string): boolean {
+  const auto = header(p, 'Auto-Submitted');
+  const precedence = header(p, 'Precedence')?.toLowerCase() ?? '';
+  const local = address.slice(0, address.indexOf('@'));
+  return (auto !== null && auto.toLowerCase() !== 'no')
+    || precedence === 'bulk' || precedence === 'list' || precedence === 'junk'
+    // Sent to a list, by anyone who honours the rules for sending to lists.
+    || header(p, 'List-Id') !== null
+    || header(p, 'List-Unsubscribe') !== null
+    || header(p, 'Feedback-ID') !== null
+    || header(p, 'X-Auto-Response-Suppress') !== null
+    // …and the address itself, wherever the word sits in it.
+    || /no[-_.]?reply|do[-_.]?not[-_.]?reply|mailer[-_.]?daemon|postmaster|^bounces?[-_.+]?/i.test(local);
+}
+
 const decode = (data: string | undefined): string =>
   data ? Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8') : '';
 
@@ -89,12 +118,7 @@ export function readGmailMessage(m: GmailMessage): ReadMail | { readonly skipped
   const html = plain ? null : firstPart(p, 'text/html');
   const text = (plain ? decode(plain.body?.data) : html ? stripHtml(decode(html.body?.data)) : '').trim().slice(0, MAX_MAIL_CHARS);
   if (!text) return { skipped: 'no readable text' };
-  const auto = header(p, 'Auto-Submitted');
-  const precedence = header(p, 'Precedence')?.toLowerCase() ?? '';
-  const automatic = (auto !== null && auto.toLowerCase() !== 'no')
-    || precedence === 'bulk' || precedence === 'list' || precedence === 'junk'
-    || header(p, 'List-Id') !== null
-    || /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply)@/i.test(from.address);
+  const automatic = wroteByMachine(p, from.address);
   const when = m.internalDate ? new Date(Number(m.internalDate)) : new Date(header(p, 'Date') ?? Date.now());
   return {
     gmailId: m.id, messageId, from: from.address, fromName: from.name,
