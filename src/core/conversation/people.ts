@@ -74,6 +74,12 @@ export const OWNER_ONLY = [
   // risks the number permanently, which is the same class of decision as
   // turning messaging on at all.
   'outreach',
+  // Phase 2 — taking a copy of everything, and asking for everything to go.
+  // The export is every buyer, every message and every price in one file: the
+  // first thing a stolen staff session would reach for, and not something a
+  // sales assistant needs to do their job. The deletion request is the one
+  // action in the product that cannot be undone from inside it.
+  'data_rights',
 ] as const;
 export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
 
