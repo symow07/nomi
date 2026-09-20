@@ -24,8 +24,13 @@ type RelStatus =
 const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…` : s);
 const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
   locale === 'zh' ? (p.nameZh ?? p.name) : (p.name ?? p.nameZh);
-const channelName = (locale: Locale, c: string): string =>
-  c === 'whatsapp' ? 'WhatsApp' : c === 'instagram' ? 'Instagram' : t(locale, `conv.channel.${c}` as MessageKey);
+/**
+ * D3 — every channel a conversation can be on has a name in the catalogue, and
+ * this reads it. Two had none (`email`, `messenger`) and two were spelled out
+ * here instead, so the page printed `conv.channel.email` at the owner as though
+ * it were a word.
+ */
+export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
 
 function relationshipOf(row: {
   pending: number; order_status: string | null; quote_count: number;

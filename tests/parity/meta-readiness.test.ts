@@ -109,13 +109,25 @@ describe('M17.2 · readiness never switches anything on', () => {
     expect(halfway.live).toBe(false);
     expect(halfway.blockers).toEqual(['channel_not_connected']);
 
-    const live = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected' });
+    // D7 — and connected is still not live: the owner has to START her. The page
+    // read "Live — she is talking to real buyers" on the day every send was
+    // refused with "messaging is switched off", because this was the last line.
+    const wired = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected' });
+    expect(wired.live).toBe(false);
+    expect(wired.blockers).toEqual(['not_started']);
+
+    const live = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected', activated: true });
     expect(live.live).toBe(true);
     expect(live.blockers).toEqual([]);
+
+    // Not started is only worth saying once the wire is there: a channel that
+    // was never connected is told to connect, not to press a button it lacks.
+    expect(checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'not_connected', activated: false }).blockers)
+      .toEqual(['channel_not_connected']);
   });
 
   it('the report NEVER carries a credential value', () => {
-    const r = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected' });
+    const r = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected', activated: true });
     const blob = JSON.stringify(r);
     for (const v of Object.values(GOOD)) {
       if (v === 'v23.0') continue;                        // the interface version is not a secret
@@ -150,7 +162,7 @@ describe('M17.2 · rendered on the runbook (localized, value-free)', () => {
 
   it('the section is omitted when not supplied, and carries no percentage', () => {
     expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'meta.title'));
-    const r = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected' });
+    const r = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected', activated: true });
     expect(renderPilotRunbook(rb(), 'en', null, undefined, r)).not.toMatch(/\d+\s*%/);
   });
 });

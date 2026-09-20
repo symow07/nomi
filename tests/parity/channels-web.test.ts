@@ -6,7 +6,7 @@ import type { Viewer } from '../../src/core/conversation/people.js';
 const connected: ChannelsData = {
   whatsapp: {
     kind: 'whatsapp', connected: true, status: 'connected', healthOk: true,
-    displayId: '+86 579****0001', lastActivityAt: new Date(), problem: null,
+    displayId: '+86 579****0001', lastActivityAt: new Date(), problem: null, activated: false,
   },
   ownerPhone: '+8613800000000', templateState: 'none', outreach: new Map(), domain: null,
 };
@@ -14,7 +14,7 @@ const connected: ChannelsData = {
 const notConnected: ChannelsData = {
   whatsapp: {
     kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
-    displayId: null, lastActivityAt: null, problem: null,
+    displayId: null, lastActivityAt: null, problem: null, activated: false,
   },
   ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null,
 };
@@ -22,7 +22,7 @@ const notConnected: ChannelsData = {
 const needsAttention: ChannelsData = {
   whatsapp: {
     kind: 'whatsapp', connected: false, status: 'needs_attention', healthOk: false,
-    displayId: '+86 579****0001', lastActivityAt: null, problem: 'needs_relogin',
+    displayId: '+86 579****0001', lastActivityAt: null, problem: 'needs_relogin', activated: false,
   },
   ownerPhone: null, templateState: 'none', outreach: new Map(), domain: null,
 };

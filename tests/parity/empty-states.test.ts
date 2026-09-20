@@ -49,7 +49,7 @@ const emptyFactoryView: FactoryView = {
   products: { total: 0, needPrice: 0, names: [] },
   promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false },
   connection: { channel: { kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
-    displayId: null, lastActivityAt: null, problem: null }, ownerPhone: null },
+    displayId: null, lastActivityAt: null, problem: null, activated: false }, ownerPhone: null },
   nextStep: 'profile',
   readiness: { canActivate: false, blockers: ['no_channel'], recipients: [], lifecycle: 'not_connected',
     live: false, activatedAt: null, activatedBy: null },

@@ -194,6 +194,10 @@ describe('0051 · where his answer cannot be seen, a follow-up waits for a perso
     expect(worker).toMatch(/if \(spent\(\) \|\| inboxesRead >= INBOX_READS_PER_SWEEP\) return;/);
     expect(worker.indexOf('runDueSteps('), 'sends go before any inbox is read')
       .toBeLessThan(worker.indexOf('readNewMail('));
+    // E1.2 — and which mailboxes is ONE question across tenants, not one per
+    // business: the per-tenant version cost a query a minute per live business.
+    expect(worker).toMatch(/businessesReadingInbox\(db, INBOX_READS_PER_SWEEP\)/);
+    expect(worker.match(/readNewMail\(/g)?.length, 'one reader call site').toBe(1);
     expect(worker).toMatch(/if \(lookedUp < DOMAIN_CHECKS_PER_SWEEP\)/);
     expect(main).toMatch(/const SWEEP_BUDGET_MS = 40_000;/);
     expect(main).toMatch(/const DOMAIN_CHECKS_PER_SWEEP = 3;/);

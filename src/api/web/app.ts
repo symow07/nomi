@@ -2024,7 +2024,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         graphVersion: process.env['META_GRAPH_API_VERSION'] ?? 'v23.0',
       },
       provider: deps.provider,
-      channelStatus: (await loadChannels(deps.db, s.businessId, whatsappConfigured)).whatsapp.status,
+      ...(await (async () => {
+        // D7 — connected AND started: the page said "Live" on the strength of
+        // the wire alone, while every send was refused for want of the decision.
+        const ch = (await loadChannels(deps.db, s.businessId, whatsappConfigured)).whatsapp;
+        return { channelStatus: ch.status, activated: ch.activated };
+      })()),
     });
     // M20.5: invariant violations on this factory's REAL rows are an engine
     // defect, so they surface here — beside the build version — and nowhere the

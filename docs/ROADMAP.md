@@ -1024,6 +1024,21 @@ Drafts folder.
   (follow-ups, the domain check) ran for that one business only — both would
   have been invisible until the second factory. Not built: password reset by
   mail (no installation-wide sender exists), e-mail logins for staff.
+- **D3–D7 · Four small truths (2026-09-20).** Each is something the owner met in
+  his first days, from `docs/SITE-REVIEW-2026-09-18.md`. **D3:** the Customers
+  page printed `conv.channel.email` and `conv.channel.messenger` at him as
+  though they were words — two labels were missing and two others were spelled
+  out in the renderer; all four now live in the catalogue, and a test walks the
+  registry. **D4:** a reply HE typed was signed with his employee's name; the
+  transcript now joins the sent row and labels by its `origin`, so his line says
+  "You". **D5** (a refusal painted in the success colour) is deliberately left:
+  the flash travels as text in about sixty redirects and carrying a tone is its
+  own change. **D6:** My business said "Connected" and, two lines below, "until
+  this is connected she cannot answer" — the line knew only active-or-not and
+  now follows the lifecycle. **D7:** Getting ready said "Live — she is talking to
+  real buyers" while she had never been started, on the very day every send was
+  refused with "messaging is switched off"; `live` now requires `activated_at`,
+  and a connected channel nobody started says exactly that.
 - **E1 · She reads the inbox (2026-09-20, migration 0062).** E-mail was
   send-only: the Google connection asked for `gmail.send` alone, and a buyer's
   mail landed in the owner's Gmail unread by this product — which its page

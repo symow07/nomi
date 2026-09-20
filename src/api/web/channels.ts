@@ -59,6 +59,11 @@ export type ChannelView = {
   readonly displayId: string | null;
   readonly lastActivityAt: Date | null;
   readonly problem: ChannelProblem;
+  /**
+   * D7 — has the owner STARTED her on this channel? Connected is a wire;
+   * started is her decision, and only it means a buyer can be answered.
+   */
+  readonly activated: boolean;
 };
 
 export type ChannelsData = {
@@ -93,7 +98,7 @@ export async function loadChannels(
 ): Promise<ChannelsData> {
   const bid = parseBusinessId(businessIdRaw);
   const notConnected: ChannelView = {
-    kind: KIND, connected: false, status: 'not_connected', healthOk: false,
+    kind: KIND, connected: false, status: 'not_connected', healthOk: false, activated: false,
     displayId: null, lastActivityAt: null, problem: null,
   };
   if (!bid.ok) return { whatsapp: notConnected, ownerPhone: null, templateState, outreach: NO_OUTREACH, domain: null, canConnect: false };
@@ -116,9 +121,11 @@ export async function loadChannels(
       status: string; display_phone: string | null;
       last_inbound_at: Date | null; last_delivered_at: Date | null; last_webhook_at: Date | null;
       consecutive_send_failures: number; last_error: string | null; cred_active: boolean | null;
+      activated: boolean;
     }>`
       select ch.status, ch.display_phone, ch.last_inbound_at, ch.last_delivered_at,
              ch.last_webhook_at, ch.consecutive_send_failures, ch.last_error,
+             ch.activated_at is not null as activated,
              (select bool_or(is_active) from channel_credentials cc
                 where cc.business_id = ch.business_id and cc.channel = ${KIND}) as cred_active
         from channels ch where ch.kind = ${KIND} limit 1
@@ -134,7 +141,7 @@ export async function loadChannels(
       }, '');
       return {
         whatsapp: {
-          kind: KIND, connected: false, status: health.status, healthOk: false,
+          kind: KIND, connected: false, status: health.status, healthOk: false, activated: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
         ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
@@ -158,6 +165,7 @@ export async function loadChannels(
         displayId: maskPhone(row.display_phone),
         lastActivityAt: lastAt,
         problem: problemFor(health.status),
+        activated: row.activated === true,
       },
       ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
     };

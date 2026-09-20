@@ -52,7 +52,7 @@ export function credentialState(key: MetaCredential, value: string | undefined):
 }
 
 /** Neutral blocker codes — the UI localizes them; no sentence is built here. */
-export type MetaBlocker = 'credentials_incomplete' | 'provider_disabled' | 'channel_not_connected';
+export type MetaBlocker = 'credentials_incomplete' | 'provider_disabled' | 'channel_not_connected' | 'not_started';
 
 export type MetaReadiness = {
   /** Per-credential state. NEVER carries the value itself. */
@@ -62,9 +62,16 @@ export type MetaReadiness = {
   readonly provider: string;
   /** The stored channel status — stays 'not_connected' until explicit activation. */
   readonly channelStatus: string;
-  /** True only once every credential is shaped correctly AND the operator has
-   *  switched the provider on AND the channel is connected. Preparation alone
-   *  never flips this. */
+  /**
+   * True only once every credential is shaped correctly, the operator has
+   * switched the provider on, the channel is connected AND she has been
+   * started. Preparation alone never flips this.
+   *
+   * D7 — the last of those was missing, so a connected-but-never-started
+   * channel read "Live — she is talking to real buyers" on the same day every
+   * send was refused with "messaging is switched off". Connected is a wire;
+   * started is a decision, and only the owner makes it.
+   */
   readonly live: boolean;
   readonly blockers: readonly MetaBlocker[];
 };
@@ -73,6 +80,8 @@ export function checkMetaReadiness(input: {
   readonly values: Partial<Record<MetaCredential, string | undefined>>;
   readonly provider: string;
   readonly channelStatus: string;
+  /** D7 — has the owner started her? Absent means no, which is what it meant before. */
+  readonly activated?: boolean;
 }): MetaReadiness {
   const credentials = META_CREDENTIALS.map((key) => ({
     key, state: credentialState(key, input.values[key]),
@@ -81,17 +90,20 @@ export function checkMetaReadiness(input: {
   const providerActive = input.provider === 'meta';
   const connected = input.channelStatus === 'connected';
 
+  const started = input.activated === true;
+
   const blockers: MetaBlocker[] = [];
   if (!allCredentialsOk) blockers.push('credentials_incomplete');
   if (!providerActive) blockers.push('provider_disabled');
   if (!connected) blockers.push('channel_not_connected');
+  if (connected && !started) blockers.push('not_started');
 
   return {
     credentials,
     allCredentialsOk,
     provider: input.provider,
     channelStatus: input.channelStatus,
-    live: allCredentialsOk && providerActive && connected,
+    live: allCredentialsOk && providerActive && connected && started,
     blockers,
   };
 }

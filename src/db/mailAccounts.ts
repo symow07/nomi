@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import type { Tx } from './client.js';
+import type { Db, Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import type { OAuthProvider } from '../connectors/oauth.js';
 
@@ -82,4 +82,20 @@ export async function rotateMailAccountToken(
 ): Promise<void> {
   await sql`update mail_accounts set refresh_token_ciphertext = ${input.ciphertext}, fingerprint = ${input.fingerprint}
              where id = ${accountId}::uuid and archived_at is null`.execute(tx);
+}
+
+/**
+ * E1.2 — WHICH businesses have a mailbox that may be read, oldest look first.
+ *
+ * Asked once a minute, across tenants, instead of asking each tenant in turn:
+ * the per-tenant question cost one query per live business per minute to learn
+ * that almost none of them reads mail, and the minute sweep ran out of budget
+ * before the follow-ups that were due. Ids only — the function behind it
+ * returns no address and no token — and never a mailbox already marked for
+ * reconnecting, which could only fail again.
+ */
+export async function businessesReadingInbox(db: Db, limit: number): Promise<readonly string[]> {
+  const r = await sql<{ business_id: string }>`
+    select business_id::text as business_id from inboxes_to_read() limit ${limit}`.execute(db);
+  return r.rows.map((x) => x.business_id);
 }

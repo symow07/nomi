@@ -373,6 +373,13 @@ export type TimelineMessage = {
    * unheard question be answered confidently.
    */
   heard?: 'voice' | 'voice_corrected' | undefined;
+  /**
+   * D4 — WHO wrote this. An outbound message the OWNER typed was signed with
+   * her employee's name, so a conversation she had taken over read as though
+   * the employee had said it. Read from the outbound row's own `origin`; absent
+   * on a message from before outbound rows carried one, which reads as hers.
+   */
+  by?: 'owner' | 'employee' | 'outreach' | undefined;
   /** The unedited machine reading, kept when the owner has corrected it. */
   originalTranscript?: string | null | undefined;
   /** Message id, so the owner can correct what was heard. */
@@ -570,12 +577,16 @@ export async function loadConversationDetail(
     const messages = (await sql<{
       id: string; direction: string; text_content: string | null; sent_at: Date | null;
       input_type: string; transcription: string | null; received: string | null;
-      media: string | null;
+      media: string | null; origin: string | null;
     }>`
-      select id, direction, text_content, sent_at, input_type, transcription,
-             ai_analysis->>'received' as received, provider_media_id as media
-        from messages
-       where conversation_id = ${conversationId} order by sent_at asc limit 200
+      select m.id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription,
+             m.ai_analysis->>'received' as received, m.provider_media_id as media,
+             -- D4 — the sent row it was copied from, by the id it was copied under.
+             o.origin
+        from messages m
+        left join outbound_messages o
+          on m.direction = 'outbound' and m.external_id = 'out:' || o.id::text
+       where m.conversation_id = ${conversationId} order by m.sent_at asc limit 200
     `.execute(tx)).rows
       // G2c — something she could not read is SHOWN, named, even with no
       // caption: a file the buyer sent must not be invisible to the owner. A
@@ -589,6 +600,7 @@ export async function loadConversationDetail(
           direction: m.direction === 'inbound' ? 'inbound' : 'outbound',
           text: m.text_content ?? '',
           at: m.sent_at,
+          ...(m.origin === 'owner' || m.origin === 'outreach' ? { by: m.origin } : {}),
           ...(spoken ? { heard: corrected ? 'voice_corrected' as const : 'voice' as const, id: m.id } : {}),
           ...(corrected ? { originalTranscript: m.transcription } : {}),
           ...(received ? { received } : {}),
@@ -1094,7 +1106,10 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
-          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${m.direction === 'inbound' ? esc(t(locale, 'common.buyer')) : esc(assistantName(locale))}</div>
+          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${
+            m.direction === 'inbound' ? esc(t(locale, 'common.buyer'))
+            : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
+            : esc(assistantName(locale))}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
 

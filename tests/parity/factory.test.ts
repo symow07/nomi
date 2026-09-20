@@ -9,7 +9,7 @@ const channel = (connected: boolean) => ({
   kind: 'whatsapp' as const, connected,
   status: (connected ? 'connected' : 'not_connected') as ChannelView['status'],
   healthOk: connected, displayId: connected ? '+971 50 ••• 4444' : null,
-  lastActivityAt: null, problem: null,
+  lastActivityAt: null, problem: null, activated: false,
 });
 
 /** A factory the owner has finished setting up. */
