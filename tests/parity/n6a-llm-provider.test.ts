@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_MODEL, llmClient, llmProviderFrom, requestExtrasFor } from '../../src/llm/provider.js';
+import { validateEnv } from '../../src/main.js';
 import { anthropicAnalyzer, anthropicReplyWriter } from '../../src/llm/anthropic.js';
 import { emptyState } from './fixtures.js';
 
@@ -123,5 +124,54 @@ describe('N6a · the model name reaches the request and the record', () => {
     expect(worker).toMatch(/anthropicReplyWriter\(anthropic, llm\.model, extras\)/);
     expect(worker).toMatch(/anthropicVision\(anthropic, llm\.model, extras\)/);
     expect(main).toMatch(/anthropicPageTranscriber\(llmClient\(llm\), llm\.model, requestExtrasFor\(llm\)\)/);
+  });
+});
+
+/**
+ * PR 1 — A MODEL TO CALL: one key or the other, never a key kept to satisfy a
+ * check. `ANTHROPIC_API_KEY` was required unconditionally, so an installation
+ * that had moved to DeepSeek still had to keep a live Anthropic credential set
+ * in order to start — a secret held for no reason is a secret waiting to leak.
+ */
+describe('N6a · the boot needs a model it can actually call', () => {
+  const base = {
+    WHATSAPP_PROVIDER: 'disabled',
+    DATABASE_URL: 'postgres://u:p@h/db',
+    WEBHOOK_VERIFY_TOKEN: 'verify-token-of-length',
+    CREDENTIAL_KEY: 'a'.repeat(64),
+  };
+  const trio = {
+    LLM_BASE_URL: 'https://api.deepseek.com/anthropic',
+    LLM_API_KEY: 'sk-0123456789abcdef0123',
+    LLM_MODEL: 'deepseek-flash',
+  };
+  const problems = (env: Record<string, string>) => {
+    const v = validateEnv(env);
+    return v.ok ? [] : v.problems;
+  };
+
+  it('another provider configured: the Anthropic key is not needed and need not be kept', () => {
+    expect(problems({ ...base, ...trio })).toEqual([]);
+  });
+
+  it('no other provider: the Anthropic key is still required, and says what else would do', () => {
+    const p = problems(base);
+    expect(p).toHaveLength(1);
+    expect(p[0]).toContain('ANTHROPIC_API_KEY: missing');
+    expect(p[0]).toContain('LLM_BASE_URL');
+  });
+
+  it('a HALF-set trio is no provider at all — the Anthropic key is required again', () => {
+    expect(problems({ ...base, LLM_BASE_URL: trio.LLM_BASE_URL, LLM_MODEL: trio.LLM_MODEL })[0])
+      .toContain('ANTHROPIC_API_KEY: missing');
+  });
+
+  it('the Anthropic key alone still boots, exactly as before', () => {
+    expect(problems({ ...base, ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key-but-long-enough' })).toEqual([]);
+  });
+
+  it('a placeholder or a stub key is refused, as it always was', () => {
+    expect(problems({ ...base, ANTHROPIC_API_KEY: 'CHANGE_ME_CHANGE_ME_CHANGE' })[0]).toContain('placeholder');
+    expect(problems({ ...base, ANTHROPIC_API_KEY: 'short' })[0]).toContain('invalid shape');
   });
 });

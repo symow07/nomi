@@ -14,7 +14,8 @@ import {
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
-import { renderPrivacy, renderDataDeletion, renderLegalTerms } from './legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms, type LegalFacts } from './legal.js';
+import { DEFAULT_PROCESSOR, HOSTING } from '../../core/legal/processors.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
@@ -179,6 +180,11 @@ export type WebDeps = {
    * always true; they never show a blank where an address should be.
    */
   readonly legalContact?: string | null;
+  /**
+   * Who processes a buyer's words, and where. The privacy page states it, so it
+   * is given the answer rather than repeating one — see core/legal/processors.
+   */
+  readonly legalFacts?: LegalFacts;
   /** M25 — the installation's real template capability, derived at boot.
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
@@ -734,8 +740,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // may leave development mode, and a buyer follows them from a Page. They
   // read nothing from the database and name no tenant, so there is nothing
   // here for a stranger to probe.
+  // Absent (a test that builds the app by hand), the default processor is
+  // Anthropic's own API — which is what an installation with no override calls.
+  const legalFacts: LegalFacts = deps.legalFacts ?? { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
   app.get('/privacy', async (req, reply) =>
-    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null)));
+    reply.type('text/html; charset=utf-8').send(renderPrivacy(localeOf(req), deps.legalContact ?? null, legalFacts)));
   app.get('/data-deletion', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
   app.get('/terms', async (req, reply) =>

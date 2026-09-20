@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { renderPrivacy, renderDataDeletion, renderLegalTerms } from '../../src/api/web/legal.js';
+import { renderPrivacy, renderDataDeletion, renderLegalTerms, type LegalFacts } from '../../src/api/web/legal.js';
+import { DEFAULT_PROCESSOR, HOSTING, aiProcessor, processorLabel } from '../../src/core/legal/processors.js';
 import { PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES, dirOf } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -16,9 +17,12 @@ import { esc } from '../../src/api/web/layout.js';
 const TITLE = {
   privacy: 'legal.privacy.title', 'data-deletion': 'legal.deletion.title', terms: 'legal.terms.title',
 } as const;
-const pages = (email: string | null) => [
-  ['privacy', renderPrivacy] as const, ['data-deletion', renderDataDeletion] as const, ['terms', renderLegalTerms] as const,
-].map(([name, render]) => ({ name, html: (l: (typeof LOCALES)[number]) => render(l, email) }));
+const FACTS: LegalFacts = { processor: DEFAULT_PROCESSOR, hosting: HOSTING };
+const pages = (email: string | null, facts: LegalFacts = FACTS) => [
+  ['privacy', (l: (typeof LOCALES)[number]) => renderPrivacy(l, email, facts)] as const,
+  ['data-deletion', (l: (typeof LOCALES)[number]) => renderDataDeletion(l, email)] as const,
+  ['terms', (l: (typeof LOCALES)[number]) => renderLegalTerms(l, email)] as const,
+].map(([name, html]) => ({ name, html }));
 
 describe('Legal pages · what a stranger may read', () => {
   it('ALL THREE ARE DECLARED PUBLIC — Meta reads them before the app may go live', () => {
@@ -39,7 +43,7 @@ describe('Legal pages · what a stranger may read', () => {
         expect(h).not.toContain('noindex');
       }
     }
-    expect(renderPrivacy('ar', null)).toContain('dir="rtl"');
+    expect(renderPrivacy('ar', null, FACTS)).toContain('dir="rtl"');
   });
 
   it('the address is the installation\'s, and its absence is not a blank', () => {
@@ -54,8 +58,8 @@ describe('Legal pages · what a stranger may read', () => {
   });
 
   it('each page links to the others, and each says when it was last changed', () => {
-    expect(renderPrivacy('zh', null)).toContain('href="/data-deletion"');
-    expect(renderPrivacy('zh', null)).toContain('href="/terms"');
+    expect(renderPrivacy('zh', null, FACTS)).toContain('href="/data-deletion"');
+    expect(renderPrivacy('zh', null, FACTS)).toContain('href="/terms"');
     expect(renderDataDeletion('zh', null)).toContain('href="/privacy"');
     expect(renderLegalTerms('zh', null)).toContain('href="/privacy"');
     for (const { html } of pages(null)) expect(html('en')).toContain(esc(t('en', 'legal.updated')));
@@ -72,5 +76,65 @@ describe('Legal pages · what a stranger may read', () => {
     expect(t('en', 'legal.deletion.step2')).toContain('30 days');
     expect(t('zh', 'legal.deletion.step2')).toContain('30 天');
     expect(t('ar', 'legal.deletion.step2')).toContain('30 يومًا');
+  });
+});
+
+/**
+ * PR 1 — the page names the company that actually reads the message.
+ *
+ * It said "Anthropic" in three hard-coded sentences, and went on saying it
+ * after this installation moved to DeepSeek — with "Nobody else." underneath.
+ * These bind the sentence to the configuration, in all three languages.
+ */
+describe('Legal pages · who processes a buyer\'s words', () => {
+  const deepseek: LegalFacts = { processor: aiProcessor('https://api.deepseek.com/anthropic'), hosting: HOSTING };
+
+  it('the processor comes from the address the model client is pointed at', () => {
+    expect(aiProcessor(null)).toEqual({ name: 'Anthropic', country: 'US' });
+    expect(aiProcessor('https://api.deepseek.com/anthropic')).toEqual({ name: 'DeepSeek', country: 'CN' });
+    // A host this build cannot name is named by its domain and given NO country:
+    // a page may say less, never guess which border a message crossed.
+    expect(aiProcessor('https://llm.internal.test/v1')).toEqual({ name: 'llm.internal.test', country: null });
+    expect(processorLabel({ name: 'X', country: null }, 'en')).toBe('X');
+  });
+
+  it('EVERY locale names the same company and the same host, each in ITS OWN words', () => {
+    for (const locale of LOCALES) {
+      const html = renderPrivacy(locale, null, deepseek);
+      expect(html, `${locale} must name DeepSeek`).toContain('DeepSeek');
+      expect(html, `${locale} must name the host`).toContain('Railway');
+      // The COUNTRY is in the reader's language — "DeepSeek (China)" inside a
+      // Chinese sentence is the product speaking two languages at once.
+      expect(html, `${locale} must say where, in ${locale}`)
+        .toContain(esc(processorLabel(deepseek.processor, locale)));
+      expect(html, `${locale} must say where the records are, in ${locale}`)
+        .toContain(esc(processorLabel(HOSTING, locale)));
+      // …and must NOT name a company this installation does not use.
+      expect(html, `${locale} still names Anthropic`).not.toContain('Anthropic');
+    }
+    // Chinese uses its own brackets; English does not borrow them.
+    expect(processorLabel(deepseek.processor, 'zh')).toBe('DeepSeek（中国）');
+    expect(processorLabel(deepseek.processor, 'en')).toBe('DeepSeek (China)');
+    expect(processorLabel(deepseek.processor, 'ar')).toContain('الصين');
+    expect(processorLabel({ name: 'llm.internal.test', country: null }, 'zh')).toBe('llm.internal.test');
+  });
+
+  it('switching the provider switches the page — no sentence is written twice', () => {
+    const anthropic = renderPrivacy('en', null, FACTS);
+    expect(anthropic).toContain('Anthropic');
+    expect(anthropic).not.toContain('DeepSeek');
+    expect(renderPrivacy('en', null, deepseek)).not.toContain('Anthropic');
+  });
+
+  it('the catalogue holds no hard-coded processor name in any locale', async () => {
+    const { messages } = await import('../../src/core/owner/i18n/messages.js');
+    for (const locale of LOCALES) {
+      for (const [key, value] of Object.entries(messages[locale])) {
+        if (!key.startsWith('legal.')) continue;
+        for (const company of ['Anthropic', 'DeepSeek', 'OpenAI', 'Supabase']) {
+          expect(value, `${locale}/${key} names ${company} — it must come from the configuration`).not.toContain(company);
+        }
+      }
+    }
   });
 });
