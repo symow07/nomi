@@ -15,3 +15,6 @@ dist/
 
 # The pre-pilot walkthrough's rendered pages and report.
 /pre-pilot/
+
+# Audit 2026-09-20 — the full screenshot set (only the worst are committed, in docs/audit/shots/).
+docs/audit/shots-full/

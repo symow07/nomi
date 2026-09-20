@@ -8,6 +8,7 @@ import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
+import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
@@ -103,10 +104,18 @@ export type ProdConfig = {
 type Shape = (v: string) => boolean;
 const BASE_SHAPES: Record<string, Shape> = {
   DATABASE_URL: (v) => v.startsWith('postgres'),
-  ANTHROPIC_API_KEY: (v) => v.length >= 20,
   WEBHOOK_VERIFY_TOKEN: (v) => v.length >= 16,
   CREDENTIAL_KEY: (v) => /^[0-9a-f]{64}$/i.test(v),
 };
+/**
+ * A MODEL TO CALL — one key or the other, and the boot says which is missing.
+ *
+ * `ANTHROPIC_API_KEY` was unconditionally required, so an installation that
+ * had moved to another provider still had to keep a live Anthropic credential
+ * set to start at all — a secret kept only to satisfy a check, which is the
+ * kind of secret that leaks. Either is now enough, and neither is not.
+ */
+const ANTHROPIC_SHAPE: Shape = (v) => v.length >= 20;
 const D360_SHAPES: Record<string, Shape> = {
   D360_API_KEY: (v) => v.length >= 8,
   D360_BASE_URL: (v) => v.startsWith('https://'),
@@ -152,6 +161,14 @@ export function validateEnv(env: Record<string, string | undefined>):
     else if (v.includes('CHANGE_ME')) problems.push(`${name}: placeholder`);
     else if (!shape(v)) problems.push(`${name}: invalid shape`);
   }
+  // N6a — the model provider: Anthropic's key, or another provider's trio.
+  const anthropicKey = env['ANTHROPIC_API_KEY'];
+  const otherProvider = llmProviderFrom(env, '').name === 'custom';
+  if (!otherProvider) {
+    if (!anthropicKey) problems.push('ANTHROPIC_API_KEY: missing (or set LLM_BASE_URL, LLM_API_KEY and LLM_MODEL for another provider)');
+    else if (anthropicKey.includes('CHANGE_ME')) problems.push('ANTHROPIC_API_KEY: placeholder');
+    else if (!ANTHROPIC_SHAPE(anthropicKey)) problems.push('ANTHROPIC_API_KEY: invalid shape');
+  }
   const graphVersion = env['META_GRAPH_API_VERSION'] ?? 'v23.0';
   if (provider === 'meta' && !/^v\d+\.\d+$/.test(graphVersion)) {
     problems.push('META_GRAPH_API_VERSION: invalid shape');
@@ -173,7 +190,7 @@ export function validateEnv(env: Record<string, string | undefined>):
     cfg: {
       provider: provider as WhatsAppProvider,
       DATABASE_URL: env['DATABASE_URL']!,
-      ANTHROPIC_API_KEY: env['ANTHROPIC_API_KEY']!,
+      ANTHROPIC_API_KEY: env['ANTHROPIC_API_KEY'] ?? '',
       WEBHOOK_VERIFY_TOKEN: env['WEBHOOK_VERIFY_TOKEN']!,
       CREDENTIAL_KEY: env['CREDENTIAL_KEY']!,
       PORT: Number(env['PORT']) || 8787,
@@ -513,6 +530,13 @@ export async function buildProduction(
   // N6a — one provider for every model-backed part of this process.
   const llm = llmProviderFrom(process.env, cfg.ANTHROPIC_API_KEY);
   if (llm.name === 'custom') console.log(`Model provider: ${new URL(llm.baseURL!).host} · ${llm.model}`);
+  // The privacy page names this company. Derived here, from the same provider
+  // the model client is built from, so the two can never disagree again.
+  const legalFacts = { processor: aiProcessor(llm.baseURL), hosting: HOSTING };
+  console.log(`Privacy page names: ${processorForLog(legalFacts.processor)} · hosted on ${processorForLog(HOSTING)}`);
+  if (legalFacts.processor.country === null) {
+    console.warn(`Model provider ${legalFacts.processor.name} is not a host this build can name a country for — the privacy page will not state where messages are processed.`);
+  }
   // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
   // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
   const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
@@ -577,6 +601,7 @@ export async function buildProduction(
       // Named on /privacy and /data-deletion; absent, those pages say to write
       // to the business from the account you used.
       legalContact: process.env['LEGAL_CONTACT_EMAIL']?.trim() || null,
+      legalFacts,
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
       // their emoji, unchanged. The small cut, because the header avatar is 30px.
       avatar: process.env['EMPLOYEE_AVATAR'] ?? markSmall(30, null),

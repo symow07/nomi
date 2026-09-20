@@ -1,4 +1,5 @@
 import { t } from './say.js';
+import { processorLabel, type Processor } from '../../core/legal/processors.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { esc } from './layout.js';
@@ -55,7 +56,14 @@ const contact = (l: Locale, email: string | null): string => `
 
 const updated = (l: Locale): string => `<p class="updated">${esc(t(l, 'legal.updated'))}</p>`;
 
-export function renderPrivacy(l: Locale, email: string | null): string {
+/**
+ * Everything the legal pages must state about where a buyer's words go. Passed
+ * in, never written down here: the privacy page named a processor this
+ * installation had stopped using, and said "Nobody else" underneath it.
+ */
+export type LegalFacts = { readonly processor: Processor; readonly hosting: Processor };
+
+export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts): string {
   const section = (title: string, body: string): string =>
     `<h2>${esc(t(l, title as Parameters<typeof t>[1]))}</h2><p>${esc(t(l, body as Parameters<typeof t>[1]))}</p>`;
   return SHELL(l, t(l, 'legal.privacy.title'), `
@@ -67,8 +75,8 @@ export function renderPrivacy(l: Locale, email: string | null): string {
     <p>${esc(t(l, 'legal.privacy.who.body'))}</p>
     <ul>
       <li>${esc(t(l, 'legal.privacy.who.meta'))}</li>
-      <li>${esc(t(l, 'legal.privacy.who.anthropic'))}</li>
-      <li>${esc(t(l, 'legal.privacy.who.hosting'))}</li>
+      <li>${esc(t(l, 'legal.privacy.who.ai', { processor: processorLabel(facts.processor, l) }))}</li>
+      <li>${esc(t(l, 'legal.privacy.who.hosting', { hosting: processorLabel(facts.hosting, l) }))}</li>
       <li>${esc(t(l, 'legal.privacy.who.mail'))}</li>
     </ul>
     <p>${esc(t(l, 'legal.privacy.who.nobody'))}</p>
