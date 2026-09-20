@@ -5,6 +5,12 @@ import {
   type PilotTenantState,
 } from '../../src/db/pilotTenant.js';
 import { SANDBOX_BUSINESS_ID } from '../../src/demo/sandbox.js';
+// `src/main.ts` pulls in the whole production composition, so the first test to
+// import it pays a transform cost of a couple of seconds. Four tests each did
+// that INSIDE the assertion, which put them a hair under the default timeout —
+// and adding test files elsewhere in the suite was enough to tip one over. The
+// cost is the same; it is just no longer inside something being timed.
+import { assertStableCredentialKey } from '../../src/main.js';
 
 /**
  * M23 — the pilot tenant must be a real, intentional factory. Never missing,
@@ -182,13 +188,11 @@ describe('M27 · prompts load wherever the process starts', () => {
 
 describe('CREDENTIAL_KEY must be supplied, not generated', () => {
   it('refuses to boot in production when the key was generated', async () => {
-    const { assertStableCredentialKey } = await import('../../src/main.js');
     expect(() => assertStableCredentialKey(['CREDENTIAL_KEY'], { production: true }))
       .toThrow(/CREDENTIAL_KEY was generated at boot/);
   });
 
   it('names the consequences and the fix, not just "misconfigured"', async () => {
-    const { assertStableCredentialKey } = await import('../../src/main.js');
     let message = '';
     try {
       assertStableCredentialKey(['CREDENTIAL_KEY'], { production: true });
@@ -200,7 +204,6 @@ describe('CREDENTIAL_KEY must be supplied, not generated', () => {
   });
 
   it('warns but does not refuse outside production', async () => {
-    const { assertStableCredentialKey } = await import('../../src/main.js');
     const warnings: string[] = [];
     expect(() => assertStableCredentialKey(
       ['CREDENTIAL_KEY'], { production: false, warn: (m) => warnings.push(m) },
@@ -210,7 +213,6 @@ describe('CREDENTIAL_KEY must be supplied, not generated', () => {
   });
 
   it('is silent when the key came from the environment', async () => {
-    const { assertStableCredentialKey } = await import('../../src/main.js');
     const warnings: string[] = [];
     // Other secrets being generated is fine; only CREDENTIAL_KEY is fatal.
     expect(() => assertStableCredentialKey(
