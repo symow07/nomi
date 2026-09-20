@@ -2387,7 +2387,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, OAUTH_COOKIE, mintOAuthState(deps.sessionSecret, { provider, verifier, nonce, personId: personOf(s).id }, Date.now()),
       { path: '/app/connect', maxAgeSec: 600 });
-    return reply.redirect(authorizeUrl(provider, client, { redirectUri: redirectUriFor(provider), state: nonce, challenge }));
+    // E1 — reading is asked for only when she ticked the box.
+    const read = (req.query as { read?: string }).read === '1';
+    return reply.redirect(authorizeUrl(provider, client, { redirectUri: redirectUriFor(provider), state: nonce, challenge, read }));
   });
 
   app.get('/app/connect/:provider/callback', async (req, reply) => {

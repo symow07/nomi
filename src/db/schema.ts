@@ -80,6 +80,8 @@ export interface Database {
     ai_analysis: unknown;
     sent_at: Timestamp;
     processed_at: Timestamp | null;
+    /** E1 — what a buyer's e-mail was called, so her answer can be "Re:" it. */
+    subject: string | null;
   };
   products: {
     id: Generated<string>;

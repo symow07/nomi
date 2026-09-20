@@ -260,23 +260,25 @@ describe('C6 · the accounts page', () => {
 
   it('a provider with no app here says so, with no Connect button that could only fail', () => {
     const html = renderAccounts(base, 'en');
-    expect(html).toContain('href="/app/connect/google/start"');
+    // E1 — Google's Connect is a form now (it carries the "let her read" box); Outlook's stays a link.
+    expect(html).toContain('action="/app/connect/google/start"');
+    expect(html).toContain('name="read"');
     expect(html).not.toContain('href="/app/connect/microsoft/start"');
     expect(html).toContain(esc(t('en', 'connect.mail.notHere')));
   });
 
   it('only the owner is offered Connect and Disconnect', () => {
-    const staff = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@yiwuhf.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: null } }, 'en', { isOwner: false });
+    const staff = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@yiwuhf.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: null, readsInbox: false } }, 'en', { isOwner: false });
     expect(staff).not.toContain('/app/connect/mail/disconnect');
     expect(staff).not.toContain('/start"');
     expect(staff).toContain('<bdi>lily@yiwuhf.com</bdi>');
   });
 
   it('a dead token asks her to connect again; a mailbox off her domain is warned about', () => {
-    const dead = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@yiwuhf.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: 'revoked' } }, 'en');
+    const dead = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@yiwuhf.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: 'revoked', readsInbox: false } }, 'en');
     expect(dead).toContain(esc(t('en', 'connect.state.attention')));
     expect(dead).toContain(esc(t('en', 'connect.action.reconnect')));
-    const off = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@gmail.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: null } }, 'en');
+    const off = renderAccounts({ ...base, mail: { provider: 'google', address: 'lily@gmail.com', connectedBy: 'Lily', connectedAt: new Date(NOW), needsAttention: null, readsInbox: false } }, 'en');
     expect(off).toContain(esc(t('en', 'connect.mail.offDomain', { domain: 'yiwuhf.com' })));
   });
 

@@ -29,7 +29,7 @@ import type { InboundLink } from './channels.js';
 
 export type AccountsView = {
   /** The live sending mailbox, if any. */
-  readonly mail: Pick<MailAccount, 'provider' | 'address' | 'connectedBy' | 'connectedAt' | 'needsAttention'> | null;
+  readonly mail: Pick<MailAccount, 'provider' | 'address' | 'connectedBy' | 'connectedAt' | 'needsAttention' | 'readsInbox'> | null;
   /** Which providers can be connected HERE: a client configured and a public address to return to. */
   readonly connectable: Readonly<Record<OAuthProvider, boolean>>;
   /** The verified-domain name, to warn when the mailbox is not on it. */
@@ -58,7 +58,7 @@ export async function loadAccounts(
   return {
     mail: mail ? {
       provider: mail.provider, address: mail.address, connectedBy: mail.connectedBy,
-      connectedAt: mail.connectedAt, needsAttention: mail.needsAttention,
+      connectedAt: mail.connectedAt, needsAttention: mail.needsAttention, readsInbox: mail.readsInbox,
     } : null,
     connectable: Object.fromEntries(OAUTH_PROVIDERS.map((p) =>
       [p, o.publicBaseUrl !== null && o.clients[p] !== undefined])) as Record<OAuthProvider, boolean>,
@@ -81,8 +81,15 @@ type Row = { readonly name: string; readonly tone: 'ok' | 'warn' | 'stop'; reado
 function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewer: Viewer): Row {
   const name = t(locale, `channel.platform.${provider}` as MessageKey);
   const mine = v.mail?.provider === provider ? v.mail : null;
-  const start = `<a class="btn ${mine ? '' : 'send'}" href="/app/connect/${provider}/start">${esc(t(locale,
-    mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</a>`;
+  // E1 — reading is a grant she makes on purpose: a box, unticked, beside the
+  // button. Google only, for now: that is the one reader built.
+  const start = provider === 'google'
+    ? `<form method="get" action="/app/connect/${provider}/start" class="pform read-form">
+        <label class="as-box"><input type="checkbox" name="read" value="1" /> <span>${esc(t(locale, 'connect.mail.read.tick'))}</span></label>
+        <button class="btn ${mine ? '' : 'send'}" type="submit">${esc(t(locale, mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</button>
+      </form>`
+    : `<a class="btn ${mine ? '' : 'send'}" href="/app/connect/${provider}/start">${esc(t(locale,
+        mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</a>`;
 
   if (mine && mine.needsAttention) {
     return {
@@ -99,7 +106,11 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
         ? withAddress(locale, 'connect.mail.outranked', mine.address)
         : withAddress(locale, 'connect.mail.sendsAs', mine.address)}</p>
         <p class="muted">${esc(t(locale, 'connect.mail.connectedBy', { who: mine.connectedBy, date: formatDate(locale, mine.connectedAt) }))}</p>
+        ${provider === 'google' ? `<p class="${mine.readsInbox ? '' : 'muted'}">${mine.readsInbox
+          ? withAddress(locale, 'connect.mail.reads', mine.address)
+          : esc(t(locale, 'connect.mail.sendsOnly'))}</p>` : ''}
         ${offDomain ? `<p class="muted warn-line">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
+        ${viewer.isOwner && provider === 'google' && !mine.readsInbox && v.connectable[provider] ? start : ''}
         ${viewer.isOwner ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
           <button class="btn stop" type="submit">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
     };
@@ -186,6 +197,9 @@ export function renderAccounts(
       ${r.body}
     </li>`).join('')}</ul>
     <style>
+  .read-form { gap:var(--space-8); margin-top:var(--space-8); }
+  .read-form .btn { align-self:flex-start; }
+  .as-box { display:inline-flex; align-items:flex-start; gap:var(--space-4); font-size:var(--font-size-note); }
       .accs { list-style:none; margin:var(--space-12) 0 0; padding:0; }
       .acc { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-8); }
       .acc:last-child { border-bottom:0; }

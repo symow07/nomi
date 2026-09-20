@@ -43,9 +43,16 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
   const wireCalls: { url: string; body?: string; headers: Record<string, string> }[] = [];
   let dns = { spf: [] as string[], dkim: ['v=DKIM1; k=rsa; p=MIIB'], dmarc: ['v=DMARC1; p=quarantine'] };
 
+  /** E1 — what Google's inbox holds, by Gmail id; the list answers with every key. */
+  const gmail: Record<string, unknown> = {};
   const fetchImpl: import('../../src/connectors/oauth.js').OAuthFetch = async (url, init) => {
     wireCalls.push({ url, headers: init.headers, ...(init.body !== undefined ? { body: init.body } : {}) });
     const answer = (status: number, body: unknown) => ({ status, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
+    if (url.startsWith('https://gmail.googleapis.com/gmail/v1/users/me/messages')) {
+      const m = /\/messages\/([^?]+)/.exec(url);
+      if (m) return gmail[decodeURIComponent(m[1]!)] ? answer(200, gmail[decodeURIComponent(m[1]!)]) : answer(404, '');
+      return answer(200, { messages: Object.keys(gmail).map((id) => ({ id })) });
+    }
     if (url.endsWith('/token')) {
       const form = new URLSearchParams(init.body ?? '');
       if (form.get('grant_type') === 'refresh_token') return answer(refreshAnswer.status, refreshAnswer.body);
@@ -128,7 +135,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
   it('her accounts page offers Gmail and Outlook to connect — to her, not to staff', async () => {
     const owner = await get(ownerCookie, '/app/channels');
     expect(owner.body).toContain(esc(t('en', 'connect.title')));
-    expect(owner.body).toContain('href="/app/connect/google/start"');
+    expect(owner.body).toContain('action="/app/connect/google/start"');
     expect(owner.body).toContain('href="/app/connect/microsoft/start"');
     const staff = await get(staffCookie, '/app/channels');
     expect(staff.body).not.toContain('/start"');
@@ -308,5 +315,62 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     expect(await offDomain.send(mail)).toEqual({ ok: false, retryable: false, error: 'no mail account is connected' });
     expect(decodeURIComponent(String((await post(staffCookie, '/app/connect/mail/disconnect')).headers['location'])))
       .toContain('Only the owner');
+  });
+
+  it('E1 · SHE READS THE INBOX: a buyer\'s mail becomes his conversation and a turn; hers and a machine\'s are never answered; twice is once', async () => {
+    const { connectMailAccount } = await import('../../src/db/mailAccounts.js');
+    const { encryptSecret, credentialFingerprint } = await import('../../src/security/credentials.js');
+    const { readNewMail } = await import('../../src/channels/email/inboxReader.js');
+    const B = await bid();
+    // A Google mailbox whose owner granted reading, connected straight into the store.
+    await tx((x) => connectMailAccount(x, B, {
+      provider: 'google', address: `lily@${DOMAIN}`, ciphertext: encryptSecret(`refresh-read-${RUN}`, credentialKey),
+      fingerprint: credentialFingerprint(`refresh-read-${RUN}`), scopes: 'gmail.send gmail.readonly', by: 'Lily', readsInbox: true,
+    }));
+    refreshAnswer = { status: 200, body: { access_token: 'access-read', expires_in: 3600 } };
+    const b64 = (x: string) => Buffer.from(x, 'utf8').toString('base64url');
+    const mail = (id: string, from: string, subject: string, text: string, extra: Record<string, string> = {}) => ({
+      id, internalDate: String(Date.now()),
+      payload: { mimeType: 'text/plain', headers: Object.entries({ From: from, Subject: subject, 'Message-ID': `<${id}@x.test>`, ...extra }).map(([name, value]) => ({ name, value })),
+        body: { data: b64(text) } },
+    });
+    gmail['m1'] = mail('m1', `Ahmed <ahmed-${RUN}@buyer.test>`, 'Price for 500 bags', 'Hello, what is your price for 500 bags?');
+    gmail['m2'] = mail('m2', `lily@${DOMAIN}`, 'Re: Price', 'my own sent mail, in the inbox by cc');          // hers
+    gmail['m3'] = mail('m3', 'Mail Delivery <mailer-daemon@googlemail.com>', 'Undeliverable', 'bounce');  // a machine's
+    gmail['m4'] = mail('m4', `no-reply@${DOMAIN}`, '123456 is your code', 'Your code is 123456.');       // the installation's alias
+    const queued: { conversationId: string; messageId: string; text: string }[] = [];
+    const deps = { db, credentialKey, clients: { google: GOOGLE }, fetchImpl, cache: new Map(), ownAddresses: [`no-reply@${DOMAIN}`],
+      enqueue: async (job: { conversationId: string; messageId: string; text: string }) => { queued.push(job); } };
+
+    const first = await readNewMail(deps, B);
+    expect(first).toEqual({ outcome: 'read', recorded: 1, skipped: 3 });
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ messageId: 'email:m1@x.test', text: 'Hello, what is your price for 500 bags?' });
+    // On his e-mail conversation, with the subject her answer will be "Re:".
+    const row = await tx((x) => sql<{ channel: string; subject: string | null; identity: string; consent: string | null }>`
+      select c.channel, m.subject, cc.channel_user_id as identity,
+             (select evidence from contact_consent where business_id = ${BIZ}::uuid and channel = 'email' and identity = cc.channel_user_id limit 1) as consent
+        from messages m join conversations c on c.id = m.conversation_id
+        join client_channels cc on cc.client_id = c.client_id and cc.channel = 'email'
+       where m.external_id = 'email:m1@x.test'`.execute(x).then((r) => r.rows[0]));
+    expect(row).toEqual({ channel: 'email', subject: 'Price for 500 bags', identity: `ahmed-${RUN}@buyer.test`, consent: 'inbound_message' });
+    expect(queued[0]!.conversationId).toBeTruthy();
+
+    // The next minute: the same four are still in the inbox, and nothing happens twice.
+    const second = await readNewMail(deps, B);
+    expect(second).toEqual({ outcome: 'read', recorded: 0, skipped: 4 });
+    expect(queued).toHaveLength(1);
+    // The refresh happened once: the token is cached beside the sender's.
+    expect(wireCalls.filter((c) => c.body?.includes('refresh_token=refresh-read-')).length).toBe(1);
+
+    // A mailbox that only sends is left alone — and says so on the page.
+    await tx((x) => connectMailAccount(x, B, {
+      provider: 'google', address: `lily@${DOMAIN}`, ciphertext: encryptSecret(`refresh-send-${RUN}`, credentialKey),
+      fingerprint: credentialFingerprint(`refresh-send-${RUN}`), scopes: 'gmail.send', by: 'Lily',
+    }));
+    expect(await readNewMail(deps, B)).toEqual({ outcome: 'not_reading' });
+    const page = await get(ownerCookie, '/app/channels');
+    expect(page.body).toContain('Sends only.');
+    expect(page.body).toContain('name="read"');
   });
 });

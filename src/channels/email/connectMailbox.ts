@@ -2,7 +2,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { archiveMailAccount, connectMailAccount } from '../../db/mailAccounts.js';
 import { credentialFingerprint, encryptSecret } from '../../security/credentials.js';
 import {
-  exchangeCode, type ConnectFailure, type OAuthClients, type OAuthFetch, type OAuthProvider,
+  exchangeCode, grantsReading, type ConnectFailure, type OAuthClients, type OAuthFetch, type OAuthProvider,
 } from '../../connectors/oauth.js';
 import type { BusinessId } from '../../core/types/ids.js';
 
@@ -38,6 +38,8 @@ export async function completeMailConnection(
     ciphertext: encryptSecret(r.value.refreshToken, key),
     fingerprint: credentialFingerprint(r.value.refreshToken),
     scopes: r.value.scopes.slice(0, 1000), by: input.by,
+    // E1 — read off what Google granted, not off what was asked for.
+    readsInbox: grantsReading(input.provider, r.value.scopes),
   }));
   return { outcome: 'connected', address: r.value.address };
 }

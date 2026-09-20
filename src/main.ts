@@ -8,6 +8,7 @@ import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
+import { readNewMail } from './channels/email/inboxReader.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
@@ -603,6 +604,9 @@ export async function buildProduction(
   /** The minute's sweep gives way to the next minute, and looks up few domains at a time. */
   const SWEEP_BUDGET_MS = 40_000;
   const DOMAIN_CHECKS_PER_SWEEP = 3;
+  // E1 — an inbox read is a handful of calls to Google. Same discipline as a
+  // domain check: a few a minute, so one slow mailbox never costs the sends.
+  const INBOX_READS_PER_SWEEP = 3;
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'],
     channels: channelsHere,
@@ -857,6 +861,7 @@ export async function buildProduction(
     const spent = (): boolean => closing || Date.now() - started > SWEEP_BUDGET_MS;
 
     let lookedUp = 0;
+    let inboxesRead = 0;
     for (const tenant of tenants) {
       if (spent()) return;
       // Her domain check lapses after a week by design; the clock looks again
@@ -871,6 +876,24 @@ export async function buildProduction(
       if (spent()) return;
       await runDueSteps(sequenceDeps, tenant)
         .catch((e: unknown) => console.warn('[sequences]', e instanceof Error ? e.message : e));
+    }
+
+    /**
+     * E1 — HER INBOX, LAST. Reading is network work: a mailbox whose provider
+     * accepts the connection and then says nothing would delay a send that was
+     * already due. So every send in this minute goes first, and reading takes
+     * what is left — bounded per call and per read in the reader itself, and to
+     * a few mailboxes here, so the next minute takes the next few.
+     */
+    for (const tenant of tenants) {
+      if (spent() || inboxesRead >= INBOX_READS_PER_SWEEP) return;
+      const read = await readNewMail({
+        db, credentialKey, clients: oauthClients, fetchImpl: oauthFetch, cache: tokenCache,
+        ownAddresses: systemSmtp ? [systemSmtp.from, systemSmtp.user] : [],
+        enqueue: (job) => enqueueInbound(boss, { ...job, messageType: 'text' }),
+      }, tenant).catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); return null; });
+      if (read && read.outcome !== 'not_reading') inboxesRead++;
+      if (read && read.outcome === 'read' && read.recorded > 0) console.log(`[inbox] ${read.recorded} new mail(s) recorded`);
     }
   });
 

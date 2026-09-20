@@ -187,6 +187,13 @@ describe('0051 · where his answer cannot be seen, a follow-up waits for a perso
     const worker = /boss\.work<SequenceSweepJob>[\s\S]*?\n {2}\}\);/.exec(main)?.[0] ?? '';
     expect(worker).toMatch(/const spent = \(\): boolean => closing \|\| Date\.now\(\) - started > SWEEP_BUDGET_MS/);
     expect(worker.match(/if \(spent\(\)\) return;/g)?.length, 'asked before each look-up AND before each send').toBe(2);
+    // E1 — reading an inbox is network work in the same minute, so it happens
+    // in its own pass AFTER every send, rationed like a domain check. A mailbox
+    // that will not answer can then cost a read, never a send.
+    expect(main).toMatch(/const INBOX_READS_PER_SWEEP = 3;/);
+    expect(worker).toMatch(/if \(spent\(\) \|\| inboxesRead >= INBOX_READS_PER_SWEEP\) return;/);
+    expect(worker.indexOf('runDueSteps('), 'sends go before any inbox is read')
+      .toBeLessThan(worker.indexOf('readNewMail('));
     expect(worker).toMatch(/if \(lookedUp < DOMAIN_CHECKS_PER_SWEEP\)/);
     expect(main).toMatch(/const SWEEP_BUDGET_MS = 40_000;/);
     expect(main).toMatch(/const DOMAIN_CHECKS_PER_SWEEP = 3;/);
