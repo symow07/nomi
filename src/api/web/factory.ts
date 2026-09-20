@@ -574,7 +574,12 @@ export function renderFactory(
         <input name="label" placeholder="${esc(t(locale, 'allowlist.label.ph'))}" /></label>
       <button class="btn send" type="submit">${esc(t(locale, 'allowlist.add'))}</button>
     </form>
-    <p class="fdesc">${esc(t(locale, lc === 'active' ? 'factory.reach.nextConnected' : 'factory.reach.nextNot', { name }))}</p>
+    <p class="fdesc">${esc(t(locale,
+      // D6 — the card above says "connected"; this line used to say "until this
+      // is connected" in the same breath, because it knew only active/not.
+      lc === 'active' ? 'factory.reach.nextConnected'
+      : lc === 'ready' ? 'factory.reach.nextReady'
+      : 'factory.reach.nextNot', { name }))}</p>
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
       : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;

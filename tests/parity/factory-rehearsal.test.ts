@@ -337,7 +337,7 @@ const view = (rehearsal: RehearsalReport | null): FactoryView => ({
 
 const OFFLINE_CHANNEL: ChannelView = {
   kind: 'whatsapp', connected: false, status: 'not_connected', healthOk: false,
-  displayId: null, lastActivityAt: null, problem: null,
+  displayId: null, lastActivityAt: null, problem: null, activated: false,
 };
 
 const withFindings: RehearsalReport = {

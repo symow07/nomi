@@ -109,6 +109,19 @@ describe('E1 · the grant', () => {
     expect(src).toMatch(/if \(finished\) \{[\s\S]*?markInboxRead/);
   });
 
+  it('E1.2 — which mailboxes may be read is asked once, across tenants, and answers ids only', () => {
+    const m = read('migrations/0063_inboxes_to_read.sql');
+    expect(m).toMatch(/create or replace function inboxes_to_read\(\)\s*\nreturns table \(business_id uuid\)/);
+    expect(m).toMatch(/security definer/);
+    expect(m).toMatch(/grant execute on function inboxes_to_read\(\) to nomi_app/);
+    // Never a mailbox already marked for reconnecting: it could only fail again.
+    expect(m).toMatch(/m\.needs_attention_at is null/);
+    // Oldest look first, so no mailbox is starved by a busier one.
+    expect(m).toMatch(/order by m\.inbox_read_at nulls first/);
+    // And the id is all it returns — no address, no token.
+    expect(m).not.toMatch(/m\.address|refresh_token/);
+  });
+
   it('the reader never answers her own mail or a machine\'s, and queues the same turn a webhook does', () => {
     const src = read('src/channels/email/inboxReader.ts');
     expect(src).toMatch(/if \(mail\.automatic \|\| own\.has\(mail\.from\)\) \{ skipped\+\+; continue; \}/);

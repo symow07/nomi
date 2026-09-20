@@ -9,6 +9,7 @@ import { registerWebApp } from './api/web/app.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { readNewMail } from './channels/email/inboxReader.js';
+import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
@@ -884,8 +885,19 @@ export async function buildProduction(
      * already due. So every send in this minute goes first, and reading takes
      * what is left — bounded per call and per read in the reader itself, and to
      * a few mailboxes here, so the next minute takes the next few.
+     *
+     * E1.2 — and WHICH mailboxes is one question, not one per business: asking
+     * each tenant in turn cost a query a minute per live business to learn that
+     * almost none reads mail, and the sweep ran out of budget before the
+     * follow-ups that were due (the suite caught it, on a database with four
+     * hundred of them).
      */
-    for (const tenant of tenants) {
+    const readable = spent() ? [] : await businessesReadingInbox(db, INBOX_READS_PER_SWEEP)
+      .catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); return [] as readonly string[]; });
+    for (const id of readable) {
+      const b = parseBusinessId(id);
+      if (!b.ok) continue;
+      const tenant = b.value;
       if (spent() || inboxesRead >= INBOX_READS_PER_SWEEP) return;
       const read = await readNewMail({
         db, credentialKey, clients: oauthClients, fetchImpl: oauthFetch, cache: tokenCache,
