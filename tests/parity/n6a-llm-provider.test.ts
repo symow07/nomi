@@ -139,6 +139,7 @@ describe('N6a · the boot needs a model it can actually call', () => {
     DATABASE_URL: 'postgres://u:p@h/db',
     WEBHOOK_VERIFY_TOKEN: 'verify-token-of-length',
     CREDENTIAL_KEY: 'a'.repeat(64),
+    LEGAL_CONTACT_EMAIL: 'privacy@example.test',
   };
   const trio = {
     LLM_BASE_URL: 'https://api.deepseek.com/anthropic',

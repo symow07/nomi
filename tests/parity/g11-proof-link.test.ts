@@ -39,7 +39,8 @@ describe('G11 · the link is whole, or there is none', () => {
 describe('G11 · the address is checked at boot, not at the first quote', () => {
   const base = {
     DATABASE_URL: 'postgres://x', ANTHROPIC_API_KEY: 'k'.repeat(24),
-    WEBHOOK_VERIFY_TOKEN: 'v'.repeat(20), CREDENTIAL_KEY: 'a'.repeat(64),
+    WEBHOOK_VERIFY_TOKEN: 'v'.repeat(20),
+    LEGAL_CONTACT_EMAIL: 'privacy@example.test', CREDENTIAL_KEY: 'a'.repeat(64),
   };
   const problems = (v: string | undefined) => {
     const r = validateEnv({ ...base, ...(v === undefined ? {} : { PUBLIC_BASE_URL: v }) });

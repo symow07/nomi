@@ -137,6 +137,7 @@ describe('G2b · the transcription key is checked at boot when it is set', () =>
     ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key-but-long-enough',
     WEBHOOK_VERIFY_TOKEN: 'verify-token-of-length',
     CREDENTIAL_KEY: 'a'.repeat(64),
+    LEGAL_CONTACT_EMAIL: 'privacy@example.test',
   };
 
   it('absent is a real state: boot succeeds and she refuses voice notes honestly', () => {

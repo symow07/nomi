@@ -70,12 +70,22 @@ describe('Legal pages · what a stranger may read', () => {
     expect(t('en', 'legal.terms.intro')).toContain('privacy page');
   });
 
-  it('what is promised is what the operator can keep: a request, thirty days, a confirmation', () => {
-    // The deletion page names the same window docs/LEGAL.md tells the
-    // operator to meet. Changing one without the other is the lie this pins.
-    expect(t('en', 'legal.deletion.step2')).toContain('30 days');
-    expect(t('zh', 'legal.deletion.step2')).toContain('30 天');
-    expect(t('ar', 'legal.deletion.step2')).toContain('30 يومًا');
+  it('what is promised is what the operator can keep: a PERSON, by hand, within thirty days', () => {
+    // This used to pin the SENTENCE ("30 days") and nothing else, which read as
+    // assurance that the promise was covered. It was not: the app role holds no
+    // DELETE on any table (migration 0005 and seven `revoke delete` since), so
+    // nothing in the product can remove a record. What the page may promise is
+    // therefore what a person does — and it must say so out loud.
+    for (const l of LOCALES) {
+      expect(t(l, 'legal.deletion.step2'), `${l} must keep the window`).toContain('30');
+    }
+    expect(t('en', 'legal.deletion.step2')).toMatch(/person|by hand/i);
+    expect(t('en', 'legal.deletion.step2')).toContain('this product deletes nothing on its own');
+    // …and must not say the product does it, in any language.
+    expect(t('en', 'legal.deletion.step2')).not.toMatch(/are removed from Nomi/i);
+    expect(t('zh', 'legal.deletion.step2')).toContain('手动');
+    expect(t('zh', 'legal.deletion.step2')).toContain('产品本身不会自己删掉');
+    expect(t('ar', 'legal.deletion.step2')).toContain('يدويًا');
   });
 });
 
@@ -134,6 +144,52 @@ describe('Legal pages · who processes a buyer\'s words', () => {
         for (const company of ['Anthropic', 'DeepSeek', 'OpenAI', 'Supabase']) {
           expect(value, `${locale}/${key} names ${company} — it must come from the configuration`).not.toContain(company);
         }
+      }
+    }
+  });
+});
+
+/**
+ * PR 2 — SOMEWHERE TO WRITE. Both public pages tell a buyer to ask for their
+ * data, and `/data-deletion` is the URL Meta requires. With the address unset
+ * the contact block rendered NOTHING: a page that says "ask us" and offers no
+ * way to ask. The boot refuses rather than serving that.
+ */
+describe('Legal pages · the address they promise', () => {
+  const base = {
+    WHATSAPP_PROVIDER: 'disabled',
+    DATABASE_URL: 'postgres://u:p@h/db',
+    ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key-but-long-enough',
+    WEBHOOK_VERIFY_TOKEN: 'verify-token-of-length',
+    CREDENTIAL_KEY: 'a'.repeat(64),
+  };
+  const problems = async (env: Record<string, string>) => {
+    const { validateEnv } = await import('../../src/main.js');
+    const v = validateEnv(env);
+    return v.ok ? [] : v.problems;
+  };
+
+  it('missing: the boot refuses, and says why the pages need it', async () => {
+    const p = await problems(base);
+    expect(p).toHaveLength(1);
+    expect(p[0]).toContain('LEGAL_CONTACT_EMAIL: missing');
+    expect(p[0]).toMatch(/public|write to/i);
+  });
+
+  it('a display name or a mailto: is refused — the page puts it inside a mailto already', async () => {
+    for (const bad of ['Privacy <privacy@nomidoes.com>', 'mailto:privacy@nomidoes.com', 'not-an-address']) {
+      expect((await problems({ ...base, LEGAL_CONTACT_EMAIL: bad }))[0], bad).toContain('invalid shape');
+    }
+  });
+
+  it('a plain address boots', async () => {
+    expect(await problems({ ...base, LEGAL_CONTACT_EMAIL: 'privacy@nomidoes.com' })).toEqual([]);
+  });
+
+  it('and when it IS set, every page carries it as a link a buyer can press', () => {
+    for (const { name, html } of pages('privacy@nomidoes.com')) {
+      for (const l of LOCALES) {
+        expect(html(l), `${name} ${l}`).toContain('mailto:privacy@nomidoes.com');
       }
     }
   });
