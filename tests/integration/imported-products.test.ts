@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * D1 — the first thing every new business hit. She pasted a price list,
@@ -91,11 +92,11 @@ d('D1 · her answer for everything covers everything it can (requires DATABASE_U
     const r = await confirmImport(db, BIZ, `${sku('pouch')} Zipper pouch $0.90 MOQ 800`);
     expect(r).toMatchObject({ added: 1, withPrice: 1, ready: 1 });
     expect((await states())[sku('pouch')]).toBe('learned');
-    expect(importFlash('en', r)).toContain('1 are ready');
+    expect(importFlash(r).map((p) => t('en', p.key, p.params)).join(' ')).toContain('1 are ready');
 
     const low = await confirmImport(db, BIZ, `${sku('pin')} Badge pin $0.10 MOQ 2000`);
     expect(low).toMatchObject({ added: 1, withPrice: 1, ready: 0 });
     expect((await states())[sku('pin')], 'below her floor: never switched on by an import').toBe('not_offered');
-    expect(importFlash('en', low)).not.toContain('ready');
+    expect(importFlash(low).map((p) => t('en', p.key, p.params)).join(' ')).not.toContain('ready');
   });
 });

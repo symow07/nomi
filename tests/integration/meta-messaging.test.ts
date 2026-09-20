@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
-import { runDigits } from './tenant.js';
+import { runDigits, flashSaid} from './tenant.js';
 
 /**
  * C9 — Instagram and Messenger over the REAL composition.
@@ -19,6 +19,8 @@ const d = DATABASE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd540000-0000-4000-8000-${RUN}0001`;
 const CREDENTIAL_KEY = 'b'.repeat(64);
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session').digest('hex');
 const APP_SECRET = `meta-app-secret-${RUN}`;
 const IG_ACCOUNT = `1784${runDigits(RUN, 10)}`;
 const PAGE_ID = `1020${runDigits(RUN, 10)}`;
@@ -256,7 +258,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     expect((await post(`/app/inbox/${conv.id}/takeover`)).statusCode).toBe(302);
     const r = await post(`/app/inbox/${conv.id}/reply`, { text: 'Yes, 500 is fine — $0.92 each.' });
     expect(r.statusCode).toBe(302);
-    const flash = new URL(String(r.headers['location']), 'https://x.test').searchParams.get('flash') ?? '';
+    const flash = flashSaid(r, WEB_SECRET);
     expect(flash, 'her reply was refused').not.toBe(t('en', 'inbox.blocked.window_closed'));
     expect(flash).not.toBe(t('en', 'inbox.blocked.not_connected'));
     const row = await tx((x) => sql<{ status: string; channel: string }>`
@@ -271,7 +273,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     expect(conv, 'the named buyer has a conversation').toBeTruthy();
     const r = await post(`/app/conversations/${conv.id}/name`, { name: '  Ahmed   (Dubai) ' });
     expect(r.statusCode).toBe(302);
-    expect(String(r.headers['location'])).toContain(encodeURIComponent(t('en', 'conv.flash.nameSaved')));
+    expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'conv.flash.nameSaved'));
     expect((await get(`/app/conversations/${conv.id}`)).body).toContain('Ahmed (Dubai)');
 
     // A name the channel sends later fills a blank, never overwrites hers.
@@ -291,7 +293,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     expect((await get(`/app/conversations/${conv.id}`)).body).toContain(esc(t('en', 'common.buyer')));
     // Too long is refused, and says so.
     const long = await post(`/app/conversations/${conv.id}/name`, { name: 'x'.repeat(81) });
-    expect(String(long.headers['location'])).toContain(encodeURIComponent(t('en', 'conv.flash.nameInvalid')));
+    expect(flashSaid(long, WEB_SECRET)).toBe(t('en', 'conv.flash.nameInvalid'));
   }, 60_000);
 
   it('HER REPLY LEAVES ON THE CHANNEL HE WROTE ON, to his own scoped id', async () => {

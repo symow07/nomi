@@ -4,8 +4,9 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { BUSINESS_KINDS, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
+import { BUSINESS_KINDS, canonicalCountry, countryOptions, isBusinessKind, isCountryCode, normalizeWebsite } from '../../core/owner/business.js';
 import { back, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * A2 — what kind of business this is, after sign-up.
@@ -36,8 +37,11 @@ export async function saveBusinessKind(
   const country = input.country.trim().toUpperCase();
   const website = normalizeWebsite(input.website);
   if (!bid.ok || !isBusinessKind(kind) || !isCountryCode(country) || !website.ok) return 'invalid';
+  // Whatever she sent, what is WRITTEN is the code in force. A workspace that
+  // stored a superseded one leaves this page holding the current one instead.
+  const stored = canonicalCountry(country);
   await withTenantTx(db, bid.value, async (tx) => {
-    await sql`update businesses set kind = ${kind}, country = ${country}, website = ${website.value}
+    await sql`update businesses set kind = ${kind}, country = ${stored}, website = ${website.value}
                where id = ${bid.value}`.execute(tx);
     // The same verb as the rest of her profile, naming fields and never values.
     await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
@@ -47,13 +51,13 @@ export async function saveBusinessKind(
   return 'saved';
 }
 
-export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: string | null, backLabel: string): string {
+export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: Flash | null, backLabel: string): string {
   const option = (value: string, label: string, chosen: string | null): string =>
     `<option value="${esc(value)}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`;
   const pick = `<option value="">${esc(t(locale, 'signup.pick'))}</option>`;
   return `${back('/app/settings', backLabel)}
     <h1 class="page">${esc(t(locale, 'business.kind.label'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block">
       <form method="post" action="/app/settings/business" class="pform">
         <div class="fld"><label for="bk-kind">${esc(t(locale, 'signup.kind'))}</label>
@@ -61,7 +65,7 @@ export function renderBusinessKind(v: BusinessKindView, locale: Locale, flash: s
             option(k, t(locale, `business.kind.${k}` as MessageKey), v.kind)).join('')}</select></div>
         <div class="fld"><label for="bk-country">${esc(t(locale, 'signup.country'))}</label>
           <select id="bk-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
-            option(c.code, c.name, v.country)).join('')}</select></div>
+            option(c.code, c.name, v.country === null ? null : canonicalCountry(v.country))).join('')}</select></div>
         <div class="fld"><label for="bk-website">${esc(t(locale, 'signup.website'))}</label>
           <input id="bk-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
             inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" /></div>

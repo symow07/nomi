@@ -10,6 +10,7 @@ import { t, assistantName } from './say.js';
 import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
+import { flashBanner, type Flash, type FlashPart } from './flash.js';
 
 /**
  * M9.5 + ADR-0008 — Product Knowledge Center. A VIEW over the EXISTING catalog
@@ -320,29 +321,33 @@ export async function confirmImport(
 
 /** Localized confirm flash — called by the route (has locale). */
 export const importFlash = (
-  locale: Locale, r: { added: number; withPrice: number; updated?: number; alreadyHere?: number; refused?: number; ready?: number },
-): string => {
+  r: { added: number; withPrice: number; updated?: number; alreadyHere?: number; refused?: number; ready?: number },
+): readonly FlashPart[] => {
   // M29 — this used to say "Learned N products", which was the false-success
   // class: an imported product is not learned, because the floor that decides
   // what she may never go below has not been stated by anyone. It says what
   // was added and what is still needed before she can quote any of it.
-  const name = assistantName(locale);
-  const parts: string[] = [];
+  //
+  // A1 — it returns the SENTENCES IT WANTS SAID, not the said sentences: the
+  // notice now travels as keys and is written out by the page that shows it,
+  // in the language being read rather than the one that posted the form.
+  // `{name}` needs no passing — `t` fills it from the locale it is given.
+  const parts: FlashPart[] = [];
   // G16 — "Added 0 products" is not news when the page changed prices instead.
   if (r.added > 0 || !(r.updated || r.alreadyHere || r.refused)) {
     parts.push((r.ready ?? 0) > 0 && r.ready === r.withPrice
       // D1 — every priced one is already covered by her answer for everything.
-      ? t(locale, 'product.flash.addedReady', { added: r.added, ready: r.ready ?? 0, name })
+      ? { key: 'product.flash.addedReady', params: { added: r.added, ready: r.ready ?? 0 } }
       : r.withPrice > 0
-      ? t(locale, 'product.flash.addedNeedRules', { added: r.added, withPrice: r.withPrice, name })
-      : t(locale, 'product.flash.addedNeedPrice', { added: r.added, name }));
+      ? { key: 'product.flash.addedNeedRules', params: { added: r.added, withPrice: r.withPrice } }
+      : { key: 'product.flash.addedNeedPrice', params: { added: r.added } });
   }
-  if (r.updated) parts.push(t(locale, 'product.flash.updated', { n: r.updated }));
+  if (r.updated) parts.push({ key: 'product.flash.updated', params: { n: r.updated } });
   // A re-import that changed nothing must say so, not report a silent zero.
-  if (r.alreadyHere) parts.push(t(locale, 'product.flash.alreadyHere', { n: r.alreadyHere }));
+  if (r.alreadyHere) parts.push({ key: 'product.flash.alreadyHere', params: { n: r.alreadyHere } });
   // A change she ticked and did not get is said, never folded into "done".
-  if (r.refused) parts.push(t(locale, 'product.flash.refused', { n: r.refused }));
-  return parts.join(' ');
+  if (r.refused) parts.push({ key: 'product.flash.refused', params: { n: r.refused } });
+  return parts;
 };
 
 /** ── Renderers (pure, mobile-first, localized, escaped) ───────────────────── */
@@ -355,10 +360,10 @@ const statusPill = (locale: Locale, status: ProductStatus): string =>
     ? `<span class="pill ok">${esc(t(locale, 'product.status.learned'))} ✓</span>`
     : `<span class="pill warn">${esc(t(locale, STATUS_KEY[status]))}</span>`;
 
-export function renderProductList(items: readonly ProductListItem[], locale: Locale, flash: string | null = null): string {
+export function renderProductList(items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null): string {
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
   const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: assistantName(locale) }))}
       <a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a></p></div>` : ''}`;
   if (items.length === 0) {
@@ -382,7 +387,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
 }
 
 export function renderProductDetail(
-  d: ProductDetail, locale: Locale, flash: string | null = null,
+  d: ProductDetail, locale: Locale, flash: Flash | null = null,
   errors: Partial<Record<ProductEditField, ProductEditError>> = {},
   draft: Record<string, string | undefined> = {},
 ): string {
@@ -434,7 +439,7 @@ export function renderProductDetail(
     : '';
 
   return `
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.status)}</div>
     ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}

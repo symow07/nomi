@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -71,7 +71,7 @@ import {
   type ProspectDeps,
 } from '../../prospects/service.js';
 import type { ProspectSourceFor } from '../../connectors/contract.js';
-import { failureSentence, filterFromQuery, renderProspects } from './prospects.js';
+import { failureKey, filterFromQuery, renderProspects } from './prospects.js';
 import { parseInboundMail } from '../../channels/email/inbound.js';
 import { recordEmailReply } from '../../pipeline/emailReply.js';
 import { enroll } from '../../outbound/sequences.js';
@@ -119,7 +119,8 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, verifyPage, esc, back } from './layout.js';
+import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back } from './layout.js';
+import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
@@ -396,7 +397,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) { await reply.redirect('/login'); return null; }
     if (!mayDo(personOf(s), action)) {
-      await reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'staff.notAllowed'))}`);
+      await flashTo(reply, `${back}`, 'staff.notAllowed');
       return null;
     }
     return s;
@@ -416,6 +417,42 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
   const setCookie = (reply: FastifyReply, token: string, maxAgeSec: number) =>
     writeCookie(reply, COOKIE, token, { path: '/', maxAgeSec });
+
+  /**
+   * A1 + D5 — the one sentence after a POST, and where it now travels.
+   *
+   * `flashTo` replaces `reply.redirect(`${path}?flash=${t(locale, key)}`)` at
+   * every route that ends in a notice. It carries the KEY, not the sentence,
+   * in a signed cookie rather than the address bar — the reasons are in
+   * `flash.ts`. It returns whatever `reply.redirect` returns, so a caller that
+   * wrote `return reply.redirect(…)` keeps writing `return flashTo(…)`.
+   *
+   * `takeFlash` is the other half: read once, clear, translate in the locale
+   * of the page being DRAWN rather than the one that posted.
+   */
+  const noticeOnNextPage = (
+    reply: FastifyReply, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>,
+  ): void => {
+    const parts = typeof key === 'string' ? [{ key, ...(params ? { params } : {}) }] : key;
+    writeCookie(reply, FLASH_COOKIE, mintFlash(deps.sessionSecret, parts, Date.now()),
+      { path: '/', maxAgeSec: Math.ceil(FLASH_TTL_MS / 1000) });
+  };
+
+  const flashTo = (
+    reply: FastifyReply, path: string, key: MessageKey | readonly FlashPart[], params?: Record<string, string | number>,
+  ): FastifyReply => {
+    noticeOnNextPage(reply, key, params);
+    return reply.redirect(path);
+  };
+
+  const takeFlash = (req: FastifyRequest, reply: FastifyReply): Flash | null => {
+    const raw = parseCookies(req.headers.cookie)[FLASH_COOKIE];
+    if (raw === undefined) return null;
+    // Cleared whether or not it verified: a token this build cannot read is
+    // still a cookie that would be presented on every page after this one.
+    writeCookie(reply, FLASH_COOKIE, '', { path: '/', maxAgeSec: 0 });
+    return readFlash(deps.sessionSecret, raw, localeOf(req), Date.now());
+  };
 
   /**
    * S1 — A REMOVED PERSON IS SIGNED OUT, and so is every other session of
@@ -492,6 +529,42 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     shell({ ...o, locale: localeOf(req), path: req.url, avatar: deps.avatar });
 
   /**
+   * CC-19 / A13 — the wrong address and the broken page, in her language.
+   *
+   * These are set on the ROOT instance, which also carries `/hooks/*` and
+   * `/health` (see `mountCommandCenter` in main.ts) — so they may not simply
+   * answer HTML. A caller that did not ask for HTML keeps Fastify's own JSON
+   * shape, byte for byte: Meta's webhook retries, the uptime probe and every
+   * integration test that reads `.json()` see exactly what they saw before.
+   */
+  const wantsHtml = (req: FastifyRequest): boolean =>
+    String(req.headers['accept'] ?? '').includes('text/html');
+
+  app.setNotFoundHandler(async (req, reply) => {
+    if (!wantsHtml(req)) {
+      return reply.code(404).send({ message: `Route ${req.method}:${req.url} not found`, error: 'Not Found', statusCode: 404 });
+    }
+    return reply.code(404).type('text/html; charset=utf-8')
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'notfound' }));
+  });
+
+  app.setErrorHandler(async (err: FastifyError, req, reply) => {
+    // A refusal the code MEANT — a 4xx a route threw on purpose, a body over
+    // the limit, a malformed multipart — is the framework's answer to give.
+    // Only a genuine fault becomes the page that admits nothing.
+    const status = err.statusCode ?? 500;
+    if (status < 500) return reply.code(status).send(err);
+    // One reference, in the log beside the reason and on the page without it.
+    const reference = randomBytes(4).toString('hex');
+    req.log.error({ err, reference }, 'unhandled error');
+    if (!wantsHtml(req)) {
+      return reply.code(500).send({ message: 'Internal Server Error', error: 'Internal Server Error', statusCode: 500 });
+    }
+    return reply.code(500).type('text/html; charset=utf-8')
+      .send(errorPage({ locale: localeOf(req), path: req.url, kind: 'crash', reference }));
+  });
+
+  /**
    * G9a — an owner-only PAGE. Only the POSTs were gated, so the pages behind
    * them — her floor, her people and the form that issues a way in — opened
    * for anyone signed in. Same predicate, same sentence as the POST gate,
@@ -537,12 +610,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   };
 
   /** Wrap an authed page: verify session or redirect to /login. */
-  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale) => Promise<string> | string) =>
+  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale, reply: FastifyReply) => Promise<string> | string) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const body = await render(s, req, locale);
+      const body = await render(s, req, locale, reply);
       return reply.type('text/html; charset=utf-8').send(
         page(req, { title: t(locale, `nav.${active}` as MessageKey), active, bodyHtml: body }),
       );
@@ -854,9 +927,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (made.code !== 'created') {
       return again(made.code === 'failed' ? 500 : 400, { error: t(locale, `signup.error.${made.code}` as MessageKey) });
     }
+    noticeOnNextPage(reply, 'signup.welcome');
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
-      `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`,
-      await passwordVersionOf(made.businessId, made.personId));
+      '/app/factory', await passwordVersionOf(made.businessId, made.personId));
   });
 
   app.post('/login', async (req, reply) => {
@@ -1031,9 +1104,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }
       const login = await lookupLogin(deps.db, p.email).catch(() => null);
       if (login) rememberDevice(reply, login.loginId);
+      noticeOnNextPage(reply, 'signup.welcome');
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
-        `/app/factory?flash=${encodeURIComponent(t(locale, 'signup.welcome'))}`,
-        await passwordVersionOf(made.businessId, made.personId));
+        '/app/factory', await passwordVersionOf(made.businessId, made.personId));
     }
     // A browser we had not seen, and now have.
     const login = await lookupLogin(deps.db, r.email).catch(() => null);
@@ -1068,10 +1141,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * against the one she has now: a session left open on a shared computer must
    * not be enough to lock her out of her own factory.
    */
-  app.get('/app/settings/account', authed('settings', async (s, req, locale) => {
+  app.get('/app/settings/account', authed('settings', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.settings'));
   }));
 
@@ -1081,7 +1154,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const b = (req.body ?? {}) as { current?: string; next?: string };
     const done = (key: MessageKey) =>
-      reply.redirect(`/app/settings/account?flash=${encodeURIComponent(t(locale, key, { n: PASSWORD_MIN }))}`);
+      flashTo(reply, '/app/settings/account', key, { n: PASSWORD_MIN });
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
     if (!bid.ok || !mine) return done('account.flash.failed');
@@ -1184,8 +1257,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
     }));
-    const flash = typeof (req.query as { flash?: string }).flash === 'string'
-      ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     // G11 — the proof link as a buyer would open it, built from the address
     // this installation is reachable at. Absent, the row says so.
     const withProof = {
@@ -1219,8 +1291,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const sends = body.command === '发送' || body.command === '改';
     const verdict = sends ? await ownerSendVerdict(bid.value, conversationId) : 'ok';
     if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
-      return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(
-        t(localeOf(req), `inbox.blocked.${verdict}` as MessageKey))}`);
+      return flashTo(reply, `/app/inbox/${encodeURIComponent(conversationId)}`, `inbox.blocked.${verdict}` as MessageKey);
     }
     const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
 
@@ -1230,20 +1301,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
       { businessId: bid.value, draftId: body.draftId, rawReply, decidedBy: personOf(s).id },
     );
-    const flash = (r.outcome === 'sent' || r.outcome === 'edited_sent') && notLive
-      ? t(localeOf(req), 'inbox.flash.sentNotLive')
-      : t(localeOf(req), `inbox.flash.${r.outcome}` as MessageKey);
-    return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(flash)}`);
+    const key: MessageKey = (r.outcome === 'sent' || r.outcome === 'edited_sent') && notLive
+      ? 'inbox.flash.sentNotLive'
+      : `inbox.flash.${r.outcome}` as MessageKey;
+    return flashTo(reply, `/app/inbox/${encodeURIComponent(conversationId)}`, key);
   });
 
   // ── M16.1 Human takeover: take over / owner reply / return to AI ───────────
   // Ownership moves through src/core/conversation/ownership; the owner reply
   // uses the ONE send path; nothing here is a second approval or send system.
-  const takeoverFlash = (req: FastifyRequest, cid: string, outcome: string) => {
-    const msg = outcome === 'sent' && !messagingEnabled
-      ? t(localeOf(req), 'inbox.flash.sentNotLive')
-      : t(localeOf(req), `takeover.flash.${outcome}` as MessageKey);
-    return `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(msg)}`;
+  const takeoverFlash = (reply: FastifyReply, cid: string, outcome: string): FastifyReply => {
+    const key: MessageKey = outcome === 'sent' && !messagingEnabled
+      ? 'inbox.flash.sentNotLive'
+      : `takeover.flash.${outcome}` as MessageKey;
+    return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, key);
   };
 
   app.post('/app/inbox/:conversationId/takeover', async (req, reply) => {
@@ -1253,7 +1324,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.redirect('/app/inbox');
     // M47 — whoever is signed in takes it, by name.
     const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
-    return reply.redirect(takeoverFlash(req, cid, r.outcome));
+    return takeoverFlash(reply, cid, r.outcome);
   });
 
   /**
@@ -1271,15 +1342,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const id = (req.params as { outboundId: string }).outboundId;
       const locale = localeOf(req);
       const r = await decideUncertainSend(deps.db, s.businessId, id, decision, personOf(s).name);
-      const flash = t(locale, r.done
+      const key: MessageKey = r.done
         ? (decision === 'send_again' ? 'unsure.flash.again' : 'unsure.flash.left')
-        : 'unsure.flash.gone');
+        : 'unsure.flash.gone';
       // The worker is what sends; this only asks it to look again.
       if (r.done && decision === 'send_again' && r.conversationId) {
         await (deps.kickDrive ?? (async () => {}))(s.businessId, r.conversationId);
       }
       const where = r.conversationId ? `/app/inbox/${encodeURIComponent(r.conversationId)}` : '/app/inbox';
-      return reply.redirect(`${where}?flash=${encodeURIComponent(flash)}`);
+      return flashTo(reply, where, key);
     });
   };
   uncertainAction('/app/outbound/:outboundId/send-again', 'send_again');
@@ -1295,11 +1366,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const to = String((req.body as { personId?: string } | undefined)?.personId ?? '');
     const r = await handTo({ db: deps.db, now: () => new Date() },
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id, toPersonId: to });
-    const locale = localeOf(req);
-    const msg = r.outcome === 'handed'
-      ? t(locale, 'takeover.flash.handed', { name: r.toName ?? '' })
-      : t(locale, `takeover.flash.${r.outcome}` as MessageKey);
-    return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(msg)}`);
+    return r.outcome === 'handed'
+      ? flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, 'takeover.flash.handed', { name: r.toName ?? '' })
+      : flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, `takeover.flash.${r.outcome}` as MessageKey);
   });
 
   // A5.4 — hand this buyer to another assistant. Owner-only, by the rule the
@@ -1314,11 +1383,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const to = String((req.body as { assistant?: string } | undefined)?.assistant ?? '');
     const r = await handToAssistant(deps.db,
       { businessId: bid.value, conversationId: cid, assistantId: to, actor: personOf(s).id });
-    const locale = localeOf(req);
-    const msg = r.outcome === 'changed' || r.outcome === 'same'
-      ? t(locale, `conv.assistant.flash.${r.outcome}` as MessageKey, { who: r.name })
-      : t(locale, 'people.flash.failed');
-    return reply.redirect(`${back}?flash=${encodeURIComponent(msg)}`);
+    return r.outcome === 'changed' || r.outcome === 'same'
+      ? flashTo(reply, back, `conv.assistant.flash.${r.outcome}` as MessageKey, { who: r.name })
+      : flashTo(reply, back, 'people.flash.failed');
   });
 
   app.post('/app/inbox/:conversationId/reply', async (req, reply) => {
@@ -1333,14 +1400,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // gate reads before accepting, so the answer she gets is the true one.
     const verdict = await ownerSendVerdict(bid.value, cid);
     if (verdict !== 'ok') {
-      return reply.redirect(`/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(
-        t(localeOf(req), `inbox.blocked.${verdict}` as MessageKey))}`);
+      return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, `inbox.blocked.${verdict}` as MessageKey);
     }
     const r = await ownerReply(
       { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
       { businessId: bid.value, conversationId: cid, text, actor: personOf(s).id },
     );
-    return reply.redirect(takeoverFlash(req, cid, r.outcome));
+    return takeoverFlash(reply, cid, r.outcome);
   });
 
   /**
@@ -1424,7 +1490,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     await resumeAi({ db: deps.db, now: () => new Date() },
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
-    return reply.redirect(`${back0}?flash=${encodeURIComponent(t(localeOf(req), 'voice.flash.answering'))}`);
+    return flashTo(reply, `${back0}`, 'voice.flash.answering');
   });
 
   app.post('/app/inbox/:conversationId/heard', async (req, reply) => {
@@ -1479,7 +1545,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return true;
     });
     if (!corrected) return reply.redirect(back);
-    return reply.redirect(`${back}?flash=${encodeURIComponent(t(localeOf(req), 'voice.flash.corrected'))}`);
+    return flashTo(reply, `${back}`, 'voice.flash.corrected');
   });
 
   app.post('/app/inbox/:conversationId/resume', async (req, reply) => {
@@ -1488,7 +1554,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/inbox');
     const r = await resumeAi({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
-    return reply.redirect(takeoverFlash(req, cid, r.outcome));
+    return takeoverFlash(reply, cid, r.outcome);
   });
 
   // ── M9.4 Channel Center: connection state over the existing channel layer ──
@@ -1507,7 +1573,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const r = await run(s.businessId, personOf(s).id);
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(channelFlash(localeOf(req), r.code))}`);
+      return flashTo(reply, '/app/channels', channelFlash(r.code));
     });
   // G3 — connect the number the HOST is configured with. Owner-only under the
   // same decision as activation: it is the step that lets buyers' messages in.
@@ -1529,7 +1595,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : r.code === 'account_taken' ? 'reach.inbound.flash.taken'
         : r.code === 'not_configured' ? 'reach.inbound.flash.notConfigured'
         : 'channel.flash.failed';
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(localeOf(req), key as MessageKey))}`);
+      return flashTo(reply, '/app/channels', key as MessageKey);
     });
   }
 
@@ -1537,7 +1603,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
     if (!s) return reply;
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(channelFlash(localeOf(req), r.code))}`);
+    return flashTo(reply, '/app/channels', channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
@@ -1549,7 +1615,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(localeOf(req), `settings.flash.${r.code}` as MessageKey))}`);
+    return flashTo(reply, '/app/channels', `settings.flash.${r.code}` as MessageKey);
   });
 
   // Re-render the channels page with a flash after a redirect (?flash=).
@@ -1557,7 +1623,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     const data = await loadChannels(deps.db, s.businessId, whatsappConfigured, deps.templateState ?? 'none',
       deps.connectableNumber ?? null);
     // C6 — every other account she links, read beside the WhatsApp card.
@@ -1596,9 +1662,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // One calm page over the EXISTING profile / products / claims / channel read
   // models. Read-only by design: every change still happens on the surface that
   // owns it, so there is exactly one place that writes each thing.
-  app.get('/app/factory', authed('factory', async (s, req, locale) => {
-    const flash = typeof (req.query as { flash?: string }).flash === 'string'
-      ? (req.query as { flash: string }).flash : null;
+  app.get('/app/factory', authed('factory', async (s, req, locale, reply) => {
+    const flash = takeFlash(req, reply);
     return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured), locale, flash, personOf(s));
   }));
 
@@ -1607,8 +1672,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // codes My factory already shows, and both write channel_audit themselves.
   // Post/Redirect/Get, so a refresh never re-fires the most consequential
   // action in the product.
-  const factoryFlash = (req: FastifyRequest, key: MessageKey, params?: Record<string, string | number>) =>
-    `/app/factory?flash=${encodeURIComponent(t(localeOf(req), key, params))}`;
+  const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
+    flashTo(reply, '/app/factory', key, params);
 
   app.post('/app/factory/activate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
@@ -1620,9 +1685,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: whatsappConfigured });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
-    return reply.redirect(r.ok
-      ? factoryFlash(req, 'activation.flash.activated')
-      : factoryFlash(req, `activation.blocker.${r.code}` as MessageKey));
+    return r.ok
+      ? factoryFlash(reply, 'activation.flash.activated')
+      : factoryFlash(reply, `activation.blocker.${r.code}` as MessageKey);
   });
 
   // M20.4 (F-06) — the owner decides who may be reached. Reuses the existing
@@ -1637,9 +1702,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as { phone?: string; label?: string };
     const label = String(b.label ?? '').trim() || null;
     const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, personOf(s).id);
-    return reply.redirect(r.ok
-      ? factoryFlash(req, 'allowlist.flash.added', { who: label ?? r.phone })
-      : factoryFlash(req, 'allowlist.flash.invalid'));
+    return r.ok
+      ? factoryFlash(reply, 'allowlist.flash.added', { who: label ?? r.phone })
+      : factoryFlash(reply, 'allowlist.flash.invalid');
   });
 
   app.post('/app/factory/allowlist/remove', async (req, reply) => {
@@ -1649,9 +1714,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.redirect('/app/factory');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await archiveFromAllowlist(deps.db, bid.value, phone, personOf(s).id);
-    return reply.redirect(r.ok
-      ? factoryFlash(req, 'allowlist.flash.removed', { who: r.phone })
-      : factoryFlash(req, 'allowlist.flash.invalid'));
+    return r.ok
+      ? factoryFlash(reply, 'allowlist.flash.removed', { who: r.phone })
+      : factoryFlash(reply, 'allowlist.flash.invalid');
   });
 
   app.post('/app/factory/deactivate', async (req, reply) => {
@@ -1662,17 +1727,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
-    return reply.redirect(factoryFlash(req, 'activation.flash.deactivated'));
+    return factoryFlash(reply, 'activation.flash.deactivated');
   });
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──
-  app.get('/app/products', authed('products', async (s, req, locale) => {
+  app.get('/app/products', authed('products', async (s, req, locale, reply) => {
     // D2 — the import redirects here with what it did; the page dropped it.
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash);
   }));
   app.get('/app/products/add', authed('products', (_s, _req, locale) => renderAddForm(locale)));
-  app.get('/app/products/:id', authed('products', async (s, req, locale) => {
+  app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
     return d ? renderProductDetail(d, locale)
@@ -1757,18 +1822,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         bodyHtml: d ? renderProductDetail(d, locale, null, r.errors, b) : '',
       }));
     }
-    const flash = t(locale, r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
-    return reply.redirect(`/app/products/${encodeURIComponent(id)}?flash=${encodeURIComponent(flash)}`);
+    return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
+      r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
   });
 
   // ── M29 Price limits: the three questions, reached from My factory ────────
   // G9a — OWNER ONLY as a page: her floor is what a buyer must never learn,
   // and a sales assistant has no need to know it to negotiate inside it.
-  app.get('/app/factory/prices', ownerPage('price_rules', 'factory', '/app/factory', async (s, req, _reply, locale) => {
-    const q = req.query as { flash?: string; product?: string };
+  app.get('/app/factory/prices', ownerPage('price_rules', 'factory', '/app/factory', async (s, req, reply, locale) => {
+    const q = req.query as { product?: string };
     return renderPriceRules(
       await loadPriceRules(deps.db, s.businessId), locale,
-      typeof q.flash === 'string' ? q.flash : null, {},
+      takeFlash(req, reply), {},
       typeof q.product === 'string' ? { productId: q.product } : {},
     );
   }));
@@ -1794,11 +1859,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           r.errors, { productId }),
       }));
     }
-    const flash = t(locale, r.activatedCount > 0 ? 'prices.flash.savedActivated'
-      : r.activated ? 'prices.flash.savedAndLive'
-      : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
+    return flashTo(reply, '/app/factory/prices',
+      r.activatedCount > 0 ? 'prices.flash.savedActivated'
+        : r.activated ? 'prices.flash.savedAndLive'
+        : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
       { n: r.activatedCount });
-    return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(flash)}`);
   });
 
   // G22 — WHEN she comes down, and by how much. Owner-only for the same reason
@@ -1819,8 +1884,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors),
       }));
     }
-    return reply.redirect(`/app/factory/prices?flash=${encodeURIComponent(
-      t(locale, 'prices.flash.volumeAdded'))}`);
+    return flashTo(reply, '/app/factory/prices', 'prices.flash.volumeAdded');
   });
 
   app.post('/app/factory/prices/volume/:id/archive', async (req, reply) => {
@@ -1829,8 +1893,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const r = await archiveVolumeDiscount(deps.db, s.businessId, personOf(s).id, id);
-    return reply.redirect(`/app/factory/prices${r.ok ? `?flash=${encodeURIComponent(
-      t(locale, 'prices.flash.volumeRemoved'))}` : ''}`);
+    return r.ok
+      ? flashTo(reply, '/app/factory/prices', 'prices.flash.volumeRemoved')
+      : reply.redirect('/app/factory/prices');
   });
 
   app.post('/app/products/add/confirm', async (req, reply) => {
@@ -1843,7 +1908,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // catalogue inside confirmImport, so a posted id can choose, never invent.
     const apply = new Set(Object.keys(b).filter((k) => k.startsWith('apply:') && b[k] === 'on').map((k) => k.slice('apply:'.length)));
     const r = await confirmImport(deps.db, s.businessId, text, { actor: personOf(s).id, apply });
-    return reply.redirect(`/app/products?flash=${encodeURIComponent(importFlash(localeOf(req), r))}`);
+    return flashTo(reply, '/app/products', importFlash(r));
   });
 
   // ── M9.6 Employee Profile: personnel file over the existing trust data ────
@@ -1851,7 +1916,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     // Phase C: "who is she today?" composes her profile with EXISTING read
     // models — M14 knowledge (gaps + report), the operations snapshot (activity)
     // and the pilot feedback loop. No new query, no new storage.
@@ -1882,7 +1947,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
       const r = await run(s.businessId, cap, personOf(s).id);
-      return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, `employee.flash.${r.code}` as MessageKey))}`);
+      return flashTo(reply, '/app/employee', `employee.flash.${r.code}` as MessageKey);
     });
   // T1 — how much she does on her own is the owner's choice, from day one. The
   // same gate as a single grant: it is the same decision, made for several at once.
@@ -1894,8 +1959,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = isAutonomyLevel(level)
       ? await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id).catch(() => ({ ok: false, changed: 0 }))
       : { ok: false, changed: 0 };
-    return reply.redirect(`/app/employee?flash=${encodeURIComponent(
-      t(locale, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed'))}#on-her-own`);
+    return flashTo(reply, `/app/employee#on-her-own`, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed');
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));
   capAction('revoke', (b, c, actor) => revokeCapability(deps.db, b, c, actor));
@@ -1918,7 +1982,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : r.verdict === 'correct' ? 'spotcheck.flash.ok'
       : r.verdict === 'serious' ? 'spotcheck.flash.problem'
       : 'spotcheck.flash.fixed';
-    return reply.redirect(`/app/employee?flash=${encodeURIComponent(t(locale, key as MessageKey))}`);
+    return flashTo(reply, '/app/employee', key as MessageKey);
   });
 
   // ── M35.1 · the owner issues and revokes the buyer's proof link ───────────
@@ -1936,9 +2000,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       const cid = (req.params as { conversationId: string }).conversationId;
       const r = await run(sess.businessId, cid);
-      const flash = t(locale, `proof.owner.flash.${r.code}` as MessageKey);
-      return reply.redirect(
-        `/app/inbox/${encodeURIComponent(cid)}?flash=${encodeURIComponent(flash)}`);
+      return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`,
+        `proof.owner.flash.${r.code}` as MessageKey);
     });
 
   proofAction('', async (biz, cid) => {
@@ -1967,7 +2030,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   // ── M9.7 Conversations: customer memory over existing activity ────────────
-  app.get('/app/conversations', authed('conversations', async (s, req, locale) => {
+  app.get('/app/conversations', authed('conversations', async (s, req, locale, reply) => {
     const q = typeof (req.query as { q?: string }).q === 'string' ? (req.query as { q: string }).q : '';
     return renderCustomerList(await loadCustomerList(deps.db, s.businessId, q), locale, new Date());
   }));
@@ -1981,7 +2044,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'conv.title'), active: 'conversations',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
     }));
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
       bodyHtml: renderCustomerFile(file, locale, new Date(), flash),
@@ -1998,12 +2061,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await renameBuyer(deps.db, s.businessId, conversationId, raw, personOf(s).name);
     if (r === 'not_found') return reply.redirect('/app/conversations');
     const key = `conv.flash.name${r === 'saved' ? 'Saved' : r === 'cleared' ? 'Cleared' : 'Invalid'}` as MessageKey;
-    return reply.redirect(`/app/conversations/${encodeURIComponent(conversationId)}?flash=${encodeURIComponent(
-      t(locale, key, { buyer: t(locale, 'common.buyer') }))}`);
+    return flashTo(reply, `/app/conversations/${encodeURIComponent(conversationId)}`, key, { buyer: t(locale, 'common.buyer') });
   });
 
   // ── M9.8 Business Performance: plain counts over existing business rows ────
-  app.get('/app/analytics', authed('analytics', async (s, req, locale) => {
+  app.get('/app/analytics', authed('analytics', async (s, req, locale, reply) => {
     const range = parseRange((req.query as { range?: string }).range);
     return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
   }));
@@ -2013,7 +2075,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     const data = await loadPilotRunbook(deps.db, s.businessId, {
       sandboxBusinessId: deps.sandboxBusinessId, provider: deps.provider,
     });
@@ -2061,15 +2123,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
       await attest(deps.db, s.businessId, which);
     }
-    return reply.redirect(`/app/onboarding?flash=${encodeURIComponent(t(localeOf(req), 'pilot.flash.attested'))}`);
+    return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 
   app.post('/app/onboarding/validate', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const r = await runValidation(deps.db, s.businessId);
-    const flash = t(localeOf(req), 'pilot.flash.validated', { pass: r.pass, total: r.total });
-    return reply.redirect(`/app/onboarding?flash=${encodeURIComponent(flash)}`);
+    return flashTo(reply, '/app/onboarding', 'pilot.flash.validated', { pass: r.pass, total: r.total });
   });
 
   // ── M11.1 Business Profile & Owner Settings (owner-authenticated only) ─────
@@ -2077,7 +2138,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     const profile = await loadBusinessProfile(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'settings.profile.title'), active: 'settings',
@@ -2087,8 +2148,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.
-  app.get('/app/settings/business', authed('settings', async (s, req, locale) => {
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+  app.get('/app/settings/business', authed('settings', async (s, req, locale, reply) => {
+    const flash = takeFlash(req, reply);
     return renderBusinessKind(await loadBusinessKind(deps.db, s.businessId), locale, flash, t(locale, 'nav.settings'));
   }));
   app.post('/app/settings/business', async (req, reply) => {
@@ -2097,17 +2158,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveBusinessKind(deps.db, s.businessId,
       { kind: String(b['kind'] ?? ''), country: String(b['country'] ?? ''), website: String(b['website'] ?? '') }, personOf(s).id);
-    return reply.redirect(`/app/settings/business?flash=${encodeURIComponent(
-      t(localeOf(req), r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid'))}`);
+    return flashTo(reply, '/app/settings/business', r === 'saved' ? 'business.kind.saved' : 'business.kind.invalid');
   });
 
   // ── M37.5 · the words she may never say ───────────────────────────────────
   // Reached from settings. Without this surface the guard would be M35 again:
   // something buyers are subject to that no owner can configure.
-  app.get('/app/settings/forbidden', authed('settings', async (sess, req, locale) =>
+  app.get('/app/settings/forbidden', authed('settings', async (sess, req, locale, reply) =>
     renderForbidden(await loadForbidden(deps.db, sess.businessId), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+      takeFlash(req, reply))));
 
   app.post('/app/settings/forbidden', async (req, reply) => {
     const sess = sessionOf(req);
@@ -2115,15 +2174,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const body = (req.body ?? {}) as { term?: string; note?: string };
     const r = await addForbidden(deps.db, sess.businessId, String(body.term ?? ''), String(body.note ?? ''));
-    return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
-      t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
+    return flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
   });
 
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
-  app.get('/app/settings/rate', authed('settings', async (sess, req, locale) =>
+  app.get('/app/settings/rate', authed('settings', async (sess, req, locale, reply) =>
     renderRate(await loadRates(deps.db, sess.businessId), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+      takeFlash(req, reply))));
 
   app.post('/app/settings/rate', async (req, reply) => {
     const s = sessionOf(req);
@@ -2131,17 +2188,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
-    const flash = r.code === 'set'
-      ? t(locale, 'rate.flash.set', { rate: r.rate.rate })
-      : t(locale, `rate.flash.${r.code}` as MessageKey);
-    return reply.redirect(`/app/settings/rate?flash=${encodeURIComponent(flash)}`);
+    return r.code === 'set'
+      ? flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate })
+      : flashTo(reply, '/app/settings/rate', `rate.flash.${r.code}` as MessageKey);
   });
 
   // M44 — the days her factory is shut. She states them; nothing is assumed.
-  app.get('/app/settings/closures', authed('settings', async (sess, req, locale) =>
+  app.get('/app/settings/closures', authed('settings', async (sess, req, locale, reply) =>
     renderClosures(await loadClosures(deps.db, sess.businessId), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+      takeFlash(req, reply))));
 
   app.post('/app/settings/closures', async (req, reply) => {
     const s = sessionOf(req);
@@ -2151,10 +2206,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await addClosure(deps.db, s.businessId, {
       label: b['label'] ?? null, from: b['from'] ?? null, to: b['to'] ?? null,
     });
-    const flash = r.code === 'added'
-      ? t(locale, 'closures.flash.added', { label: r.label })
-      : t(locale, `closures.flash.${r.code}` as MessageKey);
-    return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(flash)}`);
+    return r.code === 'added'
+      ? flashTo(reply, '/app/settings/closures', 'closures.flash.added', { label: r.label })
+      : flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/closures/:id/remove', async (req, reply) => {
@@ -2162,19 +2216,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const r = await removeClosure(deps.db, s.businessId, (req.params as { id: string }).id);
-    return reply.redirect(`/app/settings/closures?flash=${encodeURIComponent(
-      t(locale, `closures.flash.${r.code}` as MessageKey))}`);
+    return flashTo(reply, '/app/settings/closures', `closures.flash.${r.code}` as MessageKey);
   });
 
   // M46 — one order: what she recorded, the proforma, and the form that
   // records the next thing. Reached from the conversation it came out of.
-  app.get('/app/orders/:id', authed('inbox', async (sess, req, locale) => {
+  app.get('/app/orders/:id', authed('inbox', async (sess, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const v = await loadOrder(deps.db, sess.businessId, id);
     if (!v) return `<h1 class="page">${esc(t(locale, 'order.notFound'))}</h1>`
       + `<div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`;
-    return renderOrder(v, locale, typeof (req.query as { flash?: string }).flash === 'string'
-      ? (req.query as { flash: string }).flash : null);
+    return renderOrder(v, locale, takeFlash(req, reply));
   }));
 
   app.post('/app/orders/:id/update', async (req, reply) => {
@@ -2187,8 +2239,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       state: b['state'] ?? '', note: b['note'] ?? null, trackingReference: b['tracking'] ?? null,
       actor: personOf(s).id, now: new Date(),
     });
-    return reply.redirect(`/app/orders/${encodeURIComponent(id)}?flash=${encodeURIComponent(
-      t(locale, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey))}`);
+    return flashTo(reply, `/app/orders/${encodeURIComponent(id)}`, `order.flash.${r.code === 'recorded' ? 'recorded' : r.code}` as MessageKey);
   });
 
   // M47 — who works here. OWNER ONLY: handing someone a way in is hers — and
@@ -2203,8 +2254,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       people: await loadPeople(deps.db, sess.businessId), justIssued,
       assistants: await loadAssistants(deps.db, sess.businessId, locale),
     }, locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null);
+      takeFlash(req, reply));
   }));
 
   app.post('/app/settings/people', async (req, reply) => {
@@ -2214,25 +2264,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const name = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await addPerson(deps.db, s.businessId, deps.sessionSecret, name);
     if (r.code !== 'added') {
-      return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
-        t(locale, `people.flash.${r.code}` as MessageKey))}`);
+      return flashTo(reply, '/app/settings/people', `people.flash.${r.code}` as MessageKey);
     }
     writeCookie(reply, ISSUED_COOKIE, mintIssuedCode(deps.sessionSecret, { name: r.name, code: r.accessCode }, Date.now()),
       { path: ISSUED_PATH, maxAgeSec: Math.floor(ISSUED_TTL_MS / 1000) });
-    return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
-      t(locale, 'people.flash.added', { name: r.name }))}`);
+    return flashTo(reply, '/app/settings/people', 'people.flash.added', { name: r.name });
   });
 
   // A5 — who answers buyers. Owner-only by the same rule as people: it is the team.
-  const teamFlash = (reply: FastifyReply, text: string) =>
-    reply.redirect(`/app/settings/people?flash=${encodeURIComponent(text)}#assistants`);
+  const teamFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
+    flashTo(reply, '/app/settings/people#assistants', key, params);
 
   app.post('/app/settings/people/assistants', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
     const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id, localeOf(req));
     names.evict(s.businessId);
-    return teamFlash(reply, assistantFlash(localeOf(req), r.outcome, 'added', r.name));
+    return teamFlash(reply, assistantFlash(r.outcome, 'added'), { who: r.name });
   });
 
   app.post('/app/settings/people/assistants/:id', async (req, reply) => {
@@ -2241,14 +2289,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const outcome = await updateAssistantFromForm(deps.db, s.businessId, (req.params as { id: string }).id,
       (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
     names.evict(s.businessId);
-    return teamFlash(reply, assistantFlash(localeOf(req), outcome, 'saved'));
+    return teamFlash(reply, assistantFlash(outcome, 'saved'));
   });
 
   app.post('/app/settings/people/assistants/:id/archive', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
     const outcome = await archiveAssistantById(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id);
-    return teamFlash(reply, assistantFlash(localeOf(req), outcome, 'archived'));
+    return teamFlash(reply, assistantFlash(outcome, 'archived'));
   });
 
   app.post('/app/settings/people/:id/remove', async (req, reply) => {
@@ -2258,8 +2306,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await removePerson(deps.db, s.businessId, (req.params as { id: string }).id);
     // S1 — signed out NOW, not within the minute the answer is remembered for.
     liveness.evict(livenessKey(s.businessId, (req.params as { id: string }).id));
-    return reply.redirect(`/app/settings/people?flash=${encodeURIComponent(
-      t(locale, r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed'))}`);
+    return flashTo(reply, '/app/settings/people', r.code === 'removed' ? 'people.flash.removed' : 'people.flash.failed');
   });
 
   /**
@@ -2280,12 +2327,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const shaped = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain)
       && /^[a-z0-9][a-z0-9-]*$/.test(selector);
     if (!bid.ok || !shaped) {
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale,
-        bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed'))}`);
+      return flashTo(reply, '/app/channels', bid.ok ? 'domain.flash.invalid' : 'domain.flash.failed');
     }
     await withTenantTx(deps.db, bid.value, (tx) =>
       setSendingDomain(tx, bid.value, { domain, dkimSelector: selector, by: personOf(sess).name }));
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.saved'))}`);
+    return flashTo(reply, '/app/channels', 'domain.flash.saved');
   });
 
   app.post('/app/channels/domain/check', async (req, reply) => {
@@ -2294,7 +2340,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const bid = parseBusinessId(sess.businessId);
     if (!bid.ok) {
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
+      return flashTo(reply, '/app/channels', 'domain.flash.failed');
     }
     // The lookup is I/O and can fail; a failure returns empty lists, which read
     // as 'missing'. It is never allowed to read as "fine". The mechanism to
@@ -2305,9 +2351,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       db: deps.db, resolveDns: deps.resolveDns, sendingInclude: deps.sendingInclude ?? null,
     }, bid.value, new Date());
     if (!check) {
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.failed'))}`);
+      return flashTo(reply, '/app/channels', 'domain.flash.failed');
     }
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'domain.flash.checked'))}`);
+    return flashTo(reply, '/app/channels', 'domain.flash.checked');
   });
 
   /**
@@ -2325,13 +2371,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const channel = OUTREACH_CHANNELS.find((c) => c === b['channel']);
     const bid = parseBusinessId(sess.businessId);
     if (!channel || !bid.ok) {
-      return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.failed'))}`);
+      return flashTo(reply, '/app/channels', 'outreach.flash.failed');
     }
     const enabled = b['enabled'] === 'true';
     const done = await withTenantTx(deps.db, bid.value, (tx) =>
       setOutreach(tx, bid.value, { channel, enabled, by: personOf(sess).name }));
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale,
-      !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off'))}`);
+    return flashTo(reply, '/app/channels', !done ? 'outreach.flash.failed' : enabled ? 'outreach.flash.on' : 'outreach.flash.off');
   });
 
   /**
@@ -2350,17 +2395,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(sess.businessId);
     const raw = typeof b['cap'] === 'string' ? b['cap'].trim() : '';
     const cap = raw === '' ? null : /^\d{1,5}$/.test(raw) && Number(raw) >= 1 ? Number(raw) : undefined;
-    const failed = `/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.failed'))}`;
-    if (!channel || !bid.ok || cap === undefined) return reply.redirect(failed);
+    const failed = () => flashTo(reply, '/app/channels', 'outreach.flash.failed');
+    if (!channel || !bid.ok || cap === undefined) return failed();
     const done = await withTenantTx(deps.db, bid.value, async (tx) => {
       const current = (await outreachSettings(tx, bid.value)).get(channel);
       return setOutreach(tx, bid.value, {
         channel, enabled: current?.enabled === true, by: personOf(sess).name, dailyCap: cap,
       });
     });
-    if (!done) return reply.redirect(failed);
-    return reply.redirect(`/app/channels?flash=${encodeURIComponent(t(locale, 'outreach.flash.cap',
-      { n: String(cap ?? DAILY_OUTREACH_CEILING) }))}`);
+    if (!done) return failed();
+    return flashTo(reply, '/app/channels', 'outreach.flash.cap', { n: String(cap ?? DAILY_OUTREACH_CEILING) });
   });
 
   /**
@@ -2386,8 +2430,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const OAUTH_COOKIE = 'yf_oauth';
   const redirectUriFor = (provider: string) =>
     `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/${provider}/callback`;
-  const channelsFlash = (locale: Locale, key: string, vars?: Record<string, string>) =>
-    `/app/channels?flash=${encodeURIComponent(t(locale, key as MessageKey, vars))}`;
+  const channelsFlash = (reply: FastifyReply, key: string, vars?: Record<string, string>) =>
+    flashTo(reply, '/app/channels', key as MessageKey, vars);
 
   app.get('/app/connect/:provider/start', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
@@ -2395,7 +2439,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const provider = OAUTH_PROVIDERS.find((p) => p === (req.params as { provider: string }).provider);
     const client = provider ? deps.oauthClients?.[provider] : undefined;
     if (!provider || !client || !deps.publicBaseUrl || !deps.credentialKey) {
-      return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+      return channelsFlash(reply, 'connect.flash.not_configured');
     }
     const { verifier, challenge } = pkcePair();
     const nonce = randomBytes(24).toString('base64url');
@@ -2417,13 +2461,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const state = readOAuthState(deps.sessionSecret, cookie, Date.now());
     if (!provider || !state || state.provider !== provider || state.personId !== personOf(s).id
         || typeof q.state !== 'string' || !sameNonce(q.state, state.nonce)) {
-      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+      return channelsFlash(reply, 'connect.flash.expired');
     }
     if (q.error || typeof q.code !== 'string' || !q.code) {
-      return reply.redirect(channelsFlash(locale, 'connect.flash.denied'));
+      return channelsFlash(reply, 'connect.flash.denied');
     }
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.rejected'));
+    if (!bid.ok) return channelsFlash(reply, 'connect.flash.rejected');
     const r = await completeMailConnection({
       db: deps.db, credentialKey: deps.credentialKey ?? null, clients: deps.oauthClients ?? {},
       fetchImpl: deps.oauthFetch ?? (fetch as unknown as OAuthFetch), now: () => new Date(),
@@ -2431,16 +2475,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       businessId: bid.value, provider, code: q.code.slice(0, 2048), verifier: state.verifier,
       redirectUri: redirectUriFor(provider), by: personOf(s).name,
     });
-    return reply.redirect(r.outcome === 'connected'
-      ? channelsFlash(locale, 'connect.flash.connected', { address: r.address ?? '' })
-      : channelsFlash(locale, `connect.flash.${r.outcome}`));
+    return r.outcome === 'connected'
+      ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' })
+      : channelsFlash(reply, `connect.flash.${r.outcome}`);
   });
 
   app.post('/app/connect/mail/disconnect', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
-    return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.flash.disconnected' : 'connect.flash.rejected'));
+    return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected');
   });
 
   /**
@@ -2454,13 +2498,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const META_COOKIE = 'yf_meta';
   const metaRedirectUri = () => `${(deps.publicBaseUrl ?? '').replace(/\/$/, '')}/app/connect/meta/callback`;
   const metaReady = () => (deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect) ? deps.metaConnect : null;
-  const metaFlash = (locale: Locale, r: MetaConnectOutcome): string => {
+  const metaFlash = (reply: FastifyReply, r: MetaConnectOutcome): FastifyReply => {
     switch (r.outcome) {
-      case 'connected': return channelsFlash(locale, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page });
+      case 'connected': return channelsFlash(reply, r.instagram ? 'connect.meta.flash.connected' : 'connect.meta.flash.connectedNoIg', { page: r.page });
       case 'no_pages': case 'page_taken': case 'subscribe_failed': case 'unavailable':
-        return channelsFlash(locale, `connect.meta.flash.${r.outcome}`);
-      case 'not_configured': return channelsFlash(locale, 'connect.flash.not_configured');
-      default: return channelsFlash(locale, 'connect.flash.rejected');
+        return channelsFlash(reply, `connect.meta.flash.${r.outcome}`);
+      case 'not_configured': return channelsFlash(reply, 'connect.flash.not_configured');
+      default: return channelsFlash(reply, 'connect.flash.rejected');
     }
   };
 
@@ -2468,7 +2512,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
     const locale = localeOf(req);
     const mc = metaReady();
-    if (!mc || !deps.metaLogin) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured');
     const nonce = randomBytes(24).toString('base64url');
     writeCookie(reply, META_COOKIE,
       mintMetaState(deps.sessionSecret, { nonce, personId: personOf(s).id, tokenCiphertext: null }, Date.now()),
@@ -2485,12 +2529,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     writeCookie(reply, META_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
-      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+      return channelsFlash(reply, 'connect.flash.expired');
     }
-    if (q.error || typeof q.code !== 'string' || !q.code) return reply.redirect(channelsFlash(locale, 'connect.flash.denied'));
+    if (q.error || typeof q.code !== 'string' || !q.code) return channelsFlash(reply, 'connect.flash.denied');
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(), code: q.code.slice(0, 2048),
     });
@@ -2502,7 +2546,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         bodyHtml: renderMetaPagePicker(r.pages, carried, locale),
       }));
     }
-    return reply.redirect(metaFlash(locale, r));
+    return metaFlash(reply, r);
   });
 
   app.post('/app/connect/meta/choose', async (req, reply) => {
@@ -2511,17 +2555,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
     if (!state || state.personId !== personOf(s).id || !state.tokenCiphertext) {
-      return reply.redirect(channelsFlash(locale, 'connect.flash.expired'));
+      return channelsFlash(reply, 'connect.flash.expired');
     }
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
-    if (!mc || !bid.ok) return reply.redirect(channelsFlash(locale, 'connect.flash.not_configured'));
+    if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
     const pageId = typeof b['page_id'] === 'string' ? b['page_id'].slice(0, 40) : '';
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(),
       userTokenCiphertext: state.tokenCiphertext, pageId,
     });
-    return reply.redirect(r.outcome === 'choose' ? channelsFlash(locale, 'connect.flash.rejected') : metaFlash(locale, r));
+    return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : metaFlash(reply, r);
   });
 
   app.post('/app/connect/meta/disconnect', async (req, reply) => {
@@ -2529,7 +2573,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
     const done = mc !== null && bid.ok && await disconnectMetaAccount(mc, { businessId: bid.value, by: personOf(s).name });
-    return reply.redirect(channelsFlash(localeOf(req), done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected'));
+    return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected');
   });
 
   /**
@@ -2543,7 +2587,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     credentialKey: deps.credentialKey ?? null, sourceFor: deps.prospectSourceFor ?? null,
   });
 
-  app.get('/app/contacts', authed('contacts', async (sess, req, locale) => {
+  app.get('/app/contacts', authed('contacts', async (sess, req, locale, reply) => {
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const bid = parseBusinessId(sess.businessId);
     const pd = prospectDeps();
@@ -2554,25 +2598,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return renderContacts({
       ...view, companies,
       canLookUp: status.kind === 'stored' && status.readable && deps.prospectSourceFor !== undefined,
-    }, locale, flashOfQuery(req));
+    }, locale, takeFlash(req, reply));
   }));
 
   app.post('/app/contacts/lookup', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(contactsBack(locale, 'failed'));
+    if (!bid.ok) return contactsBack(reply, 'failed');
     const r = await lookUpCompany(prospectDeps(), {
       businessId: bid.value, by: personOf(s).name,
       address: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
     });
-    const sentence = r === 'found' || r === 'not_found' || r === 'reused' || r === 'personal' || r === 'not_an_email'
-      ? t(locale, `contacts.lookup.flash.${r}` as MessageKey)
-      : failureSentence(locale, r);
-    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+    return flashTo(reply, '/app/contacts',
+      r === 'found' || r === 'not_found' || r === 'reused' || r === 'personal' || r === 'not_an_email'
+        ? `contacts.lookup.flash.${r}` as MessageKey
+        : failureKey(r));
   });
 
-  app.get('/app/prospects', authed('prospects', async (sess, req, locale) => {
+  app.get('/app/prospects', authed('prospects', async (sess, req, locale, reply) => {
     const bid = parseBusinessId(sess.businessId);
     if (!bid.ok) return '';
     const pd = prospectDeps();
@@ -2580,30 +2624,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const filter = filterFromQuery(req.query as Record<string, unknown>);
     const outcome = filter && status.kind === 'stored' && status.readable
       ? await searchProspects(pd, { businessId: bid.value, filter }) : null;
-    return renderProspects({ status, filter, outcome }, locale, flashOfQuery(req), personOf(sess));
+    return renderProspects({ status, filter, outcome }, locale, takeFlash(req, reply), personOf(sess));
   }));
 
-  const prospectsBack = (locale: Locale, key: string, back = '') =>
-    `/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(t(locale, key as MessageKey))}`;
+  const prospectsBack = (reply: FastifyReply, key: string, back = '') =>
+    flashTo(reply, `/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? back : ''}`, key as MessageKey);
 
   app.post('/app/prospects/key', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    if (!bid.ok) return prospectsBack(reply, 'prospects.flash.failed');
     const r = await saveKey(prospectDeps(), {
       businessId: bid.value, by: personOf(s).name,
       apiKey: String((req.body as { apiKey?: unknown } | undefined)?.apiKey ?? ''),
     });
-    return reply.redirect(prospectsBack(localeOf(req), r === 'saved' ? 'prospects.flash.saved'
-      : r === 'invalid' ? 'prospects.flash.invalid' : 'prospects.noSource.no_key_store'));
+    return prospectsBack(reply, r === 'saved' ? 'prospects.flash.saved'
+      : r === 'invalid' ? 'prospects.flash.invalid' : 'prospects.noSource.no_key_store');
   });
 
   app.post('/app/prospects/key/remove', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'outreach', '/app/prospects'); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(prospectsBack(localeOf(req), 'prospects.flash.failed'));
+    if (!bid.ok) return prospectsBack(reply, 'prospects.flash.failed');
     const done = await removeKey(prospectDeps(), { businessId: bid.value, by: personOf(s).name });
-    return reply.redirect(prospectsBack(localeOf(req), done ? 'prospects.flash.removed' : 'prospects.flash.failed'));
+    return prospectsBack(reply, done ? 'prospects.flash.removed' : 'prospects.flash.failed');
   });
 
   app.post('/app/prospects/add', async (req, reply) => {
@@ -2612,41 +2656,40 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string) => (typeof b[k] === 'string' ? (b[k] as string).trim() : '');
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok || !str('sourceId') || !str('name')) return reply.redirect(prospectsBack(locale, 'prospects.flash.failed'));
+    if (!bid.ok || !str('sourceId') || !str('name')) return prospectsBack(reply, 'prospects.flash.failed');
     const r = await addProspect(prospectDeps(), {
       businessId: bid.value, by: personOf(s).name, sourceId: str('sourceId').slice(0, 64),
       name: str('name'), title: str('title') || null, organization: str('organization') || null,
     });
     const back = str('back');
     if (r === 'added' || r === 'exists' || r === 'not_found') {
-      return reply.redirect(prospectsBack(locale, `prospects.flash.${r}`, back));
+      return prospectsBack(reply, `prospects.flash.${r}`, back);
     }
-    const sentence = failureSentence(locale, r);
-    return reply.redirect(`/app/prospects${/^\?[A-Za-z0-9%&=._+-]*$/.test(back) ? `${back}&` : '?'}flash=${encodeURIComponent(sentence)}`);
+    return prospectsBack(reply, failureKey(r), back);
   });
 
-  const contactsBack = (locale: Locale, r: ContactsFlash) =>
-    `/app/contacts?flash=${encodeURIComponent(t(locale, `contacts.flash.${r}` as MessageKey))}`;
+  const contactsBack = (reply: FastifyReply, r: ContactsFlash) =>
+    flashTo(reply, '/app/contacts', `contacts.flash.${r}` as MessageKey);
 
   app.post('/app/contacts', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, unknown>;
-    return reply.redirect(contactsBack(localeOf(req), await addContactFrom(deps.db, s.businessId, {
+    return contactsBack(reply, await addContactFrom(deps.db, s.businessId, {
       channel: b['channel'], identity: b['identity'], name: b['name'], company: b['company'],
       by: personOf(s).name,
-    })));
+    }));
   });
 
   app.post('/app/contacts/consent', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, unknown>;
-    return reply.redirect(contactsBack(localeOf(req), await attestConsent(deps.db, s.businessId, {
+    return contactsBack(reply, await attestConsent(deps.db, s.businessId, {
       channel: b['channel'], identity: b['identity'], note: b['note'], by: personOf(s).name,
-    })));
+    }));
   });
 
   // Permanent, so it takes two presses. The row links here; this page posts.
-  app.get('/app/contacts/suppress', authed('contacts', async (sess, req, locale) => {
+  app.get('/app/contacts/suppress', authed('contacts', async (sess, req, locale, reply) => {
     const q = req.query as { channel?: string; identity?: string };
     const found = (await loadContacts(deps.db, sess.businessId)).contacts
       .find((c) => c.channel === q.channel && c.identity === q.identity);
@@ -2657,9 +2700,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/contacts/suppress', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as Record<string, unknown>;
-    return reply.redirect(contactsBack(localeOf(req), await suppressIdentity(deps.db, s.businessId, {
+    return contactsBack(reply, await suppressIdentity(deps.db, s.businessId, {
       channel: b['channel'], identity: b['identity'], reason: b['reason'], detail: b['detail'],
-    })));
+    }));
   });
 
   /**
@@ -2674,7 +2717,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * who knows him, and the message carries the name of whoever sends it. What
    * IS owner-only is the switch that lets anyone write first at all.
    */
-  app.get('/app/contacts/write', authed('contacts', async (sess, req, locale) => {
+  app.get('/app/contacts/write', authed('contacts', async (sess, req, locale, reply) => {
     const q = req.query as { channel?: string; identity?: string };
     const view = await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none');
     const found = view.contacts.find((c) => c.channel === q.channel && c.identity === q.identity);
@@ -2682,10 +2725,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // Deployment mode has no outbound worker at all (src/main.ts): a row queued
     // here would sit until messaging is switched on and then leave, days after
     // she wrote it. Said now, before she types, rather than after.
-    if (!messagingEnabled) return renderContacts(view, locale, t(locale, 'contacts.flash.notLive'));
+    if (!messagingEnabled) return renderContacts(view, locale, saidFlash(locale, 'contacts.flash.notLive'));
     const reach = reachOf(view, found);
     if (!reach.ok) {
-      return renderContacts(view, locale, t(locale, `refused.why.${reach.error}` as MessageKey));
+      return renderContacts(view, locale, saidFlash(locale, `refused.why.${reach.error}` as MessageKey));
     }
     return renderWriteFirst(found, locale);
   }));
@@ -2696,9 +2739,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string): string => (typeof b[k] === 'string' ? b[k] as string : '');
-    if (!bid.ok || b['channel'] !== 'email') return reply.redirect(contactsBack(locale, 'failed'));
+    if (!bid.ok || b['channel'] !== 'email') return contactsBack(reply, 'failed');
     if (!messagingEnabled) {
-      return reply.redirect(`/app/contacts?flash=${encodeURIComponent(t(locale, 'contacts.flash.notLive'))}`);
+      return flashTo(reply, '/app/contacts', 'contacts.flash.notLive');
     }
 
     const found = (await loadContacts(deps.db, s.businessId)).contacts
@@ -2717,8 +2760,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     );
 
     if (r.outcome === 'queued' && r.conversationId) {
-      return reply.redirect(`/app/inbox/${encodeURIComponent(r.conversationId)}?flash=${
-        encodeURIComponent(t(locale, 'contacts.flash.queued'))}`);
+      return flashTo(reply, `/app/inbox/${encodeURIComponent(r.conversationId)}`, 'contacts.flash.queued');
     }
     // Her words come back to her when the fault is in the form, not in him.
     if (r.outcome === 'empty' && found) {
@@ -2726,16 +2768,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         title: t(locale, 'nav.contacts'), active: 'contacts',
         bodyHtml: renderWriteFirst(found, locale, {
           draft: { subject: str('subject'), body: str('body') },
-          flash: t(locale, 'contacts.flash.empty'),
+          flash: saidFlash(locale, 'contacts.flash.empty'),
         }),
       }));
     }
-    const sentence = r.outcome === 'empty' || r.outcome === 'no_channel'
-      || r.outcome === 'missing' || r.outcome === 'not_an_email' || r.outcome === 'not_a_phone'
-      ? t(locale, `contacts.flash.${r.outcome}` as MessageKey)
-      // The outreach gate's own refusal, in the words his row already uses.
-      : t(locale, `refused.why.${r.outcome}` as MessageKey);
-    return reply.redirect(`/app/contacts?flash=${encodeURIComponent(sentence)}`);
+    return flashTo(reply, '/app/contacts',
+      r.outcome === 'empty' || r.outcome === 'no_channel'
+        || r.outcome === 'missing' || r.outcome === 'not_an_email' || r.outcome === 'not_a_phone'
+        ? `contacts.flash.${r.outcome}` as MessageKey
+        // The outreach gate's own refusal, in the words his row already uses.
+        : `refused.why.${r.outcome}` as MessageKey);
   });
 
   /**
@@ -2743,10 +2785,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * do what: writing, adding someone and stopping are anyone's, with the name
    * recorded; approving and taking out of use are hers.
    */
-  const seqBack = (locale: Locale, id: string | null, f: SequenceFlash) =>
-    `/app/sequences${id ? `/${encodeURIComponent(id)}` : ''}?flash=${encodeURIComponent(t(locale, `seq.flash.${f}` as MessageKey))}`;
-  const flashOfQuery = (req: FastifyRequest): string | null =>
-    typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+  const seqBack = (reply: FastifyReply, id: string | null, f: SequenceFlash) =>
+    flashTo(reply, `/app/sequences${id ? `/${encodeURIComponent(id)}` : ''}`, `seq.flash.${f}` as MessageKey);
   const seqId = (req: FastifyRequest) => (req.params as { id: string }).id;
   const sequenceDeps = () => ({
     db: deps.db, now: () => new Date(), templateState: deps.templateState ?? 'none',
@@ -2755,18 +2795,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     repliesObservable: false,
   });
 
-  app.get('/app/sequences', authed('sequences', async (sess, req, locale) =>
-    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, flashOfQuery(req))));
+  app.get('/app/sequences', authed('sequences', async (sess, req, locale, reply) =>
+    renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, takeFlash(req, reply))));
 
   app.post('/app/sequences', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const r = await createSequenceFrom(deps.db, s.businessId, {
       name: (req.body as { name?: unknown } | undefined)?.name, by: personOf(s).name,
     });
-    return reply.redirect(seqBack(localeOf(req), r.id, r.flash));
+    return seqBack(reply, r.id, r.flash);
   });
 
-  app.get('/app/sequences/:id', authed('sequences', async (sess, req, locale) => {
+  app.get('/app/sequences/:id', authed('sequences', async (sess, req, locale, reply) => {
     const d = await loadSequenceDetail(deps.db, sess.businessId, seqId(req));
     if (!d) return renderSequenceList(await loadSequenceList(deps.db, sess.businessId), locale, null);
     // Who could be added right now: the SAME `reachOf` her contact list draws
@@ -2775,7 +2815,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const view = d.state === 'approved'
       ? await loadContacts(deps.db, sess.businessId, deps.templateState ?? 'none') : null;
     const eligible = view ? view.contacts.filter((c) => c.channel === 'email' && reachOf(view, c).ok) : [];
-    return renderSequenceDetail(d, locale, flashOfQuery(req), {
+    return renderSequenceDetail(d, locale, takeFlash(req, reply), {
       viewer: personOf(sess), eligible, messagingEnabled,
     });
   }));
@@ -2783,14 +2823,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/sequences/:id/steps', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const f = await addStepFrom(deps.db, s.businessId, seqId(req), (req.body ?? {}) as Record<string, unknown>);
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/sequences/:id/steps/:position', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const position = Number((req.params as { position: string }).position);
     const f = await updateStepFrom(deps.db, s.businessId, seqId(req), position, (req.body ?? {}) as Record<string, unknown>);
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/sequences/:id/approve', async (req, reply) => {
@@ -2799,33 +2839,33 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const f = await approveSequenceFrom(deps.db, s.businessId, seqId(req), {
       fingerprint: (req.body as { fingerprint?: unknown } | undefined)?.fingerprint, by: personOf(s).name,
     });
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/sequences/:id/archive', async (req, reply) => {
     const back = `/app/sequences/${encodeURIComponent(seqId(req))}`;
     const s = await ownerOnly(req, reply, 'outreach', back); if (!s) return reply;
     const f = await archiveSequenceById(deps.db, s.businessId, seqId(req));
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/sequences/:id/enroll', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect(seqBack(locale, seqId(req), 'failed'));
+    if (!bid.ok) return seqBack(reply, seqId(req), 'failed');
     // Same reason as the write page: no outbound worker, no follow-ups.
-    if (!messagingEnabled) return reply.redirect(seqBack(locale, seqId(req), 'notLive'));
+    if (!messagingEnabled) return seqBack(reply, seqId(req), 'notLive');
     const r = await enroll(sequenceDeps(), {
       businessId: bid.value, sequenceId: seqId(req), by: personOf(s).name,
       identity: String((req.body as { identity?: unknown } | undefined)?.identity ?? ''),
     });
-    const sentence = r === 'enrolled' || r === 'already' || r === 'not_approved'
-      ? t(locale, `seq.flash.${r === 'not_approved' ? 'notApproved' : r}` as MessageKey)
-      : r === 'missing' || r === 'not_an_email' || r === 'not_a_phone'
-        ? t(locale, `contacts.flash.${r}` as MessageKey)
-        : t(locale, `refused.why.${r}` as MessageKey);
-    return reply.redirect(`/app/sequences/${encodeURIComponent(seqId(req))}?flash=${encodeURIComponent(sentence)}`);
+    return flashTo(reply, `/app/sequences/${encodeURIComponent(seqId(req))}`,
+      r === 'enrolled' || r === 'already' || r === 'not_approved'
+        ? `seq.flash.${r === 'not_approved' ? 'notApproved' : r}` as MessageKey
+        : r === 'missing' || r === 'not_an_email' || r === 'not_a_phone'
+          ? `contacts.flash.${r}` as MessageKey
+          : `refused.why.${r}` as MessageKey);
   });
 
   // 0051 — a follow-up waiting for someone who has looked in her own inbox.
@@ -2833,27 +2873,26 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const f = await confirmFollowUpById(deps.db, s.businessId, (req.params as { eid: string }).eid,
       (req.body as { position?: unknown } | undefined)?.position, personOf(s).name);
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/sequences/:id/enrollments/:eid/stop', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const f = await stopEnrollmentById(deps.db, s.businessId, (req.params as { eid: string }).eid);
-    return reply.redirect(seqBack(localeOf(req), seqId(req), f));
+    return seqBack(reply, seqId(req), f);
   });
 
   app.post('/app/contacts/:id/archive', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
-    return reply.redirect(contactsBack(localeOf(req),
-      await archiveContactById(deps.db, s.businessId, (req.params as { id: string }).id)));
+    return contactsBack(reply,
+      await archiveContactById(deps.db, s.businessId, (req.params as { id: string }).id));
   });
 
   // G6 — her terms on a proforma. Owner-only under the price-rules decision:
   // staff negotiate inside her commercial terms, they do not set them.
-  app.get('/app/settings/terms', authed('settings', async (sess, req, locale) =>
+  app.get('/app/settings/terms', authed('settings', async (sess, req, locale, reply) =>
     renderTerms(await loadTerms(deps.db, sess.businessId), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null)));
+      takeFlash(req, reply))));
 
   app.post('/app/settings/terms', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/terms');
@@ -2864,15 +2903,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       payment: b['payment'] ?? null, incoterm: b['incoterm'] ?? null,
       actor: personOf(s).id, now: new Date(),
     });
-    const flash = t(locale, `terms.flash.${r.code}` as MessageKey);
-    return reply.redirect(`/app/settings/terms?flash=${encodeURIComponent(flash)}`);
+    return flashTo(reply, '/app/settings/terms', `terms.flash.${r.code}` as MessageKey);
   });
 
   // M45 — samples. Her two facts, and the buyers waiting on them.
-  app.get('/app/settings/samples', authed('settings', async (sess, req, locale) =>
+  app.get('/app/settings/samples', authed('settings', async (sess, req, locale, reply) =>
     renderSamples(await loadSamples(deps.db, sess.businessId), locale,
-      typeof (req.query as { flash?: string }).flash === 'string'
-        ? (req.query as { flash: string }).flash : null,
+      takeFlash(req, reply),
       new Date())));
 
   app.post('/app/settings/samples', async (req, reply) => {
@@ -2883,10 +2920,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveSamplePolicy(deps.db, s.businessId, {
       price: b['price'] ?? null, credited: b['credited'] === 'on', now: new Date(),
     });
-    const flash = r.code === 'saved'
-      ? t(locale, 'samples.flash.saved')
-      : t(locale, `samples.flash.${r.code}` as MessageKey);
-    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(flash)}`);
+    return flashTo(reply, '/app/settings/samples', `samples.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/samples/:id/address', async (req, reply) => {
@@ -2895,8 +2929,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const address = String((req.body as { address?: string } | undefined)?.address ?? '');
     const r = await saveSampleAddress(deps.db, s.businessId, (req.params as { id: string }).id, address);
-    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(
-      t(locale, r.code === 'saved' ? 'samples.flash.address' : 'samples.flash.failed'))}`);
+    return flashTo(reply, '/app/settings/samples', r.code === 'saved' ? 'samples.flash.address' : 'samples.flash.failed');
   });
 
   app.post('/app/settings/samples/:id/handled', async (req, reply) => {
@@ -2904,8 +2937,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const r = await markSampleHandled(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id, new Date());
-    return reply.redirect(`/app/settings/samples?flash=${encodeURIComponent(
-      t(locale, r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed'))}`);
+    return flashTo(reply, '/app/settings/samples', r.code === 'done' ? 'samples.flash.done' : 'samples.flash.failed');
   });
 
   app.post('/app/settings/forbidden/:id/remove', async (req, reply) => {
@@ -2914,8 +2946,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const r = await removeForbidden(deps.db, sess.businessId, id);
-    return reply.redirect(`/app/settings/forbidden?flash=${encodeURIComponent(
-      t(locale, `forbidden.flash.${r.code}` as MessageKey))}`);
+    return flashTo(reply, '/app/settings/forbidden', `forbidden.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings', async (req, reply) => {
@@ -2931,7 +2962,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     if (r.code === 'saved') {
-      return reply.redirect(`/app/settings?flash=${encodeURIComponent(t(locale, 'settings.flash.profileSaved'))}`);
+      return flashTo(reply, '/app/settings', 'settings.flash.profileSaved');
     }
     // M20.4 (F-07) — a rejected save re-RENDERS the owner's own submission with
     // the bad field marked. Redirecting would reload from the database and throw
@@ -2939,7 +2970,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const profile = await loadBusinessProfile(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'settings.profile.title'), active: 'settings',
-      bodyHtml: renderSettings(profile, locale, t(locale, 'settings.flash.profileFix'), {
+      bodyHtml: renderSettings(profile, locale, saidFlash(locale, 'settings.flash.profileFix'), {
         name: input.name, description: input.description, location: input.location,
         workingHours: input.workingHours, contactEmail: input.contactEmail,
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
@@ -2951,7 +2982,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The Knowledge surface leads with a READ-ONLY operations view (M14) — the
   // weekly report, questions to answer (derived gaps), recent changes — then
   // the teach surface (M13). All numbers are real counts; no invented metrics.
-  app.get('/app/knowledge', authed('knowledge', async (s, req, locale) => {
+  app.get('/app/knowledge', authed('knowledge', async (s, req, locale, reply) => {
     const range = parseKnowledgeRange((req.query as { range?: string }).range);
     const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     const ops = await loadKnowledgeOps(deps.db, s.businessId, range);
@@ -2970,7 +3001,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/knowledge">${esc(t(locale, 'knowledge.back'))}</a></div>`,
     }));
     const usage = await loadUsageFacts(deps.db, s.businessId, id);
-    const flash = typeof (req.query as { flash?: string }).flash === 'string' ? (req.query as { flash: string }).flash : null;
+    const flash = takeFlash(req, reply);
     const prefill = typeof (req.query as { teach?: string }).teach === 'string' ? (req.query as { teach: string }).teach : '';
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.knowledge'), active: 'knowledge',
@@ -2980,10 +3011,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // Teach/correct/archive/cert → redirect back to the product page (or the index
   // for business-level rows) with a localized flash. All owner-authenticated.
-  const kBack = (reply: FastifyReply, req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') => {
-    const flash = encodeURIComponent(t(localeOf(req), `knowledge.flash.${code}` as MessageKey));
-    return reply.redirect(productId ? `/app/knowledge/${encodeURIComponent(productId)}?flash=${flash}` : '/app/knowledge');
-  };
+  const kBack = (reply: FastifyReply, _req: FastifyRequest, productId: string, code: KnowledgeFlash | 'invalid') =>
+    (productId
+      ? flashTo(reply, `/app/knowledge/${encodeURIComponent(productId)}`, `knowledge.flash.${code}` as MessageKey)
+      : reply.redirect('/app/knowledge'));
   app.post('/app/knowledge/teach', async (req, reply) => {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const b = (req.body ?? {}) as { productId?: string; kind?: string; label?: string; content?: string };
@@ -3025,8 +3056,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const q = req.query as { mode?: string; flash?: string; ask?: string };
-      const flash = typeof q.flash === 'string' ? q.flash : null;
+      const q = req.query as { mode?: string; ask?: string };
+      const flash = takeFlash(req, reply);
       const prefill = typeof q.ask === 'string' ? q.ask : '';
       // M20.4 (F-04) — the safety checks run IN MEMORY, so a factory provisioned
       // one minute ago can practise. Nothing here writes or sends.
@@ -3078,15 +3109,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post('/app/sandbox/reset', async (req, reply) => {
       if (!sessionOf(req)) return reply.redirect('/login');
       await resetSandbox(sbxDeps);
-      return reply.redirect(`/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), 'sandbox.reset.done'))}`);
+      return flashTo(reply, '/app/sandbox', 'sandbox.reset.done');
     });
 
     // ── M16.3 sandbox human-control rehearsal ─────────────────────────────────
     // The SAME lifecycle as the inbox: takeOver / ownerReply / resumeAi on the
     // sandbox tenant. The owner reply goes through ownerReply (the one send path)
     // and is flushed to the transcript by the sandbox sink — never a real send.
-    const sbxFlash = (req: FastifyRequest, outcome: string) =>
-      `/app/sandbox?flash=${encodeURIComponent(t(localeOf(req), `takeover.flash.${outcome}` as MessageKey))}`;
+    const sbxFlash = (reply: FastifyReply, outcome: string) =>
+      flashTo(reply, '/app/sandbox', `takeover.flash.${outcome}` as MessageKey);
     const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest, actor: string) => Promise<{ outcome: string }>) =>
       app.post(path, async (req, reply) => {
         const s = sessionOf(req);
@@ -3095,7 +3126,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         const cid = await activeSandboxConversationId(sbxDeps);
         if (!bid.ok || !cid) return reply.redirect('/app/sandbox');
         const r = await run(bid.value, cid, req, personOf(s).id);
-        return reply.redirect(sbxFlash(req, r.outcome));
+        return sbxFlash(reply, r.outcome);
       });
     sbxAction('/app/sandbox/takeover', (bid, cid, _req, actor) =>
       takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));

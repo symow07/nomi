@@ -341,9 +341,12 @@ describe('C4.a · the button appears only where the gate has said yes', () => {
 
   it('what she typed comes back to her when the form was the problem', () => {
     const html = renderWriteFirst({ channel: 'email', identity: ADDRESS, displayName: null }, 'en', {
-      draft: { subject: 'Totes', body: '' }, flash: 'Write both.',
+      draft: { subject: 'Totes', body: '' }, flash: { text: 'Write both.', bad: true },
     });
     expect(html).toMatch(/name="subject"[^>]*value="Totes"/);
-    expect(html).toContain('role="status"');
+    // D5 — and the reason it came back is a refusal, so it is announced as one
+    // rather than as a passing status, and carries the warning tone.
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('class="flash bad"');
   });
 });

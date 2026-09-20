@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { createHash, randomUUID } from 'node:crypto';
+import { flashSaid } from './tenant.js';
 
 /**
  * C6 · M50 — connecting her mailbox, over Postgres and her own routes; then the
@@ -84,8 +85,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     method: 'POST', url, headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
     payload: new URLSearchParams(fields).toString(),
   });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, SECRET);
   const login = async (code: string) => String((await app.inject({
     method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`,
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -140,7 +140,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     const staff = await get(staffCookie, '/app/channels');
     expect(staff.body).not.toContain('/start"');
     const tried = await get(staffCookie, '/app/connect/google/start');
-    expect(decodeURIComponent(String(tried.headers['location']))).toContain('Only the owner');
+    expect(flashSaid(tried, SECRET)).toContain('Only the owner');
   });
 
   it('PRESSING CONNECT sends her to Google with PKCE, and leaves a short, scoped, HttpOnly state cookie', async () => {
@@ -313,7 +313,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
 
     expect(flashOf(await post(ownerCookie, '/app/connect/mail/disconnect'))).toBe(t('en', 'connect.flash.disconnected'));
     expect(await offDomain.send(mail)).toEqual({ ok: false, retryable: false, error: 'no mail account is connected' });
-    expect(decodeURIComponent(String((await post(staffCookie, '/app/connect/mail/disconnect')).headers['location'])))
+    expect(flashSaid(await post(staffCookie, '/app/connect/mail/disconnect'), SECRET))
       .toContain('Only the owner');
   });
 

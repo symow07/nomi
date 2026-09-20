@@ -81,7 +81,7 @@ describe('M9.4 · channel center (localized)', () => {
   });
 
   it('flash renders after an action', () => {
-    expect(renderChannels(connected, 'en', 'Disconnected. Lily…')).toContain('Disconnected. Lily…');
+    expect(renderChannels(connected, 'en', { text: 'Disconnected. Lily…', bad: false })).toContain('Disconnected. Lily…');
   });
 
   it('connect guide localized, no secrets/technical setup', () => {

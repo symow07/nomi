@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import { createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
+
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', 'b'.repeat(64)).update('yf-web-session').digest('hex');
 
 /**
  * A3 — a code by e-mail, end to end: the real composition, real Postgres, and a
@@ -94,7 +99,8 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     const spaced = `${lastCode().slice(0, 3)} ${lastCode().slice(3)}`;
     const ok = await form('/verify', { code: spaced }, `yf_otp=${pending}`);
     expect(ok.statusCode, ok.body.slice(0, 200)).toBe(302);
-    expect(String(ok.headers['location'])).toContain('/app/factory?flash=');
+    expect(String(ok.headers['location'])).toBe('/app/factory');
+    expect(flashSaid(ok, WEB_SECRET)).toBe(t('en', 'signup.welcome'));
     const set = cookies(ok);
     device = set['yf_dev'] ?? '';
     expect(device, 'this browser is now one we have seen').not.toBe('');

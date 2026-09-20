@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant } from './tenant.js';
+import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tenant.js';
 import { sql } from 'kysely';
+import { createHmac } from 'node:crypto';
+
+/** The same derivation main.ts makes, so a notice this app minted can be read. */
+const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
 
 /**
  * Production boot-and-probe (audit item 12). Uses the REAL composition path
@@ -390,7 +394,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: `draftId=${draftId}&command=${encodeURIComponent('发送')}` });
     expect(act.statusCode).toBe(302);
-    expect(act.headers['location']).toContain(`/app/inbox/${CONV}?flash=`);
+    expect(act.headers['location']).toBe(`/app/inbox/${CONV}`);
+    expect(flashSaid(act, WEB_SECRET)).not.toBe('');
     expect(await draftStatus(draftId)).toBe('approved');
 
     // Double submit is safe — already resolved, nothing changes.
@@ -465,7 +470,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const disc = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/disconnect',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(disc.statusCode).toBe(302);
-    expect(disc.headers['location']).toContain('/app/channels?flash=');
+    expect(disc.headers['location']).toBe('/app/channels');
+    expect(flashSaid(disc, WEB_SECRET)).not.toBe('');
     expect(await active()).toBe(false);                 // real effect: inbound resolution stops
     expect(await auditCount('disconnect')).toBe(before + 1);
 
@@ -480,7 +486,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/channels/whatsapp/test',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/app/channels?flash=');
+    expect(res.headers['location']).toBe('/app/channels');
+    expect(flashSaid(res, WEB_SECRET)).not.toBe('');
   });
 
   it('M9.4 channels: mutation requires auth', async () => {
@@ -525,7 +532,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: `text=${encodeURIComponent(text)}` });
     expect(conf.statusCode).toBe(302);
-    expect(conf.headers['location']).toContain('flash=');
+    expect(flashSaid(conf, WEB_SECRET)).not.toBe('');
 
     const activeOf = (name: string) => withTenantTx(prod.db, bidv, (tx) =>
       sql<{ a: boolean }>`select is_active as a from products where name=${name} order by created_at desc limit 1`
@@ -595,7 +602,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'POST', url: '/app/employee/capability/greet/revoke',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/app/employee?flash=');
+    expect(res.headers['location']).toContain('/app/employee');
+    expect(flashSaid(res, WEB_SECRET)).not.toBe('');
     expect(await modeOf()).toBe('draft');                  // authority pulled back
     expect(await evCount()).toBe(before + 1);              // recorded in capability_events
     // restore
@@ -814,7 +822,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const save = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=%2B${ph('861380000004')}2` });
     expect(save.statusCode).toBe(302);
-    expect(save.headers['location']).toContain('/app/channels?flash=');
+    expect(save.headers['location']).toBe('/app/channels');
+    expect(flashSaid(save, WEB_SECRET)).not.toBe('');
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // saved
     expect(await auditCount()).toBe(before + 1);          // audited
 
@@ -827,7 +836,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // invalid input is rejected — number unchanged.
     const bad = await prod.app.inject({ method: 'POST', url: '/app/settings/owner-phone',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'phone=not-a-number' });
-    expect(bad.headers['location']).toContain('flash=');
+    expect(flashSaid(bad, WEB_SECRET)).not.toBe('');
     expect(await phoneOf()).toBe(`+${ph('8613800000042')}`);       // unchanged
 
     // clear
@@ -889,7 +898,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: 'name=Acme%20Exports&location=Ningbo&contact_email=sales%40acme.co&lang_en=on&lang_zh=on' });
     expect(ok.statusCode).toBe(302);
-    expect(ok.headers['location']).toContain('/app/settings?flash=');
+    expect(ok.headers['location']).toBe('/app/settings');
+    expect(flashSaid(ok, WEB_SECRET)).not.toBe('');
     expect(await nameOf()).toBe('Acme Exports');            // persisted
     expect(await auditCount()).toBe(before + 1);            // audited (update_profile)
 
@@ -1292,7 +1302,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'POST', url: '/app/onboarding/attest',
         headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'which=owner_ready' });
       expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toContain('/app/onboarding?flash=');
+      expect(res.headers['location']).toBe('/app/onboarding');
+      expect(flashSaid(res, WEB_SECRET)).not.toBe('');
     });
   });
 
@@ -2669,7 +2680,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const r = await post('/app/factory/activate', cookie);
       expect(r.statusCode).toBe(302);
       expect((await channel())!.activated_at, 'activated with no provider').toBeNull();
-      expect(decodeURIComponent(String(r.headers['location']))).toContain('Connect WhatsApp');
+      expect(flashSaid(r, WEB_SECRET)).toContain('Connect WhatsApp');
     });
 
     it('SECURITY: both actions reject an anonymous caller and change nothing', async () => {
@@ -2692,7 +2703,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const r = await post('/app/factory/activate', cookie);
       expect(r.statusCode).toBe(302);
       expect((await channel())!.activated_at, 'activated despite a blocker').toBeNull();
-      expect(decodeURIComponent(String(r.headers['location']))).toContain('start with your own');
+      expect(flashSaid(r, WEB_SECRET)).toContain('start with your own');
 
       // the page and the refusal must say the SAME thing
       const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
@@ -2829,7 +2840,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(stored.phone).toBe(ph('8613900002222'));        // normalised
       expect(stored.label).toBe('my own phone');
       expect(stored.archived).toBeNull();
-      expect(decodeURIComponent(String(add.headers['location']))).toContain('can now receive');
+      expect(flashSaid(add, WEB_SECRET)).toContain('can now receive');
 
       const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
       expect(page.body).toContain('my own phone');
@@ -2878,8 +2889,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const r = await post(`/app/inbox/${cid}/reply`, 'text=' + encodeURIComponent('这条不该发出去'), cookie);
       expect(r.statusCode).toBe(302);
-      const flash = decodeURIComponent(String(r.headers['location']));
-      expect(flash).toMatch(/Not sent|没有发出去|لم يُرسَل/);
+      expect(flashSaid(r, WEB_SECRET)).toMatch(/Not sent|没有发出去|لم يُرسَل/);
       // and NOTHING was queued — the owner is not left with a pending row
       const queued = await q((tx) => sql<{ n: number }>`
         select count(*)::int n from outbound_messages where conversation_id=${cid}`

@@ -7,6 +7,7 @@ import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * C5 · M41 — finding buyers, as a list she decides about.
@@ -50,11 +51,15 @@ export function queryOf(f: SearchFilter & { readonly size: SizeRange }, page = f
   return `?${p.toString()}`;
 }
 
-/** A sentence for every way a lookup, a search or an add can end without a result. */
-export function failureSentence(locale: Locale, r: SourceFailureReason | NoSource): string {
-  return t(locale, (r === 'no_key' || r === 'no_key_store' || r === 'unreadable_key'
-    ? `prospects.noSource.${r}` : `prospects.failure.${r}`) as MessageKey);
+/** The KEY for every way a lookup, a search or an add can end without a result. */
+export function failureKey(r: SourceFailureReason | NoSource): MessageKey {
+  return (r === 'no_key' || r === 'no_key_store' || r === 'unreadable_key'
+    ? `prospects.noSource.${r}` : `prospects.failure.${r}`) as MessageKey;
 }
+
+/** The same, said — for the one place that renders it inside a page, not a notice. */
+export const failureSentence = (locale: Locale, r: SourceFailureReason | NoSource): string =>
+  t(locale, failureKey(r));
 
 /**
  * What a company lookup found, as one line of HTML for a person — or null when
@@ -109,7 +114,7 @@ export function renderProspects(
     readonly filter: (SearchFilter & { readonly size: SizeRange }) | null;
     readonly outcome: SearchOutcome | { readonly kind: NoSource } | null;
   },
-  locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
+  locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const f = v.filter;
   const canSearch = v.status.kind === 'stored' && v.status.readable;
@@ -133,11 +138,12 @@ export function renderProspects(
         </li>`).join('')}</ul>
         ${f && v.outcome.totalPages > v.outcome.page
           ? `<p><a class="btn" href="/app/prospects${esc(queryOf(f, v.outcome.page + 1))}">${esc(t(locale, 'prospects.results.next'))}</a></p>` : ''}`)
-    : `<div class="flash" role="status">${esc(failureSentence(locale, v.outcome.kind === 'failed' ? v.outcome.reason : v.outcome.kind))}</div>`;
+    // D5 — a search that failed is a refusal, and now looks like one.
+    : flashBanner({ text: failureSentence(locale, v.outcome.kind === 'failed' ? v.outcome.reason : v.outcome.kind), bad: true });
 
   return `${back('/app/contacts', t(locale, 'contacts.title'))}
     <h1 class="page">${esc(t(locale, 'prospects.title'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     <section class="block"><p class="muted">${esc(t(locale, 'prospects.intro'))}</p></section>
     ${keyBlock(locale, v.status, viewer)}
     ${canSearch ? `<section class="block">

@@ -8,6 +8,7 @@ import { t, assistantName } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
 import { esc, deeper, back } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * M9.7 + ADR-0008 — Conversations / customer memory. NOT a chat viewer and NOT a
@@ -386,7 +387,7 @@ export async function renameBuyer(
   });
 }
 
-export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, flash: string | null = null): string {
+export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
   const productsLabel = p.products.map((pr) => productName(locale, pr)).filter(Boolean).join('、');
@@ -440,7 +441,7 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, f
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
     <div class="muted subline">${esc(channelName(locale, f.channel))}</div>
-    ${flash ? `<div class="flash">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${actLink}
     ${profile}
     ${timeline}

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
 
 /**
  * C4.a — one e-mail, written by her, sent to one contact. Over the REAL
@@ -53,8 +54,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
   });
   const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
   /** The sentence a redirect carries back to her. */
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const write = (who: string, subject: string, body: string) =>
     post('/app/contacts/write', { channel: 'email', identity: who, subject, body });
   const addAndAttest = async (who: string, name: string) => {
@@ -160,7 +160,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     const res = await write(addr('ahmed'), 'Canvas totes from Yiwu', 'We make canvas totes, 500 pcs and up.');
     expect(res.statusCode).toBe(302);
     const location = String(res.headers['location']);
-    expect(location).toMatch(/^\/app\/inbox\/[0-9a-f-]{36}\?flash=/);
+    expect(location).toMatch(/^\/app\/inbox\/[0-9a-f-]{36}$/);
     firstConversation = location.split('/')[3]!.split('?')[0]!;
 
     // Matched by recipient, never by position: pg-boss is durable, so a mail an

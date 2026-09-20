@@ -7,6 +7,7 @@ import { t } from './say.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
 import { esc, back } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 
 /**
  * M13 — the owner's teach/correct surface for factory knowledge.
@@ -220,11 +221,11 @@ function teachForm(locale: Locale, productId: string, prefill = ''): string {
 }
 
 export function renderProductKnowledge(
-  d: ProductKnowledge, locale: Locale, flash: string | null,
+  d: ProductKnowledge, locale: Locale, flash: Flash | null,
   opts: { usage?: Map<string, UsageFact>; prefill?: string; now?: Date } = {},
 ): string {
   const now = opts.now ?? new Date();
-  const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
+  const flashHtml = flashBanner(flash);
   const items = d.items.length
     ? d.items.map((i) => itemCard(i, locale, d.productId, renderUsageFact(opts.usage?.get(i.id), locale, now))).join('')
     : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;

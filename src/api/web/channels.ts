@@ -22,6 +22,7 @@ import { formatRelative } from '../../core/owner/i18n/format.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { esc } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
@@ -319,8 +320,9 @@ export async function testChannel(db: Db, businessIdRaw: string, actor: string, 
 }
 
 /** Localize an action result for the flash — called by the route (has locale). */
-export const channelFlash = (locale: Locale, code: ChannelFlash): string =>
-  t(locale, `channel.flash.${code}` as MessageKey, { name: assistantName(locale) });
+/** A1 — the KEY the notice says, for the page that will write it out. */
+export const channelFlash = (code: ChannelFlash): MessageKey =>
+  `channel.flash.${code}` as MessageKey;
 
 /** ── Renderers (pure, mobile-first, localized, no secrets) ────────────────── */
 
@@ -622,7 +624,7 @@ export type InboundLink = {
 };
 
 export function renderChannels(
-  data: ChannelsData, locale: Locale, flash: string | null, viewer: Viewer = OWNER_VIEW,
+  data: ChannelsData, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
   /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
   accountsHtml = '',
   /** C9 — the channels a buyer starts: configured by the host, connected by her. */
@@ -681,7 +683,7 @@ export function renderChannels(
   </div>`;
 
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
-    ${flash ? `<div class="flash" role="status">${esc(flash)}</div>` : ''}
+    ${flashBanner(flash)}
     ${whatsappCard}
     ${accountsHtml}
     ${reach}

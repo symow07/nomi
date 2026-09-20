@@ -31,21 +31,54 @@ const NOT_COUNTRIES = new Set([
   'QO', 'SU', 'TA', 'TP', 'UN', 'XA', 'XB', 'YD', 'YU', 'ZR', 'ZZ',
 ]);
 
+/**
+ * Codes the platform still answers to, each under the SAME name as a code that
+ * is current. Left in, the dropdown listed six countries twice — "Benin"
+ * above "Benin", "United Kingdom" above "United Kingdom" — with nothing to
+ * tell them apart, so whichever one she picked was a coin toss, and the same
+ * country was stored two ways.
+ *
+ * Dropped from the list, KEPT AS A READING. Five are the names of countries
+ * that no longer exist and one is the everyday abbreviation people expect;
+ * a workspace that already stored one of them must still open its own page
+ * with its own country selected, so each maps to the code in force today:
+ */
+const SUPERSEDED: Readonly<Record<string, string>> = {
+  DY: 'BJ', // Dahomey → Benin
+  HV: 'BF', // Upper Volta → Burkina Faso
+  NH: 'VU', // New Hebrides → Vanuatu
+  RH: 'ZW', // Southern Rhodesia → Zimbabwe
+  UK: 'GB', // the abbreviation everyone types; ISO's own code is GB
+  VD: 'VN', // North Vietnam → Vietnam
+};
+
+/**
+ * The code in force today for whatever is stored. A superseded code reads back
+ * as its successor; anything else is returned untouched, including a code this
+ * build does not know — deciding that is `isCountryCode`'s job, not this one's.
+ */
+export const canonicalCountry = (code: string): string => SUPERSEDED[code] ?? code;
+
 let codes: readonly string[] | null = null;
-/** Every ISO 3166-1 alpha-2 code the platform can name. Computed once. */
+/** Every ISO 3166-1 alpha-2 code the platform can name, one name per country. */
 export function countryCodes(): readonly string[] {
   if (codes) return codes;
   const names = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
   const out: string[] = [];
   for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
     const code = String.fromCharCode(a, b);
-    if (!NOT_COUNTRIES.has(code) && names.of(code) !== undefined) out.push(code);
+    if (!NOT_COUNTRIES.has(code) && !(code in SUPERSEDED) && names.of(code) !== undefined) out.push(code);
   }
   codes = out;
   return out;
 }
 
-export const isCountryCode = (v: string): boolean => countryCodes().includes(v);
+/**
+ * Is this a country this product can store? A superseded code is — it is
+ * already in the database — so a workspace that answered before this change
+ * can still save its profile without being made to pick its country again.
+ */
+export const isCountryCode = (v: string): boolean => countryCodes().includes(canonicalCountry(v));
 
 /** The list for a `<select>`, named and sorted in the reader's own language. */
 export function countryOptions(locale: string): readonly { readonly code: string; readonly name: string }[] {

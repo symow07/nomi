@@ -14,6 +14,7 @@ import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/o
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back } from './layout.js';
+import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
@@ -1089,7 +1090,7 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
 }
 
 export function renderConversationDetail(
-  d: ConversationDetail, locale: Locale, now: Date, flash: string | null, viewer: Viewer = OWNER_VIEW,
+  d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
@@ -1251,7 +1252,7 @@ export function renderConversationDetail(
       </div>`
     : '';
 
-  const flashHtml = flash ? `<div class="flash" role="status">${esc(flash)}</div>` : '';
+  const flashHtml = flashBanner(flash);
 
   return `
     <div class="dhead">

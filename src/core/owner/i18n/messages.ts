@@ -144,6 +144,16 @@ const EN = {
   'login.submit': 'Enter workspace',
   'login.error': 'Wrong code, please try again.',
   'login.footer': 'For your business and the people who work there.',
+
+  // CC-19 / A13 — the wrong address, and the page that broke. Neither says
+  // what went wrong: one is not a secret worth keeping, the other is.
+  'error.notfound.title': 'That page is not here',
+  'error.notfound.body': 'The address you opened does not belong to anything in your workspace. It may have been mistyped, or it may be an old link.',
+  'error.crash.title': 'Something went wrong on our side',
+  'error.crash.body': 'Nothing you did caused this, and nothing you had already sent was lost. Try again in a moment. If it keeps happening, write to us and quote the reference below.',
+  'error.reference': 'Reference: {ref}',
+  'error.home': 'Back to Today',
+
   'login.emailLabel': 'E-mail',
   'login.secretLabel': 'Password',
   'login.errorPassword': 'That e-mail and password do not match.',
@@ -1970,6 +1980,14 @@ const ZH: Record<MessageKey, string> = {
   'login.submit': '进入工作台',
   'login.error': '密码不对，再试一次。',
   'login.footer': '供你的公司和在这里工作的人使用。',
+
+  'error.notfound.title': '这里没有这个页面',
+  'error.notfound.body': '你打开的地址，在你的工作台里没有对应的东西。可能是手输错了，也可能是一个旧链接。',
+  'error.crash.title': '我们这边出了问题',
+  'error.crash.body': '不是你做错了什么，你已经发出去的东西也没有丢。过一会儿再试一次。如果还是这样，把下面这个编号发给我们。',
+  'error.reference': '编号：{ref}',
+  'error.home': '回到「今天」',
+
   'login.emailLabel': '邮箱',
   'login.secretLabel': '密码',
   'login.errorPassword': '邮箱和密码对不上。',
@@ -3728,6 +3746,14 @@ const AR: Record<MessageKey, string> = {
   'login.submit': 'دخول',
   'login.error': 'رمز غير صحيح، حاول مجددًا.',
   'login.footer': 'لشركتك ولمن يعمل فيها.',
+
+  'error.notfound.title': 'هذه الصفحة ليست هنا',
+  'error.notfound.body': 'العنوان الذي فتحتِه لا يقابله شيء في مساحة عملكِ. ربما كُتب خطأً، أو أنه رابط قديم.',
+  'error.crash.title': 'حدث خطأ عندنا',
+  'error.crash.body': 'لا شيء مما فعلتِه سبّب هذا، ولم يضِع شيء كنتِ قد أرسلتِه. حاولي مرة أخرى بعد قليل. وإن تكرّر الأمر فاكتبي إلينا واذكري الرقم أدناه.',
+  'error.reference': 'الرقم المرجعي: {ref}',
+  'error.home': 'العودة إلى «اليوم»',
+
   'login.emailLabel': 'البريد الإلكتروني',
   'login.secretLabel': 'كلمة المرور',
   'login.errorPassword': 'البريد الإلكتروني وكلمة المرور غير متطابقين.',

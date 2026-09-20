@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
+import { flashSaid } from './tenant.js';
 
 /**
  * C4.c — the reply is the opt-in, over the REAL production composition.
@@ -20,6 +21,7 @@ const d = DATABASE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `dd480000-0000-4000-8000-${RUN}0001`;
 const CREDENTIAL_KEY = 'a'.repeat(64);
+const WEB_SECRET = createHmac('sha256', CREDENTIAL_KEY).update('yf-web-session').digest('hex');
 const HOOK_SECRET = `hook-secret-${RUN}`;
 const addr = (who: string) => `${who}.${RUN}@reply-buyer.test`;
 const DAY = 24 * 3600_000;
@@ -50,8 +52,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
     payload: new URLSearchParams(fields).toString(),
   });
   const get = (url: string) => prod.app.inject({ method: 'GET', url, headers: { cookie } });
-  const flashOf = (res: { headers: Record<string, unknown> }): string =>
-    new URL(String(res.headers['location'] ?? ''), 'https://x.test').searchParams.get('flash') ?? '';
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, WEB_SECRET);
   const until = async (cond: () => boolean | Promise<boolean>, what: string, ms = 45_000) => {
     const end = Date.now() + ms;
     while (Date.now() < end) {

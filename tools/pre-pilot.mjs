@@ -34,7 +34,7 @@
  * both start real pg-boss workers on the same queues.
  */
 import { spawnSync } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -94,7 +94,26 @@ const get = async (url) => {
 };
 /** A webhook, exactly as the provider would send it: signed over these bytes. */
 const hook = (w) => post('/webhook/whatsapp', w.rawBody, { 'content-type': 'application/json', ...w.headers });
-const flashOf = (res) => decodeURIComponent(new URL(res.headers.get('location') ?? '/', BASE).searchParams.get('flash') ?? '');
+/**
+ * A1 — what she was told, read the way a browser reads it.
+ *
+ * The notice used to be in the redirect's query string. It rides a signed,
+ * one-shot cookie now (`src/api/web/flash.ts`), minted with the web session
+ * secret this walkthrough's own CREDENTIAL_KEY derives — the same derivation
+ * `main.ts` makes.
+ */
+const WEB_SECRET = createHmac('sha256', 'c'.repeat(64)).update('yf-web-session').digest('hex');
+let flashMod = null;
+const flashOf = async (res) => {
+  // From `dist/`, like everything else here — a static import of `src/` would
+  // make the simulator production-reachable and fail `npm run boundaries`.
+  flashMod ??= await import('../dist/api/web/flash.js');
+  const set = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie') ?? ''];
+  const c = set.map(String).find((x) => x.startsWith(`${flashMod.FLASH_COOKIE}=`));
+  if (!c) return '';
+  const token = c.slice(flashMod.FLASH_COOKIE.length + 1).split(';')[0] ?? '';
+  return flashMod.readFlash(WEB_SECRET, token, 'en', Date.now())?.text ?? '';
+};
 
 const convOf = (wa) => until(() => one(
   `select c.id::text as id from conversations c
@@ -120,7 +139,7 @@ const countOf = async (table, conv) =>
 
 /** Approve the pending draft as the owner would, and return her flash. */
 const approve = async (conv, draftId) =>
-  flashOf(await form(`/app/inbox/${conv}/act`, { draftId, command: '发送' }));
+  await flashOf(await form(`/app/inbox/${conv}/act`, { draftId, command: '发送' }));
 
 const ok = (cond, msg) => { if (!cond) throw new Error(msg); };
 

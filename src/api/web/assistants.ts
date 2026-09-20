@@ -72,12 +72,13 @@ export async function archiveAssistantById(db: Db, businessIdRaw: string, id: st
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What to tell her afterwards. Anything she cannot act on reads as "that did not save". */
-export function assistantFlash(locale: Locale, outcome: AssistantOutcome, verb: 'added' | 'saved' | 'archived', who = ''): string {
-  if (outcome === 'saved') return t(locale, `assistants.flash.${verb}` as MessageKey, { who });
+/** A1 — the KEY the notice says, for the page that will write it out. */
+export function assistantFlash(outcome: AssistantOutcome, verb: 'added' | 'saved' | 'archived'): MessageKey {
+  if (outcome === 'saved') return `assistants.flash.${verb}` as MessageKey;
   if (outcome === 'channel_taken' || outcome === 'name_missing' || outcome === 'name_long' || outcome === 'is_default') {
-    return t(locale, `assistants.flash.${outcome}` as MessageKey);
+    return `assistants.flash.${outcome}` as MessageKey;
   }
-  return t(locale, 'people.flash.failed');
+  return 'people.flash.failed';
 }
 
 const channelName = (locale: Locale, c: string): string => t(locale, `business.channel.${c}` as MessageKey);

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 
 /**
  * T1 — the owner chooses how much she does on her own, from day one.
@@ -72,7 +72,7 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   it('THE PRODUCTION CALLER: she chooses "talks" — four kinds of reply go out alone, prices and orders still wait', async () => {
     const res = await post(ownerCookie, '/app/employee/autonomy', 'level=talks');
     expect(res.statusCode).toBe(302);
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('works this way');
+    expect(flashSaid(res, SECRET)).toContain('works this way');
     const m = await modes();
     for (const c of ['greet', 'qualify', 'recommend', 'follow_up']) expect(m[c], c).toBe('auto');
     for (const c of ['quote', 'negotiate', 'confirm_order']) expect(m[c] ?? 'draft', c).toBe('draft');
@@ -103,7 +103,7 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   it('a level nobody defined changes nothing', async () => {
     const before = await events();
     const res = await post(ownerCookie, '/app/employee/autonomy', 'level=everything');
-    expect(decodeURIComponent(String(res.headers['location']))).toContain('did not save');
+    expect(flashSaid(res, SECRET)).toContain('did not save');
     expect(await events()).toEqual(before);
   });
 

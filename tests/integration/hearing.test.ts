@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { flashSaid } from './tenant.js';
 
 /**
  * G2a — the owner corrects what she heard, and only that.
@@ -107,7 +108,7 @@ d('G2a · correcting what she heard (requires DATABASE_URL)', () => {
   it('a note she never heard can be filled in, and it saves', async () => {
     const res = await correct(UNHEARD, 'Price for the red tote please');
     expect(res.statusCode).toBe(302);
-    expect(String(res.headers['location'])).toContain('flash=');
+    expect(flashSaid(res, 'a-test-session-secret-of-sufficient-length')).not.toBe('');
 
     const m = await message(UNHEARD);
     expect(m.text_content).toBe('Price for the red tote please');
@@ -139,7 +140,7 @@ d('G2a · correcting what she heard (requires DATABASE_URL)', () => {
 
     const own = await correct(HER_REPLY, 'something she never said');
     expect(own.statusCode).toBe(302);
-    expect(String(own.headers['location'])).not.toContain('flash=');
+    expect(flashSaid(own, 'a-test-session-secret-of-sufficient-length')).toBe('');
     expect((await message(HER_REPLY))).toMatchObject({ text_content: 'Thank you, one moment', input_type: 'text' });
 
     const typed = await correct(TYPED, 'something he never typed');

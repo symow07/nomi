@@ -6,6 +6,7 @@ import {
 } from '../../src/core/owner/assistants.js';
 import { assistantFlash, channelsFromForm, renderAssistantsSection } from '../../src/api/web/assistants.js';
 import { renderPeople } from '../../src/api/web/people.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -86,10 +87,10 @@ describe('A5 · the section on the team page', () => {
   });
 
   it('says what happened in her words, and never a code name', () => {
-    expect(assistantFlash('en', 'saved', 'added', 'Noor')).toContain('Noor');
-    expect(assistantFlash('en', 'channel_taken', 'saved')).toMatch(/channel/i);
-    expect(assistantFlash('en', 'is_default', 'archived')).not.toMatch(/is_default|default/);
-    expect(assistantFlash('en', 'not_found', 'saved')).toBe(assistantFlash('en', 'role_invalid', 'saved'));
+    expect(t('en', assistantFlash('saved', 'added'), { who: 'Noor' })).toContain('Noor');
+    expect(t('en', assistantFlash('channel_taken', 'saved'))).toMatch(/channel/i);
+    expect(t('en', assistantFlash('is_default', 'archived'))).not.toMatch(/is_default|default/);
+    expect(assistantFlash('not_found', 'saved')).toBe(assistantFlash('role_invalid', 'saved'));
   });
 });
 

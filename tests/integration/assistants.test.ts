@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
-import { seedRunTenant } from './tenant.js';
+import { seedRunTenant, flashSaid} from './tenant.js';
 
 /**
  * A5 — more than one assistant, end to end.
@@ -33,7 +33,7 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
   };
   const post = (cookie: string, url: string, payload = '') =>
     app.inject({ method: 'POST', url, payload, headers: { cookie, ...FORM } });
-  const flashOf = (res: { headers: Record<string, unknown> }) => decodeURIComponent(String(res.headers['location']));
+  const flashOf = (res: { headers: Record<string, unknown> }): string => flashSaid(res, SECRET);
 
   const tx = async <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -229,8 +229,17 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
   it('A5.2 — and a form she posts answers in that name too (the scope outlives reading the body)', async () => {
     const res = await post(ownerCookie, '/app/settings/closures', 'label=Spring%20Festival&from=2030-02-01&to=2030-02-10');
     expect(res.statusCode).toBe(302);
-    expect(flashOf(res)).toContain('Sara');
-    expect(flashOf(res)).not.toContain('Lily');
+    // A1 — the notice travels as a KEY now, so `{name}` is filled where the
+    // sentence is WRITTEN OUT: on the page she lands on, inside her own
+    // request. Following the redirect with the cookie is what a browser does,
+    // and it is the only place this assertion means anything.
+    const flashCookie = ([] as string[]).concat(res.headers['set-cookie'] as string | string[] ?? [])
+      .map((c) => c.split(';')[0]!).find((c) => c.startsWith('yf_flash='))!;
+    const landed = await app.inject({
+      method: 'GET', url: String(res.headers['location']), headers: { cookie: `${ownerCookie}; ${flashCookie}` },
+    });
+    expect(landed.body).toContain('Sara');
+    expect(landed.body).not.toContain('Lily');
   });
 
   it('A5.2 — a conversation page says ITS assistant, even one since removed; the rest of the app says the main one', async () => {
