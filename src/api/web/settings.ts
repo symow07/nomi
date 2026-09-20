@@ -223,6 +223,7 @@ export function renderSettings(
     ${deeper('/app/settings/business', t(locale, 'business.kind.label'))}
     ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${deeper('/app/settings/account', t(locale, 'account.title'))}
+    ${deeper('/app/settings/data', t(locale, 'data.title'))}
     ${SETTINGS_STYLE}`;
 }
 
