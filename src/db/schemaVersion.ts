@@ -184,8 +184,13 @@ import type { Db } from './client.js';
  * 53 = Instagram and Messenger (0053). The channel lists widen and
  *      `channel_credentials` learns 'messenger'; against a 52 database a
  *      buyer's Instagram message is acknowledged to Meta and dropped.
+ * 64 = a request to be deleted is written down (0064). `deletion_requests`,
+ *      and three new verbs on `channel_audit`'s CHECK. Against a 63 database
+ *      /app/settings/data throws on the missing table, and — the sharper
+ *      edge — every EXPORT fails on the audit insert, because the constraint
+ *      does not yet admit 'export_data'.
  */
-export const REQUIRED_SCHEMA_VERSION = 63;
+export const REQUIRED_SCHEMA_VERSION = 64;
 
 export type SchemaState = {
   readonly required: number;

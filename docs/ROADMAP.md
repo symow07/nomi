@@ -1058,6 +1058,35 @@ Drafts folder.
   real buyers" while she had never been started, on the very day every send was
   refused with "messaging is switched off"; `live` now requires `activated_at`,
   and a connected channel nobody started says exactly that.
+- **Phase 2 · Her data, out and gone (2026-09-21, migration 0064).** The two
+  audit findings that were promises rather than features. **CC-12:** there was
+  no export at all — no route, no CSV writer, no `Content-Disposition` anywhere
+  in `src/`. An owner who wanted to leave, or to answer their own customer, had
+  to ask somebody with database access. Six subjects now download as CSV from
+  `/app/settings/data`: buyers, messages, products, orders, quotes, contacts.
+  Two things that writer gets right because every cell is text a BUYER typed —
+  a cell starting `=`, `+`, `-`, `@` or a tab is marked as text, so
+  `=HYPERLINK(…)` in a WhatsApp message is not a clickable link in her Excel,
+  and a real number is still a number; and the file carries a byte-order mark,
+  without which Excel on Windows renders 你好 as mojibake and the export is
+  useless to exactly the customer it was built for. Every query runs inside
+  `withTenantTx`, so RLS answers "whose data" rather than a `where` clause
+  somebody can forget, and a test holds that no query names a password hash, a
+  ciphertext column or the seven tables those live in. **CC-02:**
+  `/data-deletion` told every buyer their records were "removed from Nomi"
+  within 30 days. Nothing deleted anything. There is now a `deletion_requests`
+  row, an owner-only page that makes one, and a withdrawal until somebody acts.
+  It is a REQUEST, and the page says so: the app role holds no DELETE grant on
+  any product table (`tests/integration/grants.test.ts`) and this did not move
+  it. `tools/erase-workspace.mjs` does the erasing, as the migration role,
+  refusing three ways — no open request, no matching business name typed, and
+  dry-run unless `--yes`. It reads the live schema to order the deletes rather
+  than carrying a list of seventy tables that would be wrong the week somebody
+  adds the seventy-first, and runs in one transaction so it cannot leave half a
+  workspace behind. `docs/DATA-DELETION-RUNBOOK.md` is the procedure.
+  Found on the way: `suppressions` dates its rows `at`, not `created_at`; and
+  the `channel_audit` action CHECK had twelve verbs a guessed list would have
+  dropped — it was copied from the live constraint, not from memory.
 - **PR 3 · Two pages nobody wrote, a list that named six countries twice, and
   a notice that lied about its own tone (2026-09-21).** Phase 1's third group,
   against `docs/AUDIT-2026-09-20.md`. **CC-19 / A13:** a mistyped address

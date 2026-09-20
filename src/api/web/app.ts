@@ -130,6 +130,9 @@ import {
 import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
+import { csvFile, csvFilename } from '../../core/owner/csv.js';
+import { isExportSubject, loadExport, recordExport } from './dataExport.js';
+import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
@@ -1147,6 +1150,76 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = takeFlash(req, reply);
     return renderAccount({ email: mine?.email ?? null, passwordMin: PASSWORD_MIN }, locale, flash, t(locale, 'nav.settings'));
   }));
+
+  /**
+   * Phase 2 · CC-12 + CC-02 — her data, out; and her data, gone.
+   *
+   * OWNER-ONLY as a PAGE, not only on submit (G9a's rule): the export is every
+   * buyer, every message and every price in one file, and the deletion request
+   * cannot be undone from inside the product. Staff are told whose decision it
+   * is rather than shown a form that turns them away.
+   */
+  app.get('/app/settings/data', ownerPage('data_rights', 'settings', '/app/settings',
+    async (s, req, reply, locale) => renderDataRights(
+      await loadDataRights(deps.db, s.businessId), locale, takeFlash(req, reply),
+      personOf(s), t(locale, 'nav.settings'))));
+
+  /**
+   * One file, streamed as an attachment.
+   *
+   * THE THROTTLE IS PER BUSINESS, not per caller: six links on a page that a
+   * browser may prefetch, against six queries that each read a whole table.
+   * The budget is generous enough that pressing every link twice is fine and
+   * tight enough that a loop is not. In memory, so it does not survive a
+   * restart — it is a brake on a hammering loop, not a quota anybody is owed.
+   */
+  const exportThrottle = makeThrottle({ max: 30, windowMs: 10 * 60_000 });
+  /** A request id as the form carries it; anything else never reaches the query. */
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  app.get('/app/settings/data/:file', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings');
+    if (!s) return reply;
+    const file = (req.params as { file: string }).file;
+    const subject = file.endsWith('.csv') ? file.slice(0, -'.csv'.length) : file;
+    if (!isExportSubject(subject)) return reply.callNotFound();
+    if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
+      return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
+    }
+    const sheet = await loadExport(deps.db, s.businessId, subject);
+    await recordExport(deps.db, s.businessId, subject, sheet.rows.length, personOf(s).id);
+    const now = new Date();
+    return reply
+      .type('text/csv; charset=utf-8')
+      // The filename is quoted: a browser reads an unquoted one up to the first
+      // space, and `nomi-buyers-2026-09-21.csv` has none today but the next
+      // subject might. `attachment` so a browser saves rather than renders —
+      // a CSV rendered inline is a page of somebody's private messages.
+      .header('content-disposition', `attachment; filename="${csvFilename(subject, now)}"`)
+      // It is her data, freshly read. Nothing between here and her laptop may
+      // keep a copy to hand to the next person who asks.
+      .header('cache-control', 'no-store')
+      .send(csvFile(sheet.header, sheet.rows));
+  });
+
+  app.post('/app/settings/data/delete', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
+    if (!s) return reply;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const note = String(b['note'] ?? '').trim().slice(0, 500) || null;
+    const r = await askWorkspaceDeletion(deps.db, s.businessId, String(b['name'] ?? ''), personOf(s).id, note);
+    return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
+  });
+
+  app.post('/app/settings/data/withdraw', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'data_rights', '/app/settings/data');
+    if (!s) return reply;
+    const id = String((req.body as { id?: string } | undefined)?.id ?? '');
+    const r = UUID.test(id)
+      ? await withdrawDeletion(deps.db, s.businessId, id, personOf(s).id)
+      : 'failed';
+    return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
+  });
 
   app.post('/app/settings/account/password', async (req, reply) => {
     const s = sessionOf(req);

@@ -66,12 +66,12 @@ describe('M47 · the ownership model is EXTENDED, not replaced', () => {
 
 describe('M47 · one distinction, and it is named in code', () => {
   it('a handful of things belong to the owner, listed rather than matrixed', () => {
-    // M42 added the fifth. The list is still a LIST — the point of M47 was that
-    // one distinction (owner, or not) beats a permissions matrix, and adding an
-    // entry is not the same as adding a role.
+    // M42 added the fifth, Phase 2 the sixth. The list is still a LIST — the
+    // point of M47 was that one distinction (owner, or not) beats a permissions
+    // matrix, and adding an entry is not the same as adding a role.
     expect([...OWNER_ONLY]).toEqual([
       'capability_grant', 'messaging_activation', 'price_rules', 'people',
-      'outreach',
+      'outreach', 'data_rights',
     ]);
   });
 
