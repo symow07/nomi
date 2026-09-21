@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * C4.a — one e-mail, written by her, sent to one contact. Over the REAL
@@ -88,7 +89,7 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'wf-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: sim.adapter, logger: false, mailTransport: transport });
+    }, { models: offlineModels(), adapter: sim.adapter, logger: false, mailTransport: transport });
 
     for (const [id, name] of [[BIZ, 'Write First Factory'], [OTHER_BIZ, 'Another Factory']] as const) {
       await tenant(id, (x) => sql`insert into businesses (id, name) values (${id}, ${name})

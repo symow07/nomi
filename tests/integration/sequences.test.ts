@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * C4.b — a first e-mail and its follow-ups, over the REAL production
@@ -116,7 +117,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'sq-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: whatsappSimulator([], { tag: `sq${RUN}` }).adapter, logger: false, mailTransport: transport });
+    }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `sq${RUN}` }).adapter, logger: false, mailTransport: transport });
 
     await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Sequence Factory')
                         on conflict (id) do nothing`.execute(x));

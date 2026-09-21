@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { runDigits, flashSaid} from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * C10 — a business connects its OWN Page and Instagram, over the REAL
@@ -142,7 +143,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: V, WEBHOOK_VERIFY_TOKEN: 'mc-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { logger: false, metaFetch });
+    }, { models: offlineModels(), logger: false, metaFetch });
     for (const [id, name] of [[BIZ, 'Atlas Factory'], [OTHER, 'Other Factory']] as const) {
       await tx((x) => sql`insert into businesses (id, name) values (${id}, ${name}) on conflict (id) do nothing`.execute(x), id);
     }

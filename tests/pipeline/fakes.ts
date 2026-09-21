@@ -278,3 +278,44 @@ export class FakeReplyWriter implements ReplyWriter {
     return { reply, promptVersion: 'resp@1', modelId: 'fake-model', usage: { inputTokens: 300, outputTokens: 80 } };
   }
 }
+
+/**
+ * THE MODEL, UNPLUGGED — for every integration test that boots the production
+ * composition and never meant to call one.
+ *
+ * `validateEnv` refuses to boot without a shape-valid model key, so each of
+ * those tests passes a dummy ('test-key-not-real-just-shape-valid') to get past
+ * the check — and `buildProduction` then hands that dummy to a REAL client.
+ * Any inbound message that reached a turn made a live HTTPS request to
+ * api.anthropic.com and came back 401, which is how a suite with no business
+ * near the network ended up depending on it: two of five local runs failed in
+ * the e-mail and day-one files, always with `invalid x-api-key` in the log.
+ *
+ * IT FAILS RATHER THAN ANSWERING, on purpose. Returning a neutral analysis
+ * would let a test quietly depend on a model nobody scripted. This reproduces
+ * exactly what those tests were already getting — a model that does not
+ * answer — deterministically, locally, and in microseconds. A test that needs
+ * a turn to SUCCEED scripts `FakeAnalyzer`/`FakeReplyWriter` instead, and the
+ * error below says so.
+ */
+const refuseToAnswer = (): never => {
+  throw new Error(
+    'offlineModels(): this test booted buildProduction without scripting a model, '
+    + 'and something asked one a question. Pass models: { analyzer, replyWriter } '
+    + 'with FakeAnalyzer/FakeReplyWriter if the turn is meant to succeed.',
+  );
+};
+
+/**
+ * Both ports, unplugged. Spread into `buildProduction`'s `models` override.
+ *
+ * A standalone refusal rather than a method on a class: these are handed to the
+ * composition and passed around as bare functions, and one that reached for
+ * `this` would fail with "Cannot read properties of undefined" — a confusing
+ * error in place of the clear one above, at the exact moment somebody needs to
+ * read it.
+ */
+export const offlineModels = (): { analyzer: Analyzer; replyWriter: ReplyWriter } => ({
+  analyzer: { analyze: async () => refuseToAnswer() } as unknown as Analyzer,
+  replyWriter: { write: async () => refuseToAnswer() } as unknown as ReplyWriter,
+});

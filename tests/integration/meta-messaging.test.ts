@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { runDigits, flashSaid} from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * C9 — Instagram and Messenger over the REAL composition.
@@ -117,7 +118,7 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
       META_APP_SECRET: APP_SECRET,
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'mt-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: whatsappSimulator([], { tag: `mt${RUN}` }).adapter, logger: false, metaFetch });
+    }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `mt${RUN}` }).adapter, logger: false, metaFetch });
 
     await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Meta Factory')
                         on conflict (id) do nothing`.execute(x));
@@ -408,7 +409,7 @@ d('C9 · a Page and no number: messaging runs without WhatsApp (requires DATABAS
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'social-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { logger: false });   // no adapter override: the real no-WhatsApp path
+    }, { models: offlineModels(), logger: false });   // no adapter override: the real no-WhatsApp path
     await withTenantTx(prod.db, await tenant(), (x) => sql`
       insert into businesses (id, name) values (${BIZ2}, 'Page Only Factory') on conflict (id) do nothing`.execute(x));
     const login = await prod.app.inject({

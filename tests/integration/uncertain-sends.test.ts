@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * 0052 — a message is never sent twice by a machine, over the REAL composition.
@@ -96,7 +97,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'un-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: whatsappSimulator([], { tag: `un${RUN}` }).adapter, logger: false, mailTransport: transport });
+    }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `un${RUN}` }).adapter, logger: false, mailTransport: transport });
 
     await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Unsure Factory')
                         on conflict (id) do nothing`.execute(x));

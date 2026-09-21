@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tenant.js';
 import { sql } from 'kysely';
 import { createHmac } from 'node:crypto';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -91,7 +92,7 @@ d('production boot-and-probe (requires DATABASE_URL)', () => {
       WEBHOOK_VERIFY_TOKEN: 'boot-verify-token',
       CREDENTIAL_KEY: 'a'.repeat(64),
       PORT: 0,
-    }, { adapter: sim.adapter, logger: false });
+    }, { models: offlineModels(), adapter: sim.adapter, logger: false });
   }, 30_000);
 
   afterAll(async () => { await prod?.close(); });
@@ -260,7 +261,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       WEBHOOK_VERIFY_TOKEN: 'deploy-verify-token',
       CREDENTIAL_KEY: 'a'.repeat(64),
       PORT: 0,
-    }, { logger: false });   // no adapter override → real disabled path
+    }, { models: offlineModels(), logger: false });   // no adapter override → real disabled path
   }, 30_000);
 
   afterAll(async () => { await prod?.close(); });
@@ -3460,7 +3461,7 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'm22-verify-token',
       CREDENTIAL_KEY: 'b'.repeat(64), PORT: 0,
-    }, { adapter: sim.adapter, logger: false });
+    }, { models: offlineModels(), adapter: sim.adapter, logger: false });
   }, 30_000);
 
   afterAll(async () => { await prod?.close(); });
@@ -3657,7 +3658,7 @@ d('M23 · boot refuses a wrong pilot tenant (requires DATABASE_URL)', () => {
     else process.env['PILOT_BUSINESS_ID'] = pilot;
     if (production) process.env['NODE_ENV'] = 'production';
     try {
-      const p = await buildProduction(cfg(pilot ?? '') as never, { logger: false });
+      const p = await buildProduction(cfg(pilot ?? '') as never, { models: offlineModels(), logger: false });
       await p.close();
       return null;
     } catch (e) {
