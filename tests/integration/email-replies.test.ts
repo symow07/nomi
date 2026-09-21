@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /**
  * C4.c — the reply is the opt-in, over the REAL production composition.
@@ -106,7 +107,7 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       META_APP_SECRET: 'meta-app-secret-not-real',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'rp-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { adapter: whatsappSimulator([], { tag: `rp${RUN}` }).adapter, logger: false, mailTransport: transport });
+    }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `rp${RUN}` }).adapter, logger: false, mailTransport: transport });
 
     await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Reply Factory')
                         on conflict (id) do nothing`.execute(x));

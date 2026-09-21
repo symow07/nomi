@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
+import { offlineModels } from '../pipeline/fakes.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'b'.repeat(64)).update('yf-web-session').digest('hex');
@@ -55,6 +56,7 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'a3-verify-token-0001',
       CREDENTIAL_KEY: 'b'.repeat(64), PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
     }, {
+      models: offlineModels(),
       logger: false,
       systemMail: { from: 'no-reply@nomi.test', send: async (m) => { if (!mailUp) return { ok: false, error: 'down' }; outbox.push(m); return { ok: true }; } },
     });
