@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
-import { EMPLOYEE_NAME } from '../core/owner/i18n/messages.js';
+import { defaultAssistantName } from '../core/owner/assistants.js';
 import { parseLocale } from '../core/owner/i18n/locale.js';
 import { assistantFor, type Assistant, type AssistantChannel, type AssistantRole, type ValidAssistant } from '../core/owner/assistants.js';
 
@@ -38,11 +38,13 @@ export async function ensureDefaultAssistant(tx: Tx, businessId: BusinessId, nam
   if (existing) return toAssistant(existing);
   // The name she has been READING: the caller's page language when there is
   // one, else the language the business's alerts are written in.
+  // The language the business signed up in decides what she is first called.
+  // One moment, one decision; from here the row is the only source of it.
   let name = nameIfNew?.trim();
   if (!name) {
     const b = (await sql<{ owner_locale: string | null }>`
       select owner_locale from businesses where id = ${businessId}::uuid`.execute(tx)).rows[0];
-    name = EMPLOYEE_NAME[parseLocale(b?.owner_locale ?? 'en') ?? 'en'];
+    name = defaultAssistantName(parseLocale(b?.owner_locale ?? 'en') ?? 'en');
   }
   await sql`insert into assistants (business_id, name, role, is_default, created_by)
             values (${businessId}::uuid, ${name}, 'sales', true, 'system')
@@ -123,10 +125,26 @@ export async function archiveAssistant(tx: Tx, businessId: BusinessId, id: strin
  * constant for her language — the name that row would be given anyway.
  */
 export async function mainAssistantName(tx: Tx, businessId: BusinessId): Promise<string | null> {
-  const r = await sql<{ name: string }>`
-    select name from assistants
-     where business_id = ${businessId}::uuid and is_default and archived_at is null limit 1`.execute(tx);
-  return r.rows[0]?.name ?? null;
+  return (await mainAssistant(tx, businessId)).name;
+}
+
+/**
+ * The same look-up, and HOW MANY there are — because the nav asks a different
+ * question from every other surface. A menu entry reading as one person's name
+ * is right for a business with one assistant and wrong for a business with
+ * four; that entry says "Team" instead. Counted in the same round trip the
+ * name already costs, and cached together with it.
+ */
+export async function mainAssistant(
+  tx: Tx, businessId: BusinessId,
+): Promise<{ readonly name: string | null; readonly several: boolean }> {
+  const r = await sql<{ name: string | null; n: number }>`
+    select (select a.name from assistants a
+             where a.business_id = ${businessId}::uuid and a.is_default and a.archived_at is null
+             limit 1) as name,
+           (select count(*)::int from assistants a
+             where a.business_id = ${businessId}::uuid and a.archived_at is null) as n`.execute(tx);
+  return { name: r.rows[0]?.name ?? null, several: (r.rows[0]?.n ?? 0) > 1 };
 }
 
 /**

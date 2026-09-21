@@ -43,7 +43,7 @@ import {
 import {
   addAssistantFromForm, archiveAssistantById, assistantFlash, loadAssistants, updateAssistantFromForm,
 } from './assistants.js';
-import { assistantNameOfConversation, mainAssistantName } from '../../db/assistants.js';
+import { assistantNameOfConversation, mainAssistant } from '../../db/assistants.js';
 import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
@@ -516,9 +516,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s || !bid || !bid.ok) return done();
     const now = Date.now();
     const hit = names.get(s.businessId, now);
-    if (hit !== undefined) return withAssistantName(hit, done);
-    withTenantTx(deps.db, bid.value, (tx) => mainAssistantName(tx, bid.value)).then(
-      (name) => { names.set(s.businessId, name, now); withAssistantName(name, done); },
+    if (hit !== undefined) return withAssistantName(hit.name, done, hit.several);
+    withTenantTx(deps.db, bid.value, (tx) => mainAssistant(tx, bid.value)).then(
+      (who) => { names.set(s.businessId, who, now); withAssistantName(who.name, done, who.several); },
       () => done(),
     );
   });
@@ -2325,7 +2325,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (cookie !== undefined) writeCookie(reply, ISSUED_COOKIE, '', { path: ISSUED_PATH, maxAgeSec: 0 });
     return renderPeople({
       people: await loadPeople(deps.db, sess.businessId), justIssued,
-      assistants: await loadAssistants(deps.db, sess.businessId, locale),
+      assistants: await loadAssistants(deps.db, sess.businessId),
     }, locale,
       takeFlash(req, reply));
   }));
@@ -2351,7 +2351,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/settings/people/assistants', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
-    const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id, localeOf(req));
+    const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
     names.evict(s.businessId);
     return teamFlash(reply, assistantFlash(r.outcome, 'added'), { who: r.name });
   });

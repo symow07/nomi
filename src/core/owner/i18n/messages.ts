@@ -19,6 +19,7 @@ const EN = {
   'nav.channels': 'WhatsApp',
   'nav.products': 'Products',
   'nav.employee': '{name}',
+  'nav.team': 'Team',
   'nav.analytics': 'Results',
   'nav.settings': 'Settings',
   // Nomi Phase E — My factory: the owner's business context, in their words.
@@ -1894,6 +1895,7 @@ const ZH: Record<MessageKey, string> = {
   'nav.channels': 'WhatsApp',
   'nav.products': '产品目录',
   'nav.employee': '{name}',
+  'nav.team': '团队',
   'nav.analytics': '经营情况',
   'nav.settings': '设置',
   // Nomi Phase E — 我的工厂
@@ -3694,6 +3696,7 @@ const AR: Record<MessageKey, string> = {
   'nav.channels': 'واتساب',
   'nav.products': 'المنتجات',
   'nav.employee': '{name}',
+  'nav.team': 'الفريق',
   'nav.analytics': 'النتائج',
   'nav.settings': 'الإعدادات',
   // Nomi Phase E — مصنعي

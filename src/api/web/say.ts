@@ -15,14 +15,26 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
  * the name is the constant it always was, which is also what an account that
  * never renamed anyone sees.
  */
-const scope = new AsyncLocalStorage<{ readonly name: string }>();
+const scope = new AsyncLocalStorage<{ readonly name: string; readonly several: boolean }>();
 
-/** Run `fn` with this name in force. A blank name leaves things as they were. */
-export const withAssistantName = <T>(name: string | null | undefined, fn: () => T): T =>
-  name ? scope.run({ name }, fn) : fn();
+/**
+ * Run `fn` with this name in force. A blank name leaves things as they were.
+ *
+ * `several` says whether this business has MORE THAN ONE assistant, which the
+ * nav needs: an entry that reads as a person's name is right for a business
+ * with one and wrong for a business with four. It rides in the same scope
+ * because it is the same fact about the same request, fetched by the same
+ * look-up, and a second scope would be a second thing to forget to open.
+ */
+export const withAssistantName = <T>(
+  name: string | null | undefined, fn: () => T, several = false,
+): T => (name ? scope.run({ name, several }, fn) : fn());
 
 /** The name in force here, else the product's constant for this language. */
 export const assistantName = (locale: Locale): string => scope.getStore()?.name ?? EMPLOYEE_NAME[locale];
+
+/** Does this business have more than one assistant? Outside a scope: no. */
+export const assistantsAreSeveral = (): boolean => scope.getStore()?.several ?? false;
 
 /** `t`, with `{name}` filled from the request. An explicit `name` still wins. */
 export const t = (locale: Locale, key: MessageKey, params?: Record<string, string | number>): string =>
@@ -33,23 +45,25 @@ export const t = (locale: Locale, key: MessageKey, params?: Record<string, strin
  * costs no extra look-up, and forgotten the moment she renames someone.
  * `null` is a real answer ("no row yet") and is remembered too.
  */
+export type WhoAnswers = { readonly name: string | null; readonly several: boolean };
+
 export type NameCache = {
-  get(businessId: string, now: number): string | null | undefined;
-  set(businessId: string, name: string | null, now: number): void;
+  get(businessId: string, now: number): WhoAnswers | undefined;
+  set(businessId: string, who: WhoAnswers, now: number): void;
   evict(businessId: string): void;
 };
 
 export function makeNameCache(ttlMs = 60_000, maxKeys = 5000): NameCache {
-  const held = new Map<string, { readonly name: string | null; readonly at: number }>();
+  const held = new Map<string, { readonly who: WhoAnswers; readonly at: number }>();
   return {
     get(businessId, now) {
       const hit = held.get(businessId);
       if (!hit) return undefined;
       if (now - hit.at >= ttlMs) { held.delete(businessId); return undefined; }
-      return hit.name;
+      return hit.who;
     },
-    set(businessId, name, now) {
-      held.set(businessId, { name, at: now });
+    set(businessId, who, now) {
+      held.set(businessId, { who, at: now });
       if (held.size > maxKeys) {
         const first = held.keys().next().value;
         if (first !== undefined) held.delete(first);

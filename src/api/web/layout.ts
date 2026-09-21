@@ -1,7 +1,7 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, assistantsAreSeveral } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, faviconDataUri } from '../../core/owner/brand.js';
 
@@ -346,6 +346,67 @@ ${cssVariables()}
   }
 `;
 
+/**
+ * A7 — WHICH of the four is lit, for a page that is not one of the four.
+ *
+ * THE MAP WAS ALREADY WRITTEN DOWN. `CONTEXTUAL_ROUTES_BY_HUB` above says which
+ * hub every contextual route is reached from, two tests read it, and the
+ * integration walk asserts the link is really there. `shell()` never looked at
+ * it: it compared `active` against the four nav ids, and pages pass eleven
+ * different values — `products`, `settings`, `knowledge`, `channels`,
+ * `sandbox`, `onboarding`, `conversations`, `contacts` among them. Seven of
+ * the eleven matched nothing, so on roughly twenty pages the sidebar showed no
+ * "you are here" at all.
+ *
+ * The PATH decides, because the path is the thing the map is keyed on and the
+ * thing a page cannot get wrong. `active` stays as the fallback for the four
+ * hubs themselves, and for anything the map has not been told about yet —
+ * which is better than lighting nothing.
+ *
+ * Longest match wins: `/app` is a prefix of every route, so a plain
+ * `startsWith` would light Today on all of them.
+ *
+ * AND THE MAP CHAINS. `/app/sequences` is reached from `/app/contacts`, which
+ * is reached from `/app/conversations`, which is reached from `/app` — only
+ * that last one is in the nav. So the lookup FOLLOWS the chain rather than
+ * stopping at the first hop, which would light nothing three times over.
+ */
+export function hubFor(path: string, active: string): string {
+  const url = (path.split('?')[0] ?? path).replace(/\/+$/, '') || '/app';
+
+  /**
+   * Where a url belongs: the nav entry it IS or sits under, else the hub the
+   * map says it is reached from. One pass over both, longest match wins —
+   * `/app/inbox/<id>` must find Buyers and not Today, and `/app` is a prefix of
+   * every address in the product.
+   */
+  const under = (u: string): { nav?: string; hub?: string } => {
+    let best: { len: number; nav?: string; hub?: string } | null = null;
+    const consider = (route: string, found: { nav?: string; hub?: string }, exactOnly = false) => {
+      const hit = exactOnly ? u === route : (u === route || u.startsWith(`${route}/`));
+      if (hit && (best === null || route.length > best.len)) best = { len: route.length, ...found };
+    };
+    // `/app` is Today AND the prefix of every address in the product, so it
+    // matches only itself. Prefix-matching it would light Today on every page
+    // the map has not been told about — which is louder than lighting nothing
+    // and wrong in a way nobody would question. The other three own what sits
+    // beneath them: `/app/inbox/<id>` really is Buyers.
+    for (const n of NAV) consider(n.href, { nav: n.id }, n.href === '/app');
+    for (const g of CONTEXTUAL_ROUTES_BY_HUB) for (const r of g.routes) consider(r, { hub: g.hub });
+    return best ?? {};
+  };
+
+  let at: string | null = url;
+  // The map is small and hand-written; the bound guards against somebody one
+  // day writing a cycle into it, not an expected depth.
+  for (let hop = 0; at !== null && hop < 8; hop++) {
+    const found = under(at);
+    if (found.nav !== undefined) return found.nav;
+    at = found.hub ?? null;
+  }
+  return active;
+}
+
 export function shell(input: {
   readonly title: string;
   readonly active: string;
@@ -356,9 +417,21 @@ export function shell(input: {
 }): string {
   const { locale } = input;
   const name = assistantName(locale);
-  const nav = NAV.map((n) =>
-    `<a href="${n.href}" class="navlink ${n.id === input.active ? 'active' : ''}"
-       >${esc(t(locale, `nav.${n.id}` as MessageKey))}</a>`).join('');
+  const here = hubFor(input.path, input.active);
+  const nav = NAV.map((n) => {
+    const on = n.id === here;
+    // A5 — the entry for the assistants is HER NAME while there is one of her,
+    // and "Team" once there are several. A menu item that reads as a person is
+    // the right label for a business with one assistant and the wrong one for
+    // a business with four, and `nav.employee` is literally `{name}`.
+    const label = n.id === 'employee' && assistantsAreSeveral()
+      ? t(locale, 'nav.team')
+      : t(locale, `nav.${n.id}` as MessageKey);
+    // A11y — `aria-current="page"` is what tells a screen reader which of four
+    // identical links is the one you are on. The class is for everyone else.
+    return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}
+       >${esc(label)}</a>`;
+  }).join('');
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

@@ -162,9 +162,14 @@ describe('Nomi Phase B · Today (render)', () => {
     }
     const en = renderOperationsHome(liveQuiet, 'en');
     expect(en).not.toContain('class="need"');                    // no attention rows at all
-    // AND NOTHING ELSE. A quiet day renders no count sections whatever.
+    // AND NO COUNTS. A quiet day renders no count sections whatever.
     expect(en).not.toContain("What Lily did");
-    expect(en).not.toContain('href="/app/analytics"');
+    // CC-05 — BUT THE WAY INTO RESULTS STAYS. This line used to forbid it, and
+    // in doing so pinned the bug: Results' only link lived inside the section
+    // the quiet branch removes, so a new owner and any quiet week had no door
+    // into a whole page except typing the URL. The counts go quiet; the door
+    // does not. Changed deliberately.
+    expect(en).toContain('href="/app/analytics"');
   });
 
   it('M22 (F-01) · a quiet day with messaging OFF is not the same quiet day', () => {
