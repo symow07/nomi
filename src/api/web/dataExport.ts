@@ -30,8 +30,26 @@ import type { Cell } from '../../core/owner/csv.js';
  * lists and holds that.
  */
 
-/** The six things an owner would mean by "my data". */
-export const EXPORT_SUBJECTS = ['buyers', 'messages', 'products', 'orders', 'quotes', 'contacts'] as const;
+/**
+ * What an owner would mean by "my data" — in two halves.
+ *
+ * The first six are the RECORD: who wrote, what was said, what was sold. The
+ * last three are her WORK — the floors and discounts she decided, the terms
+ * she sells on, the facts she taught and the words she forbade. That half is
+ * the switching cost, and it was missing from the first version of this
+ * export: a business could take away the history of its trade but not the
+ * configuration that made it, which is the part nobody wants to type twice.
+ *
+ * NINE FILES, NOT FOURTEEN. Her configuration lives in ten tables of four
+ * different shapes. One file per table would be a page of links nobody reads
+ * on a phone, so they are grouped by the question they answer — how a price is
+ * decided, how she sells, what she taught — and each group is flattened into
+ * one readable shape with a column saying which kind of rule a row is.
+ */
+export const EXPORT_SUBJECTS = [
+  'buyers', 'messages', 'products', 'orders', 'quotes', 'contacts',
+  'price-rules', 'selling-terms', 'teaching',
+] as const;
 export type ExportSubject = (typeof EXPORT_SUBJECTS)[number];
 
 export const isExportSubject = (v: string): v is ExportSubject =>
@@ -231,8 +249,175 @@ const contacts: Loader = async (tx, businessId) => {
   };
 };
 
+/**
+ * How a price is decided: her floor and discount authority, her volume breaks,
+ * and the three rule tables that shape an offer.
+ *
+ * FLATTENED TO ONE SHAPE, with a `rule` column saying which kind each row is.
+ * Five tables of five shapes in five files would be five links on a phone and
+ * nothing gained — what she needs back is the numbers and what they apply to.
+ *
+ * `negotiation_rules` and `bundle_rules` keep their condition and action as
+ * JSON, which is not pretty and is honest: they are machine rules, no owner
+ * surface writes `negotiation_rules` at all (the known gap the roadmap names),
+ * and rendering them as prose would invent an interface that does not exist.
+ */
+const priceRules: Loader = async (tx, businessId) => {
+  const rows: Cell[][] = [];
+
+  const floors = await sql<{
+    product: string | null; floor: string; max_discount_pct: string; human_required_above_pct: string;
+  }>`
+    select p.name as product, pp.floor_price_usd as floor,
+           pp.max_discount_pct, pp.human_required_above_pct
+      from pricing_policy pp
+      left join products p on p.id = pp.product_id
+     where pp.business_id = ${businessId}
+     order by p.name nulls first`.execute(tx);
+  for (const x of floors.rows) {
+    rows.push(['Least you accept', x.product ?? 'everything', '', x.floor,
+      `most you will come down: ${x.max_discount_pct}% · ask you above: ${x.human_required_above_pct}%`]);
+  }
+
+  const tiers = await sql<{ product: string; min_qty: number; max_qty: number | null; price: string; currency: string }>`
+    select p.name as product, t.min_qty, t.max_qty, t.unit_price_usd as price, t.currency
+      from price_tiers t join products p on p.id = t.product_id
+     where p.business_id = ${businessId}
+     order by p.name, t.min_qty`.execute(tx);
+  for (const x of tiers.rows) {
+    rows.push(['Volume price', x.product,
+      x.max_qty === null ? `${x.min_qty}+` : `${x.min_qty}–${x.max_qty}`,
+      `${x.price} ${x.currency}`, '']);
+  }
+
+  const negotiation = await sql<{ priority: number; condition: unknown; action: unknown; is_active: boolean }>`
+    select priority, condition, action, is_active from negotiation_rules
+     where business_id = ${businessId} order by priority`.execute(tx);
+  for (const x of negotiation.rows) {
+    rows.push(['When you discount', '', JSON.stringify(x.condition), JSON.stringify(x.action),
+      x.is_active ? '' : 'switched off']);
+  }
+
+  const bundles = await sql<{ name: string; grants: unknown; is_active: boolean }>`
+    select name, grants, is_active from bundle_rules
+     where business_id = ${businessId} order by name`.execute(tx);
+  for (const x of bundles.rows) {
+    rows.push(['Bundle', x.name, '', JSON.stringify(x.grants), x.is_active ? '' : 'switched off']);
+  }
+
+  const subs = await sql<{ product: string | null; instead: string | null; reason: string; rank: number }>`
+    select p.name as product, s2.name as instead, r.reason, r.rank
+      from substitution_rules r
+      left join products p on p.id = r.product_id
+      left join products s2 on s2.id = r.substitute_id
+     where r.business_id = ${businessId} order by p.name, r.rank`.execute(tx);
+  for (const x of subs.rows) {
+    rows.push(['Offer instead', x.product, x.reason, x.instead, `order: ${x.rank}`]);
+  }
+
+  return {
+    header: ['rule', 'applies to', 'when', 'what', 'note'],
+    rows: rows.slice(0, EXPORT_MAX_ROWS),
+  };
+};
+
+/**
+ * How she sells: the terms on a proforma, what a sample costs, the days the
+ * business is shut, and the exchange rate she will honour.
+ *
+ * Three of these four are INSERT-ONLY — the newest row is the one in force and
+ * the older ones are the record of what was true before. They are all exported,
+ * newest first, with the date she said it: "what did we promise in March" is a
+ * question an owner gets asked, and the answer is in here.
+ */
+const sellingTerms: Loader = async (tx, businessId) => {
+  const rows: Cell[][] = [];
+
+  const terms = await sql<{ payment_terms: string; incoterm: string; stated_at: Date; stated_by: string }>`
+    select payment_terms, incoterm, stated_at, stated_by from trade_terms
+     where business_id = ${businessId} order by stated_at desc`.execute(tx);
+  for (const x of terms.rows) {
+    rows.push(['Payment terms', x.payment_terms, '', x.stated_at, x.stated_by]);
+    rows.push(['Delivery term', x.incoterm, '', x.stated_at, x.stated_by]);
+  }
+
+  const samples = await sql<{
+    price_amount: string; currency: string; credited_on_first_order: boolean; stated_at: Date; stated_by: string;
+  }>`
+    select price_amount, currency, credited_on_first_order, stated_at, stated_by from sample_policy
+     where business_id = ${businessId} order by stated_at desc`.execute(tx);
+  for (const x of samples.rows) {
+    rows.push(['Sample price', `${x.price_amount} ${x.currency}`,
+      x.credited_on_first_order ? 'taken off the first order' : 'not credited',
+      x.stated_at, x.stated_by]);
+  }
+
+  const closures = await sql<{ label: string; starts_on: Date; ends_on: Date; archived_at: Date | null; created_at: Date }>`
+    select label, starts_on, ends_on, archived_at, created_at from factory_closures
+     where business_id = ${businessId} order by starts_on desc`.execute(tx);
+  for (const x of closures.rows) {
+    rows.push(['Closed', x.label, `${String(x.starts_on).slice(0, 10)} → ${String(x.ends_on).slice(0, 10)}`,
+      x.created_at, x.archived_at ? 'removed' : '']);
+  }
+
+  const rates = await sql<{ from_currency: string; to_currency: string; rate: string; stated_at: Date; stated_by: string }>`
+    select from_currency, to_currency, rate, stated_at, stated_by from owner_rates
+     where business_id = ${businessId} order by stated_at desc`.execute(tx);
+  for (const x of rates.rows) {
+    rows.push(['Exchange rate', `1 ${x.from_currency} = ${x.rate} ${x.to_currency}`, '', x.stated_at, x.stated_by]);
+  }
+
+  return {
+    header: ['what', 'value', 'detail', 'set on', 'set by'],
+    rows: rows.slice(0, EXPORT_MAX_ROWS),
+  };
+};
+
+/**
+ * What she taught her, and what she forbade her to say. The asset: everything
+ * here was typed by a person who knows the business, and none of it can be
+ * reconstructed from anywhere else.
+ *
+ * Archived rows are included and marked. A fact she corrected and a word she
+ * stopped forbidding are both part of the record — `archive, never erase` is
+ * the schema's rule, and an export that quietly dropped them would be telling
+ * her less than her own database holds.
+ */
+const teaching: Loader = async (tx, businessId) => {
+  const rows: Cell[][] = [];
+
+  const facts = await sql<{
+    product: string | null; kind: string; label: string; content: string;
+    source_language: string; source: string; status: string; created_at: Date;
+  }>`
+    select p.name as product, k.kind, k.label, k.content, k.source_language, k.source, k.status, k.created_at
+      from product_knowledge k
+      left join products p on p.id = k.product_id
+     where k.business_id = ${businessId}
+     order by k.created_at
+     limit ${EXPORT_MAX_ROWS}`.execute(tx);
+  for (const x of facts.rows) {
+    rows.push(['Taught', x.product ?? 'the business', x.kind, x.label, x.content,
+      x.source_language, x.source, x.created_at, x.status === 'archived' ? 'archived' : '']);
+  }
+
+  const forbidden = await sql<{ term: string; note: string | null; created_at: Date; archived_at: Date | null }>`
+    select term, note, created_at, archived_at from forbidden_terms
+     where business_id = ${businessId} order by created_at`.execute(tx);
+  for (const x of forbidden.rows) {
+    rows.push(['Never say', '', '', x.term, x.note ?? '', '', '', x.created_at,
+      x.archived_at ? 'no longer forbidden' : '']);
+  }
+
+  return {
+    header: ['kind', 'about', 'sort', 'label', 'what you said', 'language', 'source', 'added', 'state'],
+    rows: rows.slice(0, EXPORT_MAX_ROWS),
+  };
+};
+
 const LOADERS: Readonly<Record<ExportSubject, Loader>> = {
   buyers, messages, products, orders, quotes, contacts,
+  'price-rules': priceRules, 'selling-terms': sellingTerms, teaching,
 };
 
 /**

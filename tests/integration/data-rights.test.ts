@@ -99,7 +99,14 @@ d('Phase 2 · her data, out and gone (requires DATABASE_URL)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('THE PRODUCTION CALLER: every subject downloads as a CSV attachment', async () => {
-    for (const subject of ['buyers', 'messages', 'products', 'orders', 'quotes', 'contacts']) {
+    // Driven from EXPORT_SUBJECTS rather than a copy of it, so a subject added
+    // to the product cannot skip this. Against REAL Postgres on purpose: the
+    // configuration queries name eleven tables, and the only thing that catches
+    // a wrong column is a database — `suppressions.at` was `created_at` in the
+    // first draft of this export and every unit test passed.
+    const { EXPORT_SUBJECTS } = await import('../../src/api/web/dataExport.js');
+    expect(EXPORT_SUBJECTS.length).toBe(9);
+    for (const subject of EXPORT_SUBJECTS) {
       const res = await get(ownerCookie, `/app/settings/data/${subject}.csv`);
       expect(res.statusCode, subject).toBe(200);
       expect(String(res.headers['content-type']), subject).toContain('text/csv');

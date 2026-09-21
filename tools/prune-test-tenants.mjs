@@ -20,43 +20,69 @@
  * WHAT IT KEEPS. Two tenants, by id: the canonical demo factory every developer
  * shares, and the sandbox. Everything else in a LOCAL database is residue.
  *
- * WHAT IT REFUSES. Anything that smells like production: it will not run
- * against a host that is not local unless `--force` is passed, because the
- * whole point of this file is that it deletes without being asked twice.
+ * ── WHERE IT WILL RUN, AND THERE IS NO WAY ROUND IT ──────────────────────────
+ *
+ * Loopback only, and never with NODE_ENV=production. THERE IS NO OVERRIDE FLAG
+ * — this once had one, and that was the wrong shape for this file. A tool whose
+ * whole job is to delete every tenant but two, without asking twice, must not
+ * carry its own way past the one check standing between it and somebody's
+ * customers. An escape hatch on a guard like this is not a convenience; it is
+ * the thing that gets typed at 2 a.m. while copying a command out of a
+ * terminal history.
+ *
+ * If a remote database ever genuinely needs cleaning, that is a different job
+ * with a different tool and a person deciding it — the way
+ * `erase-workspace.mjs` requires an open `deletion_requests` row before it
+ * touches anything.
  *
  * Usage:
  *   MIGRATE_DATABASE_URL=… node tools/prune-test-tenants.mjs [--dry-run] [--quiet]
  */
 
 import pg from 'pg';
+import { pathToFileURL } from 'node:url';
 
 const DEMO_PREFIX = 'de300000';
 const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
 
-const args = process.argv.slice(2);
-const dry = args.includes('--dry-run');
-const quiet = args.includes('--quiet');
-const say = (...a) => { if (!quiet) console.log(...a); };
-
-const url = process.env['MIGRATE_DATABASE_URL'];
-if (!url) {
-  console.error('MIGRATE_DATABASE_URL is not set. The app role cannot delete; this needs the migration role.');
-  process.exit(2);
+/**
+ * Why this must not run, or null when it may. Pure, and exported so a test can
+ * hold the guard itself rather than the shape of the source around it.
+ *
+ * `::1` is loopback exactly as `127.0.0.1` is — the same machine, by
+ * definition — so it is admitted and named here rather than left to look like
+ * an oversight. Every other host, including anything resolving off this
+ * machine, is somebody's data until proven otherwise.
+ */
+export function refusalFor(url, env = {}) {
+  if (!url) {
+    return 'MIGRATE_DATABASE_URL is not set. The app role cannot delete; this needs the migration role.';
+  }
+  if (env['NODE_ENV'] === 'production') {
+    return 'NODE_ENV is production. This tool deletes every tenant but two and never runs there.';
+  }
+  let host;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return 'MIGRATE_DATABASE_URL is not a URL this tool can read a host out of.';
+  }
+  // `new URL` KEEPS the brackets on an IPv6 literal — hostname is "[::1]", not
+  // "::1" — so they come off here. (Written the other way round first, and the
+  // test that admits loopback is what said so.)
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  const loopback = bare === '127.0.0.1' || bare === 'localhost' || bare === '::1';
+  if (!loopback) {
+    return `MIGRATE_DATABASE_URL points at "${host}", which is not this machine.\n`
+      + '   This deletes every tenant but the demo and the sandbox, without asking\n'
+      + '   twice. There is no override: if a remote database needs cleaning, that\n'
+      + '   is a decision a person makes with a different tool.';
+  }
+  return null;
 }
-// A development database lives on this machine. Anything else is somebody's
-// real data until proven otherwise.
-const local = /@(127\.0\.0\.1|localhost|\[::1\])[:/]/.test(url);
-if (!local && !args.includes('--force')) {
-  console.error('\n✗  MIGRATE_DATABASE_URL does not point at localhost.\n\n'
-    + '   This deletes every tenant but the two seeds, without asking. If you\n'
-    + '   really mean it on a remote database, pass --force.\n');
-  process.exit(1);
-}
-
-const client = new pg.Client({ connectionString: url });
 
 /** Which tables hold a tenant's rows, deepest first. Derived, not listed — see erase-workspace.mjs. */
-async function plan() {
+async function plan(client) {
   const direct = (await client.query(`
     select c.relname as t from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
@@ -99,32 +125,51 @@ async function plan() {
   return steps;
 }
 
-try {
-  await client.connect();
-  const doomed = (await client.query(
-    `select id::text as id from businesses
-      where id::text not like $1 || '%' and id <> $2`, [DEMO_PREFIX, SANDBOX])).rows.map((r) => r.id);
+async function main() {
+  const args = process.argv.slice(2);
+  const dry = args.includes('--dry-run');
+  const quiet = args.includes('--quiet');
+  const say = (...a) => { if (!quiet) console.log(...a); };
 
-  if (doomed.length === 0) { say('  nothing to prune'); process.exit(0); }
-  if (dry) {
-    say(`  would prune ${doomed.length} tenant(s) left by earlier runs — keeping the demo and the sandbox`);
-    process.exit(0);
+  const url = process.env['MIGRATE_DATABASE_URL'];
+  const refused = refusalFor(url, process.env);
+  if (refused) {
+    console.error(`\n✗  ${refused}\n`);
+    process.exit(url ? 1 : 2);
   }
 
-  const steps = await plan();
-  await client.query('begin');
+  const client = new pg.Client({ connectionString: url });
   try {
-    let rows = 0;
-    for (const s of steps) rows += (await client.query(s.run, [doomed])).rowCount ?? 0;
-    await client.query('commit');
-    say(`  pruned ${doomed.length} tenant(s) from earlier runs · ${rows} rows`);
+    await client.connect();
+    const doomed = (await client.query(
+      `select id::text as id from businesses
+        where id::text not like $1 || '%' and id <> $2`, [DEMO_PREFIX, SANDBOX])).rows.map((r) => r.id);
+
+    if (doomed.length === 0) { say('  nothing to prune'); return; }
+    if (dry) {
+      say(`  would prune ${doomed.length} tenant(s) left by earlier runs — keeping the demo and the sandbox`);
+      return;
+    }
+
+    const steps = await plan(client);
+    await client.query('begin');
+    try {
+      let rows = 0;
+      for (const s of steps) rows += (await client.query(s.run, [doomed])).rowCount ?? 0;
+      await client.query('commit');
+      say(`  pruned ${doomed.length} tenant(s) from earlier runs · ${rows} rows`);
+    } catch (e) {
+      await client.query('rollback');
+      throw e;
+    }
   } catch (e) {
-    await client.query('rollback');
-    throw e;
+    console.error(`\n✗  prune failed: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exitCode = 1;
+  } finally {
+    await client.end().catch(() => {});
   }
-} catch (e) {
-  console.error(`\n✗  prune failed: ${e instanceof Error ? e.message : String(e)}\n`);
-  process.exitCode = 1;
-} finally {
-  await client.end().catch(() => {});
 }
+
+// Only when RUN. Importing this file — which a test does, to exercise the
+// guard above — must never open a connection or delete anything.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
