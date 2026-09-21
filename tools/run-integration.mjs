@@ -38,11 +38,33 @@ const out = join(dir, 'results.json');
  * process. Production runs exactly one worker per database; this makes the
  * suite do the same. The suite is small enough that the cost is seconds.
  */
+/**
+ * TAKE BACK WHAT EARLIER RUNS LEFT, before this one starts.
+ *
+ * Every run seeds its own tenant (`seedRunTenant`) plus a business or two per
+ * file, and nothing took them away again — a development database grew by
+ * about thirty tenants a run, forever. It reached 1,432 businesses here, and
+ * the cost is not disk: the minute sweep walks live businesses, so a fat
+ * database makes this suite slower and eventually fails whole FILES on a
+ * budget that has nothing to do with what they test.
+ *
+ * BEFORE, not after, and on purpose. A run that crashed or was interrupted
+ * still gets cleaned next time, and the tenant a FAILING test left behind
+ * survives until you choose to run again — which is exactly when you want to
+ * look at it. The same reason the report below is kept on failure.
+ *
+ * It refuses any host that is not local unless forced, and never touches the
+ * demo factory or the sandbox.
+ */
+if (process.env['MIGRATE_DATABASE_URL'] && !process.argv.includes('--no-prune')) {
+  spawnSync('node', ['tools/prune-test-tenants.mjs'], { stdio: 'inherit', encoding: 'utf8' });
+}
+
 const run = spawnSync(
   'npx',
   ['vitest', 'run', 'tests/integration/', '--no-file-parallelism',
    '--reporter=json', `--outputFile=${out}`,
-   '--reporter=default', ...process.argv.slice(2)],
+   '--reporter=default', ...process.argv.slice(2).filter((a) => a !== '--no-prune')],
   { stdio: 'inherit', encoding: 'utf8' },
 );
 

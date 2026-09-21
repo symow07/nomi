@@ -218,43 +218,85 @@ and D are a day between them and could ship first as their own change.
 
 ---
 
-## Open questions — these are yours
+## Decided — 2026-09-21
 
-1. **Should "Reaching out" be its own nav entry rather than a tab under
-   Buyers?** *My recommendation: no, not yet.* It is the least-used half of
-   the product — no sending domain is verified in production, outreach is
-   owner-only and consent-gated — and promoting an unused feature to the
-   sidebar while the pilot is WhatsApp-only spends the scarcest thing on the
-   page. As a tab it goes from four clicks to two, which is the actual
-   complaint. Revisit when the first sequence sends.
+The five questions this document asked, answered by the owner. They change the
+plan above where they say so; nothing else in it moved.
 
-2. **Five entries or six?** Five is what I propose. If Setup feels like a
-   demotion for Getting ready during onboarding, the alternative is six with
-   "Getting ready" top-level *until activation*, then it disappears. That is a
-   nicer first run and a conditional nav item, which is a thing to maintain.
+1. **"Reaching out" gets no nav entry** — and goes further than the proposal
+   asked for. The whole outreach area (sequences, prospects, write-first) sits
+   behind a **per-workspace flag, OFF for a new workspace**, on for the
+   pilot's. *Hidden means no links, not merely no nav entry* — a page still
+   reachable by URL is still shipped, and the KB still teaches it.
 
-3. **Does `/app/factory` stay in the URL?** It says "factory" in a product
-   that decided it is for any business. Nobody sees it. I would leave it.
+2. **Five entries. No conditional sixth.** While onboarding is incomplete,
+   **Setup carries a progress badge** and **Today shows a "finish setup"
+   card**. That is the nicer first run without a nav item that appears and
+   disappears.
 
-4. **"Lily" as a nav entry** is her name; the page behind it is her settings.
-   Since A5 an account can have several assistants, so the entry will
-   eventually be a list, not a person. Should it read as her name now, or as
-   something like "Your team" from the start?
+3. **`/app/factory` stays.**
 
-5. **Is there an owner I can watch use this?** Every claim above is derived
-   from the code and from 534 screenshots. None of it is derived from anyone
-   trying to find something and failing, which is the only evidence that
-   actually settles an IA argument.
+4. **The nav label is the assistant's NAME when there is one assistant, and
+   "Team" (团队 / الفريق) when there are several.** The name must come from
+   the `assistants` table, never from code. Every hardcoded "Lily" / "小雅" in
+   owner- or buyer-facing copy is to be found and removed as part of **C** —
+   the audit is in the section below.
+
+5. **Owner testing is arranged before A merges, and B, C and D do not wait
+   for it.** The script is `docs/USABILITY-SCRIPT.md`, five tasks, Chinese
+   first.
+
+### The order changed
+
+**A9 ships first, alone, before B+C** — and did, on 2026-09-21. A conversation
+that needs a person and cannot be seen is a live correctness bug; it does not
+wait for a list merge. It turned out to be sharper than this document's
+description of it: see the commit, and the note under **A** above.
+
+Then **B+C → D → A**, as proposed.
 
 ---
 
-## If you approve
+## The hardcoded-name audit (for change C)
 
-Order I would ship it in, each its own PR against the verification set:
+Answering decision 4. Searched `src/` for `Lily`, `小雅`, `ياسمين`.
 
-1. **B + C** — the shell reads the hub map; Results gets a door.
-2. **D** — the drawer splits; Setup joins the nav.
-3. **A** — the two lists become one, with search and paging and the A9 fix.
+**Buyer-facing copy is already clean.** The proof page resolves the name
+through `assistantNameOfConversation` / `mainAssistantName` — from the table
+(`proof.ts:6,241`). Nothing buyer-facing carries a literal.
+
+**Owner-facing, to fix in C:**
+
+| Where | What | Why it is wrong |
+|---|---|---|
+| `core/channel/health.ts:49-72` | Chinese-only sentences built with `${employeeName}`, outside the catalogue entirely | **Nobody reads them.** `deriveHealth` *is* reachable (`channels.ts:137,152`), but the page maps its `status` to a problem CODE and renders `channel.problem.*` from the catalogue (`channels.ts:41-47,347`); the notification layer renders `notify.*` the same way. The `OwnerProblem` strings are computed and discarded on every path. So this is dead copy carrying a hardcoded name, not a translation bug — delete the three fields, or the module's use of `employeeName`, and leave the status codes. *(First written up here as "an English owner would read Chinese", which was wrong — the trace is above.)* |
+| `pipeline/notify.ts:5,33` | the only module outside `api/web` importing `t` from the core catalogue | so `{name}` falls back to the constant. It *does* accept a resolved name and A5.2 passes one; the fallback fires only when a business has no assistant, which `ensureDefaultAssistant` should make impossible. |
+| `main.ts:626` + `api/web/app.ts:171` | `employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅'` | **dead**: declared on the deps type, read by nothing. An installation-wide name that no longer means anything. Delete both, and the env var. |
+
+**Correct as they stand — leave alone:**
+
+`db/assistants.ts:45` and `api/web/assistants.ts:27,50` pass
+`EMPLOYEE_NAME[locale]` as the name for a **new** main assistant. That is code
+supplying a default *at birth*, written into the table; every read afterwards
+comes from the table. This is exactly where the constant belongs, and removing
+it would leave a new workspace's assistant nameless.
+
+`messages.ts:5500` — `t()` auto-filling `{name}` — is the root fallback that
+`say.ts` overrides per request. It stays as the floor.
+
+---
+
+## Approved. Shipping order
+
+Each its own PR against the verification set:
+
+0. ~~**A9** — nothing that needs a person falls out of the window.~~ ✅ merged
+   2026-09-21 (PR #44).
+1. **B + C** — the shell reads the hub map; Results gets a door; the
+   hardcoded names go; the nav label follows the assistant count.
+2. **D** — the drawer splits; Setup joins the nav, with its progress badge and
+   Today's "finish setup" card; outreach goes behind the per-workspace flag.
+3. **A** — the two lists become one, with search and paging.
 
 Nothing here touches `activate()`, any outbound send, the price floor, order
 confirmation, or the RLS grants.
