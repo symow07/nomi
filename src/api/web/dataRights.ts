@@ -149,12 +149,23 @@ export function renderDataRights(
 ): string {
   const open = v.requests.find((r) => r.scope === 'workspace' && r.state === 'open') ?? null;
 
+  // Nine links in one run is a wall on a phone. Two headings, because the two
+  // halves answer different questions — what happened, and what you set up —
+  // and the second half is the one an owner leaving would not think to ask for.
+  const links = (subjects: readonly ExportSubject[]) =>
+    `<ul class="dl">${subjects.map((s) => `<li>
+      <a class="btn" href="/app/settings/data/${s}.csv" download>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</a>
+    </li>`).join('')}</ul>`;
+  const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
+  const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));
+
   const files = `<section class="block">
     <h2>${esc(t(locale, 'data.export.title'))}</h2>
     <p class="muted">${esc(t(locale, 'data.export.lead'))}</p>
-    <ul class="dl">${EXPORT_SUBJECTS.map((s: ExportSubject) => `<li>
-      <a class="btn" href="/app/settings/data/${s}.csv" download>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</a>
-    </li>`).join('')}</ul>
+    ${links(record)}
+    <h2 class="second">${esc(t(locale, 'data.export.configTitle'))}</h2>
+    <p class="muted">${esc(t(locale, 'data.export.configLead'))}</p>
+    ${links(CONFIG)}
     <p class="muted micro">${esc(t(locale, 'data.export.limit', { n: EXPORT_MAX_ROWS }))}</p>
   </section>`;
 
@@ -210,6 +221,7 @@ const DATA_STYLE = `<style>
   .dl { list-style:none; padding:0; margin:var(--space-12) 0 0;
     display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .micro { font-size:var(--font-size-micro); }
+  .second { margin-top:var(--space-24); }
   .drq { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .pform input { background:var(--color-paper-sunk); border:1px solid var(--color-border);
     border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }

@@ -1208,6 +1208,38 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const note = String(b['note'] ?? '').trim().slice(0, 500) || null;
     const r = await askWorkspaceDeletion(deps.db, s.businessId, String(b['name'] ?? ''), personOf(s).id, note);
+
+    /**
+     * A REQUEST NOBODY HEARS IS A ROW IN A TABLE. The page now promises the
+     * buyer's business that this is done within 30 days, and the thing that
+     * makes that keepable is somebody finding out the day it was asked — not
+     * whenever an operator next thinks to look at `deletion_requests`.
+     *
+     * It goes to LEGAL_CONTACT_EMAIL, which the boot refuses to start without
+     * (PR 2), and it leaves over HTTPS through the connected mailbox because
+     * Railway's Hobby plan blocks every outbound SMTP port.
+     *
+     * AFTER the row is written and never instead of it: the record is what the
+     * runbook works from, and a send that fails must not lose the request. A
+     * failure is logged and the owner is still told her request was made —
+     * telling her it failed would be telling her about our mail setup.
+     */
+    if (r === 'asked' && deps.systemMail && deps.legalContact) {
+      const when = new Date().toISOString().slice(0, 10);
+      void deps.systemMail.send({
+        to: deps.legalContact,
+        subject: `Deletion requested · ${s.businessId}`,
+        // The id and the date, never the note: the note is the business's own
+        // words about why they are leaving, and it is in the row already.
+        text: `A workspace asked for everything to be deleted.\n\n`
+          + `workspace: ${s.businessId}\nasked by: ${personOf(s).id}\nasked on: ${when}\n\n`
+          + `Due within 30 days, which /data-deletion now states.\n`
+          + `Follow docs/DATA-DELETION-RUNBOOK.md — offer the export first.\n`,
+      }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'deletion request notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'deletion request notice could not be sent'),
+      );
+    }
     return flashTo(reply, '/app/settings/data', `data.flash.${r}` as MessageKey);
   });
 

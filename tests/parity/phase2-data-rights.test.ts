@@ -22,8 +22,13 @@ const VIEW = {
 };
 
 describe('CC-12 · she can take her own data out', () => {
-  it('six subjects, and every one is offered on the page', () => {
-    expect([...EXPORT_SUBJECTS]).toEqual(['buyers', 'messages', 'products', 'orders', 'quotes', 'contacts']);
+  it('nine subjects, and every one is offered on the page', () => {
+    // Six are the RECORD; the last three are her WORK — the floors, terms and
+    // teaching that are the switching cost, added by the Phase 2 follow-ups.
+    expect([...EXPORT_SUBJECTS]).toEqual([
+      'buyers', 'messages', 'products', 'orders', 'quotes', 'contacts',
+      'price-rules', 'selling-terms', 'teaching',
+    ]);
     const html = renderDataRights(VIEW, 'en', null, OWNER_VIEW, 'Settings');
     for (const s of EXPORT_SUBJECTS) {
       expect(html, `${s} has no link`).toContain(`/app/settings/data/${s}.csv`);
@@ -188,5 +193,67 @@ describe('the sentences', () => {
     for (const banned of ['自动', '系统', '模型']) {
       expect(zh, `the Chinese uses ${banned}`).not.toContain(banned);
     }
+  });
+});
+
+describe('the follow-ups · her CONFIGURATION comes out too', () => {
+  it('the three new subjects cover every table she configured', () => {
+    const src = read('src/api/web/dataExport.ts');
+    for (const table of [
+      'pricing_policy', 'price_tiers', 'negotiation_rules', 'bundle_rules', 'substitution_rules',
+      'trade_terms', 'sample_policy', 'factory_closures', 'owner_rates',
+      'product_knowledge', 'forbidden_terms',
+    ]) {
+      expect(src, `her ${table} is not in any export`).toMatch(new RegExp(`from ${table}\\b`));
+    }
+  });
+
+  it('and still nothing secret — the guard covers the new queries too', () => {
+    const src = read('src/api/web/dataExport.ts');
+    for (const table of [
+      'channel_credentials', 'mail_accounts', 'meta_accounts', 'connector_credentials',
+      'channel_sources', 'logins', 'people',
+    ]) {
+      expect(src, `the export reads ${table}`).not.toMatch(new RegExp(`from ${table}\\b`));
+    }
+  });
+
+  it('the page shows them under their own heading, not as a wall of nine links', () => {
+    const html = renderDataRights(VIEW, 'en', null, OWNER_VIEW, 'Settings');
+    expect(html).toContain(t('en', 'data.export.configTitle'));
+    for (const s of ['price-rules', 'selling-terms', 'teaching']) {
+      expect(html, `${s} has no link`).toContain(`/app/settings/data/${s}.csv`);
+    }
+  });
+});
+
+describe('the follow-ups · a request reaches a person, and the page states a timeline', () => {
+  it('a NEW request notifies the address the boot refuses to start without', () => {
+    const src = read('src/api/web/app.ts');
+    expect(src).toMatch(/if \(r === 'asked' && deps\.systemMail && deps\.legalContact\)/);
+    expect(src).toMatch(/to: deps\.legalContact/);
+    // The note is the business's own words about why they are leaving. It is
+    // in the row; it does not need to be in an e-mail as well.
+    expect(src, 'the notice carries the note').not.toMatch(/text: `[^`]*\$\{note\}/);
+  });
+
+  it('a failed send loses neither the request nor the owner\'s confirmation', () => {
+    const src = read('src/api/web/app.ts');
+    const block = /if \(r === 'asked' && deps\.systemMail[\s\S]*?\n    \}/.exec(src)?.[0] ?? '';
+    expect(block, 'the row is written first, by askWorkspaceDeletion, and never instead').not.toBe('');
+    expect(block).toMatch(/could not be sent/);
+    // She is still told her request was made — a mail failure is ours.
+    expect(src).toMatch(/\}\s*\n\s*return flashTo\(reply, '\/app\/settings\/data', `data\.flash\./);
+  });
+
+  it('/data-deletion COMMITS to 30 days, in all three languages', () => {
+    for (const locale of LOCALES) {
+      expect(messages[locale]['legal.deletion.step2'], locale).toContain('30');
+    }
+    // Not "ask again if you have not heard" — that was the old wording, which
+    // set a date for the BUYER to chase rather than one we keep. There is now
+    // a row, a notice and a runbook behind it.
+    expect(messages.en['legal.deletion.step2']).toMatch(/done within 30 days/i);
+    expect(messages.en['legal.deletion.step2']).not.toMatch(/ask again/i);
   });
 });
