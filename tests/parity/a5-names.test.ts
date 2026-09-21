@@ -60,13 +60,16 @@ describe('A5.2 · the name in force', () => {
 
 describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
   it('holds a name, holds "no row yet" too, expires, and can be told to forget', () => {
+    // A5 — it holds HOW MANY as well as who, because the nav asks both and
+    // one look-up answers them.
     const c = makeNameCache(1000);
     expect(c.get('b1', 0)).toBeUndefined();
-    c.set('b1', 'Sara', 0); c.set('b2', null, 0);
-    expect(c.get('b1', 999)).toBe('Sara');
-    expect(c.get('b2', 999)).toBeNull();
+    c.set('b1', { name: 'Sara', several: true }, 0);
+    c.set('b2', { name: null, several: false }, 0);
+    expect(c.get('b1', 999)).toEqual({ name: 'Sara', several: true });
+    expect(c.get('b2', 999)).toEqual({ name: null, several: false });
     expect(c.get('b1', 1000)).toBeUndefined();
-    c.set('b1', 'Sara', 2000); c.evict('b1');
+    c.set('b1', { name: 'Sara', several: false }, 2000); c.evict('b1');
     expect(c.get('b1', 2001)).toBeUndefined();
   });
 
@@ -87,9 +90,14 @@ describe('A5.2 · nothing on the owner\'s pages goes round it', () => {
     }
   });
 
-  it('only the module that NAMES a new main assistant still reads the constant', () => {
-    const readers = files.filter((f) => readFileSync(WEB + f, 'utf8').includes('EMPLOYEE_NAME'));
-    expect(readers).toEqual(['assistants.ts']);
+  it('NOTHING on the owner\'s pages reads the constant any more', () => {
+    // It used to be `assistants.ts`, which named a new main assistant from the
+    // constant for the READER's page language — so who opened the team page
+    // first decided what a business's assistant was called. Naming moved to
+    // `db/assistants.ts`, which can see the business's own signup locale, and
+    // the web layer stopped having an opinion about it.
+    const readers = files.filter((f) => /EMPLOYEE_NAME\s*[[,}]/.test(readFileSync(WEB + f, 'utf8')));
+    expect(readers).toEqual([]);
   });
 
   it('no save message is handed the installation\'s one configured name', () => {
@@ -99,7 +107,9 @@ describe('A5.2 · nothing on the owner\'s pages goes round it', () => {
   it('the scope is opened on preHandler — after the body is read — and by callback', () => {
     const src = read('src/api/web/app.ts');
     expect(src).toMatch(/app\.addHook\('preHandler', \(req, _reply, done\) => \{/);
-    expect(src).toMatch(/withAssistantName\(name, done\)/);
+    // A5 — the scope carries HOW MANY as well as who, because the nav entry
+    // reads as her name at one assistant and "Team" at several.
+    expect(src).toMatch(/withAssistantName\(who\.name, done, who\.several\)/);
   });
 });
 

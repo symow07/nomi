@@ -1,7 +1,7 @@
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import {
   ASSISTANT_CHANNELS, ASSISTANT_ROLES, NAME_MAX, NOTE_MAX, validateAssistant,
@@ -19,12 +19,23 @@ import { esc } from './layout.js';
  * buyer is who is on the team.
  */
 
-/** Everyone who answers, the main one first — made the first time the page is opened. */
-export async function loadAssistants(db: Db, businessIdRaw: string, locale: Locale): Promise<readonly Assistant[]> {
+/**
+ * Everyone who answers, the main one first — made the first time the page is
+ * opened.
+ *
+ * NO NAME IS PASSED, on purpose. It used to hand over the catalogue's name
+ * constant for the READER's current page language, so which name a business's
+ * first assistant was given depended on who happened to open the team page
+ * first and what language their browser was in. A name is written once and
+ * then shown to everybody; it belongs to the business, not to a visitor.
+ * `ensureDefaultAssistant` takes it from the business's own signup locale
+ * instead.
+ */
+export async function loadAssistants(db: Db, businessIdRaw: string): Promise<readonly Assistant[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => {
-    await ensureDefaultAssistant(tx, bid.value, EMPLOYEE_NAME[locale]);
+    await ensureDefaultAssistant(tx, bid.value);
     return listAssistants(tx, bid.value);
   });
 }
@@ -41,13 +52,15 @@ const inputFrom = (body: Record<string, unknown>) => ({
 });
 
 export async function addAssistantFromForm(
-  db: Db, businessIdRaw: string, body: Record<string, unknown>, actor: string, locale: Locale,
+  db: Db, businessIdRaw: string, body: Record<string, unknown>, actor: string,
 ): Promise<{ outcome: AssistantOutcome; name: string }> {
   const v = validateAssistant(inputFrom(body));
   if (!v.ok) return { outcome: v.problem, name: '' };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { outcome: 'not_found', name: '' };
-  const outcome = await withTenantTx(db, bid.value, (tx) => addAssistant(tx, bid.value, v.value, actor, EMPLOYEE_NAME[locale]));
+  // Same reason as above: the MAIN assistant this may have to create first is
+  // named from the business's signup locale, never from the adder's page.
+  const outcome = await withTenantTx(db, bid.value, (tx) => addAssistant(tx, bid.value, v.value, actor));
   return { outcome, name: v.value.name };
 }
 

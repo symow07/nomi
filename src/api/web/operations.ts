@@ -357,6 +357,12 @@ export function renderOperationsHome(
   // answer, and saying it in three rows makes it smaller rather than clearer.
   const a = s.activity;
   const didNothing = a.handled === 0 && a.draftsCreated === 0 && a.corrections === 0;
+  //
+  // CC-05 — THE LINK CAME OUT OF THE BRANCH. The quiet branch is right and
+  // stays: three zeros and a grid of more zeros is the page inventing a reason
+  // to exist. But the only door to Results was INSIDE it, so a new owner — and
+  // any quiet week — had no way into a whole page except typing the URL. The
+  // counts go quiet; the way in does not.
   const activity = didNothing ? '' : `<section class="block">
     <h2>${esc(t(locale, 'ops.activity.title', { name }))}</h2>
     <div class="counts">
@@ -364,8 +370,8 @@ export function renderOperationsHome(
       ${countLine(a.draftsCreated, t(locale, 'ops.activity.drafts'))}
       ${countLine(a.corrections, t(locale, 'ops.activity.corrections'))}
     </div>
-    ${deeper('/app/analytics', t(locale, 'today.results.link'))}
   </section>`;
+  const toResults = `<section class="block">${deeper('/app/analytics', t(locale, 'today.results.link'))}</section>`;
 
   // Messaging state is only worth an owner's attention when it is NOT live.
   const notLive = !(s.channel.live ?? s.channel.provider !== 'disabled')
@@ -377,6 +383,7 @@ export function renderOperationsHome(
   ${stepIn}
   ${learning}
   ${activity}
+  ${toResults}
   ${notLive}
   <style>
     /* .block is the shell's now — Today is where the pattern came from. */

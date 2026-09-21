@@ -19,6 +19,37 @@ export type AssistantChannel = (typeof ASSISTANT_CHANNELS)[number];
 export const NAME_MAX = 40;
 export const NOTE_MAX = 600;
 
+/**
+ * What a business's FIRST assistant is called, by the language they signed up
+ * in. A starting point she can change on the team page — this is the only
+ * moment code decides a name, and after it the `assistants` table is the
+ * source for every reading of it.
+ *
+ * NOT `EMPLOYEE_NAME`, and the difference is deliberate. That constant is a
+ * translation table: one idea rendered three ways, correct for a `{name}`
+ * placeholder because the reader's language picks the row. A name written into
+ * a database row is not translated afterwards — it is stored once and shown to
+ * everyone, whatever language the page is in. So Arabic takes the Latin name
+ * rather than ياسمين: a workspace that signed up in Arabic is read in Arabic
+ * and English by the same team, and a name that only works in one of them is
+ * the wrong thing to have committed to a row. Chinese keeps 小雅, which is the
+ * name that workspace's buyers and staff will actually use.
+ *
+ * CC-16 is the finding behind this: an Arabic page showed "Lily" because the
+ * row had been created from the business's stored locale, so the name stopped
+ * following the page. It cannot follow the page — it is her name. This makes
+ * the stored name the one that reads acceptably wherever it is shown.
+ */
+export const DEFAULT_ASSISTANT_NAME: Readonly<Record<string, string>> = {
+  en: 'Lily',
+  zh: '小雅',
+  ar: 'Lily',
+};
+
+/** Her name at creation, for a locale this build may not know. */
+export const defaultAssistantName = (locale: string): string =>
+  DEFAULT_ASSISTANT_NAME[locale] ?? DEFAULT_ASSISTANT_NAME['en']!;
+
 export type Assistant = {
   readonly id: string; readonly name: string; readonly role: AssistantRole; readonly note: string | null;
   readonly channels: readonly AssistantChannel[]; readonly isDefault: boolean;

@@ -315,7 +315,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // assert 'What Lily did' and 'Buyers she talked to' were present, which now
     // means the quiet branch has stopped working.
     expect(home.body).not.toContain('What Lily did');
-    expect(home.body).not.toContain('href="/app/analytics"');
+    // CC-05 — the COUNTS go quiet, the door does not. Results' only link used
+    // to live inside that section, so a brand-new tenant (this one) had no way
+    // into a whole page but typing the URL. Changed deliberately.
+    expect(home.body).toContain('href="/app/analytics"');
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.body).toContain('Buyers');            // English default

@@ -55,7 +55,13 @@ describe('Phase F · four destinations, and nothing else competing', () => {
   });
 
   it('marks the active destination, and only that one', () => {
-    const html = page('en', 'factory');
+    // A7 — the PATH decides now, not the `active` string, so this asks for a
+    // page that really is My business. The two used to be able to disagree,
+    // and when they did the sidebar lit nothing at all on twenty pages.
+    const html = shell({
+      title: 'T', active: 'factory', locale: 'en', path: '/app/factory',
+      avatar: '👩', bodyHtml: '<p>body</p>',
+    });
     expect(html.split('navlink active').length - 1).toBe(1);
     expect(html).toContain('href="/app/factory" class="navlink active"');
   });
