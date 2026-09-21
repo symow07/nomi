@@ -1,7 +1,9 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { type Locale } from '../../core/owner/i18n/locale.js';
+import { parseLocale, type Locale } from '../../core/owner/i18n/locale.js';
+import { defaultAssistantName, validateAssistant, NAME_MAX } from '../../core/owner/assistants.js';
+import { renameMainAssistant } from '../../db/assistants.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
@@ -30,26 +32,40 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 
 export type DetectedKey =
   | 'profile' | 'products' | 'priceRules' | 'knowledge' | 'claims' | 'sandbox' | 'channel';
-export type AttestKey = 'backup_tested' | 'secrets_rotated' | 'owner_ready' | 'claims_reviewed';
+export type AttestKey = 'backup_tested' | 'secrets_rotated' | 'owner_ready' | 'claims_reviewed'
+  | 'assistant_named';
 
 const ATTEST_COL: Record<AttestKey, string> = {
   backup_tested: 'backup_tested_at', secrets_rotated: 'secrets_rotated_at',
   owner_ready: 'owner_ready_at', claims_reviewed: 'claims_reviewed_at',
+  assistant_named: 'assistant_named_at',
 };
 
 export type PilotReadiness = {
   readonly detected: Record<DetectedKey, boolean>;
-  readonly attest: { readonly backupTestedAt: Date | null; readonly secretsRotatedAt: Date | null; readonly ownerReadyAt: Date | null };
+  readonly attest: {
+    readonly backupTestedAt: Date | null; readonly secretsRotatedAt: Date | null;
+    readonly ownerReadyAt: Date | null;
+    /** When the owner confirmed what buyers will call her assistant. */
+    readonly assistantNamedAt: Date | null;
+  };
   readonly validation: { readonly at: Date | null; readonly pass: number | null; readonly total: number | null };
   readonly readyToLaunch: boolean;   // everything but the channel (that's what launch turns on)
+  /**
+   * What the box is pre-filled with: her stored name, or — before any row
+   * exists — the one the signup locale would give her. A suggestion, not a
+   * decision; `assistantNamedAt` records the decision.
+   */
+  readonly assistantName: string;
 };
 
 export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise<PilotReadiness> {
   const empty: PilotReadiness = {
     detected: { profile: false, products: false, priceRules: false, knowledge: false, claims: false, sandbox: false, channel: false },
-    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
+    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
     validation: { at: null, pass: null, total: null },
     readyToLaunch: false,
+    assistantName: defaultAssistantName('en'),
   };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
@@ -59,6 +75,8 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     const r = (await sql<{
       profile: boolean; products: boolean; price_rules: boolean; knowledge: boolean; claims: boolean; channel: boolean;
       backup_tested_at: Date | null; secrets_rotated_at: Date | null; owner_ready_at: Date | null;
+      assistant_named_at: Date | null;
+      assistant_name: string | null; owner_locale: string | null;
       last_validation_at: Date | null; last_validation_pass: number | null; last_validation_total: number | null;
     }>`
       with os as (select * from onboarding_state where business_id = ${B})
@@ -83,6 +101,12 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
         (select backup_tested_at from os) as backup_tested_at,
         (select secrets_rotated_at from os) as secrets_rotated_at,
         (select owner_ready_at from os) as owner_ready_at,
+        (select assistant_named_at from os) as assistant_named_at,
+        -- The name the box shows. The assistants table is the one source for
+        -- it since A5; the locale default only fills a box nobody answered yet.
+        (select a.name from assistants a
+          where a.business_id = ${B} and a.is_default and a.archived_at is null limit 1) as assistant_name,
+        (select owner_locale from businesses where id = ${B}) as owner_locale,
         (select last_validation_at from os) as last_validation_at,
         (select last_validation_pass from os) as last_validation_pass,
         (select last_validation_total from os) as last_validation_total
@@ -93,15 +117,18 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
 
     const detected = { profile: r.profile, products: r.products, priceRules: r.price_rules,
       knowledge: r.knowledge, claims: r.claims, sandbox, channel: r.channel };
-    const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at, ownerReadyAt: r.owner_ready_at };
+    const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at,
+      ownerReadyAt: r.owner_ready_at, assistantNamedAt: r.assistant_named_at };
     const readyToLaunch = detected.profile && detected.products && detected.priceRules
       && detected.knowledge && detected.claims && detected.sandbox
-      && !!attest.backupTestedAt && !!attest.secretsRotatedAt && !!attest.ownerReadyAt;
+      && !!attest.backupTestedAt && !!attest.secretsRotatedAt && !!attest.ownerReadyAt
+      && !!attest.assistantNamedAt;
 
     return {
       detected, attest,
       validation: { at: r.last_validation_at, pass: r.last_validation_pass, total: r.last_validation_total },
       readyToLaunch,
+      assistantName: r.assistant_name ?? defaultAssistantName(parseLocale(r.owner_locale ?? 'en') ?? 'en'),
     };
   });
 }
@@ -319,6 +346,34 @@ export async function attest(db: Db, businessIdRaw: string, which: AttestKey): P
   return { ok: true };
 }
 
+/** The two ways the one field she is asked for can be wrong. */
+export type NameProblem = 'name_missing' | 'name_long';
+
+/**
+ * The assistant-name step: the name she settled on, and the attestation that
+ * she settled on it, written together. Refused rather than trimmed to fit —
+ * what a buyer reads should be what the owner typed.
+ */
+export async function nameAssistant(
+  db: Db, businessIdRaw: string, raw: string, actor: string,
+): Promise<{ ok: true } | { ok: false; problem: NameProblem }> {
+  const bid = parseBusinessId(businessIdRaw);
+  // Only the name is asked for, so only the name can be wrong: the role is
+  // fixed and the note is empty, which is why the other two problems this
+  // validator can report are unreachable here and have no sentence.
+  const v = validateAssistant({ name: raw, role: 'sales', note: '', channels: [] });
+  if (!v.ok) return { ok: false, problem: v.problem === 'name_long' ? 'name_long' : 'name_missing' };
+  if (!bid.ok) return { ok: false, problem: 'name_missing' };
+  await withTenantTx(db, bid.value, async (tx) => {
+    await renameMainAssistant(tx, bid.value, v.value.name, actor);
+    await sql`
+      insert into onboarding_state (business_id, assistant_named_at) values (${bid.value}, now())
+      on conflict (business_id) do update set assistant_named_at = now(), updated_at = now()
+    `.execute(tx);
+  });
+  return { ok: true };
+}
+
 /**
  * Replay the M12.1 golden scenarios through the REAL engine (the promoted
  * harness — the same computeTurn/commitTurn the sandbox uses) and record the
@@ -374,6 +429,31 @@ function attestRow(key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at:
     </form></div>`;
 }
 
+/**
+ * The one confirmation that carries an answer with it.
+ *
+ * The other four attestations are a fact the app cannot observe, so a button is
+ * the whole of them. This one is a decision — what a BUYER will call her, since
+ * she signs off with it — and a button alone would make the locale default into
+ * the answer by silence. So the box is pre-filled with the suggestion and she
+ * confirms or changes it; either way a person chose. Once confirmed the row
+ * reads like the others, with the name she settled on.
+ */
+function assistantNameRow(d: PilotReadiness, locale: Locale): string {
+  const label = esc(t(locale, 'pilot.attest.assistant_named'));
+  if (d.attest.assistantNamedAt) {
+    return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label} · ${esc(d.assistantName)}</span>
+      <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(formatDate(locale, d.attest.assistantNamedAt))}</span></div>`;
+  }
+  return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+    <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.assistant.hint'))}</span>
+      <form method="post" action="/app/onboarding/assistant-name" class="inline">
+        <input type="text" name="name" maxlength="${NAME_MAX}" required
+               value="${esc(d.assistantName)}" aria-label="${label}" />
+        <button class="btn" type="submit">${esc(t(locale, 'pilot.attest.confirm'))}</button>
+      </form></div></div>`;
+}
+
 export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: Flash | null): string {
   const flashHtml = flashBanner(flash);
   const detectedOrder: DetectedKey[] = ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
@@ -391,6 +471,7 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: F
     </div>`;
 
   const attests = [
+    assistantNameRow(d, locale),
     attestRow('backup_tested', d.attest.backupTestedAt, locale),
     attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale),
     attestRow('owner_ready', d.attest.ownerReadyAt, locale),

@@ -5,6 +5,7 @@ import {
 } from '../../src/core/owner/i18n/locale.js';
 import { messages, t, countryName, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { formatQty, formatMoney, formatDate, formatTime } from '../../src/core/owner/i18n/format.js';
+import { HONEST_ABOUT_AI_KEYS } from '../../src/core/owner/vocabulary.js';
 
 describe('ADR-0008 · locale resolution', () => {
   it('default is English', () => expect(DEFAULT_LOCALE).toBe('en'));
@@ -93,7 +94,13 @@ describe('ADR-0008 · banned technical vocabulary in every locale', () => {
 
   it('no catalog string leaks implementation vocabulary', () => {
     for (const l of LOCALES) {
-      const blob = Object.values(messages[l]).join(' \n ').toLowerCase();
+      // Same exception as owner-language.test.ts, for the same reason: a
+      // buyer-facing sentence whose job is to say a machine wrote the reply.
+      // Dropped by key before the blob is joined, so the exemption covers those
+      // strings and cannot hide the word anywhere else.
+      const blob = Object.entries(messages[l])
+        .filter(([k]) => !HONEST_ABOUT_AI_KEYS.includes(k))
+        .map(([, v]) => v).join(' \n ').toLowerCase();
       for (const w of LATIN) {
         expect(new RegExp(`\\b${w}\\b`).test(blob), `${l}:${w}`).toBe(false);
       }

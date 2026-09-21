@@ -1141,21 +1141,29 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     /*
-     * THE SANDBOX TENANT IS NEVER PRUNED, so this test inherits every
-     * minimum-order fact every previous run taught it. After a few hundred runs
-     * the local database held 119 active facts for this tenant, the matcher
-     * answered from one of the older ones, and "the correction won" failed — on
-     * a machine that had run the suite before, and nowhere else.
+     * THIS TEST OWNS ITS FACTS, BEFORE AND AFTER.
      *
-     * Nothing was flaky and nothing in the product was wrong: the test simply
-     * did not own its starting state. It owns it now, by archiving the fact it
-     * is about to teach a new version of. Archived, not deleted — this product
-     * never erases, and the last assertion counts archived rows anyway.
+     * The sandbox tenant is deliberately never pruned, so this test used to
+     * inherit every minimum-order fact every previous run had taught it. After
+     * a few hundred runs the local database held 119 active facts for it, the
+     * matcher answered from an older one, and "the correction won" failed — on
+     * a machine that had run the suite before, and nowhere else. Nothing was
+     * flaky and nothing in the product was wrong: the test did not own its
+     * starting state, and it left its own facts behind for the next run to
+     * trip over.
+     *
+     * It cannot avoid the label — the buyer's question is matched against it,
+     * so a label unique to this run would never be found. What it can do is
+     * take that label's facts out of the way on the way in AND on the way out,
+     * so the tenant is no dirtier afterwards than before. Archived, never
+     * deleted: this product does not erase, and the assertion below counts
+     * archived rows anyway.
      */
-    const forgetPreviousRuns = () => q((tx) => sql`
+    const LABEL = 'What is your minimum order?';
+    const clearOwnFacts = () => q((tx) => sql`
       update product_knowledge set status = 'archived'
        where business_id = ${SANDBOX} and status = 'active'
-         and kind = 'faq' and label = 'What is your minimum order?'`.execute(tx as never));
+         and kind = 'faq' and label = ${LABEL}`.execute(tx as never));
 
     const ask = async (cookie: string) => {
       await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
@@ -1169,26 +1177,36 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('teach → answer, then correct → the NEW answer, old row archived (never deleted)', async () => {
       const { teachKnowledge, correctKnowledge } = await import('../../src/api/web/knowledge.js');
       const cookie = await login();
-      await forgetPreviousRuns();
+      await clearOwnFacts();
+      try {
+        await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
+          label: LABEL, content: 'Our minimum order is 1000 pieces.' });
+        const first = await ask(cookie);
+        expect(first.body).toContain('Our minimum order is 1000 pieces.');   // answered from taught knowledge
 
-      await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
-        label: 'What is your minimum order?', content: 'Our minimum order is 1000 pieces.' });
-      const first = await ask(cookie);
-      expect(first.body).toContain('Our minimum order is 1000 pieces.');   // answered from taught knowledge
+        const id = await q((tx) => sql<{ id: string }>`
+          select id from product_knowledge where business_id=${SANDBOX} and status='active' and kind='faq'
+          order by created_at desc limit 1`.execute(tx as never).then((r) => r.rows[0]!.id));
+        await correctKnowledge(prod.db, SANDBOX, id, 'Our minimum order is 2000 pieces.');
 
-      const id = await q((tx) => sql<{ id: string }>`
-        select id from product_knowledge where business_id=${SANDBOX} and status='active' and kind='faq'
-        order by created_at desc limit 1`.execute(tx as never).then((r) => r.rows[0]!.id));
-      await correctKnowledge(prod.db, SANDBOX, id, 'Our minimum order is 2000 pieces.');
+        const second = await ask(cookie);
+        expect(second.body).toContain('Our minimum order is 2000 pieces.');  // the correction won
+        expect(second.body).not.toContain('1000 pieces');                    // fresh thread → only the new answer
 
-      const second = await ask(cookie);
-      expect(second.body).toContain('Our minimum order is 2000 pieces.');  // the correction won
-      expect(second.body).not.toContain('1000 pieces');                    // fresh thread → only the new answer
-
-      const archived = await q((tx) => sql<{ n: number }>`
-        select count(*)::int as n from product_knowledge where business_id=${SANDBOX} and status='archived'`
+        const archived = await q((tx) => sql<{ n: number }>`
+          select count(*)::int as n from product_knowledge where business_id=${SANDBOX} and status='archived'`
+          .execute(tx as never).then((r) => r.rows[0]!.n));
+        expect(archived).toBeGreaterThanOrEqual(1);
+      } finally {
+        // On the way out too, and on a FAILING run as well — the run that
+        // fails is the one whose leftovers would confuse the next one.
+        await clearOwnFacts();
+      }
+      const leftActive = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from product_knowledge
+         where business_id = ${SANDBOX} and status = 'active' and kind = 'faq' and label = ${LABEL}`
         .execute(tx as never).then((r) => r.rows[0]!.n));
-      expect(archived).toBeGreaterThanOrEqual(1);
+      expect(leftActive, 'this test left facts behind for the next run').toBe(0);
     });
 
     it('a certification is authorised through claims_policy, not stored as knowledge', async () => {
@@ -2670,10 +2688,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // Every precondition met, so the only variable is the owner's decision.
       await q((tx) => sql`
         insert into onboarding_state (business_id, backup_tested_at, secrets_rotated_at, owner_ready_at,
-                                      claims_reviewed_at, last_validation_at, last_validation_pass, last_validation_total)
-        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), 5, 5)
+                                      claims_reviewed_at, assistant_named_at,
+                                      last_validation_at, last_validation_pass, last_validation_total)
+        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), now(), 5, 5)
         on conflict (business_id) do update set backup_tested_at=now(), secrets_rotated_at=now(),
-          owner_ready_at=now(), claims_reviewed_at=now(), last_validation_at=now(),
+          owner_ready_at=now(), claims_reviewed_at=now(), assistant_named_at=now(), last_validation_at=now(),
           last_validation_pass=5, last_validation_total=5`.execute(tx as never));
       await q((tx) => sql`update businesses set description='d', location='l', contact_email='e@x.com'
                            where id=${DEMO_BIZ}`.execute(tx as never));
@@ -2733,6 +2752,36 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(page.body).not.toContain('action="/app/factory/activate"');
 
       await addToAllowlist(prod.db, bid, ph('971500007070'), 'my own phone', 'owner');
+    });
+
+    it('REFUSES until the owner has said what buyers will call her assistant', async () => {
+      // C had the assistant sign off with a name the signup LOCALE chose, so a
+      // factory could meet every other gate and still have its customers
+      // greeted by a name nobody in the business had ever read. This is that
+      // gate, in the shape of the M18.0 one beside it: the fact lives in
+      // `assistants`, the confirmation in `onboarding_state`.
+      const { activate, activationPreconditions } = await import('../../src/channels/activation.js');
+      await q((tx) => sql`update onboarding_state set assistant_named_at = null
+                           where business_id = ${DEMO_BIZ}`.execute(tx as never));
+
+      const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
+      expect(pre.assistantNamed).toBe(false);
+      expect(pre.blockers).toContain('assistant_not_named');
+      expect((await activate(prod.db, bid, 'owner', { providerConfigured: true })).ok).toBe(false);
+      expect((await channel())!.activated_at, 'activated without a named assistant').toBeNull();
+
+      // Naming her through the same route Getting ready posts to lifts it.
+      const { nameAssistant } = await import('../../src/api/web/pilot.js');
+      expect(await nameAssistant(prod.db, DEMO_BIZ, '  Mei  Ling ', 'owner')).toEqual({ ok: true });
+      const named = await q((tx) => sql<{ name: string }>`
+        select name from assistants where business_id = ${DEMO_BIZ} and is_default and archived_at is null`
+        .execute(tx as never).then((r) => r.rows[0]!.name));
+      expect(named).toBe('Mei Ling');                       // trimmed, inner run collapsed
+      expect((await activationPreconditions(prod.db, bid, { providerConfigured: true })).assistantNamed).toBe(true);
+
+      // An empty name is refused, and the attestation it would have carried is
+      // not written — the two cannot come apart.
+      expect(await nameAssistant(prod.db, DEMO_BIZ, '   ', 'owner')).toEqual({ ok: false, problem: 'name_missing' });
     });
 
     it('activates: writes through the service, audits the actor, and shows it at once', async () => {
@@ -3227,10 +3276,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       await q((tx) => sql`
         insert into onboarding_state (business_id, backup_tested_at, secrets_rotated_at, owner_ready_at,
-                                      claims_reviewed_at, last_validation_at, last_validation_pass, last_validation_total)
-        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), 5, 5)
+                                      claims_reviewed_at, assistant_named_at,
+                                      last_validation_at, last_validation_pass, last_validation_total)
+        values (${DEMO_BIZ}, now(), now(), now(), now(), now(), now(), 5, 5)
         on conflict (business_id) do update set backup_tested_at=now(), secrets_rotated_at=now(),
-          owner_ready_at=now(), claims_reviewed_at=now(), last_validation_at=now(),
+          owner_ready_at=now(), claims_reviewed_at=now(), assistant_named_at=now(), last_validation_at=now(),
           last_validation_pass=5, last_validation_total=5`.execute(tx as never));
       await q((tx) => sql`update businesses set description='d', location='l', contact_email='e@x.com'
                            where id=${DEMO_BIZ}`.execute(tx as never));
@@ -3310,13 +3360,22 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { activate, activationPreconditions } = await import('../../src/channels/activation.js');
       const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
 
-      // simulate the exact M19 hazard: code deployed ahead of the migration
-      await q((tx) => sql`delete from _migrations where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never))
-        .catch(async () => {
-          // the app role has no DELETE — use the admin connection semantics via update
-          await q((tx) => sql`update _migrations set version = version - 100
-                               where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
-        });
+      /*
+       * Simulate the exact M19 hazard: code deployed ahead of the migration.
+       *
+       * BY SHIFTING, NEVER BY DELETING, and the difference is not stylistic.
+       * This used to try `delete from _migrations where version >=
+       * REQUIRED_SCHEMA_VERSION` and fall back to a shift when the app role
+       * refused it — and the restore below was the inverse of the SHIFT only.
+       * So every row ABOVE the required version was moved to a negative
+       * version and left there. G20's whole purpose is that an applied
+       * migration's checksum stays on record; this test was quietly taking
+       * records off it, on every run, for exactly the migration a branch is
+       * adding. It stranded 0065 at version -35 here, and that is how it was
+       * found. A shift is reversible; a delete is not.
+       */
+      await q((tx) => sql`update _migrations set version = version - 100
+                           where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
 
       const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
       expect(pre.schema.ok, JSON.stringify(pre.schema)).toBe(false);
@@ -3325,10 +3384,19 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const r = await activate(prod.db, bid, 'owner', { providerConfigured: true });
       expect(r).toEqual({ ok: false, code: 'schema_stale' });
 
-      // restore so the drill below runs against a current schema
+      // Restore so the drill below runs against a current schema. The exact
+      // inverse of the shift — `version < 0` is every row this test moved and
+      // nothing else, where the old bound (`<= REQUIRED - 100`) silently left
+      // behind anything that had been above the required version.
       await q((tx) => sql`update _migrations set version = version + 100
-                           where version <= ${REQUIRED_SCHEMA_VERSION - 100}`.execute(tx as never));
+                           where version < 0`.execute(tx as never));
       expect((await activationPreconditions(prod.db, bid, { providerConfigured: true })).schema.ok).toBe(true);
+      // …and the record this test borrowed is whole again. Without this, the
+      // damage is invisible until a later branch's migration goes missing.
+      const stranded = await q((tx) => sql<{ n: number }>`
+        select count(*)::int as n from _migrations where version < 0`
+        .execute(tx as never).then((r2) => r2.rows[0]!.n));
+      expect(stranded, 'this test left migration rows shifted').toBe(0);
     });
 
     it('DRILL 1 — enable: activation succeeds, is audited, and keeps pilot mode ON', async () => {

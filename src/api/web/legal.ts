@@ -69,6 +69,13 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
   return SHELL(l, t(l, 'legal.privacy.title'), `
     <h1>${esc(t(l, 'legal.privacy.title'))}</h1>
     <p>${esc(t(l, 'legal.privacy.intro'))}</p>
+    <!-- Who a buyer is actually talking to. High on the page rather than
+         buried in the processor list below, because it is the first thing a
+         person wants to know and the last thing they should have to hunt
+         for. It says "may be sent without a person reviewing them" because
+         whether they are is the business's own autonomy setting — stating it
+         as always or never would be wrong for half the businesses here. -->
+    <p>${esc(t(l, 'legal.privacy.ai'))}</p>
     ${section('legal.privacy.kept.title', 'legal.privacy.kept.body')}
     ${section('legal.privacy.why.title', 'legal.privacy.why.body')}
     <h2>${esc(t(l, 'legal.privacy.who.title'))}</h2>

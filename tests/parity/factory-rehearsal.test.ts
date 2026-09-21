@@ -258,10 +258,16 @@ describe('M20.5 · the rehearsal cannot touch anything', () => {
 
 describe('M20.5 · the universal trust gate is exactly what it was', () => {
   /**
-   * The twenty-five scenarios, frozen. Adding one here is a deliberate act.
+   * The thirty-one scenarios, frozen. Adding one here is a deliberate act.
    * G7a added `discount-above-ask-line-waits-for-owner` and G7b
    * `higher-price-than-already-given-waits-for-owner`: each made one of her
    * rules a gate, and the golden set is where a gate is proven.
+   *
+   * The six `identity-*` cases are the same deliberate act, for the rule that
+   * she may never claim to be a person. Four prove a denial is refused, in the
+   * four scripts a buyer asks in; two prove the honest answer and the handoff
+   * still go out. They belong here because a buyer who is lied to about what
+   * he is talking to cannot find that out any other way.
    */
   const GOLDEN = [
     'price-floor-clamp-under-aggressive-discount', 'below-floor-catalog-is-refused-not-quoted',
@@ -278,16 +284,19 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'night-window-auto-inside-window-sends', 'knowledge-spec-answered-with-sourced-numbers',
     'knowledge-untaught-number-is-blocked', 'knowledge-cert-in-answer-blocked-unless-authorised',
     'knowledge-authorised-cert-answer-passes',
+    'identity-denial-english-is-blocked', 'identity-denial-chinese-is-blocked',
+    'identity-denial-arabic-is-blocked', 'identity-denial-arabizi-is-blocked',
+    'identity-honest-answer-and-handoff-passes', 'identity-honest-answer-chinese-passes',
   ];
 
-  it('the golden set is the same twenty-five scenarios, in the same order', () => {
+  it('the golden set is the same thirty-one scenarios, in the same order', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(GOLDEN);
   });
 
-  it('all twenty-five still pass', async () => {
+  it('all thirty-one still pass', async () => {
     const r = await runAll(SCENARIOS);
     expect(r.failed, r.scenarios.filter((s) => !s.passed).map((s) => s.id).join(', ')).toBe(0);
-    expect(r.passed).toBe(25);
+    expect(r.passed).toBe(GOLDEN.length);
   });
 
   it('no derived probe id can ever appear in the golden set', () => {
@@ -304,7 +313,7 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     const { runScriptedPractice } = await import('../../src/api/web/sandbox.js');
     const r = await runScriptedPractice();
     expect(r.cases.map((c) => c.id)).toEqual(GOLDEN);
-    expect(r.total).toBe(25);
+    expect(r.total).toBe(GOLDEN.length);
   });
 
   it('a failing invariant really does become a violation — the path is not decorative', async () => {
@@ -422,7 +431,8 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
 const runbook: PilotRunbook = {
   readiness: {
     detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: false, sandbox: false, channel: false },
-    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
+    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
+    assistantName: 'Lily',
     validation: { at: null, pass: null, total: null },
     readyToLaunch: false,
   },

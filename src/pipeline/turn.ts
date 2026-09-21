@@ -21,6 +21,7 @@ import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
+import { guardIdentity } from '../core/safety/identity.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
@@ -148,6 +149,12 @@ export type TurnResult = {
    * actionable and "she used 傻逼" is.
    */
   forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[];
+  /**
+   * The phrase in which she claimed to be human, if she tried — so the card
+   * that held the turn can say why, in the same way the forbidden-word card
+   * names the word. Null on every ordinary turn.
+   */
+  deniedBeingAi: string | null;
   /**
    * G8 — forbidden words found in HER OWN text: her taught answer, or the
    * order-status line built from her order. Tagged by where, shown to her,
@@ -348,6 +355,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let guardViolations = 0;
   /** M37.5 — which forbidden terms stopped a draft, so the owner is told WHICH. */
   let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
+  /** The phrase in which she claimed to be human, if she tried. Owner-visible. */
+  let deniedBeingAi: string | null = null;
   /** G8 — the same, found in her own text rather than in what the employee wrote. */
   const forbiddenInHerText: ForbiddenInHerText[] = [];
   /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
@@ -582,6 +591,22 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           forbiddenHits = clean.error.terms;
           continue;
         }
+        // SHE MAY NOT CLAIM TO BE HUMAN. `prompts/response.txt` tells the
+        // writer never to deny being an AI; this is the same rule where it
+        // cannot be talked out of. Last in the chain, so it reads the text
+        // exactly as it would have left — a denial the numeral guard rewrote
+        // into existence is still a denial.
+        //
+        // Failing here spends a retry like any other guard, and twice means
+        // the turn is HELD for a person (`guardsFailedTwice` below). That is
+        // the right end: a buyer who asked what they are talking to, twice
+        // answered wrongly, should be answered by somebody.
+        const honest = guardIdentity({ reply: clean.value });
+        if (!honest.ok) {
+          guardViolations++;
+          deniedBeingAi = honest.error.phrase;
+          continue;
+        }
         reply = clean.value;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
@@ -653,6 +678,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     provenance: { promptVersion, modelId },
     guardViolations,
     forbiddenHits,
+    deniedBeingAi,
     forbiddenInHerText,
     sampleRequested,
     hold,
@@ -914,6 +940,9 @@ export async function commitTurn(
           // kept stopping her. The card names them (M37.5's promise).
           ...(r.hold === 'guards_failed_twice' && r.forbiddenHits.length
             ? { forbidden: r.forbiddenHits.map((x) => x.term) } : {}),
+          // …and when what kept stopping her was a claim to be human. The
+          // owner should know this happened; it is not an ordinary retry.
+          ...(r.deniedBeingAi ? { deniedBeingAi: r.deniedBeingAi } : {}),
         });
       }
     }

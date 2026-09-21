@@ -96,7 +96,7 @@ import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.j
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import {
-  loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, runValidation, type AttestKey,
+  loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -2228,6 +2228,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
       await attest(deps.db, s.businessId, which);
     }
+    return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
+  });
+
+  // The assistant's name, confirmed before she can be switched on. Its own
+  // route rather than a branch of /attest: this one carries an answer, and the
+  // attest route exists precisely because those items have no answer to carry.
+  app.post('/app/onboarding/assistant-name', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
+    const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
+    if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 
