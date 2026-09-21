@@ -298,6 +298,7 @@ export function renderEmployee(
   const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
       <p class="muted">${esc(t(locale, 'autonomy.intro'))}</p>
+      <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <form method="post" action="/app/employee/autonomy" class="levels">
         ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
@@ -311,6 +312,10 @@ export function renderEmployee(
         .level > span { display:flex; flex-direction:column; gap:var(--space-4); }
         .lnote { font-size:var(--font-size-caption); }
         .levels .btn { align-self:flex-start; }
+        /* Above the choice, not below it: she reads what happens before she
+           decides, which is the whole point of putting it on this page. */
+        .disclose { border-inline-start:1px solid var(--color-border);
+          padding-inline-start:var(--space-12); margin-block:var(--space-12) 0; }
       </style>
     </div>`;
 

@@ -22,6 +22,7 @@ import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
+import { disclosureFor, withDisclosure } from '../core/conversation/disclosure.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
@@ -885,6 +886,39 @@ export async function commitTurn(
       // this rung, like the one above it, can only ever remove authority.
       const mode = effectiveMode(r.hold ? 'draft' : policyMode, capability, await tenant.ops.switches());
 
+      /*
+       * THE AI DISCLOSURE, ONCE PER CONVERSATION.
+       *
+       * The rule is about who approved the message, not about what it says:
+       * anything reaching a buyer without a person having read it carries the
+       * sentence first. A draft the owner pressed send on does not — she read
+       * it, and she is a person.
+       *
+       * Loaded lazily, so it costs one extra query once per conversation and
+       * nothing at all on the turns that draft. Null when the conversation has
+       * already been told, and null when there is no assistant name or
+       * business name to say — a disclosure with a hole in it is worse than
+       * the silence it was meant to fix, and Getting ready gates the name for
+       * exactly this reason.
+       */
+      const firstDisclosure = async (): Promise<string | null> => {
+        if (r.newState.aiDisclosedAt !== null) return null;
+        const who = await tenant.conversations.speaker(req.conversationId);
+        return disclosureFor({
+          detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
+          name: who?.name ?? null,
+          business: who?.business.name ?? null,
+        });
+      };
+      const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
+        // In this turn's transaction, like the draft beside it. The send is
+        // queued after the commit, so a queue that never accepts it leaves this
+        // conversation marked as told — the same optimism the draft path has
+        // always had, and the same remedy: the owner can see it on the timeline.
+        await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
+        await tenant.events.append(req.conversationId, 'ai_disclosed', { reason: why });
+      };
+
       // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
       //
       // guardNumerals or guardClaims refused her draft, and the capability that
@@ -924,7 +958,9 @@ export async function commitTurn(
           capability, reason: 'ops_kill_switch',
         });
       } else if (mode === 'auto') {
-        outbound = { conversationId: req.conversationId, reply };
+        const say = await firstDisclosure();
+        outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
+        if (say) await recordDisclosure('first_auto_send');
       } else {
         const d = await tenant.drafts.create({
           conversationId: req.conversationId, capability,
@@ -950,6 +986,34 @@ export async function commitTurn(
           ...(r.identityViolation
             ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
         });
+
+        /*
+         * A BUYER WHO ASKED WHAT HE IS TALKING TO IS NOT LEFT IN SILENCE.
+         *
+         * He asked; she failed twice to say; the turn is held. In DRAFT that is
+         * the whole answer — nothing was ever going out without the owner, and
+         * she will reply herself. But in AUTO the buyer was going to get a
+         * message, and the guard turning that into nothing at all is the one
+         * outcome worse than a clumsy answer: a direct question met with
+         * silence, from something that had been answering all along.
+         *
+         * So the disclosure goes out instead — the sentence he was owed — and
+         * the draft above still holds the turn for her, with the reason on it.
+         * Both things are true: he has been told, and she has been told to look.
+         *
+         * ONLY the unanswered question. A reply that CLAIMED to be human sends
+         * nothing, ever, in any mode: there is no version of that turn a buyer
+         * should receive, and the disclosure would be answering a question he
+         * did not ask.
+         */
+        if (mode === 'draft' && policyMode === 'auto'
+            && r.identityViolation?.kind === 'identity_question_unanswered') {
+          const say = await firstDisclosure();
+          if (say) {
+            outbound = { conversationId: req.conversationId, reply: say };
+            await recordDisclosure('identity_question');
+          }
+        }
       }
     }
   }

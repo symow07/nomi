@@ -49,7 +49,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .innerJoin('clients as cl', 'cl.id', 'c.client_id')
         .select([
           'c.id', 'c.business_id', 'c.client_id', 'c.phase as conv_phase',
-          'c.assigned_to', 'c.is_active',
+          'c.assigned_to', 'c.is_active', 'c.ai_disclosed_at',
           'cs.identified_product_id', 'cs.product_confidence',
           'cs.product_confirmed_by_client', 'cs.inquiry_quantity', 'cs.inquiry_unit',
           'cs.problem_score', 'cs.lead_score', 'cs.pending_question',
@@ -86,6 +86,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         // (a fast path, an injection) still answers in the language he writes.
         preferredLanguage: row.preferred_language ?? null,
         contextSummary: row.context_summary,
+        aiDisclosedAt: row.ai_disclosed_at,
       };
     },
 
@@ -114,9 +115,18 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
       await tx
         .updateTable('conversations')
-        .set({ phase: state.phase, assigned_to: state.assignedTo })
+        .set({
+          phase: state.phase,
+          assigned_to: state.assignedTo,
+          ai_disclosed_at: state.aiDisclosedAt,
+        })
         .where('id', '=', state.conversationId)
         .execute();
+    },
+
+    async markAiDisclosed(id, at) {
+      await tx.updateTable('conversations').set({ ai_disclosed_at: at })
+        .where('id', '=', id).execute();
     },
 
     async findActiveByClient(clientId) {

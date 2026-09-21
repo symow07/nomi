@@ -44,6 +44,8 @@ export class FakeTenant implements Tenant {
   closed: string[] = [];
   /** A5.3 — who the turn is told is speaking. Null: nobody named, as before. */
   speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = null;
+  /** When each conversation was told it is talking to an AI — the 0066 column. */
+  disclosedAt = new Map<string, Date>();
 
   products = new Map<string, Product>([[mkProduct().id, mkProduct()]]);
   tiers = new Map<string, PriceTier[]>([[mkProduct().id, mkTiers()]]);
@@ -69,6 +71,11 @@ export class FakeTenant implements Tenant {
     },
     close: async (id) => { this.closed.push(id); },
     speaker: async () => this.speakerIs,
+    markAiDisclosed: async (id, at) => {
+      this.disclosedAt.set(id, at);
+      const s = this.states.get(id);
+      if (s) this.states.set(id, { ...s, aiDisclosedAt: at });
+    },
   };
 
   /** G11 — the language remembered for this buyer, if a turn wrote one. */

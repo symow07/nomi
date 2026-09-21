@@ -202,6 +202,13 @@ export interface ConversationRepo {
   close(id: ConversationId): Promise<void>;
   /** A5.3 — who answers this conversation, and for which business. Null: no such conversation. */
   speaker(id: ConversationId): Promise<Speaker | null>;
+  /**
+   * This conversation has now been told it is talking to an AI. Its own write
+   * rather than a field of saveState, because it is decided AFTER the state is
+   * saved — at the moment the send/draft branch knows nobody is going to read
+   * the message before the buyer does.
+   */
+  markAiDisclosed(id: ConversationId, at: Date): Promise<void>;
 }
 
 export interface CatalogRepo {

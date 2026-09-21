@@ -604,6 +604,7 @@ const EN = {
   // T1 — how much she does on her own is the owner's choice.
   'autonomy.title': 'How much {name} does on her own',
   'autonomy.intro': 'Your choice, from day one. Whatever you choose: she never confirms an order without you, prices only come from your price rules, and anything your rules hold still waits for you.',
+  'autonomy.disclosure': 'One thing to know before you choose: when she replies without you, the first message in a conversation tells your buyer she is not a person, and offers them someone from your team. A reply you send yourself carries no such line — you sent it.',
   'autonomy.level.waits': 'Everything waits for me',
   'autonomy.level.waits.note': 'She writes every reply; nothing goes out until you press Send.',
   'autonomy.level.talks': 'She talks on her own; prices wait for me',
@@ -2472,6 +2473,7 @@ const ZH: Record<MessageKey, string> = {
   // T1 — how much she does on her own is the owner's choice.
   'autonomy.title': '{name}自己能做多少',
   'autonomy.intro': '从第一天起就由你决定。无论选哪一档：没有你，她不会确认订单；价格只按你定的价格规矩来；你的规矩要求先问你的，照样先问你。',
+  'autonomy.disclosure': '选之前先知道一件事：她不经你过目就回复时，一段对话里的第一条消息会告诉买家她不是真人，并可以帮他转给你的同事。你自己发出去的回复不带这句话——那是你发的。',
   'autonomy.level.waits': '全部先给我看',
   'autonomy.level.waits.note': '每条回复她都写好，你点发送才发出去。',
   'autonomy.level.talks': '聊天她自己来，报价先给我看',
@@ -4292,6 +4294,7 @@ const AR: Record<MessageKey, string> = {
   // T1 — how much she does on her own is the owner's choice.
   'autonomy.title': 'كم تفعل {name} بمفردها',
   'autonomy.intro': 'القرار قراركِ من اليوم الأول. ومهما اخترتِ: لا تؤكّد طلبًا من دونكِ، والأسعار من قواعد أسعاركِ فقط، وما تطلب قواعدكِ عرضه عليكِ يبقى ينتظركِ.',
+  'autonomy.disclosure': 'قبل أن تختاري، اعلمي هذا: حين تردّ من دونكِ، تُخبر أولُ رسالة في المحادثة المشتري أنها ليست إنسانًا، وتعرض عليه التحدث مع شخص من فريقكِ. أما الرد الذي ترسلينه بنفسكِ فلا يحمل هذه الجملة — لأنكِ أنتِ من أرسلَه.',
   'autonomy.level.waits': 'كل شيء ينتظرني',
   'autonomy.level.waits.note': 'تكتب كل ردّ، ولا يخرج شيء قبل أن تضغطي إرسال.',
   'autonomy.level.talks': 'تتحدّث بمفردها، والأسعار تنتظرني',

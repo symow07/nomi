@@ -45,7 +45,8 @@ function emptyState(over: Partial<ConversationState> = {}): ConversationState {
     conversationId: CONVERSATION, businessId: TRUST_BUSINESS_ID, clientId: CLIENT,
     phase: 'warm_intake', turnCount: 0, scores: { problem: 0, lead: 0 },
     product: null, quantity: null, contact: { email: null }, pendingQuestion: null,
-    assignedTo: null, preferredLanguage: null, contextSummary: null, ...over,
+    assignedTo: null, preferredLanguage: null, contextSummary: null,
+    aiDisclosedAt: null, ...over,
   };
 }
 
@@ -112,6 +113,9 @@ class HarnessTenant implements Tenant {
     assign: async () => {},
     close: async () => {},
     speaker: async () => null,
+    // The harness runs one scenario at a time against a fresh state, so
+    // there is no second turn for the mark to be read back by.
+    markAiDisclosed: async () => {},
   };
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
   /** G11 — the harness proves decisions, not links: no host, so no link. */
