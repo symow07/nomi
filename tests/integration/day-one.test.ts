@@ -29,6 +29,26 @@ const buyer = (n: number) => `9715${runDigits(RUN, 6)}${n}`;
 const A = buyer(1); const B = buyer(2); const C = buyer(3);
 const HOURS = 3600 * 1000;
 
+/**
+ * M51.1 — this tenant's batching window, and the ONE place it is written.
+ *
+ * Production debounces six seconds so a buyer's three lines arrive as one
+ * message. Seven inbound messages in this file × 6s was its entire 42-second
+ * runtime, against a 30-second deadline inside `until` and a 40-second
+ * per-test timeout — which is why it failed under load and passed alone.
+ * Nothing flaky: a product delay nobody had shortened for the test, exactly as
+ * tools/pre-pilot.mjs shortens it ("a rehearsal should not wait six seconds
+ * twelve times").
+ *
+ * The proving-a-negative test below has to outlast this window to show a turn
+ * never ran. It used to sleep a hardcoded 6_000 — the PRODUCTION number — so
+ * lowering the tenant's debounce alone would have left it sleeping through a
+ * window that had already closed. Both come from here now, and cannot drift.
+ */
+const BATCH = { debounceMs: 300, maxWindowMs: 1000 };
+/** Comfortably past it, with room for a slow machine — still 4× faster than the sleep it replaces. */
+const PAST_THE_WINDOW = BATCH.maxWindowMs + 500;
+
 const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 30_000): Promise<T> => {
   const end = Date.now() + ms;
   for (;;) {
@@ -85,6 +105,14 @@ d('G10 · day-one WhatsApp (requires DATABASE_URL)', { timeout: 40_000 }, () => 
     await withTenantTx(setup, bid, async (t) => {
       await sql`insert into businesses (id, name, engine) values (${BIZ}, 'Day One Factory', 'service')
                 on conflict (id) do nothing`.execute(t);
+      // Lowered for this tenant only — see BATCH above. What day-one tests is
+      // windows, allowlists and the timeline; the batching behaviour itself has
+      // its own tests (fragments.test.ts, batching.test.ts) which set these
+      // values explicitly.
+      await sql`update businesses
+                   set batch_debounce_ms = ${BATCH.debounceMs},
+                       batch_max_window_ms = ${BATCH.maxWindowMs}
+                 where id = ${BIZ}`.execute(t);
       await sql`insert into channels (business_id, kind, status, display_phone, connected_at)
                 values (${BIZ}, 'whatsapp', 'connected', '+86 579****0010', now())`.execute(t);
       await sql`insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
@@ -220,7 +248,7 @@ d('G10 · day-one WhatsApp (requires DATABASE_URL)', { timeout: 40_000 }, () => 
     expect(held.assigned_to).toBe('unclaimed');
     // …and no turn — not now, and not after the batching window a typed line
     // would have waited out — so no model call and no draft that could never leave.
-    await new Promise((r) => setTimeout(r, 6_000));
+    await new Promise((r) => setTimeout(r, PAST_THE_WINDOW));
     const count = (table: string) => tx((t) => sql<{ n: number }>`
       select count(*)::int as n from ${sql.table(table)} where conversation_id = ${conv}::uuid`
       .execute(t).then((r) => r.rows[0]!.n));

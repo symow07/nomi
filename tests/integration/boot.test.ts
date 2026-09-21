@@ -1140,6 +1140,23 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       });
     });
 
+    /*
+     * THE SANDBOX TENANT IS NEVER PRUNED, so this test inherits every
+     * minimum-order fact every previous run taught it. After a few hundred runs
+     * the local database held 119 active facts for this tenant, the matcher
+     * answered from one of the older ones, and "the correction won" failed — on
+     * a machine that had run the suite before, and nowhere else.
+     *
+     * Nothing was flaky and nothing in the product was wrong: the test simply
+     * did not own its starting state. It owns it now, by archiving the fact it
+     * is about to teach a new version of. Archived, not deleted — this product
+     * never erases, and the last assertion counts archived rows anyway.
+     */
+    const forgetPreviousRuns = () => q((tx) => sql`
+      update product_knowledge set status = 'archived'
+       where business_id = ${SANDBOX} and status = 'active'
+         and kind = 'faq' and label = 'What is your minimum order?'`.execute(tx as never));
+
     const ask = async (cookie: string) => {
       await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
         headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
@@ -1152,6 +1169,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('teach → answer, then correct → the NEW answer, old row archived (never deleted)', async () => {
       const { teachKnowledge, correctKnowledge } = await import('../../src/api/web/knowledge.js');
       const cookie = await login();
+      await forgetPreviousRuns();
 
       await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
         label: 'What is your minimum order?', content: 'Our minimum order is 1000 pieces.' });
