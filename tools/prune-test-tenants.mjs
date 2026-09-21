@@ -122,6 +122,35 @@ async function plan(client) {
   const steps = ordered.map((t) => ({ table: t, run: `delete from ${t} where ${indirect[t] ?? 'business_id = any($1)'}` }));
   steps.push({ table: 'signup_invites (unlink)', run: 'update signup_invites set used_by = null where used_by = any($1)' });
   steps.push({ table: 'businesses', run: 'delete from businesses where id = any($1)' });
+
+  /*
+   * AND THE WORK QUEUED AGAINST THEM. Found by ten consecutive full-suite runs:
+   * four went red, always on day-one, always with
+   *   insert or update on "message_fragments" violates foreign key
+   *   "message_fragments_business_id_fkey"
+   * for a message nobody in that run had sent.
+   *
+   * They were inbound jobs from EARLIER runs, still `created` or `retry` in
+   * pgboss.job, whose tenant this tool had deleted. A new run's worker picks
+   * them up, they fail against the missing business, they are retried with
+   * backoff, and the run's own message waits behind them — past the
+   * thirty-second deadline, on a machine that has run the suite before and
+   * nowhere else. Twelve such jobs were queued here.
+   *
+   * Deleting a tenant and leaving work addressed to it is half a cleanup, and
+   * the half that was missing is the one that made the suite look flaky. The
+   * second clause also takes the jobs orphaned by every run before this fix.
+   * Only unfinished states: a completed or failed row is a record, not work.
+   */
+  steps.push({
+    table: 'pgboss.job (queued against a tenant that is gone)',
+    run: `delete from pgboss.job
+           where state in ('created', 'retry', 'active')
+             and data ? 'businessId'
+             and (data->>'businessId' = any($1)
+                  or not exists (select 1 from businesses b where b.id::text = data->>'businessId'))`,
+    onlyIf: "select to_regclass('pgboss.job') is not null as ok",
+  });
   return steps;
 }
 
@@ -155,7 +184,12 @@ async function main() {
     await client.query('begin');
     try {
       let rows = 0;
-      for (const s of steps) rows += (await client.query(s.run, [doomed])).rowCount ?? 0;
+      for (const s of steps) {
+        // A step may name a table this database has not created yet — pgboss's,
+        // before anything has ever queued a job here.
+        if (s.onlyIf && !(await client.query(s.onlyIf)).rows[0]?.ok) continue;
+        rows += (await client.query(s.run, [doomed])).rowCount ?? 0;
+      }
       await client.query('commit');
       say(`  pruned ${doomed.length} tenant(s) from earlier runs · ${rows} rows`);
     } catch (e) {
