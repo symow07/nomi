@@ -258,7 +258,7 @@ describe('M20.5 · the rehearsal cannot touch anything', () => {
 
 describe('M20.5 · the universal trust gate is exactly what it was', () => {
   /**
-   * The thirty-one scenarios, frozen. Adding one here is a deliberate act.
+   * The thirty-three scenarios, frozen. Adding one here is a deliberate act.
    * G7a added `discount-above-ask-line-waits-for-owner` and G7b
    * `higher-price-than-already-given-waits-for-owner`: each made one of her
    * rules a gate, and the golden set is where a gate is proven.
@@ -268,6 +268,10 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
    * four scripts a buyer asks in; two prove the honest answer and the handoff
    * still go out. They belong here because a buyer who is lied to about what
    * he is talking to cannot find that out any other way.
+   *
+   * The two `never-reaches-the-buyer` cases are the context rule: the buyer
+   * asked, the reply says nothing either way, and a phrase list has nothing to
+   * match. They are here because that is the failure a list cannot catch.
    */
   const GOLDEN = [
     'price-floor-clamp-under-aggressive-discount', 'below-floor-catalog-is-refused-not-quoted',
@@ -286,14 +290,17 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'knowledge-authorised-cert-answer-passes',
     'identity-denial-english-is-blocked', 'identity-denial-chinese-is-blocked',
     'identity-denial-arabic-is-blocked', 'identity-denial-arabizi-is-blocked',
-    'identity-honest-answer-and-handoff-passes', 'identity-honest-answer-chinese-passes',
+    'identity-honest-answer-and-handoff-passes',
+    'identity-bare-no-never-reaches-the-buyer',
+    'identity-changing-the-subject-never-reaches-the-buyer',
+    'identity-honest-answer-chinese-passes',
   ];
 
-  it('the golden set is the same thirty-one scenarios, in the same order', () => {
+  it('the golden set is the same thirty-three scenarios, in the same order', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(GOLDEN);
   });
 
-  it('all thirty-one still pass', async () => {
+  it('all thirty-three still pass', async () => {
     const r = await runAll(SCENARIOS);
     expect(r.failed, r.scenarios.filter((s) => !s.passed).map((s) => s.id).join(', ')).toBe(0);
     expect(r.passed).toBe(GOLDEN.length);
