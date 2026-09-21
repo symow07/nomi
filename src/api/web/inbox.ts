@@ -109,6 +109,36 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
   return { status: 'handled', needs: false };
 }
 
+/**
+ * A9 — "needs a person", in SQL, so the fifty-row window cannot hide one.
+ *
+ * It is the same rule `needsOwner` applies below and must stay that way: a
+ * pending draft, or an `assigned_to` that is not null (the waiting sentinel,
+ * or a named person a conversation was handed to under G12).
+ *
+ * THE ORDERING WAS NOT ENOUGH. It floats `assigned_to = 'unclaimed' and
+ * is_active` and rows with a pending draft — which is why its comment says a
+ * handoff "can never fall out of the 50-row window", and for those it is
+ * right. A conversation handed to a NAMED person is not the sentinel, so once
+ * she has replied and the last message is outbound it scores the lowest
+ * priority there is, while still needing her. Past fifty conversations it left
+ * the list, the count and that person's Mine — and Mine is the only way a
+ * hand-off reaches a staff member, who has no phone.
+ */
+const NEEDS_OWNER = sql`(c.assigned_to is not null
+  or exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending'))`;
+
+/**
+ * M22 — holding a message that never reached the buyer. Was a second query and
+ * a JavaScript filter over the capped rows, which under-counted for the same
+ * reason.
+ */
+const IS_BLOCKED = sql`exists (
+  select 1 from outbound_messages o
+   where o.conversation_id = c.id and o.status = 'canceled'
+     and o.cancel_reason is not null
+     and o.created_at > now() - make_interval(days => 7))`;
+
 export async function loadInboxList(
   db: Db, businessIdRaw: string, filter: InboxFilter,
   /** G12 — who is looking, so 'mine' means the conversations THEY hold. */
@@ -118,6 +148,12 @@ export async function loadInboxList(
   if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [] };
 
   return withTenantTx(db, bid.value, async (tx) => {
+    // The tab decides WHICH rows are eligible, before the window is applied.
+    // 'mine' with no viewer is nobody's, which is what the old filter returned.
+    const eligible = filter === 'pending' ? NEEDS_OWNER
+      : filter === 'blocked' ? IS_BLOCKED
+      : filter === 'mine' ? (viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`)
+      : sql`true`;
     const rows = (await sql<{
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
@@ -151,6 +187,7 @@ export async function loadInboxList(
                             where cs.conversation_id = c.id and cs.resolved_at is null
                               and cs.kind = any(${sql.raw(`array[${[...PROBLEM_KINDS].map((k) => `'${k}'`).join(',')}]`)})
                             order by cs.created_at desc limit 1) sig on true
+       where ${eligible}
        order by
          -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
          -- fall out of the 50-row window. The sentinel comes from the ownership
@@ -180,33 +217,28 @@ export async function loadInboxList(
         unitPrice: r.unit_price !== null ? moneyFromRow(Number(r.unit_price), r.quote_currency ?? 'USD') : null,
       };
     });
-    // Phase D — "needs you" is an ownership question, not a drafts count. A buyer
-    // who asked for a person has no draft by design; excluding them hid the most
-    // urgent conversation in the business from the tab meant to surface it.
-    const needsOwner = (c: ConversationSummary) =>
-      c.needsAction || c.ownership === 'WAITING_HUMAN' || c.ownership === 'OWNER_CONTROLLED';
-    const waitingCount = all.filter(needsOwner).length;
+    // A9 — THE COUNTS ARE OF EVERYTHING. They were computed by filtering the
+    // fifty rows that had already been fetched, so every one of them
+    // under-reported the moment a business passed fifty conversations — and
+    // `defaultFilter` decides which tab opens from `waitingCount`. Three
+    // aggregates over the whole tenant, in one pass, costing one query.
+    //
+    // The predicates are the SAME sql fragments the list is selected with, so
+    // a count and its tab can never disagree about what the word means.
+    const counts = (await sql<{ waiting: number; blocked: number; mine: number }>`
+      select count(*) filter (where ${NEEDS_OWNER})::int as waiting,
+             count(*) filter (where ${IS_BLOCKED})::int as blocked,
+             count(*) filter (where ${viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`})::int as mine
+        from conversations c`.execute(tx)).rows[0] ?? { waiting: 0, blocked: 0, mine: 0 };
 
-    // M22 — which of these conversations is holding a refused message. Read
-    // through the SAME loader the conversation and Today use, so three
-    // surfaces cannot report three different answers.
-    const refused = await sql<{ conversation_id: string }>`
-      select distinct conversation_id from outbound_messages
-       where business_id = ${bid.value} and status = 'canceled'
-         and cancel_reason is not null
-         and created_at > now() - make_interval(days => 7)
-    `.execute(tx).then((r) => new Set(r.rows.map((x) => x.conversation_id)));
-    const blocked = all.filter((c) => refused.has(c.conversationId));
-
-    // G12 — 'mine' is held BY ME: the conversations someone handed to this
-    // person, and the ones they took themselves. A staff member has no phone,
-    // so this list is the only way a hand-off reaches them.
-    const mine = viewerId ? all.filter((c) => c.heldBy === viewerId) : [];
-    const conversations = filter === 'pending' ? all.filter(needsOwner)
-      : filter === 'blocked' ? blocked
-      : filter === 'mine' ? mine
-      : all;
-    return { filter, waitingCount, blockedCount: blocked.length, mineCount: mine.length, conversations };
+    // The rows are already the ones this tab asked for — the `where` above ran
+    // before the window, which is the whole point of A9.
+    return {
+      filter, conversations: all,
+      waitingCount: counts.waiting,
+      blockedCount: counts.blocked,
+      mineCount: counts.mine,
+    };
   });
 }
 
