@@ -125,16 +125,15 @@ describe('the disclosure rides on the first message nobody approved', () => {
     expect(p.tenant.disclosedAt.has(CONVERSATION)).toBe(false);
   });
 
-  it('with no name confirmed, nothing is invented and nothing is sent in front', async () => {
-    const p = ports('auto');
-    p.tenant.speakerIs = null;                             // Getting ready not finished
-    seed(p);
-    p.analyzer.next = analysis();
-    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
-
-    const { sent } = await run(p, 'Hello, do you make canvas bags?');
-    expect(sent).toBe('We make canvas totes in several sizes.');
-  });
+  /*
+   * There used to be a case here asserting that with no name, the reply went
+   * out WITHOUT a disclosure — "nothing is invented". That was the hole: it
+   * described a message going to a buyer unsupervised and unannounced, and
+   * called it correct because nothing was fabricated. Nothing being fabricated
+   * was never the requirement. A workspace with no name to say does not send
+   * alone at all now; see "she may not speak alone until she can say what she
+   * is" below, which is what replaced it.
+   */
 });
 
 describe('a buyer who asked is never left in silence — but only in AUTO', () => {
@@ -219,5 +218,109 @@ describe('a buyer who asked is never left in silence — but only in AUTO', () =
     const { r, sent } = await run(p, 'are you a bot?');
     expect(r.identityViolation?.kind).toBe('denied_being_ai');
     expect(sent).toBeNull();
+  });
+});
+
+describe('having said it before does not answer a question asked now', () => {
+  it('AUTO · already disclosed, he asks anyway, and he is told again', async () => {
+    const p = ports('auto');
+    // The conversation was told on an earlier turn — days ago, four messages up.
+    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z') });
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = Array(3).fill('What size were you looking for?');
+
+    const { r, sent, drafts, events } = await run(p, 'Wait — are you a bot?');
+    expect(r.identityViolation?.kind).toBe('identity_question_unanswered');
+    expect(sent).toContain("I'm Lily, Yiwu Canvas Co's AI assistant");
+    expect(drafts).toHaveLength(1);                        // and still held for her
+    expect(events.filter((e) => e.type === 'ai_disclosed')).toHaveLength(1);
+  });
+
+  it('…and the column still records the FIRST telling, not this one', async () => {
+    const first = new Date('2026-09-20T09:00:00Z');
+    const p = ports('auto');
+    seed(p, { aiDisclosedAt: first });
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = Array(3).fill('What size were you looking for?');
+
+    await run(p, 'Wait — are you a bot?');
+    // The event trail carries every telling; the column carries the first.
+    expect(p.tenant.disclosedAt.get(CONVERSATION)).toBeUndefined();
+  });
+
+  it('an ordinary auto reply after disclosure still carries nothing', async () => {
+    const p = ports('auto');
+    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z') });
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['Yes, we ship to Morocco.'];
+
+    expect((await run(p, 'Do you ship to Morocco?')).sent).toBe('Yes, we ship to Morocco.');
+  });
+});
+
+describe('she may not speak alone until she can say what she is', () => {
+  /**
+   * The fleet this is for: every workspace activated BEFORE Getting ready
+   * asked for the name is live today with no confirmation on file. Without
+   * this, autonomy on such a workspace sends messages that skip the disclosure
+   * silently — the rule quietly not applying to exactly the accounts that
+   * predate it.
+   */
+  it('AUTO with no confirmation falls back to draft, and says so on the timeline', async () => {
+    const p = ports('auto');
+    p.tenant.assistantNamedFlag = false;                   // activated before the gate existed
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+
+    const { sent, drafts, events } = await run(p, 'Hello, do you make canvas bags?');
+    expect(sent).toBeNull();                               // nothing went out unsupervised
+    expect(drafts).toHaveLength(1);                        // she keeps working; the owner reads it
+    expect(drafts[0]!.draftText).toBe('We make canvas totes in several sizes.');
+    const withheld = events.find((e) => e.type === 'autonomy_withheld');
+    expect((withheld?.payload as { reason?: string }).reason).toBe('assistant_not_named');
+  });
+
+  it('AUTO with a confirmation but no NAME to say also falls back', async () => {
+    // The attestation and the row can disagree — an assistant archived after
+    // the fact, a workspace restored from an older backup. Either way there is
+    // no sentence, so there is no unsupervised send.
+    const p = ports('auto');
+    p.tenant.speakerIs = null;
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+
+    const { sent, drafts, events } = await run(p, 'Hello, do you make canvas bags?');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    const withheld = events.find((e) => e.type === 'autonomy_withheld');
+    expect((withheld?.payload as { reason?: string }).reason).toBe('no_assistant_name');
+  });
+
+  it('DRAFT is untouched by the gate — it was already drafting', async () => {
+    const p = ports('draft');
+    p.tenant.assistantNamedFlag = false;
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+
+    const { sent, drafts, events } = await run(p, 'Hello, do you make canvas bags?');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    // Nothing was withheld: nothing was ever going to be sent alone.
+    expect(events.some((e) => e.type === 'autonomy_withheld')).toBe(false);
+  });
+
+  it('and once she confirms the name, auto works as set', async () => {
+    const p = ports('auto');
+    p.tenant.assistantNamedFlag = true;
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+
+    const { sent, drafts } = await run(p, 'Hello, do you make canvas bags?');
+    expect(sent).toContain('AI assistant');
+    expect(drafts).toHaveLength(0);
   });
 });

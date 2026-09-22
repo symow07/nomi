@@ -28,7 +28,8 @@ const emptyToday = renderOperationsHome(emptyTodaySnapshot, 'en');
 
 const emptyProfile: EmployeeProfile = {
   stage: 'probation', hireDate: null, knows: 0, canDo: [], needConfirm: [], capabilities: [],
-  growth: [], promoted: false, conditions: [], spotChecks: [],
+  growth: [], promoted: false, conditions: [], assistantNamed: true,
+ spotChecks: [],
 };
 const emptyContext: HerContext = {
   handled: 0, draftsPrepared: 0, neededYou: 0, taughtRecently: 0, corrected: 0, gaps: [],

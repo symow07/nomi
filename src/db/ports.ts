@@ -106,6 +106,15 @@ export interface AutonomyRepo {
     readonly conversationId: string;
     readonly violations: number;
   }): Promise<{ readonly demoted: boolean; readonly action: string }>;
+  /**
+   * Has the owner confirmed what buyers will call her assistant (0065)?
+   *
+   * On the autonomy repo because that is what it gates: a message sent with
+   * nobody reading it first announces itself BY NAME, so a workspace where no
+   * person has read that name may not send one. Every workspace activated
+   * before Getting ready asked is in exactly that position.
+   */
+  assistantNamed(): Promise<boolean>;
 }
 
 /**

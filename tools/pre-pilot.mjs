@@ -338,6 +338,13 @@ async function setup() {
   cookie = String(login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
   ok(cookie !== '', 'the owner could not sign in');
 
+  step('naming her assistant — a gate before anything sends alone');
+  // Not decoration. Since 0065 a capability in auto still DRAFTS until the
+  // owner has confirmed what buyers will call her, because a message sent
+  // without her carries that name. Scenarios 6 and 10 need a real auto-send,
+  // so the walkthrough does what a real owner does first.
+  await form('/app/onboarding/assistant-name', { name: 'Lily' });
+
   step('stating her terms, her closure and a word she forbids');
   // Terms authorise the FOB claim too, which is what lets a quote reply read
   // like a real one instead of being refused as an unauthorised claim.

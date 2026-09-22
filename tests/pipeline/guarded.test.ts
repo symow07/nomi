@@ -55,6 +55,9 @@ describe('G8 · the generated reply fails twice', () => {
   it('the stand-in is sourced and guarded, the term never appears, and it WAITS FOR HER', async () => {
     const p = ports();
     p.tenant.seed(CONVERSATION, emptyState({
+      // Told on an earlier turn: this file is about what the reply
+      // itself says, not about the disclosure in front of the first one.
+      aiDisclosedAt: new Date('2026-07-14T03:00:00Z'),
       phase: 'commercial_discussion',
       product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
       quantity: { value: 5000, unit: 'pcs' },
@@ -101,6 +104,9 @@ describe('G8 · the generated reply fails twice', () => {
   it('NEVER an internal note — a refused quote’s guidance to the writer is not words for the buyer', async () => {
     const p = ports();
     p.tenant.seed(CONVERSATION, emptyState({
+      // Told on an earlier turn: this file is about what the reply
+      // itself says, not about the disclosure in front of the first one.
+      aiDisclosedAt: new Date('2026-07-14T03:00:00Z'),
       product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
       quantity: { value: 10, unit: 'pcs' },                 // below the 1,000 MOQ → a refusal
     }));
@@ -117,7 +123,9 @@ describe('G8 · the generated reply fails twice', () => {
 describe('G8 · a forbidden word in HER OWN text', () => {
   it('her taught answer: not sent, shown to her, tagged — and NOT counted against the employee', async () => {
     const p = ports();
-    p.tenant.seed(CONVERSATION, emptyState());
+    // Told on an earlier turn: this test is about her own words reaching a
+    // buyer, not about the disclosure in front of the first message.
+    p.tenant.seed(CONVERSATION, emptyState({ aiDisclosedAt: new Date('2026-07-14T03:00:00Z') }));
     p.analyzer.next = analysis();
     p.tenant.knowledgeRows.push({
       id: 'k-faq', productId: null, kind: 'faq', label: 'Who else do you supply?',

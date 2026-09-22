@@ -43,7 +43,15 @@ export class FakeTenant implements Tenant {
   emailsSaved: Array<{ clientId: string; email: string }> = [];
   closed: string[] = [];
   /** A5.3 — who the turn is told is speaking. Null: nobody named, as before. */
-  speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = null;
+  /**
+   * Who is speaking. Named by default: confirming the name is what CREATES the
+   * assistants row, so "no speaker" is not a state a workspace that may send
+   * alone can be in. A test about the gate sets it null and says so.
+   */
+  speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = {
+    name: 'Lily', role: 'sales', note: null,
+    business: { name: 'Yiwu Canvas Co', kind: null, country: null, description: null },
+  };
   /** When each conversation was told it is talking to an AI — the 0066 column. */
   disclosedAt = new Map<string, Date>();
 
@@ -185,12 +193,19 @@ export class FakeTenant implements Tenant {
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
   selfDemoted: Array<{ capability: string; violations: number }> = [];
+  /**
+   * The owner has confirmed what buyers will call her assistant (0065). TRUE
+   * by default so that every test written before the gate still describes the
+   * situation it meant to; a test about the gate sets it false and says so.
+   */
+  assistantNamedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
       this.selfDemoted.push({ capability, violations });
       return { demoted: false, action: 'none' };
     },
+    assistantNamed: async () => this.assistantNamedFlag,
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do

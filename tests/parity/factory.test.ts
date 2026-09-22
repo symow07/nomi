@@ -382,7 +382,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     if (q.ok) expect(holdReasonOf({ provenance: 'typed', quote: q.value, turnText: '' })).toBe('discount_needs_owner');
     const { readFile } = await import('node:fs/promises');
     const turn = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    expect(turn).toMatch(/r\.hold \? 'draft' : policyMode/);
+    expect(turn).toMatch(/\(r\.hold \|\| !mayDisclose\) \? 'draft' : policyMode/);
 
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');

@@ -884,25 +884,17 @@ export async function commitTurn(
       // enforced at the SEND gate, where it also catches replies queued before
       // the switch was thrown. `effectiveMode` is monotone by construction, so
       // this rung, like the one above it, can only ever remove authority.
-      const mode = effectiveMode(r.hold ? 'draft' : policyMode, capability, await tenant.ops.switches());
-
       /*
-       * THE AI DISCLOSURE, ONCE PER CONVERSATION.
+       * THE SENTENCE SHE WOULD SAY, IF SHE IS ABOUT TO SPEAK ALONE.
        *
-       * The rule is about who approved the message, not about what it says:
-       * anything reaching a buyer without a person having read it carries the
-       * sentence first. A draft the owner pressed send on does not — she read
-       * it, and she is a person.
+       * Composed BEFORE the mode is settled, because whether it can be composed
+       * at all is one of the things that decides the mode. Null when there is
+       * no assistant name or no business name to put in it.
        *
-       * Loaded lazily, so it costs one extra query once per conversation and
-       * nothing at all on the turns that draft. Null when the conversation has
-       * already been told, and null when there is no assistant name or
-       * business name to say — a disclosure with a hole in it is worse than
-       * the silence it was meant to fix, and Getting ready gates the name for
-       * exactly this reason.
+       * One extra lookup per auto turn. Nothing at all on the turns that draft:
+       * a draft is read by a person, and a person needs no disclosure.
        */
-      const firstDisclosure = async (): Promise<string | null> => {
-        if (r.newState.aiDisclosedAt !== null) return null;
+      const disclosureText = async (): Promise<string | null> => {
         const who = await tenant.conversations.speaker(req.conversationId);
         return disclosureFor({
           detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
@@ -910,12 +902,55 @@ export async function commitTurn(
           business: who?.business.name ?? null,
         });
       };
+
+      /*
+       * SHE MAY NOT SPEAK ALONE UNTIL SHE CAN SAY WHAT SHE IS.
+       *
+       * The gap this closes is a real fleet's, not a hypothetical: every
+       * workspace activated BEFORE Getting ready asked for the name is live
+       * today with no confirmation on file. Without this rung, autonomy on such
+       * a workspace sends messages that skip the disclosure silently — the rule
+       * quietly not applying to exactly the accounts that predate it, which is
+       * the worst way for a safety rule to fail.
+       *
+       * Two conditions, and both are about the same sentence:
+       *   · the owner has CONFIRMED the name (0065), because it is a name a
+       *     buyer reads and she should not meet it in a transcript; and
+       *   · there is actually a name and a business name to say.
+       *
+       * The consequence is a fall back to draft, never a silence: she keeps
+       * working, the owner reads each reply, and the autonomy page says why.
+       * Monotone like the rungs around it — this can only ever remove
+       * authority, never grant it.
+       */
+      const speaksAlone = policyMode === 'auto';
+      const sentence = speaksAlone ? await disclosureText() : null;
+      const named = speaksAlone ? await tenant.autonomy.assistantNamed() : true;
+      const mayDisclose = !speaksAlone || (named && sentence !== null);
+
+      const mode = effectiveMode(
+        (r.hold || !mayDisclose) ? 'draft' : policyMode,
+        capability, await tenant.ops.switches(),
+      );
+      if (speaksAlone && !mayDisclose) {
+        // Recorded, because a capability that silently stopped acting as the
+        // owner set it is the kind of thing she should be able to find.
+        await tenant.events.append(req.conversationId, 'autonomy_withheld', {
+          capability, reason: named ? 'no_assistant_name' : 'assistant_not_named',
+        });
+      }
+
       const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
         // In this turn's transaction, like the draft beside it. The send is
         // queued after the commit, so a queue that never accepts it leaves this
         // conversation marked as told — the same optimism the draft path has
         // always had, and the same remedy: the owner can see it on the timeline.
-        await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
+        //
+        // The COLUMN means "when this conversation was first told" and is not
+        // moved by a later telling; the EVENT records each one, with its reason.
+        if (r.newState.aiDisclosedAt === null) {
+          await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
+        }
         await tenant.events.append(req.conversationId, 'ai_disclosed', { reason: why });
       };
 
@@ -958,7 +993,9 @@ export async function commitTurn(
           capability, reason: 'ops_kill_switch',
         });
       } else if (mode === 'auto') {
-        const say = await firstDisclosure();
+        // Once per conversation: the first message nobody approved carries it,
+        // and the ones after it do not.
+        const say = r.newState.aiDisclosedAt === null ? sentence : null;
         outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
         if (say) await recordDisclosure('first_auto_send');
       } else {
@@ -1005,14 +1042,17 @@ export async function commitTurn(
          * nothing, ever, in any mode: there is no version of that turn a buyer
          * should receive, and the disclosure would be answering a question he
          * did not ask.
+         *
+         * NOT "once" HERE, and that is the point. The once-per-conversation
+         * rule is about not repeating an announcement nobody asked for. This
+         * buyer ASKED — now — and a sentence he was sent four messages ago is
+         * not an answer to a question he is asking today. He gets it again.
          */
         if (mode === 'draft' && policyMode === 'auto'
-            && r.identityViolation?.kind === 'identity_question_unanswered') {
-          const say = await firstDisclosure();
-          if (say) {
-            outbound = { conversationId: req.conversationId, reply: say };
-            await recordDisclosure('identity_question');
-          }
+            && r.identityViolation?.kind === 'identity_question_unanswered'
+            && sentence !== null) {
+          outbound = { conversationId: req.conversationId, reply: sentence };
+          await recordDisclosure('identity_question');
         }
       }
     }

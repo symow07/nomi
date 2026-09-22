@@ -135,6 +135,7 @@ const employee = renderEmployee({
   growth: [{ kind: 'spotcheck_pass', capability: null, at: NOW }],
   promoted: false,
   conditions: [{ cond: 'passed_spotcheck', met: true }, { cond: 'learned_correction', met: false }],
+  assistantNamed: true,
   spotChecks: [{
     id: 's1', capability: 'quote', conversationId: 'c1', askedAt: NOW,
     buyerMessage: 'Can you quote 20000 pcs?',

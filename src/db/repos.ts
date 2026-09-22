@@ -634,6 +634,14 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       const evidence = { ...base, policyViolations: base.policyViolations + violations };
       return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
     },
+    async assistantNamed() {
+      const r = await sql<{ named: boolean }>`
+        select (assistant_named_at is not null) as named
+          from onboarding_state where business_id = ${businessId}`.execute(tx);
+      // No row at all is a workspace that has never opened Getting ready, which
+      // is "not confirmed" — the same answer, reached honestly.
+      return r.rows[0]?.named ?? false;
+    },
     async grants() {
       const r = await sql<{ capability: string; mode: string; time_window: string | null }>`
         select capability, mode, time_window from autonomy_policy where business_id = ${businessId}

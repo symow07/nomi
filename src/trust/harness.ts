@@ -112,7 +112,12 @@ class HarnessTenant implements Tenant {
     create: async () => { throw new Error('harness: create not used'); },
     assign: async () => {},
     close: async () => {},
-    speaker: async () => null,
+    // Named, because an unnamed workspace may not send alone at all now, and
+    // these scenarios are about what she says — not about that gate.
+    speaker: async () => ({
+      name: 'Lily', role: 'sales' as const, note: null,
+      business: { name: 'Trust Factory', kind: null, country: null, description: null },
+    }),
     // The harness runs one scenario at a time against a fresh state, so
     // there is no second turn for the mark to be read back by.
     markAiDisclosed: async () => {},
@@ -167,12 +172,19 @@ class HarnessTenant implements Tenant {
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
   selfDemoted: Array<{ capability: string; violations: number }> = [];
+  /**
+   * The owner has confirmed what buyers will call her assistant (0065). TRUE
+   * by default so that every test written before the gate still describes the
+   * situation it meant to; a test about the gate sets it false and says so.
+   */
+  assistantNamedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
       this.selfDemoted.push({ capability, violations });
       return { demoted: false, action: 'none' };
     },
+    assistantNamed: async () => this.assistantNamedFlag,
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.
