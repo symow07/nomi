@@ -37,7 +37,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import pg from 'pg';
+import { toolClient } from './lib/db.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const url = process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -46,8 +46,12 @@ if (!url) {
   process.exit(1);
 }
 
-const client = new pg.Client({ connectionString: url });
-await client.connect();
+// This runs as Railway's pre-deploy step, so a hang here is a deploy that
+// never finishes. Ten minutes for one reply is far above any migration so far;
+// each unit is its own transaction, so a closed connection leaves that unit
+// unapplied and the chain stopped, never half-done.
+const client = toolClient(url, { replyTimeoutMs: 10 * 60_000 });
+await client.connect().catch((e) => { console.error(`migrate: ${e.message}`); process.exit(1); });
 
 const one = async (q, params = []) => (await client.query(q, params)).rows[0];
 
@@ -58,7 +62,9 @@ async function inTx(label, sqlText) {
     await client.query('commit');
     console.log(`  applied ${label}`);
   } catch (e) {
-    await client.query('rollback');
+    // A rollback on a connection that is already gone fails too; the error
+    // worth reporting is the one that stopped the unit, not that one.
+    await client.query('rollback').catch(() => {});
     console.error(`  FAILED ${label}: ${e.message}`);
     throw e;
   }

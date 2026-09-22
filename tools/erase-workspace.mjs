@@ -32,7 +32,7 @@
  * Exit 0 all done · 1 a real refusal or failure · 2 bad usage.
  */
 
-import pg from 'pg';
+import { toolClient } from './lib/db.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -62,7 +62,9 @@ const go = has('yes');
 const confirm = flag('confirm');
 if (go && !confirm) usage('--yes needs --confirm "<the business name>".');
 
-const client = new pg.Client({ connectionString: url });
+// Five minutes for any one statement: the deletes are one transaction, and a
+// connection that stops answering must end it rather than hold it open.
+const client = toolClient(url, { replyTimeoutMs: 5 * 60_000 });
 
 /**
  * Every table that holds this workspace's rows, and the statement that removes

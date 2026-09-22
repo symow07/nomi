@@ -35,6 +35,37 @@ set -uo pipefail
 ATTEMPTS="${ATTEMPTS:-4}"
 DEST="${1:-${BACKUP_DIR:-$HOME/nomi-backups}}"
 
+# NO SILENT HANGS. On 2026-09-22 the public proxy accepted connections and then
+# never answered, and a tool with no limits waits on that forever. libpq honours
+# PGCONNECT_TIMEOUT in psql, pg_dump and pg_dumpall alike; ATTEMPT_LIMIT bounds
+# one whole attempt, so a dump that connected and then stalled becomes a RETRY
+# like any other dropped connection. Both are seconds, and both can be raised.
+export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-20}"
+ATTEMPT_LIMIT="${ATTEMPT_LIMIT:-900}"
+QUERY_LIMIT="${QUERY_LIMIT:-60}"
+
+# within <seconds> <command…> — run it, and stop it if it outlives the limit.
+# Exit 124 means the limit was hit (the same code coreutils' timeout uses);
+# macOS has no `timeout`, so this is written out.
+within() {
+  local secs="$1"; shift
+  "$@" &
+  local pid=$!
+  # stderr of the watchdog and of `wait` is bash's own "Terminated: 15" job
+  # chatter, never the command's — its output goes straight through.
+  ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null ) 2>/dev/null &
+  local dog=$!
+  wait "$pid" 2>/dev/null
+  local rc=$?
+  if kill -0 "$dog" 2>/dev/null; then
+    pkill -P "$dog" 2>/dev/null; kill "$dog" 2>/dev/null
+  elif [ "$rc" -eq 143 ]; then
+    rc=124   # the watchdog fired; a command that finished just in time keeps its own code
+  fi
+  wait "$dog" 2>/dev/null
+  return "$rc"
+}
+
 if [ -z "${MIGRATE_DATABASE_URL:-}" ]; then
   echo "MIGRATE_DATABASE_URL is required (the superuser/admin url)." >&2
   echo "It is never printed by this script and must not be pasted into logs." >&2
@@ -65,9 +96,13 @@ PSQL="$PGBIN/psql"
 client_mm() { "$1" --version | grep -oE '[0-9]+' | head -1; }
 CLIENT_MAJOR="$(client_mm "$DUMP")"
 
-SERVER_FULL="$("$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc 'show server_version' 2>/dev/null | tr -d ' ')"
+# One question to the server, bounded like everything else here.
+pq() { within "$QUERY_LIMIT" "$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc "$1"; }
+
+SERVER_FULL="$(pq 'show server_version' 2>/dev/null | tr -d ' ')"
 if [ -z "$SERVER_FULL" ]; then
-  echo "cannot reach the database to read its version (checked with psql)." >&2
+  echo "cannot reach the database to read its version (checked with psql;" >&2
+  echo "connect limit ${PGCONNECT_TIMEOUT}s, answer limit ${QUERY_LIMIT}s)." >&2
   exit 1
 fi
 SERVER_MAJOR="${SERVER_FULL%%.*}"
@@ -78,10 +113,18 @@ if [ "$CLIENT_MAJOR" -lt "$SERVER_MAJOR" ]; then
   exit 2
 fi
 
-DBNAME="$("$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc 'select current_database()' | tr -d ' ')"
-SCHEMA_V="$("$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc 'select max(version) from _migrations' 2>/dev/null | tr -d ' ')"
-RUNTIME_ROLE="$("$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc \
-  "select rolname from pg_roles where rolname in ('nomi_app','yiwuflow_app') order by rolname limit 1" | tr -d ' ')"
+DBNAME="$(pq 'select current_database()' 2> >(redact >&2) | tr -d ' ')"
+SCHEMA_V="$(pq 'select max(version) from _migrations' 2>/dev/null | tr -d ' ')"
+RUNTIME_ROLE="$(pq \
+  "select rolname from pg_roles where rolname in ('nomi_app','yiwuflow_app') order by rolname limit 1" 2> >(redact >&2) | tr -d ' ')"
+# An empty answer here is a connection that dropped between questions, not a
+# fact about the database. An empty RUNTIME_ROLE in particular would make the
+# roles-file check below match ANY role and pass — so it is a stop, not a guess.
+if [ -z "$DBNAME" ] || [ -z "$SCHEMA_V" ] || [ -z "$RUNTIME_ROLE" ]; then
+  echo "lost the database while reading what to back up (name='$DBNAME' schema='$SCHEMA_V' role='$RUNTIME_ROLE')." >&2
+  echo "Nothing was written. Run it again." >&2
+  exit 1
+fi
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 NAME="nomi-backup-$TS"
@@ -99,10 +142,13 @@ attempt() {
   local label="$1"; shift
   local n=1
   while [ "$n" -le "$ATTEMPTS" ]; do
-    if "$@" 2> >(redact >&2); then
+    within "$ATTEMPT_LIMIT" "$@" 2> >(redact >&2)
+    local rc=$?
+    if [ "$rc" -eq 0 ]; then
       [ "$n" -gt 1 ] && echo "    ($label succeeded on attempt $n)"
       return 0
     fi
+    [ "$rc" -eq 124 ] && echo "    $label stopped: no finish within ${ATTEMPT_LIMIT}s (ATTEMPT_LIMIT)" >&2
     echo "    $label attempt $n/$ATTEMPTS failed — retrying" >&2
     n=$((n + 1))
     sleep 3
