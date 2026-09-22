@@ -43,7 +43,17 @@ export class FakeTenant implements Tenant {
   emailsSaved: Array<{ clientId: string; email: string }> = [];
   closed: string[] = [];
   /** A5.3 — who the turn is told is speaking. Null: nobody named, as before. */
-  speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = null;
+  /**
+   * Who is speaking. Named by default: confirming the name is what CREATES the
+   * assistants row, so "no speaker" is not a state a workspace that may send
+   * alone can be in. A test about the gate sets it null and says so.
+   */
+  speakerIs: import('../../src/core/owner/assistants.js').Speaker | null = {
+    name: 'Lily', role: 'sales', note: null,
+    business: { name: 'Yiwu Canvas Co', kind: null, country: null, description: null },
+  };
+  /** When each conversation was told it is talking to an AI — the 0066 column. */
+  disclosedAt = new Map<string, Date>();
 
   products = new Map<string, Product>([[mkProduct().id, mkProduct()]]);
   tiers = new Map<string, PriceTier[]>([[mkProduct().id, mkTiers()]]);
@@ -69,6 +79,11 @@ export class FakeTenant implements Tenant {
     },
     close: async (id) => { this.closed.push(id); },
     speaker: async () => this.speakerIs,
+    markAiDisclosed: async (id, at) => {
+      this.disclosedAt.set(id, at);
+      const s = this.states.get(id);
+      if (s) this.states.set(id, { ...s, aiDisclosedAt: at });
+    },
   };
 
   /** G11 — the language remembered for this buyer, if a turn wrote one. */
@@ -172,18 +187,34 @@ export class FakeTenant implements Tenant {
   // Autonomy defaults to empty → every capability resolves to draft (the safe
   // default). Tests set grants to exercise the auto-send path.
   grantRows: AutonomyGrant[] = [];
-  draftsCreated: Array<{ draftId: string; conversationId: string; capability: string; draftText: string }> = [];
+  draftsCreated: Array<{
+    draftId: string; conversationId: string; capability: string; draftText: string;
+    /** 0067 — a disclosure went to the buyer instead of this text. */
+    replacedByDisclosure: boolean;
+  }> = [];
   private draftSeq = 0;
 
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
   selfDemoted: Array<{ capability: string; violations: number }> = [];
+  /**
+   * The owner has confirmed what buyers will call her assistant (0065). TRUE
+   * by default so that every test written before the gate still describes the
+   * situation it meant to; a test about the gate sets it false and says so.
+   */
+  assistantNamedFlag = true;
+  /** The native-review gate (DISCLOSURE_NATIVE_REVIEW). A test about it sets false. */
+  releasedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
       this.selfDemoted.push({ capability, violations });
       return { demoted: false, action: 'none' };
     },
+    assistantNamed: async () => this.assistantNamedFlag,
+    // Released by default: these fakes describe what she does once autonomy is
+    // allowed at all. The gate itself is proved against the real flag.
+    released: () => this.releasedFlag,
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do
@@ -199,6 +230,7 @@ export class FakeTenant implements Tenant {
       this.draftsCreated.push({
         draftId, conversationId: input.conversationId as string,
         capability: input.capability, draftText: input.draftText,
+        replacedByDisclosure: input.replacedByDisclosure ?? false,
       });
       return { draftId };
     },

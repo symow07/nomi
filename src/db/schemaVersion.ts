@@ -190,7 +190,7 @@ import type { Db } from './client.js';
  *      edge — every EXPORT fails on the audit insert, because the constraint
  *      does not yet admit 'export_data'.
  */
-export const REQUIRED_SCHEMA_VERSION = 64;
+export const REQUIRED_SCHEMA_VERSION = 67;
 
 export type SchemaState = {
   readonly required: number;

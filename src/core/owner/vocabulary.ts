@@ -88,6 +88,31 @@ export const BANNED_OWNER_TERMS: readonly string[] = [
   '系统',   // "the system" is software talk; the employee has a name
 ];
 
+/**
+ * The strings that MUST say it, and why the ban does not reach them.
+ *
+ * `BANNED_OWNER_TERMS` bans "AI" because an owner should never be handed
+ * software talk in place of a plain sentence about her own business. That rule
+ * is about vocabulary. These strings are about a fact — and the fact is that a
+ * machine drafted the reply, which the reader is entitled to know and which no
+ * plainer word states. Two surfaces need it:
+ *
+ *   - the privacy page, which tells whoever reads it what is drafting the
+ *     replies and that some may be sent without a person seeing them first;
+ *   - the disclosure a buyer receives on the first message of a conversation
+ *     that will be answered without anyone approving it.
+ *
+ * Both are read by a BUYER, not by the owner, which is what makes the ban
+ * inapplicable rather than merely inconvenient. Nothing else is exempt: if a
+ * new string needs to appear here, that is the moment to ask whether the owner
+ * is being told about software when she asked about her business.
+ *
+ * A key is listed by its full name so the exemption cannot spread by prefix.
+ */
+export const HONEST_ABOUT_AI_KEYS: readonly string[] = [
+  'legal.privacy.ai',
+];
+
 /** Map a capability's autonomy state to the canonical status the owner sees. */
 export function capabilityStatus(
   mode: 'draft' | 'auto',

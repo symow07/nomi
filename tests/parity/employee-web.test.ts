@@ -4,6 +4,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 const base: EmployeeProfile = {
   knows: 14,
+  assistantNamed: true,
   spotChecks: [],
   hireDate: new Date('2026-07-09T00:00:00Z'),
   stage: 'partial',

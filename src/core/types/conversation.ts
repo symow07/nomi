@@ -94,6 +94,14 @@ export type ConversationState = {
 
   readonly preferredLanguage: string | null;
   readonly contextSummary: string | null;
+
+  /**
+   * When this conversation was told it is talking to an AI, on the first
+   * message sent without anyone approving it. Null until then — and null again
+   * for a new conversation with the same buyer, who is owed the sentence again
+   * rather than a memory of having heard it once.
+   */
+  readonly aiDisclosedAt: Date | null;
 };
 
 /** A conversation a human has taken over. Proven at the type level. */

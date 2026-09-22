@@ -47,6 +47,8 @@ export interface Database {
     closed_at: Timestamp | null;
     /** A5 — the assistant answering it; null reads as the main one. */
     assistant_id: string | null;
+    /** When this conversation was sent the AI disclosure (0066). Null until then. */
+    ai_disclosed_at: Timestamp | null;
   };
   conversation_state: {
     id: Generated<string>;

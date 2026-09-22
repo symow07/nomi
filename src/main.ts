@@ -368,6 +368,13 @@ export async function buildProduction(
     /** G2b — model ports, tests only; production builds them from the key. */
     models?: Parameters<typeof startWorker>[2];
     /**
+     * The pre-pilot walkthrough only: as if the AI disclosure had passed native
+     * review. Production never passes it — there is no environment variable
+     * for this, on purpose: an escape hatch on this gate would be typed at
+     * 2 a.m. from a terminal history.
+     */
+    autonomyReleased?: () => boolean;
+    /**
      * C4.a — the mail transport, tests only. Absent is production's own
      * (C6): `accountMailTransport`, bound to each job's business, sending
      * through the mailbox she connected and refusing when there is none. A test
@@ -396,7 +403,8 @@ export async function buildProduction(
     // G11 — the worker mints the proof link a quote carries, so it needs the
     // address as much as the web app does.
     ...(cfg.PUBLIC_BASE_URL ? { PUBLIC_BASE_URL: cfg.PUBLIC_BASE_URL } : {}),
-  }, mediaPorts, overrides?.models ?? {});
+  }, mediaPorts, overrides?.models ?? {},
+    overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {});
 
   // M19 (B0) — refuse to serve if the RUNTIME connection is not subject to
   // tenant isolation. Every RLS policy targets nomi_app; a superuser or
@@ -584,6 +592,7 @@ export async function buildProduction(
       // A3 — the installation's own sender. Unset, nothing ever asks for a code.
       systemMail,
       templateState: TEMPLATE_STATE,
+      ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
       publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,
       // G13 — the same fetcher the worker hears with, so she can play a note.

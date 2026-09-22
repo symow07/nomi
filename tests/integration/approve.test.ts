@@ -44,6 +44,19 @@ d('applyOwnerCommand — the full approval loop (requires DATABASE_URL)', () => 
     const p = parseBusinessId(BIZ_A); if (!p.ok) throw new Error('fixture'); return p.value;
   };
 
+  async function replacedDraft(business: string, conversation: string, text: string): Promise<string> {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const bid = parseBusinessId(business); if (!bid.ok) throw new Error('fixture');
+    return withTenantTx(db, bid.value, async (tx) => {
+      const r = await sql<{ id: string }>`
+        insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status,
+                            replaced_by_disclosure)
+        values (${business}, ${conversation}, 'qualify', ${text}, null, 'pending', true)
+        returning id`.execute(tx);
+      return r.rows[0]!.id;
+    });
+  }
+
   async function newDraft(business: string, conversation: string, text: string, capability = 'quote'): Promise<string> {
     const { withTenantTx } = await import('../../src/db/client.js');
     const bid = parseBusinessId(business); if (!bid.ok) throw new Error('fixture');
@@ -91,6 +104,39 @@ d('applyOwnerCommand — the full approval loop (requires DATABASE_URL)', () => 
        where conversation_id=${CONV_A} and type='draft_resolved' and payload->>'actor'='owner'`
       .execute(tx).then((x) => x.rows[0]!.n));
     expect(ev).toBeGreaterThanOrEqual(1);
+  });
+
+  it('发送 IS REFUSED on a reply the disclosure replaced — and nothing is sent', async () => {
+    sent = [];
+    const id = await replacedDraft(BIZ_A, CONV_A, 'What size were you looking for?');
+    const r = await applyOwnerCommand(deps(), { businessId: bidA(), draftId: id, rawReply: '发送', decidedBy: 'owner' });
+    expect(r.outcome).toBe('needs_edit');
+    expect(sent).toEqual([]);                       // nothing left through the send path
+    const row = await readDraft(id);
+    expect(row.status).toBe('pending');             // still hers to deal with
+    expect(row.sent_text).toBeNull();
+  });
+
+  it('…but 改 sends HER words, which is the way out', async () => {
+    sent = [];
+    const id = await replacedDraft(BIZ_A, CONV_A, 'What size were you looking for?');
+    const r = await applyOwnerCommand(deps(), {
+      businessId: bidA(), draftId: id,
+      rawReply: '改：是的，我是助手。要不要我帮你转人工？', decidedBy: 'owner',
+    });
+    expect(r.outcome).toBe('edited_sent');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.reply).toContain('转人工');
+    expect((await readDraft(id)).status).toBe('edited');
+  });
+
+  it('…and 不回 still skips it', async () => {
+    sent = [];
+    const id = await replacedDraft(BIZ_A, CONV_A, 'What size were you looking for?');
+    const r = await applyOwnerCommand(deps(), { businessId: bidA(), draftId: id, rawReply: '不回', decidedBy: 'owner' });
+    expect(r.outcome).toBe('skipped');
+    expect(sent).toEqual([]);
+    expect((await readDraft(id)).status).toBe('rejected');
   });
 
   it('改 → owner text sent, edit recorded for learning (training_examples)', async () => {

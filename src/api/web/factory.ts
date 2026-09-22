@@ -364,6 +364,7 @@ const BLOCKER_FIX: Record<ActivationRefusal, string | null> = {
   schema_stale: '/app/onboarding',
   not_ready: '/app/onboarding',
   secrets_not_rotated: '/app/onboarding',
+  assistant_not_named: '/app/onboarding',
   no_channel: '/app/channels',
   no_allowlist: null,
 };

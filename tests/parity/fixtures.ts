@@ -32,6 +32,7 @@ export function payload(tcId: string): Record<string, unknown> {
 export const text = (tcId: string): string => String(payload(tcId)['text'] ?? '');
 
 export const emptyState = (over: Partial<ConversationState> = {}): ConversationState => ({
+  aiDisclosedAt: null,
   conversationId: CONVERSATION,
   businessId: BUSINESS,
   clientId: CLIENT,

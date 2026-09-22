@@ -106,6 +106,26 @@ export async function updateAssistant(tx: Tx, businessId: BusinessId, id: string
   return 'saved';
 }
 
+/**
+ * Her name, and nothing else about her.
+ *
+ * Getting ready asks for the name alone, so it cannot go through
+ * `updateAssistant`: that takes a whole assistant, and a page that does not ask
+ * for a role, a note or channels would have to invent all three to say one
+ * thing. The row is created if this is the first anyone has said about her —
+ * which is the common case, since Getting ready comes before the team page.
+ *
+ * Audited as a change like any other. The caller stamps the attestation in the
+ * same transaction, so the confirmation and what was confirmed cannot drift.
+ */
+export async function renameMainAssistant(tx: Tx, businessId: BusinessId, name: string, actor: string): Promise<void> {
+  const current = await ensureDefaultAssistant(tx, businessId, name);
+  if (current.name === name) return;
+  await sql`update assistants set name = ${name}
+             where business_id = ${businessId}::uuid and id = ${current.id}::uuid`.execute(tx);
+  await audit(tx, businessId, 'assistant_changed', actor, { id: current.id, fields: ['name'] });
+}
+
 /** Archive, never erase — and never the default: someone always answers. */
 export async function archiveAssistant(tx: Tx, businessId: BusinessId, id: string, actor: string): Promise<AssistantWrite> {
   const cur = (await sql<{ is_default: boolean }>`

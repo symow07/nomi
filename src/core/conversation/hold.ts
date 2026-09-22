@@ -31,7 +31,15 @@ import { quantityWasHeardNotTyped, type TextProvenance } from '../safety/heardNu
  */
 
 export const HOLD_REASONS = [
-  'quantity_heard_not_typed', 'contradicts_history', 'discount_needs_owner', 'guards_failed_twice',
+  'quantity_heard_not_typed', 'contradicts_history', 'discount_needs_owner',
+  // The identity guard's two, kept apart from `guards_failed_twice` and from
+  // each other. They are not the same event to the owner: one is her employee
+  // claiming to be a person, which is the thing that must never happen; the
+  // other is a buyer asking a direct question and not getting an answer. A card
+  // that called both "could not write this reply within your rules" would be
+  // true and useless.
+  'identity_denial', 'identity_question',
+  'guards_failed_twice',
 ] as const;
 
 export type HoldReason = (typeof HOLD_REASONS)[number];
@@ -46,6 +54,12 @@ export function holdReasonOf(input: {
   readonly turnText: string;
   /** G8 — both generated attempts failed a guard, so the reply is a stand-in. */
   readonly guardsFailedTwice?: boolean;
+  /**
+   * Which identity failure stopped her, if that is what did. Only meaningful
+   * alongside `guardsFailedTwice`: the guard firing once and the retry
+   * succeeding is not a hold, it is the retry loop working.
+   */
+  readonly identity?: 'denied_being_ai' | 'identity_question_unanswered' | null;
 }): HoldReason | null {
   if (quantityWasHeardNotTyped(input)) return 'quantity_heard_not_typed';
   // G7b — above what he was already told. Before her discount line: a price
@@ -53,8 +67,14 @@ export function holdReasonOf(input: {
   // the card shows both prices whichever reason is named.
   if (input.quote?.contradicts) return 'contradicts_history';
   if (input.quote?.requiresHuman) return 'discount_needs_owner';
-  // G8 — last: the price reasons say what she is deciding; this one says the
-  // wording is a plain stand-in, which she can see for herself.
-  if (input.guardsFailedTwice) return 'guards_failed_twice';
+  // G8 — last: the price reasons say what she is deciding; these say the
+  // wording is a plain stand-in, which she can see for herself. The identity
+  // reasons are named ahead of the general one because they are the specific
+  // thing that happened, and the card can only say what it is told.
+  if (input.guardsFailedTwice) {
+    if (input.identity === 'denied_being_ai') return 'identity_denial';
+    if (input.identity === 'identity_question_unanswered') return 'identity_question';
+    return 'guards_failed_twice';
+  }
   return null;
 }

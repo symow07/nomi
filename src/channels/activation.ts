@@ -28,6 +28,7 @@ export type ActivationRefusal =
   | 'not_ready'             // M15 readiness incomplete
   | 'no_allowlist'          // M18.2 requires at least one reachable number
   | 'secrets_not_rotated'   // M18.0 gate
+  | 'assistant_not_named'   // the owner has not confirmed what buyers will call her
   | 'no_channel';           // nothing to activate
 
 export type ActivationResult =
@@ -39,6 +40,8 @@ export type ActivationPreconditions = {
   readonly ready: boolean;
   readonly allowlistCount: number;
   readonly secretsRotated: boolean;
+  /** The owner has confirmed what buyers will call her assistant. */
+  readonly assistantNamed: boolean;
   readonly hasChannel: boolean;
   /** M19.1 — the applied migration version vs the one this build needs. */
   readonly schema: { readonly required: number; readonly actual: number | null; readonly ok: boolean };
@@ -76,6 +79,7 @@ export async function activationPreconditions(
   };
   const lifecycle = channelLifecycle(facts);
   const secretsRotated = readiness.attest.secretsRotatedAt !== null;
+  const assistantNamed = readiness.attest.assistantNamedAt !== null;
   const blockers: ActivationRefusal[] = [];
   // M19.1 FIRST: a stale schema means the send path is broken in a way that
   // /health cannot see. Activating on top of it would fail at the first real
@@ -84,6 +88,10 @@ export async function activationPreconditions(
   if (!readiness.readyToLaunch) blockers.push('not_ready');
   if (allowlistCount < 1) blockers.push('no_allowlist');
   if (!secretsRotated) blockers.push('secrets_not_rotated');
+  // Since C the assistant signs off with her name, so it is a name a BUYER
+  // reads. A business should not find out what its customers are being called
+  // by reading a transcript.
+  if (!assistantNamed) blockers.push('assistant_not_named');
   // Not "is there a row" but "could a message actually leave" — a paused or
   // never-connected channel is equally not ready, and says so on the page.
   if (!isConnected(facts)) blockers.push('no_channel');
@@ -92,6 +100,7 @@ export async function activationPreconditions(
     ready: readiness.readyToLaunch,
     allowlistCount,
     secretsRotated,
+    assistantNamed,
     hasChannel: isConnected(facts),
     lifecycle,
     schema: { required: schema.required, actual: schema.actual, ok: schema.ok },

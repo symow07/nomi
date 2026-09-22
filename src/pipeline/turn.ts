@@ -21,6 +21,8 @@ import { detectInjection } from '../core/safety/injection.js';
 import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
+import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
+import { disclosureFor, withDisclosure } from '../core/conversation/disclosure.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
@@ -148,6 +150,16 @@ export type TurnResult = {
    * actionable and "she used 傻逼" is.
    */
   forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[];
+  /**
+   * Why the identity guard stopped a reply, if it did — so the card that held
+   * the turn can say which of the two it was, in the same way the
+   * forbidden-word card names the word. Null on every ordinary turn.
+   *
+   *   denied_being_ai              she claimed to be a person
+   *   identity_question_unanswered the buyer asked what they were talking to
+   *                                and the reply did not say
+   */
+  identityViolation: IdentityViolation | null;
   /**
    * G8 — forbidden words found in HER OWN text: her taught answer, or the
    * order-status line built from her order. Tagged by where, shown to her,
@@ -348,6 +360,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let guardViolations = 0;
   /** M37.5 — which forbidden terms stopped a draft, so the owner is told WHICH. */
   let forbiddenHits: readonly { readonly term: string; readonly source: 'floor' | 'owner' }[] = [];
+  /** Why the identity guard stopped a reply, if it did. Owner-visible. */
+  let identityViolation: IdentityViolation | null = null;
   /** G8 — the same, found in her own text rather than in what the employee wrote. */
   const forbiddenInHerText: ForbiddenInHerText[] = [];
   /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
@@ -582,6 +596,22 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           forbiddenHits = clean.error.terms;
           continue;
         }
+        // SHE MAY NOT CLAIM TO BE HUMAN. `prompts/response.txt` tells the
+        // writer never to deny being an AI; this is the same rule where it
+        // cannot be talked out of. Last in the chain, so it reads the text
+        // exactly as it would have left — a denial the numeral guard rewrote
+        // into existence is still a denial.
+        //
+        // Failing here spends a retry like any other guard, and twice means
+        // the turn is HELD for a person (`guardsFailedTwice` below). That is
+        // the right end: a buyer who asked what they are talking to, twice
+        // answered wrongly, should be answered by somebody.
+        const honest = guardIdentity({ reply: clean.value, buyerText: req.text });
+        if (!honest.ok) {
+          guardViolations++;
+          identityViolation = honest.error;
+          continue;
+        }
         reply = clean.value;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
@@ -637,7 +667,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // M34.5's heard quantity is one; her "ask me above this discount" line is
   // the other. Provenance defaults to typed, so every caller that predates
   // voice notes is unaffected.
-  const hold = holdReasonOf({ provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice });
+  const hold = holdReasonOf({
+    provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice,
+    identity: identityViolation?.kind ?? null,
+  });
 
   timings.totalMs = Date.now() - t0;
   return {
@@ -653,6 +686,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     provenance: { promptVersion, modelId },
     guardViolations,
     forbiddenHits,
+    identityViolation,
     forbiddenInHerText,
     sampleRequested,
     hold,
@@ -853,7 +887,80 @@ export async function commitTurn(
       // enforced at the SEND gate, where it also catches replies queued before
       // the switch was thrown. `effectiveMode` is monotone by construction, so
       // this rung, like the one above it, can only ever remove authority.
-      const mode = effectiveMode(r.hold ? 'draft' : policyMode, capability, await tenant.ops.switches());
+      /*
+       * THE SENTENCE SHE WOULD SAY, IF SHE IS ABOUT TO SPEAK ALONE.
+       *
+       * Composed BEFORE the mode is settled, because whether it can be composed
+       * at all is one of the things that decides the mode. Null when there is
+       * no assistant name or no business name to put in it.
+       *
+       * One extra lookup per auto turn. Nothing at all on the turns that draft:
+       * a draft is read by a person, and a person needs no disclosure.
+       */
+      const disclosureText = async (): Promise<string | null> => {
+        const who = await tenant.conversations.speaker(req.conversationId);
+        return disclosureFor({
+          detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
+          name: who?.name ?? null,
+          business: who?.business.name ?? null,
+        });
+      };
+
+      /*
+       * SHE MAY NOT SPEAK ALONE UNTIL SHE CAN SAY WHAT SHE IS.
+       *
+       * The gap this closes is a real fleet's, not a hypothetical: every
+       * workspace activated BEFORE Getting ready asked for the name is live
+       * today with no confirmation on file. Without this rung, autonomy on such
+       * a workspace sends messages that skip the disclosure silently — the rule
+       * quietly not applying to exactly the accounts that predate it, which is
+       * the worst way for a safety rule to fail.
+       *
+       * Two conditions, and both are about the same sentence:
+       *   · the owner has CONFIRMED the name (0065), because it is a name a
+       *     buyer reads and she should not meet it in a transcript; and
+       *   · there is actually a name and a business name to say.
+       *
+       * The consequence is a fall back to draft, never a silence: she keeps
+       * working, the owner reads each reply, and the autonomy page says why.
+       * Monotone like the rungs around it — this can only ever remove
+       * authority, never grant it.
+       */
+      const speaksAlone = policyMode === 'auto';
+      // The native-review gate, at the one place that decides whether a
+      // message goes out alone — so it binds capabilities switched on BEFORE
+      // the rule existed, not only new choices made on the owner's page.
+      const released = !speaksAlone || tenant.autonomy.released();
+      const sentence = speaksAlone && released ? await disclosureText() : null;
+      const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
+      const mayDisclose = !speaksAlone || (released && named && sentence !== null);
+
+      const mode = effectiveMode(
+        (r.hold || !mayDisclose) ? 'draft' : policyMode,
+        capability, await tenant.ops.switches(),
+      );
+      if (speaksAlone && !mayDisclose) {
+        // Recorded, because a capability that silently stopped acting as the
+        // owner set it is the kind of thing she should be able to find.
+        await tenant.events.append(req.conversationId, 'autonomy_withheld', {
+          capability,
+          reason: !released ? 'disclosure_not_reviewed' : named ? 'no_assistant_name' : 'assistant_not_named',
+        });
+      }
+
+      const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
+        // In this turn's transaction, like the draft beside it. The send is
+        // queued after the commit, so a queue that never accepts it leaves this
+        // conversation marked as told — the same optimism the draft path has
+        // always had, and the same remedy: the owner can see it on the timeline.
+        //
+        // The COLUMN means "when this conversation was first told" and is not
+        // moved by a later telling; the EVENT records each one, with its reason.
+        if (r.newState.aiDisclosedAt === null) {
+          await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
+        }
+        await tenant.events.append(req.conversationId, 'ai_disclosed', { reason: why });
+      };
 
       // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
       //
@@ -894,11 +1001,25 @@ export async function commitTurn(
           capability, reason: 'ops_kill_switch',
         });
       } else if (mode === 'auto') {
-        outbound = { conversationId: req.conversationId, reply };
+        // Once per conversation: the first message nobody approved carries it,
+        // and the ones after it do not.
+        const say = r.newState.aiDisclosedAt === null ? sentence : null;
+        outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
+        if (say) await recordDisclosure('first_auto_send');
       } else {
+        /*
+         * Decided BEFORE the draft is written, because the draft has to carry
+         * it: a reply the disclosure replaced may not be sent as it stands, and
+         * the approval path reads that from the row.
+         */
+        const disclosureInstead = policyMode === 'auto'
+          && r.identityViolation?.kind === 'identity_question_unanswered'
+          && sentence !== null;
+
         const d = await tenant.drafts.create({
           conversationId: req.conversationId, capability,
           draftText: reply, turnMessageId: req.messageId,
+          ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
         });
         draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
         await tenant.events.append(req.conversationId, 'draft_pending', {
@@ -914,7 +1035,42 @@ export async function commitTurn(
           // kept stopping her. The card names them (M37.5's promise).
           ...(r.hold === 'guards_failed_twice' && r.forbiddenHits.length
             ? { forbidden: r.forbiddenHits.map((x) => x.term) } : {}),
+          // …and when what kept stopping her was the identity guard: a claim
+          // to be human, or a buyer's direct question she did not answer. The
+          // owner should know this happened; it is not an ordinary retry.
+          ...(r.identityViolation
+            ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
+          ...(disclosureInstead ? { disclosureSent: true } : {}),
         });
+
+        /*
+         * A BUYER WHO ASKED WHAT HE IS TALKING TO IS NOT LEFT IN SILENCE.
+         *
+         * He asked; she failed twice to say; the turn is held. In DRAFT that is
+         * the whole answer — nothing was ever going out without the owner, and
+         * she will reply herself. But in AUTO the buyer was going to get a
+         * message, and the guard turning that into nothing at all is the one
+         * outcome worse than a clumsy answer: a direct question met with
+         * silence, from something that had been answering all along.
+         *
+         * So the disclosure goes out instead — the sentence he was owed — and
+         * the draft above still holds the turn for her, with the reason on it.
+         * Both things are true: he has been told, and she has been told to look.
+         *
+         * ONLY the unanswered question. A reply that CLAIMED to be human sends
+         * nothing, ever, in any mode: there is no version of that turn a buyer
+         * should receive, and the disclosure would be answering a question he
+         * did not ask.
+         *
+         * NOT "once" HERE, and that is the point. The once-per-conversation
+         * rule is about not repeating an announcement nobody asked for. This
+         * buyer ASKED — now — and a sentence he was sent four messages ago is
+         * not an answer to a question he is asking today. He gets it again.
+         */
+        if (mode === 'draft' && disclosureInstead) {
+          outbound = { conversationId: req.conversationId, reply: sentence };
+          await recordDisclosure('identity_question');
+        }
       }
     }
   }

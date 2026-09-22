@@ -12,7 +12,8 @@ const NOW = new Date('2026-08-01T10:00:00Z');
 
 const pr = (over: Partial<PilotReadiness> = {}): PilotReadiness => ({
   detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: false, sandbox: false, channel: false },
-  attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
+  attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
+  assistantName: 'Lily',
   validation: { at: null, pass: null, total: null },
   readyToLaunch: false,
   ...over,
@@ -39,7 +40,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
     expect(none).toContain('value="backup_tested"');
     expect(none).toContain(t('en', 'pilot.attest.confirm'));
 
-    const done = renderPilotReadiness(pr({ attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW } }), 'en', null);
+    const done = renderPilotReadiness(pr({ attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW, assistantNamedAt: NOW } }), 'en', null);
     expect(done).toContain(t('en', 'pilot.confirmedByOwner'));   // "Confirmed by you"
     expect(done).not.toContain('value="backup_tested"');          // no confirm button once done
   });
@@ -61,7 +62,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
 
     const ready = renderPilotReadiness(pr({
       detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: true, sandbox: true, channel: false },
-      attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW },
+      attest: { backupTestedAt: NOW, secretsRotatedAt: NOW, ownerReadyAt: NOW, assistantNamedAt: NOW },
       readyToLaunch: true,
     }), 'en', null);
     expect(ready).toContain(t('en', 'pilot.allReady'));

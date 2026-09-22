@@ -45,7 +45,8 @@ function emptyState(over: Partial<ConversationState> = {}): ConversationState {
     conversationId: CONVERSATION, businessId: TRUST_BUSINESS_ID, clientId: CLIENT,
     phase: 'warm_intake', turnCount: 0, scores: { problem: 0, lead: 0 },
     product: null, quantity: null, contact: { email: null }, pendingQuestion: null,
-    assignedTo: null, preferredLanguage: null, contextSummary: null, ...over,
+    assignedTo: null, preferredLanguage: null, contextSummary: null,
+    aiDisclosedAt: null, ...over,
   };
 }
 
@@ -111,7 +112,15 @@ class HarnessTenant implements Tenant {
     create: async () => { throw new Error('harness: create not used'); },
     assign: async () => {},
     close: async () => {},
-    speaker: async () => null,
+    // Named, because an unnamed workspace may not send alone at all now, and
+    // these scenarios are about what she says — not about that gate.
+    speaker: async () => ({
+      name: 'Lily', role: 'sales' as const, note: null,
+      business: { name: 'Trust Factory', kind: null, country: null, description: null },
+    }),
+    // The harness runs one scenario at a time against a fresh state, so
+    // there is no second turn for the mark to be read back by.
+    markAiDisclosed: async () => {},
   };
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
   /** G11 — the harness proves decisions, not links: no host, so no link. */
@@ -163,12 +172,24 @@ class HarnessTenant implements Tenant {
   /** M34.9 — recorded, so a test can assert the production caller reached it.
    *  The REAL behaviour is proved against Postgres in tests/integration. */
   selfDemoted: Array<{ capability: string; violations: number }> = [];
+  /**
+   * The owner has confirmed what buyers will call her assistant (0065). TRUE
+   * by default so that every test written before the gate still describes the
+   * situation it meant to; a test about the gate sets it false and says so.
+   */
+  assistantNamedFlag = true;
+  /** The native-review gate (DISCLOSURE_NATIVE_REVIEW). A test about it sets false. */
+  releasedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
       this.selfDemoted.push({ capability, violations });
       return { demoted: false, action: 'none' };
     },
+    assistantNamed: async () => this.assistantNamedFlag,
+    // Released by default: these fakes describe what she does once autonomy is
+    // allowed at all. The gate itself is proved against the real flag.
+    released: () => this.releasedFlag,
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.

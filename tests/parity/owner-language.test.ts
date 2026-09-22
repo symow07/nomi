@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
-import { STATUS, TERM, BANNED_OWNER_TERMS, capabilityStatus } from '../../src/core/owner/vocabulary.js';
+import { STATUS, TERM, BANNED_OWNER_TERMS, HONEST_ABOUT_AI_KEYS, capabilityStatus } from '../../src/core/owner/vocabulary.js';
 import { formatRmb, formatMoney, formatQtyZh, formatDateZh, formatWhenZh } from '../../src/core/owner/format.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -61,6 +61,10 @@ describe('M1 · no owner-facing string is software talk (the whole catalogue)', 
     it(`${locale}: no message in the catalogue contains a banned term`, () => {
       const table = messages[locale];
       for (const [key, value] of Object.entries(table)) {
+        // The named exceptions: buyer-facing strings whose whole job is to say
+        // that a machine wrote the reply. The rule is about owner-facing
+        // software talk; see HONEST_ABOUT_AI_KEYS for why these are not that.
+        if (HONEST_ABOUT_AI_KEYS.includes(key)) continue;
         for (const banned of BANNED_OWNER_TERMS) {
           expect(containsBanned(value, banned), `"${banned}" in ${locale} ${key}: "${value}"`).toBe(false);
         }
@@ -131,6 +135,7 @@ const employee = renderEmployee({
   growth: [{ kind: 'spotcheck_pass', capability: null, at: NOW }],
   promoted: false,
   conditions: [{ cond: 'passed_spotcheck', met: true }, { cond: 'learned_correction', met: false }],
+  assistantNamed: true,
   spotChecks: [{
     id: 's1', capability: 'quote', conversationId: 'c1', askedAt: NOW,
     buyerMessage: 'Can you quote 20000 pcs?',

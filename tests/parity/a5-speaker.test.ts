@@ -91,6 +91,7 @@ describe('A5.3 · in the turn', () => {
 
   it('nobody named: the writer is handed no speaker at all, as before', async () => {
     const p = ports();
+    p.tenant.speakerIs = null;            // no assistant row: said, not inherited
     p.tenant.seed(CONVERSATION, emptyState());
     p.analyzer.next = identify();
     await computeTurn(p, req('hello'));

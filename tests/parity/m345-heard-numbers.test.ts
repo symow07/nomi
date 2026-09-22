@@ -80,7 +80,9 @@ describe('M34.5 · the rule narrows permission and never widens it', () => {
     // ...and a hold forces the constant 'draft' — never the shape of the
     // statement it sits in, which M34.6 and G7a each rewrapped.
     const src = await readFile(new URL('../../src/pipeline/turn.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/r\.hold \? 'draft' : policyMode/);
+    // The identity gate added the second term: she may not speak alone
+    // until she can say what she is. Both narrow; neither can widen.
+    expect(src).toMatch(/\(r\.hold \|\| !mayDisclose\) \? 'draft' : policyMode/);
   });
 
   it('the worker marks a transcript as transcribed, and typed text as typed', async () => {

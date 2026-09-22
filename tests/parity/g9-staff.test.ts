@@ -53,7 +53,8 @@ describe('G9a · a staff member is not shown the controls that only refuse', () 
       { capability: 'quote', mode: 'draft', promotable: true },
       { capability: 'qualify', mode: 'auto', promotable: true },
     ],
-    growth: [], promoted: false, conditions: [], spotChecks: [],
+    growth: [], promoted: false, conditions: [], assistantNamed: true,
+ spotChecks: [],
   };
 
   it('Your employee: the owner gets the grant and revoke buttons; staff get the reason', () => {

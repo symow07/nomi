@@ -25,7 +25,8 @@ const GOOD = {
 const rb = (): PilotRunbook => ({
   readiness: {
     detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: true, sandbox: true, channel: false },
-    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
+    attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
+    assistantName: 'Lily',
     validation: { at: null, pass: null, total: null },
     readyToLaunch: false,
   },

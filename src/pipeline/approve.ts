@@ -32,6 +32,7 @@ export type ApplyOutcome =
   | 'revoked'         // 收回 — capability pulled back to draft, nothing sent
   | 'unknown'         // command not understood — no change
   | 'not_found'       // no such draft for this business
+  | 'needs_edit'      // a disclosure went to the buyer instead of this text
   | 'already_resolved'; // draft already decided (idempotent no-op)
 
 export type ApplyResult = {
@@ -66,8 +67,11 @@ export async function applyOwnerCommand(
   }> => {
     // FOR UPDATE + status='pending' is the idempotency guard: a second submit
     // finds it no longer pending and does nothing.
-    const dr = await sql<{ id: string; conversation_id: string; status: string; capability: string; draft_text: string }>`
-      select id, conversation_id, status, capability, draft_text
+    const dr = await sql<{
+      id: string; conversation_id: string; status: string; capability: string; draft_text: string;
+      replaced_by_disclosure: boolean;
+    }>`
+      select id, conversation_id, status, capability, draft_text, replaced_by_disclosure
         from drafts where id = ${input.draftId} for update
     `.execute(tx);
     const draft = dr.rows[0];
@@ -92,6 +96,23 @@ export async function applyOwnerCommand(
 
     switch (cmd.kind) {
       case 'approve':
+        /*
+         * 发送 IS REFUSED ON A REPLY THE DISCLOSURE REPLACED.
+         *
+         * The buyer asked what he was talking to, this text twice failed to
+         * say, and he has since been sent the disclosure instead. Sending this
+         * exact wording now would follow an honest answer with the evasion it
+         * replaced — and it would read, to him, as the answer to his question.
+         *
+         * Refused here rather than hidden in the UI, because this is the one
+         * module that decides whether a draft becomes an outbound message, and
+         * a rule enforced anywhere else is a rule the next caller can miss.
+         * 改 sends her own words, 不回 skips, 收回 pulls the capability back:
+         * only "send this exact text" is refused.
+         */
+        if (draft.replaced_by_disclosure) {
+          return { outcome: 'needs_edit', conversationId: draft.conversation_id, sendText: null };
+        }
         await resolve('approved', draft.draft_text);
         // M34.7 — completed work becomes checkable work. This is the producer
         // for 抽查: until it existed, spot_checks had no writer outside the demo
@@ -143,6 +164,7 @@ function messageFor(outcome: ApplyOutcome): string {
     case 'revoked': return '已收回，这项以后先等你确认。';
     case 'already_resolved': return '这条已经处理过了。';
     case 'not_found': return '找不到这条待办。';
+    case 'needs_edit': return '这条不能照原样发送：买家问她是不是真人，这条没有回答，已经先发了说明。改一下再发。';
     case 'unknown': return '没听懂，回复「发送」照发、「改+内容」改一下、或「不回」跳过。';
   }
 }

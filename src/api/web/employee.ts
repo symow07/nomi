@@ -5,6 +5,7 @@ import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spo
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.js';
+import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -53,6 +54,15 @@ export type EmployeeProfile = {
   readonly promoted: boolean;
   readonly conditions: readonly { readonly cond: ConditionCode; readonly met: boolean }[];
   /**
+   * Whether the owner has confirmed what buyers will call her assistant.
+   *
+   * On this page because this is the page where she decides what goes out
+   * without her, and a message that goes out without her announces itself by
+   * that name. Until it is confirmed, every capability she sets to auto still
+   * drafts — so the page has to say so, or she sets a switch that does nothing.
+   */
+  readonly assistantNamed: boolean;
+  /**
    * M34.7 — 抽查 waiting for the owner. This page is a READ MODEL and creates
    * none of them: they are written when work completes (pipeline/approve.ts),
    * so viewing this page stays free of side effects.
@@ -64,13 +74,14 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
   const bid = parseBusinessId(businessIdRaw);
   const empty: EmployeeProfile = {
     hireDate: null, knows: 0, stage: 'probation', canDo: [], needConfirm: [], capabilities: [],
-    growth: [], promoted: false, conditions: [], spotChecks: [],
+    growth: [], promoted: false, conditions: [], spotChecks: [], assistantNamed: false,
   };
   if (!bid.ok) return empty;
 
   return withTenantTx(db, bid.value, async (tx) => {
-    const onboard = (await sql<{ signup_at: Date | null }>`
-      select signup_at from onboarding_state where business_id = ${bid.value}`.execute(tx)).rows[0];
+    const onboard = (await sql<{ signup_at: Date | null; assistant_named_at: Date | null }>`
+      select signup_at, assistant_named_at from onboarding_state
+       where business_id = ${bid.value}`.execute(tx)).rows[0];
 
     const knows = (await sql<{ n: number }>`
       select count(*)::int as n from product_knowledge
@@ -126,6 +137,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
       spotChecks: await loadPendingSpotChecks(tx, bid.value),
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
+      assistantNamed: onboard?.assistant_named_at != null,
       conditions: promoted ? [] : [
         { cond: 'passed_spotcheck', met: passed > 0 },
         { cond: 'learned_correction', met: learned > 0 },
@@ -298,6 +310,12 @@ export function renderEmployee(
   const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
       <p class="muted">${esc(t(locale, 'autonomy.intro'))}</p>
+      <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
+      <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
+           fact that decides whether the switch below it does what it says. -->
+      ${autonomyReleased() ? '' : `<p class="needname">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
+      ${e.assistantNamed ? '' : `<p class="needname">${esc(t(locale, 'autonomy.needsName'))}
+        <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
       <form method="post" action="/app/employee/autonomy" class="levels">
         ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
@@ -311,6 +329,11 @@ export function renderEmployee(
         .level > span { display:flex; flex-direction:column; gap:var(--space-4); }
         .lnote { font-size:var(--font-size-caption); }
         .levels .btn { align-self:flex-start; }
+        /* Above the choice, not below it: she reads what happens before she
+           decides, which is the whole point of putting it on this page. */
+        .disclose { border-inline-start:1px solid var(--color-border);
+          padding-inline-start:var(--space-12); margin-block:var(--space-12) 0; }
+        .needname { color:var(--color-waiting); margin-block:var(--space-12) 0; }
       </style>
     </div>`;
 

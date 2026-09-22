@@ -614,8 +614,8 @@ d('M29 · unauthored price rules are reported, not migrated (requires DATABASE_U
     const rb = {
       readiness: { detected: { profile: false, products: false, priceRules: false, knowledge: false,
         claims: false, sandbox: false, channel: false },
-        attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null },
-        validation: { at: null, pass: null, total: null }, readyToLaunch: false },
+        attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
+        validation: { at: null, pass: null, total: null }, readyToLaunch: false, assistantName: 'Lily' },
       operations: { range: 'week', attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
         activity: { handled: 0, draftsCreated: 0, corrections: 0 },
         knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },

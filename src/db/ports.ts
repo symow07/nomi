@@ -106,6 +106,22 @@ export interface AutonomyRepo {
     readonly conversationId: string;
     readonly violations: number;
   }): Promise<{ readonly demoted: boolean; readonly action: string }>;
+  /**
+   * Has the owner confirmed what buyers will call her assistant (0065)?
+   *
+   * On the autonomy repo because that is what it gates: a message sent with
+   * nobody reading it first announces itself BY NAME, so a workspace where no
+   * person has read that name may not send one. Every workspace activated
+   * before Getting ready asked is in exactly that position.
+   */
+  assistantNamed(): Promise<boolean>;
+  /**
+   * Has the AI disclosure been read by a native speaker in every language it
+   * is written in? Installation-wide, not per business — see
+   * DISCLOSURE_NATIVE_REVIEW. False means nothing is sent alone ANYWHERE,
+   * including by capabilities that were switched on before the rule existed.
+   */
+  released(): boolean;
 }
 
 /**
@@ -118,6 +134,12 @@ export interface DraftRepo {
     conversationId: ConversationId;
     capability: Capability;
     draftText: string;
+    /**
+     * An AI disclosure went to the buyer INSTEAD of this text, because he asked
+     * what he was talking to and it did not say. The approval path refuses to
+     * send it unchanged; editing it is untouched.
+     */
+    replacedByDisclosure?: boolean;
     turnMessageId: string;
   }): Promise<{ draftId: string }>;
 }
@@ -202,6 +224,13 @@ export interface ConversationRepo {
   close(id: ConversationId): Promise<void>;
   /** A5.3 — who answers this conversation, and for which business. Null: no such conversation. */
   speaker(id: ConversationId): Promise<Speaker | null>;
+  /**
+   * This conversation has now been told it is talking to an AI. Its own write
+   * rather than a field of saveState, because it is decided AFTER the state is
+   * saved — at the moment the send/draft branch knows nobody is going to read
+   * the message before the buyer does.
+   */
+  markAiDisclosed(id: ConversationId, at: Date): Promise<void>;
 }
 
 export interface CatalogRepo {

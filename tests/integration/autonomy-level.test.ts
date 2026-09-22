@@ -54,6 +54,10 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     registerWebApp(app, {
       db, businessId: BIZ, accessCode: CODE, sessionSecret: SECRET, employeeName: 'Lily', avatar: '👩‍💼',
       provider: 'disabled', secureCookie: false, messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
+      // This file is about what the route does once autonomy is RELEASED. The
+      // gate itself — refused until the zh/ar disclosure has had native
+      // review — is proved in its own describe below, against the real flag.
+      autonomyReleased: () => true,
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     ownerCookie = await login(CODE);
@@ -118,5 +122,75 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
     expect(await modes()).toEqual(before);
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie: staff } });
     expect(page.body).not.toContain('id="on-her-own"');
+  });
+});
+
+d('T1 · no autonomy until the disclosure has had native review (requires DATABASE_URL)', () => {
+  /**
+   * The hard rule: no workspace turns on any autonomy capability in production
+   * until the zh and ar disclosure text has been read by a native speaker. This
+   * drives the REAL route with the REAL product flag — no override — so it fails
+   * the day someone flips the flag without meaning to, and passes again only
+   * when this test is changed on purpose alongside it.
+   */
+  let app: import('fastify').FastifyInstance;
+  let db: import('../../src/db/client.js').Db;
+  const GATE_BIZ = `dd720000-0000-4000-8000-${RUN}0001`;
+  const GATE_CODE = 'autonomy-gate-owner-code';
+
+  beforeAll(async () => {
+    await seedRunTenant();
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { registerWebApp } = await import('../../src/api/web/app.js');
+    db = createDb(DATABASE_URL!);
+    const bid = parseBusinessId(GATE_BIZ); if (!bid.ok) throw new Error('fixture');
+    await withTenantTx(db, bid.value, (t) =>
+      sql`insert into businesses (id, name) values (${GATE_BIZ}, 'Gate Test Co') on conflict (id) do nothing`.execute(t));
+    process.env['PILOT_BUSINESS_ID'] = GATE_BIZ;
+    app = Fastify({ logger: false });
+    registerWebApp(app, {
+      db, businessId: GATE_BIZ, accessCode: GATE_CODE, sessionSecret: SECRET, employeeName: 'Lily', avatar: '👩‍💼',
+      provider: 'disabled', secureCookie: false, messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
+    } as unknown as Parameters<typeof registerWebApp>[1]);
+    await app.ready();
+  }, 60_000);
+
+  afterAll(async () => { await app?.close(); await db?.destroy(); });
+
+  it('the flag is down today: zh and ar have not been reviewed', async () => {
+    const { disclosureAwaitingReview, autonomyReleased } = await import('../../src/core/conversation/disclosure.js');
+    expect(disclosureAwaitingReview()).toEqual(['zh', 'ar']);
+    expect(autonomyReleased()).toBe(false);
+  });
+
+  it('"talks" and "sells" are REFUSED by the route, and nothing is written', async () => {
+    const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
+    const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    for (const level of ['talks', 'sells']) {
+      const res = await app.inject({ method: 'POST', url: '/app/employee/autonomy', payload: `level=${level}`, headers: { cookie, ...FORM } });
+      expect(flashSaid(res, SECRET), level).toContain('still being checked');
+    }
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(GATE_BIZ); if (!bid.ok) throw new Error('fixture');
+    const auto = await withTenantTx(db, bid.value, (t) => sql<{ n: number }>`
+      select count(*)::int as n from autonomy_policy where business_id = ${GATE_BIZ}::uuid and mode = 'auto'`
+      .execute(t).then((r) => r.rows[0]!.n));
+    expect(auto).toBe(0);
+  });
+
+  it('"waits" is always allowed — it sends nothing without her', async () => {
+    const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
+    const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    const res = await app.inject({ method: 'POST', url: '/app/employee/autonomy', payload: 'level=waits', headers: { cookie, ...FORM } });
+    expect(flashSaid(res, SECRET)).not.toContain('still being checked');
+  });
+
+  it('and the page says why, above the levels', async () => {
+    const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
+    const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
+    expect(page.body).toContain('has not been read by a native speaker');
   });
 });
