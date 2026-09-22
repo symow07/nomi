@@ -5,6 +5,7 @@ import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spo
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.js';
+import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -312,6 +313,7 @@ export function renderEmployee(
       <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->
+      ${autonomyReleased() ? '' : `<p class="needname">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
       ${e.assistantNamed ? '' : `<p class="needname">${esc(t(locale, 'autonomy.needsName'))}
         <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
       <form method="post" action="/app/employee/autonomy" class="levels">

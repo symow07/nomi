@@ -95,6 +95,7 @@ import { activate, deactivate } from '../../channels/activation.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
+import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import {
   loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
 } from './pilot.js';
@@ -192,6 +193,13 @@ export type WebDeps = {
   /** M25 — the installation's real template capability, derived at boot.
    *  Absent = 'none', the fail-closed answer. */
   readonly templateState?: TemplateState;
+  /**
+   * The native-review gate on autonomy (core/conversation/disclosure.ts).
+   * Production never passes this: it reads the product-wide flag. A test that
+   * is about what the autonomy route does AFTER release passes `() => true`
+   * and says so in its setup — rather than the gate being loosened for tests.
+   */
+  readonly autonomyReleased?: () => boolean;
   /**
    * G11 — the address buyers reach this installation at. Absent, the owner is
    * shown that a proof link cannot be sent yet rather than a path she would
@@ -2051,6 +2059,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s) return reply;
       const locale = localeOf(req);
       const cap = (req.params as { capability: string }).capability;
+      // The single-capability grant is the same decision as a level, so it is
+      // held to the same gate. Taking one back is never refused.
+      if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
+        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+      }
       const r = await run(s.businessId, cap, personOf(s).id);
       return flashTo(reply, '/app/employee', `employee.flash.${r.code}` as MessageKey);
     });
@@ -2061,9 +2074,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const locale = localeOf(req);
     const level = String((req.body as { level?: string } | undefined)?.level ?? '');
-    const r = isAutonomyLevel(level)
-      ? await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id).catch(() => ({ ok: false, changed: 0 }))
-      : { ok: false, changed: 0 };
+    if (!isAutonomyLevel(level)) return flashTo(reply, '/app/employee#on-her-own', 'people.flash.failed');
+    // The native-review gate, enforced where the choice is SAVED rather than
+    // only where it is shown. A page that hides a control is a suggestion; a
+    // route that refuses it is the rule. `waits` is always allowed: it is the
+    // setting that sends nothing without her, so nothing unreviewed can reach
+    // a buyer through it — and it is how she takes back what she gave.
+    if (level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)()) {
+      return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+    }
+    const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
+      .catch(() => ({ ok: false, changed: 0 }));
     return flashTo(reply, `/app/employee#on-her-own`, r.ok ? 'autonomy.flash.saved' : 'people.flash.failed');
   });
   capAction('promote', (b, c, actor) => promoteCapability(deps.db, b, c, actor));

@@ -154,7 +154,7 @@ describe('a buyer who asked is never left in silence — but only in AUTO', () =
 
     const { r, sent, drafts, events } = await run(p, 'Quick question — are you a bot?');
     expect(r.identityViolation?.kind).toBe('identity_question_unanswered');
-    expect(r.hold).toBe('guards_failed_twice');
+    expect(r.hold).toBe('identity_question');              // its own reason, not the generic one
 
     // He was told.
     expect(sent).toContain("I'm Lily, Yiwu Canvas Co's AI assistant");
@@ -162,7 +162,10 @@ describe('a buyer who asked is never left in silence — but only in AUTO', () =
     // …and she was told to look.
     expect(drafts).toHaveLength(1);
     const held = events.find((e) => e.type === 'draft_pending');
-    expect((held?.payload as { heldBecause?: string }).heldBecause).toBe('guards_failed_twice');
+    expect((held?.payload as { heldBecause?: string }).heldBecause).toBe('identity_question');
+    expect((held?.payload as { disclosureSent?: boolean }).disclosureSent).toBe(true);
+    // …and the draft carries it, because the approval path reads the row.
+    expect(drafts[0]!.replacedByDisclosure).toBe(true);
     expect((held?.payload as { identity?: { kind: string } }).identity?.kind)
       .toBe('identity_question_unanswered');
     expect(events.some((e) => e.type === 'ai_disclosed')).toBe(true);
@@ -322,5 +325,84 @@ describe('she may not speak alone until she can say what she is', () => {
     const { sent, drafts } = await run(p, 'Hello, do you make canvas bags?');
     expect(sent).toContain('AI assistant');
     expect(drafts).toHaveLength(0);
+  });
+});
+
+describe('the two identity holds are named apart from each other', () => {
+  it('a denial is identity_denial, and the draft is sendable as it stands', async () => {
+    const p = ports('auto');
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = Array(3).fill("Don't worry, I'm a real person!");
+
+    const { r, drafts } = await run(p, 'Can you do 5,000 totes?');
+    expect(r.hold).toBe('identity_denial');
+    // Nothing was sent in its place, so there is nothing for it to contradict:
+    // the stand-in is hers to send, change or skip, exactly as before.
+    expect(drafts[0]!.replacedByDisclosure).toBe(false);
+  });
+
+  it('DRAFT · an unanswered question is identity_question, and nothing replaced it', async () => {
+    const p = ports('draft');
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = Array(3).fill('What size were you looking for?');
+
+    const { r, sent, drafts } = await run(p, 'are you a bot?');
+    expect(r.hold).toBe('identity_question');
+    expect(sent).toBeNull();
+    expect(drafts[0]!.replacedByDisclosure).toBe(false);   // she will answer him herself
+  });
+
+  it('an ordinary double guard failure is still the general reason', async () => {
+    const p = ports('auto');
+    seed(p);
+    p.analyzer.next = analysis();
+    // A number she was never given: the numeral guard refuses it twice, and
+    // the identity guard never runs.
+    p.replyWriter.replies = Array(3).fill('Our MOQ is 500 pieces.');
+
+    const { r } = await run(p, 'what is your minimum?');
+    expect(r.hold).toBe('guards_failed_twice');
+  });
+});
+
+describe('nothing is sent alone until the disclosure has had native review', () => {
+  /**
+   * Enforced where the send is decided, not only on the owner's page, because
+   * the page only stops NEW choices. Westlake Canvas Co. had six capabilities
+   * in auto before this rule existed; without this rung, confirming her name
+   * would have put them straight back to sending the unreviewed zh/ar text.
+   */
+  it('AUTO with the gate down drafts, and says why on the timeline', async () => {
+    const p = ports('auto');
+    p.tenant.releasedFlag = false;
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+
+    const { sent, drafts, events } = await run(p, 'Hello, do you make canvas bags?');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    const withheld = events.find((e) => e.type === 'autonomy_withheld');
+    expect((withheld?.payload as { reason?: string }).reason).toBe('disclosure_not_reviewed');
+  });
+
+  it('…even for a buyer who asked — no unreviewed sentence goes out in place of an answer', async () => {
+    const p = ports('auto');
+    p.tenant.releasedFlag = false;
+    seed(p);
+    p.analyzer.next = analysis('zh');
+    p.replyWriter.replies = Array(3).fill('您需要什么尺寸？');
+
+    const { sent, drafts } = await run(p, '你是机器人吗？');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
+  });
+
+  it('the real flag is down today, for zh and ar', async () => {
+    const { disclosureAwaitingReview } = await import('../../src/core/conversation/disclosure.js');
+    expect(disclosureAwaitingReview()).toEqual(['zh', 'ar']);
   });
 });

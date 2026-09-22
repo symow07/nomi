@@ -187,7 +187,11 @@ export class FakeTenant implements Tenant {
   // Autonomy defaults to empty → every capability resolves to draft (the safe
   // default). Tests set grants to exercise the auto-send path.
   grantRows: AutonomyGrant[] = [];
-  draftsCreated: Array<{ draftId: string; conversationId: string; capability: string; draftText: string }> = [];
+  draftsCreated: Array<{
+    draftId: string; conversationId: string; capability: string; draftText: string;
+    /** 0067 — a disclosure went to the buyer instead of this text. */
+    replacedByDisclosure: boolean;
+  }> = [];
   private draftSeq = 0;
 
   /** M34.9 — recorded, so a test can assert the production caller reached it.
@@ -199,6 +203,8 @@ export class FakeTenant implements Tenant {
    * situation it meant to; a test about the gate sets it false and says so.
    */
   assistantNamedFlag = true;
+  /** The native-review gate (DISCLOSURE_NATIVE_REVIEW). A test about it sets false. */
+  releasedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -206,6 +212,9 @@ export class FakeTenant implements Tenant {
       return { demoted: false, action: 'none' };
     },
     assistantNamed: async () => this.assistantNamedFlag,
+    // Released by default: these fakes describe what she does once autonomy is
+    // allowed at all. The gate itself is proved against the real flag.
+    released: () => this.releasedFlag,
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do
@@ -221,6 +230,7 @@ export class FakeTenant implements Tenant {
       this.draftsCreated.push({
         draftId, conversationId: input.conversationId as string,
         capability: input.capability, draftText: input.draftText,
+        replacedByDisclosure: input.replacedByDisclosure ?? false,
       });
       return { draftId };
     },

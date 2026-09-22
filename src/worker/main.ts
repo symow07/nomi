@@ -57,6 +57,12 @@ export async function startWorker(
    * make every turn a network failure against the real API.
    */
   models: { analyzer?: Analyzer; replyWriter?: ReplyWriter; vision?: VisionDescriber } = {},
+  /**
+   * The pre-pilot walkthrough only: behave as if the AI disclosure had passed
+   * native review, so it can prove what she does once autonomy is allowed.
+   * Production passes nothing and reads DISCLOSURE_NATIVE_REVIEW.
+   */
+  rehearsal: { autonomyReleased?: () => boolean } = {},
 ) {
   const db = createDb(env.DATABASE_URL);
   const boss = await startBoss(env.DATABASE_URL);
@@ -99,7 +105,10 @@ export async function startWorker(
     const started = input.started;
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
-      const tenant = tenantRepos(tx, businessId.value);
+      const base = tenantRepos(tx, businessId.value);
+      const tenant = rehearsal.autonomyReleased
+        ? { ...base, autonomy: { ...base.autonomy, released: rehearsal.autonomyReleased } }
+        : base;
       const retriever = hybridRetriever(tx, businessId.value);
       const ports = {
         tenant, retriever, analyzer, replyWriter, now: () => new Date(),

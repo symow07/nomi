@@ -492,6 +492,12 @@ export type ConversationDetail = {
     contradicts?: DraftContradiction | null;
     /** G8 — the owner's words that kept stopping a reply she could not write. */
     forbidden?: readonly string[];
+    /**
+     * The buyer has already had the AI disclosure, sent in place of this text
+     * because he asked what he was talking to and this did not say. The card
+     * says so, and the approval path refuses to send this wording unchanged.
+     */
+    disclosureSent?: boolean;
   } | null;
   readonly ownership: ConversationOwnership;
   /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
@@ -745,7 +751,8 @@ export async function loadConversationDetail(
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability,
             heldBecause: isHoldReason(draft.pending?.['heldBecause']) ? draft.pending['heldBecause'] : null,
             contradicts: contradictionOf(draft.pending?.['contradicts']),
-            forbidden: stringsOf(draft.pending?.['forbidden']) }
+            forbidden: stringsOf(draft.pending?.['forbidden']),
+            disclosureSent: draft.pending?.['disclosureSent'] === true }
         : null,
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
@@ -1152,6 +1159,9 @@ export function renderConversationDetail(
         <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
         ${d.pendingDraft.heldBecause
           ? `<p class="held-why" role="note">${esc(t(locale, `inbox.draft.held.${d.pendingDraft.heldBecause}` as MessageKey, { name: assistantName(locale) }))}</p>`
+          : ''}
+        ${d.pendingDraft.disclosureSent
+          ? `<p class="held-why rf" role="note">${esc(t(locale, 'inbox.draft.held.disclosure_sent', { name: assistantName(locale) }))}</p>`
           : ''}
         ${d.pendingDraft.contradicts ? contradictionBlock(d.pendingDraft.contradicts, locale) : ''}
         ${d.pendingDraft.forbidden?.length

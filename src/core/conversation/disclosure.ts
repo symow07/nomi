@@ -45,6 +45,44 @@ const isDisclosureLocale = (v: string): v is DisclosureLocale =>
   (DISCLOSURE_LOCALES as readonly string[]).includes(v);
 
 /**
+ * WHICH OF THESE HAS BEEN READ BY SOMEONE WHO SPEAKS IT.
+ *
+ * The English sentence was written by the owner. The Chinese and Arabic ones
+ * were translated to carry the same meaning, and nobody who speaks them has
+ * signed them off yet. This is the ONE sentence in the product whose job is to
+ * tell a buyer the truth about what is answering him: a translation that is
+ * merely close is not good enough for it, and "we will check later" is how a
+ * placeholder ships.
+ *
+ * So it is a gate, not a note. While any of these is false, no capability can
+ * be turned on — `autonomyReleased()` below is what the owner's page and the
+ * route that saves her choice both ask, and it is deliberately a single answer
+ * for the whole product rather than per workspace: the text does not become
+ * correct for one business and wrong for another.
+ *
+ * TO LIFT IT: have a native speaker read the `zh` and `ar` strings above, fix
+ * what they say to fix, and set the flag in the same commit. Nothing else.
+ */
+export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = {
+  en: true,
+  zh: false,
+  ar: false,
+};
+
+/** The locales still waiting for a native reading, in order. */
+export const disclosureAwaitingReview = (): readonly DisclosureLocale[] =>
+  DISCLOSURE_LOCALES.filter((l) => !DISCLOSURE_NATIVE_REVIEW[l]);
+
+/**
+ * May ANY capability be set to auto anywhere in this installation?
+ *
+ * False while a disclosure locale is unreviewed. A buyer does not choose which
+ * language the product was checked in, and a workspace that only ever writes
+ * English today can take an Arabic message tomorrow.
+ */
+export const autonomyReleased = (): boolean => disclosureAwaitingReview().length === 0;
+
+/**
  * The buyer's language, from the conversation's detected language, falling
  * back to English. Only the first two letters are read: "zh-Hans" and "ar-EG"
  * are the same sentence as "zh" and "ar".

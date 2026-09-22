@@ -47,6 +47,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'inbox.flash.already_resolved', 'inbox.flash.not_found', 'inbox.flash.sentNotLive',
   'inbox.flash.unknown', 'knowledge.flash.invalid', 'order.flash.failed', 'order.flash.unknown_state',
   'outreach.flash.failed', 'people.flash.failed', 'people.flash.name_missing',
+  // Not a failure of hers — the product is not ready to offer it yet. Still
+  // a refusal in tone: she asked for something and did not get it.
+  'autonomy.flash.notReleased',
   'people.flash.name_too_long', 'product.flash.refused', 'proof.owner.flash.failed',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
   'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',

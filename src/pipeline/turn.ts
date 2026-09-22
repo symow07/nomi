@@ -667,7 +667,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // M34.5's heard quantity is one; her "ask me above this discount" line is
   // the other. Provenance defaults to typed, so every caller that predates
   // voice notes is unaffected.
-  const hold = holdReasonOf({ provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice });
+  const hold = holdReasonOf({
+    provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice,
+    identity: identityViolation?.kind ?? null,
+  });
 
   timings.totalMs = Date.now() - t0;
   return {
@@ -924,9 +927,13 @@ export async function commitTurn(
        * authority, never grant it.
        */
       const speaksAlone = policyMode === 'auto';
-      const sentence = speaksAlone ? await disclosureText() : null;
-      const named = speaksAlone ? await tenant.autonomy.assistantNamed() : true;
-      const mayDisclose = !speaksAlone || (named && sentence !== null);
+      // The native-review gate, at the one place that decides whether a
+      // message goes out alone — so it binds capabilities switched on BEFORE
+      // the rule existed, not only new choices made on the owner's page.
+      const released = !speaksAlone || tenant.autonomy.released();
+      const sentence = speaksAlone && released ? await disclosureText() : null;
+      const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
+      const mayDisclose = !speaksAlone || (released && named && sentence !== null);
 
       const mode = effectiveMode(
         (r.hold || !mayDisclose) ? 'draft' : policyMode,
@@ -936,7 +943,8 @@ export async function commitTurn(
         // Recorded, because a capability that silently stopped acting as the
         // owner set it is the kind of thing she should be able to find.
         await tenant.events.append(req.conversationId, 'autonomy_withheld', {
-          capability, reason: named ? 'no_assistant_name' : 'assistant_not_named',
+          capability,
+          reason: !released ? 'disclosure_not_reviewed' : named ? 'no_assistant_name' : 'assistant_not_named',
         });
       }
 
@@ -999,9 +1007,19 @@ export async function commitTurn(
         outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
         if (say) await recordDisclosure('first_auto_send');
       } else {
+        /*
+         * Decided BEFORE the draft is written, because the draft has to carry
+         * it: a reply the disclosure replaced may not be sent as it stands, and
+         * the approval path reads that from the row.
+         */
+        const disclosureInstead = policyMode === 'auto'
+          && r.identityViolation?.kind === 'identity_question_unanswered'
+          && sentence !== null;
+
         const d = await tenant.drafts.create({
           conversationId: req.conversationId, capability,
           draftText: reply, turnMessageId: req.messageId,
+          ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
         });
         draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
         await tenant.events.append(req.conversationId, 'draft_pending', {
@@ -1022,6 +1040,7 @@ export async function commitTurn(
           // owner should know this happened; it is not an ordinary retry.
           ...(r.identityViolation
             ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
+          ...(disclosureInstead ? { disclosureSent: true } : {}),
         });
 
         /*
@@ -1048,9 +1067,7 @@ export async function commitTurn(
          * buyer ASKED — now — and a sentence he was sent four messages ago is
          * not an answer to a question he is asking today. He gets it again.
          */
-        if (mode === 'draft' && policyMode === 'auto'
-            && r.identityViolation?.kind === 'identity_question_unanswered'
-            && sentence !== null) {
+        if (mode === 'draft' && disclosureInstead) {
           outbound = { conversationId: req.conversationId, reply: sentence };
           await recordDisclosure('identity_question');
         }

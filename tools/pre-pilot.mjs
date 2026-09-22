@@ -322,6 +322,12 @@ async function setup() {
   }, {
     adapter: sim.adapter,
     logger: false,
+    // AS IF the AI disclosure had passed native review. The walkthrough proves
+    // what she does once autonomy is allowed — held turns vs auto-sends — and
+    // with the product-wide gate down every auto grant would draft, so a hold
+    // would be indistinguishable from the gate. This is a rehearsal-only
+    // override; production has no way to pass it.
+    autonomyReleased: () => true,
     media: { transcriber: scriptedTranscriber, audio: whatsappAudioFetcher(media), image: whatsappMediaFetcher(media) },
     // --live leaves the analyzer and the writer to the real model; the picture
     // and the voice are stand-in bytes either way, so those stay scripted.

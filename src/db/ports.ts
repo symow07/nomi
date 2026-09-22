@@ -115,6 +115,13 @@ export interface AutonomyRepo {
    * before Getting ready asked is in exactly that position.
    */
   assistantNamed(): Promise<boolean>;
+  /**
+   * Has the AI disclosure been read by a native speaker in every language it
+   * is written in? Installation-wide, not per business — see
+   * DISCLOSURE_NATIVE_REVIEW. False means nothing is sent alone ANYWHERE,
+   * including by capabilities that were switched on before the rule existed.
+   */
+  released(): boolean;
 }
 
 /**
@@ -127,6 +134,12 @@ export interface DraftRepo {
     conversationId: ConversationId;
     capability: Capability;
     draftText: string;
+    /**
+     * An AI disclosure went to the buyer INSTEAD of this text, because he asked
+     * what he was talking to and it did not say. The approval path refuses to
+     * send it unchanged; editing it is untouched.
+     */
+    replacedByDisclosure?: boolean;
     turnMessageId: string;
   }): Promise<{ draftId: string }>;
 }

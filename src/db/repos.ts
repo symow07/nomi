@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { autonomyReleased } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
 import type { AssistantRole } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
@@ -634,6 +635,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       const evidence = { ...base, policyViolations: base.policyViolations + violations };
       return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
     },
+    released: () => autonomyReleased(),
     async assistantNamed() {
       const r = await sql<{ named: boolean }>`
         select (assistant_named_at is not null) as named
@@ -663,9 +665,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
   const drafts: import('./ports.js').DraftRepo = {
     async create(input) {
       const r = await sql<{ id: string }>`
-        insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+        insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status,
+                            replaced_by_disclosure)
         values (${businessId}, ${input.conversationId}, ${input.capability},
-                ${input.draftText}, ${input.turnMessageId}, 'pending')
+                ${input.draftText}, ${input.turnMessageId}, 'pending',
+                ${input.replacedByDisclosure ?? false})
         returning id
       `.execute(tx);
       return { draftId: r.rows[0]!.id };

@@ -178,6 +178,8 @@ class HarnessTenant implements Tenant {
    * situation it meant to; a test about the gate sets it false and says so.
    */
   assistantNamedFlag = true;
+  /** The native-review gate (DISCLOSURE_NATIVE_REVIEW). A test about it sets false. */
+  releasedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -185,6 +187,9 @@ class HarnessTenant implements Tenant {
       return { demoted: false, action: 'none' };
     },
     assistantNamed: async () => this.assistantNamedFlag,
+    // Released by default: these fakes describe what she does once autonomy is
+    // allowed at all. The gate itself is proved against the real flag.
+    released: () => this.releasedFlag,
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.
