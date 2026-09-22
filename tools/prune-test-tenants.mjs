@@ -39,7 +39,7 @@
  *   MIGRATE_DATABASE_URL=… node tools/prune-test-tenants.mjs [--dry-run] [--quiet]
  */
 
-import pg from 'pg';
+import { toolClient } from './lib/db.mjs';
 import { pathToFileURL } from 'node:url';
 
 const DEMO_PREFIX = 'de300000';
@@ -167,7 +167,7 @@ async function main() {
     process.exit(url ? 1 : 2);
   }
 
-  const client = new pg.Client({ connectionString: url });
+  const client = toolClient(url, { replyTimeoutMs: 5 * 60_000 });
   try {
     await client.connect();
     const doomed = (await client.query(

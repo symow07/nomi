@@ -24,7 +24,7 @@
  * seeded head start would be a lie the product then reports as progress.
  */
 import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { toolClient } from './lib/db.mjs';
 
 /** Must match src/demo/sandbox.ts — the one tenant a factory may never be. */
 const SANDBOX_BUSINESS_ID = '5a4d0000-0000-4000-8000-0000000000b1';
@@ -54,8 +54,8 @@ if (!['en', 'zh', 'ar'].includes(language)) {
 const id = randomUUID();
 if (id === SANDBOX_BUSINESS_ID) die('Refusing: generated id collided with the practice sandbox.');
 
-const client = new pg.Client({ connectionString: url });
-await client.connect();
+const client = toolClient(url, { replyTimeoutMs: 60_000 });
+await client.connect().catch((e) => die(`✗ ${e.message}`));
 try {
   await client.query('begin');
 

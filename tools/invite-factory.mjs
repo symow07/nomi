@@ -17,7 +17,7 @@
  * A TICKET IS SPENT ONCE and lapses by itself (14 days unless told otherwise).
  * With SIGNUP_MODE=open no ticket is needed and this tool has nothing to do.
  */
-import pg from 'pg';
+import { toolClient } from './lib/db.mjs';
 
 const url = process.env.MIGRATE_DATABASE_URL;
 const note = (process.argv[2] ?? '').trim();
@@ -31,8 +31,8 @@ if (!url) die(`MIGRATE_DATABASE_URL is required — invitations are made with ad
 if (!note) die(`Say who it is for, in your own words. It is never shown to them.\n${usage}`);
 if (!Number.isInteger(days) || days < 1 || days > 90) die(`Days must be a whole number from 1 to 90 (got "${process.argv[3]}").`);
 
-const client = new pg.Client({ connectionString: url });
-await client.connect();
+const client = toolClient(url, { replyTimeoutMs: 60_000 });
+await client.connect().catch((e) => { console.error(`\n  ✗ ${e.message}\n`); process.exit(1); });
 try {
   const r = await client.query(
     `insert into signup_invites (note, expires_at) values ($1, now() + ($2 || ' days')::interval)
