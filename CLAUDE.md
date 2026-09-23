@@ -93,13 +93,17 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed before D:** `84cfc9d` (merge of #53). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`.
-  D's own PR migrates (**0068 → schema 68**), so its deploy needs a fresh
-  backup first; the session that merges it writes the SHA here.
-- **Schema:** 67 before D. Last three: `0066 ai_disclosed`,
-  `0067 draft_replaced_by_disclosure`, then `0068 outreach_area` (D).
-- **Last backup:** `~/nomi-backups/nomi-backup-20260922T142658Z` (schema 64),
-  encrypted and uploaded to the `nomi-backups` bucket; restored and compared
+- **Deployed:** `103dc97` (merge of #54, D). `/health` →
+  `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
+  `schema_version` = 68; exactly one business has `outreach_area` on.
+- **Schema:** 68. Last three: `0066 ai_disclosed`,
+  `0067 draft_replaced_by_disclosure`, `0068 outreach_area`.
+- **Backup before this deploy:** `~/nomi-backups/nomi-backup-20260923T035402Z`
+  (schema 67; dump 1.5 MB; roles 938 B), encrypted and uploaded to the
+  `nomi-backups` bucket. The proxy dropped several attempts first; the
+  script's new guards stopped each one cleanly ("Nothing was written"). Run it
+  with `ATTEMPT_LIMIT=120 ATTEMPTS=6 QUERY_LIMIT=30` on a bad day.
+  The previous pair (`…20260922T142658Z`, schema 64) was restored and compared
   against production on 2026-09-22 — 85 of 86 tables identical, the one
   difference `pgboss.job` (jobs queued after the dump).
 - **Fleet:** 59 businesses; **1 live** — Westlake Canvas Co.,
