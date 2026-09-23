@@ -106,7 +106,8 @@ describe('backup.sh — bounded at every step', () => {
 
   it('asks the server nothing outside a limit', () => {
     // Every psql against the database goes through pq(), which is within().
-    const raw = src.split('\n').filter((l) => /"\$PSQL" -d "\$MIGRATE_DATABASE_URL"/.test(l));
+    // (The URL it is given has no password in it — no-secret-in-argv.test.ts.)
+    const raw = src.split('\n').filter((l) => /"\$PSQL" -d "\$PG_URL_NOPASS"/.test(l));
     expect(raw).toHaveLength(1);
     expect(raw[0]).toMatch(/^pq\(\) \{ within "\$QUERY_LIMIT"/);
     expect(src).toMatch(/within "\$ATTEMPT_LIMIT" "\$@"/);
