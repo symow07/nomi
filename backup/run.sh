@@ -57,7 +57,13 @@ grep -qE "CREATE ROLE $RUNTIME_ROLE([^a-zA-Z0-9_]|$)" "$STAGE/roles-$TS.sql" \
   || fail "roles file does not contain $RUNTIME_ROLE — a restore would lose every RLS policy"
 "$PGBIN/pg_dump" -Fc -f "$STAGE/nomi-$TS.dump" || fail "database dump"
 [ -s "$STAGE/nomi-$TS.dump" ] || fail "dump file is empty"
-"$PGBIN/pg_restore" -l "$STAGE/nomi-$TS.dump" 2>/dev/null | grep -q businesses || fail "dump has no businesses table"
+# The table of contents goes to a FILE, then grep. Piped into `grep -q`, grep
+# exits on the first match, pg_restore dies of SIGPIPE, and under pipefail the
+# pipeline reports failure on a perfectly good dump (the first live run,
+# 2026-09-23 10:07 UTC, failed exactly so).
+"$PGBIN/pg_restore" -l "$STAGE/nomi-$TS.dump" > "$WORK/toc" || fail "dump has no readable table of contents"
+grep -q businesses "$WORK/toc" || fail "dump has no businesses table"
+echo "    roles $(stat -c %s "$STAGE/roles-$TS.sql") bytes · dump $(stat -c %s "$STAGE/nomi-$TS.dump") bytes · $(grep -c ' TABLE ' "$WORK/toc") tables in the TOC"
 
 sha() { sha256sum "$1" | awk '{print $1}'; }
 DUMP_BYTES="$(stat -c %s "$STAGE/nomi-$TS.dump")"
