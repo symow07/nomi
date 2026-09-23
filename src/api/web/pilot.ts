@@ -50,6 +50,13 @@ export type PilotReadiness = {
     readonly assistantNamedAt: Date | null;
   };
   readonly validation: { readonly at: Date | null; readonly pass: number | null; readonly total: number | null };
+  /**
+   * When the scheduled backup last restored cleanly in its own drill
+   * (`backup_runs`, 0069). Checked for the owner, so "Backup tested" no longer
+   * needs a tick by hand; the hand-made attestation still counts where it was
+   * made before the job existed.
+   */
+  readonly backupVerifiedAt: Date | null;
   readonly readyToLaunch: boolean;   // everything but the channel (that's what launch turns on)
   /**
    * What the box is pre-filled with: her stored name, or — before any row
@@ -64,6 +71,7 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     detected: { profile: false, products: false, priceRules: false, knowledge: false, claims: false, sandbox: false, channel: false },
     attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
     validation: { at: null, pass: null, total: null },
+    backupVerifiedAt: null,
     readyToLaunch: false,
     assistantName: defaultAssistantName('en'),
   };
@@ -75,7 +83,7 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     const r = (await sql<{
       profile: boolean; products: boolean; price_rules: boolean; knowledge: boolean; claims: boolean; channel: boolean;
       backup_tested_at: Date | null; secrets_rotated_at: Date | null; owner_ready_at: Date | null;
-      assistant_named_at: Date | null;
+      assistant_named_at: Date | null; backup_verified_at: Date | null;
       assistant_name: string | null; owner_locale: string | null;
       last_validation_at: Date | null; last_validation_pass: number | null; last_validation_total: number | null;
     }>`
@@ -102,6 +110,9 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
         (select secrets_rotated_at from os) as secrets_rotated_at,
         (select owner_ready_at from os) as owner_ready_at,
         (select assistant_named_at from os) as assistant_named_at,
+        -- Installation-wide, not tenant data: the newest scheduled backup that
+        -- restored cleanly in its drill (0069).
+        (select uploaded_at from backup_runs where drill_passed order by uploaded_at desc limit 1) as backup_verified_at,
         -- The name the box shows. The assistants table is the one source for
         -- it since A5; the locale default only fills a box nobody answered yet.
         (select a.name from assistants a
@@ -119,14 +130,16 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
       knowledge: r.knowledge, claims: r.claims, sandbox, channel: r.channel };
     const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at,
       ownerReadyAt: r.owner_ready_at, assistantNamedAt: r.assistant_named_at };
+    const backupVerifiedAt = r.backup_verified_at;
     const readyToLaunch = detected.profile && detected.products && detected.priceRules
       && detected.knowledge && detected.claims && detected.sandbox
-      && !!attest.backupTestedAt && !!attest.secretsRotatedAt && !!attest.ownerReadyAt
+      && (!!attest.backupTestedAt || !!backupVerifiedAt) && !!attest.secretsRotatedAt && !!attest.ownerReadyAt
       && !!attest.assistantNamedAt;
 
     return {
       detected, attest,
       validation: { at: r.last_validation_at, pass: r.last_validation_pass, total: r.last_validation_total },
+      backupVerifiedAt,
       readyToLaunch,
       assistantName: r.assistant_name ?? defaultAssistantName(parseLocale(r.owner_locale ?? 'en') ?? 'en'),
     };
@@ -472,7 +485,12 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: F
 
   const attests = [
     assistantNameRow(d, locale),
-    attestRow('backup_tested', d.attest.backupTestedAt, locale),
+    // Checked for the owner once the scheduled backup has proven a restore;
+    // the hand-made tick remains for an installation that predates the job.
+    d.backupVerifiedAt
+      ? `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${esc(t(locale, 'pilot.attest.backup_tested'))}</span>
+          <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(formatDate(locale, d.backupVerifiedAt))}</span></div>`
+      : attestRow('backup_tested', d.attest.backupTestedAt, locale),
     attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale),
     attestRow('owner_ready', d.attest.ownerReadyAt, locale),
   ].join('');

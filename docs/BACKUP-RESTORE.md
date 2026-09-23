@@ -92,6 +92,45 @@ Railway also takes volume backups, and can be given continuous archiving
 substitute for this pair: a physical snapshot restores as a whole new service
 and cannot be inspected or selectively restored before you commit to it.
 
+## Scheduled backups (Railway cron, since 2026-09-23)
+
+The dump above is also taken **every day at 03:00 UTC** by a Railway cron
+service in the project (`backup/`), on the private network — the public proxy,
+which accepts a connection and then goes silent, is not on its path. One run:
+
+1. dumps roles + database over `postgres.railway.internal`;
+2. **restores the pair into a throwaway cluster in the container and runs the
+   four checks below** (`tools/verify-restore.sh`, unchanged) — a dump that does
+   not restore is not uploaded;
+3. encrypts with the age public key; the private key never lives on Railway;
+4. uploads to `nomi-backups` under `daily/<name>/` and reads the listing back;
+5. prunes dailies older than 60 days (manual pairs at the bucket root are
+   never touched);
+6. writes one row to `backup_runs` (0069), then pings the dead-man's switch.
+
+Setup, variables (all references, nothing typed) and the schedule are in
+`backup/README.md`. **`tools/backup.sh` stays** as the fallback for manual
+runs before a migration, and the layout is identical, so this page's restore
+steps apply to either.
+
+**Two proofs, one automatic and one that must stay by hand.** Step 2 proves,
+every day, that the dump restores with RLS intact and isolation denying. What
+it cannot prove is that the *encrypted copy in the bucket* opens with the key
+you hold — the key is deliberately not on Railway. So, **monthly**:
+
+```bash
+bash tools/fetch-backup.sh              # newest daily/ pair → ~/nomi-backups/<name>/, decrypted
+bash tools/verify-restore.sh ~/nomi-backups/<name>   # must say 4/4
+```
+
+**What tells you it stopped.** The app looks at `backup_runs` daily at 06:30
+UTC; with no completed run younger than 36 hours it sends the owner
+`notify.backup_stale` — **by e-mail to the sign-in address always**, and by
+WhatsApp too where a channel is live (that channel is the thing that can be
+down, so the alert does not depend on it). Getting ready shows "Backup tested
+· Checked for you · date" from the same table. Independently, Healthchecks.io
+alerts when the job's ping is late, and Railway marks a failed run `FAILED`.
+
 ## Restore
 
 > **The target cluster must have `pgvector` BEFORE you start, and must not be

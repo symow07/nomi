@@ -196,7 +196,7 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
     expect(ALERT_KEYS.length).toBeGreaterThan(0);
     for (const locale of LOCALES) {
       for (const k of ALERT_KEYS) {
-        const s = t(locale, k, { name: '小雅', buyer: 'Ahmed' });
+        const s = t(locale, k, { name: '小雅', buyer: 'Ahmed', when: '20 Sep' });
         expect(s.includes('\n'), `${locale} ${k} wraps`).toBe(false);
         expect(s.trim().length, `${locale} ${k} is empty`).toBeGreaterThan(4);
       }
@@ -206,7 +206,7 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
   it('an alert never leaves a placeholder unfilled', () => {
     for (const locale of LOCALES) {
       for (const k of ALERT_KEYS) {
-        expect(t(locale, k, { name: '小雅', buyer: 'Ahmed' })).not.toContain('{');
+        expect(t(locale, k, { name: '小雅', buyer: 'Ahmed', when: '20 Sep' })).not.toContain('{');
       }
     }
   });

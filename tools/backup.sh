@@ -56,18 +56,22 @@ QUERY_LIMIT="${QUERY_LIMIT:-60}"
 # macOS has no `timeout`, so this is written out.
 within() {
   local secs="$1"; shift
+  local fired; fired="$(mktemp "${TMPDIR:-/tmp}/within.XXXXXX")"; rm -f "$fired"
   "$@" &
   local pid=$!
   # stderr of the watchdog and of `wait` is bash's own "Terminated: 15" job
-  # chatter, never the command's — its output goes straight through.
-  ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null ) 2>/dev/null &
+  # chatter, never the command's — its output goes straight through. The
+  # watchdog leaves a MARK when it fires: asking whether it is still alive
+  # raced it (it lives for an instant after the kill), and under load that
+  # instant reported a timed-out command as one that finished with 143.
+  ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null && : > "$fired" ) 2>/dev/null &
   local dog=$!
   wait "$pid" 2>/dev/null
   local rc=$?
-  if kill -0 "$dog" 2>/dev/null; then
+  if [ -e "$fired" ]; then
+    rc=124; rm -f "$fired"
+  else
     pkill -P "$dog" 2>/dev/null; kill "$dog" 2>/dev/null
-  elif [ "$rc" -eq 143 ]; then
-    rc=124   # the watchdog fired; a command that finished just in time keeps its own code
   fi
   wait "$dog" 2>/dev/null
   return "$rc"

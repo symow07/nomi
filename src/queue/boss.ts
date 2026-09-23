@@ -26,9 +26,17 @@ export const QUEUES = {
    * where a lost job cannot lose a follow-up (src/outbound/sequences.ts).
    */
   sequences: 'outreach.sequences',
+  /**
+   * The once-a-day look at `backup_runs`: has the scheduled backup completed
+   * lately? Not the backup itself — that runs as a Railway cron service
+   * outside this process (backup/run.sh) — only the question of whether it
+   * did, and the owner alert when it did not (src/core/ops/backups.ts).
+   */
+  backups: 'ops.backups',
 } as const;
 
 export type SequenceSweepJob = { businessId: string };
+export type BackupWatchJob = { businessId: string };
 
 export async function startBoss(connectionString: string): Promise<PgBoss> {
   const boss = new PgBoss({
@@ -95,8 +103,10 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter';
+  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale';
   conversationId: string | null;
+  /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
+  lastBackupAt?: string | null;
 };
 
 /**

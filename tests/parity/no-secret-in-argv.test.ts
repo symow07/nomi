@@ -32,7 +32,7 @@ const PG_TOOL = /(\$PSQL|\$DUMP|\$DUMPALL|\$RESTORE|\bpsql\b|\bpg_dump\b|\bpg_du
 const URL_WITH_PASSWORD = /postgres(ql)?:\/\/[^\s"'`]*:[^\s"'`@]+@/;
 
 describe('no connection URL as a command argument', () => {
-  const shells = [...walk('tools', /\.sh$/), ...walk('.claude/skills', /\.sh$/)];
+  const shells = [...walk('tools', /\.sh$/), ...walk('backup', /\.sh$/), ...walk('.claude/skills', /\.sh$/)];
   expect(shells.length).toBeGreaterThan(1);
 
   for (const f of shells) {
