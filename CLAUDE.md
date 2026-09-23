@@ -98,14 +98,21 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `103dc97` (merge of #54, D). `/health` →
+- **Deployed:** `1f89889` (merge of #58). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
-  `schema_version` = 68; exactly one business has `outreach_area` on.
-- **Schema:** 68 before the scheduled-backups PR, which adds **0069
-  `backup_runs` → 69**. Last three then: `0067 draft_replaced_by_disclosure`,
-  `0068 outreach_area`, `0069 backup_runs`. That PR's deploy migrates: take
-  (or confirm) a backup first; after it, create the `backup` cron service per
-  `backup/README.md` and run it once by hand.
+  `schema_version` = **69**; exactly one business has `outreach_area` on.
+- **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
+  `0068 outreach_area`, `0069 backup_runs`.
+- **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
+  (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
+  `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
+  container, laptop `verify-restore.sh` 4/4 on the encrypted copy, one row in
+  `backup_runs`. The app alerts the owner by e-mail (and WhatsApp where live)
+  when no run completes for 36 h. **PITR is enabled** on Postgres (WAL to a
+  Railway bucket; the window starts from the first base backup after
+  enabling). Still the owner's: paste a Healthchecks.io ping URL into the
+  service as `BACKUP_PING_URL`, and do the monthly laptop drill
+  (`tools/fetch-backup.sh` → `tools/verify-restore.sh`).
 - **Backup before this deploy:** `~/nomi-backups/nomi-backup-20260923T035402Z`
   (schema 67; dump 1.5 MB; roles 938 B), encrypted and uploaded to the
   `nomi-backups` bucket. The proxy dropped several attempts first; the
@@ -124,7 +131,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
-| — | Scheduled backups: `backup/` Railway cron on the private network (dump → restore drill → encrypt → upload → prune → `backup_runs` 0069 → ping); daily stale check → owner alert by **e-mail always**, WhatsApp where live; Getting ready "Backup tested" checked for the owner; `tools/fetch-backup.sh` for the monthly laptop drill |
+| 58 | `backup/run.sh`: the TOC check must not pipe into `grep -q` (pipefail); found by the first live run |
+| 57 | Scheduled backups: `backup/` Railway cron on the private network (dump → restore drill → encrypt → upload → prune → `backup_runs` 0069 → ping); daily stale check → owner alert by **e-mail always**, WhatsApp where live; Getting ready "Backup tested" checked for the owner; `tools/fetch-backup.sh` for the monthly laptop drill |
 | 56 | The database password never appears in a command line (`tools/lib/pgenv.py`, argv test) |
 | 55 | CLAUDE.md: D deployed |
 | 54 | IA **D**: Setup joins the nav (five entries), the drawer splits, setup count + Today card, outreach area behind `businesses.outreach_area` (0068; on for Westlake only) |
