@@ -222,8 +222,8 @@ describe('M45 · the owner surfaces', () => {
     expect(never).not.toContain(t('en', 'samples.asked.title'));
   });
 
-  it('is reachable from settings, and registered as routes', async () => {
-    const settings = await readFile(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
+  it('is reachable from My business (D), and registered as routes', async () => {
+    const settings = await readFile(new URL('../../src/api/web/factory.ts', import.meta.url), 'utf8');
     expect(settings).toContain("deeper('/app/settings/samples'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     for (const r of ["app.get('/app/settings/samples'", "app.post('/app/settings/samples'",

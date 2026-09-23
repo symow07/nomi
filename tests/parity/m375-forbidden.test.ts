@@ -167,8 +167,8 @@ describe('M37.5 · the owner surface', () => {
     expect(floorBlock).not.toContain('<form');
   });
 
-  it('is reachable from settings, and registered as a route', async () => {
-    const settings = await readFile(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
+  it('is reachable from the assistant\'s page (D), and registered as a route', async () => {
+    const settings = await readFile(new URL('../../src/api/web/employee.ts', import.meta.url), 'utf8');
     expect(settings).toContain("deeper('/app/settings/forbidden'");
     const app = await readFile(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     expect(app).toContain("app.get('/app/settings/forbidden'");

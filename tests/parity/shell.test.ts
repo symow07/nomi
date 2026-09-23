@@ -12,9 +12,11 @@ import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 const page = (locale: 'en' | 'zh' | 'ar' = 'en', active = 'home') =>
   shell({ title: 'T', active, locale, path: '/app', avatar: '👩', bodyHtml: '<p>body</p>' });
 
-describe('Phase F · four destinations, and nothing else competing', () => {
-  it('the nav is exactly Today, Buyers, 小雅, My factory', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/factory']);
+describe('Phase F · five destinations, and nothing else competing', () => {
+  // D (2026-09-21) — Setup joined as the fifth: how the installation is wired,
+  // split out of the drawer that also held what you sell.
+  it('the nav is exactly Today, Buyers, the assistant, My business, Setup', () => {
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/factory', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {

@@ -1,4 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { withWorkspace } from '../../src/api/web/say.js';
+
+// D — the writing-first switch and its ceiling exist only for a workspace whose
+// outreach area is on; these tests are about the switch, so they render inside one.
+const AREA_ON = { name: null, several: false, outreach: true, setup: null } as const;
+const reach = (...a: Parameters<typeof renderReach>) => withWorkspace(AREA_ON, () => renderReach(...a));
 import {
   driveConversationOutbound, type ConversationSendContext, type OutboundStore, type OutboundWorkRow,
 } from '../../src/outbound/worker.js';
@@ -278,24 +284,24 @@ describe('C4.a · her ceiling', () => {
   });
 
   it('the number sits beside the switch, for her and not for staff, and says the default', () => {
-    const owner = renderReach('en', VERIFIED, new Map([['email', true]]), null, undefined, new Map([['email', 12]]));
+    const owner = reach('en', VERIFIED, new Map([['email', true]]), null, undefined, new Map([['email', 12]]));
     expect(owner).toContain('action="/app/channels/outreach/cap"');
     expect(owner).toMatch(/name="cap"[^>]*value="12"/);
     expect(owner).toContain(`placeholder="${DAILY_OUTREACH_CEILING}"`);
-    const staff = renderReach('en', VERIFIED, new Map([['email', true]]), null, { isOwner: false });
+    const staff = reach('en', VERIFIED, new Map([['email', true]]), null, { isOwner: false });
     expect(staff).not.toContain('/app/channels/outreach/cap');
   });
 
   it('no box where a first message cannot go — a limit on nothing is not a control', () => {
     // WhatsApp's requirements are unmet here, so its card has the switch's
     // state but no ceiling to set.
-    const html = renderReach('en', VERIFIED, new Map([['whatsapp', true]]));
+    const html = reach('en', VERIFIED, new Map([['whatsapp', true]]));
     expect(html.match(/action="\/app\/channels\/outreach\/cap"/g) ?? []).toHaveLength(1);
-    expect(renderReach('en', new Set(), new Map())).not.toContain('/app/channels/outreach/cap');
+    expect(reach('en', new Set(), new Map())).not.toContain('/app/channels/outreach/cap');
   });
 
   it('no cap stated reads as empty, never as a number she did not choose', () => {
-    const html = renderReach('en', VERIFIED, new Map([['email', true]]));
+    const html = reach('en', VERIFIED, new Map([['email', true]]));
     expect(html).toMatch(/name="cap"[^>]*value=""/);
   });
 });

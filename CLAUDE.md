@@ -1,7 +1,7 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-22**, after PR #50 deployed. Written so the next session
-(starting **D**) needs nothing from the one that wrote it.
+Last updated **2026-09-23**, in the PR that ships **D**. Written so the next
+session (starting **A**) needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -54,19 +54,26 @@ sending under rules the owner sets. Owner UI in en / zh / ar (RTL).
   exact command.
 - The checkout lives in an **iCloud-synced Desktop**: it spawns `* 2.ts`
   duplicates that break `tsc`, and `.git/refs/heads/main 2` that breaks
-  `git pull`. Move them to the scratchpad.
+  `git pull`. Move them to the scratchpad. `git fetch`/`pull` can hang for an
+  hour there: run them with a time cap, and `kill` the stuck `git fetch` (see
+  `ps`). The user has the steps to move the repo to `~/dev/nomi`; if it has
+  moved, the Railway CLI needs `railway link` again (its link is keyed by
+  directory path) and the memory folder key changes.
+- Ad-hoc production reads: `psql` inside `railway run --service Postgres`,
+  read-only, retried — the Node driver stalls on the public proxy. Operator
+  tools use `tools/lib/db.mjs` (connect + reply limits, PR #52).
 - No foreground `sleep`; use an `until …; do sleep N; done` loop or a
   background command.
 
 ## 3 · Verification set (run all four before a PR)
 
 ```bash
-env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, 2056 unit
+env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2100 unit
 npm run trust                                                 # 33/33 golden scenarios
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
-  node tools/run-integration.mjs                              # 651/651, ~2 min
+  node tools/run-integration.mjs                              # ~660, none skipped, ~2 min
 ```
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
@@ -84,22 +91,31 @@ before suspecting code.
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
 
-## 4 · What is live (production, 2026-09-22)
+## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `bf86fd2` (merge of #50). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`.
-- **Schema:** 67. Last three: `0065 assistant_named`, `0066 ai_disclosed`,
-  `0067 draft_replaced_by_disclosure`.
-- **Backup before this deploy:** `~/nomi-backups/nomi-backup-20260922T142658Z`
-  (schema 64; dump 1.4 MB / 1,448,801 B; roles 938 B), encrypted and uploaded
-  to the `nomi-backups` bucket.
-- **Fleet:** 59 businesses; **1 live** (the user's own; find it with
-  `channels.activated_at is not null`), six capabilities set to auto. **Zero `assistants` rows** in
-  production. Traffic is low (8 employee sends in the 7 days before deploy).
+- **Deployed before D:** `84cfc9d` (merge of #53). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`.
+  D's own PR migrates (**0068 → schema 68**), so its deploy needs a fresh
+  backup first; the session that merges it writes the SHA here.
+- **Schema:** 67 before D. Last three: `0066 ai_disclosed`,
+  `0067 draft_replaced_by_disclosure`, then `0068 outreach_area` (D).
+- **Last backup:** `~/nomi-backups/nomi-backup-20260922T142658Z` (schema 64),
+  encrypted and uploaded to the `nomi-backups` bucket; restored and compared
+  against production on 2026-09-22 — 85 of 86 tables identical, the one
+  difference `pgboss.job` (jobs queued after the dump).
+- **Fleet:** 59 businesses; **1 live** — Westlake Canvas Co.,
+  `7dc89f42-852e-465a-920f-8af170dc83cd`, the user's own (find it with
+  `channels.activated_at is not null`), six capabilities set to auto. The owner
+  was confirming its assistant's name on Getting ready on 2026-09-23.
+  Traffic is low (8 employee sends in the 7 days before #50).
 
 Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| D | IA **D**: Setup joins the nav (five entries), the drawer splits, setup count + Today card, outreach area behind `businesses.outreach_area` (0068; on for Westlake only) |
+| 53 | No pronouns for the assistant; a name counts only once chosen; Arabic addresses nobody in a gender; 1266 catalogue lines; `docs/NATIVE-REVIEW-UI.md` |
+| 52 | Operator tools fail loudly on a database that stops answering (`tools/lib/db.mjs`, `backup.sh` limits) |
+| 51 | CLAUDE.md handoff |
 | 50 | Assistant identity: denial guard + context rule, prompt rule, /privacy line, name gate, AI disclosure, native-review gate |
 | 49 | Day-one test deterministic; pruner takes orphaned pg-boss jobs; M13 test owns its facts |
 | 48 | No test reaches a real model (`offlineModels()`) |
@@ -143,28 +159,31 @@ Recent PRs, newest first:
 7. **Names come from the `assistants` table**, via `withAssistantName` / `assistantName(locale)`, and **count only once chosen**.
    - The main assistant's row name is a default until Getting ready stamps `assistant_named_at` (`chosenName` in `src/db/assistants.ts`). Until then, owner copy says "your assistant" / 你的助手 / مساعدك (`ASSISTANT_FALLBACK`), and the model gets no name.
    - `DEFAULT_ASSISTANT_NAME` is only the row's value at birth. There is no `EMPLOYEE_NAME` any more.
+8. **The outreach area is per workspace, OFF by default** (`businesses.outreach_area`, 0068).
+   - Off means: every `/app/contacts|prospects|sequences` and `/app/channels/outreach` address is 404 (preHandler in `app.ts`, `isOutreachRoute`), no page links there, and `outreachFacts` reports not enabled, so nothing is written first — whatever `outreach_settings` says.
+   - No owner switch. Operators use `node tools/outreach-area.mjs --business <uuid> --on|--off`.
+   - On for Westlake Canvas Co. only.
+9. **Every page draws from `workspaceFacts`** (`src/db/workspace.ts`): name, several, outreach, and the five-step setup progress (`src/db/setup.ts` — profile, products, name, channels, first reply). Cached a minute per business in `app.ts`; every write that completes a step calls `facts.evict`. The Setup nav entry shows `done/total`; Today shows a "finish setting up" card; both vanish when complete.
 
 ## 6 · What's next
 
-**D — split the drawer.** Spec: `docs/IA-PROPOSAL.md` §D and "Decided —
-2026-09-21". In short:
-- Settings becomes **Setup** and joins the nav (five entries, no conditional
-  sixth). While onboarding is incomplete: a **progress badge** on Setup, and a
-  **"finish setup" card on Today**.
-- The six *what you sell* pages (terms, samples, closures, rate, prices,
-  products) go under **My business**; the three *how she behaves* pages
-  (forbidden words, what she knows, practice) under **{assistant name}**.
-- **Outreach** (sequences, prospects, write-first) behind a **per-workspace
-  flag, OFF for new workspaces**, on for the pilot's. Hidden means **no links
-  anywhere**, not just no nav entry.
-- URLs do not move. `/app/factory` stays. No page is written twice.
+**A — merge Buyers into Customers** (keep the name "Buyers"), with search and
+paging. Spec: `docs/IA-PROPOSAL.md` §A. `/app/conversations` then redirects
+to `/app/inbox`; the hub map's `/app/conversations` group moves with it.
 
-**Then A** — merge Buyers into Customers (keep the name "Buyers"), with search
-and paging.
+D shipped (see §4). What it did, for orientation: `src/api/web/layout.ts`
+(NAV, `CONTEXTUAL_ROUTES_BY_HUB`, `OUTREACH_PREFIXES`), `src/db/workspace.ts`
++ `src/db/setup.ts`, the Setup page (`settings.ts`), the "How you sell"
+section on My business, the "More about {name}" doors on the assistant's
+page, the Today card (`operations.ts`), the outreach gate (`app.ts`
+preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
+`tests/integration/outreach-area.test.ts`.
 
 **Parked / owner's to unblock**
 - Native review of the zh/ar disclosure (gates all autonomy).
-- The live workspace confirming its assistant's name.
+- The live workspace confirming its assistant's name (in progress 2026-09-23;
+  check `onboarding_state.assistant_named_at` for Westlake).
+- Moving the checkout out of iCloud (steps given 2026-09-23; see §2).
 - C4.d per-channel activation (after the pilot is live); M48 WeChat (needs an
   Official Account); M52 platform reviews (last, always).
 - Native review of the reworded zh/ar UI lines (`docs/NATIVE-REVIEW-UI.md`).

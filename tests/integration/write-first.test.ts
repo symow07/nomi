@@ -92,7 +92,8 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     }, { models: offlineModels(), adapter: sim.adapter, logger: false, mailTransport: transport });
 
     for (const [id, name] of [[BIZ, 'Write First Factory'], [OTHER_BIZ, 'Another Factory']] as const) {
-      await tenant(id, (x) => sql`insert into businesses (id, name) values (${id}, ${name})
+      // D — workspaces WITH the outreach area, as the pilot's is.
+      await tenant(id, (x) => sql`insert into businesses (id, name, outreach_area) values (${id}, ${name}, true)
                                    on conflict (id) do nothing`.execute(x));
     }
     const login = await prod.app.inject({

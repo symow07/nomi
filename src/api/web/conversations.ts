@@ -4,7 +4,7 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, outreachShown } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
 import { esc, deeper, back } from './layout.js';
@@ -317,8 +317,9 @@ export function renderCustomerList(list: CustomerList, locale: Locale, now: Date
       <button class="btn">${esc(t(locale, 'conv.search.go'))}</button>${list.query ? `<a class="clear muted" href="/app/conversations">${esc(t(locale, 'conv.search.clear'))}</a>` : ''}
     </form>`;
 
-  // M38 — the wider list: everyone she may write to, not only who wrote to her.
-  const toContacts = deeper('/app/contacts', t(locale, 'contacts.title'));
+  // M38 — the wider list: everyone the assistant may write to, not only who
+  // wrote in. D — a door only where the outreach area exists.
+  const toContacts = outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : '';
 
   if (list.customers.length === 0) {
     const body = list.query

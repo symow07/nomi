@@ -75,7 +75,9 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
 
     for (const b of [BIZ, OTHER]) {
       await inTenant(b, async (t) => {
-        await sql`insert into businesses (id, name) values (${b}, 'Contacts Factory')
+        // D — a workspace WITH the outreach area, as the pilot's is; a new
+        // workspace has it off (outreach-area.test.ts).
+        await sql`insert into businesses (id, name, outreach_area) values (${b}, 'Contacts Factory', true)
                   on conflict (id) do nothing`.execute(t);
       });
     }

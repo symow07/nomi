@@ -1,4 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { withWorkspace } from '../../src/api/web/say.js';
+
+// D — the switch exists only for a workspace whose outreach area is on; these
+// tests are about the switch, so they render inside one.
+const AREA_ON = { name: null, several: false, outreach: true, setup: null } as const;
+const reach = (...a: Parameters<typeof renderReach>) => withWorkspace(AREA_ON, () => renderReach(...a));
 import { readFile } from 'node:fs/promises';
 import {
   OUTREACH_REFUSALS, gateOutreach, type OutreachInput,
@@ -177,7 +183,7 @@ describe('M42 · her decision, on the screen where it is made', () => {
      * where an owner would most expect one to work, and e-mail is where she
      * would most expect one to matter.
      */
-    const html = renderReach('en', ALL, new Map());
+    const html = reach('en', ALL, new Map());
     for (const c of OUTREACH_CHANNELS) {
       const card = html.slice(html.indexOf(t('en', `reach.channel.${c}` as MessageKey)));
       const mine = card.slice(0, card.indexOf('class="card reach"') + 1 || undefined);
@@ -189,7 +195,7 @@ describe('M42 · her decision, on the screen where it is made', () => {
   });
 
   it('THE WARNING IS ON THE SCREEN, not behind the click', () => {
-    const html = renderReach('en', ALL, new Map());
+    const html = reach('en', ALL, new Map());
     expect(html).toContain(t('en', 'outreach.warn.whatsapp'));
     // It names the consequence and does not hedge it: the number, and for good.
     const warn = t('en', 'outreach.warn.whatsapp').toLowerCase();
@@ -199,7 +205,7 @@ describe('M42 · her decision, on the screen where it is made', () => {
   });
 
   it('and it is reversible — on says turn off', () => {
-    const html = renderReach('en', ALL, on('whatsapp'));
+    const html = reach('en', ALL, on('whatsapp'));
     expect(html).toContain(t('en', 'outreach.turnOff'));
     expect(html).toContain(t('en', 'outreach.on'));
     expect(html).toContain('name="enabled" value="false"');

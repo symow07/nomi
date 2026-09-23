@@ -2579,6 +2579,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('every contextual surface is still routed, and still linked from its own hub', async () => {
       const { CONTEXTUAL_ROUTES_BY_HUB } = await import('../../src/api/web/layout.js');
+      // D — the outreach groups exist only for a workspace whose area is on,
+      // so this walk, whose job is the links, switches it on for this tenant.
+      // The OFF state — 404s and no links anywhere — is outreach-area.test.ts.
+      const { withTenantTx } = await import('../../src/db/client.js');
+      const { parseBusinessId } = await import('../../src/core/types/ids.js');
+      const bid = parseBusinessId(DEMO_BIZ); if (!bid.ok) throw new Error('fixture');
+      await withTenantTx(prod.db, bid.value, (tx) =>
+        sql`update businesses set outreach_area = true where id = ${DEMO_BIZ}::uuid`.execute(tx));
       const cookie = await login();
       // EVERY contextual route, against the page that declares it — not just
       // the My-factory ones with the rest named in an exclusion list. A route

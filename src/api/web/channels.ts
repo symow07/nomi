@@ -17,7 +17,7 @@ import {
 } from '../../core/outreach/domain.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, outreachShown } from './say.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
@@ -540,8 +540,10 @@ export function renderReach(
      * belongs on the screen where the decision is made.
      */
     const on = enabled.get(channel) === true;
-    // G9a — the switch is hers; a sales assistant sees the state, not the switch.
-    const toggle = !canBeEnabled(channel) ? '' : !viewer.isOwner
+    // G9a — the switch is the owner's; a sales assistant sees the state, not the switch.
+    // D — and there is no switch at all where the outreach area is off: a
+    // control for an area that does not exist here is a link to it.
+    const toggle = !canBeEnabled(channel) || !outreachShown() ? '' : !viewer.isOwner
       ? `<div class="outreach"><span class="${on ? 'on' : 'muted'}">${esc(t(locale, on ? 'outreach.on' : 'outreach.off'))}</span></div>`
       : `
       <div class="outreach">

@@ -78,9 +78,12 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
 
   it('every assistants write that can change the main name forgets it', () => {
     const src = read('src/api/web/app.ts');
-    // Three: the team page's add and edit, and Getting ready's confirmation —
-    // which, since 2026-09-23, is what makes a default name shown at all.
-    expect(src.match(/names\.evict\(s\.businessId\)/g)?.length).toBe(3);
+    // Three for the name: the team page's add and edit, and Getting ready's
+    // confirmation — which, since 2026-09-23, is what makes a default name
+    // shown at all. D — six more for the setup count the same cache carries:
+    // the profile saved, a product priced (edit and import), WhatsApp
+    // connected, a Page chosen, and the first reply approved.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(9);
   });
 });
 
@@ -114,7 +117,8 @@ describe('A5.2 · nothing on the owner\'s pages goes round it', () => {
     expect(src).toMatch(/app\.addHook\('preHandler', \(req, _reply, done\) => \{/);
     // A5 — the scope carries HOW MANY as well as who, because the nav entry
     // reads as her name at one assistant and "Team" at several.
-    expect(src).toMatch(/withAssistantName\(who\.name, done, who\.several\)/);
+    // D — the same look-up now carries the outreach flag and setup progress too.
+    expect(src).toMatch(/withWorkspace\(f, done\)/);
   });
 });
 

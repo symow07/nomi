@@ -3,7 +3,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -211,15 +211,21 @@ export function renderSettings(
       : `<div class="muted empty">${esc(t(locale, 'settings.categories.empty'))}</div>`}
   </div>`;
 
-  return `<h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
+  // D — Setup: how this installation is wired. Getting ready leads while setup
+  // is unfinished, with the count the nav shows; what you SELL (terms, samples,
+  // closed days, the rate) is reached from My business now, and how the
+  // assistant BEHAVES (forbidden words) from the assistant's own page.
+  const setup = setupState();
+  const progress = setup && setup.next !== null
+    ? `<p class="muted setup-line">${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>`
+    : '';
+
+  return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
+    ${progress}
+    ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}
+    ${deeper('/app/channels', t(locale, 'nav.channels'))}
     ${form}${categories}
-    ${deeper('/app/settings/forbidden',
-      t(locale, 'forbidden.title', { name: assistantName(locale) }))}
-    ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
-    ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
-    ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
-    ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
     ${deeper('/app/settings/business', t(locale, 'business.kind.label'))}
     ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${deeper('/app/settings/account', t(locale, 'account.title'))}

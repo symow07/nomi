@@ -95,6 +95,11 @@ export async function seedRunTenant(): Promise<void> {
     await client.query('begin');
     await client.query(demoSeedSql(RUN_NS));
     await client.query(demoTrustSeedSql(RUN_NS));
+    // D — the run tenant stands in for the pilot's workspace, which is the one
+    // with the outreach area switched on; every contacts / prospects /
+    // sequences test walks it. A NEW workspace has it off, and that is what
+    // outreach-area.test.ts proves on a tenant of its own.
+    await client.query('update businesses set outreach_area = true where id = $1', [RUN_BIZ]);
     await client.query('commit');
     // G21 — attribution again, for the one collision this scheme still has.
     // `client_channels` is unique on the number across every tenant, so a run

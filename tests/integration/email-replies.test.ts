@@ -109,7 +109,8 @@ d('C4.c · he answers her e-mail (requires DATABASE_URL)', () => {
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
     }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `rp${RUN}` }).adapter, logger: false, mailTransport: transport });
 
-    await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Reply Factory')
+    // D — a workspace WITH the outreach area, as the pilot's is.
+    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Reply Factory', true)
                         on conflict (id) do nothing`.execute(x));
     const login = await prod.app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(prod.ownerAccessCode)}`,

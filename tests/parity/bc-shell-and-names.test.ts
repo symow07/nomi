@@ -44,7 +44,10 @@ describe('B · every page knows which hub it belongs to', () => {
   });
 
   it('a page BELOW a contextual route belongs to the same hub', () => {
-    expect(hubFor('/app/settings/data', 'nonsense')).toBe('factory');
+    // D — /app/settings is Setup's own entry now; its sub-pages light Setup
+    // unless the map sends them elsewhere (terms, samples… → My business).
+    expect(hubFor('/app/settings/data', 'nonsense')).toBe('settings');
+    expect(hubFor('/app/settings/terms', 'nonsense')).toBe('factory');
     expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('factory');
     expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('home');
     expect(hubFor('/app/inbox/abc-123', 'nonsense')).toBe('inbox');
@@ -52,7 +55,7 @@ describe('B · every page knows which hub it belongs to', () => {
 
   it('longest match wins — /app is a prefix of everything', () => {
     // A plain startsWith would light Today on every page in the product.
-    expect(hubFor('/app/knowledge', 'nonsense')).toBe('factory');
+    expect(hubFor('/app/knowledge', 'nonsense')).toBe('employee');   // D — what it knows sits under the assistant
     expect(hubFor('/app/analytics', 'nonsense')).toBe('home');
   });
 
@@ -69,9 +72,12 @@ describe('B · every page knows which hub it belongs to', () => {
   it('the page tells a screen reader where it is, exactly once', () => {
     const html = page('/app/settings/data');
     expect(html.match(/aria-current="page"/g)?.length).toBe(1);
-    // …and it is on My business, the hub Settings is reached from.
-    const factory = NAV.find((n) => n.href === '/app/factory')!;
-    expect(html).toMatch(new RegExp(`href="${factory.href}"[^>]*aria-current="page"`));
+    // …and it is on Setup, the entry Your data sits under (D).
+    const setup = NAV.find((n) => n.href === '/app/settings')!;
+    expect(html).toMatch(new RegExp(`href="${setup.href}"[^>]*aria-current="page"`));
+    // a page that MOVED lights its new entry: the payment terms are My business
+    const terms = page('/app/settings/terms');
+    expect(terms).toMatch(/href="\/app\/factory"[^>]*aria-current="page"/);
   });
 });
 
