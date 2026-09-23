@@ -42,10 +42,15 @@ sending under rules the owner sets. Owner UI in en / zh / ar (RTL).
 - **Never edit an applied migration.** G20 checksums (`tools/migrate.mjs`)
   catch it. Write a new migration instead.
 
-**Before any deploy that migrates:** backup via `tools/backup.sh` per
-`docs/BACKUP-RESTORE.md`; after it, confirm `/health` and that
-`schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
+**Before any deploy that migrates:** a backup younger than the day — the
+Railway cron (`backup/`, 03:00 UTC, see `docs/BACKUP-RESTORE.md` "Scheduled
+backups") normally provides it; check `backup_runs` or the bucket's `daily/`.
+Otherwise `tools/backup.sh` by hand. After the deploy, confirm `/health` and
+that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 `docs/LAUNCH-CHECKLIST.md`.
+- A connection URL is never a command argument: pg tools get the password
+  through the environment (`tools/lib/pgenv.py`; the cron job uses Railway
+  reference variables). `tests/parity/no-secret-in-argv.test.ts` holds it.
 
 **Tooling quirks**
 - The Bash safety classifier sometimes times out. Keep shell calls simple;
@@ -96,8 +101,11 @@ footer.
 - **Deployed:** `103dc97` (merge of #54, D). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = 68; exactly one business has `outreach_area` on.
-- **Schema:** 68. Last three: `0066 ai_disclosed`,
-  `0067 draft_replaced_by_disclosure`, `0068 outreach_area`.
+- **Schema:** 68 before the scheduled-backups PR, which adds **0069
+  `backup_runs` → 69**. Last three then: `0067 draft_replaced_by_disclosure`,
+  `0068 outreach_area`, `0069 backup_runs`. That PR's deploy migrates: take
+  (or confirm) a backup first; after it, create the `backup` cron service per
+  `backup/README.md` and run it once by hand.
 - **Backup before this deploy:** `~/nomi-backups/nomi-backup-20260923T035402Z`
   (schema 67; dump 1.5 MB; roles 938 B), encrypted and uploaded to the
   `nomi-backups` bucket. The proxy dropped several attempts first; the
@@ -116,7 +124,10 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
-| D | IA **D**: Setup joins the nav (five entries), the drawer splits, setup count + Today card, outreach area behind `businesses.outreach_area` (0068; on for Westlake only) |
+| — | Scheduled backups: `backup/` Railway cron on the private network (dump → restore drill → encrypt → upload → prune → `backup_runs` 0069 → ping); daily stale check → owner alert by **e-mail always**, WhatsApp where live; Getting ready "Backup tested" checked for the owner; `tools/fetch-backup.sh` for the monthly laptop drill |
+| 56 | The database password never appears in a command line (`tools/lib/pgenv.py`, argv test) |
+| 55 | CLAUDE.md: D deployed |
+| 54 | IA **D**: Setup joins the nav (five entries), the drawer splits, setup count + Today card, outreach area behind `businesses.outreach_area` (0068; on for Westlake only) |
 | 53 | No pronouns for the assistant; a name counts only once chosen; Arabic addresses nobody in a gender; 1266 catalogue lines; `docs/NATIVE-REVIEW-UI.md` |
 | 52 | Operator tools fail loudly on a database that stops answering (`tools/lib/db.mjs`, `backup.sh` limits) |
 | 51 | CLAUDE.md handoff |
@@ -168,6 +179,7 @@ Recent PRs, newest first:
    - No owner switch. Operators use `node tools/outreach-area.mjs --business <uuid> --on|--off`.
    - On for Westlake Canvas Co. only.
 9. **Every page draws from `workspaceFacts`** (`src/db/workspace.ts`): name, several, outreach, and the five-step setup progress (`src/db/setup.ts` — profile, products, name, channels, first reply). Cached a minute per business in `app.ts`; every write that completes a step calls `facts.evict`. The Setup nav entry shows `done/total`; Today shows a "finish setting up" card; both vanish when complete.
+10. **The backup alert never depends on WhatsApp.** `backup_stale` (daily check, `QUEUES.backups`, 06:30 UTC; rule in `src/core/ops/backups.ts`, 36 h) goes by e-mail to the owner's sign-in address always, and by WhatsApp only where a channel is live (`deliverBackupAlert` in `src/pipeline/notify.ts`). `tests/integration/backup-watch.test.ts` proves it fires with no channel connected. The job writes `backup_runs`; the app may only read it.
 
 ## 6 · What's next
 

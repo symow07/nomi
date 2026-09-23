@@ -157,12 +157,26 @@ $(qf "with t as (
        where n.nspname='public' and c.relkind='r')
     select count(*)||'|'||count(*) filter (where bid)||'|'||
            count(*) filter (where bid and not rls)||'|'||
-           count(*) filter (where rls and pol=0) from t")
+           count(*) filter (where bid and rls and pol=0) from t")
 EOF
-if [ "$BID" = "40" ] && [ "$VIOL_OFF" = "0" ] && [ "$VIOL_NOPOL" = "0" ]; then
+# A table WITHOUT a business_id that has RLS on and no policy is deny-all by
+# design (signup_invites, login_codes — reached only through security-definer
+# functions, since 0055). Reported, never counted against the restore: the
+# failure this check exists for is a TENANT table that came back open.
+DENY_ALL="$(qf "select coalesce(string_agg(c.relname, ',' order by c.relname), '')
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='public' and c.relkind='r' and c.relrowsecurity
+     and not exists (select 1 from pg_policy p where p.polrelid=c.oid)
+     and not exists (select 1 from information_schema.columns col
+                      where col.table_schema='public' and col.table_name=c.relname and col.column_name='business_id')")"
+[ -n "$DENY_ALL" ] && echo "      deny-all by design (no business_id, no policy): $DENY_ALL"
+# The count was pinned at 40 when this was written (schema 25) and every
+# migration since has added tables; the invariant is not the number but that
+# EVERY business_id table came back with RLS on and at least one policy.
+if [ -n "$BID" ] && [ "$BID" -gt 0 ] && [ "$VIOL_OFF" = "0" ] && [ "$VIOL_NOPOL" = "0" ]; then
   ok "(b) $BID business_id tables, all RLS-enabled with >=1 policy (of $TOTAL tables)"
 else
-  bad "(b) business_id tables=$BID (expected 40), RLS-off=$VIOL_OFF, RLS-without-policy=$VIOL_NOPOL"
+  bad "(b) business_id tables=${BID:-?}, RLS-off=${VIOL_OFF:-?}, RLS-without-policy=${VIOL_NOPOL:-?}"
 fi
 POLICIES="$(q "select count(*) from pg_policy")"
 echo "      total policies restored: $POLICIES"

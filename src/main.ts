@@ -13,7 +13,10 @@ import { readNewMail } from './channels/email/inboxReader.js';
 import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom } from './core/owner/signup.js';
-import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js';
+import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
+import { latestBackupRun } from './db/backups.js';
+import { backupFreshness } from './core/ops/backups.js';
+import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
@@ -979,7 +982,30 @@ export async function buildProduction(
   };
   await boss.work<NotifyJob>(QUEUES.notify, async ([job]: { data: NotifyJob }[]) => {
     if (!job) return;
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts }, job.data);   // throws on retryable failure → pg-boss retries
+    // The backup alert also travels by the installation's own mail (A3), so
+    // it reaches the owner with no channel connected at all.
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail }, job.data);   // throws on retryable failure → pg-boss retries
+  });
+
+  /**
+   * Has the scheduled backup completed lately? Once a day, after the 03:00 UTC
+   * job has had its turn: read the newest row it left in `backup_runs`, and if
+   * it is older than 36 hours — or there is none — tell the owner. The check
+   * is small on purpose; the backup itself runs elsewhere (backup/run.sh), and
+   * this process only asks whether it did. A missed day is one alert a day
+   * until it is fixed, never a flood.
+   */
+  await boss.schedule(QUEUES.backups, '30 6 * * *', { businessId: PILOT_BUSINESS_ID } satisfies BackupWatchJob);
+  await boss.work<BackupWatchJob>(QUEUES.backups, async ([job]: { data: BackupWatchJob }[]) => {
+    if (!job) return;
+    const latest = await latestBackupRun(db);
+    const fresh = backupFreshness(latest?.uploadedAt ?? null, new Date());
+    if (!fresh.stale) { console.log(`[backups] last completed ${fresh.hoursSince.toFixed(1)} h ago (${latest?.name})`); return; }
+    console.warn(`[backups] STALE: ${fresh.hoursSince === null ? 'no completed backup ever' : `${fresh.hoursSince.toFixed(1)} h since ${latest?.name}`}`);
+    await boss.send(QUEUES.notify, {
+      businessId: job.data.businessId, kind: 'backup_stale', conversationId: null,
+      lastBackupAt: latest?.uploadedAt.toISOString() ?? null,
+    } satisfies NotifyJob, { singletonKey: 'backup_stale' });
   });
 
   // The provider that carried THIS channel's event: Meta for the Page and

@@ -193,8 +193,14 @@ import type { Db } from './client.js';
  *      false by default, read on EVERY request (`workspaceFacts`) and at the
  *      send decision (`outreachFacts`). Against a 67 database every owner
  *      page throws on the missing column.
+ * 69 = backup runs (0069). `backup_runs` is written by the scheduled backup
+ *      job and READ once a day by this build to decide whether the owner must
+ *      be told the backup is overdue, and by Getting ready to show "Backup
+ *      tested" as checked for the owner. Against a 68 database the daily
+ *      check throws and no alert can ever be sent — the silent failure the
+ *      table exists to prevent.
  */
-export const REQUIRED_SCHEMA_VERSION = 68;
+export const REQUIRED_SCHEMA_VERSION = 69;
 
 export type SchemaState = {
   readonly required: number;

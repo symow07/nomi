@@ -15,6 +15,7 @@ const pr = (over: Partial<PilotReadiness> = {}): PilotReadiness => ({
   attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
   assistantName: 'Lily',
   validation: { at: null, pass: null, total: null },
+  backupVerifiedAt: null,
   readyToLaunch: false,
   ...over,
 });

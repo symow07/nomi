@@ -446,6 +446,7 @@ const runbook: PilotRunbook = {
     attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
     assistantName: 'Lily',
     validation: { at: null, pass: null, total: null },
+    backupVerifiedAt: null,
     readyToLaunch: false,
   },
   operations: {
