@@ -6,7 +6,8 @@ import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, setupState } from './say.js';
+import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { checkBudget } from '../../core/budget.js';
 import { esc, deeper } from './layout.js';
@@ -301,6 +302,19 @@ export function renderOperationsHome(
         ${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}
       </section>`;
 
+  // D — while setup is unfinished, Today says so and names the next step: the
+  // same five steps the Setup entry counts, the same door My business opens.
+  // Not attention (nothing is waiting on anyone) and not a checklist — one
+  // count and one door, and it is gone the day the last step is done.
+  const setup = setupState();
+  const finishSetup = setup && setup.next !== null
+    ? `<section class="block setup">
+        <h2>${esc(t(locale, 'today.setup.title'))}</h2>
+        <p class="muted">${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>
+        ${deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}
+      </section>`
+    : '';
+
   // G19 — the ceiling she set, before it stops her rather than after.
   // `checkBudget` has said `soft_warn` since M51.2 and nothing read it. It is a
   // notice, not a demand: it sits under the attention rows and never counts as
@@ -379,6 +393,7 @@ export function renderOperationsHome(
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>
   ${attention}
+  ${finishSetup}
   ${budget}
   ${stepIn}
   ${learning}

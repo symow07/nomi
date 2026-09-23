@@ -1,7 +1,7 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral } from './say.js';
+import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, faviconDataUri } from '../../core/owner/brand.js';
 
@@ -36,6 +36,11 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   { href: '/app/inbox',     id: 'inbox' },
   { href: '/app/employee',  id: 'employee' },
   { href: '/app/factory',   id: 'factory' },
+  // D (2026-09-21) — Setup: how this installation is wired. "What I sell" and
+  // "how this is wired" are different questions asked at different times, and
+  // they were one drawer. Five entries, no conditional sixth: while setup is
+  // incomplete this entry carries a count, and Today carries a card.
+  { href: '/app/settings',  id: 'settings' },
 ];
 
 /**
@@ -47,23 +52,47 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
  * !== '/app/analytics'` — so a route reached from anywhere but My factory had
  * to be added to an exclusion list by hand, and one that was forgotten would be
  * asserted against the wrong page. The comment is now the data.
+ *
+ * D — the drawer split. What you SELL sits under My business; how the assistant
+ * BEHAVES under the assistant's own entry; how the installation is WIRED under
+ * Setup. URLs did not move: `/app/settings/terms` is still where it was, it is
+ * reached from My business now. A group marked `outreach` exists only for a
+ * workspace whose outreach area is switched on (`isOutreachRoute` below).
  */
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
-  readonly hub: string; readonly routes: readonly string[];
+  readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
   { hub: '/app/factory', routes: [
-    '/app/settings', '/app/products', '/app/knowledge', '/app/channels',
-    '/app/onboarding', '/app/sandbox',                      // → going live
+    '/app/products', '/app/factory/prices',
+    '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
-  { hub: '/app/conversations', routes: ['/app/contacts'] },
+  { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
+  { hub: '/app/settings', routes: [
+    '/app/onboarding', '/app/channels',
+    '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
+  ] },
+  { hub: '/app/conversations', routes: ['/app/contacts'], outreach: true },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
-  { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'] },
+  { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
   { hub: '/app', routes: ['/app/conversations', '/app/analytics'] },
 ];
 
 export const CONTEXTUAL_ROUTES: readonly string[] =
   CONTEXTUAL_ROUTES_BY_HUB.flatMap((g) => g.routes);
+
+/**
+ * D — the outreach area, by address. Everything under these answers 404 for a
+ * workspace whose area is off, and nothing links there. One list, read by the
+ * gate in app.ts and by the tests that walk every page for stray links.
+ */
+export const OUTREACH_PREFIXES: readonly string[] = [
+  '/app/contacts', '/app/prospects', '/app/sequences', '/app/channels/outreach',
+];
+export const isOutreachRoute = (url: string): boolean => {
+  const path = url.split('?')[0] ?? url;
+  return OUTREACH_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+};
 
 /**
  * The one "go deeper" link. Phase F: every surface used to grow its own — .more,
@@ -76,6 +105,9 @@ export const deeper = (href: string, label: string): string =>
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
   `<a class="back" href="${href}"><span class="go" aria-hidden="true">‹</span>${esc(label)}</a>`;
+
+/* D — a stack of doors (`.doors`) is styled once, in the shell: My business,
+   the assistant's page and Setup each hold one. */
 
 export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -133,6 +165,10 @@ ${cssVariables()}
      link, the language pill and the button. Colour that appears everywhere
      marks nothing; jade now means only "this sends" and "this is a state". */
   nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
+  /* D — the setup count on the Setup entry: a figure at the far end of the
+     row, in the secondary ink. Not a state, so no state colour. */
+  nav.side .navcount { margin-inline-start:auto; font-size:var(--font-size-micro);
+    font-weight:500; color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
   header.top { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: var(--space-8) var(--space-12); padding: var(--space-16) var(--space-24);
     border-bottom: 1px solid var(--color-border); }
@@ -203,6 +239,7 @@ ${cssVariables()}
   .btn.danger { background:var(--color-warn-wash); color:var(--color-warn); }
   .btn.ghost { background:transparent; border:1px solid var(--color-border); color:var(--color-ink-secondary); }
   .inline { display:inline; }
+  .doors { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   /* M49 — a button in a column form stretched to the width of the input above
      it, which made "Save" a 455px slab. A button is as wide as its word. */
   form .btn, form button:not(.full) { align-self:start; }
@@ -418,19 +455,29 @@ export function shell(input: {
   const { locale } = input;
   const name = assistantName(locale);
   const here = hubFor(input.path, input.active);
+  const setup = setupState();
   const nav = NAV.map((n) => {
     const on = n.id === here;
-    // A5 — the entry for the assistants is HER NAME while there is one of her,
-    // and "Team" once there are several. A menu item that reads as a person is
-    // the right label for a business with one assistant and the wrong one for
-    // a business with four, and `nav.employee` is literally `{name}`.
+    // A5 — the entry for the assistants is the assistant's NAME while there is
+    // one, and "Team" once there are several. A menu item that reads as a
+    // person is the right label for a business with one assistant and the
+    // wrong one for a business with four, and `nav.employee` is literally
+    // `{name}`.
     const label = n.id === 'employee' && assistantsAreSeveral()
       ? t(locale, 'nav.team')
       : t(locale, `nav.${n.id}` as MessageKey);
-    // A11y — `aria-current="page"` is what tells a screen reader which of four
+    // D — while setup is incomplete, Setup carries the count: "3/5". A count,
+    // not a colour — nothing here is wrong, it is simply not finished. It
+    // disappears when the last step is done, and the entry stays.
+    const count = n.id === 'settings' && setup && setup.next !== null ? setup : null;
+    const badge = count ? `<span class="navcount" aria-hidden="true">${count.done}/${count.total}</span>` : '';
+    const aria = count
+      ? ` aria-label="${esc(label)}, ${esc(t(locale, 'nav.setup.progress', { done: count.done, total: count.total }))}"`
+      : '';
+    // A11y — `aria-current="page"` is what tells a screen reader which of five
     // identical links is the one you are on. The class is for everyone else.
-    return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}
-       >${esc(label)}</a>`;
+    return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}${aria}
+       >${esc(label)}${badge}</a>`;
   }).join('');
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>

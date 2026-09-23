@@ -142,10 +142,14 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
 
     // 2b. Follow-ups waiting for a person to check her inbox. A draft by
     //     another name, with a week's clock on it — so it sits beside drafts.
+    //     D — only where the outreach area exists: the door it opens would 404
+    //     otherwise, and an enrolment that predates the area being switched off
+    //     is paused with it, not surfaced.
     const follow = (await sql<{ n: number }>`
       select count(*)::int as n from sequence_enrollments
        where business_id = ${bid.value} and awaiting_confirmation_since is not null
-         and stopped_at is null and completed_at is null`.execute(tx)).rows[0]!.n;
+         and stopped_at is null and completed_at is null
+         and (select outreach_area from businesses where id = ${bid.value})`.execute(tx)).rows[0]!.n;
     if (follow > 0) {
       out.push({
         key: 'insight.followUpsWaiting',

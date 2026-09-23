@@ -119,7 +119,8 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
     }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `sq${RUN}` }).adapter, logger: false, mailTransport: transport });
 
-    await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Sequence Factory')
+    // D — a workspace WITH the outreach area, as the pilot's is.
+    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Sequence Factory', true)
                         on conflict (id) do nothing`.execute(x));
     cookie = await login(prod.ownerAccessCode);
     expect(cookie).not.toBe('');

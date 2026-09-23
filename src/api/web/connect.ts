@@ -7,7 +7,7 @@ import type { KeyStatus } from '../../prospects/service.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, outreachShown } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { esc } from './layout.js';
@@ -158,14 +158,16 @@ export function renderAccounts(
     ...(v.smtpFrom ? [smtpRow(locale, v)] : []),
     mailRow(locale, v, 'google', viewer),
     mailRow(locale, v, 'microsoft', viewer),
-    {
+    // D — Apollo feeds the outreach area; where that area is off, its card is
+    // a door to nowhere, so it is not shown.
+    ...(outreachShown() ? [{
       name: 'Apollo', tone: apolloStored ? 'ok' : v.apollo.kind === 'stored' ? 'warn' : 'warn',
       state: t(locale, apolloStored ? 'connect.state.connected'
         : v.apollo.kind === 'stored' ? 'connect.state.attention'
         : v.apollo.kind === 'no_key_store' ? 'connect.state.notHere' : 'connect.state.notConnected'),
       body: `<p class="muted">${esc(t(locale, 'connect.apollo.what'))}</p>
         <a class="btn" href="/app/prospects">${esc(t(locale, apolloStored ? 'connect.apollo.open' : 'connect.apollo.add'))}</a>`,
-    },
+    } satisfies Row] : []),
     // M39 — what the platform permits, said as the registry says it: these two
     // can only ever answer someone who wrote first. C9 made them connectable,
     // and until 2026-09-17 this row went on saying "not connected" above a

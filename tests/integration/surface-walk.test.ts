@@ -51,6 +51,12 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     db = createDb(DATABASE_URL!);
     const bid = parseBusinessId(RUN_BIZ); if (!bid.ok) throw new Error('fixture');
 
+    // D — every GET route must answer, including the outreach area's, which
+    // exists only where the area is switched on. On for this tenant; the OFF
+    // state (404s, no links) is outreach-area.test.ts.
+    await withTenantTx(db, bid.value, (tx) =>
+      sql`update businesses set outreach_area = true where id = ${RUN_BIZ}::uuid`.execute(tx));
+
     // REAL ids out of the seeded data, not invented ones: a route given a
     // nonexistent id takes its not-found branch and never runs the query that
     // matters.

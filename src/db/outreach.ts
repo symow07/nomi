@@ -9,6 +9,7 @@ import type { OutreachInput } from '../core/outreach/gate.js';
 import type { ContactChannel } from '../core/outreach/consent.js';
 import { contactability } from './contacts.js';
 import { sendingDomain } from './sendingDomain.js';
+import { outreachAreaShown } from './workspace.js';
 
 /**
  * M42 — whether she has decided to write first, per channel.
@@ -188,10 +189,15 @@ export async function outreachFacts(
   const domain = await sendingDomain(tx, businessId);
   const cap = settings.get(input.channel)?.dailyCap ?? DAILY_OUTREACH_CEILING;
   const sent = await outreachSentToday(tx, businessId, input.channel, input.counting ?? 'sent');
+  // D — a workspace whose outreach area is off has outreach OFF, whatever its
+  // per-channel rows say: writing first, enrolling, each due step and the
+  // worker's send context all ask this one function. Switching the area off
+  // therefore pauses what was running, and nothing leaves.
+  const shown = await outreachAreaShown(tx, businessId);
   return {
     channel: input.channel,
     availableHere: CHANNEL_REGISTRY[input.channel].availableHere,
-    enabled: settings.get(input.channel)?.enabled === true,
+    enabled: shown && settings.get(input.channel)?.enabled === true,
     satisfied: satisfiedRequirements(input.templateState, domain, input.now),
     consent: person.consent,
     suppression: person.suppression,

@@ -77,7 +77,8 @@ d('C5 · finding buyers (requires DATABASE_URL)', () => {
     ({ t } = await import('../../src/core/owner/i18n/messages.js'));
     ({ esc } = await import('../../src/api/web/layout.js'));
     db = createDb(DATABASE_URL!);
-    await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Prospect Factory')
+    // D — a workspace WITH the outreach area, as the pilot's is.
+    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Prospect Factory', true)
                         on conflict (id) do nothing`.execute(x));
     process.env['PILOT_BUSINESS_ID'] = BIZ;
     app = Fastify({ logger: false });

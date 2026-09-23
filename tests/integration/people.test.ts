@@ -59,7 +59,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const { registerWebApp } = await import('../../src/api/web/app.js');
     db = createDb(DATABASE_URL!);
     convId = await tx(async (t) => {
-      await sql`insert into businesses (id, name) values (${BIZ}, 'People Test Factory')
+      // D — a workspace WITH the outreach area: the owner-only routes this
+      // suite walks include the writing-first switch.
+      await sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'People Test Factory', true)
                 on conflict (id) do nothing`.execute(t);
       // NO owner row is inserted here, on purpose: this business is created
       // AFTER 0035 ran, exactly like a new tenant or a freshly seeded demo.

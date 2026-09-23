@@ -104,8 +104,8 @@ describe('G6 · the settings page', () => {
     expect(html).not.toContain(esc(t('zh', 'terms.none', { name: ASSISTANT_FALLBACK.zh })));
   });
 
-  it('is reachable from settings, and the write is owner-only', async () => {
-    const settings = await src('src/api/web/settings.ts');
+  it('is reachable from My business (D), and the write is owner-only', async () => {
+    const settings = await src('src/api/web/factory.ts');
     expect(settings).toContain("deeper('/app/settings/terms'");
     const app = await src('src/api/web/app.ts');
     expect(app).toContain("app.get('/app/settings/terms'");

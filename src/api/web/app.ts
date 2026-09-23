@@ -43,7 +43,8 @@ import {
 import {
   addAssistantFromForm, archiveAssistantById, assistantFlash, loadAssistants, updateAssistantFromForm,
 } from './assistants.js';
-import { assistantNameOfConversation, mainAssistant } from '../../db/assistants.js';
+import { assistantNameOfConversation } from '../../db/assistants.js';
+import { workspaceFacts, type WorkspaceFacts } from '../../db/workspace.js';
 import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
@@ -120,7 +121,7 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back } from './layout.js';
+import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -141,7 +142,7 @@ import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, ty
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown } from './say.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -171,6 +172,12 @@ export type WebDeps = {
   readonly systemMail?: SystemMail | null;
   readonly employeeName: string;
   readonly avatar: string;
+  /**
+   * D — how long the per-business facts (name, outreach area, setup count)
+   * are remembered between look-ups. A minute in production; a test that
+   * flips a switch and looks at once passes 0.
+   */
+  readonly factsTtlMs?: number;
   readonly provider: string;
   /**
    * Whether the outbound worker runs here and some channel can carry a message.
@@ -509,26 +516,44 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   /**
-   * A5.2 — her name, for this request. Every sentence that says `{name}` is
-   * filled from the MAIN assistant of the signed-in business; a page about one
-   * conversation narrows it to that conversation's own. Callback-style and on
-   * preHandler on purpose: the handler must run INSIDE the scope, and a scope
-   * opened before the body is read is lost by the time the handler is called.
-   * A failed look-up names her as the product always did — never an error page.
+   * A5.2 — the assistant's name, for this request. Every sentence that says
+   * `{name}` is filled from the MAIN assistant of the signed-in business; a
+   * page about one conversation narrows it to that conversation's own.
+   * D — and, from the same look-up, whether the outreach area is shown and how
+   * far setup has come (`workspaceFacts`). Callback-style and on preHandler on
+   * purpose: the handler must run INSIDE the scope, and a scope opened before
+   * the body is read is lost by the time the handler is called. A failed
+   * look-up leaves the page nameless and badgeless — never an error page.
+   *
+   * Cached for a minute per business; every write below that can change one
+   * of the three facts calls `facts.evict`, so the badge and the name never
+   * lag behind the thing the owner just did.
    */
-  const names = makeNameCache();
+  const facts = makeNameCache<WorkspaceFacts>(deps.factsTtlMs);
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
     const bid = s ? parseBusinessId(s.businessId) : null;
     if (!s || !bid || !bid.ok) return done();
     const now = Date.now();
-    const hit = names.get(s.businessId, now);
-    if (hit !== undefined) return withAssistantName(hit.name, done, hit.several);
-    withTenantTx(deps.db, bid.value, (tx) => mainAssistant(tx, bid.value)).then(
-      (who) => { names.set(s.businessId, who, now); withAssistantName(who.name, done, who.several); },
+    const hit = facts.get(s.businessId, now);
+    if (hit !== undefined) return withWorkspace(hit, done);
+    withTenantTx(deps.db, bid.value, (tx) => workspaceFacts(tx, bid.value)).then(
+      (f) => { facts.set(s.businessId, f, now); withWorkspace(f, done); },
       () => done(),
     );
+  });
+
+  /**
+   * D — the outreach area answers only where it is switched on. Hidden means
+   * no route, not only no link: a page still reachable by URL is still
+   * shipped. Runs after the facts hook, inside its scope; the answer is the
+   * same not-found page as any wrong address.
+   */
+  app.addHook('preHandler', async (req, reply) => {
+    // A stranger is not told what exists here: the route answers with the same
+    // login redirect as every other address.
+    if (isOutreachRoute(req.url) && sessionOf(req) && !outreachShown()) return reply.callNotFound();
   });
 
   // ADR-0008: locale from the owner's cookie, else Accept-Language, else 'en'.
@@ -1394,6 +1419,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const body = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !body.draftId) return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}`);
+    facts.evict(s.businessId);   // D — the first approved reply is the last setup step
 
     // G10 — the question the reply route asks, asked here too. Approving said
     // "sent" when the gate was about to refuse it. Live, and this buyer cannot
@@ -1716,6 +1742,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
     if (!s) return reply;
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
+    facts.evict(s.businessId);   // D — a channel connected is a setup step done
     return flashTo(reply, '/app/channels', channelFlash(r.code));
   });
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
@@ -1921,6 +1948,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const id = (req.params as { id: string }).id;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
+    facts.evict(s.businessId);   // D — a first price is a setup step done
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
       price: b['price'] ?? null,
       moq: b['moq'] ?? null,
@@ -2020,6 +2048,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // Only ids are read here; which changes EXIST is recomputed from her own
     // catalogue inside confirmImport, so a posted id can choose, never invent.
     const apply = new Set(Object.keys(b).filter((k) => k.startsWith('apply:') && b[k] === 'on').map((k) => k.slice('apply:'.length)));
+    facts.evict(s.businessId);   // D — products with prices are a setup step
     const r = await confirmImport(deps.db, s.businessId, text, { actor: personOf(s).id, apply });
     return flashTo(reply, '/app/products', importFlash(r));
   });
@@ -2263,7 +2292,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
     // Confirming is what makes the name SHOWN (chosenName), so the cached
     // "no name yet" must go now, not a minute from now.
-    names.evict(s.businessId);
+    facts.evict(s.businessId);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 
@@ -2282,7 +2311,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = takeFlash(req, reply);
     const profile = await loadBusinessProfile(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'settings.profile.title'), active: 'settings',
+      title: t(locale, 'nav.settings'), active: 'settings',
       bodyHtml: renderSettings(profile, locale, flash),
     }));
   });
@@ -2420,7 +2449,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
     if (!s) return reply;
     const r = await addAssistantFromForm(deps.db, s.businessId, (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
-    names.evict(s.businessId);
+    facts.evict(s.businessId);
     return teamFlash(reply, assistantFlash(r.outcome, 'added'), { who: r.name });
   });
 
@@ -2429,7 +2458,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const outcome = await updateAssistantFromForm(deps.db, s.businessId, (req.params as { id: string }).id,
       (req.body ?? {}) as Record<string, unknown>, personOf(s).id);
-    names.evict(s.businessId);
+    facts.evict(s.businessId);
     return teamFlash(reply, assistantFlash(outcome, 'saved'));
   });
 
@@ -2701,6 +2730,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
     if (!mc || !bid.ok) return channelsFlash(reply, 'connect.flash.not_configured');
+    facts.evict(s.businessId);   // D — a Page connected is a setup step done
     const pageId = typeof b['page_id'] === 'string' ? b['page_id'].slice(0, 40) : '';
     const r = await completeMetaConnection(mc, {
       businessId: bid.value, by: personOf(s).name, redirectUri: metaRedirectUri(),
@@ -3102,6 +3132,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       languagesServed: LOCALES.filter((l) => b[`lang_${l}`] !== undefined),
     };
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
+    facts.evict(s.businessId);   // D — a complete profile is a setup step done
     if (r.code === 'saved') {
       return flashTo(reply, '/app/settings', 'settings.flash.profileSaved');
     }

@@ -643,8 +643,19 @@ export function renderFactory(
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
-  // are things she cannot answer yet; none of them is a reason to keep her off.
+  // are things the assistant cannot answer yet; none is a reason to stay off.
   const rehearsed = f.rehearsal ? rehearsalBlock(f.rehearsal, locale, name) : '';
+
+  // D — HOW you sell, beside WHAT you sell. Four pages that lived under
+  // Settings, where an owner who edits a price every week had to go looking
+  // for the payment terms next to the sign-in page. The pages did not move;
+  // the doors did.
+  const sellHowBody = `<div class="doors">
+    ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
+    ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
+    ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
+    ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
+  </div>`;
 
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>
     ${flashBanner(flash)}
@@ -656,6 +667,7 @@ export function renderFactory(
     ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody,
       // G9a — the price-rules page is the owner's; no link to a refusal.
       viewer.isOwner ? '/app/factory/prices' : null, t(locale, 'factory.prices.more'))}
+    ${section(t(locale, 'factory.sellhow.title'), t(locale, 'factory.sellhow.q'), sellHowBody, null, '')}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
     ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}
     ${FACTORY_STYLE}`;

@@ -189,8 +189,12 @@ import type { Db } from './client.js';
  *      /app/settings/data throws on the missing table, and — the sharper
  *      edge — every EXPORT fails on the audit insert, because the constraint
  *      does not yet admit 'export_data'.
+ * 68 = the outreach area is per workspace (0068). `businesses.outreach_area`,
+ *      false by default, read on EVERY request (`workspaceFacts`) and at the
+ *      send decision (`outreachFacts`). Against a 67 database every owner
+ *      page throws on the missing column.
  */
-export const REQUIRED_SCHEMA_VERSION = 67;
+export const REQUIRED_SCHEMA_VERSION = 68;
 
 export type SchemaState = {
   readonly required: number;

@@ -353,8 +353,18 @@ export function renderEmployee(
       </div>`
     : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
-  // Order answers "who is she today?": who she is → what she knows → what she is
-  // trusted with → what she did → what she still needs from you. Promotion and
+  // D — HOW the assistant behaves, beside what it knows: the forbidden words
+  // and the practice room lived under Settings and My business. The pages did
+  // not move; the doors did.
+  const more = `<div class="block"><h2>${esc(t(locale, 'employee.more.title', { name }))}</h2>
+    <div class="doors">
+      ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
+      ${deeper('/app/settings/forbidden', t(locale, 'forbidden.title', { name }))}
+      ${deeper('/app/sandbox', t(locale, 'nav.sandbox'))}
+    </div></div>`;
+
+  // Order answers "who is this today?": who → what it knows → what it is
+  // trusted with → what it did → what it still needs from you. Promotion and
   // growth sit last: they are the mechanics behind the relationship, not the
   // headline.
   return `<h1 class="page">${esc(name)}</h1>
@@ -366,6 +376,7 @@ export function renderEmployee(
     ${spotChecks}
     ${recentSection(ctx, locale)}
     ${teachSection(ctx, locale)}
+    ${more}
     ${growth}${promo}${actions}${EMP_STYLE}`;
 }
 

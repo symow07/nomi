@@ -99,7 +99,8 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
     }, { models: offlineModels(), adapter: whatsappSimulator([], { tag: `un${RUN}` }).adapter, logger: false, mailTransport: transport });
 
-    await tx((x) => sql`insert into businesses (id, name) values (${BIZ}, 'Unsure Factory')
+    // D — a workspace WITH the outreach area, as the pilot's is.
+    await tx((x) => sql`insert into businesses (id, name, outreach_area) values (${BIZ}, 'Unsure Factory', true)
                         on conflict (id) do nothing`.execute(x));
     cookie = await login(prod.ownerAccessCode);
 
