@@ -3,7 +3,7 @@ import { usd } from '../../src/core/types/money.js';
 import {
   LOCALES, DEFAULT_LOCALE, isRtl, dirOf, parseLocale, fromAcceptLanguage, resolveLocale,
 } from '../../src/core/owner/i18n/locale.js';
-import { messages, t, countryName, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { messages, t, countryName, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { formatQty, formatMoney, formatDate, formatTime } from '../../src/core/owner/i18n/format.js';
 import { HONEST_ABOUT_AI_KEYS } from '../../src/core/owner/vocabulary.js';
 
@@ -57,17 +57,18 @@ describe('ADR-0008 · catalog completeness (CI gate)', () => {
     }
   });
 
-  it('EMPLOYEE_NAME defined for every locale', () => {
-    for (const l of LOCALES) expect(EMPLOYEE_NAME[l].length).toBeGreaterThan(0);
-    expect(EMPLOYEE_NAME).toEqual({ en: 'Lily', zh: '小雅', ar: 'ياسمين' });
+  // 2026-09-23 — no product constant names her any more. Until the owner
+  // confirms a name, `{name}` is this phrase.
+  it('ASSISTANT_FALLBACK is "your assistant" in every locale', () => {
+    expect(ASSISTANT_FALLBACK).toEqual({ en: 'your assistant', zh: '你的助手', ar: 'مساعدك' });
   });
 
   // Phase A (Nomi): the employee's nav entry IS her name — "you go to her", not
-  // "you configure an employee record". Two sources for one name would drift, so
-  // this pins them together.
-  it('the employee nav label is her name in every locale', () => {
+  // "you configure an employee record" — and before she has one, the phrase.
+  it('the employee nav label is the name in force, else "your assistant"', () => {
     for (const l of LOCALES) {
-      expect(t(l, 'nav.employee'), l).toBe(EMPLOYEE_NAME[l]);
+      expect(t(l, 'nav.employee').toLocaleLowerCase(), l).toBe(ASSISTANT_FALLBACK[l]);
+      expect(t(l, 'nav.employee', { name: 'Maya' }), l).toBe('Maya');
     }
   });
 

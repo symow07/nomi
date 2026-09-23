@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../core/owner/i18n/messages.js';
+import { t, type MessageKey } from '../core/owner/i18n/messages.js';
 import type { NotifyJob } from '../queue/boss.js';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
@@ -29,8 +29,9 @@ export function alertKindFor(effects: { readonly hotLeadAlert: boolean; readonly
 /** Pure: localized owner-facing alert text. delivery_failed reuses dead_letter. */
 export function renderOwnerAlert(locale: Locale, kind: AlertKind, name: string | null = null): string {
   const key = (kind === 'delivery_failed' ? 'dead_letter' : kind);
-  // A5.2 — the assistant this alert is about, when the business has named one.
-  return t(locale, `notify.${key}` as MessageKey, { name: name ?? EMPLOYEE_NAME[locale] });
+  // A5.2 — the assistant this alert is about, when the owner has named one;
+  // otherwise the catalogue says "your assistant".
+  return t(locale, `notify.${key}` as MessageKey, name ? { name } : undefined);
 }
 
 /** Owner alert destination input: '' clears it; a valid E.164-ish number, else invalid. */

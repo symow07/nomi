@@ -8,7 +8,7 @@ import {
 import { gmailSender, graphSender, mimeMessage } from '../../src/channels/email/senders.js';
 import { renderAccounts, type AccountsView } from '../../src/api/web/connect.js';
 import type { ConnectOutcome } from '../../src/channels/email/connectMailbox.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { esc } from '../../src/api/web/layout.js';
@@ -301,7 +301,7 @@ describe('C6 · the accounts page', () => {
     const html = renderAccounts(base, 'en', OWNER_VIEW, inbound);
     const row = (ch: string) => html.slice(html.indexOf(`<span class="ch-name">${esc(t('en', `reach.channel.${ch}` as MessageKey))}`)).split('</li>')[0]!;
     expect(row('messenger')).toContain(`class="pill ok">${esc(t('en', 'connect.state.connected'))}`);
-    expect(row('messenger')).toContain(esc(t('en', 'reach.inbound.connected', { name: EMPLOYEE_NAME.en })));
+    expect(row('messenger')).toContain(esc(t('en', 'reach.inbound.connected', { name: ASSISTANT_FALLBACK.en })));
     expect(row('instagram')).toContain(`class="pill warn">${esc(t('en', 'connect.state.notConnected'))}`);
     // The button itself stays on the reach card, beside the rule it answers to.
     expect(html).not.toContain('/app/channels/messenger/connect');

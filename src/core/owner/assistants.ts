@@ -25,9 +25,12 @@ export const NOTE_MAX = 600;
  * moment code decides a name, and after it the `assistants` table is the
  * source for every reading of it.
  *
- * NOT `EMPLOYEE_NAME`, and the difference is deliberate. That constant is a
- * translation table: one idea rendered three ways, correct for a `{name}`
- * placeholder because the reader's language picks the row. A name written into
+ * It is a default for the ROW, not a name anybody chose, so it is not SHOWN
+ * until the owner confirms it in Getting ready (`chosenName` in db/assistants;
+ * before that, copy says "your assistant"). It still matters: it is what the
+ * confirmation form offers, and what the row holds meanwhile.
+ *
+ * Not a translation table, and the difference is deliberate. A name written into
  * a database row is not translated afterwards — it is stored once and shown to
  * everyone, whatever language the page is in. So Arabic takes the Latin name
  * rather than ياسمين: a workspace that signed up in Arabic is read in Arabic

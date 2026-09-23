@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shell, deeper, NAV, CONTEXTUAL_ROUTES } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 
@@ -19,7 +20,7 @@ describe('Phase F · four destinations, and nothing else competing', () => {
   it('names them in the owner’s language, in every locale', () => {
     expect(page('en')).toContain('Today'); expect(page('en')).toContain('Buyers');
     expect(page('zh')).toContain('今天'); expect(page('zh')).toContain('买家');
-    expect(page('zh')).toContain('小雅');
+    expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
     expect(page('ar')).toContain('اليوم'); expect(page('ar')).toContain('المشترون');
     // the retired name for the buyers surface is gone from the nav
     expect(page('en')).not.toContain('>Inbox<');

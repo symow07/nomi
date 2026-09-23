@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { messages, t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { messages, t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 
 /**
@@ -61,18 +61,22 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     expect(hits, hits.join('\n')).toEqual([]);
   });
 
-  it('t() fills her name even when a caller forgets to pass it', () => {
+  it('t() fills {name} even when a caller forgets to pass it — with "your assistant"', () => {
     for (const l of LOCALES) {
       const s = t(l, 'takeover.status.ai');
       expect(s).not.toContain('{name}');
-      expect(s).toContain(EMPLOYEE_NAME[l]);
+      expect(s.toLocaleLowerCase()).toContain(ASSISTANT_FALLBACK[l]);
     }
   });
 
   it('a placeholder is spelled identically in all three locales', () => {
     // A misspelled {nmae} in one locale renders literally to that owner and to
     // nobody else — the failure that is invisible until a customer sees it.
-    const of = (s: string) => [...new Set(s.match(/\{[a-zA-Z]+\}/g) ?? [])].sort().join(',');
+    // `{name}` is the one placeholder a language may use or leave out: `t()`
+    // fills it in any string, passed or not, and since the assistant has no
+    // pronouns (2026-09-23) one language names her where another drops the
+    // subject. A misspelling of it is still caught — `{nmae}` is not `{name}`.
+    const of = (s: string) => [...new Set(s.match(/\{[a-zA-Z]+\}/g) ?? [])].filter((p) => p !== '{name}').sort().join(',');
     for (const [key, en] of entries('en'))
       for (const l of LOCALES)
         expect(of(messages[l][key]), `${l}/${key}`).toBe(of(en));

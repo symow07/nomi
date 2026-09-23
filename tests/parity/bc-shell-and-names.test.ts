@@ -127,9 +127,12 @@ describe('C · what she is called at the start comes from the signup language', 
 
   it('it is NOT the catalogue constant — the two say different things for Arabic', () => {
     expect(defaultAssistantName('ar')).not.toBe(messages.ar['nav.employee']);
-    // EMPLOYEE_NAME still exists and is still ياسمين: it fills `{name}` in a
-    // sentence, where the reader's language picks the row. Different job.
-    expect(read('src/core/owner/i18n/messages.ts')).toContain("ar: 'ياسمين'");
+    // 2026-09-23 — the catalogue no longer holds a name at all. The row's name
+    // at birth is `defaultAssistantName`; what `{name}` says before the owner
+    // confirms one is a phrase, "your assistant". Different jobs, still.
+    const cat = read('src/core/owner/i18n/messages.ts');
+    expect(cat).not.toContain('EMPLOYEE_NAME');
+    expect(cat).toContain("ar: 'مساعدك'");
   });
 
   it('the READER\'s page language no longer decides a stored name', () => {

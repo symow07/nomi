@@ -8,7 +8,7 @@ import { SCENARIOS } from '../../src/trust/scenarios.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { product, tiers, policy, BUSINESS } from './fixtures.js';
 
@@ -157,7 +157,7 @@ describe('G7a · the draft card says why it is waiting', () => {
     for (const reason of HOLD_REASONS) {
       for (const l of LOCALES) {
         const html = renderConversationDetail(detail(reason), l, NOW, null);
-        const said = t(l, `inbox.draft.held.${reason}` as MessageKey, { name: EMPLOYEE_NAME[l] });
+        const said = t(l, `inbox.draft.held.${reason}` as MessageKey, { name: ASSISTANT_FALLBACK[l] });
         expect(said, `${l} ${reason}`).not.toContain('{');
         expect(html, `${l} ${reason}`).toContain(esc(said));
       }

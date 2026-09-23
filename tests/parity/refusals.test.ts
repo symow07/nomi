@@ -7,6 +7,7 @@ import { renderConversationDetail, renderInboxList, type ConversationDetail, typ
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { withAssistantName } from '../../src/api/web/say.js';
 
 /**
  * M22 — a refusal is not a failure of the employee. A SILENT refusal is a
@@ -192,8 +193,9 @@ describe('M22 · Today reports it, with a real count', () => {
     // body, so the assertion moved from the heading to the sentence. The RULE is
     // unchanged: one refusal must be enough to contradict "all is well".
     const calm = t('en', 'today.calm.body', { name: 'Lily' });
-    expect(renderOperationsHome(snapshot(1), 'en')).not.toContain(calm);
-    expect(renderOperationsHome(snapshot(0), 'en')).toContain(calm);
+    const home = (n: number) => withAssistantName('Lily', () => renderOperationsHome(snapshot(n), 'en'));
+    expect(home(1)).not.toContain(calm);
+    expect(home(0)).toContain(calm);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
@@ -89,10 +90,11 @@ describe('Phase F · every empty surface says what happens next', () => {
   });
 
   it('none of them claims work that never happened', () => {
-    // The worst version of this shipped on 小雅: a green ✓ saying she had
-    // answered everything taught, on an account where she had answered nothing.
+    // The worst version of this shipped on 小雅: a green ✓ saying everything
+    // taught had been answered, on an account where nothing had been answered.
     expect(emptyHer).not.toContain('answered everything');
-    expect(emptyHer).toContain('No buyer has asked her anything yet');
+    expect(emptyHer).not.toContain(t('en', 'her.teach.none'));
+    expect(emptyHer).toContain(t('en', 'her.teach.unasked'));
     expect(emptyHer).toContain('href="/app/knowledge"');
     // and a factory with no customers is not an achievement
     expect(emptyCustomers).not.toContain('class="ok"');

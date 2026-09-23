@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { autonomyReleased } from '../core/conversation/disclosure.js';
-import { assistantIdForChannel } from './assistants.js';
+import { assistantIdForChannel, chosenName } from './assistants.js';
 import type { AssistantRole } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
 import { isReportedOrderState } from '../core/commerce/orderState.js';
@@ -192,7 +192,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         a_name: string | null; a_role: AssistantRole | null; a_note: string | null;
         b_name: string; b_kind: string | null; b_country: string | null; b_description: string | null;
       }>`
-        select a.name as a_name, a.role as a_role, a.note as a_note,
+        select ${chosenName('a')} as a_name, a.role as a_role, a.note as a_note,
                b.name as b_name, b.kind as b_kind, b.country as b_country, b.description as b_description
           from conversations c
           join businesses b on b.id = c.business_id

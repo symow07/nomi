@@ -3,6 +3,7 @@ import {
   validateProfile, renderSettings, type ProfileInput, type BusinessProfile,
 } from '../../src/api/web/settings.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 const baseInput: ProfileInput = {
   name: 'Acme', description: '', location: '', workingHours: '',
@@ -145,7 +146,7 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
     expect(renderSettings(bare, 'zh', null, typed, { contactPhone: 'phoneShape' }))
       .toContain('要以+和国家号开头');
     expect(renderSettings(bare, 'ar', null, typed, { contactPhone: 'phoneShape' }))
-      .toContain('ابدأ بـ +');
+      .toContain(t('ar', 'settings.err.phoneShape'));   // states the shape: + and the country code
   });
 
   it('checkbox state survives too — the languages she ticked stay ticked', () => {

@@ -3,6 +3,8 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
+import { esc } from '../../src/api/web/layout.js';
 
 /**
  * M45 — samples, end to end.
@@ -193,7 +195,8 @@ d('M45 · samples (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed');
     expect(res.body).toContain('can you send a sample first');
-    expect(res.body).toContain('You have not told Lily anything about samples');
+    // No name has been confirmed on this tenant, so the page says "your assistant".
+    expect(res.body).toContain(esc(t('en', 'samples.empty')));
   });
 
   it('THE CONVERSATION says the sample was asked for, and why nothing was said', async () => {

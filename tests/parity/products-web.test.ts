@@ -44,7 +44,7 @@ describe('M9.5 · product list (localized)', () => {
   it('empty catalog teaches the next action per locale, never "no data"', () => {
     expect(renderProductList([], 'en')).toContain('Upload your catalog to start');
     expect(renderProductList([], 'zh')).toContain('上传产品目录开始培训');
-    expect(renderProductList([], 'ar')).toContain('ارفع قائمتك للبدء');
+    expect(renderProductList([], 'ar')).toContain(t('ar', 'product.list.empty.cta'));
     expect(renderProductList([], 'en').toLowerCase()).not.toContain('no data');
   });
 });
@@ -63,7 +63,7 @@ describe('M9.5 · product detail (localized)', () => {
   });
 
   it('zh: title=chinese name; ar: Arabic chrome', () => {
-    expect(renderProductDetail(detail, 'zh')).toContain('买家怎么称呼它');
+    expect(renderProductDetail(detail, 'zh')).toContain(t('zh', 'product.detail.aliasesTitle'));
     const ar = renderProductDetail(detail, 'ar');
     expect(ar).toContain('الأسعار'); expect(ar).toContain('ما يسمّيه المشترون');
   });
@@ -100,7 +100,7 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
   it('add form promises nothing is enabled before confirmation — per locale', () => {
     expect(renderAddForm('zh')).toContain('确认之前，什么都不会启用');
     const en = renderAddForm('en');
-    expect(en).toContain('Teach her products');
+    expect(en).toContain(t('en', 'product.teach'));
     expect(en).toContain('Nothing is enabled until you confirm');
   });
 });

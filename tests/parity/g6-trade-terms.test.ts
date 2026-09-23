@@ -6,7 +6,7 @@ import { INCOTERM_KEYS } from '../../src/core/safety/claims.js';
 import { renderTerms } from '../../src/api/web/settings.js';
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * G6 — the terms on a proforma are the owner's, or there is no proforma.
@@ -92,7 +92,7 @@ describe('G6 · the settings page', () => {
   it('with nothing stated it says so — no option is pre-chosen for her', () => {
     for (const locale of LOCALES) {
       const html = renderTerms({ terms: null }, locale, null);
-      expect(html, locale).toContain(esc(t(locale, 'terms.none', { name: EMPLOYEE_NAME[locale] })));
+      expect(html, locale).toContain(esc(t(locale, 'terms.none', { name: ASSISTANT_FALLBACK[locale] })));
       expect(html).not.toMatch(/<option value="[A-Z]+" selected>/);
     }
   });
@@ -101,7 +101,7 @@ describe('G6 · the settings page', () => {
     const html = renderTerms({ terms: stated }, 'zh', null);
     expect(html).toContain('50% with order, balance against B/L copy');
     expect(html).toContain('<option value="CIF" selected>');
-    expect(html).not.toContain(esc(t('zh', 'terms.none', { name: EMPLOYEE_NAME.zh })));
+    expect(html).not.toContain(esc(t('zh', 'terms.none', { name: ASSISTANT_FALLBACK.zh })));
   });
 
   it('is reachable from settings, and the write is owner-only', async () => {
@@ -121,7 +121,7 @@ describe('G6 · the settings page', () => {
     ];
     for (const locale of LOCALES) {
       for (const k of KEYS) {
-        const s = t(locale, k, { name: EMPLOYEE_NAME[locale], date: '3 Aug' });
+        const s = t(locale, k, { name: ASSISTANT_FALLBACK[locale], date: '3 Aug' });
         expect(s.length, `${locale} ${k}`).toBeGreaterThan(1);
         expect(s, `${locale} ${k}`).not.toContain('{');
       }

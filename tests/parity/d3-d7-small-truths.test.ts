@@ -7,6 +7,7 @@ import { checkMetaReadiness } from '../../src/core/channel/metaReadiness.js';
 import { OUTREACH_CHANNELS } from '../../src/core/channel/registry.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { messages } from '../../src/core/owner/i18n/messages.js';
+import { withAssistantName } from '../../src/api/web/say.js';
 
 /**
  * D3–D7 — four small truths from the site review of 2026-09-18, each of which
@@ -46,15 +47,16 @@ const base: ConversationDetail = {
 };
 
 describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
-  it('his line says "You"; hers says her name; the buyer stays the buyer', () => {
-    const html = renderConversationDetail(base, 'en', new Date('2026-09-19T15:00:00Z'), null);
+  it('his line says "You"; the assistant\'s line carries the assistant\'s name; the buyer stays the buyer', () => {
+    const html = withAssistantName('Lily', () =>
+      renderConversationDetail(base, 'en', new Date('2026-09-19T15:00:00Z'), null));
     // The three signature lines, in the order the three messages appear.
     const signed = [...html.matchAll(/<div class="ts muted">([^<]*)<\/div>/g)].map((m) => m[1]!.trim());
     expect(signed).toHaveLength(3);
     expect(signed[0], 'the buyer').toContain('Buyer');
     expect(signed[1], 'what the owner typed').toContain('You');
     expect(signed[1], 'what the owner typed').not.toContain('Lily');
-    expect(signed[2], 'what she wrote').toContain('Lily');
+    expect(signed[2], 'what the assistant wrote').toContain('Lily');
   });
 
   it('it is read from the sent row\'s own origin, not guessed from the words', () => {

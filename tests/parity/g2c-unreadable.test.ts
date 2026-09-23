@@ -9,7 +9,7 @@ import {
 } from '../../src/core/scoring/signals.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * G2c — what she cannot read goes to a person, by name.
@@ -125,7 +125,7 @@ describe('G2c · the owner is told what arrived, in her language', () => {
       const html = renderConversationDetail(detail(), locale, NOW, null);
       expect(html).toContain(t(locale, 'unreadable.title'));
       expect(html).toContain(t(locale, 'unreadable.what', {
-        name: EMPLOYEE_NAME[locale], what: t(locale, 'received.document'),
+        name: ASSISTANT_FALLBACK[locale], what: t(locale, 'received.document'),
       }).replace(/&/g, '&amp;'));
       expect(html).toContain(t(locale, 'unreadable.do'));
     });

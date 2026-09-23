@@ -97,6 +97,38 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     expect(r.map((x) => [x.name, x.role, x.is_default])).toEqual([['Lily', 'sales', true]]);
   });
 
+  // 2026-09-23 — the row's name at birth is a default nobody chose. Until the
+  // owner confirms it (Getting ready) or saves it (team page), no surface shows
+  // it: the owner reads "your assistant", and the model is given no name.
+  it('a default name nobody chose is not shown — not to the owner, not to the model', async () => {
+    const { mainAssistant } = await import('../../src/db/assistants.js');
+    const { tenantRepos } = await import('../../src/db/repos.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    expect((await tx((t) => mainAssistant(t, bid.value))).name).toBeNull();
+    const home = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
+    expect(home.body).toContain('Your assistant');
+    expect(home.body).not.toContain('Lily');
+    const c = await startConversation('whatsapp', `+8613${RUN}09`);
+    const speaker = await tx((t) => tenantRepos(t, bid.value).conversations.speaker(c.conversationId as never));
+    expect(speaker?.name).toBeNull();
+    expect(speaker?.business.name).toBe('Assistants Test Co');
+  });
+
+  it('confirming it in Getting ready is what makes it the name everywhere, at once', async () => {
+    const res = await post(ownerCookie, '/app/onboarding/assistant-name', 'name=Lily');
+    expect(res.statusCode).toBe(302);
+    const { mainAssistant } = await import('../../src/db/assistants.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    expect((await tx((t) => mainAssistant(t, bid.value))).name).toBe('Lily');
+    const home = await app.inject({ method: 'GET', url: '/app', headers: { cookie: ownerCookie } });
+    expect(home.body).toContain('Lily');
+    // Put it back, so the tests below start from a name nobody confirmed —
+    // the rename path they exercise must count on its own.
+    await tx((t) => sql`update onboarding_state set assistant_named_at = null where business_id = ${BIZ}::uuid`.execute(t));
+  });
+
   it('THE PRODUCTION CALLER: she adds a second one for Instagram and Messenger', async () => {
     const res = await post(ownerCookie, '/app/settings/people/assistants',
       'name=Noor&role=support&channel_instagram=on&channel_messenger=on');
@@ -147,8 +179,10 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
     });
     expect(noors).toMatchObject({ name: 'Noor', role: 'support',
       business: { name: 'Assistants Test Co', kind: 'agency', country: 'MA', description: 'Campaigns for hotels' } });
-    // Started before there was a second one: it has no assistant of its own, so the main one speaks.
-    expect(mains).toMatchObject({ name: 'Lily', role: 'sales' });
+    // Started before there was a second one: it has no assistant of its own, so
+    // the main one speaks — nameless, because nobody has confirmed "Lily" yet
+    // (the prompt then writes as the business, without a name).
+    expect(mains).toMatchObject({ name: null, role: 'sales' });
     expect(nobody).toBeNull();
   });
 

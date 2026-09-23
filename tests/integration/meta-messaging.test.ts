@@ -162,8 +162,8 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     for (const c of creds) expect(c.secret_ref).toBe('env:META_PAGE_ACCESS_TOKEN');
 
     const after = await get('/app/channels');
-    const { EMPLOYEE_NAME } = await import('../../src/core/owner/i18n/messages.js');
-    expect(after.body).toContain(esc(t('en', 'reach.inbound.connected', { name: EMPLOYEE_NAME.en })));
+    const { ASSISTANT_FALLBACK } = await import('../../src/core/owner/i18n/messages.js');
+    expect(after.body).toContain(esc(t('en', 'reach.inbound.connected', { name: ASSISTANT_FALLBACK.en })));
   }, 60_000);
 
   it('A SIGNED INSTAGRAM MESSAGE reaches her inbox, on its own channel', async () => {
