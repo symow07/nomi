@@ -24,8 +24,15 @@
 # for a backup. A roles file without its matching data dump is not a backup.
 #
 # NEVER LOGS THE CONNECTION STRING. Every command's stderr is filtered through
-# `redact` before it reaches the terminal, and the URL is passed to the pg tools
-# via -d "$MIGRATE_DATABASE_URL" rather than being interpolated into any message.
+# `redact` before it reaches the terminal, and the URL is never interpolated
+# into any message.
+#
+# NEVER PUTS THE PASSWORD IN A COMMAND LINE EITHER. Until 2026-09-23 the pg
+# tools were given `-d "$MIGRATE_DATABASE_URL"`, which put the whole credential
+# in the process list for the length of every dump — readable by any local user
+# and by any `ps` a session runs. Now the password goes to libpq through
+# PGPASSWORD (environment; `ps` does not show it) and the tools are given the
+# URL WITHOUT it (`tools/lib/pgenv.py`). A test holds this for every tool.
 #
 # RETRIES. Railway's public TCP proxy drops connections intermittently — the
 # 0025 migration needed three attempts on 2026-08-08. Each dump is retried up to
@@ -72,6 +79,10 @@ if [ -z "${MIGRATE_DATABASE_URL:-}" ]; then
   exit 2
 fi
 
+# The password into the environment, the rest of the URL into PG_URL_NOPASS.
+# Every pg tool below is given the latter; libpq finds the former by itself.
+eval "$(python3 "$(dirname "$0")/lib/pgenv.py" MIGRATE_DATABASE_URL)" || exit 2
+
 # Redact anything that looks like a connection string, whatever the source.
 redact() { sed -E 's#postgres(ql)?://[^[:space:]"'"'"']*#<redacted-url>#g'; }
 
@@ -97,7 +108,7 @@ client_mm() { "$1" --version | grep -oE '[0-9]+' | head -1; }
 CLIENT_MAJOR="$(client_mm "$DUMP")"
 
 # One question to the server, bounded like everything else here.
-pq() { within "$QUERY_LIMIT" "$PSQL" -d "$MIGRATE_DATABASE_URL" -tAc "$1"; }
+pq() { within "$QUERY_LIMIT" "$PSQL" -d "$PG_URL_NOPASS" -tAc "$1"; }
 
 SERVER_FULL="$(pq 'show server_version' 2>/dev/null | tr -d ' ')"
 if [ -z "$SERVER_FULL" ]; then
@@ -161,7 +172,7 @@ echo "  client pg_dump $CLIENT_MAJOR from $PGBIN"
 
 # ── artifact 1: cluster roles ───────────────────────────────────────────────
 echo "[1/2] roles (pg_dumpall --roles-only)"
-attempt "roles dump" "$DUMPALL" -d "$MIGRATE_DATABASE_URL" --roles-only -f "$STAGE/roles-$TS.sql" \
+attempt "roles dump" "$DUMPALL" -d "$PG_URL_NOPASS" --roles-only -f "$STAGE/roles-$TS.sql" \
   || fail "roles dump did not complete after $ATTEMPTS attempts"
 [ -s "$STAGE/roles-$TS.sql" ] || fail "roles file is empty"
 grep -q "CREATE ROLE" "$STAGE/roles-$TS.sql" || fail "roles file contains no CREATE ROLE"
@@ -170,7 +181,7 @@ grep -qE "CREATE ROLE $RUNTIME_ROLE([^a-zA-Z0-9_]|$)" "$STAGE/roles-$TS.sql" \
 
 # ── artifact 2: the database ────────────────────────────────────────────────
 echo "[2/2] database (pg_dump -Fc)"
-attempt "database dump" "$DUMP" -Fc -d "$MIGRATE_DATABASE_URL" -f "$STAGE/nomi-$TS.dump" \
+attempt "database dump" "$DUMP" -Fc -d "$PG_URL_NOPASS" -f "$STAGE/nomi-$TS.dump" \
   || fail "database dump did not complete after $ATTEMPTS attempts"
 [ -s "$STAGE/nomi-$TS.dump" ] || fail "dump file is empty"
 "$RESTORE" -l "$STAGE/nomi-$TS.dump" > "$STAGE/.toc" 2> >(redact >&2) \

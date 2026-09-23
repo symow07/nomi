@@ -47,7 +47,9 @@ node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
 # Migration 0005 creates the role NOLOGIN; local runs need it to log in.
 # 0005 creates it under its original name and 0026 renames it to nomi_app;
 # both have run by the time we get here.
-psql "$MIGRATE_DATABASE_URL" -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
+# Host/port/user flags, never the URL as an argument (the rule every tool keeps;
+# tests/parity/no-secret-in-argv.test.ts). Local, so there is no password.
+psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
 # The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
 DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/nomi" \
@@ -132,7 +134,7 @@ REHEARSED="$(grep -o 'Practice before launch · [0-9]*/[0-9]*' "$SK/app-onboard.
 case "$REHEARSED" in *"3/5"*|*"4/5"*|*"5/5"*) ;; *) fail "rehearsal not observed by the runbook (got '$REHEARSED')";; esac
 
 #  nothing was really delivered: the sandbox tenant has no channel credential
-CREDS="$(psql "$MIGRATE_DATABASE_URL" -tAc \
+CREDS="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
   "select count(*) from channel_credentials where business_id='5a4d0000-0000-4000-8000-0000000000b1';" 2>/dev/null | tr -d ' ')"
 [ "$CREDS" = "0" ] || fail "sandbox tenant must have NO channel credentials (found $CREDS)"
 
