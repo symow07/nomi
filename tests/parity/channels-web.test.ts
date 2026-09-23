@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderChannels, renderConnectGuide, type ChannelsData } from '../../src/api/web/channels.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 import type { Viewer } from '../../src/core/conversation/people.js';
 
 const connected: ChannelsData = {
@@ -56,7 +57,7 @@ describe('M9.4 · channel center (localized)', () => {
     expect(renderChannels(needsAttention, 'zh', null)).toContain('WhatsApp 需要重新登录');
     const en = renderChannels(needsAttention, 'en', null);
     expect(en).toContain('WhatsApp needs to sign in again');
-    expect(en).toContain('Lily cannot receive messages');
+    expect(en).toContain(t('en', 'channel.problem.needs_relogin.doing'));
     const ar = renderChannels(needsAttention, 'ar', null);
     expect(ar).toContain('يحتاج واتساب لتسجيل الدخول');
   });

@@ -11,7 +11,7 @@ import { renderConversationDetail, type ConversationDetail } from '../../src/api
 import { renderForbidden } from '../../src/api/web/settings.js';
 import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { emptyState } from './fixtures.js';
 
 /**
@@ -72,7 +72,7 @@ describe('G8 · the owner sees them', () => {
       expect(html, l).toContain(esc(t(l, 'herwords.title')));
       expect(html, l).toContain('Guangzhou Textile');
       expect(html, l).toContain('href="/app/knowledge"');
-      expect(t(l, 'herwords.taught_answer' as MessageKey, { terms: 'x', name: EMPLOYEE_NAME[l] }), l).not.toContain('{');
+      expect(t(l, 'herwords.taught_answer' as MessageKey, { terms: 'x', name: ASSISTANT_FALLBACK[l] }), l).not.toContain('{');
     }
     const order = renderConversationDetail(detail({ herWords: [{ path: 'order_status', terms: ['DHL'] }] }), 'en', NOW, null);
     expect(order).toContain('href="/app/settings/forbidden"');
@@ -92,7 +92,7 @@ describe('G8 · the owner sees them', () => {
       },
       quote: { unitPrice: usd(0.45), total: usd(2250), quantity: 5000 },
     }), 'en', NOW, null);
-    expect(html).toContain(esc(t('en', 'inbox.draft.held.guards_failed_twice', { name: EMPLOYEE_NAME.en })));
+    expect(html).toContain(esc(t('en', 'inbox.draft.held.guards_failed_twice', { name: ASSISTANT_FALLBACK.en })));
     expect(html).toContain('Guangzhou Textile');
   });
 });
@@ -111,8 +111,8 @@ describe('G8 · her note on a forbidden word', () => {
     }
   });
 
-  it('the settings page promises what now happens — rewritten, or it comes to her', () => {
+  it('the settings page promises what now happens — rewritten, or it comes to the owner', () => {
     expect(t('en', 'forbidden.intro', { name: 'Lily' })).toContain('comes to you instead');
-    expect(t('en', 'forbidden.intro', { name: 'Lily' })).toContain('writes it again');
+    expect(t('en', 'forbidden.intro', { name: 'Lily' })).toContain('written again without it');
   });
 });

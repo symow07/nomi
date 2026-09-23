@@ -4,6 +4,7 @@ import {
   renderCustomerList, renderCustomerFile, type CustomerList, type CustomerFile, type Milestone,
 } from '../../src/api/web/conversations.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 const NOW = new Date('2026-07-27T02:30:00Z'); // 10:30 Beijing
 const m = (o: Partial<Milestone> & Pick<Milestone, 'kind' | 'at'>): Milestone =>
@@ -85,9 +86,9 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   it('timeline milestones localize from neutral kinds; empty state honest', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
     expect(zh).toContain('沟通记录'); expect(zh).toContain('买家发来产品图片');
-    expect(zh).toContain('小雅报价：5000个 · $0.92/个'); expect(zh).toContain('你确认发送');
+    expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '5000个 · $0.92/个' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
-    expect(en).toContain('Buyer sent a photo'); expect(en).toContain('Lily quoted: 5,000pcs · $0.92/pcs');
+    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '5,000pcs · $0.92/pcs' }));
     expect(en).toContain('You approved sending');
     expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });

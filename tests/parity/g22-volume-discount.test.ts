@@ -3,7 +3,7 @@ import { renderPriceRules, type PriceRulesView, type VolumeDiscount } from '../.
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { usd } from '../../src/core/types/money.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import type { Product, PricingPolicy, NegotiationRule } from '../../src/core/types/commerce.js';
 import type { ProductId, BusinessId } from '../../src/core/types/ids.js';
@@ -55,7 +55,7 @@ const rule = (value: number, qtyGte = 10_000): NegotiationRule => ({
 describe('G22 · the page says whether she may come down at all', () => {
   it('with no rule written, it says she never offers one — the truth it never said', () => {
     const html = renderPriceRules(view(), 'en');
-    expect(html).toContain(esc(t('en', 'prices.volume.none', { name: EMPLOYEE_NAME.en })));
+    expect(html).toContain(esc(t('en', 'prices.volume.none', { name: ASSISTANT_FALLBACK.en })));
     expect(html).toContain('action="/app/factory/prices/volume"');
   });
 
@@ -67,10 +67,10 @@ describe('G22 · the page says whether she may come down at all', () => {
 
   it('and one past her ask-me line says so, because that is what will happen', () => {
     const html = renderPriceRules(view({ volume: [discount({ discountPct: 7, asksFirst: true })] }), 'en');
-    expect(html).toContain(esc(t('en', 'prices.volume.asksFirst', { name: EMPLOYEE_NAME.en })));
+    expect(html).toContain(esc(t('en', 'prices.volume.asksFirst', { name: ASSISTANT_FALLBACK.en })));
     // …and one inside it does not claim she will ask
     const inside = renderPriceRules(view({ volume: [discount({ discountPct: 3 })] }), 'en');
-    expect(inside).not.toContain(esc(t('en', 'prices.volume.asksFirst', { name: EMPLOYEE_NAME.en })));
+    expect(inside).not.toContain(esc(t('en', 'prices.volume.asksFirst', { name: ASSISTANT_FALLBACK.en })));
   });
 
   it('the refusals are her own numbers, in every locale', () => {

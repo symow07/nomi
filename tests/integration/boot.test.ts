@@ -3,6 +3,13 @@ import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tena
 import { sql } from 'kysely';
 import { createHmac } from 'node:crypto';
 import { offlineModels } from '../pipeline/fakes.js';
+import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
+import { assistantName } from '../../src/api/web/say.js';
+import { esc } from '../../src/api/web/layout.js';
+
+// The run's tenant never confirms an assistant name (Getting ready →
+// onboarding_state.assistant_named_at), so every page and alert renders the
+// fallback — "your assistant" — which t() fills when no name is passed.
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -302,7 +309,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Authenticated: the shell renders with the M16.2b Operations Home (real data).
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
-    expect(home.body).toContain("Lily's workspace");     // shell tagline (English default)
+    expect(home.body).toContain(esc(t('en', 'app.tagline')));     // shell tagline (English default)
     // Phase B: the attention section states either the real work or the calm
     // truth. M22 (F-01) added a THIRD honest state — messaging off, so nobody
     // can reach her — and this run's tenant is freshly seeded and not live, so
@@ -313,9 +320,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
     // how to be silent and this is the third making it match. These two used to
-    // assert 'What Lily did' and 'Buyers she talked to' were present, which now
+    // assert the activity title and its first count were present, which now
     // means the quiet branch has stopped working.
-    expect(home.body).not.toContain('What Lily did');
+    expect(home.body).not.toContain(esc(t('en', 'ops.activity.title')));
     // CC-05 — the COUNTS go quiet, the door does not. Results' only link used
     // to live inside that section, so a brand-new tenant (this one) had no way
     // into a whole page but typing the URL. Changed deliberately.
@@ -387,7 +394,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     const cookie = await login();
     const before = await prod.app.inject({ method: 'GET', url: `/app/inbox/${CONV}`, headers: { cookie } });
-    expect(before.body).toContain('Review her reply');              // Phase D: a colleague's work
+    expect(before.body).toContain(esc(t('en', 'buyers.review.title')));  // Phase D: a colleague's work
     expect(before.body).toContain('Draft reply from 小雅');          // draft text is data, verbatim
 
     // A GET must never send: the draft is still pending after viewing.
@@ -577,9 +584,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const cookie = await login();
     const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('<h1 class="page">Lily</h1>');  // Phase C: the page IS her
-    expect(res.body).toContain('What she handles on her own');  // Phase C
-    expect(res.body).toContain('She handles this herself');   // Phase C: permission wording
+    expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);  // Phase C: the page IS the assistant
+    expect(res.body).toContain(esc(t('en', 'her.handles.title')));  // Phase C
+    expect(res.body).toContain(esc(t('en', 'her.handles.alone')));  // Phase C: permission wording
     expect(res.body).toContain('Growth');
     expect(res.body).toContain('Promotion');
     // demo: greet is promoted (auto) → appears under Can do now as Greeting
@@ -694,7 +701,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain('Overview');
     expect(res.body).toContain('New customers');
     expect(res.body).toContain('Activity');
-    expect(res.body).toContain("Lily's work");
+    expect(res.body).toContain(esc(t('en', 'analytics.section.employee')));
     // No fabricated chart. Scoped to <main> because the shell's own header
     // inlines the brand mark as an <svg>: this assertion read the WHOLE page
     // and silently became false the moment the real logo landed, which nobody
@@ -764,15 +771,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'))).toBe('sent');
     expect(sent).toHaveLength(1);                    // exactly one send — no duplicate
     expect(sent[0]!.to).toBe(`+${ph('8613800000000')}`);      // persisted destination
-    expect(sent[0]!.body).toContain('小雅');          // zh
+    expect(sent[0]!.body).toContain(ASSISTANT_FALLBACK.zh);   // zh — no name confirmed, so the fallback
 
     await setOwner('en', `+${ph('8613800000000')}`);
     await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('hot_lead'));
-    expect(sent[1]!.body).toContain('Lily');          // locale switched to en
+    expect(sent[1]!.body).toContain(ASSISTANT_FALLBACK.en);   // locale switched to en
 
     await setOwner('ar', `+${ph('8613800000000')}`);
     await deliverOwnerAlert({ db: prod.db, adapter: rec }, job('handoff'));
-    expect(sent[2]!.body).toContain('ياسمين');        // ar
+    expect(sent[2]!.body).toContain(ASSISTANT_FALLBACK.ar);   // ar
 
     await setOwner('en', null);                        // restore
   });
@@ -1571,8 +1578,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('Needs your attention');
-      expect(res.body).toContain('What Lily did');           // Phase B activity
-      expect(res.body).toContain('Buyers she talked to');
+      expect(res.body).toContain(esc(t('en', 'ops.activity.title')));    // Phase B activity
+      expect(res.body).toContain(esc(t('en', 'ops.activity.handled')));
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain('Messaging is not active yet');
       expect(res.body).toContain('class="notlive"');
@@ -1629,9 +1636,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // says why it is quiet instead of congratulating the owner. It used to
       // read "You're all caught up · Lily is looking after your buyers" on a
       // factory where nothing could reach her at all.
-      expect(html).toContain('No buyer can reach Lily yet');
+      expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).not.toContain('Lily is looking after your buyers');
+      expect(html).not.toContain(esc(t('en', 'today.calm.body')));
       expect(html).toContain('href="/app/factory"');
       expect(html).not.toContain('Waiting for you');
       expect(html).not.toContain('Approvals needed');
@@ -2148,15 +2155,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(e.canDo).not.toContain('confirm_order');
     });
 
-    it('the page renders her name and the four questions, authenticated', async () => {
+    it('the page renders the assistant’s name and the four questions, authenticated', async () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('<h1 class="page">Lily</h1>');
-      expect(res.body).toContain('What she knows');
-      expect(res.body).toContain('What she handles on her own');
+      expect(res.body).toContain(`<h1 class="page">${esc(assistantName('en'))}</h1>`);
+      expect(res.body).toContain(esc(t('en', 'her.knows.title')));
+      expect(res.body).toContain(esc(t('en', 'her.handles.title')));
       expect(res.body).toContain('Recently');
-      expect(res.body).toContain('What she still needs from you');
+      expect(res.body).toContain(esc(t('en', 'her.teach.title')));
     });
 
     it('SECURITY: unauthenticated /app/employee redirects', async () => {
@@ -2242,7 +2249,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(idx.lastIndexOf(true)).toBeLessThan(idx.indexOf(false) === -1 ? Infinity : idx.indexOf(false));
       expect(all.conversations.some((c) => c.conversationId === waitingId && c.ownership === 'WAITING_HUMAN')).toBe(true);
       const html = (await import('../../src/api/web/inbox.js')).renderInboxList(all, 'en', new Date());
-      expect(html.indexOf('Needs you')).toBeLessThan(html.indexOf('Lily is handling'));
+      const needsYou = esc(t('en', 'buyers.group.needsYou'));
+      const hers = esc(t('en', 'buyers.group.hers'));
+      // Both headings must be on the page, or the ordering below compares -1s.
+      expect(html.indexOf(needsYou)).toBeGreaterThan(-1);
+      expect(html.indexOf(hers)).toBeGreaterThan(-1);
+      expect(html.indexOf(needsYou)).toBeLessThan(html.indexOf(hers));
       expect(html.indexOf(waitingId)).toBeLessThan(html.indexOf(aiId));
     });
 
@@ -2256,12 +2268,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         expect(c.ownership, c.conversationId).toBe(ownershipOf(byId.get(c.conversationId) ?? null));
     });
 
-    it('detail names the taught facts behind her reply — from the stored audit', async () => {
+    it('detail names the taught facts behind the assistant’s reply — from the stored audit', async () => {
       const { loadConversationDetail, renderConversationDetail } = await import('../../src/api/web/inbox.js');
       const d = (await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!;
       expect(d.ownership).toBe('AI');
       expect(d.knowledgeUsed).toContain('Minimum order is 500 pcs');
-      expect(renderConversationDetail(d, 'en', new Date(), null)).toContain('What she used to answer');
+      expect(renderConversationDetail(d, 'en', new Date(), null)).toContain(esc(t('en', 'buyers.knew.title')));
     });
 
     it('only the LATEST answer is explained, and archived facts still read back', async () => {
@@ -2292,7 +2304,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const owned = (await loadConversationDetail(prod.db, DEMO_BIZ, aiId))!;
       expect(owned.ownership).toBe('OWNER_CONTROLLED');
       const html = renderConversationDetail(owned, 'en', new Date(), null);
-      expect(html).not.toContain('What she used to answer');   // she is not the one speaking
+      expect(html).not.toContain(esc(t('en', 'buyers.knew.title')));   // the assistant is not the one speaking
       expect(html).toContain(`action="/app/inbox/${aiId}/reply"`);
 
       const inList = (await list('all')).conversations.find((c) => c.conversationId === aiId)!;
@@ -2429,9 +2441,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(page).toContain('never discounts more than');
       // G7a — the ask-first line is a gate now (core/conversation/hold.ts), so
       // the page promises it — whenever it can fire before the ceiling does.
+      const askLine = esc(t('en', f.promises.askVaries ? 'factory.promise.askVaries' : 'factory.promise.ask',
+        { ask: f.promises.askPct! }));
       if (f.promises.askPct! < f.promises.ceilingPct!)
-        expect(page).toContain('she asks you before the price goes out');
-      else expect(page).not.toContain('she asks you before the price goes out');
+        expect(page).toContain(askLine);
+      else expect(page).not.toContain(askLine);
     });
 
     it('connection reflects the real channel state and never leaks a secret', async () => {
@@ -2475,7 +2489,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.readiness.canActivate).toBe(pre.blockers.length === 0);
 
       const page = (await html()).replace(/<ul class="frules">[\s\S]*?<\/ul>/, '');
-      expect(page).toContain('Before she talks to real buyers');
+      expect(page).toContain(esc(t('en', 'factory.ready.title')));
       expect(page).not.toMatch(/\d+\s*%/);          // no rate, no grade
       expect(page).toContain('href="/app/onboarding"');
     });

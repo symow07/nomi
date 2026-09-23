@@ -86,7 +86,7 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
 
   it('and that taught facts do not — the two scopes read differently', () => {
     const html = renderProductKnowledge(d, 'en', null);
-    expect(html).toContain('What she knows about this product');
+    expect(html).toContain(t('en', 'knowledge.taught.title'));
     expect(html).toContain('used only when a buyer asks about Canvas tote');
     // Both scopes are named on the same screen, so neither can be assumed.
     expect(html.indexOf('everything you sell')).toBeLessThan(html.indexOf('only when a buyer asks about'));

@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
-import { t, EMPLOYEE_NAME } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import { contradictsHistory } from '../../src/core/commerce/quote.js';
 import { usd } from '../../src/core/types/money.js';
@@ -110,13 +110,13 @@ d('G7a · the held draft names her rule (requires DATABASE_URL)', () => {
     const res = await app.inject({ method: 'GET', url: `/app/inbox/${heldConv}`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain(esc(t('en', 'inbox.draft.held.discount_needs_owner')));
-    expect(res.body).not.toContain(esc(t('en', 'inbox.draft.held.quantity_heard_not_typed', { name: EMPLOYEE_NAME.en })));
+    expect(res.body).not.toContain(esc(t('en', 'inbox.draft.held.quantity_heard_not_typed', { name: ASSISTANT_FALLBACK.en })));
   });
 
   it('G7b · a contradicting price shows BOTH prices and the date he was given the first', async () => {
     const res = await app.inject({ method: 'GET', url: `/app/inbox/${contraConv}`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(esc(t('en', 'inbox.draft.held.contradicts_history', { name: EMPLOYEE_NAME.en })));
+    expect(res.body).toContain(esc(t('en', 'inbox.draft.held.contradicts_history', { name: ASSISTANT_FALLBACK.en })));
     const at = res.body.indexOf('<div class="held-then">');
     expect(at).toBeGreaterThan(-1);
     const then = res.body.slice(at, res.body.indexOf('</form>', at));

@@ -4,7 +4,7 @@ import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web
 import { renderInsights, MAX_INSIGHTS, type InsightsData, type Insight } from '../../src/api/web/insights.js';
 import { checkBudget } from '../../src/core/budget.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -36,7 +36,7 @@ const insight = (key: Insight['key'], over: Partial<Insight> = {}): Insight => (
 describe('G19 · the ceiling she set is said before it stops her', () => {
   it('the warning is on Today, with her percentage and what happens at 100%', () => {
     const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en');
-    expect(html).toContain(esc(t('en', 'today.budget.near', { name: EMPLOYEE_NAME.en, pct: 84 })));
+    expect(html).toContain(esc(t('en', 'today.budget.near', { name: ASSISTANT_FALLBACK.en, pct: 84 })));
     expect(html).toContain(esc(t('en', 'today.budget.thenStops')));
     expect(html).not.toContain(esc(t('en', 'today.budget.thenKeeps')));
   });
@@ -64,7 +64,7 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
   it('in every locale, and it is the same rule core/budget.ts states', () => {
     for (const locale of LOCALES) {
       const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), locale);
-      expect(html, locale).toContain(esc(t(locale, 'today.budget.near', { name: EMPLOYEE_NAME[locale], pct: 84 })));
+      expect(html, locale).toContain(esc(t(locale, 'today.budget.near', { name: ASSISTANT_FALLBACK[locale], pct: 84 })));
     }
     // 84% of a 2,000-call day is a soft warning; the page shows what core decided.
     const verdict = checkBudget({ llmCalls: 1680, tokens: 0 },

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { t as sayPlain, EMPLOYEE_NAME, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t as sayPlain, ASSISTANT_FALLBACK, type MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 
 /**
@@ -30,8 +30,15 @@ export const withAssistantName = <T>(
   name: string | null | undefined, fn: () => T, several = false,
 ): T => (name ? scope.run({ name, several }, fn) : fn());
 
-/** The name in force here, else the product's constant for this language. */
-export const assistantName = (locale: Locale): string => scope.getStore()?.name ?? EMPLOYEE_NAME[locale];
+/**
+ * The name in force here, else "Your assistant" — capitalised, because a caller
+ * that prints this on its own prints a label. Passed into `t` as `{name}`, the
+ * catalogue sets the case for where it lands in the sentence.
+ */
+export const assistantName = (locale: Locale): string => {
+  const fallback = ASSISTANT_FALLBACK[locale];
+  return scope.getStore()?.name ?? fallback.charAt(0).toLocaleUpperCase() + fallback.slice(1);
+};
 
 /** Does this business have more than one assistant? Outside a scope: no. */
 export const assistantsAreSeveral = (): boolean => scope.getStore()?.several ?? false;

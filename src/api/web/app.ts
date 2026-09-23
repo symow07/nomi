@@ -2261,6 +2261,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
     if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
+    // Confirming is what makes the name SHOWN (chosenName), so the cached
+    // "no name yet" must go now, not a minute from now.
+    names.evict(s.businessId);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.attested');
   });
 

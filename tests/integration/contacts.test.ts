@@ -3,6 +3,8 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant, runDigits, flashSaid} from './tenant.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
+import { esc } from '../../src/api/web/layout.js';
 
 /**
  * M38 — who may be written to, end to end.
@@ -339,10 +341,10 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
      * the adapter lands and the conditions in M52 are met.
      */
     expect(res.body).toContain('does not allow a first message');
-    expect(res.body).not.toContain('She can write to him first.');
-    // And NOT "you have not said she may write first" — that would name a
+    expect(res.body).not.toContain(esc(t('en', 'contacts.canWrite')));
+    // And NOT "you have not said {name} may write first" — that would name a
     // decision she cannot make yet, about a switch e-mail does not have.
-    expect(res.body).not.toContain('You have not said she may write first');
+    expect(res.body).not.toContain(esc(t('en', 'refused.why.outreach_not_enabled')));
   });
 
   it('M42 · she turns writing-first on, and it is recorded with her name', async () => {
@@ -358,7 +360,8 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     expect(rows[0]!.by_actor).not.toBe('');
 
     const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
-    expect(page.body).toContain('She may write first here');
+    // No name has been confirmed on this tenant, so the page says "your assistant".
+    expect(page.body).toContain(esc(t('en', 'outreach.on')));
     expect(page.body).toContain('Stop writing first');
   });
 
@@ -372,7 +375,7 @@ d('M38 · contacts, consent and suppression (requires DATABASE_URL)', () => {
     expect(rows.map((r) => r.enabled)).toEqual([true, false]);
 
     const page = await app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
-    expect(page.body).toContain('She does not write first here');
+    expect(page.body).toContain(esc(t('en', 'outreach.off')));
   });
 
   it('M42 · and the record cannot be edited afterwards', async () => {

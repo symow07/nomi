@@ -3,7 +3,13 @@ import { usd } from '../../src/core/types/money.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
 import type { ActivationRefusal } from '../../src/channels/activation.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
+import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t as say } from '../../src/api/web/say.js';
+import { esc } from '../../src/api/web/layout.js';
+
+/** A catalogue sentence as the page prints it: the page's own `t`, escaped the same way. */
+const shown = (l: Locale, key: MessageKey, params?: Record<string, string | number>): string => esc(say(l, key, params));
 
 const channel = (connected: boolean) => ({
   kind: 'whatsapp' as const, connected,
@@ -62,7 +68,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(at('Where buyers reach you')).toBeGreaterThan(at('What you promise buyers'));
     // each section carries the owner's own question
     for (const q of ['Who are we?', 'What do we sell?', 'Where can buyers reach us?',
-                     'What should Lily never get wrong?'])
+                     say('en', 'factory.promise.q')].map((q) => esc(q)))
       expect(html).toContain(q);
   });
 
@@ -85,7 +91,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('products are a real count with the honest pricing state', () => {
     expect(renderFactory(complete, 'en')).toContain('>12<span');
-    expect(renderFactory(complete, 'en')).toContain('Lily can quote every one of them');
+    expect(renderFactory(complete, 'en')).toContain(shown('en', 'factory.sell.allPriced'));
     const some = renderFactory({ ...complete, products: { ...complete.products, needPrice: 3 } }, 'en');
     expect(some).toContain('3 still need a price');
   });
@@ -94,10 +100,10 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const html = renderFactory(complete, 'en');
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
     expect(html).not.toContain('food_grade');        // never an internal key
-    expect(html).toContain('Lily may state these to a buyer');
-    expect(html).toContain('she will not say');      // default-deny, in owner language
+    expect(html).toContain(shown('en', 'factory.promise.certsOn'));
+    expect(html).toContain(shown('en', 'factory.promise.never'));      // default-deny, in owner language
     // meaning arrives before the tokens it explains
-    expect(html.indexOf('may state these')).toBeLessThan(html.indexOf('Food-safe materials'));
+    expect(html.indexOf(shown('en', 'factory.promise.certsOn'))).toBeLessThan(html.indexOf('Food-safe materials'));
   });
 
   it('states the three rules the guard actually enforces', () => {
@@ -108,10 +114,10 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const rules = renderFactory(complete, 'en').match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
     expect(rules).toContain('never quotes below $0.75');
     expect(rules).toContain('never discounts more than 8%');
-    expect(rules).toContain('Above 5% off, she asks you before the price goes out.');
+    expect(rules).toContain(shown('en', 'factory.promise.ask', { ask: 5 }));
   });
 
-  it('G9a · a sales assistant sees whether she is live — not the switch, and not a link to the floor', () => {
+  it('G9a · a sales assistant sees whether messaging is live — not the switch, and not a link to the floor', () => {
     const owner = renderFactory(complete, 'en');
     expect(owner).toContain('action="/app/factory/activate"');
     expect(owner).toContain('href="/app/factory/prices"');
@@ -121,11 +127,15 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(staff).toContain('The owner decides this.');
   });
 
-  it('an ask line at the ceiling is never stated — the clamp means she never asks', () => {
+  it('an ask line at the ceiling is never stated — the clamp means the owner is never asked', () => {
+    // the part of the ask sentence that does not depend on the number
+    const askTail = esc(say('en', 'factory.promise.ask', { ask: '§' }).split('§')[1]!);
+    const askVariesTail = esc(say('en', 'factory.promise.askVaries', { ask: '§' }).split('§')[1]!);
     for (const askPct of [8, 9, null]) {
       const rules = renderFactory({ ...complete, promises: { ...complete.promises, askPct } }, 'en')
         .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
-      expect(rules, String(askPct)).not.toContain('she asks you');
+      expect(rules, String(askPct)).not.toContain(askTail);
+      expect(rules, String(askPct)).not.toContain(askVariesTail);
     }
   });
 
@@ -145,13 +155,13 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
     expect(none).toContain('You have not confirmed anything');
-    expect(none).toContain('she will not say');       // the rule holds even with nothing allowed
+    expect(none).toContain(shown('en', 'factory.promise.never'));       // the rule holds even with nothing allowed
   });
 
   it('connection says which of the four states it is in, and what that means', () => {
     const on = renderFactory(complete, 'en');
     expect(on).toContain('Connected');
-    expect(on).toContain('you decide when Lily starts');
+    expect(on).toContain(shown('en', 'channel.state.ready.hint'));
     expect(on).toContain('+971 50 ••• 4444');
     const off = renderFactory(fresh, 'en');
     expect(off).toContain('Not connected');
@@ -200,7 +210,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     expect(zh).toContain('我的公司'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对买家的承诺');
     expect(zh).not.toContain('About your business');
     const ar = renderFactory(complete, 'ar');
-    expect(ar).toContain('شركتي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain('ما تعد به المشترين');
+    expect(ar).toContain('شركتي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain(shown('ar', 'factory.promise.title'));
     expect(ar).not.toContain('About your business');
   });
 
@@ -209,7 +219,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
       const html = renderFactory(fresh, l).replace(/<style>[\s\S]*?<\/style>/g, '');
       expect(html).not.toMatch(/nothing to (tell|quote)/);
       expect(html).not.toContain('Not connected');
-      expect(html).not.toContain('Tell Lily');
+      expect(html).not.toContain(shown('en', 'factory.next.profile'));
     }
   });
 
@@ -413,7 +423,7 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
 });
 
 /**
- * M20.2 — "Can she be activated now?" answered by the gate itself. The page may
+ * M20.2 — "Can messaging be activated now?" answered by the gate itself. The page may
  * never say more than the preconditions say, and never less.
  */
 describe('M20.2 · the activation readiness surface', () => {
@@ -423,21 +433,21 @@ describe('M20.2 · the activation readiness surface', () => {
   it('ready: says so, and names exactly who can receive a message', () => {
     const html = withReadiness({ canActivate: true, blockers: [], live: false });
     expect(html).toContain('can start talking to real buyers whenever you say so');
-    expect(html).toContain('Only these people can receive a message from Lily');
+    expect(html).toContain(shown('en', 'activation.recipients.title'));
     expect(html).toContain('my phone');
     expect(html).toContain('971500002222');          // no label → the number itself
   });
 
   it('ready: still says the owner decides — activation is not autonomy', () => {
     expect(withReadiness({ canActivate: true, blockers: [] }))
-      .toContain('she still writes, you still send');
+      .toContain(shown('en', 'activation.stillDrafts'));
   });
 
   it('not ready: states each blocker the gate reported, and nothing else', () => {
     const html = withReadiness({ canActivate: false, blockers: ['no_channel', 'secrets_not_rotated'] });
     expect(html).toContain('Connect WhatsApp.');
     expect(html).toContain('Confirm you have changed your keys.');
-    expect(html).not.toContain('Finish getting Lily ready');        // not a reported blocker
+    expect(html).not.toContain(shown('en', 'activation.blocker.not_ready'));        // not a reported blocker
     expect(html).not.toContain('whenever you say so');
   });
 
@@ -455,11 +465,11 @@ describe('M20.2 · the activation readiness surface', () => {
     expect(html).not.toMatch(/<a class="blink"[^>]*>[^<]*start with your own/);
   });
 
-  it('live: reports that she is talking to real buyers, and to whom', () => {
+  it('live: reports that the assistant is talking to real buyers, and to whom', () => {
     const html = withReadiness({ live: true, canActivate: true, blockers: [] });
     expect(html).toContain('is talking to real buyers');
     expect(html).toContain('my phone');
-    expect(html).not.toContain('whenever you say so');   // she already started
+    expect(html).not.toContain('whenever you say so');   // already started
   });
 
   it('invents no grade: no score, no percentage, no “n of m ready”', () => {
@@ -491,7 +501,7 @@ describe('M20.2 · the activation readiness surface', () => {
         expect(html.includes(code), `${l} leaks ${code}`).toBe(false);
     }
     expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'zh')).toContain('连接WhatsApp');
-    expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'ar')).toContain('اربط واتساب');
+    expect(withReadiness({ canActivate: false, blockers: ['no_channel'] }, 'ar')).toContain(shown('ar', 'activation.blocker.no_channel'));
   });
 });
 
@@ -503,10 +513,11 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
   it('ready: offers the decision, and says what it does before it is taken', () => {
     const html = view({ canActivate: true, blockers: [], live: false });
     expect(html).toContain('action="/app/factory/activate"');
-    expect(html).toContain('Let Lily start');
-    expect(html).toMatch(/data-confirm="[^"]*writes every reply and waits for your OK[^"]*"/);
-    expect(html).toMatch(/data-confirm="[^"]*stop her at any time[^"]*"/);
-    expect(html).toContain('she still writes, you still send');   // draft-first, stated
+    expect(html).toContain(shown('en', 'activation.action.activate'));
+    expect(html).toContain(`data-confirm="${shown('en', 'activation.action.confirm')}"`);
+    expect(html).toMatch(/data-confirm="[^"]*waits for your OK[^"]*"/);   // draft-first, in the question itself
+    expect(html).toMatch(/data-confirm="[^"]*stop at any time[^"]*"/);   // and reversible
+    expect(html).toContain(shown('en', 'activation.stillDrafts'));   // draft-first, stated
     expect(html).toContain('Only these people can receive a message');
   });
 
@@ -520,7 +531,7 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
     const html = view({ live: true, canActivate: true, blockers: [] });
     expect(html).toContain('action="/app/factory/deactivate"');
     expect(html).toContain('Stop messaging');
-    expect(html).toContain('sends nothing further');
+    expect(html).toContain(shown('en', 'activation.stop.what'));
     expect(html).toContain('stay exactly as they are');          // nothing is deleted
     expect(html).toContain('start again whenever you want');     // rollback is possible
     expect(html).not.toContain('action="/app/factory/activate"');
@@ -546,11 +557,11 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
   });
 
   it('the controls and their warnings are localized', () => {
-    expect(view({ canActivate: true, blockers: [] }, 'zh')).toContain('让小雅开始');
+    expect(view({ canActivate: true, blockers: [] }, 'zh')).toContain(shown('zh', 'activation.action.activate'));
     expect(view({ live: true }, 'zh')).toContain('停止发消息');
     expect(view({ live: true }, 'zh')).toContain('什么都不会删掉');
-    expect(view({ canActivate: true, blockers: [] }, 'ar')).toContain('دع ياسمين تبدأ');
-    expect(view({ live: true }, 'ar')).toContain('أوقف المراسلة');
+    expect(view({ canActivate: true, blockers: [] }, 'ar')).toContain(shown('ar', 'activation.action.activate'));
+    expect(view({ live: true }, 'ar')).toContain(shown('ar', 'activation.action.deactivate'));
   });
 
   it('activation is never described as autonomy', () => {
@@ -573,11 +584,11 @@ describe('M20.3.1 · activation truth, localized', () => {
       blockers: lifecycle === 'ready' || lifecycle === 'active' ? [] : ['no_channel'],
       ...over } } as FactoryView, l).replace(/<style>[\s\S]*?<\/style>/g, '');
 
-  it('each state reads as itself, and says what it means for her day', () => {
+  it('each state reads as itself, and says what it means for the owner’s day', () => {
     expect(at('not_connected', 'en')).toContain('Not connected');
     expect(at('not_connected', 'en')).toContain('cannot receive or answer a buyer');
-    expect(at('ready', 'en')).toContain('Ready — you decide when Lily starts');
-    expect(at('active', 'en')).toContain('Lily is handling conversations');
+    expect(at('ready', 'en')).toContain(shown('en', 'channel.state.ready.hint'));
+    expect(at('active', 'en')).toContain(shown('en', 'channel.state.active.hint'));
     expect(at('paused', 'en')).toContain('Paused');
     expect(at('paused', 'en')).toContain('Reconnect to continue. Nothing was deleted');
   });
@@ -657,12 +668,13 @@ describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
   });
 
   it('states the consequence for everyone NOT on the list', () => {
-    expect(view([])).toContain('still reaches you — she just will not answer them');
+    expect(view([])).toContain(shown('en', 'allowlist.note'));
+    expect(view([])).toContain('still reaches you');
   });
 
   it('localized, and the number itself is bidi-isolated', () => {
-    expect(view([], 'zh')).toContain('{name}可以联系谁'.replace('{name}', '小雅'));
-    expect(view([], 'ar')).toContain('من يجوز لـ ياسمين مراسلته');
+    expect(view([], 'zh')).toContain(shown('zh', 'allowlist.title'));
+    expect(view([], 'ar')).toContain(shown('ar', 'allowlist.title'));
     expect(view([{ phone: '8613900001111', label: null }], 'ar')).toContain('<bdi>8613900001111</bdi>');
   });
 

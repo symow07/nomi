@@ -5,6 +5,7 @@ import { shell, loginPage, NAV } from '../../src/api/web/layout.js';
 import { registerWebApp } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { withAssistantName, assistantName } from '../../src/api/web/say.js';
 
 /**
  * M17.3 — the session cookie CONTRACT as it is actually emitted. The codec is
@@ -142,11 +143,14 @@ describe('M9 · owner session codec', () => {
 
 /* ── Shell layout: localized nav, RTL, switcher, escaping ─────────────────── */
 describe('M9 + ADR-0008 · command-center shell', () => {
-  it('en shell: localized nav, active highlight, switcher, ltr, Lily workspace', () => {
+  it('en shell: localized nav, active highlight, switcher, ltr, the assistant\'s workspace', () => {
     const html = shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '<p>hi</p>' });
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('<html lang="en" dir="ltr">');
-    expect(html).toContain("Lily's workspace");
+    expect(html).toContain(t('en', 'app.tagline'));      // no name chosen: "Your assistant's workspace"
+    const named = withAssistantName('Lily', () =>
+      shell({ title: 'x', active: 'inbox', locale: 'en', path: '/app/inbox', avatar: '👩‍💼', bodyHtml: '' }));
+    expect(named).toContain("Lily's workspace");
     for (const n of NAV) expect(html).toContain(t('en', `nav.${n.id}` as MessageKey));
     expect(html).toContain('class="navlink active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
@@ -159,12 +163,12 @@ describe('M9 + ADR-0008 · command-center shell', () => {
   it('zh shell: Chinese nav + tagline; ar shell: RTL', () => {
     const zh = shell({ title: 'x', active: 'home', locale: 'zh', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(zh).toContain('<html lang="zh" dir="ltr">');
-    expect(zh).toContain('小雅的工作台');
+    expect(zh).toContain(t('zh', 'app.tagline'));
     expect(zh).toContain('今天'); expect(zh).toContain('买家');   // M16.4c: nav matches the page it opens
 
     const ar = shell({ title: 'x', active: 'home', locale: 'ar', path: '/app', avatar: '👩‍💼', bodyHtml: '' });
     expect(ar).toContain('<html lang="ar" dir="rtl">');   // RTL
-    expect(ar).toContain('مساحة عمل ياسمين');
+    expect(ar).toContain(t('ar', 'app.tagline'));
     expect(ar).toContain('اليوم');                        // Phase A: "today"
   });
 
@@ -192,9 +196,13 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     expect(ar).not.toContain('Wrong code');   // no error when not set
   });
 
-  it('escapes body html boundary but employee name is a safe constant', () => {
+  it('escapes body html boundary but the assistant name is escaped, not injectable', () => {
     const html = shell({ title: 't', active: 'home', locale: 'en', path: '/app', avatar: '👩‍💼', bodyHtml: '<p>ok</p>' });
     expect(html).toContain('<p>ok</p>');       // body inserted as authored (caller escapes)
-    expect(html).toContain('Lily');            // name is a product constant, not injectable
+    expect(html).toContain(assistantName('en'));   // no name chosen: the fallback label
+    const hostile = withAssistantName('<img src=x>', () =>
+      shell({ title: 't', active: 'home', locale: 'en', path: '/app', avatar: '👩‍💼', bodyHtml: '' }));
+    expect(hostile).not.toContain('<img src=x>');  // a chosen name is data, never markup
+    expect(hostile).toContain('&lt;img src=x&gt;');
   });
 });

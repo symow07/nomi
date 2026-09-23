@@ -130,12 +130,19 @@ Recent PRs, newest first:
 5. **Owner-facing copy never says "AI" / 机器人 / 系统 / 模型**
    (`BANNED_OWNER_TERMS`). The only exceptions are listed by key in
    `HONEST_ABOUT_AI_KEYS` — buyer-facing sentences whose job is to say it.
-6. **Buyer references are gender-neutral** ("they"; 买家/对方; Arabic phrased
-   with no pronoun agreeing with the buyer). The assistant is "she" by product
-   convention; the owner is addressed in the feminine in ar by catalogue
-   convention.
-7. **Names come from the `assistants` table**, via `withAssistantName` /
-   `assistantName(locale)`. `EMPLOYEE_NAME` is only a default at birth.
+6. **Nobody is gendered in copy** (decided 2026-09-23).
+   - The assistant has **no pronouns**: `{name}`, or reword. Never she/her/it/they, 她/他/它, or an Arabic verb or suffix that agrees with her.
+   - Buyers are "they" / 买家 / 对方, and in Arabic no pronoun agrees with them.
+   - Arabic addresses the owner (and a buyer on a buyer page) in **neither** gender:
+     - verbal nouns for buttons;
+     - a noun phrase, the passive, or «يمكن / يُرجى» for sentences;
+     - the unvowelled ـك is fine;
+     - no plural address.
+   - `tests/parity/assistant-pronouns.test.ts` holds this. Its lists live in `assistant-pronouns.lists.ts`.
+   - Reworded zh/ar lines wait in `docs/NATIVE-REVIEW-UI.md`. That list is **not** a gate.
+7. **Names come from the `assistants` table**, via `withAssistantName` / `assistantName(locale)`, and **count only once chosen**.
+   - The main assistant's row name is a default until Getting ready stamps `assistant_named_at` (`chosenName` in `src/db/assistants.ts`). Until then, owner copy says "your assistant" / 你的助手 / مساعدك (`ASSISTANT_FALLBACK`), and the model gets no name.
+   - `DEFAULT_ASSISTANT_NAME` is only the row's value at birth. There is no `EMPLOYEE_NAME` any more.
 
 ## 6 · What's next
 
@@ -160,8 +167,11 @@ and paging.
 - The live workspace confirming its assistant's name.
 - C4.d per-channel activation (after the pilot is live); M48 WeChat (needs an
   Official Account); M52 platform reviews (last, always).
-- Pre-existing: the rest of the Arabic `/privacy` page addresses the reader in
-  the feminine; it's a buyer page and should be neutral. Not touched in #50.
+- Native review of the reworded zh/ar UI lines (`docs/NATIVE-REVIEW-UI.md`).
+  Not a gate; only the disclosure sentences gate autonomy.
+- Buyer-facing fixed sentences in `src/core/conversation/fastpath.ts` address
+  the buyer in the Arabic masculine («تحتاج»). They are on the send path and
+  were left alone in the pronoun PR.
 
 ## 7 · Where things are
 

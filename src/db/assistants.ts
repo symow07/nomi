@@ -140,9 +140,36 @@ export async function archiveAssistant(tx: Tx, businessId: BusinessId, id: strin
 }
 
 /**
- * A5.2 — the name a page about the WHOLE business says: the main assistant's.
- * Null when she has never opened the team page, which reads as the product's
- * constant for her language — the name that row would be given anyway.
+ * A NAME COUNTS ONCE THE OWNER CHOSE IT (decided 2026-09-23).
+ *
+ * The main assistant's row is created with a default name — Lily, 小雅 — the
+ * first time anything needs it, long before the owner has said anything about
+ * her. That default is a placeholder for the row, not a name anybody chose, so
+ * it is not shown until the owner has said something about it. Three things
+ * count as saying it:
+ *   · Getting ready recorded `assistant_named_at` (the confirmation);
+ *   · the owner saved the main one on the team page — audited as
+ *     `assistant_changed` with `name` among its fields;
+ *   · the assistant is not the main one: an assistant the owner ADDED was
+ *     named in the act of adding her.
+ * Otherwise every surface reads null here and says "your assistant" (owner)
+ * or no name at all (buyer, model).
+ *
+ * One expression, used by every read below, so the owner's pages, her alerts,
+ * the proof page and the model's own context cannot disagree about it.
+ */
+export const chosenName = (a: 'a') => sql.raw(`
+  case when not ${a}.is_default
+         or exists (select 1 from onboarding_state os
+                     where os.business_id = ${a}.business_id and os.assistant_named_at is not null)
+         or exists (select 1 from channel_audit ca
+                     where ca.business_id = ${a}.business_id and ca.action = 'assistant_changed'
+                       and ca.detail->>'id' = ${a}.id::text and ca.detail->'fields' ? 'name')
+       then ${a}.name end`);
+
+/**
+ * A5.2 — the name a page about the WHOLE business says: the main assistant's,
+ * once the owner has confirmed it (see `chosenName`). Null otherwise.
  */
 export async function mainAssistantName(tx: Tx, businessId: BusinessId): Promise<string | null> {
   return (await mainAssistant(tx, businessId)).name;
@@ -159,7 +186,7 @@ export async function mainAssistant(
   tx: Tx, businessId: BusinessId,
 ): Promise<{ readonly name: string | null; readonly several: boolean }> {
   const r = await sql<{ name: string | null; n: number }>`
-    select (select a.name from assistants a
+    select (select ${chosenName('a')} from assistants a
              where a.business_id = ${businessId}::uuid and a.is_default and a.archived_at is null
              limit 1) as name,
            (select count(*)::int from assistants a
@@ -174,7 +201,7 @@ export async function mainAssistant(
  */
 export async function assistantNameOfConversation(tx: Tx, businessId: BusinessId, conversationId: string): Promise<string | null> {
   const r = await sql<{ name: string | null }>`
-    select (select a.name from assistants a where a.id = c.assistant_id) as name
+    select (select ${chosenName('a')} from assistants a where a.id = c.assistant_id) as name
       from conversations c where c.business_id = ${businessId}::uuid and c.id = ${conversationId}::uuid`.execute(tx);
   return r.rows[0]?.name ?? mainAssistantName(tx, businessId);
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { t, assistantName, withAssistantName, makeNameCache } from '../../src/api/web/say.js';
-import { EMPLOYEE_NAME } from '../../src/core/owner/i18n/messages.js';
+import { ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { renderOwnerAlert } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -19,10 +19,13 @@ const WEB = fileURLToPath(new URL('../../src/api/web/', import.meta.url));
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
 describe('A5.2 · the name in force', () => {
-  it('outside any request it is the constant it always was, in every language', () => {
+  // 2026-09-23 — it used to be a product constant (Lily / 小雅 / ياسمين): a name
+  // nobody chose. With no name in force it is now "your assistant", as a label.
+  it('outside any request it is "your assistant", in every language', () => {
     for (const l of LOCALES) {
-      expect(assistantName(l)).toBe(EMPLOYEE_NAME[l]);
-      expect(t(l, 'nav.employee')).toBe(EMPLOYEE_NAME[l]);
+      const label = ASSISTANT_FALLBACK[l].charAt(0).toLocaleUpperCase() + ASSISTANT_FALLBACK[l].slice(1);
+      expect(assistantName(l)).toBe(label);
+      expect(t(l, 'nav.employee')).toBe(label);
     }
   });
 
@@ -31,7 +34,7 @@ describe('A5.2 · the name in force', () => {
       for (const l of LOCALES) {
         expect(assistantName(l)).toBe('Sara');
         expect(t(l, 'samples.flash.saved')).toContain('Sara');
-        expect(t(l, 'samples.flash.saved')).not.toContain(EMPLOYEE_NAME[l]);
+        expect(t(l, 'samples.flash.saved').toLocaleLowerCase()).not.toContain(ASSISTANT_FALLBACK[l]);
       }
     });
   });
@@ -48,12 +51,12 @@ describe('A5.2 · the name in force', () => {
       await new Promise((r) => setTimeout(r, 1));
       expect(assistantName('en')).toBe('Sara');
     });
-    expect(assistantName('en')).toBe('Lily');
+    expect(assistantName('en')).toBe('Your assistant');
   });
 
-  it('no name yet leaves everything as it was; a name passed by hand still wins', () => {
-    expect(withAssistantName(null, () => assistantName('en'))).toBe('Lily');
-    expect(withAssistantName('', () => assistantName('en'))).toBe('Lily');
+  it('no name yet says "your assistant"; a name passed by hand still wins', () => {
+    expect(withAssistantName(null, () => assistantName('en'))).toBe('Your assistant');
+    expect(withAssistantName('', () => assistantName('en'))).toBe('Your assistant');
     withAssistantName('Sara', () => expect(t('en', 'people.issued.title', { name: 'Xiao Chen' })).toContain('Xiao Chen'));
   });
 });
@@ -75,7 +78,9 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
 
   it('every assistants write that can change the main name forgets it', () => {
     const src = read('src/api/web/app.ts');
-    expect(src.match(/names\.evict\(s\.businessId\)/g)?.length).toBe(2);
+    // Three: the team page's add and edit, and Getting ready's confirmation —
+    // which, since 2026-09-23, is what makes a default name shown at all.
+    expect(src.match(/names\.evict\(s\.businessId\)/g)?.length).toBe(3);
   });
 });
 
@@ -117,8 +122,10 @@ describe('A5.2 · outside the owner\'s pages', () => {
   it('an alert to her phone names the assistant it is about', () => {
     expect(renderOwnerAlert('en', 'handoff', 'Noor')).toContain('Noor');
     expect(renderOwnerAlert('en', 'handoff', 'Noor')).not.toContain('Lily');
-    expect(renderOwnerAlert('en', 'handoff')).toContain('Lily');
-    expect(renderOwnerAlert('zh', 'handoff', null)).toContain('小雅');
+    // No confirmed name: the alert says "your assistant", never a default name.
+    expect(renderOwnerAlert('en', 'handoff')).toContain('Your assistant');
+    expect(renderOwnerAlert('en', 'handoff')).not.toContain('Lily');
+    expect(renderOwnerAlert('zh', 'handoff', null)).toContain(ASSISTANT_FALLBACK.zh);
   });
 
   it('the buyer\'s proof page is told the name rather than assuming it', () => {

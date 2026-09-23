@@ -143,7 +143,8 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
   it('connecting writes the credential, the channel and the audit row', async () => {
     const res = await act('/app/channels/whatsapp/connect');
     expect(res.statusCode).toBe(302);
-    expect(flashOf(res)).toBe(t('en', 'channel.flash.connected', { name: 'Lily' }));
+    // No name has been confirmed on this tenant, so the catalogue fills the fallback.
+    expect(flashOf(res)).toBe(t('en', 'channel.flash.connected'));
 
     const row = await tenant(BIZ, (tx) => sql<{ external_ref: string; is_active: boolean; status: string; audited: number }>`
       select cc.external_ref, cc.is_active, ch.status,
@@ -164,7 +165,7 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
   });
 
   it('disconnecting drops messages again; the page then offers Reconnect, not Connect', async () => {
-    expect(flashOf(await act('/app/channels/whatsapp/disconnect'))).toBe(t('en', 'channel.flash.disconnected', { name: 'Lily' }));
+    expect(flashOf(await act('/app/channels/whatsapp/disconnect'))).toBe(t('en', 'channel.flash.disconnected'));
     expect(await inbound('still there?')).toBe(0);
     const page = await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } });
     expect(page.body).toContain('action="/app/channels/whatsapp/reconnect"');
@@ -173,7 +174,7 @@ d('G3 · connect the factory’s number (requires DATABASE_URL)', () => {
 
   it('Connect does not create a second credential; Reconnect brings the number back', async () => {
     expect(flashOf(await act('/app/channels/whatsapp/connect'))).toBe(t('en', 'channel.flash.already_connected'));
-    expect(flashOf(await act('/app/channels/whatsapp/reconnect'))).toBe(t('en', 'channel.flash.reconnected', { name: 'Lily' }));
+    expect(flashOf(await act('/app/channels/whatsapp/reconnect'))).toBe(t('en', 'channel.flash.reconnected'));
     expect(await inbound('back again')).toBe(1);
     const creds = await tenant(BIZ, (tx) => sql<{ n: number }>`
       select count(*)::int as n from channel_credentials where business_id = ${BIZ}

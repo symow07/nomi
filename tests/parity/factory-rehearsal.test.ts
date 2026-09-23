@@ -10,8 +10,13 @@ import { SCENARIOS } from '../../src/trust/scenarios.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
 import { renderPilotRunbook, type PilotRunbook } from '../../src/api/web/pilot.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
+import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t as say } from '../../src/api/web/say.js';
+import { esc } from '../../src/api/web/layout.js';
+
+/** A catalogue sentence as the page prints it: the page's own `t`, escaped the same way. */
+const shown = (l: Locale, key: MessageKey, params?: Record<string, string | number>): string => esc(say(l, key, params));
 
 /**
  * M20.5 — the factory rehearsal.
@@ -367,12 +372,12 @@ const withFindings: RehearsalReport = {
 };
 
 describe('M20.5 · My factory shows findings, never a grade', () => {
-  it('leads with the list, and every line goes somewhere she can act', () => {
+  it('leads with the list, and every line goes somewhere the owner can act', () => {
     const html = renderFactory(view(withFindings), 'en');
     // Grouped by reason, with the affected products named under each.
-    expect(html).toContain('No price is set, so she cannot quote these:');
+    expect(html).toContain(shown('en', 'factory.rehearsal.no_price'));
     expect(html).toContain('<bdi>Canvas tote</bdi>');
-    expect(html).toContain('You have not taught her anything about these beyond the price:');
+    expect(html).toContain(shown('en', 'factory.rehearsal.nothing_taught'));
     expect(html).toContain('<bdi>Thermos</bdi>');
     expect(html).toContain('href="/app/products"');
     expect(html).toContain('href="/app/knowledge"');
@@ -387,7 +392,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
       violations: [], probesRun: 12, productsChecked: 12, productsTotal: 12,
     };
     const html = renderFactory(view(many), 'en');
-    const sentence = 'You have not taught her anything about these beyond the price:';
+    const sentence = shown('en', 'factory.rehearsal.nothing_taught');
     // Twelve identical sentences read as an indictment; one over twelve names
     // reads as a job to do. Every name is still there.
     expect(html.split(sentence).length - 1).toBe(1);
@@ -396,7 +401,7 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
 
   it('carries no score, rating or percentage', () => {
     const html = renderFactory(view(withFindings), 'en');
-    const block = from(html, 'What Lily cannot answer yet');
+    const block = from(html, shown('en', 'factory.rehearsal.title'));
     expect(block).not.toMatch(/\d+\s?%/);
     for (const word of ['score', 'rating', 'grade', 'passed', 'failed', 'health'])
       expect(block.toLowerCase(), word).not.toContain(word);
@@ -406,30 +411,30 @@ describe('M20.5 · My factory shows findings, never a grade', () => {
     const blocked = renderFactory(view(withFindings), 'en');
     const clean = renderFactory(view({ ...withFindings, findings: [] }), 'en');
     // Both render the SAME activation verdict; only the findings list differs.
-    const verdict = (h: string) => h.slice(at(h, 'Before she talks'), at(h, 'What Lily cannot answer yet'));
+    const verdict = (h: string) => h.slice(at(h, shown('en', 'factory.ready.title')), at(h, shown('en', 'factory.rehearsal.title')));
     expect(verdict(blocked)).toBe(verdict(clean));
   });
 
-  it('says what was checked rather than claiming she is ready, when nothing is wrong', () => {
+  it('says what was checked rather than claiming the assistant is ready, when nothing is wrong', () => {
     const html = renderFactory(view({ ...withFindings, findings: [], productsTotal: 2 }), 'en');
-    const block = from(html, 'What Lily cannot answer yet');
-    expect(block).toContain('Every product she checked has a price she can quote');
+    const block = from(html, shown('en', 'factory.rehearsal.title'));
+    expect(block).toContain(shown('en', 'factory.rehearsal.none'));
     expect(block).toContain('Checked all 2 of your products');
     // An empty findings list means "nothing was missing in what I checked" —
-    // it is NOT a statement that she is ready. That verdict has its own section.
+    // it is NOT a statement that the assistant is ready. That verdict has its own section.
     expect(block.toLowerCase()).not.toContain('ready');
   });
 
   it('a factory with no products yet shows nothing at all — no empty success', () => {
     const html = renderFactory(view({ findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 }), 'en');
-    expect(html).not.toContain('What Lily cannot answer yet');
+    expect(html).not.toContain(shown('en', 'factory.rehearsal.title'));
   });
 
   it('renders in every locale without falling back to English', () => {
     for (const l of LOCALES) {
       const html = renderFactory(view(withFindings), l);
       expect(html).toContain('Canvas tote');                     // her own product name
-      if (l !== 'en') expect(html).not.toContain('No price is set, so she cannot quote');
+      if (l !== 'en') expect(html).not.toContain(shown('en', 'factory.rehearsal.no_price'));
     }
   });
 });

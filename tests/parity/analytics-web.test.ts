@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
 import { renderAnalytics, parseRange, type AnalyticsData } from '../../src/api/web/analytics.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 const active: AnalyticsData = {
   range: 'week', hasActivity: true,
@@ -32,7 +33,7 @@ describe('M9.8 · business review (localized)', () => {
     expect(html).toContain('经营情况');
     expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
     expect(html).toContain('沟通情况'); expect(html).toContain('买家咨询');
-    expect(html).toContain('报价与订单'); expect(html).toContain('小雅工作总结');
+    expect(html).toContain('报价与订单'); expect(html).toContain(t('zh', 'analytics.section.employee'));
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
 
@@ -40,16 +41,16 @@ describe('M9.8 · business review (localized)', () => {
     const html = renderAnalytics(active, 'en');
     expect(html).toContain('Results');
     expect(html).toContain('New customers'); expect(html).toContain('Activity');
-    expect(html).toContain('Buyer inquiries'); expect(html).toContain("Lily's work");
+    expect(html).toContain('Buyer inquiries'); expect(html).toContain(t('en', 'analytics.section.employee'));
     expect(html).toContain('Inquiries handled');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
 
-  it('ar: renders Arabic + employee name', () => {
+  it('ar: renders Arabic + the assistant\'s name (fallback when none chosen)', () => {
     const html = renderAnalytics(active, 'ar');
     expect(html).toContain('النتائج');
     expect(html).toContain('عملاء جدد');
-    expect(html).toContain('عمل ياسمين');
+    expect(html).toContain(t('ar', 'analytics.section.employee'));   // عمل مساعدك
   });
 
   it('real order value only when orders exist — localized status + note', () => {

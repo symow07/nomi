@@ -78,7 +78,7 @@ describe('M16.2a · operations snapshot (pure)', () => {
     // ONE sentence, so this asserts the sentence rather than the heading that
     // repeated it.
     expect(renderOperationsHome({ ...s, channel: { status: 'connected', provider: 'meta' } }, 'en'))
-      .toContain('Lily is looking after your buyers');
+      .toContain(t('en', 'today.calm.body'));
   });
 
   it('ownership mapping is the M16.1 one (handoffs vs owner-handling)', () => {
@@ -147,10 +147,9 @@ describe('Nomi Phase B · Today (render)', () => {
     // M35.5 — the calm state IS the page now: a rule, one sentence, air. Not a
     // card among cards, and not a heading plus a body saying the same thing
     // twice. What must hold is that it is DESIGNED and that it says WHY.
-    for (const [l, phrase] of [['en', 'Lily is looking after your buyers'],
-                               ['zh', '在照看你的买家'], ['ar', 'تعتني بمشتريك']] as const) {
+    for (const l of LOCALES) {
       const html = renderOperationsHome(liveQuiet, l);
-      expect(html).toContain(phrase);
+      expect(html).toContain(t(l, 'today.calm.body'));
       expect(html).toContain('class="calm-page"');
       expect(html).toContain('class="calm-rule"');
       // M49 — NOT the voice serif. "Lily is looking after your buyers" is the
@@ -163,7 +162,7 @@ describe('Nomi Phase B · Today (render)', () => {
     const en = renderOperationsHome(liveQuiet, 'en');
     expect(en).not.toContain('class="need"');                    // no attention rows at all
     // AND NO COUNTS. A quiet day renders no count sections whatever.
-    expect(en).not.toContain("What Lily did");
+    expect(en).not.toContain(t('en', 'ops.activity.title'));
     // CC-05 — BUT THE WAY INTO RESULTS STAYS. This line used to forbid it, and
     // in doing so pinned the bug: Results' only link lived inside the section
     // the quiet branch removes, so a new owner and any quiet week had no door
@@ -177,13 +176,13 @@ describe('Nomi Phase B · Today (render)', () => {
     // now." was shown on a factory where messaging was off and she was looking
     // after nobody. Nothing was wrong, and the product said something untrue.
     const html = renderOperationsHome(emptyFactory, 'en');
-    expect(html).not.toContain('Lily is looking after your buyers');
+    expect(html).not.toContain(t('en', 'today.calm.body'));
     expect(html).not.toContain("You're all caught up");
     // M35.5 — the not-live state is ONE sentence now, and it is the title
     // ("No buyer can reach Lily yet"), which states the consequence rather than
     // the mechanism. The body that said "Messaging is not on." was the second
     // sentence saying the same thing.
-    expect(html).toContain('No buyer can reach Lily yet');
+    expect(html).toContain(t('en', 'today.calm.notLive.title'));
     // The two quiet days remain visibly different: the live one gets the jade
     // rule, this one does not, and only this one offers a way forward.
     expect(html).toContain('class="calm-page off"');
@@ -234,9 +233,9 @@ describe('Nomi Phase B · Today (render)', () => {
     expect(renderOperationsHome(populated, 'en')).not.toContain('How often you stepped in');
   });
 
-  it('learning reads as her learning, not a score', () => {
+  it('learning reads as learning, not a score', () => {
     const html = renderOperationsHome(populated, 'en', obs);
-    expect(html).toContain('Lily is learning from your corrections');
+    expect(html).toContain(t('en', 'today.learning.title'));
     expect(html).toContain('Facts added');
     expect(html).toContain('Answers corrected');
     const quiet = renderOperationsHome(emptyFactory, 'en', obs);
@@ -245,8 +244,8 @@ describe('Nomi Phase B · Today (render)', () => {
 
   it('activity is plain counts — no comparison, no ranking', () => {
     const html = renderOperationsHome(populated, 'en', obs);
-    expect(html).toContain('What Lily did');
-    expect(html).toContain('Buyers she talked to');
+    expect(html).toContain(t('en', 'ops.activity.title'));
+    expect(html).toContain(t('en', 'ops.activity.handled'));
     expect(html).toContain('Replies prepared');
     expect(html).toContain('Replies you corrected');
     for (const w of ['vs', 'compared', 'last week', 'trend', 'better', 'worse']) {
@@ -269,7 +268,7 @@ describe('Nomi Phase B · Today (render)', () => {
     expect(zh).toContain('你出面了几次');
     expect(zh).not.toContain('Needs your attention');
     const ar = renderOperationsHome(populated, 'ar', obs);
-    expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain('كم مرة تدخّلت');
+    expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain(t('ar', 'today.stepIn.title'));
     // the chevron must not point the wrong way in RTL
     expect(ar).toContain('class="go need-go"');                     // the shell mirrors it
   });

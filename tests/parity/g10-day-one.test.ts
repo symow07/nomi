@@ -6,7 +6,7 @@ import { sendPlan, windowState } from '../../src/core/channel/window.js';
 import { unlistedDuringPilot } from '../../src/core/conversation/inbound.js';
 import { PROBLEM_SIGNAL_KINDS, computeScores } from '../../src/core/scoring/signals.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, EMPLOYEE_NAME, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * G10 — day-one WhatsApp. The production walk is
@@ -79,7 +79,7 @@ describe('G10c · a number not on her list, while she is live in pilot', () => {
     for (const l of LOCALES) {
       for (const k of ['unlisted.title', 'unlisted.what', 'unlisted.why', 'unlisted.do',
         'takeover.reason.unlisted_number', 'received.photo', 'received.voice', 'inbox.blocked.window_closed'] as MessageKey[]) {
-        const said = t(l, k, { name: EMPLOYEE_NAME[l] });
+        const said = t(l, k, { name: ASSISTANT_FALLBACK[l] });
         expect(said, `${l} ${k}`).not.toBe(k);
         expect(said, `${l} ${k}`).not.toContain('{');
       }

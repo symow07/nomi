@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderEmployee, type EmployeeProfile } from '../../src/api/web/employee.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { t, withAssistantName, assistantName } from '../../src/api/web/say.js';
 
 const base: EmployeeProfile = {
   knows: 14,
@@ -42,23 +43,23 @@ const ownerReads = (html: string): string =>
 
 
 describe('M9.6 · employee profile (localized)', () => {
-  it('card: name is a per-locale constant; stage/role localized', () => {
+  it('card: headlined by the name in force (else "your assistant"); stage/role localized', () => {
     const zh = renderEmployee(base, 'zh', null);
-    expect(zh).toContain('小雅');                       // Phase C: the page IS her, not a file
+    expect(zh).toContain('<h1 class="page">你的助手</h1>');   // no name chosen: the fallback, never an invented name
     expect(zh).toContain('正式接待'); expect(zh).toContain('客户接待'); expect(zh).toContain('入职');
-    const en = renderEmployee(base, 'en', null);
-    expect(en).toContain('Lily');                       // the headline IS her name
+    const en = withAssistantName('Lily', () => renderEmployee(base, 'en', null));
+    expect(en).toContain('<h1 class="page">Lily</h1>');      // the headline IS the chosen name
     expect(en).toContain('Customer reception');
-    expect(renderEmployee(base, 'ar', null)).toContain('ياسمين');
+    expect(renderEmployee(base, 'ar', null)).toContain('<h1 class="page">مساعدك</h1>');
   });
 
   it('duties: canDo / needConfirm / cannotDo from capability codes', () => {
     const zh = renderEmployee(base, 'zh', null);
-    expect(zh).toContain('她自己处理'); expect(zh).toContain('接待问候');   // Phase C: permission language
+    expect(zh).toContain(t('zh', 'her.handles.alone')); expect(zh).toContain('接待问候');   // Phase C: permission language
     expect(zh).toContain('要等你确认'); expect(zh).toContain('报价');     // quote — permission, not skill
     expect(zh).toContain('始终要等你确认'); expect(zh).toContain('确认订单'); // confirm_order: always
     const en = renderEmployee(base, 'en', null);
-    expect(en).toContain('She handles this herself'); expect(en).toContain('Greeting');
+    expect(en).toContain(t('en', 'her.handles.alone')); expect(en).toContain('Greeting');
     expect(en).toContain('Waits for you'); expect(en).toContain('Quoting');
     expect(en).toContain('Always waits for you'); expect(en).toContain('Confirming orders');
   });
@@ -83,7 +84,7 @@ describe('M9.6 · employee profile (localized)', () => {
     expect(zh).toContain('✓ 通过一次抽查'); expect(zh).toContain('○ 学会一次修正');
     const en = renderEmployee(probation, 'en', null);
     expect(en).toContain('Promotion'); expect(en).toContain('Probation');
-    expect(en).toContain('Handling some on her own');
+    expect(en).toContain(t('en', 'employee.stage.partial'));
     expect(en).toContain('✓ Pass one spot-check'); expect(en).toContain('○ Learn one correction');
   });
 
@@ -126,16 +127,20 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     ],
   };
 
-  it('the page is HER — headlined by her name in every locale', () => {
-    for (const [l, n] of [['en', 'Lily'], ['zh', '小雅'], ['ar', 'ياسمين']] as const) {
-      expect(renderEmployee(base, l, null, ctx)).toContain(`<h1 class="page">${n}</h1>`);
+  it('the page is the assistant — headlined by the chosen name in every locale', () => {
+    for (const l of LOCALES) {
+      // A chosen name is stored once and shown as-is, whatever the language.
+      expect(withAssistantName('Lily', () => renderEmployee(base, l, null, ctx)))
+        .toContain('<h1 class="page">Lily</h1>');
+      // No name chosen yet: the capitalised "your assistant" label.
+      expect(renderEmployee(base, l, null, ctx)).toContain(`<h1 class="page">${assistantName(l)}</h1>`);
     }
   });
 
-  it('what she knows: her learning, with a real lifetime count', () => {
+  it('what the assistant knows: the learning, with a real lifetime count', () => {
     const html = renderEmployee(base, 'en', null, ctx);
-    expect(html).toContain('What she knows');
-    expect(html).toContain('Things she learned from you');
+    expect(html).toContain(t('en', 'her.knows.title'));
+    expect(html).toContain(t('en', 'her.knows.count'));
     expect(html).toContain('>14<');            // base.knows
     expect(html).toContain('Added recently');
     expect(html).toContain('You corrected');
@@ -145,15 +150,15 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('never taught anything: says so, and offers the one next action', () => {
     const html = renderEmployee({ ...base, knows: 0 }, 'en', null,
       { ...ctx, taughtRecently: 0, corrected: 0 });
-    expect(html).toContain('She has not been taught anything yet');
+    expect(html).toContain(t('en', 'her.knows.none'));
     expect(html).toContain('Teach');                    // the existing teach flow
-    expect(html).not.toContain('Things she learned from you');
+    expect(html).not.toContain(t('en', 'her.knows.count'));
   });
 
-  it('what she handles: permission language, never a measure of ability', () => {
+  it('what the assistant handles: permission language, never a measure of ability', () => {
     const html = renderEmployee(base, 'en', null, ctx);
-    expect(html).toContain('What she handles on her own');
-    expect(html).toContain('She handles this herself');
+    expect(html).toContain(t('en', 'her.handles.title'));
+    expect(html).toContain(t('en', 'her.handles.alone'));
     expect(html).toContain('Waits for you');
     expect(html).toContain('Always waits for you');     // confirm_order, by design
     for (const w of ['accuracy', 'confidence', 'quality', 'performance', 'score', 'rating', 'capability matrix']) {
@@ -169,7 +174,7 @@ describe('Nomi Phase C · 小雅 (render)', () => {
   it('recently: real counts including how often you were needed', () => {
     const html = renderEmployee(base, 'en', null, ctx);
     expect(html).toContain('Recently');
-    expect(html).toContain('>12<'); expect(html).toContain('Buyers she talked to');
+    expect(html).toContain('>12<'); expect(html).toContain(t('en', 'ops.activity.handled'));
     expect(html).toContain('>8<');  expect(html).toContain('Replies prepared');
     expect(html).toContain('>2<');  expect(html).toContain('Needed your help');
   });
@@ -180,33 +185,33 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     expect(html).toContain('No conversations yet.');
   });
 
-  it('what she needs: every gap leads to the EXISTING teach flow', () => {
+  it('what the assistant needs: every gap leads to the EXISTING teach flow', () => {
     const html = renderEmployee(base, 'en', null, ctx);
-    expect(html).toContain('What she still needs from you');
+    expect(html).toContain(t('en', 'her.teach.title'));
     expect(html).toContain('Do you ship to Dubai?');
     expect(html).toContain('asked 4×');
     expect(html).toContain('href="/app/knowledge?teach=Do%20you%20ship%20to%20Dubai%3F');
-    expect(html).toContain('Teach her');
+    expect(html).toContain(t('en', 'her.teach.go'));
     expect(html).not.toContain('<textarea');           // no second knowledge editor
   });
 
   it('nothing to teach is a success state', () => {
     const html = renderEmployee(base, 'en', null, { ...ctx, gaps: [] });
-    expect(html).toContain('she answered everything from what you taught');
+    expect(html).toContain(t('en', 'her.teach.none'));
   });
 
   it('the new sections are omitted entirely without context', () => {
     const html = renderEmployee(base, 'en', null);
     expect(html).not.toContain('Recently');
-    expect(html).not.toContain('What she still needs from you');
+    expect(html).not.toContain(t('en', 'her.teach.title'));
   });
 
   it('renders in zh + ar, with the RTL chevron handled', () => {
     const zh = renderEmployee(base, 'zh', null, ctx);
-    expect(zh).toContain('她知道什么'); expect(zh).toContain('她可以自己处理的');
-    expect(zh).toContain('她还需要你教的');
+    expect(zh).toContain(t('zh', 'her.knows.title')); expect(zh).toContain(t('zh', 'her.handles.title'));
+    expect(zh).toContain(t('zh', 'her.teach.title'));
     const ar = renderEmployee(base, 'ar', null, ctx);
-    expect(ar).toContain('ما تعرفه'); expect(ar).toContain('ما تتولّاه بنفسها');
+    expect(ar).toContain(t('ar', 'her.knows.title')); expect(ar).toContain(t('ar', 'her.handles.title'));
     expect(ar).toContain('<span class="go" aria-hidden="true">');   // the shell mirrors it
   });
 

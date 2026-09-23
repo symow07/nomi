@@ -182,7 +182,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
       ${stat(d.employee.edits, 'analytics.employee.edits')}
     </div>
     ${d.employee.answered ? `<p class="own-line">${esc(t(locale, 'analytics.employee.own', {
-      hers: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
+      own: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
     <p class="muted foot">${esc(t(locale, 'analytics.employee.foot', { range: rangeLabel }))}</p></div>`;
 
   return `${title}${tabs}${summary}${activity}${commerce}${employee}${ANALYTICS_STYLE}`;
