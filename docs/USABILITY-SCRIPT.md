@@ -35,6 +35,27 @@
 - Instagram **未连接**
 - 参与者用自己的手机，或者 390px 宽的浏览器窗口
 
+### 两条命令，把工作台准备好
+
+在这台电脑上跑一个本地实例（不碰线上），再把测试用的工作台铺上去：
+
+```bash
+bash .claude/skills/run-nomi/smoke.sh
+MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55440/nomi node tools/seed-usability.mjs
+```
+
+第二条会把上面的清单逐项核对一遍，全部打勾才算准备好。参与者在 390px 宽的
+浏览器窗口打开 http://127.0.0.1:8787/login ，点「我有进入密码」，输入 `smoke-code`。
+
+本地实例和线上的三处差别，主持人要知道：
+
+- 「等你」里会有两条：交给陈莉的那条（任务一），和等你批准的草稿（任务二）。
+  任务一照原话念，成功标准不变。
+- 任务二按下「发送」后看到的是「已保存。消息通道还没打开，所以没有发给买家。」
+  本地没有接通道，这句就是确认。
+- 任务五点「连接」不会真的跳到 Instagram（本地没有配置 Meta）。找到渠道页、
+  按下去，就算完成。
+
 ---
 
 ## 五个任务
@@ -156,6 +177,28 @@ staff member, already replied to, long idle** (the A9 case); at least one
 **draft awaiting approval**; three products, one with price tiers; activity
 **yesterday** so Results has something to show; Instagram **not connected**;
 their own phone or a 390px window.
+
+**Two commands prepare it**, on this machine, against a local instance that
+never touches production:
+
+```bash
+bash .claude/skills/run-nomi/smoke.sh
+MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55440/nomi node tools/seed-usability.mjs
+```
+
+The second checks the list above line by line and says "Ready" only when
+every line holds. The participant opens http://127.0.0.1:8787/login in a
+390px window, taps "I have an access code", and enters `smoke-code`.
+
+Three things a local instance does differently, for the facilitator:
+
+- Waiting lists two: the conversation handed to 陈莉 (task one) and the draft
+  awaiting approval (task two). Read task one as written; success is unchanged.
+- After Send in task two the notice reads "Saved. Messaging is not switched
+  on yet, so nothing went to the buyer." No channel is connected locally; that
+  line is the confirmation.
+- Connect in task five does not reach Instagram (no Meta configuration
+  locally). Finding Channels and pressing it is the success.
 
 ## The five
 
