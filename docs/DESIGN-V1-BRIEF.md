@@ -383,6 +383,57 @@ Answer them whenever; none blocks decision 1.
 
 ---
 
+## 11 · Proposal — the phone chrome at rest, under 120 px
+
+Asked by the owner on 2026-09-24, after step three: the chrome above content
+at rest is 162–201 px, and most of it is the two bands themselves. Nothing
+below is built. Each option was prototyped by injecting CSS on the running
+product and measured where `main` begins on a 390 px phone, on Today, in
+three languages; the screenshots are in `docs/design/v1-chrome/`
+(`<option>-<locale>.png`, the top 300 px).
+
+| Option | What changes | en | zh | ar | Every control ≥ 44 px |
+|---|---|---|---|---|---|
+| current | — | 191 | 162 | 201 | yes |
+| **A** · one band | the name band goes; language and log out move to Setup (the login page keeps its switcher) | **80** | **85** | **87** | yes (56) |
+| B · both bands shrink | nav 60–67, band 59–87; all controls kept at 44 | 147 | 124 | 126 | yes |
+| **C** · one band, six cells | the name band goes; a sixth cell "More" holds language and log out | **80** | **85** | **87** | yes (56) |
+| E · controls-only band | the name leaves the band (it is already the nav entry); language and log out stay in a 59 px row | 139 | 144 | 146 | yes |
+
+**What the numbers say.** Two bands cannot get under 120 while every
+control stays a 44 px target and the nav keeps two-line labels: the nav
+alone is 60–87 px, and the thinnest honest band is 59. B fails in English
+because "Your assistant · English 中文 العربية · Log out" wraps to two rows.
+Under 120 means one band.
+
+**A — recommended.** The nav row is the chrome: mark, five entries, the
+Setup count. The two things the band carried go where they are used
+rarely: the language switch and log out become the first two rows on
+Setup, and the login page already has its switcher, so a new owner still
+chooses a language before signing in. The assistant's name is not lost — it
+is the nav entry once the owner has chosen it (decision 4). Cost: switching
+language becomes two taps instead of one, and log out likewise; the
+"Probation · you're mentoring…" stage line, already hidden on phones,
+would go from the desktop band too or move to the assistant's page. Chrome
+at rest: 80–87 px.
+
+**C — the alternative if language must stay one tap away.** Same 80–87 px,
+but six cells at 390 px are 52 px each with two-line labels (`C-en.png`);
+Arabic is the tightest. It buys one tap at the cost of a permanently
+crowded row.
+
+**Not proposed.** Hiding the nav until scrolled, or a hamburger menu: both
+put the five destinations behind a tap, which the usability script's task
+one and task four are written to catch.
+
+**If A:** one PR against the shell and Setup — the band removed on every
+width, the switcher and log-out rendered by Setup, `header.stage` retired
+or moved, the shell tests updated deliberately (the "every header control is
+44 px" test loses its subject), screenshots before and after. Half a day.
+It touches no send path and no data.
+
+---
+
 ## 10 · How to look at everything yourself
 
 ```bash
