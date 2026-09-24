@@ -150,11 +150,11 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       .as-row { align-items:flex-start !important; }
       .as-edit, .as-add { margin-top:var(--space-8); }
       .as-edit summary, .as-add summary { cursor:pointer; color:var(--color-ink-secondary);
-                                          font-size:var(--font-size-note); }
+                                          font-size:var(--font-size-small); }
       .as-edit .pform, .as-add .pform { margin-top:var(--space-12); }
       .as-ch { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
       .as-ch legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
       .as-hint { font-size:var(--font-size-caption); }
-      .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-note); }
+      .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); }
     </style>`;
 }

@@ -281,7 +281,10 @@ What it means:
 - The shell collapses its two bands on scroll. The shell ships no script
   today; this is either the first script in the shell (small, and the page
   must read correctly without it) or a CSS scroll-driven animation. The
-  implementer chooses in the shell PR and says why.
+  implementer chooses in the shell PR and says why. **Whichever it is, the
+  shell must be fully usable with the script absent or failed — the nav
+  reachable, nothing stuck collapsed — and that PR says how this was
+  verified** (the owner, 2026-09-24).
 
 ### 3 · Colour — decided
 

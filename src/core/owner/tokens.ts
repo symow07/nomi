@@ -68,7 +68,13 @@ export const CARD_ORDER = [
  * transcribed into another one.
  */
 export const DESIGN_TOKENS = {
-  /** Type scale tuned for 45+ eyes: base 17, generous line height. */
+  /**
+   * Type scale — V1, decided by Symow 2026-09-24 (docs/DESIGN-V1-BRIEF.md §8):
+   * base 17 kept for 45+ eyes; the scale is 13/15/17/20/26/34, and the
+   * line-height is PER SCRIPT — the one value for three scripts was the rule
+   * V1 dropped. `hero` (34) is new and has no use yet; `micro` (12), `note`
+   * (14) and `numeral` (22) retired, their uses remapped to a neighbour.
+   */
   font: {
     family: `-apple-system, "PingFang SC", "Noto Sans SC", sans-serif`,
     /**
@@ -77,8 +83,14 @@ export const DESIGN_TOKENS = {
      * buttons. The distinction is the point; do not use it for emphasis.
      */
     voice: `ui-serif, Georgia, "Songti SC", "Noto Serif SC", "Noto Naskh Arabic", serif`,
-    sizePx: { micro: 12, caption: 13, note: 14, small: 15, base: 17, title: 20, numeral: 22, display: 26 },
-    lineHeight: 1.6,
+    sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
+    /** Set from `html[lang]`; the shell writes the locale there on every page. */
+    lineHeight: { en: 1.5, zh: 1.7, ar: 1.75 },
+    /**
+     * CJK never below weight 400 at 15 px and under (decision 1). No weight
+     * below 400 exists anywhere today; a test holds that it stays so.
+     */
+    weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
   },
   /** Semantic colors — mirror the text markers one-to-one. */
   color: {
@@ -144,7 +156,7 @@ export const DESIGN_TOKENS = {
     highlightWash: '#262112',
     highlightLine: '#43391C',
   },
-  spacingPx: [4, 8, 12, 16, 24, 32, 48, 64] as const,
+  spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
    * M49 — THE MEASURES. Three, and every width in the product is one of them.
    *

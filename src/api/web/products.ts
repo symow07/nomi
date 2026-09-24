@@ -463,7 +463,7 @@ export function renderAddForm(locale: Locale): string {
         <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}" autofocus></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
       </form>
-      <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'product.add.note'))}</p>
+      <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.add.note'))}</p>
     </div>
     <div class="block">
       <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
@@ -472,7 +472,7 @@ export function renderAddForm(locale: Locale): string {
         <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp" capture="environment" required />
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
-      <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
+      <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>${PRODUCT_STYLE}`;
 }
 
@@ -557,26 +557,26 @@ export function renderReview(
 }
 
 const PRODUCT_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); color:var(--color-ink); }
+  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink); min-height:44px; }
+  .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
   .prod:hover { border-color:var(--color-border); }
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; } .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .tag { color:var(--color-ok); font-size:var(--font-size-micro); margin-top:var(--space-8); } .tag.big { color:var(--color-ok); font-size:var(--font-size-note); margin-bottom:var(--space-12); }
+  .tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); } .tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); } 
-  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-note); }
+  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
   .chips, .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); } .qrow:last-child { border-bottom:none; }
-  .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); flex-wrap:wrap; }
+  .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); flex-wrap:wrap; }
   .rev:last-child { border-bottom:none; }
-  .rev-src { flex-basis:100%; font-size:var(--font-size-micro); }
+  .rev-src { flex-basis:100%; font-size:var(--font-size-caption); }
   .rev-move { flex-basis:100%; }
   .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }

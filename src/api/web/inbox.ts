@@ -1124,7 +1124,7 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
     </form>
     <style>
       .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
-                 margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-note); }
+                 margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
     </style>`;
 }
 
@@ -1329,17 +1329,17 @@ const INBOX_STYLE = `<style>
   .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
   .rf { padding:10px 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
-  .rf-w { font-size:var(--font-size-note); color:var(--color-highlight); }
+  .rf-w { font-size:var(--font-size-small); color:var(--color-highlight); }
   .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
-  .rf-d { font-size:var(--font-size-note); color:var(--color-ink); margin-top:var(--space-8); }
-  .rf-t { font-size:var(--font-size-micro); margin-top:var(--space-4); }
+  .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
+  .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   /* 0052 — a question, not a refusal: the same amber, plus her own words and
      the two answers. Nothing is pre-selected, because nothing may happen by
      itself here. */
   .card.unsure { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
   .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
     border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
-    font-size:var(--font-size-note); color:var(--color-ink); max-width:var(--measure-prose);
+    font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose);
     white-space:pre-wrap; }
   .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
   /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
@@ -1350,21 +1350,21 @@ const INBOX_STYLE = `<style>
   a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
   .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
-  .buyer-t { font-size:var(--font-size-micro); margin-top:var(--space-12); }
-  .tag { font-size:var(--font-size-micro); font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
+  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
+  .tag { font-size:var(--font-size-caption); font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
   .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
   .review-intro { margin:0 0 var(--space-12); }
-  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-note); color:var(--color-waiting); }
-  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-note); }
+  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-waiting); }
+  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-small); }
   .draft .held-then b { font-weight:600; }
   .voiceplay { display:block; margin:var(--space-8) 0; }
   .answernow { margin-top:var(--space-8); }
   .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
-            margin-top:var(--space-12); font-size:var(--font-size-note); }
+            margin-top:var(--space-12); font-size:var(--font-size-small); }
   .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
-              margin-top:var(--space-12); font-size:var(--font-size-note); }
+              margin-top:var(--space-12); font-size:var(--font-size-small); }
   .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
   .revoke-note { margin:var(--space-8) 0 0; }
   /* M34 — a heard message says so. The label and the superseded reading are the
@@ -1376,8 +1376,8 @@ const INBOX_STYLE = `<style>
      blank lines — invisible in tests, obvious in a screenshot. */
   .bubble.voiced { white-space:normal; }
   .bubble.voiced .said { white-space:pre-wrap; }
-  .heard-label { font-family:var(--font-family); font-size:var(--font-size-micro); margin-bottom:var(--space-8); }
-  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-note); }
+  .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
+  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
   .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);
           border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
   .fixheard { margin-top:var(--space-12); font-family:var(--font-family); }
@@ -1385,7 +1385,7 @@ const INBOX_STYLE = `<style>
   .fixheard form { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); }
   .knew { /* provenance panel, not a state boundary — no card, no tinted border */ }
   .knewlist { list-style:none; margin:0; padding:0; }
-  .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .knewlist li:last-child { border-bottom:0; }
   @media (max-width:560px) {
     a.buyer { padding:15px 16px; }
@@ -1398,13 +1398,13 @@ const INBOX_STYLE = `<style>
   .conv:hover { border-color:var(--color-border); }
   .conv-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
   .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:var(--space-8); }
-  .conv-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .conv-m { margin-top:var(--space-8); font-size:var(--font-size-note); color:var(--color-ink-secondary); }
-  .conv-t { font-size:var(--font-size-micro); margin-top:var(--space-8); }
+  .conv-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .conv-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .conv-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .dhead .who { font-size:var(--font-size-small); }
   .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
-  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:var(--space-16); font-size:var(--font-size-note); display:flex; flex-direction:column; gap:var(--space-4); }
+  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:var(--space-16); font-size:var(--font-size-small); display:flex; flex-direction:column; gap:var(--space-4); }
   .card.draft { border-color:var(--color-waiting-line); }
   .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
   .editform { display:flex; flex-direction:column; gap:var(--space-8); }
@@ -1414,7 +1414,7 @@ const INBOX_STYLE = `<style>
   .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
   .why { flex-basis:100%; font-size:var(--font-size-caption); }
-  .lastact { flex-basis:100%; font-size:var(--font-size-micro); }
+  .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
   .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
   @media (max-width:560px) { .conv, .card { border-radius:12px; } }
 </style>`;

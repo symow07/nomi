@@ -192,8 +192,8 @@ const ANALYTICS_STYLE = `<style>
   .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .deals { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); }
   .deals 
-  .deals .total { width:100%; font-size:var(--font-size-note); margin-top:var(--space-8); }
+  .deals .total { width:100%; font-size:var(--font-size-small); margin-top:var(--space-8); }
   .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:var(--space-8); }
-  .own-line { margin:var(--space-12) 0 0; font-size:var(--font-size-note); }
-  .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-micro); }
+  .own-line { margin:var(--space-12) 0 0; font-size:var(--font-size-small); }
+  .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
 </style>`;

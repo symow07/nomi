@@ -438,7 +438,7 @@ export function renderOperationsHome(
     .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:var(--space-24) 0 0;
                padding-top:16px; border-top:1px solid var(--color-border); }
     @media (max-width:560px) {
-      .need-n { font-size:var(--font-size-numeral); }
+      .need-n { font-size:var(--font-size-title); }
       a.need { padding:15px 16px; }
     }
   </style>`;

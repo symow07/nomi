@@ -271,10 +271,10 @@ const KNOWLEDGE_STYLE = `<style>
   .krow:hover { border-color:var(--color-border); }
   .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
   .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  .kh .src { margin-inline-start:auto; font-size:var(--font-size-micro); }
+  .kh .src { margin-inline-start:auto; font-size:var(--font-size-caption); }
   .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
-  .teach h3 { margin:0; font-size:var(--font-size-note); }
+  .teach h3 { margin:0; font-size:var(--font-size-small); }
   input[type=text], textarea, select { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:var(--space-8); }
   .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }

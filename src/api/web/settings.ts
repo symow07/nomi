@@ -453,7 +453,7 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null): st
     <style>
       .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
       .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border);
-                      color:var(--color-ink-secondary); font-size:var(--font-size-note); }
+                      color:var(--color-ink-secondary); font-size:var(--font-size-small); }
       .rate-hist li:last-child { border-bottom:0; }
     </style>`;
 }
@@ -778,7 +778,7 @@ export function renderSamples(v: SamplesView, locale: Locale, flash: Flash | nul
       .sreqs { list-style:none; margin:var(--space-12) 0 0; padding:0;
                display:flex; flex-direction:column; gap:var(--space-24); }
       .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
-      .sreq-q { font-size:var(--font-size-note); margin-top:var(--space-4); max-width:var(--measure-prose); }
+      .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
       .sreq-a { display:flex; flex-direction:column; gap:var(--space-8);
                 margin-top:var(--space-8); max-width:var(--measure-form); }
       .sreq-a textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border);
