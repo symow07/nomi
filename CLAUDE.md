@@ -98,7 +98,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `da0b7f7` (merge of #75). `/health` →
+- **Deployed:** `05486a8` (merge of #78). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
 - **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
@@ -131,6 +131,9 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 78 | **V1 review fixes** — `.who` → `.person` (the stacked header), no face + quiet caveat on the assistant's page, products a dense list with marks only for what is NOT fine, `.stats/.rows` at the prose measure, `dir="auto"` on speech, titles on Today/Practice/Knowledge, one door idiom (`deeper next`) |
+| 77 | `docs/DESIGN-V1-REVIEW.md` — a designer's pass, five worst things with screenshots |
+| 76 | CLAUDE.md handoff |
 | 75 | **V1 step four, the batch** — eleven pages' blocks moved into `STYLE_PAGES` (served with the shell only), legal/unsubscribe/proof share `publicDocument()`; baseline 29 → 6 (the shell's three, Buyers' two, Customers' one) |
 | 74 | V1 step four, Today: counts are the shell's stat rows, tappable; the calm state moves to the shell; 30 → 29 |
 | 73 | CLAUDE.md handoff |
