@@ -69,12 +69,15 @@ env -u NODE_ENV \
   WEBHOOK_VERIFY_TOKEN="smoke-verify-token-0001" \
   WEBHOOK_SECRET="smoke-webhook-secret-0000000000000000" \
   OWNER_ACCESS_CODE="$CODE" \
+  LEGAL_CONTACT_EMAIL="privacy@example.com" \
   PORT="$APPPORT" \
   node dist/main.js &> "$SK/app.log" &
 APP_PID=$!
 
 echo "[5/6] wait for /health"
-for _ in $(seq 1 60); do
+# Up to three minutes: on an iCloud-synced checkout a cold boot can take well
+# over the thirty seconds this once allowed (2026-09-24).
+for _ in $(seq 1 360); do
   curl -sf "$BASEURL/health" >/dev/null 2>&1 && break
   kill -0 "$APP_PID" 2>/dev/null || fail "server exited during startup"
   sleep 0.5
