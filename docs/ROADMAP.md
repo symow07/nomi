@@ -2358,6 +2358,11 @@ second way to style a page.
 5. The row: what a message row shows — who, when, the category tag, one line
    of preview — and what a buyer row shows.
 
+**Decided 2026-09-24** (`docs/DESIGN-V1-BRIEF.md` §8): 1 type, 2 spacing and
+density, 3 colour (dark mode out of V1), 4 components — by Symow. **5, the
+row, is deferred until after the usability session**; the inbox step waits
+behind it.
+
 **Order within V1:** decisions → tokens → the components on one owner-only
 page under Setup, so every state is reviewed and screenshotted in one place →
 the shell → the inbox → the rest, page by page. Each step is a PR against the
