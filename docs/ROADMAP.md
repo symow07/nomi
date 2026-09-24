@@ -2290,6 +2290,126 @@ restores, allowlist, activation. Everything here is procedure, not code.
 
 ---
 
+## 2b. The queue after the audit — written 2026-09-24
+
+The audit of 2026-09-20 (`docs/AUDIT-2026-09-20.md`) set six phases. Three
+are done. What remains stands in this order, with two milestones added on
+2026-09-24 (**V1**, **V2**). **The order is the decision.** Nothing here is
+started early because it looks small, and nothing is started before the row
+above it has shipped.
+
+| # | What | Stands |
+|---|---|---|
+| Phase 1 | Stop saying untrue things | ✅ 2026-09-21 |
+| Phase 2 | Her data, out and gone (0064) | ✅ 2026-09-21 |
+| Phase 3 | The IA restructure (`docs/IA-PROPOSAL.md`): A9, B + C, D | ✅ PRs #44, #46, #54 (2026-09-21 → 23). **A** remains, below |
+| — | The usability script (`docs/USABILITY-SCRIPT.md`) | The owner runs it before A. What stalls feeds V1 and A |
+| **V1** | **The visual design pass** — a design system for the app | Before A, so the merged list is styled once |
+| Phase 3 · A | Merge Buyers into Customers, keep the name "Buyers"; search and paging | After V1, in its language |
+| **V2** | **The calendar view** — a timeline over dates the data already holds | After V1 (its language) and after A (its rows link into the merged buyer surface) |
+| Phase 4 | Permissions and first-run | |
+| Phase 5 | nomidoes.com, the marketing site | |
+| Phase 6 | Billing, then Meta Tech Provider review | M52 stays last, always |
+
+V2 sits after A rather than straight after V1 because its entries are per
+buyer and open the buyer's conversation; building it against a list that A is
+about to replace would style and link it twice. Moving it later costs
+nothing; moving it earlier does.
+
+### V1 — The visual design pass · QUEUED, before A
+
+Everything so far has been structure. M49 fixed the measure, the rhythm and
+the two voices; Phase 3 fixed where things live. Nothing has yet been
+*designed*. V1 is a real design system for the app: a typography scale, a
+spacing scale, colour, density, and the component styles — buttons, inputs,
+cards, list rows, chips, the notice, the empty state, the nav — drawn once and
+used everywhere.
+
+**Who does what.** Symow is the UI/UX lead. He directs the look — references,
+the type, colour, how dense each screen is, what a row looks like — and
+decides. Claude Code implements: tokens, components, the tests that hold them,
+and screenshots for his review at every step. The plan assumes that split; no
+visual decision is made by the implementer and then defended.
+
+**The target.** Genuinely minimal and purposeful. No decorative density; and
+no page so bare that its purpose is unclear — a page must say what it is for
+without a sentence explaining it. The inbox specifically reads as **one list
+of messages, each row tagged with its category**, not a set of panels.
+
+**What is already there and stays.** Tokens are defined once
+(`src/core/owner/tokens.ts` → `cssVariables` in `src/core/owner/css.ts`, named
+by value) and every page draws from them through `src/api/web/layout.ts`; a
+state colour needs a state-named class (`tests/parity/shell.test.ts`); the
+two-voice rule — serif only for what a person said — and the one-measure
+layout test are M49's; Playwright screenshots at three widths and three
+locales are G17's. V1 changes the values and grows the set. It does not add a
+second way to style a page.
+
+**What V1 has to answer** — Symow's decisions, written down before code:
+1. The type scale — and, separately, how Arabic and Chinese sit on it: the
+   three scripts do not share an x-height or a comfortable line-height, and
+   the scale is tested in all three, not in English and then translated.
+2. The spacing scale and the density per surface: lists dense, forms open,
+   reading pages narrow.
+3. Colour: ink and paper, one accent, and the state colours (waiting, refused,
+   done) — spent on state only, as M49 decided, in light and dark.
+4. The component set, each with its states: rest, hover, focus, disabled, and
+   mirrored for RTL.
+5. The row: what a message row shows — who, when, the category tag, one line
+   of preview — and what a buyer row shows.
+
+**Order within V1:** decisions → tokens → the components on one owner-only
+page under Setup, so every state is reviewed and screenshotted in one place →
+the shell → the inbox → the rest, page by page. Each step is a PR against the
+verification set, with screenshots for Symow before it merges.
+
+**Why before A.** A merges two lists into one, with search and paging. Styling
+that list twice — once as it is, again after V1 — is the waste V1 is placed
+here to avoid.
+
+**Rules it inherits:** three locales, RTL, every surface; owner language only;
+tests assert structure — tokens, classes, provenance — never literal CSS
+values; no colour that is not a token; inline CSS comments ship to the
+browser and are scanned like copy.
+
+### V2 — The calendar view · QUEUED, after V1 and A
+
+A filtered timeline over dates the data already holds, per buyer: sample
+requests, follow-ups, shipping, negotiation milestones, the factory's
+closures. **A view, not a new data model.** Filterable by category. Built in
+V1's language, after A, because each entry opens a buyer.
+
+**Dates that exist today**, by category — every one already a column (read on
+2026-09-24):
+- Samples: `sample_requests.requested_at`, `handled_at`.
+- Orders: `orders.confirmed_at`; each state change in `order_updates.at`
+  (confirmed, in production, shipped, cancelled), with its tracking reference.
+- Negotiation: `quotes.created_at` (a price was given);
+  `handoffs.sla_deadline_at` (a person owes a reply by then); the reply window
+  per conversation (`src/core/channel/window.ts`).
+- Follow-ups: `sequence_enrollments.next_due_at` — the outreach area only, so
+  only where that area is on.
+- Closures: `factory_closures.starts_on` → `ends_on`.
+- Conversations: `conversation_state.last_message_at`, `conversations.closed_at`.
+
+**What does not exist, and V2 does not add:** a promised ship date, a sample
+deadline, a next follow-up on a buyer outside a sequence. Each would be a new
+column — a data-model change and a separate decision, taken before V2 or not
+at all. V2 shows what happened and what is due from what the product already
+knows, and never invents a date (§3: no invented numbers).
+
+**Shape.** One route in the Buyers hub; one list of days; each entry a date, a
+category tag (the same tags V1 gives the inbox rows), the buyer, one line, and
+a link to the conversation. Filters: category, buyer. Default range: the past
+week and the coming two. Every read inside `withTenantTx`. No writes, no job,
+no table.
+
+**Tests:** every entry names the row it came from (provenance, not a
+summary); a category filter excludes exactly the other categories; another
+tenant's buyer never appears; three locales, RTL, the empty state.
+
+---
+
 ## 3. Standing instructions for every milestone
 
 - One send path. One approval path. One ownership model. One knowledge source.
