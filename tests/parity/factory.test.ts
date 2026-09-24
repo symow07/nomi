@@ -6,6 +6,7 @@ import type { ActivationRefusal } from '../../src/channels/activation.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { t as say } from '../../src/api/web/say.js';
+import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { esc } from '../../src/api/web/layout.js';
 import { readFileSync } from 'node:fs';
 
@@ -179,11 +180,12 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
-    expect(renderFactory(complete, 'en')).not.toContain('class="fnext"');
+    // V1 review fix: the next step is a door like the others, marked `next` so it can be counted.
+    expect(renderFactory(complete, 'en')).not.toContain('class="deeper next"');
     for (const [step, href] of [['profile', '/app/settings'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
       const html = renderFactory({ ...fresh, nextStep: step }, 'en');
-      expect(html.split('class="fnext"').length - 1, step).toBe(1);
-      expect(html).toContain(`class="fnext" href="${href}"`);
+      expect(html.split('class="deeper next"').length - 1, step).toBe(1);
+      expect(html).toContain(`class="deeper next" href="${href}"`);
     }
   });
 

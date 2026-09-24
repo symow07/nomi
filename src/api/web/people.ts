@@ -242,7 +242,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
       <ul class="rows">${v.people.map((p) => `<li class="row">
-        <span class="who"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
+        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
           <span class="muted">${esc(formatDate(locale, p.addedAt))}</span></span>
           <span class="caption"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">

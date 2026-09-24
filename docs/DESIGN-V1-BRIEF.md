@@ -407,6 +407,13 @@ documents carry the base rules only and kept their size (the door: 32 KB
 before and after). The pages that dissolve their sections into families as
 V1 designs them bring the shell's number back down.
 
+**The review (2026-09-24).** `docs/DESIGN-V1-REVIEW.md`: a designer's pass
+over the result, five worst things with a screenshot each, and what the
+owner had fixed the same day — the stacked buyer header (a `.who` name
+collision from step four), the assistant's face and shouted caveat, products
+as cards with green marks on every one, the row measure at desktop, and
+Latin speech right-aligned in Arabic. Two items wait on decision 5.
+
 ### 5 · The row — PENDING
 
 Deferred until the usability session has run (F7 tests exactly this).

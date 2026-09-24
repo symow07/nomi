@@ -100,8 +100,8 @@ export const isOutreachRoute = (url: string): boolean => {
  * .fmore, .link, a bare <a> — so the same affordance looked different on every
  * page. One shape, one style, mirrored in RTL by `.go`.
  */
-export const deeper = (href: string, label: string): string =>
-  `<a class="deeper" href="${href}">${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
+export const deeper = (href: string, label: string, extra = ''): string =>
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}">${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
@@ -391,6 +391,9 @@ ${cssVariables()}
      column that names someone; two text sizes; a fieldset of choices; the
      one-time access code; the stopped pill. */
   .rows { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  /* A list of counts or rows is read, not scanned: it keeps the prose measure,
+     so a figure, its word and its chevron stay together at 1280 px. */
+  .stats, .rows { max-width:var(--measure-prose); }
   .row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap;
     padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .row:last-child { border-bottom:0; }
@@ -399,7 +402,9 @@ ${cssVariables()}
   .row p { margin:0; }
   .row .btn { flex:none; }
   .grow { flex:1; min-width:0; }
-  .who { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  /* .who is the inbox's inline line (flag · name · country) and must stay
+     inline; the column that names someone on People is .person. */
+  .person { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
   .caption { font-size:var(--font-size-caption); }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
@@ -549,7 +554,6 @@ const STYLE_PAGES = `
   .levels .btn { align-self:flex-start; }
   /* Above the choice, not below it: she reads what happens before she decides, which is the whole point of putting it on this page. */
   .disclose { border-inline-start:1px solid var(--color-border); padding-inline-start:var(--space-12); margin-block:var(--space-12) 0; }
-  .needname { color:var(--color-waiting); margin-block:var(--space-12) 0; }
   /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
   .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
   .scheck:last-child { border-bottom:0; }
@@ -572,7 +576,6 @@ const STYLE_PAGES = `
   .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-small); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
   .emp-h { display:flex; align-items:center; gap:var(--space-12); }
-  .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-title); }
   .emp-name { font-size:var(--font-size-title); font-weight:700; }
   .dgroup { margin-bottom:var(--space-16); }
   .dtitle { font-weight:600; margin-bottom:var(--space-8); }
@@ -594,9 +597,6 @@ const STYLE_PAGES = `
   .lede { color:var(--color-ink-secondary); margin:0 0 var(--space-24); font-size:var(--font-size-small); max-width:var(--measure-prose); }
   /* The next step is a door, not a checklist row. It vanishes when done. */
   /* M49 — the next step is an ACTION, not a state. Filled in jade it was the loudest object on a page about somebody's factory, and it competed with the two lines that actually report how her business stands. A raised sheet says "start here" without spending the one colour that means something. */
-  .fnext { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:14px; padding:var(--space-16); margin-bottom:var(--space-24); }
-  .fnext:hover, .fnext:focus-visible { border-color:var(--color-ink-secondary); }
-  .fnext-t { color:var(--color-ink); font-size:var(--font-size-small); font-weight:600; }
   /* Sections are grouped decisions, not settings panels. */
   .fblock { border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
   .fblock:first-of-type { border-top:0; padding-top:0; }
@@ -649,11 +649,12 @@ const STYLE_PAGES = `
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
-  .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
-  .prod:hover { border-color:var(--color-border); }
+  /* Products are a dense list (decision 2), not a card each. */
+  .prod { display:block; padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:inherit; }
+  .prod:last-child { border-bottom:0; }
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .p-tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .p-tag { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
@@ -722,8 +723,6 @@ const STYLE_PAGES = `
   .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
 
   /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
-  .stat.big .v { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); }
-  .stat.big .l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
   .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .reqs .q { color:var(--color-ink); }

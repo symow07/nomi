@@ -123,7 +123,7 @@ export function renderProspects(
     ? (v.outcome.prospects.length === 0
       ? `<div class="empty">${esc(t(locale, 'prospects.results.none'))}</div>`
       : `<ul class="rows">${v.outcome.prospects.map((p) => `<li class="row lines">
-          <div class="dhead"><span class="who"><bdi>${esc(p.name)}</bdi></span>
+          <div class="dhead"><span class="person"><bdi>${esc(p.name)}</bdi></span>
             ${p.title ? `<span class="muted"><bdi>${esc(p.title)}</bdi></span>` : ''}</div>
           <div class="small">${[p.organization, [p.city, p.country].filter(Boolean).join(', ')]
             .filter(Boolean).map((x) => `<bdi>${esc(x!)}</bdi>`).join(' · ')}</div>

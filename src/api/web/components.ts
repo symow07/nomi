@@ -63,10 +63,10 @@ export function renderComponents(locale: Locale): string {
 
   const speech = `
     <div class="timeline">
-      <div class="msg inbound"><div class="bubble"><bdi>${s('sample.buyer')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
-      <div class="msg outbound"><div class="bubble"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
+      <div class="msg inbound"><div dir="auto" class="bubble"><bdi>${s('sample.buyer')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
+      <div class="msg outbound"><div dir="auto" class="bubble"><bdi>${s('sample.reply')}</bdi></div><div class="ts muted">${s('state.rest')}</div></div>
     </div>
-    <div class="proposed"><bdi>${s('sample.reply')}</bdi></div>`;
+    <div dir="auto" class="proposed"><bdi>${s('sample.reply')}</bdi></div>`;
 
   const counts = `
     <div class="stats">

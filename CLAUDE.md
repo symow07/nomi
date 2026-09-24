@@ -235,6 +235,13 @@ HTML now, the door 32 KB as before).
 Page tests no longer read a page's own `<style>`: they assert the page is
 bare and, where they must, read the shell's section from `layout.ts`
 (factory.test.ts shows how).
+**The V1 review** (`docs/DESIGN-V1-REVIEW.md`) found five things; all five
+and the plainly-wrong extras were fixed the same day (the `.who` column
+became `.person`; no face anywhere; products a dense list with marks only
+for what is NOT fine; `.stats/.rows` keep the prose measure; `dir="auto"`
+on speech; titles on Today, Practice, Knowledge; one door idiom, the next
+step marked `deeper next`). Still open, behind decision 5: "Log out" on
+Setup, channels' trailing pills.
 Recurring traps: a CSS comment or class name ships to the browser and is
 scanned (no "token", no "stack", no "%"); a page never paints its own
 notice (`flashBanner`); `<a class="btn">` is still common — the

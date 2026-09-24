@@ -1363,10 +1363,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       loadPilotFeedback(deps.db, s.businessId, 'today'),
       loadInsights(deps.db, s.businessId),
     ]);
-    return renderInsights(insights, locale) + renderOperationsHome(snapshot, locale, {
+    return renderOperationsHome(snapshot, locale, {
       conversationsNeedingYou: feedback.conversationsNeedingYou,
       reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
-    });
+    }, renderInsights(insights, locale));
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
@@ -3246,7 +3246,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const view = await loadSandboxView(sbxDeps).catch(() => null);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: renderPractice(practice, locale) + (view
+        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale) + (view
           ? renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill })
           : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
       }));

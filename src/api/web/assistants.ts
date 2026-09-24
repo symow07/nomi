@@ -125,7 +125,7 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
       <h2>${esc(t(locale, 'assistants.title'))}</h2>
       <p class="muted">${esc(t(locale, 'assistants.intro', { who: main?.name ?? '' }))}</p>
       <ul class="rows">${assistants.map((a) => `<li class="row top">
-        <span class="who"><span><bdi>${esc(a.name)}</bdi>
+        <span class="person"><span><bdi>${esc(a.name)}</bdi>
           <span class="pill">${esc(t(locale, `assistants.role.${a.role}` as MessageKey))}</span>${
           a.isDefault ? ` <span class="pill ok">${esc(t(locale, 'assistants.default.pill'))}</span>` : ''}</span>
           <span class="muted">${esc(answers(a))}</span>

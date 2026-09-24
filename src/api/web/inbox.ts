@@ -269,7 +269,7 @@ export function defaultFilter(waitingCount: number): InboxFilter {
  * described silently missing.
  */
 function receivedBubble(locale: Locale, m: TimelineMessage): string {
-  return `<div class="bubble voiced">`
+  return `<div dir="auto" class="bubble voiced">`
     + `<div class="heard-label muted">📎 ${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
     + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
     + `</div>`;
@@ -369,7 +369,7 @@ function voiceBubble(locale: Locale, m: TimelineMessage, conversationId: string)
   // when there is nothing to label the line speaks for itself.
   const label = heardNothing ? null
     : m.heard === 'voice_corrected' ? t(locale, 'voice.corrected') : t(locale, 'voice.heardAs');
-  return `<div class="bubble voiced">`
+  return `<div dir="auto" class="bubble voiced">`
     + (label ? `<div class="heard-label muted">🎤 ${esc(label)}</div>` : '')
     + player
     + body
@@ -1145,7 +1145,7 @@ export function renderConversationDetail(
         <div class="msg ${m.direction}">
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
-            : `<div class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
+            : `<div dir="auto" class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
           <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${
             m.direction === 'inbound' ? esc(t(locale, 'common.buyer'))
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
@@ -1167,7 +1167,7 @@ export function renderConversationDetail(
         ${d.pendingDraft.forbidden?.length
           ? `<p class="held-why muted"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, d.pendingDraft.forbidden) }))}</bdi></p>`
           : ''}
-        <div class="proposed"><bdi>${esc(d.pendingDraft.draftText)}</bdi></div>
+        <div dir="auto" class="proposed"><bdi>${esc(d.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>

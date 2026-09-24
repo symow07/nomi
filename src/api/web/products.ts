@@ -356,9 +356,8 @@ const STATUS_KEY = {
   needs_price: 'product.status.needsConfirm', needs_limits: 'product.status.needsLimits', not_offered: 'product.status.notOffered',
 } as const;
 const statusPill = (locale: Locale, status: ProductStatus): string =>
-  status === 'learned'
-    ? `<span class="pill ok">${esc(t(locale, 'product.status.learned'))} ✓</span>`
-    : `<span class="pill warn">${esc(t(locale, STATUS_KEY[status]))}</span>`;
+  // An absent mark means fine: only what is NOT in order gets a pill.
+  status === 'learned' ? '' : `<span class="pill warn">${esc(t(locale, STATUS_KEY[status]))}</span>`;
 
 export function renderProductList(items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null): string {
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
@@ -380,10 +379,10 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
         ${p.entryPrice !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatMoney(p.entryPrice))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
         ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
       </div>
-      ${p.imageMatchable ? `<div class="p-tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
+      ${p.imageMatchable ? '' : `<div class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</div>`}
     </a>`;
   }).join('');
-  return `${head}<div class="list">${cards}</div>`;
+  return `${head}<div class="rows">${cards}</div>`;
 }
 
 export function renderProductDetail(

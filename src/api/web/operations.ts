@@ -253,6 +253,8 @@ const countLine = (value: number, label: string): string =>
 
 export function renderOperationsHome(
   s: OperationsSnapshot, locale: Locale, takeover?: TakeoverObservation,
+  /** What sits under the title before the day's counts — Today's insight rows. */
+  lead = '',
 ): string {
   const name = assistantName(locale);
 
@@ -391,7 +393,7 @@ export function renderOperationsHome(
   const notLive = !(s.channel.live ?? s.channel.provider !== 'disabled')
     ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
-  return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>
+  return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>${lead}
   ${attention}
   ${finishSetup}
   ${budget}
