@@ -75,16 +75,14 @@ describe('Phase F · the shell is usable with a thumb', () => {
 
   it('every header and nav control clears a 44px target', () => {
     expect(style).toMatch(/nav\.side a\.navlink \{[^}]*min-height: 44px/);
-    expect(style).toMatch(/header\.top \.logout \{[^}]*min-height:44px/);
+    // V1 · option A: there is no header band; log out is a door on Setup.
     expect(style).toMatch(/\.langsw a \{[^}]*min-height:44px/);
     expect(style).toMatch(/\.deeper \{[^}]*min-height:44px/);
   });
 
   it('no control breaks mid-word, and nothing is pushed off a 390px screen', () => {
-    expect(style).toMatch(/header\.top \.logout \{[^}]*white-space:nowrap/);
     expect(style).toMatch(/\.langsw a \{[^}]*white-space:nowrap/);
-    // nowrap controls in a nowrap header pushed every page 16px past the viewport
-    expect(style).toMatch(/header\.top \{[^}]*flex-wrap: wrap/);
+    expect(style).not.toContain('header.top');   // V1 · option A: the band is gone, so nothing there can overflow
   });
 
   /**
