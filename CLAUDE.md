@@ -98,7 +98,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `ea4ca07` (merge of #72). `/health` →
+- **Deployed:** `da0b7f7` (merge of #75). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
 - **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
@@ -131,6 +131,9 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 75 | **V1 step four, the batch** — eleven pages' blocks moved into `STYLE_PAGES` (served with the shell only), legal/unsubscribe/proof share `publicDocument()`; baseline 29 → 6 (the shell's three, Buyers' two, Customers' one) |
+| 74 | V1 step four, Today: counts are the shell's stat rows, tappable; the calm state moves to the shell; 30 → 29 |
+| 73 | CLAUDE.md handoff |
 | 72 | **V1 step four, batch one** — ten small pages retire their `<style>` blocks onto shell families (`.rows/.row`, `.who`, `.caption/.small`, `ul.chips`, `.pill.stop`, `.issued .code`, `.choices`); baseline 40 → 30 |
 | 71 | CLAUDE.md handoff |
 | 70 | **V1 option A** — no header band on any width; language switch + log out are Setup's first rows; `header.stage` retired; switcher encodes only when needed; phone chrome at rest 80–87 px (`docs/design/v1-chrome/built-A-*`) |
