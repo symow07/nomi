@@ -336,9 +336,10 @@ What it means:
   PR with screenshots; a test counts the blocks that remain and the count
   may only fall.
 - `select`, `details/summary` and `textarea` join the set with states.
-- One rule, tested: a `<button>` or a form action wears the button style; a
-  link that changes the page wears the door style. No element wears both,
-  and no pattern appears in both styles.
+- One rule, to enforce as pages are restyled: a `<button>` or a form action
+  wears the button style; a link that changes the page wears the door style.
+  Not tested yet — 24 links wear the button style today (measured
+  2026-09-24), so the test lands with the page that clears the last one.
 - The brand mark moves to the product's name (Nomi) and leaves the
   assistant's header band; the assistant is named, never drawn.
 
@@ -426,7 +427,9 @@ crowded row.
 put the five destinations behind a tap, which the usability script's task
 one and task four are written to catch.
 
-**If A:** one PR against the shell and Setup — the band removed on every
+**A — built (2026-09-24, the PR after #69).** The band is gone on every width; the switcher and log out are Setup's first rows; `header.stage` retired (the assistant's page already states the stage); the `EMPLOYEE_AVATAR`-era header CSS deleted. Measured after the build: see the PR.
+
+**If A (as proposed):** one PR against the shell and Setup — the band removed on every
 width, the switcher and log-out rendered by Setup, `header.stage` retired
 or moved, the shell tests updated deliberately (the "every header control is
 44 px" test loses its subject), screenshots before and after. Half a day.

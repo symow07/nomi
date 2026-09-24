@@ -114,8 +114,12 @@ export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** The EN·中文·العربية switcher — links to the public /locale route, returns to `path`. */
-function switcher(locale: Locale, path: string): string {
-  const next = encodeURIComponent(path || '/app');
+export function switcher(locale: Locale, path: string): string {
+  // A plain path stays plain: percent-encoding would put `%` into the page,
+  // and the owner surface bans that character (settings-web.test.ts scans
+  // for it). Anything with a query or an odd character is encoded as before.
+  const raw = path || '/app';
+  const next = /^[A-Za-z0-9/_.-]*$/.test(raw) ? raw : encodeURIComponent(raw);
   return `<div class="langsw" role="group" aria-label="${esc(t(locale, 'switcher.aria'))}">
     ${LOCALES.map((l) =>
       `<a class="${l === locale ? 'on' : ''}" hreflang="${l}" lang="${l}" href="/locale?set=${l}&next=${next}">${esc(LOCALE_LABEL[l])}</a>`,
@@ -176,17 +180,9 @@ ${cssVariables()}
   /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
   nav.side .navcount { margin-inline-start:var(--space-8); font-size:var(--font-size-caption);
     font-weight:500; color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
-  header.top { display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: var(--space-8) var(--space-12); padding: var(--space-16) var(--space-24);
-    border-bottom: 1px solid var(--color-border); }
-  header.top .who { display:flex; align-items:center; gap:var(--space-8); }
-  header.top .whoname { font-weight:600; }
-  header.top .right { display:flex; align-items:center; gap:var(--space-12); }
-  /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
-  header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
-    color:var(--color-ink-secondary); font-size:var(--font-size-small); white-space:nowrap; }
-  /* Logging out is routine, not destructive — no warning colour on hover. */
-  header.top .logout:hover { color:var(--color-ink); }
+  /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
+     chrome; the language switch and log out are the first rows of Setup, and
+     the login page keeps its own switcher. */
   .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
@@ -418,8 +414,8 @@ ${cssVariables()}
     .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     /* Four destinations fit one row on a phone: an equal-width bottom-style bar
        at the top, each a full-height target, no wrapping to three ragged rows. */
-    /* V1 step three — the nav STAYS (sticky) and compacts as the page scrolls;
-       the name band below it scrolls away like content. No script: the state is
+    /* V1 step three — the nav STAYS (sticky) and compacts as the page scrolls.
+       No script: the state is
        a pure function of scroll position, so nothing can be stuck collapsed and
        nothing changes when scripting is off. Where scroll-driven animation is
        unsupported the nav is simply sticky at full size. */
@@ -440,8 +436,6 @@ ${cssVariables()}
         nav.side a.navlink { animation: navlink-compact linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
       }
     }
-    header.top { padding:var(--space-12) var(--space-16); }
-    header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
     main { padding:var(--space-16); }
     .msg { max-width:92%; }
     .stats { grid-template-columns: repeat(2,1fr); }
@@ -563,12 +557,6 @@ export function shell(input: {
     ${nav}
   </nav>
   <div class="content">
-    <header class="top">
-      <div class="who"><div><div class="whoname">${esc(name)}</div>
-        <div class="muted">${esc(t(locale, 'header.stage'))}</div></div></div>
-      <div class="right">${switcher(locale, input.path)}
-        <a class="logout" href="/logout">${esc(t(locale, 'header.logout'))}</a></div>
-    </header>
     <main>${input.bodyHtml}</main>
   </div>
 </div></body></html>`;

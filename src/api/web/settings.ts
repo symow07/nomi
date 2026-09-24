@@ -16,7 +16,7 @@ import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
 import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
-import { deeper, esc } from './layout.js';
+import { switcher, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 
 /**
@@ -223,6 +223,8 @@ export function renderSettings(
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     ${progress}
+    <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
+    ${deeper('/logout', t(locale, 'header.logout'))}
     ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}
     ${deeper('/app/channels', t(locale, 'nav.channels'))}
     ${form}${categories}

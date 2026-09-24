@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { shell } from '../../src/api/web/layout.js';
+import { readFileSync } from 'node:fs';
+import { shell, loginPage } from '../../src/api/web/layout.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -52,17 +53,35 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
     expect(html).toMatch(/@keyframes nav-compact \{ to \{ padding-top:var\(--space-4\); padding-bottom:var\(--space-4\); \} \}/);
   });
 
-  it('the name band is not sticky — it scrolls away', () => {
-    expect(page()).not.toMatch(/header\.top \{[^}]*position:\s*sticky/);
+  it('there is no name band — option A: the nav row is the chrome', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html).not.toContain('<header');
+      expect(html).not.toContain('header.top');
+      expect(html).not.toContain('class="langsw"');
+      expect(html).not.toContain('/logout');
+    }
   });
 });
 
 describe('V1 step three · the mark is the product\'s, the badge sits with its word', () => {
-  it('the header band shows a name and no face; the avatar input is ignored', () => {
+  it('no face anywhere; the avatar input is ignored', () => {
     const html = page('en', 'AVATARSENTINEL');
     expect(html).not.toContain('AVATARSENTINEL');
     expect(html).not.toContain('class="avatar"');
-    expect(html).toMatch(/<div class="who"><div><div class="whoname">/);
+    expect(html).not.toContain('class="who"');
+  });
+
+  it('the language switch and log out are the first rows of Setup, and the login page keeps its switcher', () => {
+    const src = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
+    const ret = src.slice(src.indexOf('return `<h1 class="page">${esc(t(locale, \'nav.settings\'))}</h1>'));
+    const lang = ret.indexOf("switcher(locale, '/app/settings')");
+    const out = ret.indexOf("deeper('/logout'");
+    const firstDoor = ret.indexOf("deeper('/app/onboarding'");
+    expect(lang).toBeGreaterThan(0);
+    expect(out).toBeGreaterThan(lang);
+    expect(firstDoor).toBeGreaterThan(out);
+    expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 
   it('the mark lives in the brand block only — both cuts, one drawn per width', () => {

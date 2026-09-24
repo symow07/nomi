@@ -210,9 +210,10 @@ first-run → Phase 5 marketing site → Phase 6 billing, then Meta Tech Provide
 shipped, and step three (the shell, #68) too: the phone nav is sticky and
 compacts through a CSS scroll timeline (no script — measured in
 `docs/design/v1-step3/`), the name band scrolls away, the mark is the
-product's, the Setup count sits with its word. **Open for the owner and
-Symow: the chrome at rest** — brief §11 proposes one band (option A,
-80–87 px) with screenshots in `docs/design/v1-chrome/`; nothing built.
+product's, the Setup count sits with its word. **Option A built** (brief
+§11): no header band on any width; the language switch and log out are
+Setup's first rows; the login page keeps its switcher; `header.stage`
+retired. Chrome at rest on a phone is the nav row alone.
 **Next:** pages restyled one by one, each PR retiring its `<style>` block
 (lower `tools/style-baseline.json` each time), reviewed on
 `/app/settings/components` and the screenshot set. The inbox step waits

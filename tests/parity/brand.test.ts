@@ -115,7 +115,7 @@ describe('M30 · the avatar — retired by V1 step three (2026-09-24)', () => {
   it('shows no face, whatever it is given', () => {
     expect(page('en', '🦊')).not.toContain('🦊');
     expect(page('en', '🦊')).not.toContain('class="avatar"');
-    expect(page('en', markSmall(30, null))).toMatch(/<div class="who"><div><div class="whoname">/);
+    expect(page('en', markSmall(30, null))).not.toContain('class="who"');   // V1 · option A: no band at all
   });
 
   it('main.ts no longer reads EMPLOYEE_AVATAR, and no emoji stands in for anyone', async () => {
