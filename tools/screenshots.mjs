@@ -132,8 +132,12 @@ async function signIn(browser) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(`${BASE}/login`);
-  await page.fill('input[name="code"]', CODE);
-  await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login')), page.click('button[type="submit"]')]);
+  // A1 — the door is e-mail + password now; the access-code form sits inside a
+  // collapsed <details>, so open it first and submit ITS button, not the first
+  // submit on the page (which is the e-mail form's).
+  await page.click('details summary');
+  await page.fill('details input[name="code"]', CODE);
+  await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login')), page.click('details form button[type="submit"]')]);
   const state = await ctx.storageState();
   await ctx.close();
   return state;

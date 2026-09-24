@@ -98,7 +98,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `1f89889` (merge of #58). `/health` →
+- **Deployed:** `e52ce69` (merge of #61). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
 - **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
@@ -131,6 +131,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 61 | The usability workspace: `src/demo/usability.ts` + `tools/seed-usability.mjs` lay the script's prerequisites over the demo factory on a local instance and check them line by line; `smoke.sh` needs `LEGAL_CONTACT_EMAIL` and a 3-minute health wait; symbol ceiling 21 → 22 (argued in the baseline) |
+| 60 | ROADMAP §2b: the post-audit queue with V1 (visual design pass) and V2 (calendar view) |
 | 58 | `backup/run.sh`: the TOC check must not pipe into `grep -q` (pipefail); found by the first live run |
 | 57 | Scheduled backups: `backup/` Railway cron on the private network (dump → restore drill → encrypt → upload → prune → `backup_runs` 0069 → ping); daily stale check → owner alert by **e-mail always**, WhatsApp where live; Getting ready "Backup tested" checked for the owner; `tools/fetch-backup.sh` for the monthly laptop drill |
 | 56 | The database password never appears in a command line (`tools/lib/pgenv.py`, argv test) |
@@ -196,7 +198,21 @@ runs the usability script → **V1 visual design pass** (Symow directs, Claude
 Code implements) → **A** → **V2 calendar view** → Phase 4 permissions and
 first-run → Phase 5 marketing site → Phase 6 billing, then Meta Tech Provider.
 Do not start V1 or V2 ahead of their place; V1 waits on Symow's decisions
-(§2b lists the five).
+(§2b lists the five). **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
+(tokens, where styling lives — 40 page-level stylesheets, 37 classes defined
+twice — the component inventory, 27 surfaces, what the screenshots show, the
+five decisions in the shape the implementer needs). Reference screenshots in
+`docs/design/v1-before/`; the full set is `node tools/screenshots.mjs` on a
+local instance (its login was fixed 2026-09-24).
+
+**The usability session** (top of the queue, the owner runs it): two commands
+prepare the local workspace — `bash .claude/skills/run-nomi/smoke.sh`, then
+`MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55440/nomi node
+tools/seed-usability.mjs`, which checks the script's list and says Ready.
+Login: "I have an access code" → `smoke-code`. The doc has the three ways a
+local instance differs. Never host the 55451 integration cluster in
+`/tmp/yf-run`: `smoke.sh` wipes it (it did, 2026-09-24; rebuilt in the
+session scratchpad — see memory `local-integration-postgres`).
 
 **A — merge Buyers into Customers** (keep the name "Buyers"), with search and
 paging. Spec: `docs/IA-PROPOSAL.md` §A. `/app/conversations` then redirects
