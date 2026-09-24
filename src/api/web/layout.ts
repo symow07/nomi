@@ -408,6 +408,16 @@ ${cssVariables()}
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
   .choices legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
+  /* Today (step four). The calm state IS the page: a short rule and one
+     sentence in the product's voice — quiet, not jade, while messaging is off.
+     And a count you can tap: the stat row as a link, its figure one step up. */
+  .calm-page { padding:var(--space-32) 0 var(--space-48); }
+  .calm-rule { height:2px; width:3.5rem; background:var(--color-jade); border-radius:2px; margin-bottom:var(--space-24); }
+  .calm-page.off .calm-rule { background:var(--color-border); }
+  .calm-say { font-size:var(--font-size-title); line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
+  a.stat { color:inherit; }
+  a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-jade-deep); }
+  .stat.need .v { font-size:var(--font-size-title); }
   /* The controls the browser used to draw — the hand-to select, a details
      disclosure, a textarea outside a form — get the same recess as an input. */
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {

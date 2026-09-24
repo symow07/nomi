@@ -1,5 +1,5 @@
 {
   "_why": "V1 step two \u2014 <style> blocks in src/api/web, the shell's own two included. tests/parity/v1-one-stylesheet.test.ts fails when the count RISES above this; it is meant to FALL as each page is restyled and its block retired (docs/DESIGN-V1-BRIEF.md \u00a78, decision 4). Lower it deliberately when it does.",
-  "_measured": "2026-09-24 (step four, first batch: 40 \u2192 30)",
-  "styleBlocks": 30
+  "_measured": "2026-09-24 (step four, Today: \u2192 29)",
+  "styleBlocks": 29
 }
