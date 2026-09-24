@@ -201,7 +201,7 @@ export function renderAccounts(
     <style>
   .read-form { gap:var(--space-8); margin-top:var(--space-8); }
   .read-form .btn { align-self:flex-start; }
-  .as-box { display:inline-flex; align-items:flex-start; gap:var(--space-4); font-size:var(--font-size-small); }
+
       .accs { list-style:none; margin:var(--space-12) 0 0; padding:0; }
       .acc { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-8); }
       .acc:last-child { border-bottom:0; }

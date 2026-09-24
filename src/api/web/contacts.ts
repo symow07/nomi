@@ -333,8 +333,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       .ct.stopped .who { color:var(--color-ink-secondary); }
       .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
       .btn.stop { color:var(--color-ink-secondary); }
-      .note { font-size:var(--font-size-small); margin-top:var(--space-8);
-              margin-bottom:var(--space-12); }
+
       .cform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
     </style>`;
 }

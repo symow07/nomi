@@ -380,7 +380,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
         ${p.entryPrice !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatMoney(p.entryPrice))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
         ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
       </div>
-      ${p.imageMatchable ? `<div class="tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
+      ${p.imageMatchable ? `<div class="p-tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
     </a>`;
   }).join('');
   return `${head}<div class="list">${cards}</div>${PRODUCT_STYLE}`;
@@ -442,7 +442,7 @@ export function renderProductDetail(
     ${flashBanner(flash)}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
       <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.status)}</div>
-    ${d.imageMatchable ? `<div class="tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
+    ${d.imageMatchable ? `<div class="p-tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
@@ -557,21 +557,21 @@ export function renderReview(
 }
 
 const PRODUCT_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
+
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
-  .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
+
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
   .prod:hover { border-color:var(--color-border); }
   .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; } .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); } .tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
-  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); } 
+  .p-tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); } .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
+ 
   .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
   .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
-  .chips, .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
+  .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); } .qrow:last-child { border-bottom:none; }
   .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); flex-wrap:wrap; }

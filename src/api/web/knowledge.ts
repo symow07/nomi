@@ -280,5 +280,5 @@ const KNOWLEDGE_STYLE = `<style>
   .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper-sunk); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
   .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
-  .dhead { display:flex; align-items:center; gap:var(--space-12); } 
+ 
 </style>`;

@@ -209,8 +209,8 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
       : `/app/knowledge?teach=${encodeURIComponent(g.question)}`;
     const testHref = `/app/sandbox?ask=${encodeURIComponent(g.question)}`;
     return `<div class="gap">
-      <div class="gq">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
-      <div class="gmeta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
+      <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
+      <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
         <span class="muted">${esc(formatRelative(locale, g.lastAt, now))}</span></div>
       <div class="gacts"><a class="btn" href="${teachHref}">${esc(t(locale, 'knowledge.gap.teach'))}</a>
         <a class="btn ghost" href="${testHref}">${esc(t(locale, 'knowledge.gap.test'))}</a></div>
@@ -221,7 +221,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
   </div>`;
 
   const activity = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.activity'))}</h2>
-    ${ops.activity.length ? `<ul class="acts">${ops.activity.map((a) =>
+    ${ops.activity.length ? `<ul class="ki-acts">${ops.activity.map((a) =>
       `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
         <span>${esc(a.label)}</span> <span class="muted">${esc(formatRelative(locale, a.at, now))}</span></li>`).join('')}</ul>`
       : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noActivity'))}</div>`}
@@ -236,12 +236,12 @@ const OPS_STYLE = `<style>
   .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
   .reqs .q { color:var(--color-ink); }
   .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
-  .gq { font-size:var(--font-size-small); margin-bottom:var(--space-8); } .gmeta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
+  .ki-q { font-size:var(--font-size-small); margin-bottom:var(--space-8); } .ki-meta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
   .gacts { display:flex; gap:var(--space-8); }
   .pill.reason { background:var(--color-waiting-wash); color:var(--color-waiting); }
   .pill.taught { background:var(--color-jade-wash); color:var(--color-ok); } .pill.corrected { background:var(--color-highlight-wash); color:var(--color-highlight); } .pill.archived { background:var(--color-border); color:var(--color-ink-secondary); }
-  .acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
-  .acts li { display:flex; align-items:center; gap:var(--space-8); }
+  .ki-acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .ki-acts li { display:flex; align-items:center; gap:var(--space-8); }
   .usage { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   @media (max-width:560px) { }
 </style>`;

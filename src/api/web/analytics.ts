@@ -189,7 +189,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 }
 
 const ANALYTICS_STYLE = `<style>
-  .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+
   .deals { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); }
   .deals 
   .deals .total { width:100%; font-size:var(--font-size-small); margin-top:var(--space-8); }

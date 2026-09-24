@@ -329,7 +329,7 @@ export function renderProof(v: ProofView): string {
   const certs = v.certifications.length
     ? `<section class="sec">
         <h2>${esc(t(l, 'proof.certs.title'))}</h2>
-        <ul class="certs">${v.certifications.map((c) =>
+        <ul class="proof-certs">${v.certifications.map((c) =>
           `<li>${esc(c)}<span class="f-s">${esc(sourceLabel('authorised'))}</span></li>`).join('')}</ul>
       </section>`
     : '';
@@ -368,7 +368,7 @@ ${PROOF_STYLE}
   ${certs}
   ${taught}
 
-  <footer class="foot">
+  <footer class="proof-foot">
     <p>${esc(t(l, 'proof.footer.explain', { name }))}</p>
     <p class="muted">${esc(t(l, 'proof.footer.issued', { date: v.issuedAt.toISOString().slice(0, 10) }))}</p>
   </footer>
@@ -407,18 +407,18 @@ ${cssVariables()}
   .f-v { font-weight:600; flex:1 1 auto; }
   .f-s { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .f-s.group { padding-top:var(--space-8); }
-  .certs { list-style:none; margin:0; padding:0; }
-  .certs li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-weight:600; }
-  .certs .f-s { display:block; font-weight:400; margin-top:var(--space-4); }
-  .certs li:last-child { border-bottom:0; }
+  .proof-certs { list-style:none; margin:0; padding:0; }
+  .proof-certs li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-weight:600; }
+  .proof-certs .f-s { display:block; font-weight:400; margin-top:var(--space-4); }
+  .proof-certs li:last-child { border-bottom:0; }
   .taught { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .taught:last-child { border-bottom:0; }
-  .voice { font-family:var(--font-voice); font-size:var(--font-size-small); margin:var(--space-4) 0; }
-  .foot { margin-top:var(--space-32); padding-top:var(--space-16);
+  p.voice { font-family:var(--font-voice); font-size:var(--font-size-small); margin:var(--space-4) 0; }
+  .proof-foot { margin-top:var(--space-32); padding-top:var(--space-16);
           border-top:1px solid var(--color-border);
           color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-  .foot p { margin:0 0 var(--space-4); }
-  .muted { color:var(--color-ink-secondary); }
+  .proof-foot p { margin:0 0 var(--space-4); }
+
 </style>`;
 
 /**

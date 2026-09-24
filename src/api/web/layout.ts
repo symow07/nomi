@@ -70,6 +70,7 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
+    '/app/settings/components',
   ] },
   { hub: '/app/conversations', routes: ['/app/contacts'], outreach: true },
   // C4.b — follow-ups are written for the people on her list, so they are
@@ -361,6 +362,50 @@ ${cssVariables()}
      back on the LEFT in Arabic, and, because two explicitly-placed columns ran
      against DOM order, pushing the whole content column into grid row 2 behind
      a screen-height gap. Every page was affected at desktop width. */
+
+  /* ── V1 step two — the shared families, defined ONCE (Symow, decision 4:
+     "define what already exists, once, in one stylesheet"). Each rule below
+     was declared in two or more pages with small differences; this is the one
+     body, and tests/parity/v1-one-stylesheet.test.ts refuses a second. Names
+     that meant two things (.acts, .certs, .tag, .prow…) were renamed on the
+     page that used them differently, so a name has one meaning again. */
+  .editform { display:flex; flex-direction:column; gap:var(--space-8); }
+  .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
+  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
+  .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
+  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
+  .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
+  .chips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
+  .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); }
+  .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
+  .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .note { font-size:var(--font-size-small); margin-top:var(--space-8); margin-bottom:var(--space-12); }
+  .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:var(--space-12); }
+  .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-small); }
+  .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
+  .dhead.spread { justify-content:space-between; }
+  /* The controls the browser used to draw — the hand-to select, a details
+     disclosure, a textarea outside a form — get the same recess as an input. */
+  main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {
+    background:var(--color-paper-sunk); border:1px solid var(--color-border);
+    border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+  main textarea { resize:vertical; }
+  details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
+    color:var(--color-ink); font-size:var(--font-size-small); list-style:none; }
+  details > summary::-webkit-details-marker { display:none; }
+  details > summary::before { content:'›'; color:var(--color-ink-secondary); display:inline-block; }
+  details[open] > summary::before { content:'⌄'; }
+  [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
+  /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
+     pointer. Only the components page under Setup wears them. */
+  .btn:hover:not(.send), .btn.is-hover:not(.send) { background:var(--color-border); }
+  .btn.send.is-hover { background:var(--color-jade-deep); }
+  .is-focus { outline:2px solid var(--color-jade); outline-offset:2px; }
+  .btn:disabled, .btn.is-disabled { background:var(--color-paper-sunk); color:var(--color-ink-secondary);
+    box-shadow:none; cursor:default; }
   @media (max-width: 720px) {
     /* Rows matter here. .layout carries min-height:100vh, and with one column
        and no declared rows the nav and the content shared that height evenly:
@@ -380,6 +425,8 @@ ${cssVariables()}
     main { padding:var(--space-16); }
     .msg { max-width:92%; }
     .stats { grid-template-columns: repeat(2,1fr); }
+    .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
+    .flabel { min-width:0; font-size:var(--font-size-caption); }
   }
 `;
 

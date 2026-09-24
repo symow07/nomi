@@ -322,6 +322,22 @@ What it means:
 - The brand mark moves to the product's name (Nomi) and leaves the
   assistant's header band; the assistant is named, never drawn.
 
+**Step two, shipped (2026-09-24).** The shared families are in the shell
+once — `tests/parity/v1-one-stylesheet.test.ts` refuses a class defined in
+two files — and the homonyms (`.acts`, `.certs`, `.tag`, `.prow`, `.phead`,
+`.pr`, `.foot`, `.gmeta`, `.gq`, `.voice` on one page each) were renamed
+where they meant something else. The `<style>` count starts its ratchet at
+40 (`tools/style-baseline.json`) and falls as pages are restyled. The
+components page is `/app/settings/components`, a door on Setup. It is
+**signed-in, not owner-only**: the owner-only list is six business actions
+pinned by a test, and a page of buttons is not one of them. Two things
+changed visibly and are yours to keep or reverse: the conversation and
+Customers pages had a bare `.ok` rule that made every ok pill 17 px bold by
+accident — those pills are now the shell's pill; and the "all calm" line
+(`.ok-line`) is one body on all three pages that had it. The hover and
+focus states are shown through `.is-hover` / `.is-focus` twins; disabled is
+the attribute, styled quiet — the one new state style, for your review.
+
 ### 5 · The row — PENDING
 
 Deferred until the usability session has run (F7 tests exactly this).
