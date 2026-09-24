@@ -98,7 +98,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-23)
 
-- **Deployed:** `ee36b97` (merge of #64). `/health` →
+- **Deployed:** `fc34aa8` (merge of #66). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
 - **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
@@ -131,6 +131,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 66 | **V1 step two** — 17 shared families defined once in the shell, homonyms renamed, browser-drawn controls styled, `.is-hover`/`.is-focus` twins + quiet `:disabled`; `/app/settings/components` (signed-in, door on Setup); `tests/parity/v1-one-stylesheet.test.ts` (no class in two files; `<style>` count ≤ `tools/style-baseline.json` = 40, may only fall) |
+| 65 | CLAUDE.md handoff |
 | 64 | **V1 step one** — type scale 13/15/17/20/26/34, line-height per script on `html[lang]`, spacing without 64; 127 remaps, the seven size-22 calls reviewed by Symow; `tests/parity/v1-tokens.test.ts`; the channels headline pill wraps |
 | 63 | V1 brief §8: Symow's decisions 1–4 recorded; 5 (the row) deferred until after the usability session |
 | 62 | V1 brief `docs/DESIGN-V1-BRIEF.md` + reference screenshots; `tools/screenshots.mjs` login fixed |
@@ -202,14 +204,17 @@ Code implements) → **A** → **V2 calendar view** → Phase 4 permissions and
 first-run → Phase 5 marketing site → Phase 6 billing, then Meta Tech Provider.
 **V1 is in progress.** Decisions 1–4 are in the brief's §8 (Symow,
 2026-09-24); decision 5, the row, waits for the usability session. Step one
-(tokens) shipped in #64. **Next is step two: one stylesheet** — define the
-component set that exists (brief §4) once, plus an owner-only components page
-under Setup showing every state, and retire page-level `<style>` blocks page
-by page with a test that counts them and only lets the count fall. Then step
-three, the shell: the two bands collapse on scroll (must stay fully usable
-with the script absent or failed — the PR says how that was verified), the
-brand mark moves to the product's name, the Setup badge joins its label.
-The inbox step waits behind decision 5. **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
+(tokens, #64) and step two (one stylesheet + the components page, #66)
+shipped. **Next is step three: the shell.** The two header bands collapse on
+scroll — the shell ships no script today; whichever approach, it must stay
+fully usable with the script absent or failed (nav reachable, nothing stuck
+collapsed) and the PR says how that was verified; the brand mark moves to
+the product's name and leaves the assistant's header band (`header.top .who
+.avatar` draws it there on phones today); the Setup badge joins its label.
+Review on `/app/settings/components` and the screenshot set. After that,
+pages are restyled one by one and their `<style>` blocks retired (lower
+`tools/style-baseline.json` each time). The inbox step waits behind
+decision 5. **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
 (tokens, where styling lives — 40 page-level stylesheets, 37 classes defined
 twice — the component inventory, 27 surfaces, what the screenshots show, the
 five decisions in the shape the implementer needs). Reference screenshots in
