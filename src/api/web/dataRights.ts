@@ -194,7 +194,7 @@ export function renderDataRights(
   const history = v.requests.length === 0 ? '' : `<section class="block">
     <h2>${esc(t(locale, 'data.deletion.history'))}</h2>
     <ul class="list">${v.requests.map((r) => `<li class="row">
-      <span class="who">${esc(t(locale, r.scope === 'workspace'
+      <span class="person">${esc(t(locale, r.scope === 'workspace'
         ? 'data.deletion.scope.workspace' : 'data.deletion.scope.buyer'))}</span>
       <span class="muted">${esc(formatDate(locale, r.askedAt))}</span>
       <span class="pill ${r.state === 'open' ? 'warn' : 'ok'}">${esc(t(locale, STATE_KEY[r.state]))}</span>

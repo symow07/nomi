@@ -27,7 +27,7 @@ describe('M9.5 · product list (localized)', () => {
     expect(html).toContain('产品目录'); expect(html).toContain('帆布袋'); expect(html).toContain('ZX-100');
     expect(html).toContain('$0.92');
     expect(html).toContain('最低起订: 1000个');
-    expect(html).toContain('已学习 ✓'); expect(html).toContain('可以被图片识别');
+    expect(html).not.toContain('已学习 ✓'); expect(html).not.toContain('可以被图片识别');   // V1 review fix 3: an absent mark means fine
     expect(html).toContain('href="/app/products/p1"');
     expect(html).toContain('需要价格'); expect(html).toContain('价格待补');
   });
@@ -36,7 +36,9 @@ describe('M9.5 · product list (localized)', () => {
     const html = renderProductList(items, 'en');
     expect(html).toContain('Products'); expect(html).toContain('Canvas bag');
     expect(html).toContain('Min. order: 1,000pcs');
-    expect(html).toContain('Learned ✓'); expect(html).toContain('Recognizable by photo');
+    // V1 review fix 3: an absent mark means fine — nothing says "Learned" or "Recognizable".
+    expect(html).not.toContain('Learned ✓'); expect(html).not.toContain('Recognizable by photo');
+    expect(html.split('Not recognizable by photo yet').length - 1).toBe(items.filter((i) => !i.imageMatchable).length);
     expect(html).toContain('Needs a price'); expect(html).toContain('Price to add');
     expect(html).not.toContain('帆布袋');   // zh name not shown in en list
   });

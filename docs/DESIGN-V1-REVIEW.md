@@ -69,3 +69,17 @@ transcript. A person's words should keep their own direction and edge.
 - Practice and Knowledge have no page title; My business mixes a card-door
   with text doors.
 - Two idioms of pill on People (jade "you", jade "online").
+
+## Fixed — 2026-09-24, the same day
+
+The owner's call on the five and the plainly-wrong ones:
+
+1. The stacked header: the People column is `.person` now; `.who` is inline again everywhere.
+2. The assistant's page: no face at all; the two caveats sit under the choice they qualify, as muted small text.
+3. Products: a dense list of hairline rows, not cards; a mark appears only when something is NOT in order ("Needs a price", "Not recognizable by photo yet") — an absent mark means fine.
+4. Rows and count lists keep the prose measure at 1280 px; Today has its title first and its insight rows under it.
+5. A person's words keep their own direction: `dir="auto"` on every bubble and proposal.
+
+Also: Practice and Knowledge have page titles; the four knowledge counts are the stat size; My business has one door idiom, the next step marked `next`.
+
+Left, on purpose: "Log out" on Setup and channels' trailing pills wait on decision 5.

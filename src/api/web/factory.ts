@@ -450,10 +450,7 @@ export function renderFactory(
   // A new factory gets ONE next step. A finished one gets nothing at all —
   // setup disappears rather than turning into a permanent checklist.
   const next = f.nextStep
-    ? `<a class="fnext" href="${STEP_LINK[f.nextStep]}">
-        <span class="fnext-t">${esc(t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }))}</span>
-        <span class="go" aria-hidden="true">›</span>
-      </a>`
+    ? deeper(STEP_LINK[f.nextStep], t(locale, `factory.next.${f.nextStep}` as MessageKey, { name }), 'next')
     : '';
 
   // 1 · About your factory — what she can tell a buyer about you.

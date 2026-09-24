@@ -514,7 +514,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(list.statusCode).toBe(200);
     expect(list.body).toContain('Products');     // English default
     expect(list.body).toContain('ZX-100');       // demo SKU (locale-stable)
-    expect(list.body).toContain('Learned');
+    // V1 review fix 3: an absent mark means fine — a learned product carries no "Learned" pill.
+    expect(list.body).not.toContain('Learned ✓');
+    expect(list.body).toContain('class="prod"');
 
     const detail = await prod.app.inject({ method: 'GET',
       url: `/app/products/${RUN_NS}-0000-4000-8000-000000000101`, headers: { cookie } });

@@ -190,7 +190,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
 
   const stat = (labelKey: MessageKey, n: number) =>
-    `<div class="stat big"><div class="v">${n}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
+    `<div class="stat"><div class="v">${n}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
   const report = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod'))}</h2>
     <div class="stats">
       ${stat('knowledge.report.facts', ops.report.factsAdded)}
@@ -227,7 +227,8 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
       : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noActivity'))}</div>`}
   </div>`;
 
-  return `${tabs}${report}${gaps}${activity}`;
+  return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>
+    ${tabs}${report}${gaps}${activity}`;
 }
 
 

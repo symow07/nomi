@@ -233,7 +233,7 @@ export function renderEmployee(
   const stageLabel = t(locale, `employee.stage.${e.stage}` as MessageKey);
 
   const card = `<div class="card emp">
-    <div class="emp-h"><span class="ava">👩‍💼</span>
+    <div class="emp-h">
       <div><div class="emp-name">${esc(name)}</div>
         <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
     ${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
@@ -313,9 +313,6 @@ export function renderEmployee(
       <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->
-      ${autonomyReleased() ? '' : `<p class="needname">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
-      ${e.assistantNamed ? '' : `<p class="needname">${esc(t(locale, 'autonomy.needsName'))}
-        <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
       <form method="post" action="/app/employee/autonomy" class="levels">
         ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
@@ -323,6 +320,9 @@ export function renderEmployee(
         ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>
+      ${autonomyReleased() ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
+      ${e.assistantNamed ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.needsName'))}
+        <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
     </div>`;
 
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);

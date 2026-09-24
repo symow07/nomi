@@ -505,14 +505,14 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
   const timeline = view.messages.length
     ? `<div class="timeline">${view.messages.map((m) => `
         <div class="msg ${m.direction}">
-          <div class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
+          <div dir="auto" class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : esc(name)}</div>
         </div>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;
 
   const draftCard = view.pendingDraft
     ? `<div class="card draft" role="region">
-        <div class="proposed"><bdi>${esc(view.pendingDraft.draftText)}</bdi></div>
+        <div dir="auto" class="proposed"><bdi>${esc(view.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/sandbox/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
           <input type="hidden" name="mode" value="${opts.mode}" />
@@ -532,7 +532,6 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
 
   return `
     <div class="dhead spread">
-      <h1 class="page">${esc(t(locale, 'sandbox.title'))}</h1>
       <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
     </div>
     ${banner}
