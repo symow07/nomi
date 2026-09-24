@@ -389,6 +389,24 @@ sentence — is Today's own idiom and moved to the shell under its names.
 Visible: the needs list lost its card borders and its 26 px desktop
 figure (20 everywhere now), and the count lines sit 1 px tighter.
 
+**Step four, the batch (2026-09-24).** Every remaining page that does not
+wait on decision 5 retired its block: Setup, Getting ready, the assistant's
+page, My business, products, channels, knowledge and its insights,
+contacts, sequences, Practice — 299 rules moved into the shell whole,
+under a section per page, page-specific names defined once; four exact
+duplicates of `.pill.stop` and the input style dropped; the stat override
+on knowledge's insights became a `big` modifier so it cannot leak into
+every stat row. The three public pages — legal, unsubscribe, proof — share
+one `publicDocument()` in the shell (same tokens, one base stylesheet, a
+page's own rules passed in). The count is **6**: the shell's own three
+(shell, login door, public document), Buyers' two and Customers' one —
+those wait on decision 5. The cost, measured: an owner page carries the
+whole stylesheet now — 60 KB of HTML where the shell alone was 32 — so
+about 28 KB more per page, uncompressed; the login door and the public
+documents carry the base rules only and kept their size (the door: 32 KB
+before and after). The pages that dissolve their sections into families as
+V1 designs them bring the shell's number back down.
+
 ### 5 · The row — PENDING
 
 Deferred until the usability session has run (F7 tests exactly this).

@@ -2,7 +2,7 @@ import { t } from './say.js';
 import { processorLabel, type Processor } from '../../core/legal/processors.js';
 import { dirOf, type Locale } from '../../core/owner/i18n/locale.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { esc } from './layout.js';
+import { publicDocument, esc } from './layout.js';
 
 /**
  * The two pages a stranger may read without writing to anyone: what is kept
@@ -23,31 +23,8 @@ import { esc } from './layout.js';
  * What these pages promise, `docs/LEGAL.md` says how the operator keeps.
  */
 
-const SHELL = (locale: Locale, title: string, body: string): string => `<!doctype html>
-<html lang="${esc(locale)}" dir="${esc(dirOf(locale))}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)} · Nomi</title>
-<style>
-${cssVariables()}
-/*
- * THE SAME TOKENS as the owner's app, the proof page and the unsubscribe page,
- * emitted into a standalone document, for the reason those two give.
- */
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--color-paper); color:var(--color-ink);
-         font: var(--font-size-base)/var(--line-height) var(--font-family);
-         -webkit-text-size-adjust:100%; }
-  main { max-width:var(--measure-prose); margin:0 auto;
-         padding:var(--space-48) var(--space-16); }
-  h1 { font-size:var(--font-size-title); line-height:1.25; margin:0 0 var(--space-12);
-       font-weight:600; }
-  h2 { font-size:inherit; font-weight:600; margin:var(--space-32) 0 var(--space-8); }
-  p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
-  ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
-  a { color:var(--color-ink); }
-  .updated { margin-top:var(--space-48); }
-</style>
-</head><body><main>${body}</main></body></html>`;
+const SHELL = (locale: Locale, title: string, body: string): string =>
+  publicDocument({ locale, title: `${title} · Nomi`, body });
 
 const contact = (l: Locale, email: string | null): string => `
   <h2>${esc(t(l, 'legal.contact.title'))}</h2>

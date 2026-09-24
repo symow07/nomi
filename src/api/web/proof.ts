@@ -8,8 +8,7 @@ import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/loca
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatMoney } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
-import { cssVariables } from '../../core/owner/css.js';
+import { publicDocument, esc } from './layout.js';
 
 /**
  * M35 — the proof link. The FIRST buyer-facing surface this product has.
@@ -281,7 +280,6 @@ async function buyerLocale(tx: Tx, conversationId: string | null): Promise<Local
 export function renderProof(v: ProofView): string {
   const l = v.locale;
   const name = v.assistantName ?? assistantName(l);
-  const dir = l === 'ar' ? 'rtl' : 'ltr';
 
   const sourceLabel = (s: FactSource): string =>
     t(l, `proof.source.${s}` as MessageKey, { name });
@@ -346,14 +344,9 @@ export function renderProof(v: ProofView): string {
       </section>`
     : '';
 
-  return `<!doctype html>
-<html lang="${l}" dir="${dir}"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>${esc(t(l, 'proof.title', { seller: v.seller }))}</title>
-${PROOF_STYLE}
-</head><body>
-<main class="proof">
+  return publicDocument({
+    locale: l, title: t(l, 'proof.title', { seller: v.seller }), noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
+    body: `
   <header class="head">
     <div class="seller">${esc(v.seller)}</div>
     <h1>${esc(v.productName)}</h1>
@@ -372,20 +365,12 @@ ${PROOF_STYLE}
     <p>${esc(t(l, 'proof.footer.explain', { name }))}</p>
     <p class="muted">${esc(t(l, 'proof.footer.issued', { date: v.issuedAt.toISOString().slice(0, 10) }))}</p>
   </footer>
-</main>
-</body></html>`;
+`,
+  });
 }
 
-const PROOF_STYLE = `<style>
-${cssVariables()}
-/*
- * M35 — the SAME design tokens as the owner's app, emitted into a standalone
- * document. The proof page is the factory's public face; a buyer forwarding it
- * should be forwarding something that looks like one product, and a second
- * hand-rolled palette here would drift from the first the week after it shipped.
- * tests/parity/shell.test.ts enforces exactly that: it caught this file
- * inventing its own --ink and --paper, correctly.
- */
+/** The proof page's own rules; the document, tokens and base rules are publicDocument's. */
+const PROOF_CSS = `
   * { box-sizing:border-box; }
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
          font: var(--font-size-base)/var(--line-height) var(--font-family);
@@ -418,8 +403,7 @@ ${cssVariables()}
           border-top:1px solid var(--color-border);
           color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .proof-foot p { margin:0 0 var(--space-4); }
-
-</style>`;
+`;
 
 /**
  * M35.1 — what the OWNER needs to see beside a quote: is there a live link, and
@@ -447,13 +431,8 @@ export async function loadProofLinkState(tx: Tx, conversationId: string): Promis
  * be the oracle the 404 exists to remove.
  */
 export function notFoundPage(): string {
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>Not found</title>
-${PROOF_STYLE}
-</head><body><main class="proof"><h1>Not found</h1>
-<p class="muted">This link is not available.</p>
-</main></body></html>`;
+  return publicDocument({
+    locale: 'en', title: 'Not found', noindex: true, mainClass: 'proof', extraCss: PROOF_CSS,
+    body: '<h1>Not found</h1>\n<p class="muted">This link is not available.</p>',
+  });
 }

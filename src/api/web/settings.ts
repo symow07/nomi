@@ -233,20 +233,9 @@ export function renderSettings(
     ${deeper('/app/settings/account', t(locale, 'account.title'))}
     ${deeper('/app/settings/data', t(locale, 'data.title'))}
     ${deeper('/app/settings/components', t(locale, 'components.title'))}
-    ${SETTINGS_STYLE}`;
+    `;
 }
 
-const SETTINGS_STYLE = `<style>
-  .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
-  .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
-
-  .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
-  .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
-  .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
-  
-</style>
-  `;
 
 /* ── M37.5 · the words she may never say ─────────────────────────────────── */
 
@@ -348,16 +337,7 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
       <h2>${esc(t(locale, 'forbidden.floor.title'))}</h2>
       <p class="muted">${esc(t(locale, 'forbidden.floor.body', { name }))}</p>
       <ul class="fterms floor">${v.floor.map((x) => `<li><bdi>${esc(x)}</bdi></li>`).join('')}</ul>
-    </section>
-    <style>
-      .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .fterms li { display:flex; align-items:center; justify-content:space-between;
-                   gap:var(--space-12); padding:var(--space-8) 0;
-                   border-bottom:1px solid var(--color-border); }
-      .fterms li:last-child { border-bottom:0; }
-      .fterms.floor li { color:var(--color-ink-secondary); }
-      .fterms .fnote { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
-    </style>`;
+    </section>`;
 }
 
 /* ── M43b · the rate she will honour ─────────────────────────────────────── */
@@ -452,13 +432,7 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null): st
       ? `<section class="block"><h2>${esc(t(locale, 'rate.history.title'))}</h2>
          <ul class="rate-hist">${v.previous.map((r) => `<li><bdi>${stated(r)}</bdi></li>`).join('')}</ul>
          </section>`
-      : ''}
-    <style>
-      .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border);
-                      color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-      .rate-hist li:last-child { border-bottom:0; }
-    </style>`;
+      : ''}`;
 }
 
 /* ── M44 · the days the factory is shut ──────────────────────────────────── */
@@ -549,14 +523,7 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
             <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
               <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
             </form></li>`).join('')}</ul>`}
-    </section>
-    <style>
-      .closures { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .closures li { display:flex; align-items:center; justify-content:space-between;
-                     gap:var(--space-12); padding:var(--space-8) 0;
-                     border-bottom:1px solid var(--color-border); }
-      .closures li:last-child { border-bottom:0; }
-    </style>`;
+    </section>`;
 }
 
 /* ── M45 · samples ───────────────────────────────────────────────────────── */
@@ -776,16 +743,5 @@ export function renderSamples(v: SamplesView, locale: Locale, flash: Flash | nul
     <section class="block">
       <h2>${esc(t(locale, 'samples.requests.title'))}</h2>
       ${waiting}
-    </section>
-    <style>
-      .sreqs { list-style:none; margin:var(--space-12) 0 0; padding:0;
-               display:flex; flex-direction:column; gap:var(--space-24); }
-      .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
-      .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
-      .sreq-a { display:flex; flex-direction:column; gap:var(--space-8);
-                margin-top:var(--space-8); max-width:var(--measure-form); }
-      .sreq-a textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border);
-                border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-      .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
-    </style>`;
+    </section>`;
 }

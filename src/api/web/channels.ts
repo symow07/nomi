@@ -577,32 +577,6 @@ export function renderReach(
     <h2>${esc(t(locale, 'reach.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'reach.intro'))}</p>
     ${rows}
-    <style>
-      .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
-      .reach .reqs li, .reach .instead li { padding:var(--space-4) 0;
-        font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-      .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
-      .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8);
-        border-top:1px solid var(--color-border); }
-      .reach .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-      .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12);
-        border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap;
-        align-items:center; gap:var(--space-12); }
-      .reach .outreach .on { color:var(--color-ink); font-weight:600; }
-      .reach .warn-line { flex-basis:100%; font-size:var(--font-size-small); margin:0; }
-      .reach .capform { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-8);
-        flex-basis:100%; }
-      .reach .capform input[type=number] { width:8ch; }
-      .reach .cap-hint { font-size:var(--font-size-small); }
-      .dom { margin-top:var(--space-12); }
-      .dom-h { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; }
-      .dom .who { font-weight:600; }
-      .dns { list-style:none; margin:var(--space-8) 0; padding:0; }
-      .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
-        padding:var(--space-4) 0; font-size:var(--font-size-small); }
-      .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
-      .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
-    </style>
   </div>`;
 }
 
@@ -692,7 +666,7 @@ export function renderChannels(
     ${alertsCard}
     ${soon}
     <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'channel.footer'))}</p>
-    ${CHANNELS_STYLE}`;
+    `;
 }
 
 export function renderConnectGuide(locale: Locale): string {
@@ -707,27 +681,9 @@ export function renderConnectGuide(locale: Locale): string {
       </ol>
       <p class="muted">${esc(t(locale, 'channel.connect.note'))}</p>
       <a class="btn send" href="/app/channels">${esc(t(locale, 'channel.connect.back'))}</a>
-    </div>${CHANNELS_STYLE}`;
+    </div>`;
 }
 
-const CHANNELS_STYLE = `<style>
-  /* V1 type scale — the headline pill carries a sentence ("You can write first once
-     these are in place"); at caption 13 it no longer fits beside the name on a
-     390 px phone, and a pill is nowrap by rule. Let the row wrap and let this
-     one pill break, rather than push the page 7 px wider than the screen. */
-  .ch-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-8); }
-  .ch-h .pill { white-space:normal; }
-  .ch-name { font-size:var(--font-size-small); font-weight:700; }
-  .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
-  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
-  .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
-  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
-  .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
-  .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
-  .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
-  .guide { padding-inline-start:20px; line-height:2; } .guide li { margin-bottom:var(--space-4); }
-</style>`;
 
 /** C4.a — the predicate moved to core; re-exported so every caller is unchanged. */
 export { satisfiedRequirements };

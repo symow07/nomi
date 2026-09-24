@@ -158,17 +158,7 @@ export function renderSequenceList(
           <input name="name" required maxlength="120" /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'seq.new.button'))}</button>
       </form>
-    </section>
-    <style>
-      .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }
-      .sq { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
-      .sq:last-child { border-bottom:0; }
-      .sq.gone { opacity:.55; }
-      .sq-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
-      .sq-name { font-weight:600; }
-      .sq-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
-      .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-    </style>`;
+    </section>`;
 }
 
 /**
@@ -310,22 +300,5 @@ export function renderSequenceDetail(
       ${approvedLine}
       ${d.steps.length === 0 ? `<div class="empty">${esc(t(locale, 'seq.steps.empty'))}</div>` : `<ol class="sts">${steps}</ol>`}
     </section>
-    ${addForm}${approval}${enrol}${history}${archive}
-    <style>
-      .sts, .ens { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .st, .en { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
-      .st:last-child, .en:last-child { border-bottom:0; }
-      .st-h, .en-h { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
-      .st-n { font-weight:600; }
-      .st-w { font-size:var(--font-size-small); }
-      .st-s { font-weight:600; margin-top:var(--space-8); }
-      .st-b { white-space:pre-wrap; margin-top:var(--space-4); }
-      .en.gone { opacity:.7; }
-      .en .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
-      .en-a { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-8); }
-      .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-      .sqform textarea { width:100%; font:inherit; }
-      .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-      .pill.wait { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-    </style>`;
+    ${addForm}${approval}${enrol}${history}${archive}`;
 }

@@ -7,6 +7,16 @@ import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import type { MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { t as say } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
+import { readFileSync } from 'node:fs';
+
+/** V1 step four — My business's rules, as they sit in the shell's stylesheet. */
+const factorySectionOfShell = (): string => {
+  const src = readFileSync(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+  const start = src.indexOf('/* ── factory.ts');
+  const end = src.indexOf('/* ──', start + 10);
+  return start > 0 ? src.slice(start, end > start ? end : undefined) : '';
+};
+
 
 /** A catalogue sentence as the page prints it: the page's own `t`, escaped the same way. */
 const shown = (l: Locale, key: MessageKey, params?: Record<string, string | number>): string => esc(say(l, key, params));
@@ -249,8 +259,12 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
     }
   });
 
-  it('RTL-safe layout: no physical left/right in the page’s own styles', () => {
-    const style = renderFactory(complete, 'ar').match(/<style>[\s\S]*<\/style>/)![0];
+  it('RTL-safe layout: no physical left/right in the page’s styles, which live in the shell now', () => {
+    // V1 step four: My business carries no stylesheet; its rules are the shell's
+    // "factory.ts" section. The page must be bare, and that section logical.
+    expect(renderFactory(complete, 'ar')).not.toContain('<style');
+    const style = factorySectionOfShell();
+    expect(style.length).toBeGreaterThan(200);
     expect(style).not.toMatch(/\bmargin-left\b|\bmargin-right\b|\bpadding-left\b|\bpadding-right\b/);
     expect(style).not.toMatch(/\bborder-left\b|\bborder-right\b|\btext-align:\s*(left|right)\b/);
   });
@@ -633,7 +647,7 @@ describe('M20.3.1 · activation truth, localized', () => {
       ...complete.readiness, lifecycle: 'paused', live: false, canActivate: false,
       blockers: ['no_channel'] } } as FactoryView, 'ar');
     expect(ar).toContain('class="go"');                       // mirrored by the shell
-    const style = ar.match(/<style>[\s\S]*<\/style>/)![0];
+    const style = factorySectionOfShell();                     // V1 step four: the page's rules live there
     for (const physical of ['margin-left', 'margin-right', 'padding-left', 'padding-right',
                             'border-left', 'border-right', 'text-align:left', 'text-align:right'])
       expect(style.includes(physical), physical).toBe(false);

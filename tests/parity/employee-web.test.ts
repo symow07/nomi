@@ -232,10 +232,12 @@ describe('Nomi Phase C · 小雅 (render)', () => {
     }
   });
 
-  it('mobile-first: no tables, gap rows collapse on a phone', () => {
+  it('mobile-first: no tables, and no breakpoint of its own — the shell holds the one', () => {
     const html = renderEmployee(base, 'en', null, ctx);
     expect(html).not.toContain('<table');
-    expect(html).toContain('@media (max-width:560px)');
+    // V1 step four: the page carries no stylesheet; its phone rules live in the shell.
+    expect(html).not.toContain('<style');
+    expect(html).not.toContain('@media');
   });
 });
 
