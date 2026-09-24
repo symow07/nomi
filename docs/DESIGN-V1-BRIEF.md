@@ -219,7 +219,8 @@ Observations, for you to weigh. Not proposals.
 ## 7 · The five decisions, and the shape of each answer
 
 The implementer can start the moment these exist, in any order; tokens first
-is the natural one.
+is the natural one. **Symow answered 1–4 on 2026-09-24; §8 records them.
+5 is deferred until after the usability session.**
 
 | # | Decision | What the implementer needs from you |
 |---|---|---|
@@ -237,22 +238,113 @@ only does not ship.
 
 ---
 
-## 8 · Questions the inventory raised
+## 8 · Decided — Symow, 2026-09-24
 
-Answer them whenever; none blocks decision 1.
+Decisions 1–4, in his words, each followed by what it means for the
+implementer. Decision 5 is **deliberately deferred** until after the
+usability session: F7 in the script is written to test the row and the
+conversation page, and the answer waits for what the participants do. It is
+recorded as pending; nothing is guessed in its place.
 
-- Base 17 px was set for "45+ eyes". Keep that premise?
-- Is 820 px (tablet) a target, or do phone and desktop cover it?
-- The assistant has a brand mark (the green figure) and a name chosen by the
-  owner; is the mark part of V1?
-- Doors (`›` links deeper into a hub) versus buttons: today both exist on the
-  same pages. One pattern, or two with a rule?
-- The `select` for "hand to" and the login `details` are browser-drawn. In or
-  out of the component set?
+### 1 · Type — decided
+
+> Keep base 17. Drop the one-scale-for-three-scripts rule: sizes
+> 13/15/17/20/26/34; line-height 1.5 Latin, 1.7 Chinese, 1.75 Arabic. CJK
+> never below weight 400 at 15px and under. Two families: system sans for
+> product voice, the existing serif for the buyer's own words.
+
+What it means:
+- The scale loses 12, 14 and 22 and gains 34. Today's tokens `micro` (12),
+  `note` (14) and `numeral` (22) are used 34, 86 and 7 times across ~25
+  files; each use is remapped to a neighbour on the new scale (12 → 13,
+  14 → 15). Where a 22 goes — 20 or 26 — is a per-use call the implementer
+  proposes in the tokens PR, with screenshots.
+- Line-height becomes a token **per script**, set from `html[lang]`, which
+  the shell already writes. The one `--line-height` becomes three values.
+- No weight below 400 exists anywhere today (measured: zero), so the CJK
+  rule is a guard to add, not a change to make.
+- Families unchanged: the sans stack and the serif voice stay as they are.
+
+### 2 · Spacing and density — decided
+
+> Scale 4/8/12/16/24/32/48. Density per surface: lists dense, forms open,
+> reading pages narrow, transcript open, Today dense. Fix observation 1 in
+> the same pass — ~200px of chrome before content at 390px is the worst
+> single problem in the brief; the nav and name band should collapse on
+> scroll.
+
+What it means:
+- The scale loses 64 (used nowhere today), so the token change is a
+  deletion. The density words are per-surface defaults for the stylesheet:
+  a dense list row, an open form field, a narrow reading measure, an open
+  transcript, a dense Today.
+- The shell collapses its two bands on scroll. The shell ships no script
+  today; this is either the first script in the shell (small, and the page
+  must read correctly without it) or a CSS scroll-driven animation. The
+  implementer chooses in the shell PR and says why.
+
+### 3 · Colour — decided
+
+> Jade stays as the one accent. State colour stays confined to chips and
+> the ownership line. Dark mode is explicitly OUT of V1 — say so in the doc;
+> the tokens stay but go unreviewed.
+
+What it means:
+- No colour token changes. The rule "state colour only on chips and the
+  ownership line" becomes a test: a state class outside those two families
+  fails.
+- **Dark mode is out of V1.** The `colorDark` tokens and the
+  `prefers-color-scheme` block stay as they are and are not reviewed,
+  screenshotted or styled in this pass. Nothing in V1 may depend on them.
+
+### 4 · Components — decided
+
+> Don't invent a replacement set: define what already exists, once, in one
+> stylesheet, and retire page-level style blocks as each page is restyled.
+> Bring the browser-drawn controls IN (the hand-to select, the login
+> details/summary, textarea). Doors vs buttons: buttons do things, doors go
+> places — never both styles for one pattern. The brand mark stays, but it
+> belongs to the product, not the assistant; the assistant has the owner's
+> chosen name, not a face.
+
+What it means:
+- The component set is §4's list, defined once in one stylesheet. The 40
+  page-level `<style>` blocks are retired page by page, each retirement a
+  PR with screenshots; a test counts the blocks that remain and the count
+  may only fall.
+- `select`, `details/summary` and `textarea` join the set with states.
+- One rule, tested: a `<button>` or a form action wears the button style; a
+  link that changes the page wears the door style. No element wears both,
+  and no pattern appears in both styles.
+- The brand mark moves to the product's name (Nomi) and leaves the
+  assistant's header band; the assistant is named, never drawn.
+
+### 5 · The row — PENDING
+
+Deferred until the usability session has run (F7 tests exactly this).
+Until then the inbox row and the buyer row keep their current shape, and
+the inbox step of V1 waits behind this answer.
 
 ---
 
-## 9 · How to look at everything yourself
+## 9 · Questions the inventory raised
+
+Answer them whenever; none blocks decision 1.
+
+- Base 17 px was set for "45+ eyes". Keep that premise? — **Kept** (decision 1).
+- Is 820 px (tablet) a target, or do phone and desktop cover it? — open.
+- The assistant has a brand mark (the green figure) and a name chosen by the
+  owner; is the mark part of V1? — **The mark stays and belongs to the
+  product, not the assistant** (decision 4).
+- Doors (`›` links deeper into a hub) versus buttons: today both exist on the
+  same pages. One pattern, or two with a rule? — **Two, with the rule:
+  buttons do things, doors go places** (decision 4).
+- The `select` for "hand to" and the login `details` are browser-drawn. In or
+  out of the component set? — **In** (decision 4).
+
+---
+
+## 10 · How to look at everything yourself
 
 ```bash
 bash .claude/skills/run-nomi/smoke.sh                                  # local instance, ~1 min
