@@ -378,6 +378,17 @@ business, products, the assistant, Practice, channels, knowledge, Getting
 ready, Setup, contacts, sequences, proof) and the two public pages (legal,
 unsubscribe), which have no shell and keep their own document.
 
+**Step four, Today (2026-09-24).** Today's block is gone (30 → 29). Its
+count lines were the shell's stat rows under another name and are stat
+rows now; its "Needs you" cards are stat rows you can tap — `a.stat.need`,
+figure at 20 px, hairline rows instead of a bordered card each — which is
+the dense Today decision 2 asked for and one idiom fewer of the six the
+brief's observation 5 counted; its "quiet" line is muted text; its
+not-live footer is a block. The calm state — a short rule and one
+sentence — is Today's own idiom and moved to the shell under its names.
+Visible: the needs list lost its card borders and its 26 px desktop
+figure (20 everywhere now), and the count lines sit 1 px tighter.
+
 ### 5 · The row — PENDING
 
 Deferred until the usability session has run (F7 tests exactly this).

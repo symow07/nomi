@@ -51,7 +51,7 @@ describe('M16.2a · operations snapshot (pure)', () => {
     const s: OperationsSnapshot = { ...emptyFactory, hasAttention: true,
       attention: { pendingApprovals: 1, handoffs: 1, ownerHandling: 1, blockedMessages: 0 },
       knowledge: { openGaps: 1, recentCorrections: 0, recentlyTaught: 0 } };
-    const hrefs = [...renderOperationsHome(s, 'en').matchAll(/class="need" href="([^"]+)"/g)].map((m) => m[1]);
+    const hrefs = [...renderOperationsHome(s, 'en').matchAll(/class="stat need" href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs).toHaveLength(4);
     expect(new Set(hrefs).size).toBe(4);
   });
@@ -125,9 +125,9 @@ describe('Nomi Phase B · Today (render)', () => {
     expect(html).toContain('Approvals needed');      // approvals
     expect(html).toContain('Questions to answer');   // gaps (M14 wording, reused)
     // each row is a LINK carrying its own count — one thumb, no hunting
-    expect(html).toContain('<a class="need" href="/app/inbox"');
-    expect(html).toContain('<a class="need" href="/app/inbox?filter=pending"');
-    expect(html).toContain('<a class="need" href="/app/knowledge"');
+    expect(html).toContain('<a class="stat need" href="/app/inbox"');
+    expect(html).toContain('<a class="stat need" href="/app/inbox?filter=pending"');
+    expect(html).toContain('<a class="stat need" href="/app/knowledge"');
     for (const n of ['>1<', '>2<', '>3<']) expect(html).toContain(n);
   });
 
@@ -256,7 +256,8 @@ describe('Nomi Phase B · Today (render)', () => {
   it('messaging state is one quiet line, never a fake Connected badge', () => {
     const html = renderOperationsHome(populated, 'en', obs);
     expect(html).toContain('Messaging is not active yet');
-    expect(html).toContain('class="notlive"');
+    // V1 step four: the line wears the shell's block + muted families and keeps its name.
+    expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
     expect(html).not.toContain('class="pill ok"');
     // it is no longer a status card competing with real work
     expect(html).not.toContain('System status');
@@ -270,7 +271,7 @@ describe('Nomi Phase B · Today (render)', () => {
     const ar = renderOperationsHome(populated, 'ar', obs);
     expect(ar).toContain('يحتاج انتباهك'); expect(ar).toContain(t('ar', 'today.stepIn.title'));
     // the chevron must not point the wrong way in RTL
-    expect(ar).toContain('class="go need-go"');                     // the shell mirrors it
+    expect(ar).toContain('class="go"');                             // the shell mirrors it
   });
 
   it('invents no metric — no score / percentage / ranking in any locale', () => {
@@ -303,9 +304,11 @@ describe('Nomi Phase B · Today (render)', () => {
     }
   });
 
-  it('mobile-first: no tables, phone breakpoint present', () => {
+  it('mobile-first: no tables, and no breakpoint of its own — the shell holds the one', () => {
     const html = renderOperationsHome(populated, 'en', obs);
     expect(html).not.toContain('<table');
-    expect(html).toContain('@media (max-width:560px)');
+    // V1 step four: Today carries no stylesheet; the phone rules are the shell's.
+    expect(html).not.toContain('<style');
+    expect(html).not.toContain('@media');
   });
 });

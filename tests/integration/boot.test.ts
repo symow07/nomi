@@ -1582,7 +1582,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(res.body).toContain(esc(t('en', 'ops.activity.handled')));
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain('Messaging is not active yet');
-      expect(res.body).toContain('class="notlive"');
+      expect(res.body).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);   // V1 step four: block + muted, same name
       expect(res.body).not.toContain('class="pill ok"');     // never "Connected" pre-Meta
     });
 

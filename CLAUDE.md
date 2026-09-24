@@ -220,8 +220,8 @@ Setup's first rows; the login page keeps its switcher; `header.stage`
 retired. Chrome at rest on a phone is the nav row alone.
 **Step four is under way:** pages retire their `<style>` blocks onto the
 shell's families (brief §8, decision 4). First batch done: ten small pages,
-baseline 40 → 30 (`tools/style-baseline.json`; lower it each time). Still
-carrying a block: Today (`operations.ts`), Buyers (`inbox.ts`, waits on
+baseline 40 → 30; Today done, 29 (`tools/style-baseline.json`; lower it
+each time). Still carrying a block: Buyers (`inbox.ts`, waits on
 decision 5), Customers (`conversations.ts`), My business (`factory.ts`),
 products, the assistant (`employee.ts`), Practice (`sandbox.ts`), channels,
 knowledge and its insights, Getting ready (`pilot.ts`), Setup

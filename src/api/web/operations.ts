@@ -249,7 +249,7 @@ export type TakeoverObservation = {
 };
 
 const countLine = (value: number, label: string): string =>
-  `<div class="tline"><span class="tnum">${value}</span><span class="tlabel">${esc(label)}</span></div>`;
+  `<div class="stat"><span class="v">${value}</span><span class="l">${esc(label)}</span></div>`;
 
 export function renderOperationsHome(
   s: OperationsSnapshot, locale: Locale, takeover?: TakeoverObservation,
@@ -262,10 +262,10 @@ export function renderOperationsHome(
     .filter((k) => attentionCount(s, k) > 0)
     .map((k) => {
       const { label, href } = ATTENTION_ROW[k];
-      return `<a class="need" href="${href}">
-        <span class="need-n">${attentionCount(s, k)}</span>
-        <span class="need-l">${esc(t(locale, label))}</span>
-        <span class="go need-go" aria-hidden="true">›</span>
+      return `<a class="stat need" href="${href}">
+        <span class="v">${attentionCount(s, k)}</span>
+        <span class="l grow">${esc(t(locale, label))}</span>
+        <span class="go" aria-hidden="true">›</span>
       </a>`;
     }).join('');
 
@@ -278,7 +278,7 @@ export function renderOperationsHome(
   const live = s.channel.live ?? s.channel.provider !== 'disabled';
   const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
-        <div class="needs">${rows}</div></section>`
+        <div class="stats">${rows}</div></section>`
     : live
     // M35.5 — when nothing needs her, this IS the page: a rule, one sentence,
     // and air. Not a card among cards. Saying less is the whole argument, and it
@@ -340,11 +340,11 @@ export function renderOperationsHome(
         : t(locale, 'today.stepIn.only', { needed });
     const why = takeover.reasons.length
       ? `<h3 class="sub">${esc(t(locale, 'today.stepIn.why'))}</h3>
-         <div class="counts">${takeover.reasons.map((r) =>
+         <div class="stats">${takeover.reasons.map((r) =>
            countLine(r.count, t(locale, `takeover.reason.${r.kind}` as MessageKey))).join('')}</div>`
       : '';
     stepIn = `<section class="block"><h2>${esc(t(locale, 'today.stepIn.title'))}</h2>
-      <p class="stepline">${esc(sentence)}</p>${why}</section>`;
+      <p>${esc(sentence)}</p>${why}</section>`;
   }
 
   // 3 · What she is learning — straight from M14, her words not a score.
@@ -353,9 +353,9 @@ export function renderOperationsHome(
   const learning = `<section class="block">
     <h2>${esc(t(locale, 'today.learning.title', { name }))}</h2>
     ${learningQuiet
-      ? `<p class="quiet">${esc(t(locale, 'today.learning.quiet'))}</p>
+      ? `<p class="muted small">${esc(t(locale, 'today.learning.quiet'))}</p>
          ${deeper('/app/knowledge', t(locale, 'her.teach.go'))}`
-      : `<div class="counts">
+      : `<div class="stats">
           ${countLine(k.recentlyTaught, t(locale, 'knowledge.report.facts'))}
           ${countLine(k.recentCorrections, t(locale, 'knowledge.report.corrected'))}
           ${countLine(k.openGaps, t(locale, 'knowledge.ops.gaps'))}
@@ -379,7 +379,7 @@ export function renderOperationsHome(
   // counts go quiet; the way in does not.
   const activity = didNothing ? '' : `<section class="block">
     <h2>${esc(t(locale, 'ops.activity.title', { name }))}</h2>
-    <div class="counts">
+    <div class="stats">
       ${countLine(a.handled, t(locale, 'ops.activity.handled'))}
       ${countLine(a.draftsCreated, t(locale, 'ops.activity.drafts'))}
       ${countLine(a.corrections, t(locale, 'ops.activity.corrections'))}
@@ -389,7 +389,7 @@ export function renderOperationsHome(
 
   // Messaging state is only worth an owner's attention when it is NOT live.
   const notLive = !(s.channel.live ?? s.channel.provider !== 'disabled')
-    ? `<p class="notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
+    ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>
   ${attention}
@@ -399,46 +399,5 @@ export function renderOperationsHome(
   ${learning}
   ${activity}
   ${toResults}
-  ${notLive}
-  <style>
-    /* .block is the shell's now — Today is where the pattern came from. */
-    /* Not-live is neutral, not celebratory: no tick, no green. */
-    /* Needs you: full-width tappable rows — one thumb, no hunting. */
-    .needs { display:flex; flex-direction:column; gap:var(--space-8); }
-    a.need { display:flex; align-items:center; gap:var(--space-12); background:var(--color-surface);
-             border:1px solid var(--color-border); border-radius:12px; padding:16px 18px; }
-    a.need:hover, a.need:focus-visible { border-color:var(--color-jade-line); }
-    .need-n { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); min-width:1.6em;
-              font-variant-numeric:tabular-nums; }
-    .need-l { flex:1; font-size:var(--font-size-small); color:var(--color-ink); }
-    .need-go { color:var(--color-ink-secondary); font-size:var(--font-size-base); }
-    /* M35.5 — the calm state IS the page: a rule, one sentence, air. */
-    .calm-page { padding:var(--space-32) 0 var(--space-48); }
-    .calm-rule { height:2px; width:3.5rem; background:var(--color-jade);
-                 border-radius:2px; margin-bottom:var(--space-24); }
-    /* M49 — the PRODUCT reporting that nothing needs her. Not her voice: the
-       serif is for what a person says, and this sentence is about her. Size and
-       a rule carry the calm; the family does not have to. */
-    .calm-say { font-size:var(--font-size-title);
-                line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
-    /* Not live is not an achievement: the rule is quiet, not jade. */
-    .calm-page.off .calm-rule { background:var(--color-border); }
-    /* Plain count lines — no tiles, no grid, no colour coding. */
-    .counts { display:flex; flex-direction:column; gap:var(--space-4); }
-    .tline { display:flex; align-items:baseline; gap:var(--space-12); padding:7px 0;
-             border-bottom:1px solid var(--color-border); }
-    .tline:last-child { border-bottom:0; }
-    .tnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em;
-            font-variant-numeric:tabular-nums; }
-    .tlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-    .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 var(--space-8); }
-
-    .quiet { color:var(--color-ink-secondary); margin:0; }
-    .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:var(--space-24) 0 0;
-               padding-top:16px; border-top:1px solid var(--color-border); }
-    @media (max-width:560px) {
-      .need-n { font-size:var(--font-size-title); }
-      a.need { padding:15px 16px; }
-    }
-  </style>`;
+  ${notLive}`;
 }
