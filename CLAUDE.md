@@ -1,7 +1,7 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-23**, in the PR that ships **D**. Written so the next
-session (starting **A**) needs nothing from the one that wrote it.
+Last updated **2026-09-24**, in the PR that queues **V1 / V2**. Written so the
+next session needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -191,9 +191,17 @@ Recent PRs, newest first:
 
 ## 6 · What's next
 
+The queue is `docs/ROADMAP.md` §2b (written 2026-09-24). In order: the owner
+runs the usability script → **V1 visual design pass** (Symow directs, Claude
+Code implements) → **A** → **V2 calendar view** → Phase 4 permissions and
+first-run → Phase 5 marketing site → Phase 6 billing, then Meta Tech Provider.
+Do not start V1 or V2 ahead of their place; V1 waits on Symow's decisions
+(§2b lists the five).
+
 **A — merge Buyers into Customers** (keep the name "Buyers"), with search and
 paging. Spec: `docs/IA-PROPOSAL.md` §A. `/app/conversations` then redirects
 to `/app/inbox`; the hub map's `/app/conversations` group moves with it.
+Styled in V1's language, so it comes after V1.
 
 D shipped (see §4). What it did, for orientation: `src/api/web/layout.ts`
 (NAV, `CONTEXTUAL_ROUTES_BY_HUB`, `OUTREACH_PREFIXES`), `src/db/workspace.ts`
