@@ -263,21 +263,14 @@ export function renderInsights(d: InsightsData, locale: Locale): string {
     const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
       ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
-    return `<div class="insight">
-      <div class="iline">${esc(line)}</div>
+    return `<div class="row">
+      <div class="grow">${esc(line)}</div>
       <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
     </div>`;
   };
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
     ${d.insights.map(row).join('')}
     ${d.monthChange ? row(d.monthChange) : ''}
-  </div>${INSIGHT_STYLE}`;
+  </div>`;
 }
 
-const INSIGHT_STYLE = `<style>
-  .insight { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
-             padding:10px 0; border-bottom:1px solid var(--color-border); }
-  .insight:last-child { border-bottom:0; }
-  .iline { flex:1; }
-  .insight .btn { flex:none; }
-</style>`;

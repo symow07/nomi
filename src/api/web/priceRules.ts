@@ -449,8 +449,8 @@ export function renderPriceRules(
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
-    return `<li class="rule-row">
-      <div class="rule-head"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
+    return `<li class="row lines">
+      <div class="dhead muted"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
         ${p.listPrice !== null ? `<span class="muted">${esc(formatMoney(p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
@@ -476,23 +476,23 @@ export function renderPriceRules(
     ${needing.length > 0 ? `<section class="fblock">
       <h2>${esc(t(locale, 'prices.needing.title', { name }))}</h2>
       <p class="fdesc">${esc(t(locale, 'prices.needing.sub', { n: needing.length, name }))}</p>
-      <ul class="plist">${needing.map(productRow).join('')}</ul>
+      <ul class="rows">${needing.map(productRow).join('')}</ul>
     </section>` : ''}
 
     ${answered.length > 0 ? `<section class="fblock">
       <h2>${esc(t(locale, 'prices.answered.title'))}</h2>
-      <ul class="plist">${answered.map(productRow).join('')}</ul>
+      <ul class="rows">${answered.map(productRow).join('')}</ul>
     </section>` : ''}
 
     ${covered.length > 0 ? `<section class="fblock">
       <h2>${esc(t(locale, 'prices.inherited.title'))}</h2>
-      <ul class="plist">${covered.map(productRow).join('')}</ul>
+      <ul class="rows">${covered.map(productRow).join('')}</ul>
     </section>` : ''}
 
     ${volumeSection(v, locale, volumeErrors)}
 
     ${back('/app/factory', t(locale, 'nav.factory'))}
-    ${PRICES_STYLE}`;
+    `;
 }
 
 /**
@@ -510,8 +510,8 @@ function volumeSection(
   const err = (f: VolumeField): string =>
     errors[f] ? `<p class="perr">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
-  const rows = v.volume.map((d) => `<li class="rule-row">
-      <div class="rule-head"><bdi>${esc(t(locale, 'prices.volume.row', {
+  const rows = v.volume.map((d) => `<li class="row lines">
+      <div class="dhead muted"><bdi>${esc(t(locale, 'prices.volume.row', {
         qty: formatQty(locale, d.minQty), pct: d.discountPct,
         product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
       }))}</bdi></div>
@@ -525,7 +525,7 @@ function volumeSection(
     <h2>${esc(t(locale, 'prices.volume.title'))}</h2>
     <p class="fdesc">${esc(t(locale, 'prices.volume.sub', { name }))}</p>
     ${v.volume.length
-      ? `<ul class="plist">${rows}</ul>`
+      ? `<ul class="rows">${rows}</ul>`
       : `<p class="fwarn">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
     <form method="post" action="/app/factory/prices/volume" class="pform">
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
@@ -543,15 +543,6 @@ function volumeSection(
   </section>`;
 }
 
-const PRICES_STYLE = `<style>
-
-  .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
-              color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-
-  .plist { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
-  .rule-row { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
-  .rule-head { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
-</style>`;
 
 /**
  * M29 follow-up — how many price rules were never authored by a human?

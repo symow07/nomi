@@ -100,7 +100,7 @@ function fields(locale: Locale, a: Assistant | null, idPrefix: string): string {
   const roleOptions = ASSISTANT_ROLES.map((r) =>
     `<option value="${r}"${(a?.role ?? 'sales') === r ? ' selected' : ''}>${esc(t(locale, `assistants.role.${r}` as MessageKey))}</option>`).join('');
   // The main one is given no channels: it answers whatever nobody else was given.
-  const boxes = a?.isDefault ? '' : `<fieldset class="as-ch"><legend class="muted">${esc(t(locale, 'assistants.channels.label'))}</legend>
+  const boxes = a?.isDefault ? '' : `<fieldset class="choices"><legend class="muted">${esc(t(locale, 'assistants.channels.label'))}</legend>
       ${ASSISTANT_CHANNELS.map((c) => `<label class="as-box"><input type="checkbox" name="channel_${c}"${
         a?.channels.includes(c) ? ' checked' : ''} /> <span>${esc(channelName(locale, c))}</span></label>`).join('')}</fieldset>`;
   return `<div class="fld"><label for="${idPrefix}-name">${esc(t(locale, 'assistants.field.name'))}</label>
@@ -110,7 +110,7 @@ function fields(locale: Locale, a: Assistant | null, idPrefix: string): string {
     ${boxes}
     <div class="fld"><label for="${idPrefix}-note">${esc(t(locale, 'assistants.field.note'))}</label>
       <textarea id="${idPrefix}-note" name="note" rows="2" maxlength="${NOTE_MAX}">${esc(a?.note ?? '')}</textarea>
-      <span class="muted as-hint">${esc(t(locale, 'assistants.field.note.hint'))}</span></div>`;
+      <span class="muted">${esc(t(locale, 'assistants.field.note.hint'))}</span></div>`;
 }
 
 export function renderAssistantsSection(assistants: readonly Assistant[], locale: Locale): string {
@@ -124,12 +124,12 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
   return `<section class="block" id="assistants">
       <h2>${esc(t(locale, 'assistants.title'))}</h2>
       <p class="muted">${esc(t(locale, 'assistants.intro', { who: main?.name ?? '' }))}</p>
-      <ul class="people">${assistants.map((a) => `<li class="as-row">
+      <ul class="rows">${assistants.map((a) => `<li class="row top">
         <span class="who"><span><bdi>${esc(a.name)}</bdi>
           <span class="pill">${esc(t(locale, `assistants.role.${a.role}` as MessageKey))}</span>${
           a.isDefault ? ` <span class="pill ok">${esc(t(locale, 'assistants.default.pill'))}</span>` : ''}</span>
-          <span class="how muted">${esc(answers(a))}</span>
-          <details class="as-edit"><summary>${esc(t(locale, 'assistants.change'))}</summary>
+          <span class="muted">${esc(answers(a))}</span>
+          <details><summary>${esc(t(locale, 'assistants.change'))}</summary>
             <form method="post" action="/app/settings/people/assistants/${esc(a.id)}" class="pform">
               ${fields(locale, a, `as-${a.id.slice(0, 8)}`)}
               <button class="btn send" type="submit">${esc(t(locale, 'assistants.save'))}</button>
@@ -139,22 +139,11 @@ export function renderAssistantsSection(assistants: readonly Assistant[], locale
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'assistants.archive.confirm', { who: a.name }))}">${esc(t(locale, 'assistants.archive'))}</button></form>`}
       </li>`).join('')}</ul>
-      <details class="as-add"><summary>${esc(t(locale, 'assistants.add.summary'))}</summary>
+      <details><summary>${esc(t(locale, 'assistants.add.summary'))}</summary>
         <form method="post" action="/app/settings/people/assistants" class="pform">
           ${fields(locale, null, 'as-new')}
           <button class="btn send" type="submit">${esc(t(locale, 'assistants.add.button'))}</button>
         </form>
       </details>
-    </section>
-    <style>
-      .as-row { align-items:flex-start !important; }
-      .as-edit, .as-add { margin-top:var(--space-8); }
-      .as-edit summary, .as-add summary { cursor:pointer; color:var(--color-ink-secondary);
-                                          font-size:var(--font-size-small); }
-      .as-edit .pform, .as-add .pform { margin-top:var(--space-12); }
-      .as-ch { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
-      .as-ch legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
-      .as-hint { font-size:var(--font-size-caption); }
-
-    </style>`;
+    </section>`;
 }

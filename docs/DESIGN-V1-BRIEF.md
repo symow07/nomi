@@ -359,6 +359,25 @@ accident — those pills are now the shell's pill; and the "all calm" line
 focus states are shown through `.is-hover` / `.is-focus` twins; disabled is
 the attribute, styled quiet — the one new state style, for your review.
 
+**Step four, first batch (2026-09-24).** Ten small pages retired their
+blocks — Results, Today's insight rows, Your data, the Page picker, Price
+limits, Prospects, an order, People, the assistants' section, Connect —
+and the `<style>` count fell 40 → 30. What they each drew for themselves
+is named once in the shell: `.rows`/`.row` (a list of hairline rows, dense
+as decision 2 says of lists — 8 px, where pages had 8, 10 and 12), `.row
+lines` / `.row top`, `.grow`, `.who` (the column that names someone),
+`.caption` and `.small` (two sizes, where eight page names said the same),
+`ul.chips`, `.pill.stop`, `.issued .code` (the one-time staff code, kept
+under its old class because seventeen tests read it), `.choices` (a fieldset of
+checkboxes). Two page copies of the input style were dead since step two
+and went. Visible changes, small and listed in the PR: row spacing on
+those lists is now uniform, Results' deal value uses the "stated large"
+figure, and three caption lines that were 15 px are 13. Still carrying a
+block: the eight big pages (Today, Buyers, a conversation, Customers, My
+business, products, the assistant, Practice, channels, knowledge, Getting
+ready, Setup, contacts, sequences, proof) and the two public pages (legal,
+unsubscribe), which have no shell and keep their own document.
+
 ### 5 · The row — PENDING
 
 Deferred until the usability session has run (F7 tests exactly this).

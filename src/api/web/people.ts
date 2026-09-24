@@ -240,11 +240,11 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     ${issued}
     <section class="block">
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
-      <p class="team-sum">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
-      <ul class="people">${v.people.map((p) => `<li>
+      <p class="note">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
+      <ul class="rows">${v.people.map((p) => `<li class="row">
         <span class="who"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
           <span class="muted">${esc(formatDate(locale, p.addedAt))}</span></span>
-          <span class="how"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
+          <span class="caption"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
@@ -260,22 +260,8 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
     <section class="block">
       <h2>${esc(t(locale, 'people.ownerOnly.title'))}</h2>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.intro'))}</p>
-      <ul class="ownerOnly">${OWNER_ONLY.map((a) =>
-        `<li>${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
+      <ul class="rows">${OWNER_ONLY.map((a) =>
+        `<li class="row muted">${esc(t(locale, `people.ownerOnly.${a}` as MessageKey))}</li>`).join('')}</ul>
       <p class="muted">${esc(t(locale, 'people.ownerOnly.rest'))}</p>
-    </section>
-    <style>
-      .people, .ownerOnly { list-style:none; margin:var(--space-12) 0; padding:0; }
-      .people li { display:flex; align-items:center; justify-content:space-between;
-                   gap:var(--space-12); padding:var(--space-8) 0;
-                   border-bottom:1px solid var(--color-border); }
-      .people li:last-child { border-bottom:0; }
-      .team-sum { margin:var(--space-8) 0 var(--space-16); font-size:var(--font-size-small); }
-      .people .who { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
-      .people .how { font-size:var(--font-size-caption); }
-      .ownerOnly li { padding:var(--space-4) 0; color:var(--color-ink-secondary);
-                      font-size:var(--font-size-small); }
-      .issued .code { font-size:var(--font-size-display); font-weight:600;
-                      letter-spacing:.08em; margin:var(--space-8) 0; }
-    </style>`;
+    </section>`;
 }
