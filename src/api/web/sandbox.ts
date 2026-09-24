@@ -531,7 +531,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     : '';
 
   return `
-    <div class="dhead">
+    <div class="dhead spread">
       <h1 class="page">${esc(t(locale, 'sandbox.title'))}</h1>
       <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
     </div>
@@ -554,7 +554,7 @@ const SANDBOX_STYLE = `<style>
   .pcase.ok .pmark { color:var(--color-ok); } .pcase.bad .pmark { color:var(--color-warn); }
   .ptitle { color:var(--color-ink-secondary); }
   .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
-  .dhead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+
   .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
@@ -570,8 +570,8 @@ const SANDBOX_STYLE = `<style>
   .sbx-trust.pass { border-color:var(--color-jade-line); } .sbx-trust.fail { border-color:var(--color-warn-line); }
   .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
   .sbx-trust.pass .verdict { color:var(--color-ok); } .sbx-trust.fail .verdict { color:var(--color-warn); }
-  .chips { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-12); }
-  .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:4px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+
+
   .chip.auto { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
   .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-waiting-line); }
   .chip.warn { background:var(--color-warn-wash); color:var(--color-warn); } .chip.badge { background:var(--color-jade-wash); color:var(--color-highlight); }
@@ -580,11 +580,11 @@ const SANDBOX_STYLE = `<style>
   .chk .mk { font-weight:700; } .chk.ok .mk { color:var(--color-ok); } .chk.bad .mk { color:var(--color-warn); }
   .chk .lbl { font-size:var(--font-size-small); } .chk .dt { grid-column:2; font-size:var(--font-size-caption); word-break:break-word; }
   .card.draft { border-color:var(--color-waiting-line); }
-  .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
-  .editform { display:flex; flex-direction:column; gap:var(--space-8); }
+
+
   /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
      components live in one place so the two voices cannot fork per page. */
-  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+
   .takeover.owner { flex-direction:column; align-items:stretch; }
-  .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
+
 </style>`;

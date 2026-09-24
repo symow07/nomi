@@ -698,9 +698,9 @@ const FACTORY_STYLE = `<style>
   .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
   .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:0; max-width:var(--measure-prose); }
-  .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
-  .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-small); }
-  .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
+
+
+
   .fval { color:var(--color-ink); }
 
   /* A product tally is never the loudest thing an owner reads. */
@@ -746,7 +746,7 @@ const FACTORY_STYLE = `<style>
   .fconn.off .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:var(--space-8); }
   @media (max-width:560px) {
-    .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
-    .flabel { min-width:0; font-size:var(--font-size-caption); }
+
+
   }
 </style>`;

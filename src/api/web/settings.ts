@@ -230,13 +230,14 @@ export function renderSettings(
     ${deeper('/app/settings/people', t(locale, 'people.title'))}
     ${deeper('/app/settings/account', t(locale, 'account.title'))}
     ${deeper('/app/settings/data', t(locale, 'data.title'))}
+    ${deeper('/app/settings/components', t(locale, 'components.title'))}
     ${SETTINGS_STYLE}`;
 }
 
 const SETTINGS_STYLE = `<style>
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
-  .ok-line { color:var(--color-ok); font-weight:600; margin-bottom:var(--space-12); }
+
   .pform input, .pform textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; resize:vertical; }
   .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }

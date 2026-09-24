@@ -449,8 +449,8 @@ export function renderPriceRules(
   const productRow = (p: ProductRules): string => {
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
-    return `<li class="prow">
-      <div class="phead"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
+    return `<li class="rule-row">
+      <div class="rule-head"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
         ${p.listPrice !== null ? `<span class="muted">${esc(formatMoney(p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
@@ -510,8 +510,8 @@ function volumeSection(
   const err = (f: VolumeField): string =>
     errors[f] ? `<p class="perr">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
-  const rows = v.volume.map((d) => `<li class="prow">
-      <div class="phead"><bdi>${esc(t(locale, 'prices.volume.row', {
+  const rows = v.volume.map((d) => `<li class="rule-row">
+      <div class="rule-head"><bdi>${esc(t(locale, 'prices.volume.row', {
         qty: formatQty(locale, d.minQty), pct: d.discountPct,
         product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
       }))}</bdi></div>
@@ -544,13 +544,13 @@ function volumeSection(
 }
 
 const PRICES_STYLE = `<style>
-  .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
+
   .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
               color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
+
   .plist { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-16); }
-  .prow { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
-  .phead { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
+  .rule-row { border-top:1px solid var(--color-paper-sunk); padding-top:14px; }
+  .rule-head { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:baseline; font-size:var(--font-size-small); color:var(--color-ink); }
 </style>`;
 
 /**

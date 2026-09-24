@@ -826,7 +826,7 @@ export function renderInboxList(
 
   if (data.conversations.length === 0) {
     const body = data.filter === 'pending'
-      ? `<div class="empty"><div class="ok">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
+      ? `<div class="empty"><div class="ok-line">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
       // "no message failed" is the normal state and not an achievement.
@@ -1400,21 +1400,21 @@ const INBOX_STYLE = `<style>
   .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:var(--space-8); }
   .conv-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .conv-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .conv-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; }
-  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
+
+
   .dhead .who { font-size:var(--font-size-small); }
-  .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+
   .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:var(--space-16); font-size:var(--font-size-small); display:flex; flex-direction:column; gap:var(--space-4); }
   .card.draft { border-color:var(--color-waiting-line); }
-  .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
-  .editform { display:flex; flex-direction:column; gap:var(--space-8); }
+
+
   textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
   /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
      components live in one place so the two voices cannot fork per page. */
-  .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+
   .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
   .why { flex-basis:100%; font-size:var(--font-size-caption); }
   .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
-  .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
-  @media (max-width:560px) { .conv, .card { border-radius:12px; } }
+
+  @media (max-width:560px) { .conv { border-radius:12px; } }
 </style>`;

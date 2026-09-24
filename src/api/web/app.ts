@@ -107,6 +107,7 @@ import {
   teachKnowledge, correctKnowledge, archiveKnowledge, setCertification, type KnowledgeFlash,
 } from './knowledge.js';
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
+import { renderComponents } from './components.js';
 import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
   activeSandboxConversationId, sandboxFlushOutbound,
@@ -1177,6 +1178,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * against the one she has now: a session left open on a shared computer must
    * not be enough to lock her out of her own factory.
    */
+  // V1 step two — every component in every state, on one page, for review by
+  // eye and by the screenshot tool. Signed-in, not owner-only: OWNER_ONLY is
+  // the six business actions, and a page of buttons is not one of them.
+  app.get('/app/settings/components', authed('settings', (s, req, locale) => renderComponents(locale)));
+
   app.get('/app/settings/account', authed('settings', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;

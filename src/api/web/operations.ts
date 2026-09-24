@@ -432,8 +432,7 @@ export function renderOperationsHome(
             font-variant-numeric:tabular-nums; }
     .tlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
     .stepline { font-size:var(--font-size-base); color:var(--color-ink); margin:0 0 var(--space-8); }
-    .sub { font-size:var(--font-size-caption); letter-spacing:0;
-           color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); font-weight:600; }
+
     .quiet { color:var(--color-ink-secondary); margin:0; }
     .notlive { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:var(--space-24) 0 0;
                padding-top:16px; border-top:1px solid var(--color-border); }

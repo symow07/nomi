@@ -82,6 +82,7 @@ const PAGES = list('pages', [
   { name: 'teach-products', path: '/app/products/add' },
   { name: 'knowledge', path: '/app/knowledge' },
   { name: 'settings', path: '/app/settings' },
+  { name: 'components', path: '/app/settings/components' },
   { name: 'people', path: '/app/settings/people' },
   { name: 'terms', path: '/app/settings/terms' },
   { name: 'samples', path: '/app/settings/samples' },

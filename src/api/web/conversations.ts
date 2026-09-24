@@ -460,10 +460,10 @@ const CONV_STYLE = `<style>
   .cust-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
   .cust-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .cust-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-  .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; margin-bottom:var(--space-8); }
-  .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
+
+
   .dhead .who { font-size:var(--font-size-small); }
-  .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
+
   .name-form { margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
   .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
   .name-row { display:flex; gap:var(--space-8); align-items:center; }
@@ -480,5 +480,5 @@ const CONV_STYLE = `<style>
   .cx { display:flex; gap:var(--space-12); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
   .need-card { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); border-color:var(--color-waiting-line); font-size:var(--font-size-small); }
-  @media (max-width:560px) { .cust, .card { border-radius:12px; } }
+  @media (max-width:560px) { .cust { border-radius:12px; } }
 </style>`;

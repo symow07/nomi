@@ -122,10 +122,10 @@ export function renderProspects(
   const results = !v.outcome ? '' : v.outcome.kind === 'results'
     ? (v.outcome.prospects.length === 0
       ? `<div class="empty">${esc(t(locale, 'prospects.results.none'))}</div>`
-      : `<ul class="prs">${v.outcome.prospects.map((p) => `<li class="pr">
+      : `<ul class="prs">${v.outcome.prospects.map((p) => `<li class="prospect">
           <div class="pr-h"><span class="who"><bdi>${esc(p.name)}</bdi></span>
             ${p.title ? `<span class="muted"><bdi>${esc(p.title)}</bdi></span>` : ''}</div>
-          <div class="muted pr-b">${[p.organization, [p.city, p.country].filter(Boolean).join(', ')]
+          <div class="muted prospect-b">${[p.organization, [p.city, p.country].filter(Boolean).join(', ')]
             .filter(Boolean).map((x) => `<bdi>${esc(x!)}</bdi>`).join(' · ')}</div>
           <form method="post" action="/app/prospects/add" class="inline">
             <input type="hidden" name="sourceId" value="${esc(p.sourceId)}" />
@@ -167,9 +167,9 @@ export function renderProspects(
     <style>
       .prosform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
       .prs { list-style:none; margin:var(--space-12) 0; padding:0; }
-      .pr { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-4); }
-      .pr:last-child { border-bottom:0; }
+      .prospect { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-4); }
+      .prospect:last-child { border-bottom:0; }
       .pr-h { display:flex; gap:var(--space-8); align-items:baseline; flex-wrap:wrap; }
-      .pr-b, .note { font-size:var(--font-size-small); }
+      .prospect-b { font-size:var(--font-size-small); }
     </style>`;
 }
