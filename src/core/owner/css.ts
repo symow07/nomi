@@ -47,7 +47,9 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     decl('font-family', font.family),
     decl('font-voice', font.voice),
     ...Object.entries(font.sizePx).map(([k, v]) => decl(`font-size-${kebab(k)}`, `${v}px`)),
-    decl('line-height', font.lineHeight),
+    // V1 — the Latin value in :root; Chinese and Arabic override it below,
+    // keyed on the `lang` the shell writes on <html>.
+    decl('line-height', font.lineHeight.en),
     ...colorVars(color),
     // Named by VALUE, not by index: `--space-24` stays correct when the scale
     // grows, where `--space-5` would silently shift under everything using it.
@@ -60,6 +62,10 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
   ];
 
+  const perScript = Object.entries(font.lineHeight)
+    .filter(([lang]) => lang !== 'en')
+    .map(([lang, lh]) => `html[lang="${lang}"] { --line-height: ${lh}; }`)
+    .join('\n');
   return `:root {
 ${lines.join('\n')}
 }
@@ -67,7 +73,8 @@ ${lines.join('\n')}
   :root {
 ${colorVars(colorDark).join('\n')}
   }
-}`;
+}
+${perScript}`;
 }
 
 /**

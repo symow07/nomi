@@ -170,6 +170,6 @@ export function renderProspects(
       .pr { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-4); }
       .pr:last-child { border-bottom:0; }
       .pr-h { display:flex; gap:var(--space-8); align-items:baseline; flex-wrap:wrap; }
-      .pr-b, .note { font-size:var(--font-size-note); }
+      .pr-b, .note { font-size:var(--font-size-small); }
     </style>`;
 }

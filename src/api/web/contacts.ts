@@ -324,16 +324,16 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
               flex-wrap:wrap; }
       .ct .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
       .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
-      .ct-b { font-size:var(--font-size-note); margin-top:var(--space-4); }
-      .ct .reach-line { font-size:var(--font-size-note); margin-top:var(--space-8); }
-      .ct .ct-co { font-size:var(--font-size-note); margin-top:var(--space-8); display:block; }
+      .ct-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
+      .ct .reach-line { font-size:var(--font-size-small); margin-top:var(--space-8); }
+      .ct .ct-co { font-size:var(--font-size-small); margin-top:var(--space-8); display:block; }
       .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
-      .ct .since { font-size:var(--font-size-note); }
+      .ct .since { font-size:var(--font-size-small); }
       /* Permanent, and it should read that way at a glance. */
       .ct.stopped .who { color:var(--color-ink-secondary); }
       .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
       .btn.stop { color:var(--color-ink-secondary); }
-      .note { font-size:var(--font-size-note); margin-top:var(--space-8);
+      .note { font-size:var(--font-size-small); margin-top:var(--space-8);
               margin-bottom:var(--space-12); }
       .cform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
     </style>`;

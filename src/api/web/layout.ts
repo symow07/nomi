@@ -155,7 +155,7 @@ ${cssVariables()}
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
-    font-size:var(--font-size-micro); letter-spacing:0; margin-top:var(--space-4); }
+    font-size:var(--font-size-caption); letter-spacing:0; margin-top:var(--space-4); }
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
@@ -167,7 +167,7 @@ ${cssVariables()}
   nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
   /* D — the setup count on the Setup entry: a figure at the far end of the
      row, in the secondary ink. Not a state, so no state colour. */
-  nav.side .navcount { margin-inline-start:auto; font-size:var(--font-size-micro);
+  nav.side .navcount { margin-inline-start:auto; font-size:var(--font-size-caption);
     font-weight:500; color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
   header.top { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: var(--space-8) var(--space-12); padding: var(--space-16) var(--space-24);
@@ -180,7 +180,7 @@ ${cssVariables()}
   header.top .right { display:flex; align-items:center; gap:var(--space-12); }
   /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
   header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
-    color:var(--color-ink-secondary); font-size:var(--font-size-note); white-space:nowrap; }
+    color:var(--color-ink-secondary); font-size:var(--font-size-small); white-space:nowrap; }
   /* Logging out is routine, not destructive — no warning colour on hover. */
   header.top .logout:hover { color:var(--color-ink); }
   .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
@@ -218,11 +218,11 @@ ${cssVariables()}
   .stat:last-child { border-bottom:0; }
   .stat .v { font-size:var(--font-size-base); font-weight:600; color:var(--color-ink);
     font-variant-numeric:tabular-nums; min-width:2.5em; }
-  .stat .l { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .stat .l { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
 
   /* One pill. It marks STATE — never decoration, never a label wearing a costume. */
   .pill { display:inline-block; padding:4px 10px; border-radius:var(--radius-chip);
-    font-size:var(--font-size-micro); font-weight:600;
+    font-size:var(--font-size-caption); font-weight:600;
     margin-inline-end:var(--space-8); margin-block-end:var(--space-8); white-space:nowrap; }
   .pill.ok { background:var(--color-ok-wash); color:var(--color-ok); }
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
@@ -233,7 +233,7 @@ ${cssVariables()}
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
     padding:10px 18px; border-radius:var(--radius-card); border:0;
     background:var(--color-paper-sunk); color:var(--color-ink);
-    font:inherit; font-size:var(--font-size-note); cursor:pointer; }
+    font:inherit; font-size:var(--font-size-small); cursor:pointer; }
   .btn.send { background:var(--color-jade); color:var(--color-surface); box-shadow:var(--shadow-lift1); }
   .btn.send:hover { background:var(--color-jade-deep); }
   .btn.danger { background:var(--color-warn-wash); color:var(--color-warn); }
@@ -253,17 +253,17 @@ ${cssVariables()}
   .pform { display:flex; flex-direction:column; gap:var(--space-16);
            max-width:var(--measure-form); margin-top:var(--space-12); }
   .fld { display:flex; flex-direction:column; gap:var(--space-4);
-         font-size:var(--font-size-note); color:var(--color-ink); }
+         font-size:var(--font-size-small); color:var(--color-ink); }
   .pform input, .pform textarea, .pform select {
     background:var(--color-paper-sunk); border:1px solid var(--color-border);
     border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
-            font-size:var(--font-size-note); color:var(--color-ink); min-height:44px; }
+            font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .chkbox input { min-height:0; }
   /* One figure, stated large: the rate she set, the sample price, the state an
      order is in. It is a READING, not a KPI tile. */
-  .stated-now { font-size:var(--font-size-numeral); margin:var(--space-12) 0; }
+  .stated-now { font-size:var(--font-size-display); margin:var(--space-12) 0; }
 
   /* One notice — in two tones, because one of them is a refusal.
      D5: every notice was painted in the jade of a success, so "Only the owner
@@ -273,7 +273,7 @@ ${cssVariables()}
   .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
     border:1px solid transparent;
     border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
-    margin-bottom:var(--space-16); font-size:var(--font-size-note); }
+    margin-bottom:var(--space-16); font-size:var(--font-size-small); }
   .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
     border-color:var(--color-warn-line); }
 
@@ -282,15 +282,15 @@ ${cssVariables()}
   .tab { display:inline-flex; align-items:center; min-height:44px; padding:8px 16px;
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
-    font-size:var(--font-size-note); }
+    font-size:var(--font-size-small); }
   .tab.on { background:var(--color-paper-sunk); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
-    color:var(--color-ink); font-size:var(--font-size-note); }
+    color:var(--color-ink); font-size:var(--font-size-small); }
   pre { background:var(--color-paper-sunk); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
-    font:var(--font-size-note)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
+    font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
   /* One "go deeper" link for the whole product; the chevron mirrors in RTL. */
   /* Each "go deeper" is its own ROW. Inline-flex put three of them on one
@@ -298,7 +298,7 @@ ${cssVariables()}
      chevrons in it rather than three separate doors. fit-content keeps the
      target the width of its words, not the width of the column. */
   .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
-    padding:var(--space-8) 0; font-size:var(--font-size-note); color:var(--color-ink); }
+    padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-ink); }
   .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
   /* The chevron carries the affordance now that the label does not shout. */
   .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
@@ -315,7 +315,7 @@ ${cssVariables()}
      the page around it was left-aligned, which is the single clearest way to
      make a considered page look like an accident. It mirrors in RTL on its own. */
   .empty { text-align:start; color:var(--color-ink-secondary);
-    font-size:var(--font-size-note); padding:var(--space-24) 0;
+    font-size:var(--font-size-small); padding:var(--space-24) 0;
     max-width:var(--measure-prose); }
 
   /* ── Speech: the two voices. ─────────────────────────────────────────────
@@ -339,7 +339,7 @@ ${cssVariables()}
   .msg.outbound .bubble { font-size:var(--font-size-small);
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
-  .ts { font-size:var(--font-size-micro); margin-top:var(--space-4); }
+  .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on
@@ -374,7 +374,7 @@ ${cssVariables()}
       border-bottom:1px solid var(--color-border); }
     nav.side .brand { display:none; }
     nav.side a.navlink { flex:1; flex-direction:column; gap:var(--space-4); margin:0; padding:8px 4px;
-      min-height:56px; justify-content:center; font-size:var(--font-size-micro); text-align:center; }
+      min-height:56px; justify-content:center; font-size:var(--font-size-caption); text-align:center; }
     header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
     main { padding:var(--space-16); }
@@ -536,13 +536,13 @@ const DOOR_STYLE = `
   label.check input { width:auto; margin:0; }
   .err { color:var(--color-warn); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
   .fld-err { color:var(--color-warn); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
-  .hint { color:var(--color-ink-secondary); font-size:var(--font-size-micro); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
+  .hint { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:calc(-1 * var(--space-8)) 0 var(--space-16); }
   label { color:var(--color-ink-secondary); font-size:var(--font-size-caption); display:block; }
   details { margin-top:var(--space-24); border-top:1px solid var(--color-border); padding-top:var(--space-16); }
   summary { cursor:pointer; color:var(--color-ink-secondary); font-size:var(--font-size-caption); min-height:44px; display:flex; align-items:center; }
   details form { margin-top:var(--space-8); }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
-  .login .foot { text-align:center; font-size:var(--font-size-micro); }
+  .login .foot { text-align:center; font-size:var(--font-size-caption); }
 `;
 
 const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string): string => `<!doctype html>

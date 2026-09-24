@@ -580,8 +580,8 @@ export function renderReach(
     <style>
       .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
       .reach .reqs li, .reach .instead li { padding:var(--space-4) 0;
-        font-size:var(--font-size-note); color:var(--color-ink-secondary); }
-      .reach .win { font-size:var(--font-size-note); margin-top:var(--space-8); }
+        font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+      .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
       .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8);
         border-top:1px solid var(--color-border); }
       .reach .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
@@ -589,17 +589,17 @@ export function renderReach(
         border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap;
         align-items:center; gap:var(--space-12); }
       .reach .outreach .on { color:var(--color-ink); font-weight:600; }
-      .reach .warn-line { flex-basis:100%; font-size:var(--font-size-note); margin:0; }
+      .reach .warn-line { flex-basis:100%; font-size:var(--font-size-small); margin:0; }
       .reach .capform { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-8);
         flex-basis:100%; }
       .reach .capform input[type=number] { width:8ch; }
-      .reach .cap-hint { font-size:var(--font-size-note); }
+      .reach .cap-hint { font-size:var(--font-size-small); }
       .dom { margin-top:var(--space-12); }
       .dom-h { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; }
       .dom .who { font-weight:600; }
       .dns { list-style:none; margin:var(--space-8) 0; padding:0; }
       .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap;
-        padding:var(--space-4) 0; font-size:var(--font-size-note); }
+        padding:var(--space-4) 0; font-size:var(--font-size-small); }
       .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
       .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
     </style>
@@ -675,7 +675,7 @@ export function renderChannels(
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" />
       <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>
-    <p class="muted" style="font-size:var(--font-size-micro)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
+    <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
   </div>`;
 
   const soon = `<div class="block">
@@ -691,7 +691,7 @@ export function renderChannels(
     ${reach}
     ${alertsCard}
     ${soon}
-    <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'channel.footer'))}</p>
+    <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'channel.footer'))}</p>
     ${CHANNELS_STYLE}`;
 }
 
@@ -711,12 +711,17 @@ export function renderConnectGuide(locale: Locale): string {
 }
 
 const CHANNELS_STYLE = `<style>
-  .ch-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
+  /* V1 type scale — the headline pill carries a sentence ("You can write first once
+     these are in place"); at caption 13 it no longer fits beside the name on a
+     390 px phone, and a pill is nowrap by rule. Let the row wrap and let this
+     one pill break, rather than push the page 7 px wider than the screen. */
+  .ch-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-8); }
+  .ch-h .pill { white-space:normal; }
   .ch-name { font-size:var(--font-size-small); font-weight:700; }
   .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
-  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:var(--space-12); }
+  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
-  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-note); margin-bottom:var(--space-12); line-height:1.6; }
+  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
   .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }

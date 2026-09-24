@@ -292,7 +292,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
       .ohist li:last-child { border-bottom:0; }
       .onote { font-size:var(--font-size-caption); margin-top:var(--space-4); max-width:var(--measure-prose); }
       .facts { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
-      .frow { display:flex; gap:var(--space-16); font-size:var(--font-size-note); }
+      .frow { display:flex; gap:var(--space-16); font-size:var(--font-size-small); }
       .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
     </style>`;
 }

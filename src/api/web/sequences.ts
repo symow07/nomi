@@ -166,7 +166,7 @@ export function renderSequenceList(
       .sq.gone { opacity:.55; }
       .sq-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
       .sq-name { font-weight:600; }
-      .sq-b { font-size:var(--font-size-note); margin-top:var(--space-4); }
+      .sq-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
       .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
     </style>`;
 }
@@ -317,7 +317,7 @@ export function renderSequenceDetail(
       .st:last-child, .en:last-child { border-bottom:0; }
       .st-h, .en-h { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
       .st-n { font-weight:600; }
-      .st-w { font-size:var(--font-size-note); }
+      .st-w { font-size:var(--font-size-small); }
       .st-s { font-weight:600; margin-top:var(--space-8); }
       .st-b { white-space:pre-wrap; margin-top:var(--space-4); }
       .en.gone { opacity:.7; }

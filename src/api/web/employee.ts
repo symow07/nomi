@@ -349,7 +349,7 @@ export function renderEmployee(
             <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
         ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
             <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
-        <p class="muted" style="font-size:var(--font-size-micro)">${esc(t(locale, 'employee.actions.note'))}</p>
+        <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'employee.actions.note'))}</p>
       </div>`
     : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;
 
@@ -384,7 +384,7 @@ const EMP_STYLE = `<style>
   /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
   .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
   .scheck:last-child { border-bottom:0; }
-  .sclabel { font-size:var(--font-size-micro); margin-top:var(--space-8); }
+  .sclabel { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .scsaid { padding:6px 0; }
   .scfix summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; padding:6px 0; }
   .scfix textarea { width:100%; }
@@ -400,19 +400,19 @@ const EMP_STYLE = `<style>
           border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
   a.gap:hover, a.gap:focus-visible { border-color:var(--color-jade-line); }
   .gq { font-size:var(--font-size-small); color:var(--color-ink); }
-  .gmeta { font-size:var(--font-size-micro); grid-column:1; }
-  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-note); white-space:nowrap; }
+  .gmeta { font-size:var(--font-size-caption); grid-column:1; }
+  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-small); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
   .emp-h { display:flex; align-items:center; gap:var(--space-12); }
-  .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-numeral); }
+  .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-title); }
   .emp-name { font-size:var(--font-size-title); font-weight:700; }
   .dgroup { margin-bottom:var(--space-16); } .dtitle { font-weight:600; margin-bottom:var(--space-8); }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-note); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
+  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
   .ditem.ok { color:var(--color-ok); } .ditem.warn { color:var(--color-waiting); } .ditem.no { color:var(--color-ink-secondary); }
-  .growth { list-style:none; padding:0; margin:0; } .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .growth { list-style:none; padding:0; margin:0; } .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .growth li:last-child { border-bottom:none; }
   .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); } .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
-  .cond { font-size:var(--font-size-note); color:var(--color-ink-secondary); } .cond.met { color:var(--color-ok); }
-  .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); } .cond.met { color:var(--color-ok); }
+  .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .actrow:last-of-type { border-bottom:none; }
 </style>`;

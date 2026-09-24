@@ -113,7 +113,11 @@ describe('M30 · the rendered shell IS the design system', () => {
   it('declares the token base size and line height — not a typed-in one', () => {
     // the variable carries the token's value…
     expect(page).toContain(`--font-size-base: ${DESIGN_TOKENS.font.sizePx.base}px`);
-    expect(page).toContain(`--line-height: ${DESIGN_TOKENS.font.lineHeight}`);
+    // V1 — a line-height per script: Latin in :root, the other two keyed on
+    // the lang the shell writes on <html>.
+    expect(page).toContain(`--line-height: ${DESIGN_TOKENS.font.lineHeight.en}`);
+    expect(page).toContain(`html[lang="zh"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.zh}; }`);
+    expect(page).toContain(`html[lang="ar"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.ar}; }`);
     // …and body actually consumes it, rather than restating a number
     expect(page).toMatch(/body \{[^}]*font: var\(--font-size-base\)\/var\(--line-height\)/);
     // the value the product renders is the one 45+ eyes were promised

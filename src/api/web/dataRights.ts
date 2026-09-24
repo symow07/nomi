@@ -220,7 +220,7 @@ export function renderDataRights(
 const DATA_STYLE = `<style>
   .dl { list-style:none; padding:0; margin:var(--space-12) 0 0;
     display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .micro { font-size:var(--font-size-micro); }
+  .micro { font-size:var(--font-size-caption); }
   .second { margin-top:var(--space-24); }
   .drq { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .pform input { background:var(--color-paper-sunk); border:1px solid var(--color-border);

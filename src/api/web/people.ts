@@ -270,12 +270,12 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
                    gap:var(--space-12); padding:var(--space-8) 0;
                    border-bottom:1px solid var(--color-border); }
       .people li:last-child { border-bottom:0; }
-      .team-sum { margin:var(--space-8) 0 var(--space-16); font-size:var(--font-size-note); }
+      .team-sum { margin:var(--space-8) 0 var(--space-16); font-size:var(--font-size-small); }
       .people .who { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
       .people .how { font-size:var(--font-size-caption); }
       .ownerOnly li { padding:var(--space-4) 0; color:var(--color-ink-secondary);
-                      font-size:var(--font-size-note); }
-      .issued .code { font-size:var(--font-size-numeral); font-weight:600;
+                      font-size:var(--font-size-small); }
+      .issued .code { font-size:var(--font-size-display); font-weight:600;
                       letter-spacing:.08em; margin:var(--space-8) 0; }
     </style>`;
 }

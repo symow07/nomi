@@ -458,7 +458,7 @@ const CONV_STYLE = `<style>
   .cust.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
   .cust:hover { border-color:var(--color-border); }
   .cust-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
-  .cust-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .cust-t { font-size:var(--font-size-micro); margin-top:var(--space-8); }
+  .cust-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .cust-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
   .ok { color:var(--color-ok); font-size:var(--font-size-base); font-weight:700; margin-bottom:var(--space-8); }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
@@ -468,17 +468,17 @@ const CONV_STYLE = `<style>
   .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
   .name-row { display:flex; gap:var(--space-8); align-items:center; }
   .name-row input { flex:1; min-width:0; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .name-form .hint { font-size:var(--font-size-micro); margin-top:var(--space-4); }
-  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .name-form .hint { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .prow:last-child { border-bottom:none; }
   .tl { list-style:none; padding:0; margin:0; }
   .tl li { display:flex; gap:var(--space-12); padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:var(--space-8); padding-inline-start:16px; position:relative; }
   .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface); font-size:var(--font-size-small); line-height:1; }
-  .tl .tx { font-size:var(--font-size-note); } .tl .ts { font-size:var(--font-size-micro); margin-top:var(--space-4); }
+  .tl .tx { font-size:var(--font-size-small); } .tl .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   /* Event TYPES are told apart by their icons; colouring the text per type was
      colour carrying no state. The page's one state colour is the status pill. */
-  .cx { display:flex; gap:var(--space-12); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-note); }
+  .cx { display:flex; gap:var(--space-12); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
   .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
-  .need-card { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); border-color:var(--color-waiting-line); font-size:var(--font-size-note); }
+  .need-card { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); border-color:var(--color-waiting-line); font-size:var(--font-size-small); }
   @media (max-width:560px) { .cust, .card { border-radius:12px; } }
 </style>`;

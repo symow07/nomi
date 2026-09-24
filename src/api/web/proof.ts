@@ -393,12 +393,12 @@ ${cssVariables()}
   .proof { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-32) var(--space-16) var(--space-48); }
   .head { padding-bottom:var(--space-16); border-bottom:1px solid var(--color-border);
           margin-bottom:var(--space-24); }
-  .seller { color:var(--color-ink-secondary); font-size:var(--font-size-note);
+  .seller { color:var(--color-ink-secondary); font-size:var(--font-size-small);
             letter-spacing:.4px; text-transform:uppercase; }
   h1 { font-size:var(--font-size-title); line-height:1.25; margin:var(--space-4) 0; font-weight:600; }
-  .sku { color:var(--color-ink-secondary); font-size:var(--font-size-note); }
+  .sku { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .sec { margin:0 0 var(--space-24); }
-  .sec h2 { font-size:var(--font-size-note); font-weight:600; color:var(--color-ink-secondary);
+  .sec h2 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink-secondary);
             margin:0 0 var(--space-12); letter-spacing:.3px; text-transform:uppercase; }
   .fact { display:flex; align-items:baseline; gap:var(--space-12); flex-wrap:wrap;
           padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
@@ -416,7 +416,7 @@ ${cssVariables()}
   .voice { font-family:var(--font-voice); font-size:var(--font-size-small); margin:var(--space-4) 0; }
   .foot { margin-top:var(--space-32); padding-top:var(--space-16);
           border-top:1px solid var(--color-border);
-          color:var(--color-ink-secondary); font-size:var(--font-size-note); }
+          color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .foot p { margin:0 0 var(--space-4); }
   .muted { color:var(--color-ink-secondary); }
 </style>`;

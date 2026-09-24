@@ -695,39 +695,39 @@ const FACTORY_STYLE = `<style>
   .fq { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
 
   .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
-  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
   .fdesc-lead { margin:0 0 var(--space-12); }
-  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:0; max-width:var(--measure-prose); }
+  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:0; max-width:var(--measure-prose); }
   .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
-  .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-note); }
+  .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-small); }
   .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
   .fval { color:var(--color-ink); }
 
   /* A product tally is never the loudest thing an owner reads. */
-  .fcount { font-size:var(--font-size-numeral); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8);
+  .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8);
             font-variant-numeric:tabular-nums; }
-  .fcount-l { font-size:var(--font-size-note); font-weight:400; color:var(--color-ink-secondary); }
-  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-note); line-height:1.6; margin:var(--space-8) 0 0; }
-  .fwarn { color:var(--color-highlight); font-size:var(--font-size-note); margin:var(--space-12) 0 0; }
-  .fok { color:var(--color-jade); font-size:var(--font-size-note); margin:var(--space-12) 0 0; }
+  .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
+  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
+  .fwarn { color:var(--color-highlight); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fok { color:var(--color-jade); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
 
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px;
            background:var(--color-paper-sunk); color:var(--color-ink); border:1px solid var(--color-border); }
-  .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-note); line-height:1.6; }
+  .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-small); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
   .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6;
             color:var(--color-ink); max-width:var(--measure-prose);
             border-inline-start:2px solid var(--color-jade); padding-inline-start:14px; }
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
-  .fsteps li { font-size:var(--font-size-note); color:var(--color-ink-secondary); }
+  .fsteps li { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
   .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
   /* Findings are a to-do list, not an alarm: same weight as any other step. */
   .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
   .fgap .fnames { margin-top:var(--space-4); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
-  .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-note); }
+  .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
   .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
     color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
@@ -737,7 +737,7 @@ const FACTORY_STYLE = `<style>
   .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
   .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .fconn-i { font-size:var(--font-size-numeral); }
+  .fconn-i { font-size:var(--font-size-title); }
   .fconn.on .fconn-s { color:var(--color-jade); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
   .fconn.off { background:var(--color-highlight-wash); border:1px solid var(--color-highlight); border-radius:14px; padding:14px 16px; }
