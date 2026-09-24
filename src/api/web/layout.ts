@@ -3,7 +3,7 @@ import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
-import { markDetail, faviconDataUri } from '../../core/owner/brand.js';
+import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -155,6 +155,11 @@ ${cssVariables()}
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
+  /* Two cuts of one mark (brand.ts): the detail cut beside the word on a desktop,
+     the small reversed cut alone in the phone nav — below 40px the pale disc
+     would not read. One is drawn at a time. */
+  .brand .mark-detail { display:flex; }
+  .brand .mark-small { display:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
     font-size:var(--font-size-caption); letter-spacing:0; margin-top:var(--space-4); }
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
@@ -168,16 +173,14 @@ ${cssVariables()}
   nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
   /* D — the setup count on the Setup entry: a figure at the far end of the
      row, in the secondary ink. Not a state, so no state colour. */
-  nav.side .navcount { margin-inline-start:auto; font-size:var(--font-size-caption);
+  /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
+  nav.side .navcount { margin-inline-start:var(--space-8); font-size:var(--font-size-caption);
     font-weight:500; color:var(--color-ink-secondary); font-variant-numeric:tabular-nums; }
   header.top { display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: var(--space-8) var(--space-12); padding: var(--space-16) var(--space-24);
     border-bottom: 1px solid var(--color-border); }
   header.top .who { display:flex; align-items:center; gap:var(--space-8); }
   header.top .whoname { font-weight:600; }
-  header.top .avatar { width: 30px; height: 30px; border-radius: var(--radius-chip);
-    background:var(--color-jade-wash);
-    display:flex; align-items:center; justify-content:center; font-size:var(--font-size-small); }
   header.top .right { display:flex; align-items:center; gap:var(--space-12); }
   /* Every header control is a real target: 44px tall, and never wrapped mid-word. */
   header.top .logout { display:inline-flex; align-items:center; min-height:44px; padding:0 4px;
@@ -415,11 +418,28 @@ ${cssVariables()}
     .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     /* Four destinations fit one row on a phone: an equal-width bottom-style bar
        at the top, each a full-height target, no wrapping to three ragged rows. */
-    nav.side { display:flex; gap:var(--space-4); padding:10px 12px; border-inline-end:none;
-      border-bottom:1px solid var(--color-border); }
-    nav.side .brand { display:none; }
-    nav.side a.navlink { flex:1; flex-direction:column; gap:var(--space-4); margin:0; padding:8px 4px;
-      min-height:56px; justify-content:center; font-size:var(--font-size-caption); text-align:center; }
+    /* V1 step three — the nav STAYS (sticky) and compacts as the page scrolls;
+       the name band below it scrolls away like content. No script: the state is
+       a pure function of scroll position, so nothing can be stuck collapsed and
+       nothing changes when scripting is off. Where scroll-driven animation is
+       unsupported the nav is simply sticky at full size. */
+    nav.side { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:var(--space-4);
+      padding:10px 12px; border-inline-end:none; border-bottom:1px solid var(--color-border); }
+    /* The mark belongs to the product, so it sits with the product's nav — small,
+       and without the word beside it. */
+    nav.side .brand { display:flex; padding:0; margin-inline-end:var(--space-4); }
+    nav.side .brand .mark-detail { display:none; }
+    nav.side .brand .mark-small { display:flex; }
+    nav.side .brand .brandname { display:none; }
+    nav.side a.navlink { flex:1; flex-direction:row; flex-wrap:wrap; gap:var(--space-4); margin:0;
+      padding:var(--space-8) var(--space-4); min-height:56px; align-items:center; justify-content:center;
+      font-size:var(--font-size-caption); text-align:center; }
+    @supports (animation-timeline: scroll()) {
+      @media (prefers-reduced-motion: no-preference) {
+        nav.side { animation: nav-compact linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
+        nav.side a.navlink { animation: navlink-compact linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
+      }
+    }
     header.top { padding:var(--space-12) var(--space-16); }
     header.top .who .muted { display:none; }   /* five lines of subtitle in a 98px column */
     main { padding:var(--space-16); }
@@ -428,6 +448,10 @@ ${cssVariables()}
     .frow { flex-direction:column; align-items:flex-start; gap:var(--space-4); }
     .flabel { min-width:0; font-size:var(--font-size-caption); }
   }
+  /* V1 step three — the compaction the sticky phone nav plays over the first
+     160px of scroll (see the phone block). Spacing from the scale only. */
+  @keyframes nav-compact { to { padding-top:var(--space-4); padding-bottom:var(--space-4); } }
+  @keyframes navlink-compact { to { min-height:44px; padding-top:var(--space-4); padding-bottom:var(--space-4); } }
 `;
 
 /**
@@ -496,7 +520,8 @@ export function shell(input: {
   readonly active: string;
   readonly locale: Locale;
   readonly path: string;
-  readonly avatar: string;
+  /** Ignored since V1 step three: the assistant is named, never drawn. Kept so callers need not change. */
+  readonly avatar?: string;
   readonly bodyHtml: string;
 }): string {
   const { locale } = input;
@@ -534,13 +559,12 @@ export function shell(input: {
 <style>${STYLE}</style></head>
 <body><div class="layout">
   <nav class="side">
-    <div class="brand">${markDetail(40, null)}<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
+    <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
     ${nav}
   </nav>
   <div class="content">
     <header class="top">
-      <div class="who"><span class="avatar">${input.avatar}</span>
-        <div><div class="whoname">${esc(name)}</div>
+      <div class="who"><div><div class="whoname">${esc(name)}</div>
         <div class="muted">${esc(t(locale, 'header.stage'))}</div></div></div>
       <div class="right">${switcher(locale, input.path)}
         <a class="logout" href="/logout">${esc(t(locale, 'header.logout'))}</a></div>

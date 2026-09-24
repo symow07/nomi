@@ -203,7 +203,9 @@ describe('Phase F · the shell is usable with a thumb', () => {
     const phone = style.slice(style.indexOf('@media (max-width: 720px)'));
     expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*flex:1/);
     expect(phone).toMatch(/nav\.side a\.navlink \{[^}]*min-height:56px/);
-    expect(phone).not.toContain('flex-wrap');       // never three ragged rows
+    // never three ragged rows: the ROW does not wrap. (V1 step three lets the
+    // words INSIDE one entry wrap, so "Setup 2/5" can break under its word.)
+    expect(phone).not.toMatch(/nav\.side \{[^}]*flex-wrap/);
   });
 
   it('keyboard focus is visible on every interactive element, app-wide', () => {

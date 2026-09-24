@@ -172,7 +172,8 @@ export type WebDeps = {
    */
   readonly systemMail?: SystemMail | null;
   readonly employeeName: string;
-  readonly avatar: string;
+  /** Ignored since V1 step three (the assistant is named, never drawn); kept so callers need not change. */
+  readonly avatar?: string;
   /**
    * D — how long the per-business facts (name, outreach area, setup count)
    * are remembered between look-ups. A minute in production; a test that
@@ -563,7 +564,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   /** Render a full page: fills locale + path + avatar from the request/deps. */
   const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string }): string =>
-    shell({ ...o, locale: localeOf(req), path: req.url, avatar: deps.avatar });
+    shell({ ...o, locale: localeOf(req), path: req.url });
 
   /**
    * CC-19 / A13 — the wrong address and the broken page, in her language.
