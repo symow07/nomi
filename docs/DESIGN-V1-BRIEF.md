@@ -286,6 +286,26 @@ What it means:
   reachable, nothing stuck collapsed — and that PR says how this was
   verified** (the owner, 2026-09-24).
 
+**Step three, shipped (2026-09-24).** No script. On a phone the nav is
+`position: sticky` and compacts over the first 160 px of scroll through a
+CSS scroll-driven animation (inside `@supports (animation-timeline:
+scroll())` and `prefers-reduced-motion: no-preference`); the name band
+below it is ordinary content and scrolls away. The state is a pure function
+of scroll position, so nothing can be stuck, and with scripting off nothing
+changes. Measured in Chromium at 390 px (`docs/design/v1-step3/`): nav 80 →
+60 px (en), 85 → 65 (zh), 87 → 67 (ar) while scrolled, at the top of the
+viewport, all five entries the element under their own centre; with motion
+reduced — the same path an unsupporting browser takes — the nav stays at
+full size, still sticky and reachable; the band's bottom edge is off-screen
+in every case and everything returns at scroll 0. At rest the chrome above
+content is 162–201 px (was ~200): the band lost the avatar and the stage
+line and fits one row. The mark left the assistant's band and sits at the
+product's nav on phones — the brand's **small cut** (reversed, on a solid
+disc, 28 px, no word), because below 40 px the pale disc would not read;
+the desktop keeps the detail cut beside the word. The header shows the name
+and nothing beside it; `EMPLOYEE_AVATAR` is no longer read. The Setup count sits
+beside its word, and wraps under it where the cell is too narrow.
+
 ### 3 · Colour — decided
 
 > Jade stays as the one accent. State colour stays confined to chips and

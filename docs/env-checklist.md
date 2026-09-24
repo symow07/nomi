@@ -113,7 +113,7 @@ media setting to keep in step with it.
 | `NODE_ENV` | unset | `production` makes the three boot guards **refuse** rather than warn. |
 | `SANDBOX_BUSINESS_ID` | the seeded sandbox | The practice tenant. Must never equal `PILOT_BUSINESS_ID`. |
 | `SANDBOX_LIVE_AI` | unset | `1` offers Live-AI mode in the sandbox. It spends tokens; scripted is the default. |
-| `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | 小雅 · the Nomi mark | What the owner calls her. When `EMPLOYEE_AVATAR` is unset the header shows the brand mark (inline SVG, small cut); setting it to an emoji still wins, unchanged. |
+| `EMPLOYEE_NAME` · `EMPLOYEE_AVATAR` | — | Neither is read any more. The name comes from the `assistants` table once the owner confirms it on Getting ready; the header shows no face since V1 step three (2026-09-24) — the assistant is named, never drawn. Leaving either set is harmless. |
 | `LEGAL_CONTACT_EMAIL` | **REQUIRED — the boot refuses without it.** A plain address (`privacy@example.com`): no display name, no `mailto:`. `/privacy` and `/data-deletion` are public and tell a buyer to write in; unset, the contact block rendered nothing, so the pages promised a door that did not exist. | Named on the public `/privacy` and `/data-deletion` pages as where a person writes to ask what is kept or to have it removed.  Whoever reads that mailbox must answer within the thirty days the page promises (see `docs/LEGAL.md`). |
 | `ENGINE_VERSION` | `dev` | Stamped into quote audit rows (`db/repos.ts`). |
 | `DATABASE_POOL_MAX` | `10` | Connections in the pool (`db/client.ts`). |

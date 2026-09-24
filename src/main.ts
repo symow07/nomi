@@ -49,7 +49,6 @@ import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceS
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
-import { markSmall } from './core/owner/brand.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
@@ -642,7 +641,9 @@ export async function buildProduction(
       legalFacts,
       // The mark is the default; an operator who sets EMPLOYEE_AVATAR still gets
       // their emoji, unchanged. The small cut, because the header avatar is 30px.
-      avatar: process.env['EMPLOYEE_AVATAR'] ?? markSmall(30, null),
+      // V1 step three — no face in the header: the assistant is named, never drawn.
+      // EMPLOYEE_AVATAR is no longer read.
+
       provider: cfg.provider,
       // Whether anything queued from these pages will leave: the outbound
       // worker runs whenever some channel is here, WhatsApp or not.

@@ -107,16 +107,20 @@ describe('M30 · the favicon', () => {
   });
 });
 
-describe('M30 · the avatar', () => {
-  it('renders whatever it is given, so an operator override survives', () => {
-    expect(page('en', '🦊')).toContain('<span class="avatar">🦊</span>');
-    expect(page('en', '🦊')).not.toContain(`<span class="avatar">${markSmall(30, null)}`);
+describe('M30 · the avatar — retired by V1 step three (2026-09-24)', () => {
+  // Decision 4: "the assistant has the owner's chosen name, not a face." The
+  // header band shows the name and nothing beside it; the mark is the
+  // product's and sits with the product's nav. Whatever a caller passes as
+  // `avatar` is ignored, and main.ts no longer reads EMPLOYEE_AVATAR.
+  it('shows no face, whatever it is given', () => {
+    expect(page('en', '🦊')).not.toContain('🦊');
+    expect(page('en', '🦊')).not.toContain('class="avatar"');
+    expect(page('en', markSmall(30, null))).toMatch(/<div class="who"><div><div class="whoname">/);
   });
 
-  it('defaults to the mark, with EMPLOYEE_AVATAR still taking precedence', async () => {
+  it('main.ts no longer reads EMPLOYEE_AVATAR, and no emoji stands in for anyone', async () => {
     const src = await readFile(new URL('../../src/main.ts', import.meta.url), 'utf8');
-    // the env var is read FIRST and the mark is only the fallback
-    expect(src).toMatch(/avatar:\s*process\.env\['EMPLOYEE_AVATAR'\]\s*\?\?\s*markSmall\(/);
+    expect(src).not.toMatch(/process\.env\['EMPLOYEE_AVATAR'\]/);
     expect(src).not.toContain(`'👩‍💼'`);
   });
 });
