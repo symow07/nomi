@@ -140,9 +140,9 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 
   if (!d.hasActivity) {
     return `${title}${tabs}
-      <div class="block"><div class="empty"><div class="big">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
+      <div class="block"><div class="empty"><div class="stated-now">📈 ${esc(t(locale, 'analytics.empty.title'))}</div>
         <p class="muted">${esc(t(locale, 'analytics.empty.body', { range: rangeLabel, name }))}</p></div></div>
-      ${ANALYTICS_STYLE}`;
+      `;
   }
 
   const summary = `<div class="block"><h2>${esc(t(locale, 'analytics.section.summary'))}</h2>
@@ -161,13 +161,12 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
     </div></div>`;
 
   const dealsHtml = d.commerce.orders > 0
-    ? `<div class="deals">
+    ? `<div class="chips">
         ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${x.n}</span>`).join('')}
-        ${d.commerce.totals.length ? `<div class="muted total">${esc(t(locale, 'analytics.commerce.totalValue', {
+      </div>${d.commerce.totals.length ? `<p class="small muted">${esc(t(locale, 'analytics.commerce.totalValue', {
           value: d.commerce.totals.map((m) => formatMoneyCompact(m)).join(' · '),
-        }))}</div>` : ''}
-      </div>`
-    : `<div class="muted empty-line">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
+        }))}</p>` : ''}`
+    : `<div class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>
     <div class="stats two">
       ${stat(d.commerce.quotes, 'analytics.commerce.quoteCount')}
@@ -181,19 +180,10 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
       ${stat(d.employee.waiting, 'analytics.employee.waiting')}
       ${stat(d.employee.edits, 'analytics.employee.edits')}
     </div>
-    ${d.employee.answered ? `<p class="own-line">${esc(t(locale, 'analytics.employee.own', {
+    ${d.employee.answered ? `<p class="note">${esc(t(locale, 'analytics.employee.own', {
       own: d.employee.answered.hers, replies: d.employee.answered.replies }))}</p>` : ''}
-    <p class="muted foot">${esc(t(locale, 'analytics.employee.foot', { range: rangeLabel }))}</p></div>`;
+    <p class="sub">${esc(t(locale, 'analytics.employee.foot', { range: rangeLabel }))}</p></div>`;
 
-  return `${title}${tabs}${summary}${activity}${commerce}${employee}${ANALYTICS_STYLE}`;
+  return `${title}${tabs}${summary}${activity}${commerce}${employee}`;
 }
 
-const ANALYTICS_STYLE = `<style>
-
-  .deals { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8); }
-  .deals 
-  .deals .total { width:100%; font-size:var(--font-size-small); margin-top:var(--space-8); }
-  .big { font-size:var(--font-size-title); font-weight:700; margin-bottom:var(--space-8); }
-  .own-line { margin:var(--space-12) 0 0; font-size:var(--font-size-small); }
-  .empty-line { padding:6px 0; } .foot { margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
-</style>`;

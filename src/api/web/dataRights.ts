@@ -153,7 +153,7 @@ export function renderDataRights(
   // halves answer different questions — what happened, and what you set up —
   // and the second half is the one an owner leaving would not think to ask for.
   const links = (subjects: readonly ExportSubject[]) =>
-    `<ul class="dl">${subjects.map((s) => `<li>
+    `<ul class="chips">${subjects.map((s) => `<li>
       <a class="btn" href="/app/settings/data/${s}.csv" download>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</a>
     </li>`).join('')}</ul>`;
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
@@ -163,10 +163,10 @@ export function renderDataRights(
     <h2>${esc(t(locale, 'data.export.title'))}</h2>
     <p class="muted">${esc(t(locale, 'data.export.lead'))}</p>
     ${links(record)}
-    <h2 class="second">${esc(t(locale, 'data.export.configTitle'))}</h2>
+    <h2>${esc(t(locale, 'data.export.configTitle'))}</h2>
     <p class="muted">${esc(t(locale, 'data.export.configLead'))}</p>
     ${links(CONFIG)}
-    <p class="muted micro">${esc(t(locale, 'data.export.limit', { n: EXPORT_MAX_ROWS }))}</p>
+    <p class="muted">${esc(t(locale, 'data.export.limit', { n: EXPORT_MAX_ROWS }))}</p>
   </section>`;
 
   // G9a's rule, applied here: a page that refuses on submit is worse than a
@@ -193,12 +193,12 @@ export function renderDataRights(
 
   const history = v.requests.length === 0 ? '' : `<section class="block">
     <h2>${esc(t(locale, 'data.deletion.history'))}</h2>
-    <ul class="list">${v.requests.map((r) => `<li class="drq">
+    <ul class="list">${v.requests.map((r) => `<li class="row">
       <span class="who">${esc(t(locale, r.scope === 'workspace'
         ? 'data.deletion.scope.workspace' : 'data.deletion.scope.buyer'))}</span>
       <span class="muted">${esc(formatDate(locale, r.askedAt))}</span>
       <span class="pill ${r.state === 'open' ? 'warn' : 'ok'}">${esc(t(locale, STATE_KEY[r.state]))}</span>
-      ${r.closedNote ? `<div class="muted micro"><bdi>${esc(r.closedNote)}</bdi></div>` : ''}
+      ${r.closedNote ? `<div class="muted"><bdi>${esc(r.closedNote)}</bdi></div>` : ''}
     </li>`).join('')}</ul>
   </section>`;
 
@@ -214,15 +214,6 @@ export function renderDataRights(
     </section>
     ${history}
     ${deeper('/privacy', t(locale, 'legal.privacyLink'))}
-    ${DATA_STYLE}`;
+    `;
 }
 
-const DATA_STYLE = `<style>
-  .dl { list-style:none; padding:0; margin:var(--space-12) 0 0;
-    display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .micro { font-size:var(--font-size-caption); }
-  .second { margin-top:var(--space-24); }
-  .drq { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
-  .pform input { background:var(--color-paper-sunk); border:1px solid var(--color-border);
-    border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-</style>`;

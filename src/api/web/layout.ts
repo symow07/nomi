@@ -386,6 +386,28 @@ ${cssVariables()}
   .frow { display:flex; gap:var(--space-12); font-size:var(--font-size-small); }
   .flabel { color:var(--color-ink-secondary); min-width:8.5em; }
   .dhead.spread { justify-content:space-between; }
+  /* ── V1 · what ten pages each drew for themselves, named once (step four).
+     A list of hairline rows — dense, as decision 2 says of lists — and the
+     column that names someone; two text sizes; a fieldset of choices; the
+     one-time access code; the stopped pill. */
+  .rows { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap;
+    padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
+  .row:last-child { border-bottom:0; }
+  .row.lines { display:grid; gap:var(--space-4); }
+  .row.top { align-items:flex-start; }
+  .row p { margin:0; }
+  .row .btn { flex:none; }
+  .grow { flex:1; min-width:0; }
+  .who { display:flex; flex-direction:column; gap:var(--space-4); min-width:0; }
+  .caption { font-size:var(--font-size-caption); }
+  .small { font-size:var(--font-size-small); }
+  ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  /* The one-time access code on the People page; tests read it by this class. */
+  .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
+  .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
+  .choices legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
   /* The controls the browser used to draw — the hand-to select, a details
      disclosure, a textarea outside a form — get the same recess as an input. */
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {

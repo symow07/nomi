@@ -16,8 +16,8 @@ export function renderMetaPagePicker(
   return `<h1 class="page">${esc(t(locale, 'connect.meta.choose.title'))}</h1>
   <div class="block">
     <p class="muted">${esc(t(locale, 'connect.meta.choose.body'))}</p>
-    <ul class="pages">${pages.map((p) => `
-      <li class="page-row">
+    <ul class="rows">${pages.map((p) => `
+      <li class="row">
         <div>
           <b>${esc(p.name)}</b>
           <div class="muted">${p.instagram
@@ -31,11 +31,5 @@ export function renderMetaPagePicker(
         </form>
       </li>`).join('')}</ul>
     <p><a href="/app/channels">${esc(t(locale, 'connect.meta.choose.back'))}</a></p>
-  </div>
-  <style>
-    .pages { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-    .page-row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
-                padding:12px 0; border-bottom:1px solid var(--color-border); }
-    .page-row:last-child { border-bottom:none; }
-  </style>`;
+  </div>`;
 }

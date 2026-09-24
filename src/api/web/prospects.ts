@@ -97,7 +97,7 @@ function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
     <p class="muted">${esc(state)}</p></section>`;
   const controls = !viewer.isOwner
     ? `<p class="muted">${esc(t(locale, 'staff.prospects.keyOwner'))}</p>`
-    : `<form method="post" action="/app/prospects/key" class="prosform">
+    : `<form method="post" action="/app/prospects/key" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'prospects.key.field'))}</span>
           <input name="apiKey" type="password" autocomplete="off" spellcheck="false" required maxlength="128" dir="ltr" /></label>
         <button class="btn send" type="submit">${esc(t(locale, status.kind === 'stored' ? 'prospects.key.replace' : 'prospects.key.save'))}</button>
@@ -122,10 +122,10 @@ export function renderProspects(
   const results = !v.outcome ? '' : v.outcome.kind === 'results'
     ? (v.outcome.prospects.length === 0
       ? `<div class="empty">${esc(t(locale, 'prospects.results.none'))}</div>`
-      : `<ul class="prs">${v.outcome.prospects.map((p) => `<li class="prospect">
-          <div class="pr-h"><span class="who"><bdi>${esc(p.name)}</bdi></span>
+      : `<ul class="rows">${v.outcome.prospects.map((p) => `<li class="row lines">
+          <div class="dhead"><span class="who"><bdi>${esc(p.name)}</bdi></span>
             ${p.title ? `<span class="muted"><bdi>${esc(p.title)}</bdi></span>` : ''}</div>
-          <div class="muted prospect-b">${[p.organization, [p.city, p.country].filter(Boolean).join(', ')]
+          <div class="small">${[p.organization, [p.city, p.country].filter(Boolean).join(', ')]
             .filter(Boolean).map((x) => `<bdi>${esc(x!)}</bdi>`).join(' · ')}</div>
           <form method="post" action="/app/prospects/add" class="inline">
             <input type="hidden" name="sourceId" value="${esc(p.sourceId)}" />
@@ -148,7 +148,7 @@ export function renderProspects(
     ${keyBlock(locale, v.status, viewer)}
     ${canSearch ? `<section class="block">
       <h2>${esc(t(locale, 'prospects.search.title'))}</h2>
-      <form method="get" action="/app/prospects" class="prosform">
+      <form method="get" action="/app/prospects" class="pform">
         <input type="hidden" name="search" value="1" />
         <label class="fld"><span class="muted">${esc(t(locale, 'prospects.search.titles'))}</span>
           <input name="titles" dir="auto" maxlength="400" value="${esc(f?.titles.join(', ') ?? '')}" /></label>
@@ -163,13 +163,5 @@ export function renderProspects(
       </form>
       <p class="muted note">${esc(t(locale, 'prospects.add.hint'))}</p>
       ${results}
-    </section>` : ''}
-    <style>
-      .prosform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-      .prs { list-style:none; margin:var(--space-12) 0; padding:0; }
-      .prospect { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-4); }
-      .prospect:last-child { border-bottom:0; }
-      .pr-h { display:flex; gap:var(--space-8); align-items:baseline; flex-wrap:wrap; }
-      .prospect-b { font-size:var(--font-size-small); }
-    </style>`;
+    </section>` : ''}`;
 }

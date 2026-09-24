@@ -210,10 +210,10 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
 
   const history = v.history.length === 0
     ? `<p class="muted empty-p">${esc(t(locale, 'order.history.empty'))}</p>`
-    : `<ul class="ohist">${v.history.map((u) => `<li>
+    : `<ul class="rows">${v.history.map((u) => `<li class="row lines">
         <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(formatDate(locale, u.at))}</span></div>
         ${u.trackingReference ? `<div class="muted"><bdi>${esc(t(locale, 'order.field.tracking'))}: ${esc(u.trackingReference)}</bdi></div>` : ''}
-        ${u.note ? `<div class="muted onote"><bdi>${esc(u.note)}</bdi></div>` : ''}
+        ${u.note ? `<div class="muted measure-prose"><bdi>${esc(u.note)}</bdi></div>` : ''}
       </li>`).join('')}</ul>`;
 
   // M46 — the proforma, from the row. Its numbers are the order's own; this
@@ -285,14 +285,5 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
       <h2>${esc(t(locale, 'order.history.title'))}</h2>
       ${history}
     </section>
-    ${proforma}
-    <style>
-      .ohist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .ohist li { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
-      .ohist li:last-child { border-bottom:0; }
-      .onote { font-size:var(--font-size-caption); margin-top:var(--space-4); max-width:var(--measure-prose); }
-
-
-
-    </style>`;
+    ${proforma}`;
 }

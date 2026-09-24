@@ -216,10 +216,19 @@ product's, the Setup count sits with its word. **Option A built** (brief
 §11): no header band on any width; the language switch and log out are
 Setup's first rows; the login page keeps its switcher; `header.stage`
 retired. Chrome at rest on a phone is the nav row alone.
-**Next:** pages restyled one by one, each PR retiring its `<style>` block
-(lower `tools/style-baseline.json` each time), reviewed on
-`/app/settings/components` and the screenshot set. The inbox step waits
-behind decision 5. **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
+**Step four is under way:** pages retire their `<style>` blocks onto the
+shell's families (brief §8, decision 4). First batch done: ten small pages,
+baseline 40 → 30 (`tools/style-baseline.json`; lower it each time). Still
+carrying a block: Today (`operations.ts`), Buyers (`inbox.ts`, waits on
+decision 5), Customers (`conversations.ts`), My business (`factory.ts`),
+products, the assistant (`employee.ts`), Practice (`sandbox.ts`), channels,
+knowledge and its insights, Getting ready (`pilot.ts`), Setup
+(`settings.ts`), contacts, sequences, proof; and the two public pages
+(legal, unsubscribe) which have no shell. Each is a PR with screenshots.
+Recurring traps: a CSS comment or class name ships to the browser and is
+scanned (no "token", no "stack", no "%"); a page never paints its own
+notice (`flashBanner`); `<a class="btn">` is still common — the
+buttons-versus-doors rule is not tested yet. **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
 (tokens, where styling lives — 40 page-level stylesheets, 37 classes defined
 twice — the component inventory, 27 surfaces, what the screenshots show, the
 five decisions in the shape the implementer needs). Reference screenshots in

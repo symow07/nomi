@@ -84,7 +84,7 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
   // E1 — reading is a grant she makes on purpose: a box, unticked, beside the
   // button. Google only, for now: that is the one reader built.
   const start = provider === 'google'
-    ? `<form method="get" action="/app/connect/${provider}/start" class="pform read-form">
+    ? `<form method="get" action="/app/connect/${provider}/start" class="pform">
         <label class="as-box"><input type="checkbox" name="read" value="1" /> <span>${esc(t(locale, 'connect.mail.read.tick'))}</span></label>
         <button class="btn ${mine ? '' : 'send'}" type="submit">${esc(t(locale, mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</button>
       </form>`
@@ -109,7 +109,7 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
         ${provider === 'google' ? `<p class="${mine.readsInbox ? '' : 'muted'}">${mine.readsInbox
           ? withAddress(locale, 'connect.mail.reads', mine.address)
           : esc(t(locale, 'connect.mail.sendsOnly'))}</p>` : ''}
-        ${offDomain ? `<p class="muted warn-line">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
+        ${offDomain ? `<p class="muted">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
         ${viewer.isOwner && provider === 'google' && !mine.readsInbox && v.connectable[provider] ? start : ''}
         ${viewer.isOwner ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
           <button class="btn stop" type="submit">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
@@ -139,7 +139,7 @@ function smtpRow(locale: Locale, v: AccountsView): Row {
     state: t(locale, 'connect.state.connected'),
     body: `<p>${withAddress(locale, 'connect.mail.sendsAs', from)}</p>
       <p class="muted">${esc(t(locale, 'connect.smtp.what'))}</p>
-      ${offDomain ? `<p class="muted warn-line">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}`,
+      ${offDomain ? `<p class="muted">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}`,
   };
 }
 
@@ -191,24 +191,12 @@ export function renderAccounts(
     }),
   ];
 
-  return `<div class="block accounts">
+  return `<div class="block">
     <h2>${esc(t(locale, 'connect.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'connect.intro', { name: assistantName(locale) }))}</p>
-    <ul class="accs">${rows.map((r) => `<li class="acc">
-      <div class="acc-h"><span class="ch-name">${esc(r.name)}</span><span class="pill ${r.tone}">${esc(r.state)}</span></div>
+    <ul class="rows">${rows.map((r) => `<li class="row lines">
+      <div class="dhead spread"><span class="ch-name">${esc(r.name)}</span><span class="pill ${r.tone}">${esc(r.state)}</span></div>
       ${r.body}
     </li>`).join('')}</ul>
-    <style>
-  .read-form { gap:var(--space-8); margin-top:var(--space-8); }
-  .read-form .btn { align-self:flex-start; }
-
-      .accs { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-      .acc { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); display:grid; gap:var(--space-8); }
-      .acc:last-child { border-bottom:0; }
-      .acc p { margin:0; }
-      .acc-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
-      .accounts .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-      .accounts .warn-line { font-size:var(--font-size-small); }
-    </style>
   </div>`;
 }
