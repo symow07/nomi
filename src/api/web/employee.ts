@@ -323,18 +323,6 @@ export function renderEmployee(
         ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>
-      <style>
-        .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
-        .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
-        .level > span { display:flex; flex-direction:column; gap:var(--space-4); }
-        .lnote { font-size:var(--font-size-caption); }
-        .levels .btn { align-self:flex-start; }
-        /* Above the choice, not below it: she reads what happens before she
-           decides, which is the whole point of putting it on this page. */
-        .disclose { border-inline-start:1px solid var(--color-border);
-          padding-inline-start:var(--space-12); margin-block:var(--space-12) 0; }
-        .needname { color:var(--color-waiting); margin-block:var(--space-12) 0; }
-      </style>
     </div>`;
 
   const grantable = e.capabilities.filter((c) => c.mode === 'draft' && c.promotable);
@@ -377,42 +365,6 @@ export function renderEmployee(
     ${recentSection(ctx, locale)}
     ${teachSection(ctx, locale)}
     ${more}
-    ${growth}${promo}${actions}${EMP_STYLE}`;
+    ${growth}${promo}${actions}`;
 }
 
-const EMP_STYLE = `<style>
-  /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
-  .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
-  .scheck:last-child { border-bottom:0; }
-  .sclabel { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .scsaid { padding:6px 0; }
-  .scfix summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; padding:6px 0; }
-  .scfix textarea { width:100%; }
-  /* Phase C: plain count rows and tappable gap rows — no matrix, no dense table. */
-  .hrows { display:flex; flex-direction:column; gap:var(--space-4); }
-  .hrow { display:flex; align-items:baseline; gap:var(--space-12); padding:8px 0; border-bottom:1px solid var(--color-border); }
-  .hrow:last-child { border-bottom:0; }
-  .hnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em; font-variant-numeric:tabular-nums; }
-  .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-  .empty-p { margin:0 0 var(--space-12); }
-  .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
-  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper-sunk);
-          border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
-  a.gap:hover, a.gap:focus-visible { border-color:var(--color-jade-line); }
-  .gq { font-size:var(--font-size-small); color:var(--color-ink); }
-  .gmeta { font-size:var(--font-size-caption); grid-column:1; }
-  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-small); white-space:nowrap; }
-  @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
-  .emp-h { display:flex; align-items:center; gap:var(--space-12); }
-  .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-title); }
-  .emp-name { font-size:var(--font-size-title); font-weight:700; }
-  .dgroup { margin-bottom:var(--space-16); } .dtitle { font-weight:600; margin-bottom:var(--space-8); }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
-  .ditem.ok { color:var(--color-ok); } .ditem.warn { color:var(--color-waiting); } .ditem.no { color:var(--color-ink-secondary); }
-  .growth { list-style:none; padding:0; margin:0; } .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
-  .growth li:last-child { border-bottom:none; }
-  .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); } .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
-  .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); } .cond.met { color:var(--color-ok); }
-  .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
-  .actrow:last-of-type { border-bottom:none; }
-</style>`;

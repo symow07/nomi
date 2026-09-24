@@ -437,6 +437,7 @@ ${cssVariables()}
   .is-focus { outline:2px solid var(--color-jade); outline-offset:2px; }
   .btn:disabled, .btn.is-disabled { background:var(--color-paper-sunk); color:var(--color-ink-secondary);
     box-shadow:none; cursor:default; }
+
   @media (max-width: 720px) {
     /* Rows matter here. .layout carries min-height:100vh, and with one column
        and no declared rows the nav and the content shared that height evenly:
@@ -479,6 +480,388 @@ ${cssVariables()}
   @keyframes nav-compact { to { padding-top:var(--space-4); padding-bottom:var(--space-4); } }
   @keyframes navlink-compact { to { min-height:44px; padding-top:var(--space-4); padding-bottom:var(--space-4); } }
 `;
+
+/**
+ * V1 step four — the pages' own rules, one section per page, names defined
+ * once. Served with the SHELL only: the login door and the public document
+ * carry the base rules above and none of these, which kept the door at its
+ * old size when the sections moved in.
+ */
+const STYLE_PAGES = `
+  /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
+  .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
+  .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
+  .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
+  .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .fterms li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
+  .fterms li:last-child { border-bottom:0; }
+  .fterms.floor li { color:var(--color-ink-secondary); }
+  .fterms .fnote { display:block; font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .rate-hist { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .rate-hist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .rate-hist li:last-child { border-bottom:0; }
+  .closures { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .closures li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
+  .closures li:last-child { border-bottom:0; }
+  .sreqs { list-style:none; margin:var(--space-12) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
+  .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
+  .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
+  .sreq-a { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); max-width:var(--measure-form); }
+  .sreq-a textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
+
+  /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
+  .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
+  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .rbrow:last-child { border-bottom:0; }
+  .rbrow .lbl { font-size:var(--font-size-small); }
+  .rbrow .n { margin-inline-start:auto; font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); }
+  .rblink { font-size:var(--font-size-caption); }
+  .rbsteps { margin:var(--space-8) 0 var(--space-16); padding-inline-start:20px; color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .rbsteps li { padding:2px 0; }
+  .rbrow .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
+  /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
+  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:var(--space-12); }
+  .ev-h { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
+  .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
+  .ev-p { font:var(--font-size-caption)/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:var(--color-ink-secondary); margin:var(--space-8) 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
+  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .pr:last-child { border-bottom:0; }
+  .pr .mk { font-size:var(--font-size-base); font-weight:700; }
+  .pr.done .mk { color:var(--color-ok); }
+  .pr.todo .mk { color:var(--color-ink-secondary); }
+  .pr .lbl { font-size:var(--font-size-small); }
+  .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
+  .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }
+  .badge.sys { background:var(--color-jade-wash); color:var(--color-ok); }
+  .badge.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .verdict { margin-top:var(--space-16); padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
+  .verdict.ok { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+
+  /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
+  .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
+  .level { display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
+  .level > span { display:flex; flex-direction:column; gap:var(--space-4); }
+  .lnote { font-size:var(--font-size-caption); }
+  .levels .btn { align-self:flex-start; }
+  /* Above the choice, not below it: she reads what happens before she decides, which is the whole point of putting it on this page. */
+  .disclose { border-inline-start:1px solid var(--color-border); padding-inline-start:var(--space-12); margin-block:var(--space-12) 0; }
+  .needname { color:var(--color-waiting); margin-block:var(--space-12) 0; }
+  /* M34.7 — a spot check reads as the work itself, not as a form to fill in. */
+  .scheck { padding:12px 0; border-bottom:1px solid var(--color-border); }
+  .scheck:last-child { border-bottom:0; }
+  .sclabel { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .scsaid { padding:6px 0; }
+  .scfix summary { color:var(--color-ink-secondary); font-size:var(--font-size-small); cursor:pointer; padding:6px 0; }
+  .scfix textarea { width:100%; }
+  /* Phase C: plain count rows and tappable gap rows — no matrix, no dense table. */
+  .hrows { display:flex; flex-direction:column; gap:var(--space-4); }
+  .hrow { display:flex; align-items:baseline; gap:var(--space-12); padding:8px 0; border-bottom:1px solid var(--color-border); }
+  .hrow:last-child { border-bottom:0; }
+  .hnum { font-size:var(--font-size-base); font-weight:700; color:var(--color-ink); min-width:2.2em; font-variant-numeric:tabular-nums; }
+  .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .empty-p { margin:0 0 var(--space-12); }
+  .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
+  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
+  a.gap:hover, a.gap:focus-visible { border-color:var(--color-jade-line); }
+  .gq { font-size:var(--font-size-small); color:var(--color-ink); }
+  .gmeta { font-size:var(--font-size-caption); grid-column:1; }
+  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-small); white-space:nowrap; }
+  @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
+  .emp-h { display:flex; align-items:center; gap:var(--space-12); }
+  .ava { width:44px; height:44px; border-radius:999px; background:var(--color-jade-wash); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-title); }
+  .emp-name { font-size:var(--font-size-title); font-weight:700; }
+  .dgroup { margin-bottom:var(--space-16); }
+  .dtitle { font-weight:600; margin-bottom:var(--space-8); }
+  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
+  .ditem.ok { color:var(--color-ok); }
+  .ditem.warn { color:var(--color-waiting); }
+  .ditem.no { color:var(--color-ink-secondary); }
+  .growth { list-style:none; padding:0; margin:0; }
+  .growth li { padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .growth li:last-child { border-bottom:none; }
+  .pstage { margin:var(--space-8) 0; font-size:var(--font-size-small); }
+  .conds { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-8); }
+  .cond { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .cond.met { color:var(--color-ok); }
+  .actrow { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .actrow:last-of-type { border-bottom:none; }
+
+  /* ── factory.ts — moved here whole in step four: page-specific names, defined once. */
+  .lede { color:var(--color-ink-secondary); margin:0 0 var(--space-24); font-size:var(--font-size-small); max-width:var(--measure-prose); }
+  /* The next step is a door, not a checklist row. It vanishes when done. */
+  /* M49 — the next step is an ACTION, not a state. Filled in jade it was the loudest object on a page about somebody's factory, and it competed with the two lines that actually report how her business stands. A raised sheet says "start here" without spending the one colour that means something. */
+  .fnext { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:14px; padding:var(--space-16); margin-bottom:var(--space-24); }
+  .fnext:hover, .fnext:focus-visible { border-color:var(--color-ink-secondary); }
+  .fnext-t { color:var(--color-ink); font-size:var(--font-size-small); font-weight:600; }
+  /* Sections are grouped decisions, not settings panels. */
+  .fblock { border-top:1px solid var(--color-border); padding:var(--space-24) 0; }
+  .fblock:first-of-type { border-top:0; padding-top:0; }
+  .fhead { margin-bottom:var(--space-12); }
+  .fhead h2 { margin:0; font-size:var(--font-size-base); font-weight:600; color:var(--color-ink); }
+  .fq { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fname { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); }
+  .fdesc { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; max-width:var(--measure-prose); }
+  .fdesc-lead { margin:0 0 var(--space-12); }
+  .fempty { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:0; max-width:var(--measure-prose); }
+  .fval { color:var(--color-ink); }
+  /* A product tally is never the loudest thing an owner reads. */
+  .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
+  .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
+  .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
+  .fwarn { color:var(--color-highlight); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fok { color:var(--color-jade); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px; background:var(--color-paper-sunk); color:var(--color-ink); border:1px solid var(--color-border); }
+  .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-small); line-height:1.6; }
+  /* The promise the whole product rests on — read it before the fine print. */
+  .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-ink); max-width:var(--measure-prose); border-inline-start:2px solid var(--color-jade); padding-inline-start:14px; }
+  .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .fsteps li { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .fsteps li.done { color:var(--color-ink); }
+  .sub3 { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:var(--space-24) 0 var(--space-4); }
+  /* Findings are a to-do list, not an alarm: same weight as any other step. */
+  .rehear { margin-top:var(--space-12); display:flex; flex-direction:column; gap:var(--space-12); }
+  .fgap .fnames { margin-top:var(--space-4); }
+  .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
+  .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
+  .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .rm { margin-inline-start:var(--space-8); }
+  /* M49 — a link is ink; jade is spent on sending and on state. */
+  .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
+  .fconn { display:flex; align-items:center; gap:var(--space-12); }
+  .fconn-t { font-size:var(--font-size-small); color:var(--color-ink); }
+  .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .fconn-i { font-size:var(--font-size-title); }
+  .fconn.on .fconn-s { color:var(--color-jade); }
+  /* Not connected stops everything, so it looks like it and links to the fix. */
+  .fconn.off { background:var(--color-highlight-wash); border:1px solid var(--color-highlight); border-radius:14px; padding:14px 16px; }
+  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-highlight); }
+  .fconn.off .fconn-s { color:var(--color-highlight); }
+  .fconn.off .go { margin-inline-start:auto; }
+  .fblock .deeper { margin-top:var(--space-8); }
+
+  /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
+  .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+  .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
+  .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+  .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
+  .prod:hover { border-color:var(--color-border); }
+  .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .p-tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
+  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
+  .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
+  .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
+  .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); }
+  .qrow:last-child { border-bottom:none; }
+  .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); flex-wrap:wrap; }
+  .rev:last-child { border-bottom:none; }
+  .rev-src { flex-basis:100%; font-size:var(--font-size-caption); }
+  .rev-move { flex-basis:100%; }
+  .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
+  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
+  @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
+
+  /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
+  .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }
+  .reach .reqs li, .reach .instead li { padding:var(--space-4) 0; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .reach .win { font-size:var(--font-size-small); margin-top:var(--space-8); }
+  .reach .instead { margin-top:var(--space-12); padding-top:var(--space-8); border-top:1px solid var(--color-border); }
+  .reach .outreach { margin-top:var(--space-12); padding-top:var(--space-12); border-top:1px solid var(--color-border); display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-12); }
+  .reach .outreach .on { color:var(--color-ink); font-weight:600; }
+  .reach .warn-line { flex-basis:100%; font-size:var(--font-size-small); margin:0; }
+  .reach .capform { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-8); flex-basis:100%; }
+  .reach .capform input[type=number] { width:8ch; }
+  .reach .cap-hint { font-size:var(--font-size-small); }
+  .dom { margin-top:var(--space-12); }
+  .dom-h { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; }
+  .dom .who { font-weight:600; }
+  .dns { list-style:none; margin:var(--space-8) 0; padding:0; }
+  .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:var(--space-4) 0; font-size:var(--font-size-small); }
+  .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
+  .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
+  /* V1 type scale — the headline pill carries a sentence ("You can write first once these are in place"); at caption 13 it no longer fits beside the name on a 390 px phone, and a pill is nowrap by rule. Let the row wrap and let this one pill break, rather than push the page 7 px wider than the screen. */
+  .ch-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-8); }
+  .ch-h .pill { white-space:normal; }
+  .ch-name { font-size:var(--font-size-small); font-weight:700; }
+  .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
+  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
+  .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
+  .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
+  .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
+  .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
+  .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .guide { padding-inline-start:20px; line-height:2; }
+  .guide li { margin-bottom:var(--space-4); }
+
+  /* ── knowledge.ts — moved here whole in step four: page-specific names, defined once. */
+  /* The two scopes sit side by side, so each says which one it is. */
+  /* A scope caption explains; it is not a state, so it gets no colour. */
+  .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); }
+  .klist { display:flex; flex-direction:column; gap:var(--space-8); }
+  .krow { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
+  .krow:hover { border-color:var(--color-border); }
+  .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  .kh .src { margin-inline-start:auto; font-size:var(--font-size-caption); }
+  .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
+  .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
+  .teach h3 { margin:0; font-size:var(--font-size-small); }
+  input[type=text], textarea, select { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
+  .kbtns { display:flex; gap:var(--space-8); }
+  .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
+  .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper-sunk); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
+  .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+
+  /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
+  .stat.big .v { font-size:var(--font-size-display); font-weight:700; color:var(--color-ink); }
+  .stat.big .l { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
+  h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
+  .reqs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); }
+  .reqs .q { color:var(--color-ink); }
+  .gap { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
+  .ki-q { font-size:var(--font-size-small); margin-bottom:var(--space-8); }
+  .ki-meta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
+  .gacts { display:flex; gap:var(--space-8); }
+  .pill.reason { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .pill.taught { background:var(--color-jade-wash); color:var(--color-ok); }
+  .pill.corrected { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .pill.archived { background:var(--color-border); color:var(--color-ink-secondary); }
+  .ki-acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .ki-acts li { display:flex; align-items:center; gap:var(--space-8); }
+  .usage { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+
+  /* ── contacts.ts — moved here whole in step four: page-specific names, defined once. */
+  .cts { list-style:none; margin:var(--space-12) 0; padding:0; }
+  .ct { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
+  .ct:last-child { border-bottom:0; }
+  .ct.gone { opacity:.55; }
+  .ct-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+  .ct .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
+  .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
+  .ct-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
+  .ct .reach-line { font-size:var(--font-size-small); margin-top:var(--space-8); }
+  .ct .ct-co { font-size:var(--font-size-small); margin-top:var(--space-8); display:block; }
+  .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
+  .ct .since { font-size:var(--font-size-small); }
+  /* Permanent, and it should read that way at a glance. */
+  .ct.stopped .who { color:var(--color-ink-secondary); }
+  .btn.stop { color:var(--color-ink-secondary); }
+  .cform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
+  .confirm { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-12); }
+  .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
+  .wform textarea { width:100%; font:inherit; }
+  .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
+
+  /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
+  .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }
+  .sq { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
+  .sq:last-child { border-bottom:0; }
+  .sq.gone { opacity:.55; }
+  .sq-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+  .sq-name { font-weight:600; }
+  .sq-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
+  .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
+  .sts, .ens { list-style:none; margin:var(--space-12) 0 0; padding:0; }
+  .st, .en { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
+  .st:last-child, .en:last-child { border-bottom:0; }
+  .st-h, .en-h { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
+  .st-n { font-weight:600; }
+  .st-w { font-size:var(--font-size-small); }
+  .st-s { font-weight:600; margin-top:var(--space-8); }
+  .st-b { white-space:pre-wrap; margin-top:var(--space-4); }
+  .en.gone { opacity:.7; }
+  .en .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
+  .en-a { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-8); }
+  .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
+  .sqform textarea { width:100%; font:inherit; }
+  .pill.wait { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+
+  /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
+  .pcount { font-size:var(--font-size-display); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
+  .pcases { list-style:none; margin:0; padding:0; }
+  .pcase { display:flex; gap:var(--space-8); padding:7px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .pcase:last-child { border-bottom:0; }
+  .pcase.ok .pmark { color:var(--color-ok); }
+  .pcase.bad .pmark { color:var(--color-warn); }
+  .ptitle { color:var(--color-ink-secondary); }
+  .pproves { margin:var(--space-12) 0 0; max-width:var(--measure-prose); line-height:1.6; }
+  .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
+  .sbx-intro { margin:0 0 var(--space-16); }
+  .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
+  .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
+  .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
+  .radio.off { opacity:.5; cursor:not-allowed; }
+  .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  select { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
+  .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
+  .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
+  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
+  .sbx-trust { border-color:var(--color-highlight-line); }
+  .sbx-trust.pass { border-color:var(--color-jade-line); }
+  .sbx-trust.fail { border-color:var(--color-warn-line); }
+  .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
+  .sbx-trust.pass .verdict { color:var(--color-ok); }
+  .sbx-trust.fail .verdict { color:var(--color-warn); }
+  .chip.auto { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+  .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-waiting-line); }
+  .chip.warn { background:var(--color-warn-wash); color:var(--color-warn); }
+  .chip.badge { background:var(--color-jade-wash); color:var(--color-highlight); }
+  .checks { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
+  .chk { display:grid; grid-template-columns:auto 1fr; gap:var(--space-4) var(--space-8); align-items:start; }
+  .chk .mk { font-weight:700; }
+  .chk.ok .mk { color:var(--color-ok); }
+  .chk.bad .mk { color:var(--color-warn); }
+  .chk .lbl { font-size:var(--font-size-small); }
+  .chk .dt { grid-column:2; font-size:var(--font-size-caption); word-break:break-word; }
+  .card.draft { border-color:var(--color-waiting-line); }
+  /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech components live in one place so the two voices cannot fork per page. */
+  .takeover.owner { flex-direction:column; align-items:stretch; }
+
+`;
+
+/**
+ * V1 step four — the ONE public document: the legal pages, the unsubscribe
+ * page and the proof page stand outside the owner's shell (no nav, no
+ * session). Same tokens, one stylesheet, a page's own rules passed in — so a
+ * second hand-rolled palette cannot drift.
+ */
+export function publicDocument(input: {
+  readonly locale: Locale; readonly title: string; readonly body: string;
+  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+}): string {
+  return `<!doctype html>
+<html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
+<style>
+${cssVariables()}
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--color-paper); color:var(--color-ink);
+         font: var(--font-size-base)/var(--line-height) var(--font-family);
+         -webkit-text-size-adjust:100%; }
+  main { max-width:var(--measure-prose); margin:0 auto; padding:var(--space-48) var(--space-16); }
+  h1 { font-size:var(--font-size-title); line-height:1.25; margin:0 0 var(--space-12); font-weight:600; }
+  h2 { font-size:inherit; font-weight:600; margin:var(--space-32) 0 var(--space-8); }
+  p, li { margin:0 0 var(--space-12); color:var(--color-ink-secondary); }
+  ul, ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); }
+  a { color:var(--color-ink); }
+  .updated { margin-top:var(--space-48); }
+  button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
+           border-radius:var(--radius-card); background:var(--color-jade);
+           color:var(--color-surface); cursor:pointer; }
+${input.extraCss ?? ''}
+</style>
+</head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
+}
 
 /**
  * A7 — WHICH of the four is lit, for a page that is not one of the four.
@@ -582,7 +965,7 @@ export function shell(input: {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(name)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}</style></head>
+<style>${STYLE}${STYLE_PAGES}</style></head>
 <body><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>

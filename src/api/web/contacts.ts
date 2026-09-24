@@ -314,28 +314,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
           <input name="company" maxlength="120" /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'contacts.add.button'))}</button>
       </form>
-    </section>
-    <style>
-      .cts { list-style:none; margin:var(--space-12) 0; padding:0; }
-      .ct { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); }
-      .ct:last-child { border-bottom:0; }
-      .ct.gone { opacity:.55; }
-      .ct-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12);
-              flex-wrap:wrap; }
-      .ct .id { color:var(--color-ink-secondary); margin-inline-start:var(--space-8); }
-      .ct-a { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:var(--space-8); }
-      .ct-b { font-size:var(--font-size-small); margin-top:var(--space-4); }
-      .ct .reach-line { font-size:var(--font-size-small); margin-top:var(--space-8); }
-      .ct .ct-co { font-size:var(--font-size-small); margin-top:var(--space-8); display:block; }
-      .ct .st { display:inline-flex; align-items:baseline; gap:var(--space-8); }
-      .ct .since { font-size:var(--font-size-small); }
-      /* Permanent, and it should read that way at a glance. */
-      .ct.stopped .who { color:var(--color-ink-secondary); }
-      .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-      .btn.stop { color:var(--color-ink-secondary); }
-
-      .cform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-    </style>`;
+    </section>`;
 }
 
 /**
@@ -370,11 +349,7 @@ export function renderSuppressConfirm(
         <a class="btn send" href="/app/contacts">${esc(t(locale, 'contacts.suppress.cancel'))}</a>
         <button class="btn stop" type="submit">${esc(t(locale, 'contacts.suppress.confirm'))}</button>
       </form>
-    </section>
-    <style>
-      .confirm { display:flex; gap:var(--space-12); align-items:center;
-                 flex-wrap:wrap; margin-top:var(--space-12); }
-    </style>`;
+    </section>`;
 }
 
 /**
@@ -420,10 +395,5 @@ export function renderWriteFirst(
           <a class="btn" href="/app/contacts">${esc(t(locale, 'contacts.write.cancel'))}</a>
         </div>
       </form>
-    </section>
-    <style>
-      .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
-      .wform textarea { width:100%; font:inherit; }
-      .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
-    </style>`;
+    </section>`;
 }

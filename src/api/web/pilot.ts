@@ -509,7 +509,7 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: F
       ${attests}
     </div>
     ${verdict}
-    ${PILOT_STYLE}`;
+    `;
 }
 
 // ── M16.2d runbook renderer — Before launch (M15) + During / Practice / After ─
@@ -744,36 +744,7 @@ export function renderPilotRunbook(
     + (feedback ? feedbackSection(feedback, locale) : '')
     + (meta ? metaSection(meta, locale, templateState) : '')
     + (rehearsal ? engineSection(rehearsal, locale) : '')
-    + (deployment ? deploymentSection(deployment, locale, unauthoredPriceRules) : '')
-    + RUNBOOK_STYLE;
+    + (deployment ? deploymentSection(deployment, locale, unauthoredPriceRules) : '');
 }
 
-const RUNBOOK_STYLE = `<style>
-  .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
-  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper-sunk); }
-  .rbrow:last-child { border-bottom:0; }
-  .rbrow .lbl { font-size:var(--font-size-small); } .rbrow .n { margin-inline-start:auto; font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); }
-  .rblink { font-size:var(--font-size-caption); }
-  .rbsteps { margin:var(--space-8) 0 var(--space-16); padding-inline-start:20px; color:var(--color-ink-secondary); font-size:var(--font-size-small); }
-  .rbsteps li { padding:2px 0; }
-  .rbrow .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
-  /* Engine evidence: raw on purpose — it is read by whoever fixes the defect. */
-  .ev { border:1px solid var(--color-warn-line); background:var(--color-warn-wash); border-radius:12px; padding:12px 14px; margin-top:var(--space-12); }
-  .ev-h { display:flex; gap:var(--space-8); flex-wrap:wrap; }
-  .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
-  .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
-  .ev-p { font:var(--font-size-caption)/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:var(--color-ink-secondary);
-          margin:var(--space-8) 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
-</style>`;
 
-const PILOT_STYLE = `<style>
-  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper-sunk); }
-  .pr:last-child { border-bottom:0; }
-  .pr .mk { font-size:var(--font-size-base); font-weight:700; } .pr.done .mk { color:var(--color-ok); } .pr.todo .mk { color:var(--color-ink-secondary); }
-  .pr .lbl { font-size:var(--font-size-small); }
-  .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
-  .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }
-  .badge.sys { background:var(--color-jade-wash); color:var(--color-ok); } .badge.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
-  .verdict { margin-top:var(--space-16); padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
-  .verdict.ok { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
-</style>`;

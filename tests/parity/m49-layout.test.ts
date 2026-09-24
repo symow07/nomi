@@ -288,7 +288,8 @@ describe('M49 · buttons and empty states', () => {
       ['layout.ts  nav.side a.navlink', 'the phone tab bar: an icon over a word, in a cell'],
       ['layout.ts  .login .foot', 'the line under the centred sign-in card'],
       ['layout.ts  .login .other', 'A1 — the one link under that card: to sign-up from the door, and back'],
-      ['pilot.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
+      // V1 step four: the rehearsal verdict's rule moved into the shell with the rest of pilot.ts.
+      ['layout.ts  .verdict', 'the rehearsal verdict — a result banner, not an empty state'],
     ]);
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {

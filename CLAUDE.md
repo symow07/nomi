@@ -219,14 +219,19 @@ product's, the Setup count sits with its word. **Option A built** (brief
 Setup's first rows; the login page keeps its switcher; `header.stage`
 retired. Chrome at rest on a phone is the nav row alone.
 **Step four is under way:** pages retire their `<style>` blocks onto the
-shell's families (brief §8, decision 4). First batch done: ten small pages,
-baseline 40 → 30; Today done, 29 (`tools/style-baseline.json`; lower it
-each time). Still carrying a block: Buyers (`inbox.ts`, waits on
-decision 5), Customers (`conversations.ts`), My business (`factory.ts`),
-products, the assistant (`employee.ts`), Practice (`sandbox.ts`), channels,
-knowledge and its insights, Getting ready (`pilot.ts`), Setup
-(`settings.ts`), contacts, sequences, proof; and the two public pages
-(legal, unsubscribe) which have no shell. Each is a PR with screenshots.
+shell's families (brief §8, decision 4). Done as far as it goes without decision 5:
+baseline 40 → **6** (`tools/style-baseline.json`). The six: the shell's
+own three `<style>` tags in `layout.ts` (the shell, the login door,
+`publicDocument()` — which the legal, unsubscribe and proof pages now
+share), Buyers' two (`inbox.ts`) and Customers' one (`conversations.ts`),
+which wait on decision 5 (the row). Every other page's rules sit in
+`STYLE_PAGES` in `layout.ts` under a `/* ── <file>.ts` section, names
+unchanged, defined once — served with the shell only; the login door and
+`publicDocument()` carry the base `STYLE` alone (an owner page is ~60 KB of
+HTML now, the door 32 KB as before).
+Page tests no longer read a page's own `<style>`: they assert the page is
+bare and, where they must, read the shell's section from `layout.ts`
+(factory.test.ts shows how).
 Recurring traps: a CSS comment or class name ships to the browser and is
 scanned (no "token", no "stack", no "%"); a page never paints its own
 notice (`flashBanner`); `<a class="btn">` is still common — the

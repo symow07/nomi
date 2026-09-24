@@ -369,7 +369,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
   if (items.length === 0) {
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: assistantName(locale) }))}</span>
-      <div style="margin-top:var(--space-16)"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>${PRODUCT_STYLE}`;
+      <div style="margin-top:var(--space-16)"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -383,7 +383,7 @@ export function renderProductList(items: readonly ProductListItem[], locale: Loc
       ${p.imageMatchable ? `<div class="p-tag">📷 ${esc(t(locale, 'product.list.imageMatch'))}</div>` : ''}
     </a>`;
   }).join('');
-  return `${head}<div class="list">${cards}</div>${PRODUCT_STYLE}`;
+  return `${head}<div class="list">${cards}</div>`;
 }
 
 export function renderProductDetail(
@@ -451,7 +451,7 @@ export function renderProductDetail(
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
     </div>
-    ${tiers}${editForm}${aliases}${images}${quotes}${PRODUCT_STYLE}`;
+    ${tiers}${editForm}${aliases}${images}${quotes}`;
 }
 
 export function renderAddForm(locale: Locale): string {
@@ -473,7 +473,7 @@ export function renderAddForm(locale: Locale): string {
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-    </div>${PRODUCT_STYLE}`;
+    </div>`;
 }
 
 /** Rejected lines shown one by one before the rest become "and N more". */
@@ -553,35 +553,9 @@ export function renderReview(
       <button class="btn send" type="submit">${esc(t(locale, diff.added.length > 0 ? 'product.review.confirm' : 'product.review.confirmChanges'))}</button>
       <a class="btn" href="/app/products/add">${esc(t(locale, 'product.review.repaste'))}</a>
     </form>` : body}
-    ${PRODUCT_STYLE}`;
+    `;
 }
 
-const PRODUCT_STYLE = `<style>
-
-  .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px;
-              color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
-  .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
-
-  .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
-  .prod { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
-  .prod:hover { border-color:var(--color-border); }
-  .prod-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; } .prod-b { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .p-tag { color:var(--color-ok); font-size:var(--font-size-caption); margin-top:var(--space-8); } .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
- 
-  .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
-  .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
-  .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-
-  .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
-  .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); } .qrow:last-child { border-bottom:none; }
-  .rev { display:flex; align-items:center; gap:var(--space-8); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); flex-wrap:wrap; }
-  .rev:last-child { border-bottom:none; }
-  .rev-src { flex-basis:100%; font-size:var(--font-size-caption); }
-  .rev-move { flex-basis:100%; }
-  .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
-  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
-  @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
-</style>`;
 
 /**
  * M29 — the owner edits her own product.
@@ -806,5 +780,5 @@ export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale): string
       <p>${esc(t(locale, `product.photo.refused.${reason}` as MessageKey))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
       <p><a class="btn" href="/app/products/add">${esc(t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}</a></p>
-    </div>${PRODUCT_STYLE}`;
+    </div>`;
 }
