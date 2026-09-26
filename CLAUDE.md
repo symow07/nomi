@@ -99,9 +99,10 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `8976f47` (merge of #80, the last of the 2026-09-27 batch). `/health` →
+- **Deployed:** `c3b55b9` (merge of #88, the owner's Stop). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
-  `schema_version` = **69**; exactly one business has `outreach_area` on.
+  `schema_version` = **70**; no business is stopped; exactly one business has
+  `outreach_area` on. Backup before 0070: `nomi-backup-20260926T030221Z`.
 - **Schema:** 70. Last three: `0068 outreach_area`, `0069 backup_runs`,
   `0070 assistant_stop`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
@@ -132,6 +133,10 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 88 | **The owner's Stop, on every channel** (0070) — see §5 rule 13; queued replies cancelled at send time, silent while stopped, waiting buyers handed to a person so they stay on Needs you; hand-back / answer-now / approve / edit refused while stopped |
+| 87 | Tests never write into the tree — the phantom 2962 (the m45 probe wrote `tools/.probe-check.mjs` while `no-secret-in-argv` enumerated `tools/`); `tests-leave-the-tree-alone.test.ts` |
+| 86 | My business: going live is per channel; Stop names WhatsApp |
+| 85 | `check-reachable` flushes before it exits (the flaky m45 probe on CI) |
 | 83 | **V2 the calendar** — `/app/calendar` (Buyers hub, door from the Buyers list): dates already on record per buyer — samples, order updates, quotes, open handoff deadlines, follow-ups (outreach area only), closures, closed conversations; category tabs + buyer select; past 7 + next 14 days; every row `data-src="table:id"`; category is the neutral `span.chip` until decision 5 gives V1's row tag; no new `<style>` (still 6); screenshots `docs/design/v2-calendar/` |
 | 82 | **Phase 4a permissions** — money and going live are the owner's: products (edit/add/photo/price list), rate, sample policy → `price_rules`; attestations, assistant name, validate, allowlist, WhatsApp test/disconnect/reconnect, owner phone → `messaging_activation`; staff see values + `staff.ownerDecides`, never a form that refuses them |
 | 81 | **Phase 4b first run without WhatsApp** — one definition of connected (`src/db/connectedChannels.ts`); any channel completes Setup's step; My business lists every channel (allowlist only under WhatsApp); refusal names no channel; placeholder from sign-up country (`callingCodes.ts`); one word "Practice"; machine room → owner-only `/app/onboarding/technical`; KB 02 true |
