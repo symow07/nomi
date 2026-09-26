@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
+import { anyConnected, connectedChannels } from './connectedChannels.js';
 
 /**
  * D — how far a workspace is through setting up, as five steps.
@@ -41,11 +42,11 @@ export const NOTHING_DONE: SetupProgress = setupFrom({
 });
 
 export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<SetupProgress> {
-  // One round-trip; each figure is a live EXISTS over real rows. Explicit
-  // business_id filters keep it tenant-safe regardless of a table's RLS, and
-  // first_success joins conversations so an approved draft must belong to one.
+  // Each figure is a live EXISTS over real rows. Explicit business_id filters
+  // keep it tenant-safe regardless of a table's RLS, and first_success joins
+  // conversations so an approved draft must belong to one.
   const r = (await sql<{
-    profile_done: boolean; products_done: boolean; name_done: boolean; channels_done: boolean; first_success_done: boolean;
+    profile_done: boolean; products_done: boolean; name_done: boolean; first_success_done: boolean;
   }>`
     select
       coalesce((select (description is not null and location is not null
@@ -55,16 +56,15 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
               where business_id = ${businessId}::uuid and is_active and price_usd_per_unit is not null) as products_done,
       exists(select 1 from onboarding_state
               where business_id = ${businessId}::uuid and assistant_named_at is not null) as name_done,
-      exists(select 1 from channels ch
-               join channel_credentials cc on cc.business_id = ch.business_id
-                 and cc.channel = 'whatsapp' and cc.is_active
-              where ch.business_id = ${businessId}::uuid and ch.kind = 'whatsapp' and ch.status = 'connected') as channels_done,
       exists(select 1 from drafts d
                join conversations c on c.id = d.conversation_id and c.business_id = ${businessId}::uuid
               where d.business_id = ${businessId}::uuid and d.status in ('approved','edited') and d.decided_at is not null) as first_success_done
   `.execute(tx)).rows[0]!;
+  // Phase 4b — ANY place a buyer writes, connected: WhatsApp, Instagram,
+  // Messenger or a mailbox. The same definition the Channels page reads.
+  const channelsDone = anyConnected(await connectedChannels(tx, businessId));
   return setupFrom({
     profile: r.profile_done, products: r.products_done, name: r.name_done,
-    channels: r.channels_done, first_success: r.first_success_done,
+    channels: channelsDone, first_success: r.first_success_done,
   });
 }

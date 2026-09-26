@@ -65,7 +65,7 @@ import {
   type OAuthClients, type OAuthFetch,
 } from '../../connectors/oauth.js';
 import { completeMailConnection, disconnectMailbox } from '../../channels/email/connectMailbox.js';
-import { loadAccounts, renderAccounts } from './connect.js';
+import { loadAccounts, renderAccounts, mailConnectable } from './connect.js';
 import { checkSendingDomainNow } from '../../outbound/domainCheck.js';
 import {
   addProspect, enrichmentsFor, keyStatus, lookUpCompany, removeKey, saveKey, searchProspects,
@@ -100,7 +100,7 @@ import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
 import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import {
-  loadPilotRunbook, renderPilotRunbook, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
+  loadPilotRunbook, renderPilotRunbook, renderPilotTechnical, loadPilotFeedback, attest, nameAssistant, runValidation, type AttestKey,
 } from './pilot.js';
 import { readDeployment } from './deployment.js';
 import { checkMetaReadiness } from '../../core/channel/metaReadiness.js';
@@ -1718,8 +1718,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
+      // Phase 4 — the number's lifecycle is the owner's, like connecting it:
+      // a disconnect stops buyers' messages, a test writes to a real phone.
+      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      if (!s) return reply;
       const r = await run(s.businessId, personOf(s).id);
       return flashTo(reply, '/app/channels', channelFlash(r.code));
     });
@@ -1738,6 +1740,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (!s) return reply;
       const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
+      facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
       const key = r.code === 'connected' ? 'reach.inbound.flash.connected'
         : r.code === 'already_connected' ? 'reach.inbound.flash.already'
         : r.code === 'account_taken' ? 'reach.inbound.flash.taken'
@@ -1760,12 +1763,39 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — where the owner's own alerts go is the owner's to change.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    if (!s) return reply;
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
     return flashTo(reply, '/app/channels', `settings.flash.${r.code}` as MessageKey);
   });
+
+  /**
+   * C9 / C10 — which inbound channels this host can offer, and which she
+   * connected. One builder, read by the Channels page and by My business
+   * (Phase 4b), so the two can never state a channel differently.
+   */
+  const inboundLinks = async (businessId: string): Promise<Map<OutreachChannel, InboundLink>> => {
+    const linked = await metaLinkStatus(deps.db, businessId);
+    // C10 — the login is offered whenever this installation has one; a Page she
+    // connected herself is named, and is hers to disconnect.
+    const login = deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect
+      ? { connectHref: '/app/connect/meta/start' } : {};
+    const own = linked.account;
+    const inboundLink = (kind: 'instagram' | 'messenger', hostConfigured: boolean, connected: boolean): InboundLink => ({
+      configured: hostConfigured || 'connectHref' in login, connected, ...login,
+      ...(own ? {
+        connectedAs: kind === 'instagram' && own.igUsername ? `${own.pageName} · @${own.igUsername}` : own.pageName,
+        ...(own.needsAttention ? { needsAttention: true } : {}),
+        ...(kind === 'instagram' && !own.hasInstagram ? { noInstagram: true } : {}),
+      } : {}),
+    });
+    return new Map<OutreachChannel, InboundLink>([
+      ['instagram', inboundLink('instagram', (deps.instagramAccountId ?? null) !== null, linked.instagram)],
+      ['messenger', inboundLink('messenger', (deps.messengerPageId ?? null) !== null, linked.messenger)],
+    ]);
+  };
 
   // Re-render the channels page with a flash after a redirect (?flash=).
   app.get('/app/channels', async (req, reply) => {
@@ -1782,24 +1812,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       smtpFrom: deps.smtpFrom ?? null, apollo: await keyStatus(prospectDeps(), bid.value),
     }) : null;
     // C9 — which inbound channels this host can offer, and which she connected.
-    const linked = await metaLinkStatus(deps.db, s.businessId);
-    // C10 — the login is offered whenever this installation has one; a Page she
-    // connected herself is named, and is hers to disconnect.
-    const login = deps.metaLogin && deps.publicBaseUrl && deps.credentialKey && deps.metaConnect
-      ? { connectHref: '/app/connect/meta/start' } : {};
-    const own = linked.account;
-    const inboundLink = (kind: 'instagram' | 'messenger', hostConfigured: boolean, connected: boolean): InboundLink => ({
-      configured: hostConfigured || 'connectHref' in login, connected, ...login,
-      ...(own ? {
-        connectedAs: kind === 'instagram' && own.igUsername ? `${own.pageName} · @${own.igUsername}` : own.pageName,
-        ...(own.needsAttention ? { needsAttention: true } : {}),
-        ...(kind === 'instagram' && !own.hasInstagram ? { noInstagram: true } : {}),
-      } : {}),
-    });
-    const inbound = new Map<OutreachChannel, InboundLink>([
-      ['instagram', inboundLink('instagram', (deps.instagramAccountId ?? null) !== null, linked.instagram)],
-      ['messenger', inboundLink('messenger', (deps.messengerPageId ?? null) !== null, linked.messenger)],
-    ]);
+    const inbound = await inboundLinks(s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash, personOf(s),
@@ -1813,7 +1826,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // owns it, so there is exactly one place that writes each thing.
   app.get('/app/factory', authed('factory', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
-    return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured), locale, flash, personOf(s));
+    // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
+    const offer = {
+      inbound: await inboundLinks(s.businessId),
+      mailConnectable: Object.values(mailConnectable(deps.oauthClients ?? {}, deps.publicBaseUrl ?? null)).some(Boolean),
+    };
+    return renderFactory(await loadFactory(deps.db, s.businessId, whatsappConfigured, offer), locale, flash, personOf(s));
   }));
 
   // M20.3 — going live, and coming back. Both go through the EXISTING service:
@@ -1844,8 +1862,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // adds no model and no permission system. Every flash below is derived from
   // what the service actually persisted, never assumed.
   app.post('/app/factory/allowlist/add', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — who may be written to during the pilot is the owner's call.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const b = (req.body ?? {}) as { phone?: string; label?: string };
@@ -1857,8 +1876,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/factory/allowlist/remove', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
@@ -1883,18 +1902,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products', authed('products', async (s, req, locale, reply) => {
     // D2 — the import redirects here with what it did; the page dropped it.
     const flash = takeFlash(req, reply);
-    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash);
+    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s));
   }));
-  app.get('/app/products/add', authed('products', (_s, _req, locale) => renderAddForm(locale)));
+  app.get('/app/products/add', authed('products', (s, _req, locale) => renderAddForm(locale, personOf(s))));
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d, locale)
+    return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
       : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
   }));
   app.post('/app/products/add/review', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — prices are the owner's (CC-07): a catalogue import sets them.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
     const v = reviewImport(text);
@@ -1915,8 +1935,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * MULTIPART LIMITS ARE SET EXPLICITLY below, at registration.
    */
   app.post('/app/products/add/photo', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const locale = localeOf(req);
     const refuse = (reason: PhotoRefusal) =>
       reply.type('text/html; charset=utf-8').send(page(req, {
@@ -1953,9 +1973,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // M29 — the owner edits her own product. Archive-never-erase: "stop offering
   // this" is is_active=false, and every changed field is audited old → new.
   app.post('/app/products/:id/edit', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — a product's price, MOQ and whether it is offered are money.
     const id = (req.params as { id: string }).id;
+    const s = await ownerOnly(req, reply, 'price_rules', `/app/products/${encodeURIComponent(id)}`);
+    if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
@@ -2049,8 +2070,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/products/add/confirm', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const text = String(b['text'] ?? '');
     // G16 — each change the review offered is its own tick, `apply:<product>`.
@@ -2252,12 +2273,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const data = await loadPilotRunbook(deps.db, s.businessId, {
       sandboxBusinessId: deps.sandboxBusinessId, provider: deps.provider,
     });
+    // M17.6: what actually happened — counts and dates from stored signals/events.
+    const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'pilot.title'), active: 'onboarding',
+      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s)),
+    }));
+  });
+
+  // Phase 4b (audit F2 / F4) — the machine room, one door from Getting ready
+  // and owner-only: credential shapes, the engine's own checks, the build.
+  app.get('/app/onboarding/technical', ownerPage('messaging_activation', 'onboarding', '/app/onboarding', async (s, _req, _reply, locale) => {
     // M17.1: which build is running — owner-authenticated only, never on /health.
     const deployment = readDeployment(process.env, new Date(), process.uptime());
     // M17.2: go-live preparation status. Reads shapes only — never a value, and
     // never contacts Meta, so opening this page can switch nothing on.
-    // M17.6: what actually happened — counts and dates from stored signals/events.
-    const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     const meta = checkMetaReadiness({
       values: {
         accessToken: process.env['META_WHATSAPP_ACCESS_TOKEN'],
@@ -2283,15 +2313,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // the owner cannot fix it and did not cause it. Zero on any factory
     // provisioned after M29, which is the point.
     const unauthored = await countUnauthoredPriceRules(deps.db, s.businessId);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, deployment, meta, feedback, rehearsal, deps.templateState ?? 'none', unauthored),
-    }));
-  });
+    return renderPilotTechnical(locale, {
+      deployment, meta, rehearsal, templateState: deps.templateState ?? 'none', unauthoredPriceRules: unauthored,
+    });
+  }));
 
+  // Phase 4 — Getting ready's answers are the owner's: each one is a
+  // condition for going live, and going live is the owner's call.
   app.post('/app/onboarding/attest', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const which = String((req.body as { which?: string } | undefined)?.which ?? '') as AttestKey;
     if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
       await attest(deps.db, s.businessId, which);
@@ -2303,8 +2334,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // route rather than a branch of /attest: this one carries an answer, and the
   // attest route exists precisely because those items have no answer to carry.
   app.post('/app/onboarding/assistant-name', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
     if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
@@ -2315,8 +2346,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/onboarding/validate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const r = await runValidation(deps.db, s.businessId);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.validated', { pass: r.pass, total: r.total });
   });
@@ -2368,11 +2399,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
   app.get('/app/settings/rate', authed('settings', async (sess, req, locale, reply) =>
     renderRate(await loadRates(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
+      takeFlash(req, reply), personOf(sess))));
 
   app.post('/app/settings/rate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — the rate she honours converts every price: money, hers.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/rate');
+    if (!s) return reply;
     const locale = localeOf(req);
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
@@ -2663,6 +2695,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       businessId: bid.value, provider, code: q.code.slice(0, 2048), verifier: state.verifier,
       redirectUri: redirectUriFor(provider), by: personOf(s).name,
     });
+    facts.evict(s.businessId);   // Phase 4b — a mailbox is a place buyers write: a setup step
     return r.outcome === 'connected'
       ? channelsFlash(reply, 'connect.flash.connected', { address: r.address ?? '' })
       : channelsFlash(reply, `connect.flash.${r.outcome}`);
@@ -2672,6 +2705,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'outreach', '/app/channels'); if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     const done = bid.ok && await disconnectMailbox(deps.db, { businessId: bid.value, by: personOf(s).name });
+    facts.evict(s.businessId);
     return channelsFlash(reply, done ? 'connect.flash.disconnected' : 'connect.flash.rejected');
   });
 
@@ -2762,6 +2796,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const mc = metaReady();
     const bid = parseBusinessId(s.businessId);
     const done = mc !== null && bid.ok && await disconnectMetaAccount(mc, { businessId: bid.value, by: personOf(s).name });
+    facts.evict(s.businessId);
     return channelsFlash(reply, done ? 'connect.meta.flash.disconnected' : 'connect.flash.rejected');
   });
 
@@ -3081,7 +3116,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // staff negotiate inside her commercial terms, they do not set them.
   app.get('/app/settings/terms', authed('settings', async (sess, req, locale, reply) =>
     renderTerms(await loadTerms(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
+      takeFlash(req, reply), personOf(sess))));
 
   app.post('/app/settings/terms', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/terms');
@@ -3099,11 +3134,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/samples', authed('settings', async (sess, req, locale, reply) =>
     renderSamples(await loadSamples(deps.db, sess.businessId), locale,
       takeFlash(req, reply),
-      new Date())));
+      new Date(), personOf(sess))));
 
   app.post('/app/settings/samples', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — what a sample costs is a price. Recording an address or
+    // marking one sent (below) stays the job of whoever handles it.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/samples');
+    if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveSamplePolicy(deps.db, s.businessId, {

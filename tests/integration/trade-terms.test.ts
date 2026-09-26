@@ -135,7 +135,11 @@ d('G6 · her terms on a proforma (requires DATABASE_URL)', () => {
   });
 
   it('staff may read the page but may not set her terms', async () => {
-    expect((await get(staffCookie, '/app/settings/terms')).statusCode).toBe(200);
+    const page = await get(staffCookie, '/app/settings/terms');
+    expect(page.statusCode).toBe(200);
+    // Phase 4 — and are not shown a form that could only refuse them.
+    expect(page.body).not.toContain('action="/app/settings/terms"');
+    expect(page.body).toContain('The owner decides this.');
     const res = await post(staffCookie, '/app/settings/terms', `payment=${encodeURIComponent('100% up front')}&incoterm=EXW`);
     expect(res.statusCode).toBe(302);
     expect(await termsRows()).toEqual([]);
