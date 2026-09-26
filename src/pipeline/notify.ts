@@ -32,6 +32,25 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type AlertKind = NotifyJob['kind'];
 export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'failed_permanent';
 
+/**
+ * OPERATOR alerts — about the installation, not about a buyer: its backups
+ * (and, as they are added, the other things only whoever runs Nomi can fix).
+ * Each is delivered as `backup_stale` always was: by E-MAIL to the sign-in
+ * address of the business the job names (the pilot's — whoever runs this
+ * installation), always; and by WhatsApp as well where a channel is live and a
+ * number is set. None of them may depend on WhatsApp, because the thing being
+ * reported can be the reason WhatsApp is not working.
+ *
+ * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
+ * locale, and its words in `renderOwnerAlert`.
+ */
+export const OPERATOR_ALERT_KINDS = ['backup_stale'] as const satisfies readonly AlertKind[];
+export const isOperatorAlert = (kind: AlertKind): boolean =>
+  (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
+
+/** What an operator alert says beyond its kind. Each kind reads its own fields. */
+export type OperatorAlertDetail = { readonly lastBackupAt?: Date | null };
+
 /** Event → neutral alert code (business logic stays locale-free). */
 export function alertKindFor(effects: { readonly hotLeadAlert: boolean; readonly handoffAlert: boolean }): AlertKind | null {
   if (effects.handoffAlert) return 'handoff';
@@ -42,7 +61,7 @@ export function alertKindFor(effects: { readonly hotLeadAlert: boolean; readonly
 /** Pure: localized owner-facing alert text. delivery_failed reuses dead_letter. */
 export function renderOwnerAlert(
   locale: Locale, kind: AlertKind, name: string | null = null,
-  detail: { readonly lastBackupAt?: Date | null } = {},
+  detail: OperatorAlertDetail = {},
 ): string {
   // The backup alert says WHEN the last good copy is from, or that there has
   // never been one — the two are different news, so they are two sentences.
@@ -78,17 +97,17 @@ export type NotifyDeps = {
  * permanent failure is swallowed to avoid a dead-letter loop). No owner phone =
  * honestly skipped, never a fake send.
  *
- * `backup_stale` is the exception, on purpose: it is the one alert that must
- * not depend on WhatsApp, because the channel it would travel on is itself
- * something that can be down, unverified, or never connected — and the
- * message says the data has no safe copy. It goes by E-MAIL to the address
- * the owner signs in with, always; and by WhatsApp as well when a channel is
- * live and a number is set. See `deliverBackupAlert`.
+ * The OPERATOR alerts (`OPERATOR_ALERT_KINDS`, `backup_stale` first) are the
+ * exception, on purpose: they must not depend on WhatsApp, because the channel
+ * they would travel on is itself something that can be down, unverified, or
+ * never connected. They go by E-MAIL to the address the owner signs in with,
+ * always; and by WhatsApp as well when a channel is live and a number is set.
+ * See `deliverOperatorAlert`.
  */
 export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promise<AlertOutcome> {
   const bid = parseBusinessId(job.businessId);
   if (!bid.ok) return 'skipped_no_destination';
-  if (job.kind === 'backup_stale') return deliverBackupAlert(deps, bid.value, job);
+  if (isOperatorAlert(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
 
   const found = await withTenantTx(deps.db, bid.value, async (tx) => {
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
@@ -114,7 +133,8 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 }
 
 /**
- * The backup alert: e-mail first, WhatsApp too where it can actually arrive.
+ * An operator alert (the backup alert first): e-mail first, WhatsApp too where
+ * it can actually arrive.
  *
  * Outcome is `sent` when at least one way delivered; `failed_permanent` when
  * every way that existed failed; `skipped_no_destination` when there was no
@@ -122,7 +142,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
  * line makes visible, since an alert about missing backups that has nowhere
  * to go is itself something the operator needs to know.
  */
-async function deliverBackupAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
   const found = await withTenantTx(deps.db, bid, async (tx) => {
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
       select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
@@ -134,14 +154,13 @@ async function deliverBackupAlert(deps: NotifyDeps, bid: BusinessId, job: Notify
   });
   if (!found.row) return 'skipped_no_destination';
   const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
-  const lastBackupAt = job.lastBackupAt ? new Date(job.lastBackupAt) : null;
-  const body = renderOwnerAlert(locale, 'backup_stale', null, { lastBackupAt });
+  const body = renderOwnerAlert(locale, job.kind, null, operatorDetailOf(job));
 
   let tried = 0; let sent = 0;
   if (deps.mail && found.email) {
     tried++;
-    const r = await deps.mail.send({ to: found.email, subject: t(locale, 'notify.backup_stale.subject'), text: body });
-    if (r.ok) sent++; else console.warn(`[notify] backup alert e-mail failed: ${r.error}`);
+    const r = await deps.mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
+    if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
   }
   if (found.live && found.row.owner_phone) {
     tried++;
@@ -149,6 +168,11 @@ async function deliverBackupAlert(deps: NotifyDeps, bid: BusinessId, job: Notify
     if (r.ok) sent++;
     else if (r.retryable && sent === 0) throw new Error(`owner alert send failed (retryable): ${r.error}`);
   }
-  if (tried === 0) { console.warn('[notify] backup alert has nowhere to go: no login e-mail or sender, and no live number'); return 'skipped_no_destination'; }
+  if (tried === 0) { console.warn(`[notify] ${job.kind} alert has nowhere to go: no login e-mail or sender, and no live number`); return 'skipped_no_destination'; }
   return sent > 0 ? 'sent' : 'failed_permanent';
+}
+
+/** The job's own fields, as the words for its kind need them. Dates travel as ISO strings. */
+function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
+  return { lastBackupAt: job.lastBackupAt ? new Date(job.lastBackupAt) : null };
 }
