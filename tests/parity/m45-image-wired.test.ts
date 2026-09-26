@@ -76,6 +76,19 @@ describe('M4.5 · nothing in the pipeline is dead code claiming to be a feature'
     expect(out).toContain('is reached from production');
   });
 
+  it('the checker never exits before its output has left — the list is read through a pipe', async () => {
+    // 2026-09-26: on a busy CI runner the probe above received the ✗ list only
+    // up to src/llm/ and failed. Writes to a pipe are asynchronous on POSIX and
+    // a bare process.exit() drops what is still queued; every exit goes through
+    // the one helper that waits for stdout and stderr to flush.
+    const src = await readFile(new URL('../../tools/check-reachable.mjs', import.meta.url), 'utf8');
+    const code = src.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    const hard = [...code.matchAll(/(?<![\w.])process\.exit\(/g)].length;
+    expect(hard, 'only the flushing helper may call process.exit').toBe(1);
+    expect(code).toMatch(/process\.stderr\.write\('', done\)/);
+    expect([...code.matchAll(/\bawait exit\(/g)].length).toBeGreaterThanOrEqual(6);
+  });
+
   it('every declared gap carries a reason someone can act on', async () => {
     const src = await readFile(new URL('../../tools/check-reachable.mjs', import.meta.url), 'utf8');
     const block = src.slice(src.indexOf('const DECLARED_UNWIRED'), src.indexOf('const isTs'));
