@@ -1,6 +1,7 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-24**, in the PR that queues **V1 / V2**. Written so the
+Last updated **2026-09-27**, after the batch that shipped Phase 4, V2 and the
+site (PRs #80–#83). Written so the
 next session needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
@@ -73,8 +74,8 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 ## 3 · Verification set (run all four before a PR)
 
 ```bash
-env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2100 unit
-npm run trust                                                 # 33/33 golden scenarios
+env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2250 unit
+npm run trust                                                 # 36/36 golden scenarios
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
@@ -96,9 +97,9 @@ before suspecting code.
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
 
-## 4 · What is live (production, 2026-09-23)
+## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `05486a8` (merge of #78). `/health` →
+- **Deployed:** `8976f47` (merge of #80, the last of the 2026-09-27 batch). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
 - **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
@@ -131,6 +132,10 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 83 | **V2 the calendar** — `/app/calendar` (Buyers hub, door from the Buyers list): dates already on record per buyer — samples, order updates, quotes, open handoff deadlines, follow-ups (outreach area only), closures, closed conversations; category tabs + buyer select; past 7 + next 14 days; every row `data-src="table:id"`; category is the neutral `span.chip` until decision 5 gives V1's row tag; no new `<style>` (still 6); screenshots `docs/design/v2-calendar/` |
+| 82 | **Phase 4a permissions** — money and going live are the owner's: products (edit/add/photo/price list), rate, sample policy → `price_rules`; attestations, assistant name, validate, allowlist, WhatsApp test/disconnect/reconnect, owner phone → `messaging_activation`; staff see values + `staff.ownerDecides`, never a form that refuses them |
+| 81 | **Phase 4b first run without WhatsApp** — one definition of connected (`src/db/connectedChannels.ts`); any channel completes Setup's step; My business lists every channel (allowlist only under WhatsApp); refusal names no channel; placeholder from sign-up country (`callingCodes.ts`); one word "Practice"; machine room → owner-only `/app/onboarding/technical`; KB 02 true |
+| 80 | **Phase 5 site** — the app serves nomidoes.com: `SITE_HOSTS` hosts get the site on `/` and 301 `/app*`,`/login`… to `PUBLIC_BASE_URL`; preview `https://app.nomidoes.com/site` (noindex); copy under `site.*` in three locales; `docs/SITE-DNS.md` |
 | 78 | **V1 review fixes** — `.who` → `.person` (the stacked header), no face + quiet caveat on the assistant's page, products a dense list with marks only for what is NOT fine, `.stats/.rows` at the prose measure, `dir="auto"` on speech, titles on Today/Practice/Knowledge, one door idiom (`deeper next`) |
 | 77 | `docs/DESIGN-V1-REVIEW.md` — a designer's pass, five worst things with screenshots |
 | 76 | CLAUDE.md handoff |
@@ -207,8 +212,24 @@ Recent PRs, newest first:
    - On for Westlake Canvas Co. only.
 9. **Every page draws from `workspaceFacts`** (`src/db/workspace.ts`): name, several, outreach, and the five-step setup progress (`src/db/setup.ts` — profile, products, name, channels, first reply). Cached a minute per business in `app.ts`; every write that completes a step calls `facts.evict`. The Setup nav entry shows `done/total`; Today shows a "finish setting up" card; both vanish when complete.
 10. **The backup alert never depends on WhatsApp.** `backup_stale` (daily check, `QUEUES.backups`, 06:30 UTC; rule in `src/core/ops/backups.ts`, 36 h) goes by e-mail to the owner's sign-in address always, and by WhatsApp only where a channel is live (`deliverBackupAlert` in `src/pipeline/notify.ts`). `tests/integration/backup-watch.test.ts` proves it fires with no channel connected. The job writes `backup_runs`; the app may only read it.
+11. **Money and going live are the owner's** (Phase 4, 2026-09-27). Staff may teach facts, set closures, forbidden words, the business profile, and record a sample's address/handled — nothing that changes a price or a go-live condition. Guards are the existing `OWNER_ONLY` actions (`price_rules`, `messaging_activation`); renderers take a `Viewer`. `tests/integration/phase4-permissions.test.ts` snapshots every table the gated routes write.
+12. **nomidoes.com is served by this app** (`SITE_HOSTS`). The site states nothing unbuilt: no price, no trial, invite-only CTA to the legal contact address. `tests/parity/site.test.ts` holds it.
 
 ## 6 · What's next
+
+**The 2026-09-27 batch** (the owner's order, ahead of the queue below): Phase 4
+(#81, #82), V2 (#83) and the site (#80) shipped. Open from it:
+- **DNS is the owner's** — `docs/SITE-DNS.md` (Railway custom domain
+  `www.nomidoes.com`, `SITE_HOSTS`, GoDaddy www CNAME + apex forwarding; never
+  touch MX/SPF/`app`). Until then the site is only at `/site`.
+- Owner decisions still open: CC-28 open vs invite sign-up; the site's zh/ar copy
+  wants a native read; "Ready to go live" on My business still says "Connect
+  WhatsApp" (it is WhatsApp activation — send path); KB 01 still says 连 WhatsApp.
+- V2's category chip becomes V1's row tag when decision 5 lands.
+- `tests/parity/m45-image-wired.test.ts` "exits non-zero and names an
+  unreachable module" failed once on CI and passed on re-run (flaky).
+- Builder worktrees under `.claude/worktrees/` are picked up by vitest and
+  inflate every count ×4 — move them out (`git worktree move`) before verifying.
 
 The queue is `docs/ROADMAP.md` §2b (written 2026-09-24). In order: the owner
 runs the usability script → **V1 visual design pass** (Symow directs, Claude
