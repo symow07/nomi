@@ -44,6 +44,17 @@ export type AccountsView = {
   readonly apollo: KeyStatus;
 };
 
+/**
+ * Which mail providers can be connected HERE: a client configured and a public
+ * address to return to. One answer, read by this page and by My business
+ * (Phase 4b), so a mailbox is never offered on one and missing on the other.
+ */
+export const mailConnectable = (
+  clients: OAuthClients, publicBaseUrl: string | null,
+): Readonly<Record<OAuthProvider, boolean>> =>
+  Object.fromEntries(OAUTH_PROVIDERS.map((p) =>
+    [p, publicBaseUrl !== null && clients[p] !== undefined])) as Record<OAuthProvider, boolean>;
+
 export async function loadAccounts(
   db: Db, businessId: BusinessId,
   o: {
@@ -60,8 +71,7 @@ export async function loadAccounts(
       provider: mail.provider, address: mail.address, connectedBy: mail.connectedBy,
       connectedAt: mail.connectedAt, needsAttention: mail.needsAttention, readsInbox: mail.readsInbox,
     } : null,
-    connectable: Object.fromEntries(OAUTH_PROVIDERS.map((p) =>
-      [p, o.publicBaseUrl !== null && o.clients[p] !== undefined])) as Record<OAuthProvider, boolean>,
+    connectable: mailConnectable(o.clients, o.publicBaseUrl),
     sendingDomain: domain?.domain ?? null,
     smtpFrom: o.smtpFrom ?? null,
     apollo: o.apollo,

@@ -9,7 +9,7 @@ import { evaluateScenario, runAll } from '../../src/trust/harness.js';
 import { SCENARIOS } from '../../src/trust/scenarios.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
-import { renderPilotRunbook, type PilotRunbook } from '../../src/api/web/pilot.js';
+import { renderPilotRunbook, renderPilotTechnical, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { t as say } from '../../src/api/web/say.js';
@@ -482,8 +482,9 @@ describe('M20.5 · an engine defect goes to the operator, never to the owner', (
       expect(html, leak).not.toContain(leak);
   });
 
-  it('the runbook shows it with enough evidence to reproduce it', async () => {
-    const html = renderPilotRunbook(runbook, 'en', null, undefined, undefined, undefined, withViolation);
+  // Phase 4b (F2) — the operator's panel is the technical page now, one door from Getting ready.
+  it('the technical page shows it with enough evidence to reproduce it', async () => {
+    const html = renderPilotTechnical('en', { rehearsal: withViolation });
     expect(html).toContain('priceFloorRespected');        // which invariant
     expect(html).toContain('factory:quote:TOTE');         // which probe
     expect(html).toContain('sku=TOTE');                   // the input
@@ -492,7 +493,7 @@ describe('M20.5 · an engine defect goes to the operator, never to the owner', (
   });
 
   it('says plainly when nothing failed, rather than showing a tick', () => {
-    const html = renderPilotRunbook(runbook, 'en', null, undefined, undefined, undefined, withFindings);
+    const html = renderPilotTechnical('en', { rehearsal: withFindings });
     expect(html).toContain('All 5 checks held.');
     // No evidence block is rendered. (The stylesheet always ships, so this
     // asserts on the markup — matching 'ev-p' would pass against the CSS.)
@@ -500,7 +501,8 @@ describe('M20.5 · an engine defect goes to the operator, never to the owner', (
     expect(html).not.toContain('<pre class="ev-p">');
   });
 
-  it('the panel is absent entirely when the rehearsal did not run', () => {
+  it('the panel is absent entirely when the rehearsal did not run — and never on Getting ready', () => {
+    expect(renderPilotTechnical('en')).not.toContain(t('en', 'runbook.engine.title'));
     const html = renderPilotRunbook(runbook, 'en', null);
     expect(html).not.toContain(t('en', 'runbook.engine.title'));
   });
