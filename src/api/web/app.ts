@@ -97,6 +97,7 @@ import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
+import { keepDraftEdit, keepUnsentReply, clearUnsentReply } from '../../db/ownerWords.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
@@ -1476,6 +1477,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const sends = body.command === '发送' || body.command === '改';
     const verdict = sends ? await ownerSendVerdict(bid.value, conversationId) : 'ok';
     if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
+      // CC-24 — refused before it reached the draft service: the edit is kept on
+      // the draft all the same, and the edit box opens with it.
+      if (body.command === '改') {
+        await withTenantTx(deps.db, bid.value, (tx) => keepDraftEdit(tx, bid.value, body.draftId!, body.edit ?? ''));
+      }
       return flashTo(reply, `/app/inbox/${encodeURIComponent(conversationId)}`, `inbox.blocked.${verdict}` as MessageKey);
     }
     const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
@@ -1585,12 +1591,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // gate reads before accepting, so the answer she gets is the true one.
     const verdict = await ownerSendVerdict(bid.value, cid);
     if (verdict !== 'ok') {
+      // CC-24 — refused before it was queued: the reply waits in the box.
+      await withTenantTx(deps.db, bid.value, (tx) => keepUnsentReply(tx, bid.value, cid, text));
       return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, `inbox.blocked.${verdict}` as MessageKey);
     }
     const r = await ownerReply(
       { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
       { businessId: bid.value, conversationId: cid, text, actor: personOf(s).id },
     );
+    await withTenantTx(deps.db, bid.value, (tx) => (r.outcome === 'sent'
+      ? clearUnsentReply(tx, bid.value, cid)
+      : keepUnsentReply(tx, bid.value, cid, text)));
     return takeoverFlash(reply, cid, r.outcome);
   });
 

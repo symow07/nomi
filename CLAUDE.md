@@ -103,8 +103,8 @@ footer.
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **70**; no business is stopped; exactly one business has
   `outreach_area` on. Backup before 0070: `nomi-backup-20260926T030221Z`.
-- **Schema:** 71. Last three: `0069 backup_runs`, `0070 assistant_stop`,
-  `0071 silence_handoff`.
+- **Schema:** 72. Last three: `0070 assistant_stop`, `0071 silence_handoff`,
+  `0072 kept_words`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -224,6 +224,7 @@ Recent PRs, newest first:
    - While set: the send gate refuses the assistant's messages and automated follow-ups (`stopped`, at send time — a reply queued before Stop is cancelled, never sent late); the worker runs no turn — each message is recorded (media named, not opened) and the conversation handed to a person (`assistant_stopped` signal), which keeps the buyer on "Needs you"; hand-back (`resumeAi`, so also answer-now) and approve/edit are refused and the draft stays pending. The owner's own replies always go.
    - Start leaves conversations handed over during the stop with their person. `tests/integration/assistant-stop.test.ts` holds all of it; each guard is proven load-bearing by switching it off.
    - **The ops kill switch behaves the same** (0071): while `global_silence` is on, the worker hands each buyer to a person under `ops_silenced` (not the owner's reason), and hand-back / approve / edit are refused (`assistant_silenced`). One question answers both: `assistantHold` in `src/db/assistantStop.ts` (ops first). Today and My business say sending is paused. `tests/integration/ops-silence-handoff.test.ts`.
+14. **The owner's words survive a refusal** (CC-24, 0072; `src/db/ownerWords.ts`). The draft edit box opens with the draft itself, or with the owner's kept edit (`drafts.owner_edit`). An edit refused anywhere — the approval path's hold refusal, or the route's window/allowlist verdict — is kept on the draft; the owner's own reply refused before queueing is kept in `conversations.owner_unsent_reply` and cleared when a reply goes. Nothing kept is sent except by the owner pressing send again. `tests/integration/kept-words.test.ts`.
 
 ## 6 · What's next
 
