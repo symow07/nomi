@@ -498,7 +498,11 @@ export type ConversationDetail = {
      * says so, and the approval path refuses to send this wording unchanged.
      */
     disclosureSent?: boolean;
+    /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
+    ownerEdit?: string | null;
   } | null;
+  /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
+  readonly ownerUnsentReply?: string | null;
   readonly ownership: ConversationOwnership;
   /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
   readonly heldBy?: string | null;
@@ -588,10 +592,10 @@ export async function loadConversationDetail(
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
-      answered_by: string | null; assistants: number;
+      answered_by: string | null; assistants: number; owner_unsent_reply: string | null;
     }>`
       select c.id, cl.display_name as buyer, cl.country, p.name_zh, p.name,
-             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at,
+             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
              coalesce(
@@ -668,8 +672,8 @@ export async function loadConversationDetail(
 
     // G7a/G7b — why her rules held it, and the prices behind that, from the
     // `draft_pending` event the turn wrote beside THIS draft.
-    const draft = (await sql<{ id: string; draft_text: string; capability: string; pending: Record<string, unknown> | null }>`
-      select d.id, d.draft_text, d.capability,
+    const draft = (await sql<{ id: string; draft_text: string; capability: string; owner_edit: string | null; pending: Record<string, unknown> | null }>`
+      select d.id, d.draft_text, d.capability, d.owner_edit,
              (select e.payload from conversation_events e
                where e.conversation_id = d.conversation_id and e.type = 'draft_pending'
                  and e.payload->>'draftId' = d.id::text
@@ -752,8 +756,10 @@ export async function loadConversationDetail(
             heldBecause: isHoldReason(draft.pending?.['heldBecause']) ? draft.pending['heldBecause'] : null,
             contradicts: contradictionOf(draft.pending?.['contradicts']),
             forbidden: stringsOf(draft.pending?.['forbidden']),
-            disclosureSent: draft.pending?.['disclosureSent'] === true }
+            disclosureSent: draft.pending?.['disclosureSent'] === true,
+            ownerEdit: draft.owner_edit }
         : null,
+      ownerUnsentReply: head.owner_unsent_reply,
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
       answeredBy: head.assistants > 1 ? head.answered_by : null,
@@ -1013,7 +1019,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${last}
         ${handToForm}
         <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
-          <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
+          ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
+          <textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required>${esc(d.ownerUnsentReply ?? '')}</textarea>
           <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
@@ -1184,7 +1191,8 @@ export function renderConversationDetail(
         <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="editform">
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
-          <textarea id="edit" name="edit" rows="2" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}"></textarea>
+          ${d.pendingDraft.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
+          ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping. */ ''}<textarea id="edit" name="edit" rows="4" dir="auto" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}">${esc(d.pendingDraft.ownerEdit ?? d.pendingDraft.draftText)}</textarea>
           <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
         </form>
       </div>`

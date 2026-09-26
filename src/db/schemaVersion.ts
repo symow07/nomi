@@ -210,8 +210,12 @@ import type { Db } from './client.js';
  *      Against a 70 database that insert fails the CHECK, so during an
  *      emergency every buyer message would dead-letter instead of waiting on
  *      "Needs you" — the moment it matters most.
+ * 72 = the owner's words survive a refusal (0072, CC-24). `drafts.owner_edit`
+ *      and `conversations.owner_unsent_reply` are read on every conversation
+ *      page and written when a send is refused. Against a 71 database the
+ *      conversation page throws on the missing columns.
  */
-export const REQUIRED_SCHEMA_VERSION = 71;
+export const REQUIRED_SCHEMA_VERSION = 72;
 
 export type SchemaState = {
   readonly required: number;

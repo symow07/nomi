@@ -4,6 +4,7 @@ import { parseOwnerReply } from '../core/conversation/cards.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { ensureSpotChecks } from './spotChecks.js';
 import { assistantHold } from '../db/assistantStop.js';
+import { keepDraftEdit } from '../db/ownerWords.js';
 
 /**
  * M9.3 (Option B) — the ONE draft-resolution service. Completes the trust
@@ -99,6 +100,9 @@ export async function applyOwnerCommand(
     // refuse it as 'silenced', with the same consequence for "Needs you".
     const hold = cmd.kind === 'approve' || cmd.kind === 'edit' ? await assistantHold(tx, input.businessId) : null;
     if (hold) {
+      // CC-24 — an edit is the owner's words: refused, it is kept on the draft,
+      // and the edit box opens with it when the owner comes back.
+      if (cmd.kind === 'edit') await keepDraftEdit(tx, input.businessId, draft.id, cmd.text);
       return { outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped', conversationId: draft.conversation_id, sendText: null };
     }
 
