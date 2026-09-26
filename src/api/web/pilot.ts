@@ -18,6 +18,7 @@ import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/temp
 import { esc, deeper, back } from './layout.js';
 import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 
 /**
@@ -414,26 +415,31 @@ const DETECTED_LINK: Record<DetectedKey, string> = {
   channel: '/app/channels',
 };
 
-function detectedRow(key: DetectedKey, done: boolean, locale: Locale): string {
+function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, `pilot.item.${key}` as MessageKey));
   if (done) {
     return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
       <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))}</span></div>`;
   }
-  const extra = key === 'claims'
+  const extra = key === 'claims' && viewer.isOwner
     ? `<form method="post" action="/app/onboarding/attest" class="inline"><input type="hidden" name="which" value="claims_reviewed" /><button class="btn ghost" type="submit">${esc(t(locale, 'pilot.claims.none'))}</button></form>`
     : '';
   return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, `pilot.blocker.${key}` as MessageKey))}</span>
-      <a class="btn" href="${DETECTED_LINK[key]}">${esc(t(locale, 'pilot.open'))}</a>${extra}</div></div>`;
+      ${key === 'priceRules' && !viewer.isOwner ? '' : `<a class="btn" href="${DETECTED_LINK[key]}">${esc(t(locale, 'pilot.open'))}</a>`}${extra}</div></div>`;
 }
 
-function attestRow(key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at: Date | null, locale: Locale): string {
+function attestRow(
+  key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at: Date | null, locale: Locale, viewer: Viewer = OWNER_VIEW,
+): string {
   const label = esc(t(locale, `pilot.attest.${key}` as MessageKey));
   if (at) {
     return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
       <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(formatDate(locale, at))}</span></div>`;
   }
+  // Phase 4 — each answer here is a condition for going live: the owner's.
+  if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+    <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
   return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <form method="post" action="/app/onboarding/attest" class="inline">
       <input type="hidden" name="which" value="${key}" />
@@ -451,12 +457,14 @@ function attestRow(key: 'backup_tested' | 'secrets_rotated' | 'owner_ready', at:
  * confirms or changes it; either way a person chose. Once confirmed the row
  * reads like the others, with the name she settled on.
  */
-function assistantNameRow(d: PilotReadiness, locale: Locale): string {
+function assistantNameRow(d: PilotReadiness, locale: Locale, viewer: Viewer = OWNER_VIEW): string {
   const label = esc(t(locale, 'pilot.attest.assistant_named'));
   if (d.attest.assistantNamedAt) {
     return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label} · ${esc(d.assistantName)}</span>
       <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(formatDate(locale, d.attest.assistantNamedAt))}</span></div>`;
   }
+  if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
+    <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
   return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.assistant.hint'))}</span>
       <form method="post" action="/app/onboarding/assistant-name" class="inline">
@@ -466,10 +474,12 @@ function assistantNameRow(d: PilotReadiness, locale: Locale): string {
       </form></div></div>`;
 }
 
-export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: Flash | null): string {
+export function renderPilotReadiness(
+  d: PilotReadiness, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
+): string {
   const flashHtml = flashBanner(flash);
   const detectedOrder: DetectedKey[] = ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
-  const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale)).join('');
+  const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale, viewer)).join('');
 
   const v = d.validation;
   const valLine = v.at && v.pass !== null && v.total !== null
@@ -479,19 +489,19 @@ export function renderPilotReadiness(d: PilotReadiness, locale: Locale, flash: F
       <span class="mk">${d.detected.sandbox ? '✓' : '○'}</span>
       <span class="lbl">${esc(t(locale, 'pilot.item.sandbox'))}</span>
       <div class="pr-b"><span class="muted">${valLine}</span>
-        <form method="post" action="/app/onboarding/validate" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.validate'))}</button></form></div>
+        ${viewer.isOwner ? `<form method="post" action="/app/onboarding/validate" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.validate'))}</button></form>` : ''}</div>
     </div>`;
 
   const attests = [
-    assistantNameRow(d, locale),
+    assistantNameRow(d, locale, viewer),
     // Checked for the owner once the scheduled backup has proven a restore;
     // the hand-made tick remains for an installation that predates the job.
     d.backupVerifiedAt
       ? `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${esc(t(locale, 'pilot.attest.backup_tested'))}</span>
           <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(formatDate(locale, d.backupVerifiedAt))}</span></div>`
-      : attestRow('backup_tested', d.attest.backupTestedAt, locale),
-    attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale),
-    attestRow('owner_ready', d.attest.ownerReadyAt, locale),
+      : attestRow('backup_tested', d.attest.backupTestedAt, locale, viewer),
+    attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale, viewer),
+    attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer),
   ].join('');
 
   const verdict = d.readyToLaunch
@@ -732,19 +742,22 @@ out: ${esc(v.engine)}</pre>
  * Getting ready — the owner's checklist and what follows it (audit F2). The
  * machine room that used to be appended here (the WhatsApp credentials, the
  * engine's own checks, the build) is `renderPilotTechnical`, one door away:
- * an owner was reading "App secret" between her checklist and her practice
- * (F4), with nothing on it she could act on.
+ * the owner was reading "App secret" between the checklist and practice
+ * (F4), with nothing on it to act on.
  */
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: Flash | null, feedback?: PilotFeedback,
+  viewer: Viewer = OWNER_VIEW,
 ): string {
-  return renderPilotReadiness(rb.readiness, locale, flash)
+  return renderPilotReadiness(rb.readiness, locale, flash, viewer)
     + duringSection(rb.operations, locale)
     + healthSection(rb.reliability, locale)
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + `<section class="block"><div class="doors">${deeper('/app/onboarding/technical', t(locale, 'pilot.technical.title'))}</div></section>`;
+    + (viewer.isOwner
+      ? `<section class="block"><div class="doors">${deeper('/app/onboarding/technical', t(locale, 'pilot.technical.title'))}</div></section>`
+      : '');
 }
 
 /**

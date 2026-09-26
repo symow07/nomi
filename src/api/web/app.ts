@@ -1716,8 +1716,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   const channelAction = (path: string, run: (businessId: string, actor: string) => Promise<import('./channels.js').ChannelActionResult>) =>
     app.post(path, async (req, reply) => {
-      const s = sessionOf(req);
-      if (!s) return reply.redirect('/login');
+      // Phase 4 — the number's lifecycle is the owner's, like connecting it:
+      // a disconnect stops buyers' messages, a test writes to a real phone.
+      const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+      if (!s) return reply;
       const r = await run(s.businessId, personOf(s).id);
       return flashTo(reply, '/app/channels', channelFlash(r.code));
     });
@@ -1759,8 +1761,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — where the owner's own alerts go is the owner's to change.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    if (!s) return reply;
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await saveOwnerPhone(deps.db, s.businessId, phone, personOf(s).id);
     return flashTo(reply, '/app/channels', `settings.flash.${r.code}` as MessageKey);
@@ -1857,8 +1860,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // adds no model and no permission system. Every flash below is derived from
   // what the service actually persisted, never assumed.
   app.post('/app/factory/allowlist/add', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — who may be written to during the pilot is the owner's call.
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const b = (req.body ?? {}) as { phone?: string; label?: string };
@@ -1870,8 +1874,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/factory/allowlist/remove', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/factory');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
@@ -1896,18 +1900,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products', authed('products', async (s, req, locale, reply) => {
     // D2 — the import redirects here with what it did; the page dropped it.
     const flash = takeFlash(req, reply);
-    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash);
+    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s));
   }));
-  app.get('/app/products/add', authed('products', (_s, _req, locale) => renderAddForm(locale)));
+  app.get('/app/products/add', authed('products', (s, _req, locale) => renderAddForm(locale, personOf(s))));
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
-    return d ? renderProductDetail(d, locale)
+    return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
       : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
   }));
   app.post('/app/products/add/review', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — prices are the owner's (CC-07): a catalogue import sets them.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
     const v = reviewImport(text);
@@ -1928,8 +1933,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * MULTIPART LIMITS ARE SET EXPLICITLY below, at registration.
    */
   app.post('/app/products/add/photo', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const locale = localeOf(req);
     const refuse = (reason: PhotoRefusal) =>
       reply.type('text/html; charset=utf-8').send(page(req, {
@@ -1966,9 +1971,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // M29 — the owner edits her own product. Archive-never-erase: "stop offering
   // this" is is_active=false, and every changed field is audited old → new.
   app.post('/app/products/:id/edit', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — a product's price, MOQ and whether it is offered are money.
     const id = (req.params as { id: string }).id;
+    const s = await ownerOnly(req, reply, 'price_rules', `/app/products/${encodeURIComponent(id)}`);
+    if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     facts.evict(s.businessId);   // D — a first price is a setup step done
     const r = await updateProduct(deps.db, s.businessId, id, personOf(s).id, {
@@ -2062,8 +2068,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/products/add/confirm', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const text = String(b['text'] ?? '');
     // G16 — each change the review offered is its own tick, `apply:<product>`.
@@ -2260,7 +2266,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, feedback),
+      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s)),
     }));
   });
 
@@ -2301,9 +2307,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   }));
 
+  // Phase 4 — Getting ready's answers are the owner's: each one is a
+  // condition for going live, and going live is the owner's call.
   app.post('/app/onboarding/attest', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const which = String((req.body as { which?: string } | undefined)?.which ?? '') as AttestKey;
     if (which in ({ backup_tested: 1, secrets_rotated: 1, owner_ready: 1, claims_reviewed: 1 } as Record<string, number>)) {
       await attest(deps.db, s.businessId, which);
@@ -2315,8 +2323,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // route rather than a branch of /attest: this one carries an answer, and the
   // attest route exists precisely because those items have no answer to carry.
   app.post('/app/onboarding/assistant-name', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const raw = String((req.body as { name?: string } | undefined)?.name ?? '');
     const r = await nameAssistant(deps.db, s.businessId, raw, personOf(s).id);
     if (!r.ok) return flashTo(reply, '/app/onboarding', `pilot.assistant.problem.${r.problem}` as MessageKey);
@@ -2327,8 +2335,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   });
 
   app.post('/app/onboarding/validate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/onboarding');
+    if (!s) return reply;
     const r = await runValidation(deps.db, s.businessId);
     return flashTo(reply, '/app/onboarding', 'pilot.flash.validated', { pass: r.pass, total: r.total });
   });
@@ -2380,11 +2388,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // M43b — the rate SHE will honour. Never a live rate she did not approve.
   app.get('/app/settings/rate', authed('settings', async (sess, req, locale, reply) =>
     renderRate(await loadRates(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
+      takeFlash(req, reply), personOf(sess))));
 
   app.post('/app/settings/rate', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — the rate she honours converts every price: money, hers.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/rate');
+    if (!s) return reply;
     const locale = localeOf(req);
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
@@ -3096,7 +3105,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // staff negotiate inside her commercial terms, they do not set them.
   app.get('/app/settings/terms', authed('settings', async (sess, req, locale, reply) =>
     renderTerms(await loadTerms(deps.db, sess.businessId), locale,
-      takeFlash(req, reply))));
+      takeFlash(req, reply), personOf(sess))));
 
   app.post('/app/settings/terms', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/terms');
@@ -3114,11 +3123,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/samples', authed('settings', async (sess, req, locale, reply) =>
     renderSamples(await loadSamples(deps.db, sess.businessId), locale,
       takeFlash(req, reply),
-      new Date())));
+      new Date(), personOf(sess))));
 
   app.post('/app/settings/samples', async (req, reply) => {
-    const s = sessionOf(req);
-    if (!s) return reply.redirect('/login');
+    // Phase 4 — what a sample costs is a price. Recording an address or
+    // marking one sent (below) stays the job of whoever handles it.
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/samples');
+    if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveSamplePolicy(deps.db, s.businessId, {

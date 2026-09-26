@@ -630,7 +630,10 @@ export function renderChannels(
   inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
 ): string {
   const w = data.whatsapp;
-  const actions = w.connected
+  // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
+  const actions = !viewer.isOwner && (w.connected || w.status === 'disconnected')
+    ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
+    : w.connected
     ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
        <form method="post" action="/app/channels/whatsapp/disconnect" style="display:inline"><button class="btn danger">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
     : w.status === 'disconnected'
@@ -667,11 +670,11 @@ export function renderChannels(
   const alertsCard = `<div class="block">
     <h2>${esc(t(locale, 'settings.alerts.title'))}</h2>
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
-    <form method="post" action="/app/settings/owner-phone" class="ownerform">
+    ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
       <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
       <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}" />
       <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
-    </form>
+    </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
     <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
   </div>`;
 
