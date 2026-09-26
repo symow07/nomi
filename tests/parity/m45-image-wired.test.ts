@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir } from 'node:fs/promises';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { decideImageIntake, seeImage } from '../../src/pipeline/imageIntake.js';
 import type { ImageInquiryResult, ImageTurnDeps } from '../../src/pipeline/imageTurn.js';
@@ -47,24 +50,30 @@ describe('M4.5 · nothing in the pipeline is dead code claiming to be a feature'
    * where a pipeline module has no production caller, and requires a non-zero
    * exit naming it.
    */
-  it('the reachability checker exits non-zero and names an unreachable module', () => {
-    const probe = `
-      import { readFileSync, writeFileSync } from 'node:fs';
-      let s = readFileSync('tools/check-reachable.mjs', 'utf8');
-      s = s.replace(/const ENTRYPOINTS = \\[[^\\]]*\\]/, "const ENTRYPOINTS = ['tools/.probe-entry.ts']");
-      writeFileSync('tools/.probe-check.mjs', s);
-      writeFileSync('tools/.probe-entry.ts', 'export const nothing = 1;\\n');
-    `;
-    execFileSync(process.execPath, ['--input-type=module', '-e', probe]);
+  it('the reachability checker exits non-zero and names an unreachable module', async () => {
+    // The probe lives OUTSIDE the repository, in a directory of its own. It
+    // used to be written into tools/ for the length of this test, and every
+    // test file running beside it reads the same tree: no-secret-in-argv builds
+    // two tests per tools/*.mjs when it loads, so a run that loaded inside that
+    // window counted 2962 tests instead of 2960 — and failed both whenever the
+    // cleanup below landed first (2026-09-27; see tests-leave-the-tree-alone).
+    const dir = mkdtempSync(join(tmpdir(), 'nomi-reach-probe-'));
+    const entry = join(dir, 'probe-entry.ts');
+    const check = join(dir, 'probe-check.mjs');
+    const src = await readFile(new URL('../../tools/check-reachable.mjs', import.meta.url), 'utf8');
+    const probe = src.replace(/const ENTRYPOINTS = \[[^\]]*\]/, () => `const ENTRYPOINTS = [${JSON.stringify(entry)}]`);
+    expect(probe, 'the probe must replace the entrypoints, or it proves nothing').not.toBe(src);
+    writeFileSync(check, probe);
+    writeFileSync(entry, 'export const nothing = 1;\n');
     let code = 0; let out = '';
     try {
-      out = execFileSync(process.execPath, ['tools/.probe-check.mjs'], { encoding: 'utf8', stdio: 'pipe' });
+      // Run from the repository root, as the real checker is: src/ is walked from here.
+      out = execFileSync(process.execPath, [check], { encoding: 'utf8', stdio: 'pipe' });
     } catch (e) {
       const err = e as { status: number; stdout: string; stderr: string };
       code = err.status; out = `${err.stdout}${err.stderr}`;
     } finally {
-      execFileSync(process.execPath, ['--input-type=module', '-e',
-        `import {rmSync} from 'node:fs'; rmSync('tools/.probe-check.mjs',{force:true}); rmSync('tools/.probe-entry.ts',{force:true});`]);
+      rmSync(dir, { recursive: true, force: true });
     }
     expect(code, 'an unreachable pipeline module must fail the build').not.toBe(0);
     expect(out).toMatch(/imageTurn\.ts|imageIntake\.ts|voiceTurn\.ts/);
