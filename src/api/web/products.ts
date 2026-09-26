@@ -11,6 +11,12 @@ import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+
+/** Phase 4 — prices and products are the owner's (CC-07). A sales assistant
+ *  reads them; in place of each form that would only refuse, this line. */
+const ownerDecides = (locale: Locale): string =>
+  `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
 
 /**
  * M9.5 + ADR-0008 — Product Knowledge Center. A VIEW over the EXISTING catalog
@@ -359,16 +365,18 @@ const statusPill = (locale: Locale, status: ProductStatus): string =>
   // An absent mark means fine: only what is NOT in order gets a pill.
   status === 'learned' ? '' : `<span class="pill warn">${esc(t(locale, STATUS_KEY[status]))}</span>`;
 
-export function renderProductList(items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null): string {
+export function renderProductList(
+  items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+): string {
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
-  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a></div>
+  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1>${viewer.isOwner ? `<a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a>` : ''}</div>
     ${flashBanner(flash)}
     ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: assistantName(locale) }))}
-      <a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a></p></div>` : ''}`;
+      ${viewer.isOwner ? `<a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}`;
   if (items.length === 0) {
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: assistantName(locale) }))}</span>
-      <div style="margin-top:var(--space-16)"><a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a></div></div></div>`;
+      <div style="margin-top:var(--space-16)">${viewer.isOwner ? `<a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a>` : ownerDecides(locale)}</div></div></div>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -389,6 +397,7 @@ export function renderProductDetail(
   d: ProductDetail, locale: Locale, flash: Flash | null = null,
   errors: Partial<Record<ProductEditField, ProductEditError>> = {},
   draft: Record<string, string | undefined> = {},
+  viewer: Viewer = OWNER_VIEW,
 ): string {
   const u = unitLabel(locale, d.unit);
   const title = displayName(locale, d.name, d.nameZh);
@@ -402,7 +411,10 @@ export function renderProductDetail(
     errors[f] ? `<p class="perr">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   const val = (f: string, fallback: string): string =>
     esc(draft[f] !== undefined ? draft[f]! : fallback);
-  const editForm = `<div class="block">
+  const editForm = !viewer.isOwner ? `<div class="block">
+    <h2>${esc(t(locale, 'product.edit.title'))}</h2>
+    ${ownerDecides(locale)}
+  </div>` : `<div class="block">
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
     <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
       <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
@@ -421,7 +433,7 @@ export function renderProductDetail(
   const tiers = d.tiers.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
         `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatMoney(tr.unitPrice))}</b></div>`).join('')}</div></div>`
-    : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))} <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a></p></div>`;
+    : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   const aliases = d.aliases.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
@@ -453,7 +465,12 @@ export function renderProductDetail(
     ${tiers}${editForm}${aliases}${images}${quotes}`;
 }
 
-export function renderAddForm(locale: Locale): string {
+export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW): string {
+  if (!viewer.isOwner) {
+    return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+    <div class="block">${ownerDecides(locale)}
+      <p>${back('/app/products', t(locale, 'product.detail.back'))}</p></div>`;
+  }
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="block">
       <p>${esc(t(locale, 'product.add.intro'))}</p>

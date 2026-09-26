@@ -18,6 +18,12 @@ import { parseCurrency } from '../../core/types/money.js';
 import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
 import { switcher, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+
+/** Phase 4 — in place of a form only the owner may send: the values stay
+ *  on the page to read, and this says whose decision they are. */
+const ownerDecides = (locale: Locale): string =>
+  `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
 
 /**
  * M11.1 — Business Profile & Owner Settings. A VIEW + edit over the EXISTING
@@ -410,7 +416,7 @@ export async function setRate(
   });
 }
 
-export function renderRate(v: RateView, locale: Locale, flash: Flash | null): string {
+export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
   const name = assistantName(locale);
   const stated = (r: OwnerRate): string =>
     `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: formatDate(locale, r.statedAt) }))}</span>`;
@@ -421,12 +427,12 @@ export function renderRate(v: RateView, locale: Locale, flash: Flash | null): st
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
         : `<p class="muted empty-p">${esc(t(locale, 'rate.empty'))}</p>`}
-      <form method="post" action="/app/settings/rate" class="fld">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="fld">
         <label><span class="muted">${esc(t(locale, 'rate.add.label'))}</span>
           <input name="rate" inputmode="decimal" required
             placeholder="${esc(t(locale, 'rate.add.placeholder'))}" /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>
-      </form>
+      </form>` : ownerDecides(locale)}
     </section>
     ${v.previous.length
       ? `<section class="block"><h2>${esc(t(locale, 'rate.history.title'))}</h2>
@@ -636,7 +642,7 @@ export async function saveTerms(
   });
 }
 
-export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null): string {
+export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
@@ -649,7 +655,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null): 
     <section class="block">
       <p class="muted">${esc(t(locale, 'terms.intro', { name }))}</p>
       ${stated}
-      <form method="post" action="/app/settings/terms" class="pform">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/terms" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'terms.payment.label'))}</span>
           <input name="payment" required maxlength="${MAX_PAYMENT_TERMS}"
             placeholder="${esc(t(locale, 'terms.payment.placeholder'))}"
@@ -660,7 +666,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null): 
           </select>
           <span class="muted">${esc(t(locale, 'terms.incoterm.hint', { name }))}</span></label>
         <button class="btn send" type="submit">${esc(t(locale, 'terms.save'))}</button>
-      </form>
+      </form>` : ownerDecides(locale)}
     </section>`;
 }
 
@@ -695,7 +701,9 @@ export async function markSampleHandled(
   });
 }
 
-export function renderSamples(v: SamplesView, locale: Locale, flash: Flash | null, now: Date): string {
+export function renderSamples(
+  v: SamplesView, locale: Locale, flash: Flash | null, now: Date, viewer: Viewer = OWNER_VIEW,
+): string {
   const name = assistantName(locale);
   const stated = v.policy
     ? `<p class="stated-now">${
@@ -731,14 +739,14 @@ export function renderSamples(v: SamplesView, locale: Locale, flash: Flash | nul
     <section class="block">
       <p class="muted">${esc(t(locale, 'samples.intro', { name }))}</p>
       ${stated}
-      <form method="post" action="/app/settings/samples" class="pform">
+      ${viewer.isOwner ? `<form method="post" action="/app/settings/samples" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'samples.price.label'))}</span>
           <input name="price" inputmode="decimal" required
             value="${v.policy ? esc(String(v.policy.price.amount)) : ''}" /></label>
         <label class="chkbox"><input type="checkbox" name="credited" ${v.policy?.creditedOnFirstOrder ? 'checked' : ''} />
           ${esc(t(locale, 'samples.credited.label'))}</label>
         <button class="btn send" type="submit">${esc(t(locale, 'samples.save'))}</button>
-      </form>
+      </form>` : ownerDecides(locale)}
     </section>
     <section class="block">
       <h2>${esc(t(locale, 'samples.requests.title'))}</h2>
