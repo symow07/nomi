@@ -2306,9 +2306,9 @@ above it has shipped.
 | — | The usability script (`docs/USABILITY-SCRIPT.md`) | The owner runs it before A. What stalls feeds V1 and A |
 | **V1** | **The visual design pass** — a design system for the app | Before A, so the merged list is styled once |
 | Phase 3 · A | Merge Buyers into Customers, keep the name "Buyers"; search and paging | After V1, in its language |
-| **V2** | **The calendar view** — a timeline over dates the data already holds | After V1 (its language) and after A (its rows link into the merged buyer surface) |
-| Phase 4 | Permissions and first-run | |
-| Phase 5 | nomidoes.com, the marketing site | |
+| **V2** | **The calendar view** — a timeline over dates the data already holds | ✅ #83 (2026-09-27), built ahead of A at the owner's call; its rows link to `/app/inbox/:id` and move with A |
+| Phase 4 | Permissions and first-run | ✅ #81, #82 (2026-09-27) — CC-04/A10, CC-07, CC-08, CC-11/A4, CC-15, CC-27, F2, F3, F4. Open: CC-28 (owner) |
+| Phase 5 | nomidoes.com, the marketing site | ✅ built #80 (2026-09-27), served by the app; live at `/site`; the domain waits on the owner's DNS (`docs/SITE-DNS.md`) |
 | Phase 6 | Billing, then Meta Tech Provider review | M52 stays last, always |
 
 V2 sits after A rather than straight after V1 because its entries are per
