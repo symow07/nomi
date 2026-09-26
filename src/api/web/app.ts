@@ -87,6 +87,8 @@ import {
   loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile, renameBuyer,
 } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
+import { renderCalendar, parseCalendarQuery } from './calendar.js';
+import { loadCalendar } from '../../db/calendar.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
@@ -2230,6 +2232,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/analytics', authed('analytics', async (s, req, locale, reply) => {
     const range = parseRange((req.query as { range?: string }).range);
     return renderAnalytics(await loadAnalytics(deps.db, s.businessId, range), locale);
+  }));
+
+  // ── V2 · the calendar: a read-only list of dates already on record ─────────
+  // Reached from Buyers. No writes, no job, no table: a view over the columns
+  // that already hold a date. Follow-ups show only where the outreach area is on.
+  app.get('/app/calendar', authed('calendar', async (s, req, locale) => {
+    const now = new Date();
+    const q = parseCalendarQuery(req.query, now);
+    return renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale);
   }));
 
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
