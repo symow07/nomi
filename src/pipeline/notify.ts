@@ -9,6 +9,7 @@ import { assistantNameOfConversation, mainAssistantName } from '../db/assistants
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
 import { formatDate } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
+import { deletionDueBy } from '../core/ops/deletions.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -44,12 +45,27 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'failed_permanent
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
+/** One open deletion request the operator must carry out soon, as the alert names it. */
+export type DeletionDueLine = {
+  readonly business: string;
+  readonly scope: 'workspace' | 'buyer';
+  readonly askedAt: Date;
+  readonly overdue: boolean;
+};
+
 /** What an operator alert says beyond its kind. Each kind reads its own fields. */
-export type OperatorAlertDetail = { readonly lastBackupAt?: Date | null };
+export type OperatorAlertDetail = {
+  readonly lastBackupAt?: Date | null;
+  /** `deletion_due`: the requests, oldest first. */
+  readonly deletionsDue?: readonly DeletionDueLine[];
+};
+
+/** A long list is cut here and counted, so the alert stays readable on a phone. */
+const DELETION_ALERT_LINES = 10;
 
 /** Event → neutral alert code (business logic stays locale-free). */
 export function alertKindFor(effects: { readonly hotLeadAlert: boolean; readonly handoffAlert: boolean }): AlertKind | null {
@@ -69,6 +85,22 @@ export function renderOwnerAlert(
     return detail.lastBackupAt
       ? t(locale, 'notify.backup_stale', { when: formatDate(locale, detail.lastBackupAt) })
       : t(locale, 'notify.backup_stale.never');
+  }
+  // CC-02a — which requests, whose, asked when and due by when; a late one
+  // says so. The words for the kind of request are the owner's page's own.
+  if (kind === 'deletion_due') {
+    const due = detail.deletionsDue ?? [];
+    const shown = due.slice(0, DELETION_ALERT_LINES);
+    const lines = shown.map((d) => t(locale, d.overdue ? 'notify.deletion_due.late' : 'notify.deletion_due.soon', {
+      business: d.business,
+      what: t(locale, d.scope === 'workspace' ? 'data.deletion.scope.workspace' : 'data.deletion.scope.buyer'),
+      asked: formatDate(locale, d.askedAt),
+      due: formatDate(locale, deletionDueBy(d.askedAt)),
+    }));
+    const more = due.length > shown.length
+      ? [t(locale, 'notify.deletion_due.more', { n: due.length - shown.length })] : [];
+    return [t(locale, 'notify.deletion_due', { n: due.length }), ...lines, ...more,
+      t(locale, 'notify.deletion_due.how')].join('\n');
   }
   const key = (kind === 'delivery_failed' ? 'dead_letter' : kind);
   // A5.2 — the assistant this alert is about, when the owner has named one;
@@ -174,5 +206,10 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
 
 /** The job's own fields, as the words for its kind need them. Dates travel as ISO strings. */
 function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
-  return { lastBackupAt: job.lastBackupAt ? new Date(job.lastBackupAt) : null };
+  return {
+    lastBackupAt: job.lastBackupAt ? new Date(job.lastBackupAt) : null,
+    deletionsDue: (job.deletionsDue ?? []).map((d) => ({
+      business: d.business, scope: d.scope, askedAt: new Date(d.askedAt), overdue: d.overdue,
+    })),
+  };
 }

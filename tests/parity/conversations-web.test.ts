@@ -110,7 +110,12 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
     // from this page. The one form here (2026-09-18) names the buyer — it
     // posts to this page's own route and carries no draft, no command.
     const forms = [...html.matchAll(/<form[^>]*action="([^"]+)"/g)].map((m) => m[1]);
-    expect(forms).toEqual(['/app/conversations/c1/name']);
+    // CC-02a — and, for the owner only, the one that records this buyer's
+    // request to be deleted. It posts to this page's own route too, and
+    // carries a note, never a draft or a command.
+    expect(forms).toEqual(['/app/conversations/c1/name', '/app/conversations/c1/deletion']);
+    const staff = renderCustomerFile(file, 'en', NOW, null, { isOwner: false });
+    expect([...staff.matchAll(/<form[^>]*action="([^"]+)"/g)].map((m) => m[1])).toEqual(['/app/conversations/c1/name']);
     expect(html).not.toContain('name="command"');
     expect(html).not.toContain('name="draftId"');
   });

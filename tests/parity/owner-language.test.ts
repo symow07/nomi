@@ -204,9 +204,15 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
   });
 
   it('an alert never leaves a placeholder unfilled', () => {
+    // CC-02a — the deletion alert names each request: whose, which kind, asked
+    // and due when, and how many. Its lines take those five; every other alert
+    // still takes only the three above.
+    const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep' };
+    const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     for (const locale of LOCALES) {
       for (const k of ALERT_KEYS) {
-        expect(t(locale, k, { name: '小雅', buyer: 'Ahmed', when: '20 Sep' })).not.toContain('{');
+        const params = k.startsWith('notify.deletion_due') ? { ...base, ...deletion } : base;
+        expect(t(locale, k, params), `${locale} ${k}`).not.toContain('{');
       }
     }
   });

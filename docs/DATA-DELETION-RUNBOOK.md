@@ -20,11 +20,17 @@ could say how many were open or how old the oldest was.
 | | Who asks | Where it lands |
 |---|---|---|
 | **Workspace** | the owner, for their whole account | `/app/settings/data` → a `deletion_requests` row, `scope = 'workspace'` |
-| **Buyer** | one person who wrote to a business | reaches the **business**, not us — the public `/data-deletion` page tells them to ask the business they wrote to |
+| **Buyer** | one person who wrote to a business | the business records it on that buyer's page (`/app/conversations/:id`) → a `deletion_requests` row, `scope = 'buyer'`, `client_id` set; due **30 days after `asked_at`** |
 
-A buyer's request is the business's to carry out, because the business is the
-controller of that buyer's data and we are its processor. If a buyer writes to
-us directly, forward it to the business and tell the buyer you have.
+A buyer's request is the business's to make, because the business is the
+controller of that buyer's data; we are its processor, and we carry it out
+within 30 days of the business recording it — `/data-deletion` says exactly
+that (CC-02a). If a buyer writes to us directly, pass it to the business they
+wrote to and tell the buyer you have: the 30 days start when the business
+records it. We hear of each request the day it is recorded (a notice to
+`LEGAL_CONTACT_EMAIL`) and every morning from a week before its date (the
+`deletion_due` alert). When it is carried out, close the row as done — the
+business sees that and tells the buyer; nothing in the product writes to them.
 
 ## Before you erase anything
 
