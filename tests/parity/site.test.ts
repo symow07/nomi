@@ -100,6 +100,20 @@ describe('Phase 5 · the page', () => {
     }
   });
 
+  it('holds every section, the four channels and the invitation, in every locale', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      for (const id of ['site-how', 'site-yours', 'site-channels', 'site-who', 'site-invite'])
+        expect(html, `${l} ${id}`).toContain(`id="${id}"`);
+      expect(html.split('</li>').length - 1, l).toBeGreaterThanOrEqual(3 + 4);
+      expect(html.match(/<ul class="site-channels">([\s\S]*?)<\/ul>/)![1]!.match(/<li>/g)?.length, l).toBe(4);
+      expect(html, l).toContain('href="/data-deletion"');
+      expect(html.match(/mailto:hello@example\.test/g)?.length, l).toBeGreaterThanOrEqual(2);
+      // No price-looking figure anywhere a visitor reads.
+      expect(html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]*>/g, ' '), l).not.toMatch(/[$€£¥￥]\s*\d/);
+    }
+  });
+
   it('draws no invitation line where there is no address', () => {
     const html = renderSite({ locale: 'en', path: '/', contact: null, signIn: '/login', noindex: false });
     expect(html).not.toContain('mailto:');
