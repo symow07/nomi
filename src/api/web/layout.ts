@@ -131,6 +131,21 @@ export function switcher(locale: Locale, path: string): string {
 }
 
 /**
+ * The switcher's rules, defined once: the shell carries them, and so does a
+ * public document that shows the switch (the site, Phase 5) — it does not get
+ * the shell's stylesheet, and a second copy of these rules would drift.
+ */
+export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
+    border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
+  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
+    border-radius:var(--radius-chip); font-size:var(--font-size-caption);
+    color:var(--color-ink-secondary); white-space:nowrap; }
+  /* The switcher is chrome. A solid jade fill made it the loudest object
+     on a page whose subject was somebody's business. */
+  .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
+`;
+
+/**
  * The stylesheet holds NO literal colour and NO literal type size. Every one is
  * `var(--…)`, emitted by `cssVariables()` from `DESIGN_TOKENS`. This file used
  * to hand-write all of them, which is how the product shipped 15px/1.5 in cold
@@ -187,14 +202,7 @@ ${cssVariables()}
   /* V1 · option A (2026-09-24) — there is no header band. The nav row is the
      chrome; the language switch and log out are the first rows of Setup, and
      the login page keeps its own switcher. */
-  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
-    border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
-  .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
-    border-radius:var(--radius-chip); font-size:var(--font-size-caption);
-    color:var(--color-ink-secondary); white-space:nowrap; }
-  /* The switcher is chrome. A solid jade fill made it the loudest object
-     on a page whose subject was somebody's business. */
-  .langsw a.on { background:var(--color-surface); color:var(--color-ink); font-weight:600; }
+${LANGSW_CSS}
   /* M49 — THE COLUMN. One measure for the whole product, centred in the space
      beside the nav rather than stuck against it. At 2000px the old page put a
      1040px block hard left and left 700px of nothing to its right, which reads
@@ -851,12 +859,14 @@ const STYLE_PAGES = `
 export function publicDocument(input: {
   readonly locale: Locale; readonly title: string; readonly body: string;
   readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+  /** Phase 5 — the site: a search-result line, and the mark in the tab. */
+  readonly description?: string; readonly icon?: boolean;
 }): string {
   return `<!doctype html>
 <html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
-<style>
+${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>
 ${cssVariables()}
   * { box-sizing:border-box; }
   body { margin:0; background:var(--color-paper); color:var(--color-ink);

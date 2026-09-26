@@ -6,6 +6,7 @@ import { startWorker } from './worker/main.js';
 import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
+import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
 import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
@@ -108,6 +109,12 @@ export type ProdConfig = {
    * phone, and it must not be sent over anything a network can read.
    */
   PUBLIC_BASE_URL?: string;
+  /**
+   * Phase 5 — the hosts that are the public site (`nomidoes.com,
+   * www.nomidoes.com`). Optional: absent, no host is the site and `/` is the
+   * door everywhere, as before. Plain host names, comma-separated.
+   */
+  SITE_HOSTS?: string;
 };
 
 type Shape = (v: string) => boolean;
@@ -160,6 +167,8 @@ const OPTIONAL_SHAPES: Record<string, Shape> = {
   TRANSCRIBE_BASE_URL: (v) => v.startsWith('https://'),
   // G11 — a host, not a path: '/p/<token>' is appended to it.
   PUBLIC_BASE_URL: (v) => /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(v),
+  // Phase 5 — host names only: no scheme, no port, no path.
+  SITE_HOSTS: SITE_HOSTS_SHAPE,
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
@@ -229,6 +238,7 @@ export function validateEnv(env: Record<string, string | undefined>):
       ...(env['TRANSCRIBE_API_KEY'] ? pick('TRANSCRIBE_API_KEY') : {}),
       ...(env['TRANSCRIBE_BASE_URL'] ? pick('TRANSCRIBE_BASE_URL') : {}),
       ...(env['PUBLIC_BASE_URL'] ? pick('PUBLIC_BASE_URL') : {}),
+      ...(env['SITE_HOSTS'] ? pick('SITE_HOSTS') : {}),
     },
   };
 }
@@ -597,6 +607,8 @@ export async function buildProduction(
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
       publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null,
+      // Phase 5 — which hosts are the public site (nomidoes.com).
+      siteHosts: parseSiteHosts(cfg.SITE_HOSTS),
       // G13 — the same fetcher the worker hears with, so she can play a note.
       ...(mediaPorts.audio ? { audio: mediaPorts.audio } : {}),
       kickAnswer: (businessId, conversationId, messageId, text) =>

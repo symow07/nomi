@@ -15,6 +15,7 @@ import {
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
 import { renderPrivacy, renderDataDeletion, renderLegalTerms, type LegalFacts } from './legal.js';
+import { renderSite, siteHostsInForce, hostOf, isAppPath, appAddress } from './site.js';
 import { DEFAULT_PROCESSOR, HOSTING } from '../../core/legal/processors.js';
 import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
@@ -218,6 +219,12 @@ export type WebDeps = {
    */
   readonly publicBaseUrl?: string | null;
   /**
+   * Phase 5 — the hosts that are the public site (`SITE_HOSTS`, parsed). On
+   * one of them `/` is the site and the app's addresses go to
+   * `publicBaseUrl`. Absent or empty, no host is the site.
+   */
+  readonly siteHosts?: readonly string[];
+  /**
    * M40.1 — the DNS lookup, injected so a test can drive it without the
    * network and so the resolver stays out of the web layer.
    */
@@ -322,7 +329,8 @@ export type WebDeps = {
 export const PUBLIC_ROUTES: readonly {
   readonly method: 'GET' | 'POST'; readonly url: string; readonly why: string;
 }[] = [
-  { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way' },
+  { method: 'GET', url: '/', why: 'redirects to /login or /app; reveals nothing either way. On a SITE_HOSTS host it is the public site, which reads nothing and names no tenant' },
+  { method: 'GET', url: '/site', why: 'Phase 5 — the public site, previewed on any host and marked noindex; reads nothing and names no tenant' },
   { method: 'GET', url: '/login', why: 'the login form itself' },
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
   { method: 'GET', url: '/signup', why: 'A1 — how a factory gets a workspace; names no tenant, and says nothing about which e-mails have one' },
@@ -517,6 +525,24 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (sessionStands(v, s.pv)) return;
     setCookie(reply, '', 0);
     return reply.redirect('/login');
+  });
+
+  /**
+   * Phase 5 — the site host serves the site, never the app. An app address
+   * asked there goes to the same path on `PUBLIC_BASE_URL` (301; 308 for a
+   * form, so a POST stays a POST), which keeps every session cookie on the
+   * app's host. The S1 hook above only acts on a session cookie, which the
+   * site host never sets. Without `PUBLIC_BASE_URL` it does nothing: there is
+   * no other host to send anyone to.
+   */
+  const siteHosts = siteHostsInForce(deps.siteHosts ?? [], deps.publicBaseUrl);
+  const onSiteHost = (req: FastifyRequest): boolean =>
+    siteHosts.size > 0 && siteHosts.has(hostOf(req.headers.host));
+  app.addHook('onRequest', async (req, reply) => {
+    if (!onSiteHost(req) || !isAppPath(req.url)) return;
+    const to = appAddress(deps.publicBaseUrl, req.url);
+    if (!to) return;
+    return reply.redirect(to, req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
   });
 
   /**
@@ -864,8 +890,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
 
   // ── Auth ────────────────────────────────────────────────────────────────
+  // Phase 5 — on a site host, `/` is the site; everywhere else it is the door.
+  const site = (req: FastifyRequest, path: '/' | '/site', noindex: boolean): string => renderSite({
+    locale: localeOf(req), path, noindex, contact: deps.legalContact ?? null,
+    signIn: (onSiteHost(req) ? appAddress(deps.publicBaseUrl, '/login') : null) ?? '/login',
+  });
   app.get('/', async (req, reply) =>
-    reply.redirect(sessionOf(req) ? '/app' : '/login'));
+    onSiteHost(req)
+      ? reply.type('text/html; charset=utf-8').send(site(req, '/', false))
+      : reply.redirect(sessionOf(req) ? '/app' : '/login'));
+  // The same page on any host, for the owner to read before the DNS exists.
+  app.get('/site', async (req, reply) =>
+    reply.type('text/html; charset=utf-8').send(site(req, '/site', true)));
 
   const signupMode: SignupMode = deps.signupMode ?? 'invite';
   // The second line of defence; the first is the per-login lock in the database.
