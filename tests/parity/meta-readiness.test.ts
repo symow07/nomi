@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   checkMetaReadiness, credentialState, META_CREDENTIALS, META_SHAPE, META_ENV_VAR,
 } from '../../src/core/channel/metaReadiness.js';
-import { renderPilotRunbook, type PilotRunbook } from '../../src/api/web/pilot.js';
+import { renderPilotRunbook, renderPilotTechnical, type PilotRunbook } from '../../src/api/web/pilot.js';
 import { validateEnv } from '../../src/main.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -139,11 +139,12 @@ describe('M17.2 · readiness never switches anything on', () => {
   });
 });
 
-describe('M17.2 · rendered on the runbook (localized, value-free)', () => {
+// Phase 4b (F2/F4) — moved from Getting ready to /app/onboarding/technical.
+describe('M17.2 · rendered on the technical page (localized, value-free)', () => {
   it('renders in en/zh/ar and states plainly that messaging is not live', () => {
     const r = checkMetaReadiness({ values: {}, provider: 'disabled', channelStatus: 'not_connected' });
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null, undefined, r);
+      const html = renderPilotTechnical(l, { meta: r });
       expect(html).toContain(t(l, 'meta.title'));
       expect(html).toContain(t(l, 'meta.notLive'));
       expect(html).toContain(t(l, 'meta.state.missing'));
@@ -154,7 +155,7 @@ describe('M17.2 · rendered on the runbook (localized, value-free)', () => {
 
   it('shows ✓ per configured credential and never prints the value', () => {
     const r = checkMetaReadiness({ values: GOOD, provider: 'disabled', channelStatus: 'not_connected' });
-    const html = renderPilotRunbook(rb(), 'en', null, undefined, r);
+    const html = renderPilotTechnical('en', { meta: r });
     expect(html).toContain('✓');
     expect(html).toContain(t('en', 'meta.cred.accessToken'));
     expect(html).toContain(t('en', 'meta.state.ok'));
@@ -164,8 +165,10 @@ describe('M17.2 · rendered on the runbook (localized, value-free)', () => {
   });
 
   it('the section is omitted when not supplied, and carries no percentage', () => {
+    expect(renderPilotTechnical('en')).not.toContain(t('en', 'meta.title'));
+    // and Getting ready never carries it at all: the owner's page is the checklist
     expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'meta.title'));
     const r = checkMetaReadiness({ values: GOOD, provider: 'meta', channelStatus: 'connected', activated: true });
-    expect(renderPilotRunbook(rb(), 'en', null, undefined, r)).not.toMatch(/\d+\s*%/);
+    expect(renderPilotTechnical('en', { meta: r })).not.toMatch(/\d+\s*%/);
   });
 });

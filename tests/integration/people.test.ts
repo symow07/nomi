@@ -166,6 +166,12 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       ['/app/channels/domain/check', undefined],
       ['/app/channels/whatsapp/connect', undefined],
       ['/app/settings/terms', 'payment=T%2FT&incoterm=FOB'],
+      // Phase 4 — going live and money: every route is walked in
+      // phase4-permissions.test.ts; one of each kind here keeps this list whole.
+      ['/app/onboarding/attest', 'which=owner_ready'],
+      ['/app/factory/allowlist/add', 'phone=%2B971500009999&label=test'],
+      ['/app/channels/whatsapp/disconnect', undefined],
+      ['/app/settings/rate', 'rate=7.1'],
     ] as const) {
       const res = await post(staffCookie, url, payload);
       expect(res.statusCode, url).toBe(302);
@@ -287,12 +293,16 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
   it('G9b · every older write site names the person — not the word "owner"', async () => {
     const res = await post(staffCookie, `/app/orders/${randomUUID()}/update`, 'state=shipped');
     expect(res.statusCode).toBe(302);
-    // An allowlist entry and a channel action, by the sales assistant:
-    await post(staffCookie, '/app/factory/allowlist/add', 'phone=%2B971500009999&label=test');
+    // An allowlist entry names its person too. Phase 4 made it the owner's to
+    // add, so it is hers that is named — her id, never the word "owner".
+    const ownerId = await tx((t) => sql<{ id: string }>`
+      select id::text as id from people where business_id = ${BIZ} and is_owner limit 1
+    `.execute(t).then((r) => r.rows[0]!.id));
+    await post(ownerCookie, '/app/factory/allowlist/add', 'phone=%2B971500009999&label=test');
     const added = await tx((t) => sql<{ added_by: string | null }>`
       select added_by from pilot_allowlist where business_id = ${BIZ} order by added_at desc limit 1
     `.execute(t).then((r) => r.rows[0]?.added_by ?? null));
-    expect(added).toBe(staffId);
+    expect(added).toBe(ownerId);
   });
 
   let g12Conv = '';
