@@ -730,7 +730,17 @@ export function renderFactory(
               data-confirm="${esc(question)}">${esc(label)}</button>
     </form>`;
 
-  const readyBody = r.live
+  // Going live, per channel (2026-09-27). Activation is WhatsApp's alone: the
+  // send gate reads a `channels` row for WhatsApp and treats every other
+  // channel as live once connected (db/channels.ts, C4.a). So the switch sits
+  // under WhatsApp's name and its Stop says what it stops, and each other
+  // connected channel says it is already answering and how that is stopped.
+  // Display only: nothing here changes what the gate decides.
+  const liveElsewhere = others.filter((o) => o.state === 'connected');
+  const elsewhereNames = liveElsewhere.length === 0 ? '' : new Intl.ListFormat(locale, { type: 'conjunction' })
+    .format(liveElsewhere.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)));
+  const waRelevant = r.live || lc !== 'not_connected' || r.recipients.length > 0 || used.includes('whatsapp');
+  const whatsappBody = r.live
     ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>
        ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
           when: formatDate(locale, r.activatedAt),
@@ -740,6 +750,7 @@ export function renderFactory(
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
+       ${elsewhereNames ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
        <div class="facts">${confirmBtn('deactivate', 'danger',
           t(locale, 'activation.action.deactivate'),
           t(locale, 'activation.action.deactivateConfirm', { name }))}</div>`
@@ -757,6 +768,17 @@ export function renderFactory(
          ${blockerList}
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
+  const elsewhereBody = liveElsewhere.length === 0 ? '' : `
+       <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
+       <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
+       <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper('/app/channels', t(locale, 'golive.other.stopDisconnect'))}</div>`;
+  const readyBody = waRelevant
+    ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h3>${whatsappBody}${elsewhereBody
+        ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
+    : `${elsewhereBody
+        ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
+        : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>${deeper('/app/channels', t(locale, 'nav.channels'))}`}
+       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.
