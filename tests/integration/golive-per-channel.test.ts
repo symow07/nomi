@@ -136,7 +136,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
         'activation.stop.what', 'activation.flash.deactivated'] as const) {
         expect(t(l, k, { name: 'X' }), `${l} ${k}`).toMatch(/WhatsApp|واتساب/);
       }
-      for (const k of ['golive.whatsapp.title', 'golive.other.live', 'golive.other.stopHow',
+      for (const k of ['golive.other.live', 'golive.other.stopHow',
         'golive.other.stopDrafts', 'golive.other.stopDisconnect', 'golive.whatsappOnly', 'golive.none'] as const) {
         expect(t(l, k, { name: 'X', channels: 'Y' }), `${l} ${k}`).not.toBe('');
       }

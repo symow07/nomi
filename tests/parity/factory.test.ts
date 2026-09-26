@@ -546,7 +546,9 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
   it('live: the stop control is there, and explains what stopping does', () => {
     const html = view({ live: true, canActivate: true, blockers: [] });
     expect(html).toContain('action="/app/factory/deactivate"');
-    expect(html).toContain('Stop messaging');
+    // 2026-09-27 — Stop stops WhatsApp only (activation is WhatsApp's), and says so.
+    expect(html).toContain(shown('en', 'activation.action.deactivate'));
+    expect(shown('en', 'activation.action.deactivate')).toContain('WhatsApp');
     expect(html).toContain(shown('en', 'activation.stop.what'));
     expect(html).toContain('stay exactly as they are');          // nothing is deleted
     expect(html).toContain('start again whenever you want');     // rollback is possible
@@ -574,7 +576,8 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
 
   it('the controls and their warnings are localized', () => {
     expect(view({ canActivate: true, blockers: [] }, 'zh')).toContain(shown('zh', 'activation.action.activate'));
-    expect(view({ live: true }, 'zh')).toContain('停止发消息');
+    expect(view({ live: true }, 'zh')).toContain(shown('zh', 'activation.action.deactivate'));
+    expect(shown('zh', 'activation.action.deactivate')).toContain('WhatsApp');
     expect(view({ live: true }, 'zh')).toContain('什么都不会删掉');
     expect(view({ canActivate: true, blockers: [] }, 'ar')).toContain(shown('ar', 'activation.action.activate'));
     expect(view({ live: true }, 'ar')).toContain(shown('ar', 'activation.action.deactivate'));

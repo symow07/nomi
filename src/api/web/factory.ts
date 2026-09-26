@@ -773,7 +773,7 @@ export function renderFactory(
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
        <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper('/app/channels', t(locale, 'golive.other.stopDisconnect'))}</div>`;
   const readyBody = waRelevant
-    ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'golive.whatsapp.title'))}</h3>${whatsappBody}${elsewhereBody
+    ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h3>${whatsappBody}${elsewhereBody
         ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
