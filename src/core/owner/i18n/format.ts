@@ -49,8 +49,43 @@ export function formatTime(locale: Locale, d: Date): string {
 
 const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم' };
 const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس' };
-const dayKey = (d: Date): string =>
+/** The calendar day an instant falls on in the business timezone, as 'YYYY-MM-DD'. */
+export const dayKey = (d: Date): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+const ymdParts = (ymd: string): [number, number, number] => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return [y ?? 1970, m ?? 1, d ?? 1];
+};
+
+/** 'YYYY-MM-DD' moved by whole days. Calendar arithmetic, no timezone involved. */
+export function addDays(ymd: string, n: number): string {
+  const [y, m, d] = ymdParts(ymd);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** How far the business timezone is ahead of UTC at an instant, in ms. */
+function zoneOffsetMs(at: Date): number {
+  const p: Record<string, number> = {};
+  for (const part of new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at)) p[part.type] = Number(part.value);
+  const wall = Date.UTC(p['year'] ?? 1970, (p['month'] ?? 1) - 1, p['day'] ?? 1, p['hour'] ?? 0, p['minute'] ?? 0, p['second'] ?? 0);
+  return wall - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/**
+ * V2 — the instant a business-timezone day begins, for a 'YYYY-MM-DD'. The
+ * inverse of `dayKey`: `dayKey(dayStart(x)) === x`. Computed from the zone
+ * rather than assuming its offset, so it stays right if the zone ever changes.
+ */
+export function dayStart(ymd: string): Date {
+  const [y, m, d] = ymdParts(ymd);
+  const guess = Date.UTC(y, m - 1, d);
+  const first = guess - zoneOffsetMs(new Date(guess));
+  return new Date(guess - zoneOffsetMs(new Date(first)));
+}
 
 /** "Today 09:15" / "昨天 23:40" / "Jul 17 09:15" — relative day words + time. */
 export function formatRelative(locale: Locale, d: Date, now: Date): string {

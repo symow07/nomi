@@ -67,6 +67,8 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
     '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
+  // V2 — the calendar: each entry opens a buyer, so it is reached from Buyers.
+  { hub: '/app/inbox', routes: ['/app/calendar'] },
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
@@ -761,6 +763,17 @@ const STYLE_PAGES = `
   .wform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
+
+  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The category is the neutral chip: a category is not a state. */
+  .cal-tabs { flex-wrap:wrap; }
+  .cal-buyer { margin-bottom:var(--space-12); }
+  .cal-span { margin:var(--space-8) 0 0; color:var(--color-ink-secondary); }
+  .cal-range { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
+  .cal-day { margin:var(--space-24) 0 0; }
+  .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
+  .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
+  .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-jade-deep); }
+  .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
 
   /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
   .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }

@@ -836,7 +836,8 @@ export function renderInboxList(
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${title}${tabs}<div class="block">${body}</div>
-      ${data.filter === 'pending' ? deeper('/app/conversations', t(locale, 'buyers.all.link')) : ''}${INBOX_STYLE}`;
+      ${data.filter === 'pending' ? deeper('/app/conversations', t(locale, 'buyers.all.link')) : ''}
+      ${deeper('/app/calendar', t(locale, 'calendar.door'))}${INBOX_STYLE}`;
   }
 
   // Phase D — an owner thinks in people, and the question that orders them is
@@ -898,6 +899,7 @@ export function renderInboxList(
     ${group(t(locale, 'buyers.group.yours'), yours)}
     ${group(t(locale, 'buyers.group.hers', { name }), hers)}
     ${deeper('/app/conversations', t(locale, 'buyers.all.link'))}
+    ${deeper('/app/calendar', t(locale, 'calendar.door'))}
     ${INBOX_STYLE}`;
 }
 

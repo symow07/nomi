@@ -10,6 +10,7 @@ import type { OperationsSnapshot } from '../../src/api/web/operations.js';
 import type { FactoryView } from '../../src/api/web/factory.js';
 import type { EmployeeProfile, HerContext } from '../../src/api/web/employee.js';
 import type { CustomerList } from '../../src/api/web/conversations.js';
+import { renderCalendar } from '../../src/api/web/calendar.js';
 
 /**
  * Phase F — every surface must answer "what happens next?" when it is empty.
@@ -65,6 +66,12 @@ const emptyFactory = renderFactory(emptyFactoryView, 'en');
 const emptyCustomerList: CustomerList = { query: '', customers: [] };
 const emptyCustomers = renderCustomerList(emptyCustomerList, 'en', NOW);
 
+// V2 — a calendar with nothing dated in its three weeks.
+const emptyCalendar = renderCalendar({
+  from: '2026-07-26', to: '2026-08-16', today: '2026-08-02', category: null, buyer: null,
+  buyers: [], categories: [], entries: [],
+}, 'en');
+
 const SURFACES: readonly (readonly [string, string])[] = [
   ['Today', emptyToday],
   ['Buyers · needs you', emptyBuyers('pending')],
@@ -72,6 +79,7 @@ const SURFACES: readonly (readonly [string, string])[] = [
   ['小雅', emptyHer],
   ['My factory', emptyFactory],
   ['Customers', emptyCustomers],
+  ['Calendar', emptyCalendar],
 ];
 
 describe('Phase F · every empty surface says what happens next', () => {
@@ -104,6 +112,7 @@ describe('Phase F · every empty surface says what happens next', () => {
     expect(emptyToday).toContain('href="/app/knowledge"');   // nothing learned yet
     expect(emptyBuyers('all')).toContain('href="/app/factory"');
     expect(emptyCustomers).toContain('href="/app/factory"');
+    expect(emptyCalendar).toContain('href="/app/inbox"');
   });
 
   it('does not offer a door into another empty room', () => {
