@@ -62,6 +62,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'settings.flash.profileInvalid', 'spotcheck.flash.gone', 'takeover.flash.ai_owned',
   'takeover.flash.empty', 'takeover.flash.invalid_state', 'takeover.flash.must_take_over',
   'takeover.flash.no_channel', 'takeover.flash.not_found', 'takeover.flash.unknown_person',
+  // 0070 — stopped on every channel: the owner asked for something Stop refuses.
+  'takeover.flash.assistant_stopped', 'inbox.flash.assistant_stopped',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
   'terms.flash.payment_too_long', 'unsure.flash.gone',
 ]);
@@ -94,6 +96,9 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'samples.flash.saved', 'seq.flash.added', 'seq.flash.approved', 'seq.flash.archived',
   'seq.flash.confirmed', 'seq.flash.created', 'seq.flash.enrolled', 'seq.flash.saved', 'seq.flash.stopped',
   'settings.flash.cleared', 'settings.flash.profileSaved', 'settings.flash.saved', 'spotcheck.flash.fixed',
+  // 0070 — the owner's own Stop and Start, and a second press of either.
+  'assistant.stop.flash.stopped', 'assistant.stop.flash.started',
+  'assistant.stop.flash.already', 'assistant.stop.flash.alreadyStarted',
   'spotcheck.flash.ok', 'spotcheck.flash.problem', 'takeover.flash.handed', 'takeover.flash.resumed',
   'takeover.flash.sent', 'takeover.flash.taken_over', 'terms.flash.saved', 'unsure.flash.again',
   'unsure.flash.left', 'voice.flash.answering', 'voice.flash.corrected',

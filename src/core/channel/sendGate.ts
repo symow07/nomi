@@ -58,6 +58,16 @@ export type GateInput = {
    */
   readonly silenced: boolean;
   /**
+   * 2026-09-27 — the OWNER stopped the assistant on every channel
+   * (`businesses.assistant_stopped_at`, 0070), resolved by the caller inside
+   * the send's own transaction.
+   *
+   * REQUIRED, for the reason `silenced` is: it is a stop switch, so the
+   * dangerous default is the permissive one, and the compiler names every
+   * caller that has to resolve it.
+   */
+  readonly stopped: boolean;
+  /**
    * M42 — present when this message INITIATES rather than replies.
    *
    * Absent means a reply, and that default is safe by construction rather than
@@ -97,6 +107,7 @@ export const GATE_REFUSALS = [
   'not_allowlisted',      // M18.2
   'daily_ceiling',        // M18.5
   'silenced',             // M34.6
+  'stopped',              // 2026-09-27 — the owner's Stop, on every channel (0070)
   // M42 — the outreach refusals, SPREAD from the outreach gate's own list
   // rather than restated. Same reason this list exists at all: a vocabulary
   // that must be edited in two places to stay true is the transcription bug
@@ -141,6 +152,16 @@ export function gateOutbound(g: GateInput): GateDecision {
   // buyer himself.
   if (g.silenced && (g.origin === 'employee' || g.automated === true)) {
     return { allow: false, reason: 'silenced' };
+  }
+  // 2026-09-27 — the OWNER's Stop, on every channel. The same shape as the ops
+  // switch above, for the same reason: it binds the machine — the assistant's
+  // messages, and a follow-up a schedule released — and never the owner, who
+  // stops the assistant precisely to answer buyers in person. Checked here, at
+  // SEND time, so a reply queued before Stop was pressed is refused, not sent
+  // late. Ops is checked first: when both are set, the reason recorded is the
+  // one the owner did not choose.
+  if (g.stopped && (g.origin === 'employee' || g.automated === true)) {
+    return { allow: false, reason: 'stopped' };
   }
   if (g.origin === 'employee') {
     if (!aiMaySpeak(ownershipOf(g.assignedTo))) return { allow: false, reason: 'handed_off' };

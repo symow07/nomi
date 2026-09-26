@@ -55,7 +55,7 @@ function store(
   const statuses: string[] = [];
   const refusals: string[] = [];
   const full: ConversationSendContext = {
-    assignedTo: null, paused: false, lastInboundAt: null, template: 'none', silenced: false,
+    assignedTo: null, paused: false, lastInboundAt: null, template: 'none', silenced: false, stopped: false,
     // An e-mail conversation, as the store resolves it: no channels row, so
     // activation is not its gate and the WhatsApp allowlist is not its list.
     activated: true, pilotMode: false, recipientAllowed: true, dailyCeilingReached: false,
@@ -258,7 +258,7 @@ describe('C4.a · every reason a first message must not go is a refusal she can 
   it('the ops kill switch does not bind her own first message — it silences the employee, not her', async () => {
     // Outreach is her typing, like an owner reply: `silenced` binds the employee only.
     const r = rig();
-    const s = store([mailRow()], { silenced: true });
+    const s = store([mailRow()], { silenced: true, stopped: false });
     expect(await r.drive(s)).toContainEqual(expect.objectContaining({ kind: 'sent' }));
   });
 });

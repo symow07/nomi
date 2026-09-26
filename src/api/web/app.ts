@@ -96,6 +96,7 @@ import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
+import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
@@ -1671,8 +1672,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * turn does not immediately hand it over again. Already hers to answer?
      * `resumeAi` says invalid_state and nothing changes.
      */
-    await resumeAi({ db: deps.db, now: () => new Date() },
+    const handedBack = await resumeAi({ db: deps.db, now: () => new Date() },
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
+    // 0070 — stopped: nothing asks the assistant for an answer, and the
+    // conversation stays with its person, on "Needs you".
+    if (handedBack.outcome === 'assistant_stopped') return flashTo(reply, back0, 'takeover.flash.assistant_stopped');
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
     return flashTo(reply, `${back0}`, 'voice.flash.answering');
   });
@@ -1932,6 +1936,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return reply.redirect('/app/factory');
     await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
     return factoryFlash(reply, 'activation.flash.deactivated');
+  });
+
+  // 0070 — the owner's Stop, on EVERY channel, and Start. Owner-only, like
+  // turning WhatsApp on and off: each decides whether anything the assistant
+  // writes can reach a buyer. Separate from WhatsApp's switch on purpose —
+  // Start never skips WhatsApp's own checklist, and Stop binds the channels
+  // that have no switch of their own.
+  app.post('/app/factory/stop-assistant', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
+    return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
+  });
+  app.post('/app/factory/start-assistant', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/factory');
+    const r = await startAssistant(deps.db, bid.value, personOf(s).id);
+    return factoryFlash(reply, r === 'started' ? 'assistant.stop.flash.started' : 'assistant.stop.flash.alreadyStarted');
   });
 
   // ── M9.5 Product Knowledge Center: view over the existing catalog + teach ──

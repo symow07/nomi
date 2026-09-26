@@ -6,6 +6,7 @@ import {
 } from '../core/conversation/ownership.js';
 import { isProblemSignal, type Signal } from '../core/scoring/signals.js';
 import type { BusinessId, ConversationId } from '../core/types/ids.js';
+import { assistantStopped } from '../db/assistantStop.js';
 
 /**
  * M16.1 — Human takeover services.
@@ -24,7 +25,12 @@ export type TakeoverOutcome =
   /** G12 — handed to a named colleague. */
   | 'handed'
   /** G12 — nobody of that name works here (or they were removed). */
-  | 'unknown_person';
+  | 'unknown_person'
+  /**
+   * 0070 — the owner stopped the assistant on every channel, so there is
+   * nobody to hand it back to. The conversation stays with its person.
+   */
+  | 'assistant_stopped';
 export type TakeoverResult = { readonly outcome: TakeoverOutcome; readonly ownership: ConversationOwnership | null };
 
 /** Read assigned_to for a tenant-owned conversation. null row = not this tenant's. */
@@ -119,6 +125,10 @@ export async function resumeAi(deps: TakeoverDeps, input: { businessId: Business
     const cur = await currentOwnership(tx, input.businessId, input.conversationId);
     if (cur === null) return { outcome: 'not_found', ownership: null };
     if (!canTransition(cur, 'AI')) return { outcome: 'invalid_state', ownership: cur };
+    // 0070 — while the assistant is stopped, handing a conversation back would
+    // take the buyer off "Needs you" with nobody to answer: the assistant
+    // writes nothing until Start. Refused, in the same transaction as the move.
+    if (await assistantStopped(tx, input.businessId)) return { outcome: 'assistant_stopped', ownership: cur };
 
     await lockConversation(tx, input.conversationId);
     const repos = tenantRepos(tx, input.businessId);

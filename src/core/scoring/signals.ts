@@ -48,6 +48,13 @@ export type Signal =
    * but it needs a person, which is what this list is for.
    */
   | { readonly kind: 'email_reply' }
+  /**
+   * 0070 — the owner stopped the assistant on every channel. It writes nothing
+   * while stopped, so a person answers — and this signal is what hands the
+   * conversation over, which is what keeps the buyer on "Needs you". Not a
+   * problem with the buyer; only with who is answering.
+   */
+  | { readonly kind: 'assistant_stopped' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -77,6 +84,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'unlisted_number',
   // C4.c — he answered her cold e-mail, and a person answers him.
   'email_reply',
+  // 0070 — the owner stopped the assistant, so a person answers.
+  'assistant_stopped',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -96,6 +105,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   media_unreadable: { kind: 'media_unreadable', received: 'document' },
   unlisted_number: { kind: 'unlisted_number' },
   email_reply: { kind: 'email_reply' },
+  assistant_stopped: { kind: 'assistant_stopped' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -127,6 +137,7 @@ export const TRIGGER_REASONS = [
   'media_unreadable',
   'unlisted_number',
   'email_reply',
+  'assistant_stopped',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -149,6 +160,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'unlisted_number';
     case 'email_reply':
       return 'email_reply';
+    case 'assistant_stopped':
+      return 'assistant_stopped';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

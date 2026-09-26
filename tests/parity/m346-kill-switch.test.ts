@@ -60,7 +60,7 @@ function storeWith(silenced: boolean): OutboundStore & { refusals: string[] } {
         assignedTo: null, paused: false, lastInboundAt: RECENT, template: 'none',
         pilotMode: false, recipientAllowed: true, dailyCeilingReached: false,
         activated: true,
-        silenced,
+        silenced, stopped: false,
       },
     }),
     transition: async () => {},
@@ -102,7 +102,7 @@ describe('M34.6 · a set flag stops a real send', () => {
       windowPlan: { action: 'send_free', ownerNoteZh: '' } as const,
       activated: true, pilotMode: false, recipientAllowed: true,
     };
-    expect(gateOutbound({ ...queuedEarlier, silenced: true }))
+    expect(gateOutbound({ ...queuedEarlier, silenced: true, stopped: false }))
       .toEqual({ allow: false, reason: 'silenced' });
   });
 
@@ -110,7 +110,7 @@ describe('M34.6 · a set flag stops a real send', () => {
     const g = {
       assignedTo: null, paused: false,
       windowPlan: { action: 'send_free', ownerNoteZh: '' } as const,
-      activated: true, pilotMode: false, recipientAllowed: true, silenced: true,
+      activated: true, pilotMode: false, recipientAllowed: true, silenced: true, stopped: false,
     };
     expect(gateOutbound({ ...g, origin: 'owner' })).toEqual({ allow: true, viaTemplate: false });
     expect(gateOutbound({ ...g, origin: 'employee' })).toEqual({ allow: false, reason: 'silenced' });

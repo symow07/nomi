@@ -66,6 +66,12 @@ export type ConversationSendContext = {
    */
   readonly silenced: boolean;
   /**
+   * 2026-09-27 — the owner stopped the assistant on every channel (0070).
+   * REQUIRED for the same reason as `silenced`: a stop switch nothing resolved
+   * is the defect, so no store gets to leave it unanswered.
+   */
+  readonly stopped: boolean;
+  /**
    * C4.a — everything the OUTREACH gate needs about this buyer, for a message
    * that starts a conversation instead of continuing one.
    *
@@ -320,6 +326,8 @@ export async function driveConversationOutbound(
     // M34.6 — no conditional spread: the ops kill switch is required all the
     // way down, so there is no path on which it goes unresolved.
     silenced: ctx.silenced,
+    // 0070 — the owner's Stop: required all the way down, like the ops switch.
+    stopped: ctx.stopped,
   });
   if (!gate.allow) {
     await refuse(deps, candidate, gate.reason);

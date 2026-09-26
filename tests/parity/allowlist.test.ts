@@ -14,7 +14,7 @@ const openPlan: SendPlan = { action: 'send_free', ownerNoteZh: '' };
 const closedPlan: SendPlan = { action: 'wait_for_buyer', ownerNoteZh: '' };
 // M20.1 — these cases are about the ALLOWLIST, so the channel is live; the
 // activation refusal has its own tests below.
-const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan, activated: true, silenced: false };
+const base = { origin: 'employee' as const, assignedTo: null, paused: false, windowPlan: openPlan, activated: true, silenced: false, stopped: false };
 
 describe('M18.2 · phone normalization (the comparison key)', () => {
   it('an owner-typed number and a WhatsApp wa_id normalize to the same thing', () => {

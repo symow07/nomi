@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { MAX_REPLY_CHARS, messageIds, parseInboundMail } from '../../src/channels/email/inbound.js';
 import {
@@ -83,7 +83,14 @@ describe('C4.c · a person is told', () => {
 
   it('the columns accept exactly what the code can now write', () => {
     for (const e of CONSENT_EVIDENCE) expect(SQL, e).toContain(`'${e}'`);
-    for (const r of TRIGGER_REASONS) expect(SQL, r).toContain(`'${r}'`);
+    // The trigger vocabulary keeps growing after 0048 (0070 added
+    // 'assistant_stopped'), so it is held against the LATEST migration that
+    // redefines the constraint — the one the database actually enforces.
+    const dir = fileURLToPath(new URL('../../migrations/', import.meta.url));
+    const latest = readdirSync(dir).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort()
+      .filter((f) => readFileSync(`${dir}/${f}`, 'utf8').includes('escalation_events_trigger_reason_check')).pop()!;
+    const current = readFileSync(`${dir}/${latest}`, 'utf8');
+    for (const r of TRIGGER_REASONS) expect(current, `${r} in ${latest}`).toContain(`'${r}'`);
   });
 
   it('the tenant lookup returns only what the reply needs, to the app role alone', () => {

@@ -16,6 +16,7 @@ import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/i
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
+import { assistantStopped } from '../db/assistantStop.js';
 import { handToPerson, recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
@@ -239,6 +240,49 @@ export async function startWorker(
     if (!businessId.ok || !conversationId.ok) return; // poison job: drop, don't retry
 
     const started = Date.now();
+
+    /**
+     * ── 0070 · THE OWNER STOPPED THE ASSISTANT, ON EVERY CHANNEL ──────────
+     *
+     * Checked FIRST, before an owner's "answer this" too: while stopped the
+     * assistant writes nothing — no model call, no draft, no reply.
+     *
+     * The buyer is not hidden by it. The message is recorded as it arrived
+     * (named, not opened — a photo or a voice note is not read by a stopped
+     * assistant either), and the conversation is handed to a person: that
+     * handoff is what puts it on "Needs you" (inbox NEEDS_OWNER) and on
+     * Today's count, and it sends the owner the same alert any handoff does.
+     * Lines of his still waiting in a batch when Stop was pressed are closed
+     * by the same handoff, so a later Start never answers them a second time
+     * after a person may already have.
+     */
+    const stopped = await withTenantTx(db, businessId.value, (tx) => assistantStopped(tx, businessId.value));
+    if (stopped) {
+      const effects = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, conversationId.value);
+        const type = job.data.messageType ?? 'text';
+        // An owner's "answer this" names a message already on the timeline.
+        if (!job.data.answerOnly) {
+          if (type === 'text') {
+            await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);
+          } else {
+            await recordReceivedMessage(tx, conversationId.value, job.data.messageId, job.data.text || null,
+              type === 'image' ? 'photo' : type === 'audio' ? 'voice' : (job.data.received ?? 'other'));
+          }
+        }
+        const waiting = await pendingFragments(tx, conversationId.value);
+        await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
+        const d = inboundDisposition(type, job.data.received);
+        if (d.kind === 'ignore' && waiting.length === 0) return null;   // a reaction asks nothing of anyone
+        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, { kind: 'assistant_stopped' });
+      });
+      if (effects?.handoffAlert) {
+        await boss.send(QUEUES.notify, {
+          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
+        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
+      }
+      return;
+    }
 
     /**
      * ── G13 · SHE TYPED WHAT HE SAID, AND ASKED FOR AN ANSWER ─────────────

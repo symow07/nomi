@@ -33,6 +33,7 @@ import { liveMailAccount } from '../../db/mailAccounts.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
+import { loadAssistantStop, type AssistantStop } from '../../db/assistantStop.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
 import { listAllowlist } from '../../channels/allowlist.js';
 import { loadPriceRules, type PriceRulesView } from './priceRules.js';
@@ -149,6 +150,8 @@ export type FactoryReadiness = {
   /** Who turned it on and when — straight from the row activate() wrote. */
   readonly activatedAt: Date | null;
   readonly activatedBy: string | null;
+  /** 0070 — the owner's Stop, on every channel. Absent reads as answering. */
+  readonly assistantStop?: AssistantStop;
 };
 
 export type FactoryView = {
@@ -367,7 +370,7 @@ export async function loadFactory(
   offer: ReachOffer = NO_OFFER,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices, people, mail] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, stop, recipients, rehearsal, prices, people, mail] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -378,6 +381,8 @@ export async function loadFactory(
     // check; asking IT means this page and the activate action cannot disagree.
     bid.ok ? activationPreconditions(db, bid.value, { providerConfigured: messagingEnabled }) : null,
     bid.ok ? activationState(db, bid.value) : null,
+    // 0070 — the owner's Stop, on every channel.
+    bid.ok ? loadAssistantStop(db, bid.value) : null,
     bid.ok ? listAllowlist(db, bid.value) : [],
     // M20.5 — advisory, and deliberately NOT an input to `pre`. If this threw
     // or hung it would take the whole page with it, which is why it reads rows
@@ -415,6 +420,7 @@ export async function loadFactory(
       live: pre?.lifecycle === 'active',
       activatedAt: state?.activatedAt ?? null,
       activatedBy: state?.activatedBy ?? null,
+      assistantStop: stop ?? { stoppedAt: null, stoppedBy: null },
     },
     rehearsal,
     prices,
@@ -737,11 +743,15 @@ export function renderFactory(
   // connected channel says it is already answering and how that is stopped.
   // Display only: nothing here changes what the gate decides.
   const liveElsewhere = others.filter((o) => o.state === 'connected');
+  // 0070 — while stopped, no line on this page may say the assistant is
+  // answering anyone: WhatsApp's "talking to real buyers" and "Instagram keeps
+  // answering" both go, and the every-channel block says what is true.
+  const stoppedAt = r.assistantStop?.stoppedAt ?? null;
   const elsewhereNames = liveElsewhere.length === 0 ? '' : new Intl.ListFormat(locale, { type: 'conjunction' })
     .format(liveElsewhere.map((o) => t(locale, `reach.channel.${o.channel}` as MessageKey)));
   const waRelevant = r.live || lc !== 'not_connected' || r.recipients.length > 0 || used.includes('whatsapp');
   const whatsappBody = r.live
-    ? `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>
+    ? `${stoppedAt ? '' : `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`}
        ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
           when: formatDate(locale, r.activatedAt),
           // G9b — a name, or "you" for the reader; never the id in the column.
@@ -750,7 +760,7 @@ export function renderFactory(
           }) }))}</p>` : ''}
        ${recipientList ? `<p class="fdesc fdesc-lead">${esc(t(locale, 'activation.recipients.title', { name }))}</p>${recipientList}` : ''}
        <p class="fnever">${esc(t(locale, 'activation.stop.what'))}</p>
-       ${elsewhereNames ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
+       ${elsewhereNames && !stoppedAt ? `<p class="fdesc">${esc(t(locale, 'golive.whatsappOnly', { channels: elsewhereNames }))}</p>` : ''}
        <div class="facts">${confirmBtn('deactivate', 'danger',
           t(locale, 'activation.action.deactivate'),
           t(locale, 'activation.action.deactivateConfirm', { name }))}</div>`
@@ -768,17 +778,37 @@ export function renderFactory(
          ${blockerList}
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
          ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
-  const elsewhereBody = liveElsewhere.length === 0 ? '' : `
+  const elsewhereBody = liveElsewhere.length === 0 || stoppedAt ? '' : `
        <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
        <div class="doors">${deeper('/app/employee', t(locale, 'golive.other.stopDrafts'))}${deeper('/app/channels', t(locale, 'golive.other.stopDisconnect'))}</div>`;
-  const readyBody = waRelevant
+  // 0070 — the owner's Stop, on EVERY channel, first: it is the one switch
+  // that binds all of them, WhatsApp included, and it is never further away
+  // than the channels it stops. Shown wherever something could be sent.
+  const who = (id: string | null) => actorName(id, f.people ?? [], viewer, {
+    you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+  });
+  const everyBody = stoppedAt
+    ? `<p class="fwarn">${esc(t(locale, 'assistant.stop.stopped', { name }))}</p>
+       <p class="fdesc">${esc(t(locale, 'assistant.stop.since', { when: formatDate(locale, stoppedAt), who: who(r.assistantStop?.stoppedBy ?? null) }))}</p>
+       <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>
+       <div class="facts">${confirmBtn('start-assistant', 'send',
+          t(locale, 'assistant.stop.action.start', { name }),
+          t(locale, 'assistant.stop.action.startConfirm', { name }))}</div>
+       <p class="fdesc">${esc(t(locale, 'assistant.stop.startNote', { name }))}</p>`
+    : `<p class="fdesc">${esc(t(locale, 'assistant.stop.running', { name }))}</p>
+       <div class="facts">${confirmBtn('stop-assistant', 'danger',
+          t(locale, 'assistant.stop.action.stop', { name }),
+          t(locale, 'assistant.stop.action.stopConfirm', { name }))}</div>`;
+  const everyBlock = stoppedAt || waRelevant || liveElsewhere.length > 0
+    ? `<h3 class="sub3" data-golive="every">${esc(t(locale, 'assistant.stop.title'))}</h3>${everyBody}` : '';
+  const readyBody = everyBlock + (waRelevant
     ? `<h3 class="sub3" data-golive="whatsapp">${esc(t(locale, 'reach.channel.whatsapp'))}</h3>${whatsappBody}${elsewhereBody
         ? `<h3 class="sub3" data-golive="elsewhere">${esc(elsewhereNames)}</h3>${elsewhereBody}` : ''}`
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
         : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>${deeper('/app/channels', t(locale, 'nav.channels'))}`}
-       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
+       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`);
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.

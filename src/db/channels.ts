@@ -2,6 +2,7 @@ import { isAllowlisted } from '../channels/allowlist.js';
 import { assistantIdForChannel } from './assistants.js';
 import { checkBudget } from '../core/budget.js';
 import { loadKillSwitches } from './opsFlags.js';
+import { assistantStopped } from './assistantStop.js';
 import { outreachFacts } from './outreach.js';
 import { CONTACT_CHANNELS } from '../core/outreach/consent.js';
 import { LOCALES } from '../core/owner/i18n/locale.js';
@@ -184,6 +185,9 @@ export function channelStore(
       // allowlist, so the gate decides on the flag as it stands right now
       // rather than as it stood when the message was queued.
       const switches = await loadKillSwitches(tx, businessId);
+      // 0070 — the owner's Stop, in the same transaction and for the same
+      // reason: a reply queued before Stop was pressed must not leave after it.
+      const stopped = await assistantStopped(tx, businessId);
 
       /**
        * C4.a — the outreach facts, resolved ONLY when a message here starts a
@@ -250,6 +254,7 @@ export function channelStore(
         pilotMode,
         recipientAllowed,
         silenced: switches.globalSilence,
+        stopped,
         // M18.5 — counts EMPLOYEE messages actually sent today, so an owner
         // reply is never blocked by the ceiling.
         dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,
