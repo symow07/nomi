@@ -103,8 +103,8 @@ footer.
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **70**; no business is stopped; exactly one business has
   `outreach_area` on. Backup before 0070: `nomi-backup-20260926T030221Z`.
-- **Schema:** 70. Last three: `0068 outreach_area`, `0069 backup_runs`,
-  `0070 assistant_stop`.
+- **Schema:** 71. Last three: `0069 backup_runs`, `0070 assistant_stop`,
+  `0071 silence_handoff`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -223,6 +223,7 @@ Recent PRs, newest first:
    - `businesses.assistant_stopped_at`, set and cleared only by the owner (`/app/factory/stop-assistant`, `/start-assistant`, `messaging_activation`). Separate from WhatsApp's activation and from the ops kill switch (`ops_flags` is read-only to the app, so Start can never lift an operator's silence).
    - While set: the send gate refuses the assistant's messages and automated follow-ups (`stopped`, at send time — a reply queued before Stop is cancelled, never sent late); the worker runs no turn — each message is recorded (media named, not opened) and the conversation handed to a person (`assistant_stopped` signal), which keeps the buyer on "Needs you"; hand-back (`resumeAi`, so also answer-now) and approve/edit are refused and the draft stays pending. The owner's own replies always go.
    - Start leaves conversations handed over during the stop with their person. `tests/integration/assistant-stop.test.ts` holds all of it; each guard is proven load-bearing by switching it off.
+   - **The ops kill switch behaves the same** (0071): while `global_silence` is on, the worker hands each buyer to a person under `ops_silenced` (not the owner's reason), and hand-back / approve / edit are refused (`assistant_silenced`). One question answers both: `assistantHold` in `src/db/assistantStop.ts` (ops first). Today and My business say sending is paused. `tests/integration/ops-silence-handoff.test.ts`.
 
 ## 6 · What's next
 

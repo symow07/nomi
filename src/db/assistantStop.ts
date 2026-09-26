@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
+import { loadKillSwitches } from './opsFlags.js';
 
 /**
  * The owner's Stop, on every channel (0070, 2026-09-27).
@@ -44,6 +45,25 @@ export async function assistantStopped(tx: Tx, businessId: BusinessId | string):
       from businesses where id = ${businessId}::uuid
   `.execute(tx);
   return r.rows[0]?.stopped === true;
+}
+
+/**
+ * 0071 — is the assistant HELD, and by whom: the ops kill switch
+ * (`global_silence`, for this business or the whole platform) or the owner's
+ * Stop. Both mean the same thing to a buyer who writes — nothing the assistant
+ * writes will reach him, so a person must — and the same things follow from
+ * both: the worker records the message and hands the conversation over, and
+ * nothing may move a waiting buyer off "Needs you". Ops is named first when
+ * both are set, as at the send gate: it is the one the owner did not choose.
+ *
+ * The send gate does not ask this: it has its own two inputs, `silenced` and
+ * `stopped`, each required, resolved by the store in the send's transaction.
+ */
+export type AssistantHold = 'silenced' | 'stopped' | null;
+
+export async function assistantHold(tx: Tx, businessId: BusinessId | string): Promise<AssistantHold> {
+  if ((await loadKillSwitches(tx, String(businessId))).globalSilence) return 'silenced';
+  return (await assistantStopped(tx, businessId)) ? 'stopped' : null;
 }
 
 export async function loadAssistantStop(db: Db, businessId: BusinessId): Promise<AssistantStop> {

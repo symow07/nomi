@@ -1,4 +1,5 @@
 import { loadAssistantStop } from '../../db/assistantStop.js';
+import { loadKillSwitches } from '../../db/opsFlags.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -81,6 +82,8 @@ export type OperationsSnapshot = {
   readonly hasAttention: boolean;
   /** 0070 — when the owner stopped the assistant on every channel; null or absent = answering. */
   readonly assistantStoppedAt?: Date | null;
+  /** 0071 — ops has paused sending (the kill switch); absent = not paused. */
+  readonly opsSilenced?: boolean;
 };
 
 /**
@@ -139,7 +142,7 @@ export async function loadOperationsSnapshot(
   const unit = RANGE_UNIT[range];
 
   // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, counts, blockedMessages, budgetRow, stop] = await Promise.all([
+  const [ops, channels, counts, blockedMessages, budgetRow, stop, opsSilenced] = await Promise.all([
     loadKnowledgeOps(db, businessIdRaw, range),
     loadChannels(db, businessIdRaw, provider !== 'disabled'),
     withTenantTx(db, B, async (tx) => {
@@ -190,6 +193,8 @@ export async function loadOperationsSnapshot(
     `.execute(tx)).rows[0] ?? null),
     // 0070 — the owner's Stop, on every channel.
     loadAssistantStop(db, B),
+    // 0071 — whether ops has paused sending.
+    withTenantTx(db, B, (tx) => loadKillSwitches(tx, B)).then((k) => k.globalSilence),
   ]);
 
   const attention = {
@@ -210,6 +215,7 @@ export async function loadOperationsSnapshot(
     hasAttention: attention.pendingApprovals + attention.handoffs
                 + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
+    opsSilenced,
   };
 }
 
@@ -294,10 +300,19 @@ export function renderOperationsHome(
         <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/factory', t(locale, 'today.stopped.start', { name }))}</div>
       </section>`
     : '';
+  // 0071 — ops paused sending: the same honesty, in the words ops uses when a
+  // message is refused for it (refused.*.silenced).
+  const silenced = s.opsSilenced
+    ? `<section class="block">
+        <h2>${esc(t(locale, 'today.silenced.title', { name }))}</h2>
+        <p class="muted">${esc(t(locale, 'today.silenced.body', { name }))}</p>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}</div>
+      </section>`
+    : '';
   const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="stats">${rows}</div></section>`
-    : s.assistantStoppedAt ? ''
+    : s.assistantStoppedAt || s.opsSilenced ? ''
     : live
     // M35.5 — when nothing needs her, this IS the page: a rule, one sentence,
     // and air. Not a card among cards. Saying less is the whole argument, and it
@@ -411,6 +426,7 @@ export function renderOperationsHome(
     ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>${lead}
+  ${silenced}
   ${stopped}
   ${attention}
   ${finishSetup}

@@ -16,7 +16,7 @@ import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/i
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
-import { assistantStopped } from '../db/assistantStop.js';
+import { assistantHold } from '../db/assistantStop.js';
 import { handToPerson, recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
@@ -242,10 +242,14 @@ export async function startWorker(
     const started = Date.now();
 
     /**
-     * ── 0070 · THE OWNER STOPPED THE ASSISTANT, ON EVERY CHANNEL ──────────
+     * ── 0070 / 0071 · THE ASSISTANT IS HELD: THE OWNER'S STOP, OR OPS ──────
      *
-     * Checked FIRST, before an owner's "answer this" too: while stopped the
-     * assistant writes nothing — no model call, no draft, no reply.
+     * The owner stopped the assistant on every channel, or the ops kill switch
+     * (`global_silence`) is on. Checked FIRST, before an owner's "answer this"
+     * too: while held the assistant writes nothing — no model call, no draft,
+     * no reply. (Before 0071 the ops switch let the turn run and then threw
+     * the reply away, handing nobody the buyer: an emergency control that hid
+     * waiting buyers exactly when it was in use.)
      *
      * The buyer is not hidden by it. The message is recorded as it arrived
      * (named, not opened — a photo or a voice note is not read by a stopped
@@ -256,8 +260,8 @@ export async function startWorker(
      * by the same handoff, so a later Start never answers them a second time
      * after a person may already have.
      */
-    const stopped = await withTenantTx(db, businessId.value, (tx) => assistantStopped(tx, businessId.value));
-    if (stopped) {
+    const hold = await withTenantTx(db, businessId.value, (tx) => assistantHold(tx, businessId.value));
+    if (hold) {
       const effects = await withTenantTx(db, businessId.value, async (tx) => {
         await lockConversation(tx, conversationId.value);
         const type = job.data.messageType ?? 'text';
@@ -274,7 +278,8 @@ export async function startWorker(
         await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
         const d = inboundDisposition(type, job.data.received);
         if (d.kind === 'ignore' && waiting.length === 0) return null;   // a reaction asks nothing of anyone
-        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, { kind: 'assistant_stopped' });
+        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value,
+          { kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' });
       });
       if (effects?.handoffAlert) {
         await boss.send(QUEUES.notify, {
