@@ -609,27 +609,15 @@ d('M29 · unauthored price rules are reported, not migrated (requires DATABASE_U
   });
 
   it('the operator line is absent at zero and present above it', async () => {
-    const { renderPilotRunbook } = await import('../../src/api/web/pilot.js');
+    const { renderPilotTechnical } = await import('../../src/api/web/pilot.js');
     const { readDeployment } = await import('../../src/api/web/deployment.js');
-    const rb = {
-      readiness: { detected: { profile: false, products: false, priceRules: false, knowledge: false,
-        claims: false, sandbox: false, channel: false },
-        attest: { backupTestedAt: null, secretsRotatedAt: null, ownerReadyAt: null, assistantNamedAt: null },
-        validation: { at: null, pass: null, total: null }, readyToLaunch: false, assistantName: 'Lily' },
-      operations: { range: 'week', attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
-        activity: { handled: 0, draftsCreated: 0, corrections: 0 },
-        knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
-        channel: { status: 'not_connected', provider: 'disabled' }, hasAttention: false },
-      rehearsal: { available: false, done: { takeover: false, ownerReply: false, resume: false,
-        knowledgeCorrection: false, validationPassed: false }, completed: 0, total: 5 },
-      reliability: { stuckOutbound: 0, oldestQueuedAt: null },
-    } as never;
     const dep = readDeployment({ OWNER_ACCESS_CODE: 'x', CREDENTIAL_KEY: 'y' }, new Date(), 60);
 
-    const quiet = renderPilotRunbook(rb, 'en', null, dep, undefined, undefined, undefined, 'none', 0);
+    // Phase 4b (F2) — the operator line lives on the technical page now.
+    const quiet = renderPilotTechnical('en', { deployment: dep, unauthoredPriceRules: 0 });
     expect(quiet).not.toContain('written by the old importer');
 
-    const loud = renderPilotRunbook(rb, 'en', null, dep, undefined, undefined, undefined, 'none', 3);
+    const loud = renderPilotTechnical('en', { deployment: dep, unauthoredPriceRules: 3 });
     expect(loud).toContain('3 price rules were written by the old importer');
     expect(loud).toContain('Nothing rewrites them');
   });

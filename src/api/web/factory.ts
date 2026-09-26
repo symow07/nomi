@@ -28,7 +28,9 @@ import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
 import { loadBusinessProfile, type BusinessProfile } from './settings.js';
 import { loadProductList } from './products.js';
-import { loadChannels, type ChannelView } from './channels.js';
+import { loadChannels, phonePlaceholder, type ChannelView, type InboundLink } from './channels.js';
+import { liveMailAccount } from '../../db/mailAccounts.js';
+import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { loadOnboarding, STEP_LINK, type OnboardingStep } from './onboarding.js';
 import { activationPreconditions, activationState, type ActivationRefusal } from '../../channels/activation.js';
 import type { ChannelLifecycle } from '../../core/channel/lifecycle.js';
@@ -80,6 +82,56 @@ export type FactoryPromises = {
   readonly askVaries?: boolean;
 };
 
+/**
+ * Phase 4b — one of the places other than WhatsApp a buyer writes, as My
+ * business shows it. The state is read from the same sources the Channels page
+ * reads (`metaLinkStatus` through `InboundLink`, and the live mailbox), so the
+ * two pages cannot disagree.
+ */
+export type ReachChannel = {
+  readonly channel: 'instagram' | 'messenger' | 'email';
+  readonly state: 'connected' | 'not_connected' | 'attention';
+  /** The Page, the handle or the mailbox address it is connected as. */
+  readonly as?: string;
+};
+
+/**
+ * What this installation offers besides WhatsApp, built by the route from the
+ * same facts `/app/channels` renders: the Instagram/Messenger links, and
+ * whether a mailbox can be connected here at all.
+ */
+export type ReachOffer = {
+  readonly inbound: ReadonlyMap<OutreachChannel, InboundLink>;
+  readonly mailConnectable: boolean;
+};
+
+const NO_OFFER: ReachOffer = { inbound: new Map(), mailConnectable: false };
+
+/** The rows for the channels other than WhatsApp. Pure: the offer and the mailbox are read by the caller. */
+export function otherChannels(
+  offer: ReachOffer,
+  mail: { readonly address: string; readonly needsAttention: unknown } | null,
+): readonly ReachChannel[] {
+  const out: ReachChannel[] = [];
+  for (const ch of ['instagram', 'messenger'] as const) {
+    const link = offer.inbound.get(ch);
+    // Shown where it can be connected HERE (connect.ts's rule), or where it already is.
+    const here = CHANNEL_REGISTRY[ch].availableHere && link?.configured === true;
+    if (!here && link?.connected !== true) continue;
+    out.push({
+      channel: ch,
+      state: link?.connected ? (link.needsAttention ? 'attention' : 'connected') : 'not_connected',
+      ...(link?.connected && link.connectedAs ? { as: link.connectedAs } : {}),
+    });
+  }
+  if (mail || offer.mailConnectable) {
+    out.push(mail
+      ? { channel: 'email', state: mail.needsAttention ? 'attention' : 'connected', as: mail.address }
+      : { channel: 'email', state: 'not_connected' });
+  }
+  return out;
+}
+
 /** Getting ready to go live — a summary of the EXISTING pilot readiness model. */
 export type FactoryReadiness = {
   readonly canActivate: boolean;
@@ -111,6 +163,17 @@ export type FactoryView = {
   readonly connection: {
     readonly channel: ChannelView;
     readonly ownerPhone: string | null;
+    /**
+     * Phase 4b (CC-11) — every OTHER place a buyer can write that this
+     * installation offers, with its state. WhatsApp keeps its own block, because
+     * only WhatsApp has an activation and a list of who may be messaged.
+     * Absent reads as none offered.
+     */
+    readonly others?: readonly ReachChannel[];
+    /** CC-15 — her sign-up country (ISO), for the phone example. */
+    readonly country?: string | null;
+    /** A2 — the channels she said she uses, in her order: the order they are shown. */
+    readonly channelsUsed?: readonly string[];
   };
   /** null = the factory is set up. A complete factory feels complete. */
   readonly nextStep: FactoryStep | null;
@@ -300,9 +363,11 @@ export async function loadFactoryRehearsal(db: Db, businessIdRaw: string): Promi
 
 export async function loadFactory(
   db: Db, businessIdRaw: string, messagingEnabled: boolean,
+  /** Phase 4b — what else this installation offers; the route builds it as /app/channels does. */
+  offer: ReachOffer = NO_OFFER,
 ): Promise<FactoryView> {
   const bid = parseBusinessId(businessIdRaw);
-  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices, people] = await Promise.all([
+  const [profile, products, promises, channels, setup, pre, state, recipients, rehearsal, prices, people, mail] = await Promise.all([
     loadBusinessProfile(db, businessIdRaw),
     loadProductList(db, businessIdRaw),
     loadPromises(db, businessIdRaw),
@@ -320,6 +385,7 @@ export async function loadFactory(
     loadFactoryRehearsal(db, businessIdRaw),
     loadPriceRules(db, businessIdRaw),
     loadPeople(db, businessIdRaw),
+    bid.ok ? withTenantTx(db, bid.value, (tx) => liveMailAccount(tx, bid.value)) : null,
   ]);
   const sold = products.filter((p) => p.isActive);
   return {
@@ -332,7 +398,10 @@ export async function loadFactory(
       names: sold.slice(0, 4).map((p) => ({ name: p.name, nameZh: p.nameZh })),
     },
     promises,
-    connection: { channel: channels.whatsapp, ownerPhone: channels.ownerPhone },
+    connection: {
+      channel: channels.whatsapp, ownerPhone: channels.ownerPhone,
+      others: otherChannels(offer, mail), country: channels.country ?? null, channelsUsed: channels.channelsUsed ?? [],
+    },
     // The ONE setup derivation — not this module's own opinion of "introduced".
     nextStep: setup.nextStep,
     readiness: {
@@ -537,22 +606,30 @@ export function renderFactory(
   // are different problems with different next steps, so they read differently.
   const lc = f.readiness.lifecycle;
   const c = f.connection.channel;
+  const others = f.connection.others ?? [];
+  // Phase 4b — "cannot receive or answer a buyer" is false the moment she is
+  // answering them on Instagram: then an unconnected WhatsApp says only that
+  // buyers who write THERE are not answered.
+  const elsewhere = others.some((o) => o.state === 'connected');
+  const waHint = lc === 'not_connected' && elsewhere
+    ? t(locale, 'factory.reach.other.notConnected', { name })
+    : t(locale, `channel.state.${lc}.hint` as MessageKey, { name });
   const conn = `<span class="fconn-i" aria-hidden="true">📱</span>
       <div>
         <div class="fconn-t">WhatsApp</div>
         <div class="fconn-s">${esc(t(locale, `channel.state.${lc}` as MessageKey, { name }))}</div>
-        <div class="fconn-h muted">${esc(t(locale, `channel.state.${lc}.hint` as MessageKey, { name }))}</div>
+        <div class="fconn-h muted">${esc(waHint)}</div>
       </div>`;
   // M20.4 (F-06) — the allowlist lives here, where the blocker sends her. It
   // reuses pilot_allowlist and the existing add/archive services: no second
   // store, no permission system. (Kept OUT of the template — an HTML comment
   // ships to the owner's browser, and this one tripped the banned-vocabulary
   // guard by containing a word owners never see.)
-  const reachBody = `
-    ${lc === 'active' || lc === 'ready'
-      ? `<div class="fconn on">${conn}</div>`
-      : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
-    ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
+  // Phase 4b (CC-11) — the list of who may be messaged is WhatsApp's alone (the
+  // pilot number's activation reads it), so it appears only under a WhatsApp
+  // that is, or was, connected — or that already holds numbers she added.
+  const showAllowlist = lc !== 'not_connected' || f.readiness.recipients.length > 0;
+  const allowlist = !showAllowlist ? '' : `
     <h3 class="sub3">${esc(t(locale, 'allowlist.title', { name }))}</h3>
     <p class="fdesc">${esc(t(locale, 'allowlist.note', { name }))}</p>
     ${f.readiness.recipients.length === 0
@@ -568,7 +645,7 @@ export function renderFactory(
             </form></li>`).join('')}</ul>`}
     <form method="post" action="/app/factory/allowlist/add" class="alform">
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.phone'))}</span>
-        <input name="phone" inputmode="tel" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" required /></label>
+        <input name="phone" inputmode="tel" placeholder="${esc(phonePlaceholder(locale, f.connection.country))}" required /></label>
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.label'))}</span>
         <input name="label" placeholder="${esc(t(locale, 'allowlist.label.ph'))}" /></label>
       <button class="btn send" type="submit">${esc(t(locale, 'allowlist.add'))}</button>
@@ -578,7 +655,49 @@ export function renderFactory(
       // is connected" in the same breath, because it knew only active/not.
       lc === 'active' ? 'factory.reach.nextConnected'
       : lc === 'ready' ? 'factory.reach.nextReady'
-      : 'factory.reach.nextNot', { name }))}</p>
+      : 'factory.reach.nextNot', { name }))}</p>`;
+  const whatsappBlock = `
+    ${lc === 'active' || lc === 'ready'
+      ? `<div class="fconn on">${conn}</div>`
+      : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
+    ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
+    ${allowlist}`;
+
+  // The other places she can be reached, each as the same card: tappable to the
+  // Channels page while it still needs her, still once it is connected.
+  const ICON: Record<ReachChannel['channel'], string> = { instagram: '📷', messenger: '💬', email: '✉️' };
+  const otherBlock = (o: ReachChannel): string => {
+    const card = `<span class="fconn-i" aria-hidden="true">${ICON[o.channel]}</span>
+      <div>
+        <div class="fconn-t">${esc(t(locale, `reach.channel.${o.channel}` as MessageKey))}</div>
+        <div class="fconn-s">${esc(t(locale, o.state === 'connected' ? 'connect.state.connected'
+          : o.state === 'attention' ? 'connect.state.attention' : 'connect.state.notConnected'))}</div>
+        <div class="fconn-h muted">${o.state === 'connected'
+          ? esc(t(locale, 'reach.inbound.connected', { name }))
+          : o.state === 'attention' && o.channel === 'email' && o.as
+            // the address isolated, not the sentence (connect.ts's withAddress lesson)
+            ? esc(t(locale, 'connect.mail.attention', { address: '\u0000' })).replace('\u0000', `<bdi>${esc(o.as)}</bdi>`)
+          : o.state === 'attention'
+            ? esc(t(locale, 'reach.inbound.attention'))
+            : esc(t(locale, 'factory.reach.other.notConnected', { name }))}</div>
+        ${o.as && !(o.state === 'attention' && o.channel === 'email')
+          ? `<div class="fconn-h muted"><bdi>${esc(o.as)}</bdi></div>` : ''}
+      </div>`;
+    return o.state === 'connected'
+      ? `<div class="fconn on">${card}</div>`
+      : `<a class="fconn off" href="/app/channels">${card}<span class="go" aria-hidden="true">›</span></a>`;
+  };
+
+  // In the order she named them at sign-up; the rest after, in the page's own order.
+  const used = f.connection.channelsUsed ?? [];
+  const rank = (k: string, i: number): number => { const u = used.indexOf(k); return u === -1 ? used.length + i : u; };
+  const blocks = [{ key: 'whatsapp', html: whatsappBlock }, ...others.map((o) => ({ key: o.channel as string, html: otherBlock(o) }))]
+    .map((b, i) => ({ ...b, r: rank(b.key, i) }))
+    .sort((a, b) => a.r - b.r)
+    .map((b) => b.html).join('');
+
+  const reachBody = `
+    ${blocks}
     ${f.connection.ownerPhone
       ? `<p class="fok">${esc(t(locale, 'factory.reach.alerts', { phone: f.connection.ownerPhone }))}</p>`
       : `<p class="fdesc">${esc(t(locale, 'factory.reach.noAlerts', { name }))}</p>`}`;

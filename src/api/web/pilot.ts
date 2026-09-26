@@ -15,7 +15,8 @@ import { loadOperationsSnapshot, type OperationsSnapshot, type Range } from './o
 import { type DeploymentInfo } from './deployment.js';
 import { type MetaReadiness } from '../../core/channel/metaReadiness.js';
 import { templateReadiness, TEMPLATE_ENTRY_POINT } from '../../core/channel/templateReadiness.js';
-import { esc, deeper } from './layout.js';
+import { esc, deeper, back } from './layout.js';
+import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 
@@ -81,7 +82,7 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
 
   return withTenantTx(db, B, async (tx) => {
     const r = (await sql<{
-      profile: boolean; products: boolean; price_rules: boolean; knowledge: boolean; claims: boolean; channel: boolean;
+      profile: boolean; products: boolean; price_rules: boolean; knowledge: boolean; claims: boolean;
       backup_tested_at: Date | null; secrets_rotated_at: Date | null; owner_ready_at: Date | null;
       assistant_named_at: Date | null; backup_verified_at: Date | null;
       assistant_name: string | null; owner_locale: string | null;
@@ -98,14 +99,6 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
         exists(select 1 from pricing_policy where business_id = ${B}) as price_rules,
         exists(select 1 from product_knowledge where business_id = ${B} and status = 'active' and source in ('owner_confirmed','owner_corrected')) as knowledge,
         (exists(select 1 from claims_policy where business_id = ${B} and allowed) or (select claims_reviewed_at from os) is not null) as claims,
-        -- Same predicate as loadOnboarding: connected AND holding an active
-        -- credential. The two derivations had already drifted — a rotated
-        -- credential left readiness saying "connected" while My factory's next
-        -- step said "connect WhatsApp", on the same page.
-        exists(select 1 from channels ch
-                 join channel_credentials cc on cc.business_id = ch.business_id
-                   and cc.channel = 'whatsapp' and cc.is_active
-                where ch.business_id = ${B} and ch.kind = 'whatsapp' and ch.status = 'connected') as channel,
         (select backup_tested_at from os) as backup_tested_at,
         (select secrets_rotated_at from os) as secrets_rotated_at,
         (select owner_ready_at from os) as owner_ready_at,
@@ -123,11 +116,17 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
         (select last_validation_total from os) as last_validation_total
     `.execute(tx)).rows[0]!;
 
+    // Same answer as Setup's channels step (`connectedChannels`): the two had
+    // drifted once already — a rotated credential left readiness saying
+    // "connected" while My factory's next step said "connect WhatsApp". Phase
+    // 4b: any place a buyer writes counts, not WhatsApp alone.
+    const channel = anyConnected(await connectedChannels(tx, B));
+
     const sandbox = r.last_validation_at !== null && r.last_validation_pass !== null
       && r.last_validation_total !== null && r.last_validation_pass === r.last_validation_total;
 
     const detected = { profile: r.profile, products: r.products, priceRules: r.price_rules,
-      knowledge: r.knowledge, claims: r.claims, sandbox, channel: r.channel };
+      knowledge: r.knowledge, claims: r.claims, sandbox, channel };
     const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at,
       ownerReadyAt: r.owner_ready_at, assistantNamedAt: r.assistant_named_at };
     const backupVerifiedAt = r.backup_verified_at;
@@ -729,12 +728,15 @@ out: ${esc(v.engine)}</pre>
   </div>`;
 }
 
+/**
+ * Getting ready — the owner's checklist and what follows it (audit F2). The
+ * machine room that used to be appended here (the WhatsApp credentials, the
+ * engine's own checks, the build) is `renderPilotTechnical`, one door away:
+ * an owner was reading "App secret" between her checklist and her practice
+ * (F4), with nothing on it she could act on.
+ */
 export function renderPilotRunbook(
-  rb: PilotRunbook, locale: Locale, flash: Flash | null,
-  deployment?: DeploymentInfo, meta?: MetaReadiness, feedback?: PilotFeedback,
-  rehearsal?: RehearsalReport | null,
-  templateState: TemplateState = 'none',
-  unauthoredPriceRules = 0,
+  rb: PilotRunbook, locale: Locale, flash: Flash | null, feedback?: PilotFeedback,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash)
     + duringSection(rb.operations, locale)
@@ -742,9 +744,31 @@ export function renderPilotRunbook(
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + (meta ? metaSection(meta, locale, templateState) : '')
-    + (rehearsal ? engineSection(rehearsal, locale) : '')
-    + (deployment ? deploymentSection(deployment, locale, unauthoredPriceRules) : '');
+    + `<section class="block"><div class="doors">${deeper('/app/onboarding/technical', t(locale, 'pilot.technical.title'))}</div></section>`;
+}
+
+/**
+ * `/app/onboarding/technical` — the machine room, owner-only (the route's
+ * guard is the one that switches messaging on). What whoever runs the
+ * installation reads: which WhatsApp credentials are set and well-formed (never
+ * their values), whether a reply can reopen a closed day, an engine defect on
+ * this business's real rows, and which build is running. Each section is
+ * omitted when not supplied, as before the split.
+ */
+export function renderPilotTechnical(
+  locale: Locale,
+  o: {
+    readonly deployment?: DeploymentInfo; readonly meta?: MetaReadiness;
+    readonly rehearsal?: RehearsalReport | null;
+    readonly templateState?: TemplateState; readonly unauthoredPriceRules?: number;
+  } = {},
+): string {
+  return `<h1 class="page">${esc(t(locale, 'pilot.technical.title'))}</h1>
+    <p class="muted">${esc(t(locale, 'pilot.technical.intro'))}</p>
+    ${back('/app/onboarding', t(locale, 'pilot.title'))}`
+    + (o.meta ? metaSection(o.meta, locale, o.templateState ?? 'none') : '')
+    + (o.rehearsal ? engineSection(o.rehearsal, locale) : '')
+    + (o.deployment ? deploymentSection(o.deployment, locale, o.unauthoredPriceRules ?? 0) : '');
 }
 
 

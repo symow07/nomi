@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
+import { connectedChannels } from '../../db/connectedChannels.js';
 
 /**
  * C9 — connecting the Page and the Instagram account a buyer writes to.
@@ -95,14 +96,11 @@ export async function metaLinkStatus(db: Db, businessIdRaw: string): Promise<Met
   if (!bid.ok) return { instagram: false, messenger: false, account: null };
   const { liveMetaAccount } = await import('../../db/metaAccounts.js');
   return withTenantTx(db, bid.value, async (tx) => {
-    const rows = (await sql<{ channel: string }>`
-      select channel from channel_credentials
-       where business_id = ${bid.value} and is_active and channel in ('instagram','messenger')`
-      .execute(tx)).rows;
-    const has = (k: MetaMessagingKind): boolean => rows.some((r) => r.channel === k);
+    // Phase 4b — the one definition of "connected" that Setup reads too.
+    const connected = await connectedChannels(tx, bid.value);
     const a = await liveMetaAccount(tx, bid.value);
     return {
-      instagram: has('instagram'), messenger: has('messenger'),
+      instagram: connected.instagram, messenger: connected.messenger,
       account: a ? {
         pageName: a.pageName, igUsername: a.igUsername, hasInstagram: a.igAccountId !== null,
         needsAttention: a.needsAttention, connectedAt: a.connectedAt,
