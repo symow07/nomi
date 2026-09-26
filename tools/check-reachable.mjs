@@ -32,6 +32,22 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, normalize, relative } from 'node:path';
 
+/**
+ * Exit only after everything printed has left the process. Writes to a pipe
+ * are asynchronous on POSIX (Node, "A note on process I/O"), and
+ * `process.exit()` drops whatever is still queued: on a busy CI runner the
+ * test reading this script's output through a pipe received the ✗ list only
+ * up to src/llm/ — the src/pipeline/ lines it looks for never arrived
+ * (m45-image-wired, 2026-09-26). Awaited at top level, so nothing after a
+ * call runs.
+ */
+const exit = (code) => new Promise(() => {
+  let open = 2;
+  const done = () => { if (--open === 0) process.exit(code); };
+  process.stdout.write('', done);
+  process.stderr.write('', done);
+});
+
 /** Where the servers start. */
 const SERVER_ENTRYPOINTS = ['src/main.ts', 'src/worker/main.ts'];
 
@@ -146,7 +162,7 @@ function reachableFrom(roots) {
 const missingRoot = ENTRYPOINTS.find((e) => !existsSync(e));
 if (missingRoot) {
   console.error(`  ✗ entrypoint ${missingRoot} does not exist — fix this file, not the code`);
-  process.exit(1);
+  await exit(1);
 }
 
 const reachable = reachableFrom(ENTRYPOINTS);
@@ -169,7 +185,7 @@ if (process.argv.includes('--inventory')) {
       console.log(`  ${f.slice(dir.length + 1)}${declared}${enforced}`);
     }
   }
-  process.exit(0);
+  await exit(0);
 }
 
 
@@ -295,7 +311,7 @@ if (process.argv.includes('--symbols')) {
     const baselinePath = 'tools/symbol-baseline.json';
     if (!existsSync(baselinePath)) {
       console.error(`\n  ✗ ${baselinePath} is missing — refusing to pass without a ceiling`);
-      process.exit(1);
+      await exit(1);
     }
     const base = JSON.parse(readFileSync(baselinePath, 'utf8'));
     let bad = 0;
@@ -312,9 +328,9 @@ if (process.argv.includes('--symbols')) {
     };
     check('referenced by tests/tools only', testsOnly.length, base.testsOnly);
     check('referenced by nothing', nothing.length, base.nothing);
-    process.exit(bad ? 1 : 0);
+    await exit(bad ? 1 : 0);
   }
-  process.exit(0);
+  await exit(0);
 }
 
 let violations = 0;
@@ -346,4 +362,4 @@ if (violations === 0) {
   const n = [...reachable].filter(isTs).length;
   console.log(`  ✓ every module in ${WIRED_DIRS.join(', ')} is reached from production (${n} modules live)`);
 }
-process.exit(violations ? 1 : 0);
+await exit(violations ? 1 : 0);
