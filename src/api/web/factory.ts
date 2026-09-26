@@ -559,20 +559,20 @@ export function renderFactory(
       ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
       : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
           <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
-            <form method="post" action="/app/factory/allowlist/remove" class="inline rm">
+            ${viewer.isOwner ? `<form method="post" action="/app/factory/allowlist/remove" class="inline rm">
               <input type="hidden" name="phone" value="${esc(r.phone)}" />
               <button class="btn ghost" type="submit"
                       onclick="return confirm(this.dataset.confirm)"
                       data-confirm="${esc(t(locale, 'allowlist.remove.confirm', { who: r.label ?? r.phone, name }))}"
               >${esc(t(locale, 'allowlist.remove'))}</button>
-            </form></li>`).join('')}</ul>`}
-    <form method="post" action="/app/factory/allowlist/add" class="alform">
+            </form>` : ''}</li>`).join('')}</ul>`}
+    ${!viewer.isOwner ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>` : `<form method="post" action="/app/factory/allowlist/add" class="alform">
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.phone'))}</span>
         <input name="phone" inputmode="tel" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" required /></label>
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.label'))}</span>
         <input name="label" placeholder="${esc(t(locale, 'allowlist.label.ph'))}" /></label>
       <button class="btn send" type="submit">${esc(t(locale, 'allowlist.add'))}</button>
-    </form>
+    </form>`}
     <p class="fdesc">${esc(t(locale,
       // D6 — the card above says "connected"; this line used to say "until this
       // is connected" in the same breath, because it knew only active/not.
