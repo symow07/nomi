@@ -60,8 +60,13 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
   });
 
   it('it is read from the sent row\'s own origin, not guessed from the words', () => {
+    // CC-25 — the transcript is read by the one window loader both transcript
+    // pages share; the page maps its `origin` and signs the line.
+    const loader = read('src/db/transcript.ts');
+    expect(loader).toMatch(/left join outbound_messages o\s*\n\s*on m\.direction = 'outbound' and m\.external_id = 'out:' \|\| o\.id::text/);
     const src = read('src/api/web/inbox.ts');
-    expect(src).toMatch(/left join outbound_messages o\s*\n\s*on m\.direction = 'outbound' and m\.external_id = 'out:' \|\| o\.id::text/);
+    expect(src).toContain('loadTranscriptWindow(tx, head.id, before)');
+    expect(src).toMatch(/m\.origin === 'owner' \|\| m\.origin === 'outreach' \? \{ by: m\.origin \}/);
     expect(src).toMatch(/m\.by === 'owner' \? esc\(t\(locale, 'conv\.by\.you'\)\)/);
   });
 });

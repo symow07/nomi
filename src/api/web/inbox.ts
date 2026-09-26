@@ -18,6 +18,10 @@ import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
+import { loadTranscriptWindow } from '../../db/transcript.js';
+
+/** A conversation id as Postgres stores one; anything else names no conversation. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The stored problem-signal kinds shown as a takeover reason (no classifier).
@@ -180,7 +184,7 @@ export async function loadInboxList(
         left join conversation_state cs on cs.conversation_id = c.id
         left join products p on p.id = cs.identified_product_id
         left join lateral (select text_content, direction, sent_at from messages m
-                            where m.conversation_id = c.id order by m.sent_at desc limit 1) lm on true
+                            where m.conversation_id = c.id order by m.sent_at desc, m.id desc limit 1) lm on true
         left join lateral (select unit_price_usd, currency from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
         left join lateral (select kind from conversation_signals cs
@@ -479,7 +483,15 @@ export type ConversationDetail = {
     readonly url?: string | null;
   };
   readonly order: { status: string; reference: string; total: Money | null; id: string } | null;
+  /** CC-25 — one window of the transcript (the newest, unless `transcript.older`), oldest first. */
   readonly messages: readonly TimelineMessage[];
+  /**
+   * CC-25 — which window `messages` is. `earlier` is the cursor for the
+   * messages before it (null when it starts the conversation); `older` marks a
+   * window further back than the newest. Absent reads as the newest window with
+   * nothing before it, which is what a fixture built before CC-25 describes.
+   */
+  readonly transcript?: { readonly earlier: string | null; readonly older: boolean };
   readonly pendingDraft: {
     draftId: string; draftText: string; capability: string;
     /**
@@ -583,9 +595,16 @@ export async function loadConversationDetail(
    * everywhere else: the ROUTE reads the clock, the loader is given it.
    */
   now: Date = new Date(),
+  /**
+   * CC-25 — the request's `before`, as it arrived: the cursor for an older
+   * window of the transcript. Anything that is not one is the newest window.
+   */
+  before: unknown = null,
 ): Promise<ConversationDetail | null> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return null;
+  // An address that cannot name a conversation is not found — it used to reach
+  // Postgres as a uuid it could not parse, and came back as the crash page.
+  if (!bid.ok || !UUID.test(conversationId)) return null;
 
   return withTenantTx(db, bid.value, async (tx) => {
     const head = (await sql<{
@@ -617,20 +636,11 @@ export async function loadConversationDetail(
     // overwritten (archive, never erase); `text_content` holds the words in
     // force. They differ exactly when the owner has corrected a transcript,
     // which is how the surface can show both.
-    const messages = (await sql<{
-      id: string; direction: string; text_content: string | null; sent_at: Date | null;
-      input_type: string; transcription: string | null; received: string | null;
-      media: string | null; origin: string | null;
-    }>`
-      select m.id, m.direction, m.text_content, m.sent_at, m.input_type, m.transcription,
-             m.ai_analysis->>'received' as received, m.provider_media_id as media,
-             -- D4 — the sent row it was copied from, by the id it was copied under.
-             o.origin
-        from messages m
-        left join outbound_messages o
-          on m.direction = 'outbound' and m.external_id = 'out:' || o.id::text
-       where m.conversation_id = ${conversationId} order by m.sent_at asc limit 200
-    `.execute(tx)).rows
+    //
+    // CC-25 — the NEWEST window, not the oldest two hundred: on a long thread
+    // the question she was about to answer was not on the page at all.
+    const transcript = await loadTranscriptWindow(tx, head.id, before);
+    const messages = transcript.rows
       // G2c — something she could not read is SHOWN, named, even with no
       // caption: a file the buyer sent must not be invisible to the owner. A
       // reaction or a sticker is recorded and left out — nothing was asked.
@@ -751,6 +761,7 @@ export async function loadConversationDetail(
         total: o.total_value_usd !== null ? moneyFromRow(Number(o.total_value_usd), o.currency) : null,
       } : null,
       messages,
+      transcript: { earlier: transcript.earlier, older: transcript.older },
       pendingDraft: draft
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability,
             heldBecause: isHoldReason(draft.pending?.['heldBecause']) ? draft.pending['heldBecause'] : null,
@@ -795,7 +806,7 @@ export async function loadConversationDetail(
 
 // The conversation's own state — only meaningful while SHE holds it. Once a
 // human is involved, `statusOf` calls every assigned conversation 'paused',
-// which contradicts the ownership card right below it; the card is the truth.
+// which contradicts the ownership the page states; ownership is the truth.
 const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string =>
   `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
@@ -883,7 +894,8 @@ export function renderInboxList(
       c.quantity !== null ? `${formatQty(locale, c.quantity)}${pcs}` : '',
       c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
     ].filter(Boolean).join(' · ');
-    return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}">
+    // CC-25 — a buyer opens on the newest message, the reply waiting under it.
+    return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}#latest">
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
       ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
       ${c.latestMessage ? `<div class="buyer-m voice"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
@@ -970,6 +982,37 @@ function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string 
   </div>`;
 }
 
+/**
+ * G12 — whose it is, by name. "You're handling this" is only true for the
+ * person holding it; to anyone else it is a colleague's conversation.
+ */
+function holderLabel(d: ConversationDetail, locale: Locale, viewer: Viewer): string {
+  const mine = d.heldBy === undefined || d.heldBy === null
+    || (viewer.id !== undefined && d.heldBy === viewer.id)
+    || (d.heldBy === 'owner' && viewer.isOwner);
+  return mine
+    ? t(locale, 'takeover.status.owner')
+    : t(locale, 'people.holding', {
+        who: actorName(d.heldBy ?? null, d.people ?? [], viewer, {
+          you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
+        }),
+      });
+}
+
+/**
+ * CC-25 — who speaks, in the header. The ownership card now sits under the
+ * transcript, beside what the owner does about it; the header still says whose
+ * conversation this is, so nobody scrolls to find out. While the assistant
+ * holds it, the conversation's own state says it, as it always has.
+ */
+function headerPill(d: ConversationDetail, locale: Locale, viewer: Viewer): string {
+  switch (d.ownership) {
+    case 'AI': return statusPill(locale, d.status, d.pendingDraft !== null);
+    case 'WAITING_HUMAN': return `<span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>`;
+    case 'OWNER_CONTROLLED': return `<span class="pill owner">${esc(holderLabel(d, locale, viewer))}</span>`;
+  }
+}
+
 /** M16.1/M16.2c — the human control surface, driven purely by ownership. */
 function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
   const cid = encodeURIComponent(d.conversationId);
@@ -995,18 +1038,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
       <button class="btn" type="submit">${esc(t(locale, 'handto.button'))}</button>
     </form>`;
 
-  // G12 — whose it is, by name. "You're handling this" is only true for the
-  // person holding it; to anyone else it is a colleague's conversation.
-  const mine = d.heldBy === undefined || d.heldBy === null
-    || (viewer.id !== undefined && d.heldBy === viewer.id)
-    || (d.heldBy === 'owner' && viewer.isOwner);
-  const ownerPill = mine
-    ? esc(t(locale, 'takeover.status.owner'))
-    : esc(t(locale, 'people.holding', {
-        who: actorName(d.heldBy ?? null, d.people ?? [], viewer, {
-          you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
-        }),
-      }));
+  const ownerPill = esc(holderLabel(d, locale, viewer));
 
   switch (d.ownership) {
     case 'AI':
@@ -1149,9 +1181,22 @@ export function renderConversationDetail(
       ${proofRow(d, locale)}
     </div>` : '';
 
+  /**
+   * CC-25 — one window of the transcript, oldest at the top, newest at the
+   * bottom, the newest marked `latest` so a link can land on it: the page
+   * opens there from Buyers, with the reply waiting directly underneath.
+   *
+   * "Earlier messages" is a door to the window before this one; a window
+   * further back has "Latest messages" to come home. Both land on the newest
+   * message the page they open shows.
+   */
+  const cid = encodeURIComponent(d.conversationId);
+  const older = d.transcript?.older === true;
+  const earlier = d.transcript?.earlier ?? null;
+  const last = d.messages.length - 1;
   const timeline = d.messages.length
-    ? `<div class="timeline">${d.messages.map((m) => `
-        <div class="msg ${m.direction}">
+    ? `<div class="timeline">${d.messages.map((m, i) => `
+        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
@@ -1160,7 +1205,15 @@ export function renderConversationDetail(
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
             : esc(assistantName(locale))}</div>
         </div>`).join('')}</div>`
+    // "No messages yet" only where it is true: not on a window further back,
+    // and not on one whose every message was a reaction left out (G2c).
+    : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
+  const log = `<div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>
+      ${earlier ? back(`/app/inbox/${cid}?before=${earlier}#latest`, t(locale, 'inbox.log.earlier')) : ''}
+      ${timeline}
+      ${older ? deeper(`/app/inbox/${cid}#latest`, t(locale, 'inbox.log.latest')) : ''}
+    </div>`;
 
   const draftCard = d.pendingDraft
     ? `<div class="card draft" role="region">
@@ -1196,7 +1249,8 @@ export function renderConversationDetail(
           <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
         </form>
       </div>`
-    : `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
+    : '';
+  const noDraft = `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   // Phase D — "why did she say that?", from the stored usage audit. Shown only
   // while SHE is speaking: once a human takes over it is no longer the question.
@@ -1207,8 +1261,8 @@ export function renderConversationDetail(
 
   /**
    * M34 — the unheard card. Same three-part shape as a refusal (M22): what
-   * happened, why, what you do about it. It sits above the timeline because it
-   * explains the silence the owner is about to notice there.
+   * happened, why, what you do about it. CC-25: it follows the transcript now,
+   * because the silence it explains is the newest thing in it.
    */
   const unheardCard = d.unheardReason
     ? `<div class="card refused">
@@ -1306,16 +1360,22 @@ export function renderConversationDetail(
 
   const flashHtml = flashBanner(flash);
 
-  return `
-    <div class="dhead">
-      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      <div class="who">${who(locale, d.buyer, d.country)}</div>
-      ${d.ownership === 'AI' ? statusPill(locale, d.status, d.pendingDraft !== null) : ''}
-    </div>
-    ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
-    ${assistantControl(d, locale, viewer)}
-    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
-    ${flashHtml}
+  /**
+   * CC-25 — THE ORDER OF THE PAGE. The transcript first; then what the owner
+   * does about its newest message: her reply for approval, directly under the
+   * question it answers, and the ownership card (take over, hand to, the
+   * owner's own reply box); then what went wrong and why; then her sources and
+   * the deal. It was the other way round, and she approved replies with the
+   * buyer's question off the screen.
+   *
+   * A window further back is for reading: it shows the transcript and the way
+   * home, and nothing to act on — an approval under a message from last week
+   * would sit directly under the wrong question.
+   */
+  const acts = older ? '' : `
+    ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
+    ${takeoverCard(d, locale, now, viewer)}
+    ${d.ownership === 'OWNER_CONTROLLED' || d.pendingDraft ? '' : noDraft}
     ${unheardCard}
     ${unreadableCard}
     ${unlistedCard}
@@ -1324,11 +1384,21 @@ export function renderConversationDetail(
     ${sampleCard}
     ${uncertainCard(d.uncertainSends, locale, now)}
     ${refusalCard(d.refusals, locale, now)}
-    ${takeoverCard(d, locale, now, viewer)}
-    ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${knew}
-    ${context}
-    <div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>${timeline}</div>
+    ${context}`;
+
+  return `
+    <div class="dhead">
+      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
+      <div class="who">${who(locale, d.buyer, d.country)}</div>
+      ${headerPill(d, locale, viewer)}
+    </div>
+    ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
+    ${older ? '' : assistantControl(d, locale, viewer)}
+    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
+    ${flashHtml}
+    ${log}
+    ${acts}
     ${INBOX_STYLE}`;
 }
 
