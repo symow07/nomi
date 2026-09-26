@@ -82,8 +82,11 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // confirmation — which, since 2026-09-23, is what makes a default name
     // shown at all. D — six more for the setup count the same cache carries:
     // the profile saved, a product priced (edit and import), WhatsApp
-    // connected, a Page chosen, and the first reply approved.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(9);
+    // connected, a Page chosen, and the first reply approved. Phase 4b — four
+    // more, because any channel now completes the setup step: Instagram or
+    // Messenger connected (C9), a mailbox connected, and a mailbox or a Page
+    // disconnected (which can un-complete it).
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(13);
   });
 });
 

@@ -23,6 +23,8 @@ import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { connectedChannels } from '../../db/connectedChannels.js';
+import { callingCode } from '../../core/channel/callingCodes.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
@@ -85,6 +87,13 @@ export type ChannelsData = {
    * instead of pointing at a guide. Absent reads as false: the guide.
    */
   readonly canConnect?: boolean;
+  /**
+   * Phase 4b (CC-15) — the country she gave at sign-up, as an ISO code, so a
+   * phone field shows an example from her own country. Absent reads as unknown.
+   */
+  readonly country?: string | null;
+  /** A2 — where she said at sign-up that she talks to buyers today, in her order. */
+  readonly channelsUsed?: readonly string[];
 };
 
 const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
@@ -116,24 +125,28 @@ export async function loadChannels(
        where business_id = ${bid.value} and channel = ${KIND}
     `.execute(tx)).rows[0]!.n > 0;
     const canConnect = messagingEnabled && connectableNumber !== null && !hasCredential;
-    const ownerPhone = (await sql<{ p: string | null }>`
-      select owner_phone as p from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.p ?? null;
+    const biz = (await sql<{ p: string | null; country: string | null; channels_used: string[] | null }>`
+      select owner_phone as p, country, channels_used from businesses where id = ${bid.value}`.execute(tx)).rows[0];
+    const ownerPhone = biz?.p ?? null;
+    const about = { country: biz?.country ?? null, channelsUsed: biz?.channels_used ?? [] };
     const row = (await sql<{
       status: string; display_phone: string | null;
       last_inbound_at: Date | null; last_delivered_at: Date | null; last_webhook_at: Date | null;
-      consecutive_send_failures: number; last_error: string | null; cred_active: boolean | null;
+      consecutive_send_failures: number; last_error: string | null;
       activated: boolean;
     }>`
       select ch.status, ch.display_phone, ch.last_inbound_at, ch.last_delivered_at,
              ch.last_webhook_at, ch.consecutive_send_failures, ch.last_error,
-             ch.activated_at is not null as activated,
-             (select bool_or(is_active) from channel_credentials cc
-                where cc.business_id = ch.business_id and cc.channel = ${KIND}) as cred_active
+             ch.activated_at is not null as activated
         from channels ch where ch.kind = ${KIND} limit 1
     `.execute(tx)).rows[0];
+    // Phase 4b — "connected" is answered once, in `connectedChannels`, for this
+    // page and for Setup alike; this page adds only what it alone knows: whether
+    // the installation has a provider to carry the message.
+    const wired = (await connectedChannels(tx, bid.value)).whatsapp;
 
-    if (!row || !row.cred_active || !messagingEnabled || row.status === 'disconnected') {
-      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, outreachCaps, domain, canConnect };
+    if (!row || !wired || !messagingEnabled) {
+      if (row?.status !== 'disconnected') return { whatsapp: notConnected, ownerPhone, templateState, outreach, outreachCaps, domain, canConnect, ...about };
       const health = deriveHealth({
         credentialActive: false, connecting: false, disconnectedByOwner: true,
         lastInboundAt: row.last_inbound_at, lastDeliveredAt: row.last_delivered_at,
@@ -145,7 +158,7 @@ export async function loadChannels(
           kind: KIND, connected: false, status: health.status, healthOk: false, activated: false,
           displayId: maskPhone(row.display_phone), lastActivityAt: null, problem: problemFor(health.status),
         },
-        ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
+        ownerPhone, templateState, outreach, outreachCaps, domain, canConnect, ...about,
       };
     }
 
@@ -168,10 +181,20 @@ export async function loadChannels(
         problem: problemFor(health.status),
         activated: row.activated === true,
       },
-      ownerPhone, templateState, outreach, outreachCaps, domain, canConnect,
+      ownerPhone, templateState, outreach, outreachCaps, domain, canConnect, ...about,
     };
   });
 }
+
+/**
+ * Phase 4b (CC-15) — what a phone field shows before anything is typed: her
+ * own country's calling code when sign-up told us the country, else a neutral
+ * sentence. Never one country's number shown to everybody.
+ */
+export const phonePlaceholder = (locale: Locale, country: string | null | undefined): string => {
+  const cc = callingCode(country);
+  return cc ? `+${cc} …` : t(locale, 'settings.alerts.placeholder');
+};
 
 /** ── Owner alert-destination setting (minimal action; validated + audited) ── */
 
@@ -649,7 +672,7 @@ export function renderChannels(
     <p class="muted ch-desc">${esc(t(locale, 'settings.alerts.desc', { name: assistantName(locale) }))}</p>
     ${viewer.isOwner ? `<form method="post" action="/app/settings/owner-phone" class="ownerform">
       <label class="muted" for="ownerphone">${esc(t(locale, 'settings.alerts.label'))}</label>
-      <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(t(locale, 'settings.alerts.placeholder'))}" />
+      <input id="ownerphone" name="phone" type="tel" inputmode="tel" value="${esc(data.ownerPhone ?? '')}" placeholder="${esc(phonePlaceholder(locale, data.country))}" />
       <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
     <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>

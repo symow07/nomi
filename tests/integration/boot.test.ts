@@ -1882,9 +1882,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       }
     });
 
+    // Phase 4b (F2/F4) — on the technical page, one door from Getting ready.
     it('the owner surface DOES show which build is running (behind login)', async () => {
       const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding/technical', headers: { cookie } });
       expect(res.statusCode).toBe(200);
       expect(res.body).toContain('This installation');
       expect(res.body).toContain('Running version');
@@ -1892,7 +1893,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('and it is NOT reachable without a session', async () => {
-      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding' });
+      const res = await prod.app.inject({ method: 'GET', url: '/app/onboarding/technical' });
       expect(res.statusCode).toBe(302);
       expect(res.headers['location']).toBe('/login');
     });

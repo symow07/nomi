@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderPilotReadiness, renderPilotRunbook,
+  renderPilotReadiness, renderPilotRunbook, renderPilotTechnical,
   type PilotReadiness, type PilotRunbook, type PilotFeedback,
 } from '../../src/api/web/pilot.js';
 import { type OperationsSnapshot } from '../../src/api/web/operations.js';
@@ -59,7 +59,7 @@ describe('M15.1 · pilot readiness hub (localized renderer)', () => {
   it('verdict: ready vs not-ready; channel stays honest; never a percentage', () => {
     const notReady = renderPilotReadiness(pr(), 'en', null);
     expect(notReady).toContain(t('en', 'pilot.notReady'));
-    expect(notReady).toContain(t('en', 'pilot.blocker.channel'));   // honest "coming with WhatsApp"
+    expect(notReady).toContain(t('en', 'pilot.blocker.channel'));   // Phase 4b: any channel buyers write to
 
     const ready = renderPilotReadiness(pr({
       detected: { profile: true, products: true, priceRules: true, knowledge: true, claims: true, sandbox: true, channel: false },
@@ -157,7 +157,8 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     expect(info.commit).toBe('abcdef1');                 // short, not the full sha
     expect(info.startedAt.toISOString()).toBe('2026-08-01T09:00:00.000Z');
 
-    const html = renderPilotRunbook(rb(), 'en', null, info);
+    // Phase 4b (F2/F4) — the build is the machine room's, one door from Getting ready.
+    const html = renderPilotTechnical('en', { deployment: info });
     expect(html).toContain(t('en', 'runbook.deploy.title'));
     expect(html).toContain('abcdef1 · main');
     expect(html).toContain('production');
@@ -167,10 +168,11 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     const bare = readDeployment({} as NodeJS.ProcessEnv, new Date(), 0);
     expect(bare.commit).toBeNull();
     expect(bare.environment).toBe('local');
-    expect(renderPilotRunbook(rb(), 'en', null, bare)).toContain(t('en', 'runbook.deploy.unknown'));
+    expect(renderPilotTechnical('en', { deployment: bare })).toContain(t('en', 'runbook.deploy.unknown'));
   });
 
-  it('M17.1 deployment section is omitted entirely when not supplied', () => {
+  it('M17.1 deployment section is omitted entirely when not supplied — and never on Getting ready', () => {
+    expect(renderPilotTechnical('en')).not.toContain(t('en', 'runbook.deploy.title'));
     expect(renderPilotRunbook(rb(), 'en', null)).not.toContain(t('en', 'runbook.deploy.title'));
   });
 
@@ -201,7 +203,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
       lastActivityAt: null, hasActivity: false,
     };
     for (const l of LOCALES) {
-      const html = renderPilotRunbook(rb(), l, null, undefined, undefined, none);
+      const html = renderPilotRunbook(rb(), l, null, none);
       expect(html).toContain(t(l, 'feedback.title'));
       expect(html).toContain(t(l, 'feedback.none'));
     }
@@ -220,7 +222,7 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
       ],
       conversationsNeedingYou: 6, lastActivityAt: NOW, hasActivity: true,
     };
-    const html = renderPilotRunbook(rb(), 'en', null, undefined, undefined, f);
+    const html = renderPilotRunbook(rb(), 'en', null, f);
     expect(html).toContain(t('en', 'feedback.reasons'));
     expect(html).toContain(t('en', 'takeover.reason.human_requested'));  // M16.1 wording reused
     expect(html).toContain('>5<'); expect(html).toContain('>2<');
