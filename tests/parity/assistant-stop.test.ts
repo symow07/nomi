@@ -67,7 +67,8 @@ describe('where Stop is asked', () => {
   it('the worker asks FIRST: before an owner’s "answer this", and before any turn can run', () => {
     const w = src('src/worker/main.ts');
     const body = w.slice(w.indexOf('async function onInbound('));
-    const asked = body.indexOf('assistantStopped(');
+    // 0071 — one question for both holds: the owner's Stop and the ops switch.
+    const asked = body.indexOf('assistantHold(');
     expect(asked).toBeGreaterThan(0);
     expect(asked).toBeLessThan(body.indexOf('if (job.data.answerOnly) {'));
     expect(asked).toBeLessThan(body.indexOf('runTurn('));
@@ -80,7 +81,24 @@ describe('where Stop is asked', () => {
   });
 
   it('the one hand-back and the one approval path both ask it, inside their own transaction', () => {
-    expect(src('src/conversations/takeover.ts')).toMatch(/if \(await assistantStopped\(tx, input\.businessId\)\) return \{ outcome: 'assistant_stopped'/);
-    expect(src('src/pipeline/approve.ts')).toMatch(/\(cmd\.kind === 'approve' \|\| cmd\.kind === 'edit'\) && await assistantStopped\(tx, input\.businessId\)/);
+    const takeover = src('src/conversations/takeover.ts');
+    expect(takeover).toContain('const hold = await assistantHold(tx, input.businessId);');
+    expect(takeover).toContain("outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped'");
+    const approve = src('src/pipeline/approve.ts');
+    expect(approve).toContain("cmd.kind === 'approve' || cmd.kind === 'edit' ? await assistantHold(tx, input.businessId) : null");
+    expect(approve).toContain("outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped'");
+  });
+
+  it('0071 — the ops switch hands the buyer to a person under its own reason, in every language', () => {
+    expect(PROBLEM_SIGNAL_KINDS).toContain('ops_silenced');
+    expect(isProblemSignal(SIGNAL_SAMPLES.ops_silenced)).toBe(true);
+    expect(toTriggerReason(SIGNAL_SAMPLES.ops_silenced)).toBe('ops_silenced');
+    for (const l of LOCALES) {
+      for (const k of ['takeover.reason.ops_silenced', 'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
+        'today.silenced.title', 'today.silenced.body', 'assistant.silenced.note'] as const) {
+        expect(t(l, k as MessageKey, { name: 'X' }), `${l} ${k}`).not.toBe(k);
+      }
+    }
+    expect(src('src/worker/main.ts')).toContain("{ kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' }");
   });
 });

@@ -1676,7 +1676,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     // 0070 — stopped: nothing asks the assistant for an answer, and the
     // conversation stays with its person, on "Needs you".
-    if (handedBack.outcome === 'assistant_stopped') return flashTo(reply, back0, 'takeover.flash.assistant_stopped');
+    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced') {
+      return flashTo(reply, back0, `takeover.flash.${handedBack.outcome}`);
+    }
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
     return flashTo(reply, `${back0}`, 'voice.flash.answering');
   });

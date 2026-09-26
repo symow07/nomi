@@ -55,6 +55,13 @@ export type Signal =
    * problem with the buyer; only with who is answering.
    */
   | { readonly kind: 'assistant_stopped' }
+  /**
+   * 0071 — the ops kill switch (`global_silence`) is on. The assistant writes
+   * nothing, so a person answers, and this hands the conversation over — the
+   * same way the owner's Stop does, under its own name, because the owner did
+   * not press anything.
+   */
+  | { readonly kind: 'ops_silenced' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -86,6 +93,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'email_reply',
   // 0070 — the owner stopped the assistant, so a person answers.
   'assistant_stopped',
+  // 0071 — sending is paused by ops, so a person answers.
+  'ops_silenced',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -106,6 +115,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   unlisted_number: { kind: 'unlisted_number' },
   email_reply: { kind: 'email_reply' },
   assistant_stopped: { kind: 'assistant_stopped' },
+  ops_silenced: { kind: 'ops_silenced' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -138,6 +148,7 @@ export const TRIGGER_REASONS = [
   'unlisted_number',
   'email_reply',
   'assistant_stopped',
+  'ops_silenced',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -162,6 +173,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'email_reply';
     case 'assistant_stopped':
       return 'assistant_stopped';
+    case 'ops_silenced':
+      return 'ops_silenced';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

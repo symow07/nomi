@@ -205,8 +205,13 @@ import type { Db } from './client.js';
  *      Against a 69 database every outbound drive and every inbound message
  *      throws on the missing column — nothing is sent and nothing is answered,
  *      which fails closed, but every buyer message would dead-letter.
+ * 71 = the emergency silence hides nobody (0071). While `global_silence` is on,
+ *      each buyer message is handed to a person with the 'ops_silenced' signal.
+ *      Against a 70 database that insert fails the CHECK, so during an
+ *      emergency every buyer message would dead-letter instead of waiting on
+ *      "Needs you" — the moment it matters most.
  */
-export const REQUIRED_SCHEMA_VERSION = 70;
+export const REQUIRED_SCHEMA_VERSION = 71;
 
 export type SchemaState = {
   readonly required: number;

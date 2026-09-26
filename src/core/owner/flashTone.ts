@@ -64,6 +64,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'takeover.flash.no_channel', 'takeover.flash.not_found', 'takeover.flash.unknown_person',
   // 0070 — stopped on every channel: the owner asked for something Stop refuses.
   'takeover.flash.assistant_stopped', 'inbox.flash.assistant_stopped',
+  'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
   'terms.flash.payment_too_long', 'unsure.flash.gone',
 ]);
