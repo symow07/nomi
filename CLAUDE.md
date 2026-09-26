@@ -99,10 +99,12 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `c3b55b9` (merge of #88, the owner's Stop). `/health` →
+- **Deployed:** `b4d8076` (merge of #91, CC-24). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
-  `schema_version` = **70**; no business is stopped; exactly one business has
-  `outreach_area` on. Backup before 0070: `nomi-backup-20260926T030221Z`.
+  `schema_version` = **72**; no business is stopped and no silence flag is on;
+  exactly one business has `outreach_area` on. Backup before 0070–0072:
+  `nomi-backup-20260926T030221Z` (PITR on). `TRANSCRIBE_API_KEY` is unset in
+  production — if it is ever set, the privacy page must name that processor too.
 - **Schema:** 72. Last three: `0070 assistant_stop`, `0071 silence_handoff`,
   `0072 kept_words`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
@@ -133,6 +135,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 91 | **CC-24** — the owner's words survive a refusal (0072): the edit box opens with the draft or the kept edit; a refused edit is kept on the draft; a refused own reply waits in the box |
+| 90 | **The emergency silence hides nobody** (0071) — `global_silence` hands each buyer to a person (`ops_silenced`); hand-back / approve / edit refused; Today and My business say sending is paused |
 | 88 | **The owner's Stop, on every channel** (0070) — see §5 rule 13; queued replies cancelled at send time, silent while stopped, waiting buyers handed to a person so they stay on Needs you; hand-back / answer-now / approve / edit refused while stopped |
 | 87 | Tests never write into the tree — the phantom 2962 (the m45 probe wrote `tools/.probe-check.mjs` while `no-secret-in-argv` enumerated `tools/`); `tests-leave-the-tree-alone.test.ts` |
 | 86 | My business: going live is per channel; Stop names WhatsApp |
