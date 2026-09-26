@@ -199,8 +199,14 @@ import type { Db } from './client.js';
  *      tested" as checked for the owner. Against a 68 database the daily
  *      check throws and no alert can ever be sent — the silent failure the
  *      table exists to prevent.
+ * 70 = the owner's Stop, on every channel (0070). `businesses.assistant_stopped_at`
+ *      is read at the SEND gate and before every inbound turn, and the handoff
+ *      a stopped assistant makes needs 'assistant_stopped' in two CHECKs.
+ *      Against a 69 database every outbound drive and every inbound message
+ *      throws on the missing column — nothing is sent and nothing is answered,
+ *      which fails closed, but every buyer message would dead-letter.
  */
-export const REQUIRED_SCHEMA_VERSION = 69;
+export const REQUIRED_SCHEMA_VERSION = 70;
 
 export type SchemaState = {
   readonly required: number;

@@ -116,7 +116,7 @@ describe('M42 · the send path', () => {
   const base = {
     origin: 'employee' as const, assignedTo: null, paused: false,
     windowPlan: { action: 'send_free' as const, ownerNoteZh: '可以直接回复' },
-    activated: true, silenced: false, pilotMode: false, recipientAllowed: true,
+    activated: true, silenced: false, stopped: false, pilotMode: false, recipientAllowed: true,
   };
 
   it('an outreach message answers the outreach gate AND everything else', () => {

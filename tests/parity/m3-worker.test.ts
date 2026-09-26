@@ -39,7 +39,7 @@ function memStore(initial: readonly Partial<Row>[], ctx: Partial<ConversationSen
     pilotMode: false,
     activated: true,
     // M34.6 — no ops kill switch in these fixtures; a test that wants one says so.
-    silenced: false,
+    silenced: false, stopped: false,
     ...ctx,
   };
   const byId = (id: string) => rows.find((r) => r.id === id)!;

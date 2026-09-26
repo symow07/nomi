@@ -208,7 +208,7 @@ describe('C4.b · the ops kill switch silences the machine, not her', () => {
   const g = {
     assignedTo: null, paused: false,
     windowPlan: { action: 'send_free', ownerNoteZh: '' } as const,
-    activated: true, pilotMode: false, recipientAllowed: true, silenced: true,
+    activated: true, pilotMode: false, recipientAllowed: true, silenced: true, stopped: false,
     outreach: yes(),
   };
 
@@ -222,7 +222,7 @@ describe('C4.b · the ops kill switch silences the machine, not her', () => {
   });
 
   it('and with the switch off, a scheduled follow-up goes like any other first message', () => {
-    expect(gateOutbound({ ...g, silenced: false, origin: 'outreach', automated: true }))
+    expect(gateOutbound({ ...g, silenced: false, stopped: false, origin: 'outreach', automated: true }))
       .toEqual({ allow: true, viaTemplate: false });
   });
 });

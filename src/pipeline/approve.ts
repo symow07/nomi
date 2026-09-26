@@ -3,6 +3,7 @@ import { withTenantTx, lockConversation, type Db } from '../db/client.js';
 import { parseOwnerReply } from '../core/conversation/cards.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { ensureSpotChecks } from './spotChecks.js';
+import { assistantStopped } from '../db/assistantStop.js';
 
 /**
  * M9.3 (Option B) — the ONE draft-resolution service. Completes the trust
@@ -33,6 +34,7 @@ export type ApplyOutcome =
   | 'unknown'         // command not understood — no change
   | 'not_found'       // no such draft for this business
   | 'needs_edit'      // a disclosure went to the buyer instead of this text
+  | 'assistant_stopped' // 0070 — stopped on every channel: the draft stays pending
   | 'already_resolved'; // draft already decided (idempotent no-op)
 
 export type ApplyResult = {
@@ -80,6 +82,21 @@ export async function applyOwnerCommand(
       return { outcome: 'already_resolved', conversationId: draft.conversation_id, sendText: null };
     }
     await lockConversation(tx, draft.conversation_id);
+
+    /*
+     * 0070 — WHILE THE ASSISTANT IS STOPPED, NOTHING IT WROTE IS SENT.
+     *
+     * Refused here, before anything is resolved, for the reason `needs_edit`
+     * is refused here: this is the one module that decides whether a draft
+     * becomes an outbound message. Queued instead, the send gate would cancel
+     * it — after this draft had been marked sent, which takes the buyer off
+     * "Needs you" while nobody answers. Left pending, the buyer stays there.
+     * 不回 and 收回 send nothing and stay allowed. The owner's own reply is
+     * not a draft and is never bound by Stop.
+     */
+    if ((cmd.kind === 'approve' || cmd.kind === 'edit') && await assistantStopped(tx, input.businessId)) {
+      return { outcome: 'assistant_stopped', conversationId: draft.conversation_id, sendText: null };
+    }
 
     const resolve = async (status: string, sentText: string | null) => {
       await sql`
@@ -164,6 +181,7 @@ function messageFor(outcome: ApplyOutcome): string {
     case 'revoked': return '已收回，这项以后先等你确认。';
     case 'already_resolved': return '这条已经处理过了。';
     case 'not_found': return '找不到这条待办。';
+    case 'assistant_stopped': return '你的助手已在所有渠道停下：这条草稿没有发出，仍留在待办里。你可以直接回复买家，或在「我的公司」让助手重新回复。';
     case 'needs_edit': return '这条不能照原样发送：买家问她是不是真人，这条没有回答，已经先发了说明。改一下再发。';
     case 'unknown': return '没听懂，回复「发送」照发、「改+内容」改一下、或「不回」跳过。';
   }

@@ -1,3 +1,4 @@
+import { loadAssistantStop } from '../../db/assistantStop.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -78,6 +79,8 @@ export type OperationsSnapshot = {
   readonly budget: { readonly pctUsed: number; readonly stops: boolean } | null;
   /** True when any attention bucket is non-zero — the "you have work" signal. */
   readonly hasAttention: boolean;
+  /** 0070 — when the owner stopped the assistant on every channel; null or absent = answering. */
+  readonly assistantStoppedAt?: Date | null;
 };
 
 /**
@@ -136,7 +139,7 @@ export async function loadOperationsSnapshot(
   const unit = RANGE_UNIT[range];
 
   // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, counts, blockedMessages, budgetRow] = await Promise.all([
+  const [ops, channels, counts, blockedMessages, budgetRow, stop] = await Promise.all([
     loadKnowledgeOps(db, businessIdRaw, range),
     loadChannels(db, businessIdRaw, provider !== 'disabled'),
     withTenantTx(db, B, async (tx) => {
@@ -185,6 +188,8 @@ export async function loadOperationsSnapshot(
        where b.business_id = ${B}
        limit 1
     `.execute(tx)).rows[0] ?? null),
+    // 0070 — the owner's Stop, on every channel.
+    loadAssistantStop(db, B),
   ]);
 
   const attention = {
@@ -204,6 +209,7 @@ export async function loadOperationsSnapshot(
     budget: budgetOf(budgetRow),
     hasAttention: attention.pendingApprovals + attention.handoffs
                 + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
+    assistantStoppedAt: stop.stoppedAt,
   };
 }
 
@@ -278,9 +284,20 @@ export function renderOperationsHome(
   // one `notLive` below already uses — no second derivation of channel state,
   // and nothing here re-answers the M20.3 lifecycle question.
   const live = s.channel.live ?? s.channel.provider !== 'disabled';
+  // 0070 — stopped on every channel. Said first, with the two ways forward
+  // (who is waiting; where Start is), and the calm line that says the
+  // assistant is looking after buyers is not shown: it would be false.
+  const stopped = s.assistantStoppedAt
+    ? `<section class="block">
+        <h2>${esc(t(locale, 'today.stopped.title', { name }))}</h2>
+        <p class="muted">${esc(t(locale, 'today.stopped.body', { name }))}</p>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/factory', t(locale, 'today.stopped.start', { name }))}</div>
+      </section>`
+    : '';
   const attention = needsOwnerAttention(s)
     ? `<section class="block"><h2>${esc(t(locale, 'ops.attention.title'))}</h2>
         <div class="stats">${rows}</div></section>`
+    : s.assistantStoppedAt ? ''
     : live
     // M35.5 — when nothing needs her, this IS the page: a rule, one sentence,
     // and air. Not a card among cards. Saying less is the whole argument, and it
@@ -394,6 +411,7 @@ export function renderOperationsHome(
     ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>${lead}
+  ${stopped}
   ${attention}
   ${finishSetup}
   ${budget}

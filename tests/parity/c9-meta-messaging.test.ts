@@ -130,7 +130,7 @@ describe('C9 · she answers here, and can never start here', () => {
   it('and the gate refuses an uninvited message on both, however the row got there', () => {
     for (const channel of ['instagram', 'messenger'] as const) {
       const refusal = gateOutbound({
-        origin: 'outreach', assignedTo: null, paused: false, silenced: false,
+        origin: 'outreach', assignedTo: null, paused: false, silenced: false, stopped: false,
         activated: true, pilotMode: false, recipientAllowed: true,
         windowPlan: { action: 'wait_for_buyer', ownerNoteZh: '' },
         outreach: {

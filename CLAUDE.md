@@ -79,7 +79,7 @@ npm run trust                                                 # 36/36 golden sce
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
-  node tools/run-integration.mjs                              # ~660, none skipped, ~2 min
+  node tools/run-integration.mjs                              # ~730, none skipped, ~2 min
 ```
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
@@ -102,8 +102,8 @@ footer.
 - **Deployed:** `8976f47` (merge of #80, the last of the 2026-09-27 batch). `/health` →
   `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
   `schema_version` = **69**; exactly one business has `outreach_area` on.
-- **Schema:** 69. Last three: `0067 draft_replaced_by_disclosure`,
-  `0068 outreach_area`, `0069 backup_runs`.
+- **Schema:** 70. Last three: `0068 outreach_area`, `0069 backup_runs`,
+  `0070 assistant_stop`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -214,6 +214,10 @@ Recent PRs, newest first:
 10. **The backup alert never depends on WhatsApp.** `backup_stale` (daily check, `QUEUES.backups`, 06:30 UTC; rule in `src/core/ops/backups.ts`, 36 h) goes by e-mail to the owner's sign-in address always, and by WhatsApp only where a channel is live (`deliverBackupAlert` in `src/pipeline/notify.ts`). `tests/integration/backup-watch.test.ts` proves it fires with no channel connected. The job writes `backup_runs`; the app may only read it.
 11. **Money and going live are the owner's** (Phase 4, 2026-09-27). Staff may teach facts, set closures, forbidden words, the business profile, and record a sample's address/handled — nothing that changes a price or a go-live condition. Guards are the existing `OWNER_ONLY` actions (`price_rules`, `messaging_activation`); renderers take a `Viewer`. `tests/integration/phase4-permissions.test.ts` snapshots every table the gated routes write.
 12. **nomidoes.com is served by this app** (`SITE_HOSTS`). The site states nothing unbuilt: no price, no trial, invite-only CTA to the legal contact address. `tests/parity/site.test.ts` holds it.
+13. **The owner's Stop binds the assistant on every channel** (0070, 2026-09-27; `src/db/assistantStop.ts`).
+   - `businesses.assistant_stopped_at`, set and cleared only by the owner (`/app/factory/stop-assistant`, `/start-assistant`, `messaging_activation`). Separate from WhatsApp's activation and from the ops kill switch (`ops_flags` is read-only to the app, so Start can never lift an operator's silence).
+   - While set: the send gate refuses the assistant's messages and automated follow-ups (`stopped`, at send time — a reply queued before Stop is cancelled, never sent late); the worker runs no turn — each message is recorded (media named, not opened) and the conversation handed to a person (`assistant_stopped` signal), which keeps the buyer on "Needs you"; hand-back (`resumeAi`, so also answer-now) and approve/edit are refused and the draft stays pending. The owner's own replies always go.
+   - Start leaves conversations handed over during the stop with their person. `tests/integration/assistant-stop.test.ts` holds all of it; each guard is proven load-bearing by switching it off.
 
 ## 6 · What's next
 
@@ -226,8 +230,9 @@ Recent PRs, newest first:
   wants a native read; "Ready to go live" on My business still says "Connect
   WhatsApp" (it is WhatsApp activation — send path); KB 01 still says 连 WhatsApp.
 - V2's category chip becomes V1's row tag when decision 5 lands.
-- `tests/parity/m45-image-wired.test.ts` "exits non-zero and names an
-  unreachable module" failed once on CI and passed on re-run (flaky).
+- Two test flakes are fixed at the cause, not retried: the reachability
+  checker now flushes before it exits (#85), and no test writes into the
+  tree the others read (#87, `tests-leave-the-tree-alone.test.ts`).
 - Builder worktrees under `.claude/worktrees/` are picked up by vitest and
   inflate every count ×4 — move them out (`git worktree move`) before verifying.
 

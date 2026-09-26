@@ -269,19 +269,19 @@ describe('M22 · gateOutbound remains the only authority', () => {
   it('the gate itself is unchanged by this milestone', () => {
     // Its six reasons, its fail-closed defaults, its order. Asserted here so a
     // refusal SURFACE can never quietly become a refusal RULE.
-    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false,
+    expect(gateOutbound({ silenced: false, stopped: false, origin: 'employee', assignedTo: null, paused: false,
       windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_activated' });          // activation first
-    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, stopped: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'not_allowlisted' });        // pilot mode assumed ON
-    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: 'someone', paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, stopped: false, origin: 'employee', assignedTo: 'someone', paused: false, activated: true,
       pilotMode: false, windowPlan: OPEN }))
       .toEqual({ allow: false, reason: 'handed_off' });
-    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, stopped: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: CLOSED }))
       .toEqual({ allow: false, reason: 'window_closed' });
-    expect(gateOutbound({ silenced: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
+    expect(gateOutbound({ silenced: false, stopped: false, origin: 'employee', assignedTo: null, paused: false, activated: true,
       pilotMode: false, windowPlan: TEMPLATE }))
       .toEqual({ allow: true, viaTemplate: true });
   });

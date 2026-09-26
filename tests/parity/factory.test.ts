@@ -208,8 +208,9 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // M20.3 added activate/deactivate; M20.4 added the allowlist, because the
     // blocker pointed here and had nowhere to send her. Nothing else on this
     // page collects input — every other edit happens on the surface that owns it.
+    // 0070 — and the owner's Stop / Start on every channel: go-live decisions too.
     for (const f of html.match(/<form[^>]*action="([^"]*)"/g) ?? [])
-      expect(f).toMatch(/\/app\/factory\/(activate|deactivate|allowlist\/(add|remove))/);
+      expect(f).toMatch(/\/app\/factory\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove))/);
     expect(html).not.toContain('<textarea');
     expect(html).not.toContain('<table');
   });
