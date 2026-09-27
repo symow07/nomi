@@ -3,6 +3,11 @@
 One person ops. Every scenario: **detect → contain → tell the owner (in owner
 language) → repair → record**. Owner copy already exists — never improvise it.
 
+**Detect, since CC-10:** an error inside the app arrives as *"Nomi: something
+went wrong"* at the pilot workspace's sign-in address — its `#reference` finds
+it in `node tools/errors.mjs --ref …`; the app being down arrives from
+Healthchecks.io ("Nomi app"). Both are described in `docs/MONITORING.md`.
+
 ## Stopping her (verified 2026-08-12)
 
 What stops a message is `gateOutbound` (`core/channel/sendGate.ts`) — the single

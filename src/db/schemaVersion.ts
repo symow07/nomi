@@ -219,8 +219,13 @@ import type { Db } from './client.js';
  *      is what makes a second press "already asked". Against a 72 database the
  *      check throws every morning — the operator is never told a deletion is
  *      due, the silent failure the alert exists to prevent.
+ * 74 = errors are written down (0074, CC-10). Every failure path — a page
+ *      that crashed, a failed queue job, the process — upserts `app_errors`,
+ *      and the operator alert is decided from its row. Against a database
+ *      without it every recording fails; the recorder only logs that, so the
+ *      app runs on — deaf, which is the state this migration ends.
  */
-export const REQUIRED_SCHEMA_VERSION = 73;
+export const REQUIRED_SCHEMA_VERSION = 74;
 
 export type SchemaState = {
   readonly required: number;

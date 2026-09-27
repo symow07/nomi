@@ -22,6 +22,9 @@ import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
+import {
+  appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
+} from './appErrors.js';
 
 /**
  * Entrypoint 2: the worker. Becomes the LIVE engine at cutover — until then it
@@ -38,6 +41,11 @@ export async function startWorker(
     DATABASE_URL: string; ANTHROPIC_API_KEY: string;
     /** G11 — the address a proof link is built on. Absent: no link is attached. */
     PUBLIC_BASE_URL?: string;
+    /**
+     * CC-10 — the workspace whose owner is the OPERATOR: an error alert goes to
+     * its sign-in address. Absent: errors are recorded, and nobody is told.
+     */
+    PILOT_BUSINESS_ID?: string;
   },
   /**
    * G2b — the ports themselves, built by the entrypoint from the provider
@@ -67,6 +75,19 @@ export async function startWorker(
 ) {
   const db = createDb(env.DATABASE_URL);
   const boss = await startBoss(env.DATABASE_URL);
+  /**
+   * CC-10 — errors are written down (`app_errors`) and the operator is told.
+   * Built here, beside the pool and the queue it writes through, and handed
+   * back to main.ts for the web handler and the process. `boss.work` is wrapped
+   * BEFORE any handler is registered, so every job that fails — here or in
+   * main.ts — is recorded before pg-boss retries it.
+   */
+  const errors = makeErrorReporter({
+    db,
+    enqueue: env.PILOT_BUSINESS_ID ? appErrorAlertsTo(boss, env.PILOT_BUSINESS_ID) : null,
+    knownSecrets: secretValuesIn(process.env),
+  });
+  reportJobFailures(boss, errors.report, isAppErrorAlertJob);
   // N6a — the same client, at whichever provider this installation pays for.
   const llm = llmProviderFrom(process.env, env.ANTHROPIC_API_KEY);
   const anthropic = llmClient(llm);
@@ -468,9 +489,17 @@ export async function startWorker(
 
   // Dead letters become alerts, not silence: an exhausted retry is a page.
   for (const name of Object.values(QUEUES)) {
-    await boss.work(`${name}.dead`, async ([job]: { data: unknown }[]) => {
+    await boss.work(`${name}.dead`, async ([job]: { data: unknown; id?: string }[]) => {
       if (!job) return;
       console.error(`[DEAD LETTER] ${name}`, redactSecrets(JSON.stringify(job.data)).slice(0, 500));
+      // CC-10 — written down as its own kind of error, one per queue: the job
+      // gave up. Never its data (a buyer's words ride in an inbound job), and
+      // never an error alert that could not be delivered — that is the loop.
+      if (!isAppErrorAlertJob(name, [job])) {
+        const bid = (job.data as { businessId?: unknown } | null)?.businessId;
+        void errors.report(deadLetter(name, job.id ?? '?'), `worker:${name}`,
+          { businessId: typeof bid === 'string' ? bid : null });
+      }
       // Never re-notify for a failed owner-notification — that would loop.
       if (name === QUEUES.notify) return;
       const businessId = (job.data as { businessId?: string }).businessId ?? 'unknown';
@@ -480,7 +509,7 @@ export async function startWorker(
     });
   }
 
-  return { db, boss };
+  return { db, boss, errors };
 }
 
 // Exact-file check: a suffix match ('main.js') also fires when this module is
@@ -502,6 +531,7 @@ if (isMain) {
   await startWorker({
     DATABASE_URL, ANTHROPIC_API_KEY,
     ...(env['PUBLIC_BASE_URL'] ? { PUBLIC_BASE_URL: env['PUBLIC_BASE_URL'] } : {}),
+    ...(env['PILOT_BUSINESS_ID'] ? { PILOT_BUSINESS_ID: env['PILOT_BUSINESS_ID'] } : {}),
   }, mediaPortsFor({
     provider: provider === 'meta' || provider === '360dialog' ? provider : 'disabled',
     META_WHATSAPP_ACCESS_TOKEN: env['META_WHATSAPP_ACCESS_TOKEN'],

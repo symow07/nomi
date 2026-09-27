@@ -3,7 +3,7 @@ import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../core/owner/i18n/messages.js';
-import type { NotifyJob } from '../queue/boss.js';
+import type { AppErrorAlertJob, NotifyJob } from '../queue/boss.js';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
@@ -45,7 +45,7 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'failed_permanent
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -62,6 +62,8 @@ export type OperatorAlertDetail = {
   readonly lastBackupAt?: Date | null;
   /** `deletion_due`: the requests, oldest first. */
   readonly deletionsDue?: readonly DeletionDueLine[];
+  /** `app_error` (CC-10): the error as recorded — already redacted and cut. */
+  readonly appError?: AppErrorAlertJob | null;
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
@@ -102,6 +104,7 @@ export function renderOwnerAlert(
     return [t(locale, 'notify.deletion_due', { n: due.length }), ...lines, ...more,
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
+  if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
   const key = (kind === 'delivery_failed' ? 'dead_letter' : kind);
   // A5.2 — the assistant this alert is about, when the owner has named one;
   // otherwise the catalogue says "your assistant".
@@ -211,5 +214,38 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     deletionsDue: (job.deletionsDue ?? []).map((d) => ({
       business: d.business, scope: d.scope, askedAt: new Date(d.askedAt), overdue: d.overdue,
     })),
+    appError: job.appError ?? null,
   };
+}
+
+/**
+ * CC-10 — an error in the app, for whoever looks after the installation.
+ *
+ * The owner's words frame it (one sentence, then the count, then where the full
+ * list is); between them stands what the program said, word for word — the
+ * where, the error, the line — because that is what whoever fixes it needs, and
+ * no translation of it would be more useful. It was redacted before it was
+ * written down (src/worker/appErrors.ts). `#<ref>` is what `tools/errors.mjs
+ * --ref` finds it by, and the time is in UTC, as that tool and the host's logs
+ * say it — one clock for whoever lines the three up.
+ */
+function appErrorText(locale: Locale, e: AppErrorAlertJob | null): string {
+  const opening = t(locale, 'notify.app_error');
+  if (!e) return opening;
+  const first = new Date(e.firstSeen);
+  const lines = [
+    opening,
+    '',
+    [e.where, e.route].filter(Boolean).join(' · '),
+    `${e.name}: ${e.message}`,
+    [e.frame, `#${e.fingerprint.slice(0, 12)}`].filter(Boolean).join(' · '),
+    '',
+    t(locale, 'notify.app_error.seen', {
+      count: e.count,
+      when: Number.isNaN(first.getTime()) ? e.firstSeen : `${first.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+    }),
+  ];
+  if (e.more > 0) lines.push(t(locale, 'notify.app_error.more', { count: e.more }));
+  lines.push('', t(locale, 'notify.app_error.list'));
+  return lines.join('\n');
 }
