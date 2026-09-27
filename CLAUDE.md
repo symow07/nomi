@@ -99,8 +99,8 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `173e5db` (merge of #97, the last of the CC-02 / CC-25 / CC-10
-  batch). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
+- **Deployed:** `0e454e3` (merge of #100, CC-25's leftovers; #99 backup
+  retention before it). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
   production `schema_version` = **74**; no business is stopped and no silence
   flag is on; exactly one business has `outreach_area` on. Backup before
   0073–0074: `nomi-backup-20260926T030221Z` (21.8 h, drill passed; PITR on).
@@ -138,6 +138,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 100 | CC-25 leftovers — `conversationUrl()` (layout.ts) is the only way to address a conversation: every action redirect and every link lands at `#latest`, the notice renders there (`flashBanner` id); Practice puts its transcript before its draft (`practiceUrl`) |
+| 99 | **Backup retention** — `backup/retention.sh`: dailies 60 days, manual pairs (bucket root and laptop) 180 days, by the UTC time in the name; never undated / just-made / newest / newest-complete / future copies. Laptop copies prune only when `tools/backup.sh` or `fetch-backup.sh` runs (`KEEP_ALL=1` skips). The `backup` service's `RETENTION_DAYS` variable is no longer read |
 | 97 | **CC-10** — error reporting (`app_errors`, 0074, operator e-mail, rate-limited) and the uptime heartbeat (`HEALTH_PING_URL`); `railway.json` health check |
 | 96 | **CC-02b** — `tools/erase-buyer.mjs`: carries out one buyer's deletion request per the contract; schema-driven, refuses what it cannot classify |
 | 95 | **CC-25** — the conversation page shows the newest 50, pages back by cursor, transcript above the approval; verified on a 450-message thread |
@@ -327,6 +329,11 @@ section on My business, the "More about {name}" doors on the assistant's
 page, the Today card (`operations.ts`), the outreach gate (`app.ts`
 preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 `tests/integration/outreach-area.test.ts`.
+
+**Owner decisions, 2026-09-27**
+- The personal address removed from `docs/legal/PRIVACY-zh.md` stays in git history — the owner chose not to rewrite history (open PRs; the address is public on served pages).
+- Manual backups prune after 180 days (#99). Open: the pre-0026 backups that BACKUP-RESTORE.md once said "do not prune" will go from about 2027-02-04 unless moved out of the bucket root — the owner's call. PITR keeps ~4 weeks (Railway: last 4 weekly full backups); Railway volume-backup retention was not checked (not visible to the tools).
+- **Deletion requests in chat → a person, nothing sent** — planned 2026-09-27, NOT built: a pre-model detector (`deletion_requested`, 9 languages) forcing a silent hand-off, a reply net that turns any deletion promise into the same hand-off, a card linking to the buyer file's deletion control, migration 0075. Waits for the owner's go (and "nothing" vs a neutral receipt).
 
 **Parked / owner's to unblock**
 - Native review of the zh/ar disclosure (gates all autonomy).
