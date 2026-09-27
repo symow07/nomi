@@ -96,7 +96,9 @@ describe('V2 · the calendar page, by structure', () => {
     it(`${locale}: doors go to the conversation, or the order; a closure has none`, () => {
       const html = renderCalendar(view(), locale);
       expect(html).toContain(`href="/app/orders/${ORDER}"`);
-      expect(html).toContain(`href="/app/inbox/${CONV}"`);
+      // CC-25 — a conversation opens on its newest message, not at the top of its transcript.
+      expect(html).toContain(`href="/app/inbox/${CONV}#latest"`);
+      expect(html).not.toContain(`href="/app/inbox/${CONV}"`);
       const closure = /<li class="row" data-src="factory_closures:c1"[\s\S]*?<\/li>/.exec(html)?.[0] ?? '';
       expect(closure).not.toBe('');
       expect(closure).not.toContain('href=');

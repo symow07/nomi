@@ -182,8 +182,8 @@ describe('M45 · the owner surfaces', () => {
     expect(html).toContain('Can you send a sample first?');
     expect(html).toContain('/app/settings/samples/r1/address');
     expect(html).toContain('/app/settings/samples/r1/handled');
-    // and a way into the conversation it came from
-    expect(html).toContain('/app/inbox/c1');
+    // and a way into the conversation it came from — CC-25: onto its newest message
+    expect(html).toContain('href="/app/inbox/c1#latest"');
   });
 
   it('the ADDRESS box is hers to fill — nothing pre-fills it from the message', () => {

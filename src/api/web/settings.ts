@@ -16,7 +16,7 @@ import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
 import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
-import { switcher, deeper, esc } from './layout.js';
+import { switcher, deeper, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
@@ -727,7 +727,7 @@ export function renderSamples(
           <button class="btn" type="submit">${esc(t(locale, 'samples.requests.address.save'))}</button>
         </form>
         <div class="sreq-do">
-          <a class="deeper" href="/app/inbox/${esc(r.conversationId)}">${esc(t(locale, 'samples.requests.open'))}<span class="go" aria-hidden="true">›</span></a>
+          ${deeper(conversationUrl(r.conversationId), t(locale, 'samples.requests.open'))}
           <form method="post" action="/app/settings/samples/${esc(r.id)}/handled" class="inline">
             <button class="btn" type="submit">${esc(t(locale, 'samples.requests.handled'))}</button>
           </form>

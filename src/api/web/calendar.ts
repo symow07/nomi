@@ -2,7 +2,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { addDays, dayKey, dayStart, formatDate, formatMoney, formatQty, formatTime } from '../../core/owner/i18n/format.js';
 import { t } from './say.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flag } from './inbox.js';
 import {
   CALENDAR_CATEGORIES, type CalendarCategory, type CalendarEntry, type CalendarView, type CalendarBuyer,
@@ -117,8 +117,9 @@ function entry(locale: Locale, e: CalendarEntry): string {
   const body = `<span class="person">
         <span class="cal-head"><span class="chip">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span>${who(locale, e)}</span>
         <span class="small">${esc(line(locale, e))}</span></span>`;
+  // CC-25 — a conversation opens on its newest message, like every door into one.
   const to = e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
-    : e.conversationId ? `/app/inbox/${encodeURIComponent(e.conversationId)}` : null;
+    : e.conversationId ? conversationUrl(e.conversationId) : null;
   return `<li class="row" data-src="${esc(`${e.source.table}:${e.source.id}`)}" data-col="${esc(e.source.column)}">
       <span class="cal-when">${esc(when)}</span>
       ${to

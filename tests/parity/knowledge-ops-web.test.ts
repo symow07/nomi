@@ -41,7 +41,8 @@ describe('M14 · knowledge operations (localized renderer)', () => {
     // product-scoped gap → teach on the product page; business-level → the index
     expect(html).toContain('href="/app/knowledge/p1?teach=is%20it%20food%20safe%3F"');
     expect(html).toContain('href="/app/knowledge?teach=what%20about%20a%20general%20item%3F"');
-    expect(html).toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F"');   // replay loop
+    // replay loop — onto the practice box, which CC-25 moved under the practice transcript
+    expect(html).toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F#compose"');
     expect(html).toContain('×2');   // repeated count
   });
 

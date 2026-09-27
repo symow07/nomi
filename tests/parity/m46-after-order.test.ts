@@ -167,6 +167,8 @@ describe('M46 · the owner page', () => {
     expect(html).toContain(t('en', 'order.state.in_production'));
     expect(html).toContain('chase the dye lot');
     expect(html).toContain('/app/orders/o1/update');
+    // CC-25 — the way back lands on the conversation's newest message, not its top.
+    expect(html).toContain('<a class="back" href="/app/inbox/c1#latest">');
   });
 
   it('THE PROFORMA IS REACHABLE — invoice.ts is wired, not exempt', () => {

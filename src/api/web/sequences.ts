@@ -12,7 +12,7 @@ import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
-import { back, esc } from './layout.js';
+import { back, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 
 /**
@@ -211,7 +211,7 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
       <input type="hidden" name="position" value="${esc(String(e.nextPosition))}" />
       <button class="btn send" type="submit">${esc(t(locale, 'seq.enrolment.confirm'))}</button></form>` : '';
   const thread = e.conversationId
-    ? `<a href="/app/inbox/${esc(e.conversationId)}">${esc(t(locale, 'seq.enrolment.thread'))}</a>` : '';
+    ? `<a href="${conversationUrl(e.conversationId)}">${esc(t(locale, 'seq.enrolment.thread'))}</a>` : '';
   const stop = live ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/stop" class="inline">
       <button class="btn stop" type="submit">${esc(t(locale, 'seq.enrolment.stop'))}</button></form>` : '';
   return `<li class="en ${live ? '' : 'gone'}"><div class="en-h"><span class="who">${who}</span>${state}</div>

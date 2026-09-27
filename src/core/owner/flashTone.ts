@@ -106,6 +106,10 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'spotcheck.flash.ok', 'spotcheck.flash.problem', 'takeover.flash.handed', 'takeover.flash.resumed',
   'takeover.flash.sent', 'takeover.flash.taken_over', 'terms.flash.saved', 'unsure.flash.again',
   'unsure.flash.left', 'voice.flash.answering', 'voice.flash.corrected',
+  // Practice cleared, the old one archived: it happened. Outside the `.flash.`
+  // family, so it went unclassified and was painted as a refusal — unseen at
+  // the bottom of the page until CC-25 landed the owner on it after Reset.
+  'sandbox.reset.done',
 ]);
 
 /**

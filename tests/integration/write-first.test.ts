@@ -162,8 +162,9 @@ d('C4.a · she writes first, by e-mail (requires DATABASE_URL)', () => {
     const res = await write(addr('ahmed'), 'Canvas totes from Yiwu', 'We make canvas totes, 500 pcs and up.');
     expect(res.statusCode).toBe(302);
     const location = String(res.headers['location']);
-    expect(location).toMatch(/^\/app\/inbox\/[0-9a-f-]{36}$/);
-    firstConversation = location.split('/')[3]!.split('?')[0]!;
+    // CC-25 — onto the new conversation's newest message, the notice under it.
+    expect(location).toMatch(/^\/app\/inbox\/[0-9a-f-]{36}#latest$/);
+    firstConversation = location.split('/')[3]!.split(/[?#]/)[0]!;
 
     // Matched by recipient, never by position: pg-boss is durable, so a mail an
     // earlier interrupted run queued is delivered by whichever worker starts

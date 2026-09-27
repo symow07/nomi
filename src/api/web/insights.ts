@@ -7,7 +7,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
-import { esc } from './layout.js';
+import { esc, conversationUrl } from './layout.js';
 
 /**
  * M34.10 — insights, not counts.
@@ -101,7 +101,8 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
       out.push({
         key: 'insight.quotedNoReply',
         params: { buyer: quoted.buyer },
-        action: { kind: 'follow_up', href: `/app/inbox/${encodeURIComponent(quoted.conversation_id)}`, buyer: quoted.buyer },
+        // CC-25 — on the newest message: the quote she is following up is the last thing said.
+        action: { kind: 'follow_up', href: conversationUrl(quoted.conversation_id), buyer: quoted.buyer },
       });
     }
 
@@ -122,7 +123,7 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
         params: { count: unsure.n },
         action: {
           kind: 'settle_uncertain',
-          href: `/app/inbox/${encodeURIComponent(unsure.conversation_id)}`,
+          href: conversationUrl(unsure.conversation_id),
           buyer: unsure.buyer ?? '',
         },
       });
