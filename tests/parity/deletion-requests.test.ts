@@ -122,6 +122,8 @@ const PROMISES: readonly string[] = [
   'We will delete your personal information within 30 days.',
   'Your data has been removed.',
   'I can remove your number from our list right away.',
+  "Done — I've removed your email.",
+  'We have deleted your account.',
   'All the data we hold about you has been deleted.',
   '已为您删除所有数据。',
   '我们会删除您的个人信息。',
@@ -139,6 +141,9 @@ const PROMISES: readonly string[] = [
 
 const NOT_PROMISES: readonly string[] = [
   "I'll remove the number 3 from the quote.",
+  "I'll remove your account manager from the cc.",            // a person, not an account
+  "I've removed your email from the cc and added your colleague.",
+  "I've removed your number from the quote header.",
   "I've removed the logo from the mockup.",
   'A colleague will reply to you shortly.',
   "I've passed your request to the team.",

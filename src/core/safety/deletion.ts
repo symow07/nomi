@@ -159,8 +159,15 @@ export function asksForDeletion(text: string): string | null {
 // ── Layer 2: a reply that promises or claims a deletion ─────────────────────
 const PROMISE_PATTERNS: readonly RegExp[] = [
   // English — "your" only: "I'll remove the number 3 from the quote" promises
-  // nothing about the buyer's data.
-  /\b(?:i|we)(?:'ll|'ve| will| have| shall| can| am going to| are going to|'m going to|'re going to)?\s+(?:go ahead and\s+)?(?:delete|deleted|erase|erased|remove|removed|wipe|wiped|purge|purged)(?:\s+(?:all|any|of|every))*\s+your\s+(?:personal\s+)?(?:data|information|info|details|records|messages|number|phone number|e-?mail|account|contact details|history)\b/,
+  // nothing about the buyer's data. The same care as layer 1: "your account
+  // manager" is a person, and "your e-mail" / "your number" come off a cc line
+  // or a quote as often as off a list — they count only where the clause ends
+  // there, or says the list, database or records they leave.
+  new RegExp(`\\b(?:i|we)(?:'ll|'ve| will| have| shall| can| am going to| are going to|'m going to|'re going to)?\\s+(?:go ahead and\\s+)?`
+    + `(?:delete|deleted|erase|erased|remove|removed|wipe|wiped|purge|purged)(?:\\s+(?:all|any|of|every))*\\s+your\\s+(?:personal\\s+)?`
+    + `(?:(?:data|information|info|details|records|messages|contact details|history|account(?!\\s+(?:manager|number|rep|representative|holder|executive)))\\b`
+    + `|(?:number|phone number|mobile number|whatsapp number|e-?mail(?:\\s+address)?)(?=\\s*(?:$|[.!?,;]|from\\s+(?:our|all|every)\\b`
+    + `|from\\s+the\\s+(?:list|database|records|system|contacts|files|mailing\\s+list|marketing\\s+list)\\b)))`),
   /\byour\s+(?:personal\s+)?(?:data|information|info|details|records|messages|number|account|history)\s+(?:has|have|will|shall|is|are)\s+(?:been\s+|be\s+|being\s+)?(?:deleted|erased|removed|wiped|purged)\b/,
   /\b(?:all\s+)?(?:the\s+)?(?:data|information|details)\s+we\s+(?:have|hold|keep|store)\s+(?:on|about)\s+you\s+(?:has|have|will|is|are)\s+(?:been\s+|be\s+)?(?:deleted|erased|removed|wiped)\b/,
   // Chinese — 已为您删除所有数据 / 我们会删除您的信息 / 您的资料已删除 / 已经帮您把数据删除了
