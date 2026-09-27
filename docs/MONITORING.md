@@ -33,6 +33,8 @@ stops the app, and the address is never written to a log.
 job queue (pg-boss, which runs the five-minute tick) stops, the pings simply
 stop — and Healthchecks.io, which is not on Railway, e-mails you when the
 check is late. Nothing that is broken is trusted to report that it is broken.
+A `/fail` ping is an alert at once; silence is one once the grace time runs
+out (10 minutes past the missed ping, with the settings below).
 
 Unset, nothing is pinged, and every boot logs one line:
 `Uptime pings are not configured (HEALTH_PING_URL is unset) …`.
@@ -51,12 +53,14 @@ Unset, nothing is pinged, and every boot logs one line:
    Variable**: name `HEALTH_PING_URL`, value the URL you copied → **Add**.
    Railway redeploys the service.
 5. **Test it:**
-   - Within ten minutes the check on Healthchecks.io turns **green** and its
-     *Events* list shows a ping every five minutes. The app's deploy log shows
-     `Uptime pings: every five minutes …` once at boot.
-   - To see the alert itself, **Pause** the check, wait for the next ping (it
-     un-pauses the check and shows it green again), or use **Send test
-     notification** under *Integrations* to see what the e-mail looks like.
+   - **Look for the first ping.** Within ten minutes the check on
+     Healthchecks.io turns **green** and its *Events* list shows a ping every
+     five minutes. The app's deploy log shows `Uptime pings: every five
+     minutes …` once at boot.
+   - **Pause the check.** The next ping (within five minutes) takes it off
+     pause and turns it green again — proof the app's pings reach it.
+   - To see what the alert e-mail looks like without breaking anything:
+     *Integrations* → Email → **Test**.
 
 A value that is not an `https://` address with a path makes the boot refuse,
 naming the variable — never printing it.
@@ -68,7 +72,8 @@ replaces the running one after its `/health` answers 200 (within Railway's
 default window, 300 s; the app answers within seconds of starting). A build
 that cannot reach the database answers 503 and never goes live — the running
 one keeps serving. The migration (`preDeployCommand`) runs before that, as
-before.
+before. The instance being replaced stops its heartbeat before it closes its
+server, so a deploy is never reported as an outage.
 
 ---
 
@@ -113,7 +118,7 @@ web · GET /app/inbox/:id
 TypeError: Cannot read properties of undefined (reading 'id')
 dist/api/web/inbox.js:212 · #7f3a9c2e1b4d
 
-Times so far: 1. First seen: Sun, Sep 27 11:12.
+Times so far: 1. First seen: 2026-09-27 03:12 UTC.
 
 The full list, with what each one said: node tools/errors.mjs
 ```
@@ -128,7 +133,10 @@ The full list, with what each one said: node tools/errors.mjs
   hour having room (`ops.errors`, every five minutes).
 
 An alert that fails to deliver is logged, never reported as a new error (that
-would loop); a failure to record an error is logged the same way.
+would loop); a failure to record an error is logged the same way. Recording
+is bounded too: at most four at a time per process, each waiting five
+seconds at most for a lock, so an error flood cannot take the database
+connections the working pages need — during one, the count is a floor.
 
 ### Reading them — `tools/errors.mjs`
 
@@ -166,8 +174,9 @@ Run it again.
 - **Deployment mode** (no channel configured at all): errors are recorded,
   but nothing consumes the alert queue, so none is e-mailed; `tools/errors.mjs`
   still lists them. A queued alert expires after a day.
-- **A slow app that still answers.** The heartbeat asks "does it answer", not
-  "is it fast". Response times are on Railway's metrics.
+- **A slow app that still answers.** The heartbeat asks "does `/health`
+  answer within five seconds", not "is every page fast". Response times are
+  on Railway's metrics.
 - **Errors the code catches and handles on purpose** — a refused send, a
   provider saying no — are outcomes, not errors, and are shown where they
   belong (the conversation, the channels page), not here.

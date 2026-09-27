@@ -208,6 +208,33 @@ d('CC-10 · errors are written down, and the operator hears of each once (requir
     expect(mailbox).toHaveLength(15);
   });
 
+  it('AT ONCE: three new errors contest the hour’s last slot — one alert, two held; a burst of one error is one alert', async () => {
+    const { makeErrorReporter, appErrorNotifyJob } = await import('../../src/worker/appErrors.js');
+    const T3 = 80 * H;
+    const jobs: NotifyJob[] = [];
+    const concurrent = (ms: number) => makeErrorReporter({
+      db, now: () => new Date(T0 + ms), maxInFlight: 50,
+      enqueue: async (a) => { jobs.push(appErrorNotifyJob(OPERATOR, a)); },
+    });
+    const err = (k: string) => Object.assign(new Error(`at once ${k}`), { name: boom(k) });
+    const five = concurrent(T3);
+    for (const k of ['R1', 'R2', 'R3', 'R4', 'R5']) await five.report(err(k), 'web');
+    await five.idle();
+    expect(jobs).toHaveLength(5);
+    const race = concurrent(T3 + MIN);
+    await Promise.all(['S1', 'S2', 'S3'].map((k) => race.report(err(k), 'web')));
+    await race.idle();
+    expect(jobs).toHaveLength(6);                                   // one slot, one winner
+    const held = await Promise.all(['S1', 'S2', 'S3'].map(async (k) => (await row(boom(k)))!.alert_held_at !== null));
+    expect(held.filter(Boolean)).toHaveLength(2);
+
+    const burst = concurrent(T3 + 2 * H);
+    await Promise.all(Array.from({ length: 20 }, () => burst.report(err('Burst'), 'web')));
+    await burst.idle();
+    expect((await row(boom('Burst')))!.count).toBe('20');           // every occurrence counted…
+    expect(jobs.filter((j) => j.appError?.name === boom('Burst'))).toHaveLength(1);   // …one alert
+  }, 30_000);
+
   it('operator data: invisible inside a workspace, and the app role cannot erase it', async () => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');

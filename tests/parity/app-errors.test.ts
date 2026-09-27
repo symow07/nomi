@@ -332,6 +332,8 @@ describe('the alert, in the owner’s words around the program’s own', () => {
       expect(s, l).toContain('web · GET /app/inbox/:id');
       expect(s, l).toContain("TypeError: Cannot read properties of undefined (reading 'id')");
       expect(s, l).toContain('dist/api/web/inbox.js:212 · #7f3a9c2e1b4d');
+      // One clock with tools/errors.mjs and the host's logs.
+      expect(s, l).toContain(t(l, 'notify.app_error.seen', { count: 3, when: '2026-09-27 03:12 UTC' }));
       expect(s, l).toContain(t(l, 'notify.app_error.list'));
       expect(s, l).not.toContain('{');
       expect(messages[l]['notify.app_error.subject'].length, l).toBeGreaterThan(0);

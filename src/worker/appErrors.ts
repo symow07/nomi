@@ -151,7 +151,11 @@ export function makeErrorReporter(deps: {
   readonly root?: string;
   /** How long a caller that awaits a report waits for it. The recording itself goes on. */
   readonly timeoutMs?: number;
-  /** Recordings in flight at once; more are logged and dropped, so a flood cannot drain the pool. */
+  /**
+   * Recordings in flight at once. Past it an error is not written down (its
+   * caller has logged it), so an error flood can take at most this many of the
+   * pool's connections from the requests that are still working.
+   */
   readonly maxInFlight?: number;
 }): ErrorReporting {
   const now = deps.now ?? (() => new Date());
@@ -159,7 +163,7 @@ export function makeErrorReporter(deps: {
   const knownSecrets = deps.knownSecrets ?? [];
   const root = deps.root ?? ROOT;
   const timeoutMs = deps.timeoutMs ?? 5_000;
-  const maxInFlight = deps.maxInFlight ?? 8;
+  const maxInFlight = deps.maxInFlight ?? 4;
   const pending = new Set<Promise<void>>();
   let dropped = 0;
 
@@ -178,7 +182,7 @@ export function makeErrorReporter(deps: {
   const report: ReportError = (err, where, context = {}) => {
     if (pending.size >= maxInFlight) {
       // Said once per burst, not once per error: this line must not become the flood.
-      if (dropped++ === 0) log(`[errors] ${maxInFlight} recordings already in flight; errors from ${where} are logged only until they finish`);
+      if (dropped++ === 0) log(`[errors] ${maxInFlight} recordings already in flight; errors from ${where} are not written down until they finish`);
       return Promise.resolve();
     }
     dropped = 0;

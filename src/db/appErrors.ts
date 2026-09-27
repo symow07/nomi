@@ -19,10 +19,17 @@ import { ALERTS_PER_HOUR, alertOwed } from '../core/ops/appErrors.js';
  *     five-minute sweep (`releaseHeldAppErrorAlert`) makes sure there IS a
  *     next one once the hour has room, even when the flood has stopped.
  *
- * Every step runs under one transaction-scoped advisory lock, taken first, so
- * two processes cannot both spend the hour's last alert. The notify job is
- * enqueued INSIDE the same transaction (`onAlert`), so an error is never marked
- * alerted without its alert being queued, nor queued without being marked.
+ * THE LOCK. Deciding an alert takes one transaction-scoped advisory lock, so
+ * two processes cannot both spend the hour's last alert. Only that decision
+ * takes it: a recurrence — nearly every recording during a flood — is one
+ * upsert and never queues behind the lock holding a pool connection. It is
+ * taken AFTER the upsert's row lock, which cannot deadlock: an owed row is
+ * never a held one, the lock holder only updates held rows, and whoever holds
+ * a held row's lock is recording a recurrence, which does not wait for it.
+ *
+ * The notify job is enqueued INSIDE the same transaction (`onAlert`), so an
+ * error is never marked alerted without its alert being queued, nor queued
+ * without being marked.
  */
 
 export type AppErrorEntry = {
@@ -63,12 +70,16 @@ const COLUMNS = sql.raw(`fingerprint, "where", name, message, frame, route, coun
   first_seen, last_seen, last_alerted_at, alert_held_at`);
 
 /**
- * Take the installation's one error-alert lock. `lock_timeout` so a recording
- * waits a few seconds at most: an error the recorder could not write is logged
- * by the caller, which is better than a request or a job held up behind it.
+ * A recording waits a few seconds at most for any lock — a row's or the alert
+ * lock: an error the recorder could not write is logged, which is better than
+ * a request or a job held up behind it.
  */
-async function lockAlerts(tx: Tx): Promise<void> {
+async function boundLockWaits(tx: Tx): Promise<void> {
   await sql`set local lock_timeout = '5s'`.execute(tx);
+}
+
+/** The installation's one error-alert lock. */
+async function lockAlerts(tx: Tx): Promise<void> {
   await sql`select pg_advisory_xact_lock(hashtextextended('nomi.app_errors', 0))`.execute(tx);
 }
 
@@ -81,7 +92,7 @@ export async function recordAppError(
   db: Db, e: AppErrorEntry, now: Date, onAlert: OnAppErrorAlert | null = null,
 ): Promise<AppErrorAlert | null> {
   return db.transaction().execute(async (tx) => {
-    await lockAlerts(tx);
+    await boundLockWaits(tx);
     const row = (await sql<Row>`
       insert into app_errors as a
         (fingerprint, "where", name, message, frame, route, business_id, first_seen, last_seen, count)
@@ -96,6 +107,9 @@ export async function recordAppError(
       returning ${COLUMNS}`.execute(tx)).rows[0];
     if (!row || !onAlert) return null;
     if (!alertOwed({ lastAlertedAt: row.last_alerted_at, heldAt: row.alert_held_at }, now)) return null;
+    // Owed: now, and only now, the alert lock. This row is locked by the upsert
+    // above, so what made it owed cannot change while we wait.
+    await lockAlerts(tx);
     return claim(tx, row, now, onAlert);
   });
 }
@@ -108,6 +122,7 @@ export async function releaseHeldAppErrorAlert(
   db: Db, now: Date, onAlert: OnAppErrorAlert,
 ): Promise<AppErrorAlert | null> {
   return db.transaction().execute(async (tx) => {
+    await boundLockWaits(tx);
     await lockAlerts(tx);
     return claim(tx, null, now, onAlert);
   });

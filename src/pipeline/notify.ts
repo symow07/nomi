@@ -7,7 +7,7 @@ import type { AppErrorAlertJob, NotifyJob } from '../queue/boss.js';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
-import { formatDate, formatTime } from '../core/owner/i18n/format.js';
+import { formatDate } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
 
 /**
@@ -190,7 +190,8 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
  * where, the error, the line — because that is what whoever fixes it needs, and
  * no translation of it would be more useful. It was redacted before it was
  * written down (src/worker/appErrors.ts). `#<ref>` is what `tools/errors.mjs
- * --ref` finds it by.
+ * --ref` finds it by, and the time is in UTC, as that tool and the host's logs
+ * say it — one clock for whoever lines the three up.
  */
 function appErrorText(locale: Locale, e: AppErrorAlertJob | null): string {
   const opening = t(locale, 'notify.app_error');
@@ -205,7 +206,7 @@ function appErrorText(locale: Locale, e: AppErrorAlertJob | null): string {
     '',
     t(locale, 'notify.app_error.seen', {
       count: e.count,
-      when: Number.isNaN(first.getTime()) ? e.firstSeen : `${formatDate(locale, first)} ${formatTime(locale, first)}`,
+      when: Number.isNaN(first.getTime()) ? e.firstSeen : `${first.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
     }),
   ];
   if (e.more > 0) lines.push(t(locale, 'notify.app_error.more', { count: e.more }));

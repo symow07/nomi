@@ -202,6 +202,13 @@ describe('the wiring', () => {
     expect(start).toBeGreaterThan(listen);
   });
 
+  it('and shutdown stops it BEFORE the server closes, so a deploy is never reported as an outage', () => {
+    const close = main.slice(main.indexOf('async close() {'));
+    const off = close.indexOf('await boss.offWork(QUEUES.heartbeat)');
+    expect(off).toBeGreaterThan(-1);
+    expect(off).toBeLessThan(close.indexOf('await a.close();'));
+  });
+
   it('HEALTH_PING_URL is checked at boot when set — https, a host and a path — and never printed', () => {
     const base = {
       DATABASE_URL: 'postgresql://nomi_app:x@h/nomi', ANTHROPIC_API_KEY: 'sk-ant-' + 'x'.repeat(30),

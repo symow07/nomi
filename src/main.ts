@@ -716,6 +716,10 @@ export async function buildProduction(
     async close() {
       if (closing) return;
       closing = true;
+      // 0. CC-10 — the heartbeat first: a tick between the server closing and
+      //    the workers stopping would find no /health and report a deploy as
+      //    an outage. (No heartbeat worker here: a no-op.)
+      await boss.offWork(QUEUES.heartbeat).catch(() => {});
       await a.close();                         // 1. stop accepting requests
       await boss.stop().catch(() => {});       // 2–3. stop workers + pg-boss
       await db.destroy().catch(() => {});      // 5. release the pool

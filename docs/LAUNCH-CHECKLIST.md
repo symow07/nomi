@@ -51,3 +51,11 @@ including the one live one (Westlake Canvas Co.), must confirm its name after
   dump, encrypted, uploaded). The schedule is manual: before every migration.
 - **After the deploy**, confirm `/health` answers and `schema_version` equals
   `REQUIRED_SCHEMA_VERSION` in `src/db/schemaVersion.ts`.
+
+## Somebody hears when it breaks (CC-10)
+
+- `HEALTH_PING_URL` is set on the `nomi` service and the Healthchecks.io
+  check "Nomi app" is green — the steps are in `docs/MONITORING.md`. Railway
+  only swaps in a deploy whose `/health` answers (`railway.json`).
+- Errors inside the app reach the pilot workspace's sign-in address; read them
+  with `node tools/errors.mjs` (same page).
