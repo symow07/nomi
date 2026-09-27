@@ -1439,7 +1439,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // ONE clock for the request: the loader decides whether a closure blocks a
     // date with the same "now" the renderer uses for its timestamps.
     const now = new Date();
-    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now);
+    // CC-25 — `before` pages the transcript back; anything else is the newest window.
+    const before = (req.query as { before?: unknown } | undefined)?.before;
+    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now, before);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
@@ -3406,7 +3408,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const q = req.query as { mode?: string; ask?: string };
+      const q = req.query as { mode?: string; ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
       const prefill = typeof q.ask === 'string' ? q.ask : '';
       // M20.4 (F-04) — the safety checks run IN MEMORY, so a factory provisioned
@@ -3414,7 +3416,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const practice = await runScriptedPractice();
       // The free-typing half still needs a practice conversation. If this
       // installation has none, say so — never render a picker that does nothing.
-      const view = await loadSandboxView(sbxDeps).catch(() => null);
+      // CC-25 — `before` pages the practice transcript back, as on a conversation.
+      const view = await loadSandboxView(sbxDeps, q.before).catch(() => null);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale) + (view

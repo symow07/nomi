@@ -51,7 +51,8 @@ describe('M9.3 · inbox list (localized)', () => {
     expect(html).toContain('买家'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
     expect(html).toContain(shown('zh', 'buyers.badge.review'));
     expect(html).toContain('保温杯'); expect(html).toContain('5000个'); expect(html).toContain('$0.92');
-    expect(html).toContain('href="/app/inbox/conv-1"');
+    // CC-25 — a buyer opens on the newest message, with the reply waiting under it.
+    expect(html).toContain('href="/app/inbox/conv-1#latest"');
   });
 
   it('en: localized chrome, latin product name', () => {
@@ -260,7 +261,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
     expect(yours).toBeGreaterThan(needs);
     expect(hers).toBeGreaterThan(yours);
     for (const id of ['c-ai', 'c-wait', 'c-owner', 'c-review']) {
-      expect(html.split(`href="/app/inbox/${id}"`).length - 1, id).toBe(1);   // exactly once
+      expect(html.split(`href="/app/inbox/${id}#latest"`).length - 1, id).toBe(1);   // exactly once (CC-25: on the newest message)
     }
     // the two that need the owner are above the two that do not
     expect(html.indexOf('c-wait')).toBeLessThan(html.indexOf('c-owner'));
@@ -321,14 +322,43 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     expect(html).not.toContain('⚠️');                       // reviewing a colleague is not an alarm
   });
 
-  it('ownership is above the buyer transcript — the owner never has to scroll to find who speaks', () => {
+  /**
+   * CC-25 reversed the ORDER this test used to hold (the ownership card above
+   * the transcript), deliberately: the owner approved replies with the buyer's
+   * question off the screen. What it protected is still held — who speaks is
+   * stated ABOVE the transcript, in the header, so nobody scrolls to find out —
+   * and the card that acts on it now sits UNDER the transcript, with the
+   * approval directly beneath the newest message.
+   */
+  it('who speaks is stated above the transcript; the approval and the ownership card sit under it', () => {
+    const says: Record<ConversationOwnership, string> = {
+      AI: shown('en', 'inbox.status.awaiting'),
+      WAITING_HUMAN: shown('en', 'takeover.status.waiting'),
+      OWNER_CONTROLLED: shown('en', 'takeover.status.owner'),
+    };
     for (const o of ['AI', 'WAITING_HUMAN', 'OWNER_CONTROLLED'] as const) {
       const html = renderConversationDetail(detailIn(o), 'en', NOW, null);
-      const own = html.indexOf('card takeover');   // the ownership card
       const msg = html.indexOf('class="msg');      // the buyer transcript
-      expect(own, `${o}: ownership card must render`).toBeGreaterThan(-1);
+      const newest = html.indexOf('id="latest"');  // its newest message
+      const own = html.indexOf('card takeover');   // the ownership card
       expect(msg, `${o}: transcript must render`).toBeGreaterThan(-1);
-      expect(own, o).toBeLessThan(msg);
+      expect(own, `${o}: ownership card must render`).toBeGreaterThan(-1);
+      // the header: everything above the transcript's own section
+      const head = html.slice(html.indexOf('<div class="dhead">'), html.indexOf('<div class="block">'));
+      expect(head, `${o}: who speaks, stated in the header`).toContain(says[o]);
+      expect(newest, o).toBeGreaterThan(msg);
+      expect(own, o).toBeGreaterThan(newest);
+      if (o !== 'OWNER_CONTROLLED') {
+        const draft = html.indexOf('card draft');
+        expect(draft, `${o}: the approval directly under the newest message`).toBeGreaterThan(newest);
+        expect(draft, o).toBeLessThan(own);
+        // nothing between the newest message's bubble and the approval but the end of the transcript
+        expect(html.slice(newest, draft)).not.toMatch(/class="card/);
+      } else {
+        // the owner's own reply box is what sits under the newest message
+        expect(html.slice(newest, own)).not.toMatch(/class="card/);
+        expect(html.indexOf('action="/app/inbox/conv-1/reply"')).toBeGreaterThan(newest);
+      }
     }
   });
 

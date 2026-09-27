@@ -236,9 +236,14 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     // Relationship timeline — neutral milestone kinds; renderer localizes.
     const timeline: Milestone[] = [];
 
+    // CC-25 — the NEWEST sixty. This read the oldest sixty, so past sixty
+    // messages "recent" was months-old words beside this week's quotes, and
+    // the newest words were missing. Put back in time order before the
+    // (stable) sort below, so two lines in one millisecond keep theirs. The
+    // whole transcript, paged, is the conversation page, one door away below.
     (await sql<{ direction: string; input_type: string; text_content: string | null; sent_at: Date | null }>`
       select direction, input_type, text_content, sent_at from messages
-       where conversation_id = ${conversationId} order by sent_at asc limit 60`.execute(tx)).rows.forEach((m) => {
+       where conversation_id = ${conversationId} order by sent_at desc, id desc limit 60`.execute(tx)).rows.reverse().forEach((m) => {
       if (m.direction === 'inbound') {
         const isImg = m.input_type === 'image' || m.input_type === 'image_text';
         timeline.push(isImg ? mile('buyer_image', m.sent_at) : mile('buyer_text', m.sent_at, { text: truncate(m.text_content ?? '', 60) }));
@@ -486,7 +491,8 @@ export function renderCustomerFile(
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
-          <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>`
+          <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
+        ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(`/app/inbox/${encodeURIComponent(f.conversationId)}#latest`, t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 
   const ctx = f.context;
@@ -505,7 +511,7 @@ export function renderCustomerFile(
 
   const actLink = f.needsOwner
     ? `<div class="card need-card"><span>${esc(t(locale, 'conv.needCard'))}</span>
-        <a class="btn send" href="/app/inbox/${encodeURIComponent(f.conversationId)}">${esc(t(locale, 'conv.needCardCta'))}</a></div>`
+        <a class="btn send" href="/app/inbox/${encodeURIComponent(f.conversationId)}#latest">${esc(t(locale, 'conv.needCardCta'))}</a></div>`
     : '';
 
   return `
