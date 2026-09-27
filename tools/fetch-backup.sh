@@ -10,10 +10,21 @@
 # (~/nomi-backups/age-key.txt), never on Railway. Credentials come from
 # `railway bucket credentials` into rclone's environment — nothing on a
 # command line, nothing on disk.
+#
+# PRUNES THE FOLDER IT WRITES TO, like tools/backup.sh: after a fetch that
+# succeeded, pairs in <destination> older than 180 days are removed
+# (backup/retention.sh) — never the pair just fetched, the newest pair, or a
+# name with no date in it (the age key is safe). The dates are read with this
+# machine's clock, so the prune first checks that clock against the time the
+# newest daily was taken, and skips if they disagree. KEEP_ALL=1 keeps
+# everything. This and tools/backup.sh are the only things that ever prune the
+# laptop's copies: nothing does while neither runs.
 set -uo pipefail
 
 BUCKET_NAME="${RAILWAY_BUCKET:-nomi-backups}"
 DEST="${1:-$HOME/nomi-backups}"
+RETENTION_OK=""
+if [ -r "$(dirname "$0")/../backup/retention.sh" ] && . "$(dirname "$0")/../backup/retention.sh"; then RETENTION_OK=1; fi
 KEY="${AGE_KEY:-$HOME/nomi-backups/age-key.txt}"
 [ -f "$KEY" ] || { echo "age key not found at $KEY" >&2; exit 2; }
 command -v rclone >/dev/null || { echo "rclone not installed (brew install rclone)" >&2; exit 2; }
@@ -38,9 +49,38 @@ rclone copy "BK:$BK_NAME/daily/$NEWEST/" "$OUT/encrypted/" || { echo "download f
 for f in "$OUT"/encrypted/*.age; do
   age -d -i "$KEY" -o "$OUT/$(basename "${f%.age}")" "$f" || { echo "decrypt failed on $(basename "$f")" >&2; exit 1; }
 done
-chmod 700 "$OUT"; chmod 600 "$OUT"/* 2>/dev/null
+# Folders 700, files 600. (`chmod 600 "$OUT"/*` also caught encrypted/, and a
+# folder at 600 cannot be opened or emptied, even by its owner.)
+chmod 700 "$OUT" "$OUT/encrypted"; find "$OUT" -type f -exec chmod 600 {} + 2>/dev/null
 echo "decrypted into $OUT:"
 ls -l "$OUT" | tail -n +2 | awk '{printf "    %-34s %s\n", $9, $5}'
 grep -E '^(schema_version|taken_utc|restore_drill):' "$OUT/MANIFEST.txt" | sed 's/^/    /'
+
+# ── prune this folder ───────────────────────────────────────────────────────
+# There is no database here to ask the time, so this machine's clock is used
+# only if it agrees with the pair just fetched: a daily is taken every day, so
+# it must be less than three days old — and not from the future.
+echo
+FETCHED_AT="$(stamp_epoch "$NEWEST" 2>/dev/null)"
+NOW="$(date -u +%s)"
+if [ -n "${KEEP_ALL:-}" ] && [ "$KEEP_ALL" != "0" ]; then
+  echo "KEEP_ALL=$KEEP_ALL — nothing pruned in $DEST"
+elif [ -z "$RETENTION_OK" ]; then
+  echo "not pruning $DEST: backup/retention.sh was not found beside this script" >&2
+else
+  case "$FETCHED_AT" in ''|-*|*[!0-9]*) FETCHED_AT="" ;; esac
+  if [ -z "$FETCHED_AT" ]; then
+    echo "not pruning $DEST: $NEWEST has no date in its name to check this machine's clock against" >&2
+  elif [ "$NOW" -lt $(( FETCHED_AT - 3600 )) ]; then
+    echo "not pruning $DEST: this machine's clock says it is earlier than $NEWEST was taken — the clock is wrong" >&2
+  elif [ "$NOW" -gt $(( FETCHED_AT + 3 * 86400 )) ]; then
+    echo "not pruning $DEST: by this machine's clock the newest daily is over three days old —" >&2
+    echo "  either the clock is ahead, or the daily backup has stopped (the owner's alert would say so)" >&2
+  else
+    echo "pruning $DEST: pairs older than $BACKUP_KEEP_MANUAL_DAYS days go (KEEP_ALL=1 keeps them)"
+    prune_local "$DEST" "$BACKUP_KEEP_MANUAL_DAYS" "$NOW" "$NEWEST" \
+      || echo "    the fetch above is complete; the prune did not finish and tries again next run" >&2
+  fi
+fi
 echo
 echo "now:  bash tools/verify-restore.sh \"$OUT\""

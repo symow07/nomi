@@ -16,8 +16,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY backup/run.sh /app/run.sh
+# How long copies are kept and the rule that prunes them — the same file the
+# laptop's tools/backup.sh and tools/fetch-backup.sh read. run.sh sources it
+# from beside itself.
+COPY backup/retention.sh /app/retention.sh
 COPY tools/verify-restore.sh /app/verify-restore.sh
-RUN chmod 0755 /app/run.sh /app/verify-restore.sh
+RUN chmod 0755 /app/run.sh /app/verify-restore.sh && chmod 0644 /app/retention.sh
 
 # initdb refuses to run as root; the image's postgres user owns nothing else here.
 USER postgres

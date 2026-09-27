@@ -47,7 +47,11 @@ product writes to them.
    For one buyer, the owner may want that buyer's messages first — once erased
    they are gone for the business too.
 4. **Take a backup you can actually restore**, and know how long it is kept.
-   This is the last moment a mistake is recoverable.
+   This is the last moment a mistake is recoverable. A manual pair is kept
+   180 days — in the bucket, and on the laptop until a backup tool next runs
+   there — and the newest manual pair until a newer one exists. The person
+   you are about to erase lives on in it that long
+   (`docs/BACKUP-RESTORE.md`, "How long copies are kept").
 
 ## Carrying out a workspace deletion
 
@@ -199,7 +203,9 @@ It refuses, and changes nothing, when:
 2. Confirming to the buyer is the business's. Once their identities are
    erased, Nomi cannot write to them — a confirmation the owner wants to send
    through Nomi goes out **before** you run the tool.
-3. Backups keep the old rows until they age out; say so.
+3. Backups keep the old rows until they age out — dailies after 60 days,
+   manual pairs after 180 days, the newest manual pair only once a newer one
+   exists; say so.
 
 The tool does not read free text people typed about the buyer elsewhere — the
 owner's own description in `subject_note`, the notes on their order's status
@@ -208,7 +214,11 @@ theirs to edit.
 
 ## What we do not delete
 
-- **Backups.** They age out on their own schedule; say so when you reply.
+- **Backups.** They age out: dailies after 60 days, manual pairs after 180
+  days — with the exceptions in `docs/BACKUP-RESTORE.md` ("How long copies are
+  kept": the newest manual pair, laptop copies that prune only when a backup
+  tool runs, and Railway's own PITR and volume backups). Say so when you
+  reply, and promise no date those exceptions could break.
 - **Meta's own copies.** A buyer manages those in their own Instagram or
   Facebook settings, and `/data-deletion` says so.
 - **Another business's records.** Two businesses can hold the same buyer, and

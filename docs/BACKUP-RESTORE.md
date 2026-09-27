@@ -51,7 +51,10 @@ RAILWAY_BUCKET='nomi-backups' \
 It writes `~/nomi-backups/nomi-backup-<UTC>/` containing `roles-<ts>.sql`,
 `nomi-<ts>.dump` and a `MANIFEST.txt` carrying sizes, sha256 of both, the server
 version, the runtime role name, and the schema version the pair was taken at.
-Then it encrypts all three with `age` and uploads only the ciphertext.
+Then it encrypts all three with `age` and uploads only the ciphertext, to the
+bucket root as `nomi-backup-<UTC>/`. Last, and only if everything before it
+succeeded, it prunes `~/nomi-backups`: pairs there older than 180 days go
+(`KEEP_ALL=1` keeps them) — see [How long copies are kept](#how-long-copies-are-kept).
 
 | | |
 |---|---|
@@ -59,13 +62,17 @@ Then it encrypts all three with `age` and uploads only the ciphertext.
 | Destination | Railway bucket `nomi-backups` (region `iad`), plus the local copy |
 | Encryption | `age`, public-key. Only the ciphertext is uploaded |
 | Schedule | **Manual.** Before every migration, and before any maintenance touching roles or the database |
+| Kept | 180 days, in the bucket and on the laptop — then pruned ([below](#how-long-copies-are-kept)) |
 | Restore last proven | **2026-08-09** — 4/4 checks, from the encrypted bucket copy, on a post-0026 pair |
 
 **Pairs taken from 2026-08-09 onward restore without the rename step.** 0026 is
 applied, so their roles file creates `nomi_app` directly and the warning block
-at the top of this file does not apply to them. The pre-0026 pairs are kept
-deliberately: they carry `yiwuflow_app` and are the only artifacts that can
-recover the state before the rename. Do not prune them because they look stale.
+at the top of this file does not apply to them. The pre-0026 pairs carry
+`yiwuflow_app` and are the only artifacts that can recover the state before the
+rename. They are manual pairs like any other: from 2027-02-04 the 180-day rule
+prunes them — in the bucket on the next scheduled run, on the laptop the next
+time a backup tool runs there. Keeping one longer is a decision, and how is
+[below](#how-long-copies-are-kept).
 
 **Two things this destination does NOT give you.** The bucket is on Railway, the
 same account as production: it survives a dropped table, a bad migration or a
@@ -104,8 +111,9 @@ which accepts a connection and then goes silent, is not on its path. One run:
    not restore is not uploaded;
 3. encrypts with the age public key; the private key never lives on Railway;
 4. uploads to `nomi-backups` under `daily/<name>/` and reads the listing back;
-5. prunes dailies older than 60 days (manual pairs at the bucket root are
-   never touched);
+5. prunes dailies older than 60 days, and the manual pairs at the bucket root
+   older than 180 days — one rule for both, never the newest pair of either
+   kind ([How long copies are kept](#how-long-copies-are-kept));
 6. writes one row to `backup_runs` (0069), then pings the dead-man's switch.
 
 Setup, variables (all references, nothing typed) and the schedule are in
@@ -123,6 +131,10 @@ bash tools/fetch-backup.sh              # newest daily/ pair → ~/nomi-backups/
 bash tools/verify-restore.sh ~/nomi-backups/<name>   # must say 4/4
 ```
 
+`fetch-backup.sh` also prunes `~/nomi-backups` when it is done, on the same
+180-day rule as `tools/backup.sh` — the drill is what normally keeps that
+folder pruned.
+
 **What tells you it stopped.** The app looks at `backup_runs` daily at 06:30
 UTC; with no completed run younger than 36 hours it sends the owner
 `notify.backup_stale` — **by e-mail to the sign-in address always**, and by
@@ -130,6 +142,70 @@ WhatsApp too where a channel is live (that channel is the thing that can be
 down, so the alert does not depend on it). Getting ready shows "Backup tested
 · Checked for you · date" from the same table. Independently, Healthchecks.io
 alerts when the job's ping is late, and Railway marks a failed run `FAILED`.
+
+## How long copies are kept
+
+Two limits, side by side in `backup/retention.sh`, and one rule that applies
+both. Owner's decision, 2026-09-27: dailies 60 days, manual pairs 180 days.
+
+| Copy | Where, and its name | Made by | Pruned by | Kept |
+|---|---|---|---|---|
+| Daily | bucket `nomi-backups`, `daily/nomi-backup-<UTC>/` (three `.age` objects) | `backup/run.sh`, 03:00 UTC | `backup/run.sh` step 5, every run | **60 days** |
+| Manual, in the bucket | bucket root, `nomi-backup-<UTC>/` (three `.age` objects) | `tools/backup.sh` with `RAILWAY_BUCKET` | `backup/run.sh` step 5, every run | **180 days**, never the newest manual pair |
+| On the laptop | `~/nomi-backups/nomi-backup-<UTC>/`, plaintext plus `encrypted/` — the manual pairs and the dailies the drill fetched | `tools/backup.sh`, `tools/fetch-backup.sh` | the same two tools, at the end of a run that succeeded | **180 days**, only when one of these tools runs |
+| PITR (WAL and base backups) | the bucket Railway's pgBackRest writes to | Railway | Railway's own retention | not set here |
+| Railway volume backups, if enabled | Railway | Railway | Railway's schedule | not set here |
+
+**The rule** (every row this repository controls):
+
+- A pair is dated by the UTC time in its name — the moment its dump was taken —
+  never by upload time or file time, which a copy or a re-upload can move.
+  "Older than 180 days" means more than 180 × 24 hours after that moment.
+- "Now" is the **database's** clock: `backup/run.sh` and `tools/backup.sh` ask
+  it, so a machine whose clock runs ahead cannot age every pair at once.
+  `tools/fetch-backup.sh` has no database; it trusts the laptop's clock only
+  when that clock puts the daily it just fetched less than three days in the
+  past (and not in the future), and otherwise prunes nothing and says why.
+- A pair goes whole: roles, dump and manifest together — the unit is the
+  pair's folder, never a file inside it.
+- Never pruned: a name that is not `nomi-backup-<a real UTC time>` (the age
+  key, `pgbackrest/`, anything else beside the pairs); the pair just made or
+  fetched; the newest pair and the newest *complete* pair of each kind,
+  whatever their age; a pair named more than an hour in the future.
+- Every pruned pair is named in the output with its age, and every run ends
+  with the count. `KEEP_ALL=1` makes the laptop tools prune nothing.
+- When the job's prune cannot finish (the bucket cannot be listed, a delete
+  fails), the day's copy is still uploaded and recorded first; then the run
+  ends as failed, naming why — Railway marks the run failed and the `/fail`
+  ping fires. The laptop tools say so and still exit 0, so a
+  `backup.sh && deploy` chain is never stopped by housekeeping.
+
+**When a copy actually goes.** A daily leaves at the first run after it turns
+60 days old, a manual pair in the bucket at the first 03:00 UTC run after it
+turns 180 — up to a day later. Laptop copies are pruned **only when one of
+these tools runs** there: nothing touches that folder while neither runs, so
+a laptop left alone keeps its pairs. The monthly drill (`fetch-backup.sh`) is
+what normally keeps it pruned.
+
+**The exceptions, plainly:**
+
+- The newest manual pair is kept whatever its age, so the last manual copy
+  always survives. If no manual backup is taken for more than 180 days, that
+  pair outlives 180 days until the next one is taken.
+- The oldest manual pairs date from 2026-08-08/09 (the first `tools/backup.sh`
+  runs), so no manual pair reaches 180 days before **2027-02-04** — the first
+  day the job can prune one.
+- PITR and Railway's volume backups hold copies too, on Railway's schedule.
+  This repository neither sets nor checks it; read it in the Railway console
+  before promising anyone a maximum.
+
+**Keeping a pair longer** — a legal hold, a decommissioned factory's final
+backup, the pre-0026 pairs. The prune reads only `daily/` and the bucket root,
+and on the laptop only the `nomi-backup-<UTC>` folders directly inside the
+folder the tool writes to. A pair moved elsewhere (into a `hold/` folder, say)
+is not pruned — and is then outside every limit above, including the one the
+deletion page relies on. That is a decision to make and write down, never a
+default.
 
 ## Restore
 
@@ -234,15 +310,18 @@ not meetable at all before 2026-08-09, because no backup existed.
 
 ## Point-in-time expectations
 
-**There is still no continuous archiving.** The recovery point is the age of the
-last dump, and dumps are manual — so the honest number to give the factory is
-"everything since the last time someone ran the script". Take one before every
-migration and before any maintenance touching roles.
+**From the dumps, the recovery point is the age of the newest pair**: under a
+day while the scheduled job runs (03:00 UTC), or the last manual pair if that
+is newer. Take a manual one before every migration and before any maintenance
+touching roles. How far back a pair can be found is the table above: 60 days
+of dailies, 180 of manual pairs.
 
-Railway can close this gap: `railway postgres pitr enable` turns on pgBackRest
-WAL archiving to a bucket, giving continuous recovery with a weekly full plus
-daily incrementals and roughly a four-week window. It has no separate licence
-fee — you pay bucket storage and egress — but the window **starts at the first
-base backup after enabling** and is not retroactive. It restores by creating a
-new sibling Postgres service, which auto-promotes and cannot be inspected before
-promotion. That is why it complements these dumps rather than replacing them.
+**Continuous archiving is on as well** (PITR, enabled by 2026-09-23):
+`railway postgres pitr enable` turns on pgBackRest WAL archiving to a bucket,
+giving continuous recovery with a weekly full plus daily incrementals and
+roughly a four-week window. It has no separate licence fee — you pay bucket
+storage and egress — but the window **starts at the first base backup after
+enabling** and is not retroactive. It restores by creating a new sibling
+Postgres service, which auto-promotes and cannot be inspected before promotion.
+That is why it complements these dumps rather than replacing them. Its
+retention is Railway's setting; nothing in this repository prunes or checks it.

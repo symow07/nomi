@@ -1119,7 +1119,9 @@ async function main() {
     console.log(`✓  ${plain(req.name)}: buyer erased — ${plan.totals.erased} rows erased, ${plan.totals.kept} kept`
       + `${plan.totals.changed ? `, ${plan.totals.changed} changed in place` : ''}.`);
     console.log(`   Request ${req.id} is closed as done, by ${plain(by)}.`);
-    console.log('   Tell the owner; confirming to the buyer is theirs. Backups age out on their own schedule.\n');
+    console.log('   Tell the owner; confirming to the buyer is theirs.');
+    console.log('   Backups still hold them until they age out: dailies after 60 days, manual pairs after 180 —');
+    console.log('   the newest manual pair only once a newer one exists (docs/BACKUP-RESTORE.md, "How long copies are kept").\n');
   } catch (e) {
     console.error(`\n✗  ${e instanceof Error ? e.message : String(e)}\n`);
     process.exitCode = 1;

@@ -75,17 +75,23 @@ describe('backup/run.sh — the order of steps is the guarantee', () => {
     const drill = at('bash /app/verify-restore.sh "$STAGE"');
     const encrypt = at('age -r "$AGE_RECIPIENT"');
     const upload = at('rclone copy "$ENC"');
-    const prune = at('rclone delete "BK:$BUCKET/daily/" --min-age');
+    const pruneDaily = at('prune_bucket daily "BK:$BUCKET/daily/"');
+    const pruneManual = at('prune_bucket manual "BK:$BUCKET/"');
     const record = at('insert into backup_runs');
     const ping = run.lastIndexOf('ping ""');
-    expect([dump, drill, encrypt, upload, prune, record, ping]).toEqual([dump, drill, encrypt, upload, prune, record, ping].slice().sort((a, b) => a - b));
+    const order = [dump, drill, encrypt, upload, pruneDaily, pruneManual, record, ping];
+    expect(order).toEqual(order.slice().sort((a, b) => a - b));
     expect(run).toContain('NOT uploaded');                      // a failed drill stops the run
     expect(run).toMatch(/set -uo pipefail/);
   });
 
-  it('prunes only under daily/, never the laptop’s manual pairs at the root', () => {
-    expect(run).not.toMatch(/rclone delete "BK:\$BUCKET\/?"\s/);
-    expect(run).toContain('--min-age "${RETENTION_DAYS}d"');
+  it('deletes from the bucket only through the retention rule — dailies at 60 days, manual pairs at 180', () => {
+    // backup/retention.sh names every pair it prunes and never touches a name
+    // it cannot date; a raw delete here would bypass all of it.
+    // (tests/parity/backup-retention.test.ts runs the rule itself.)
+    expect(run).not.toMatch(/rclone (delete|purge|deletefile)\b/);
+    expect(run).toContain('"$BACKUP_KEEP_DAILY_DAYS"');
+    expect(run).toContain('"$BACKUP_KEEP_MANUAL_DAYS"');
   });
 
   it('connects through the environment only — no URL is built anywhere', () => {
@@ -99,6 +105,8 @@ describe('backup/run.sh — the order of steps is the guarantee', () => {
     expect(df).toMatch(/^FROM postgres:18-/m);
     expect(df).toContain('postgresql-18-pgvector');
     expect(df).toContain('COPY tools/verify-restore.sh /app/verify-restore.sh');
+    expect(df).toContain('COPY backup/retention.sh /app/retention.sh');      // run.sh sources it from beside itself
+    expect(run).toContain('. "$(dirname "$0")/retention.sh"');
     expect(df).toMatch(/^USER postgres/m);
   });
 

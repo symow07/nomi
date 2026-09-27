@@ -37,10 +37,24 @@
 # RETRIES. Railway's public TCP proxy drops connections intermittently — the
 # 0025 migration needed three attempts on 2026-08-08. Each dump is retried up to
 # ATTEMPTS times. A dropped connection is not corruption; it is a retry.
+#
+# PRUNES THE FOLDER IT WRITES TO. At the end of a run that succeeded — never
+# after one that failed — pairs in <destination> older than 180 days are
+# removed (backup/retention.sh: dated by the UTC time in the name, by the
+# DATABASE's clock; never the pair just made, the newest pair, or a name with
+# no date in it; each one named as it goes). KEEP_ALL=1 keeps everything.
+# This is the only way a copy on this laptop ever goes: nothing prunes it
+# while no tool runs. The copies uploaded to the bucket root are pruned there
+# by the scheduled job (backup/run.sh), on the same rule and the same 180 days.
 set -uo pipefail
 
 ATTEMPTS="${ATTEMPTS:-4}"
 DEST="${1:-${BACKUP_DIR:-$HOME/nomi-backups}}"
+
+# The retention rule is read, never required: a missing copy of it costs the
+# prune at the end, never the backup.
+RETENTION_OK=""
+if [ -r "$(dirname "$0")/../backup/retention.sh" ] && . "$(dirname "$0")/../backup/retention.sh"; then RETENTION_OK=1; fi
 
 # NO SILENT HANGS. On 2026-09-22 the public proxy accepted connections and then
 # never answered, and a tool with no limits waits on that forever. libpq honours
@@ -140,6 +154,13 @@ if [ -z "$DBNAME" ] || [ -z "$SCHEMA_V" ] || [ -z "$RUNTIME_ROLE" ]; then
   echo "Nothing was written. Run it again." >&2
   exit 1
 fi
+# The prune at the end dates pairs by the DATABASE's clock: a laptop clock
+# that runs ahead would age every pair at once. This machine's clock only
+# measures the minutes until then. No answer here costs the prune, not the
+# backup.
+DB_EPOCH="$(pq 'select extract(epoch from now())::bigint' 2>/dev/null | tr -d ' ')"
+CLOCK_OFFSET=""
+case "$DB_EPOCH" in ''|*[!0-9]*) ;; *) CLOCK_OFFSET=$(( DB_EPOCH - $(date -u +%s) )) ;; esac
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 NAME="nomi-backup-$TS"
@@ -282,4 +303,22 @@ for k,v in {
     || fail "upload failed — the local pair is intact at $FINAL"
   echo "    uploaded $NAME/ to $RAILWAY_BUCKET"
   rclone ls "BK:$BK_NAME/$NAME/" 2>/dev/null | awk '{printf "      %-40s %s bytes\n", $2, $1}'
+  echo "    kept there ${BACKUP_KEEP_MANUAL_DAYS:-180} days: the scheduled job prunes older manual pairs, never the newest"
+fi
+
+# ── prune this folder ───────────────────────────────────────────────────────
+# Only here, after everything above succeeded. The backup is done whatever
+# happens next: a prune that cannot finish says so and still exits 0, so a
+# `backup.sh && deploy` chain is never stopped by housekeeping.
+echo
+if [ -n "${KEEP_ALL:-}" ] && [ "$KEEP_ALL" != "0" ]; then
+  echo "KEEP_ALL=$KEEP_ALL — nothing pruned in $DEST"
+elif [ -z "$RETENTION_OK" ]; then
+  echo "not pruning $DEST: backup/retention.sh was not found beside this script" >&2
+elif [ -z "$CLOCK_OFFSET" ]; then
+  echo "not pruning $DEST: the database did not say what time it is, and pairs are dated by its clock" >&2
+else
+  echo "pruning $DEST: pairs older than $BACKUP_KEEP_MANUAL_DAYS days go (KEEP_ALL=1 keeps them)"
+  prune_local "$DEST" "$BACKUP_KEEP_MANUAL_DAYS" "$(( $(date -u +%s) + CLOCK_OFFSET ))" "$NAME" \
+    || echo "    the backup above is complete; the prune did not finish and tries again next run" >&2
 fi
