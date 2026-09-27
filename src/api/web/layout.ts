@@ -750,6 +750,8 @@ const STYLE_PAGES = `
   .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:var(--space-4) 0; font-size:var(--font-size-small); }
   .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
   .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
+  /* M49 — a button is as wide as its word; a grid cell would stretch it to the card. */
+  .domform .btn { justify-self:start; }
   /* V1 type scale — the headline pill carries a sentence ("You can write first once these are in place"); at caption 13 it no longer fits beside the name on a 390 px phone, and a pill is nowrap by rule. Let the row wrap and let this one pill break, rather than push the page 7 px wider than the screen. */
   .ch-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-8); }
   .ch-h .pill { white-space:normal; }
@@ -859,10 +861,14 @@ const STYLE_PAGES = `
   .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-small); }
   .draft .held-then b { font-weight:600; }
   .revoke-note { margin:var(--space-8) 0 0; }
-  /* Who holds it, and handing it on. */
+  .draft .editform { margin-top:var(--space-16); }
+  /* Who holds it, and handing it on. The card a person holds is a column; its pill stays a pill. */
+  .takeover.owner > .pill { align-self:flex-start; }
   .why, .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
   .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
     margin-top:var(--space-12); font-size:var(--font-size-small); }
+  /* The name, the list of people and the button on one line where they fit: a select at the full width pushed its own button under it. */
+  .handto select, .as-hand select { width:auto; flex:1 1 12em; min-width:0; max-width:var(--measure-form); }
   /* M22 — a refusal is information, not an alarm: amber, like a disconnected
      channel. Something needs the owner, and nothing is broken. 0052 — a send
      nobody can account for is the same amber, with the words and two answers. */
@@ -903,6 +909,9 @@ const STYLE_PAGES = `
   .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
     margin-top:var(--space-12); font-size:var(--font-size-small); }
   .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
+  /* A quiet button on the sunk box would be the box's own colour: it lifts to the surface. */
+  .ctx .btn:not(.send):not(.danger) { background:var(--color-surface); box-shadow:var(--shadow-lift1); }
+  .ctx .btn:not(.send):not(.danger):hover { background:var(--color-border); }
   /* Three actions stay on one row: the destructive one belongs beside its alternatives. */
   @media (max-width:560px) { .acts .btn { padding-inline:12px; } }
 

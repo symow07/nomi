@@ -143,7 +143,8 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
     const h = html('en');
     const row = /<a class="buyer[^"]*" href="\/app\/inbox\/c-hers#latest">([\s\S]*?)<\/a>/.exec(h)?.[1] ?? '';
     expect(row).toMatch(/<div class="buyer-top"><span class="who">🇦🇪 <b><bdi>Buyer c-hers<\/bdi><\/b><span class="muted"> · /);
-    expect(row).toContain('<div class="buyer-d muted"><bdi>Vacuum cup · 500pcs · $2.40</bdi></div>');
+    // each part isolated, so Arabic cannot run a Latin name, a quantity and a price together
+    expect(row).toContain('<div class="buyer-d muted"><bdi>Vacuum cup</bdi> · <bdi>500pcs</bdi> · <bdi>$2.40</bdi></div>');
     expect(row).toContain('<div class="buyer-m voice" dir="auto"><bdi>last words of c-hers</bdi></div>');
     expect(row).toMatch(/<div class="buyer-t muted">Today 13:30 · /);
   });
@@ -207,6 +208,17 @@ describe('A · the groups and the tabs', () => {
     for (const c of PAGE.conversations) expect(h.split(`/app/inbox/${c.conversationId}#latest`).length - 1).toBe(1);
   });
 
+  it('with a team, the group a person here holds is the team\'s — not "you are handling" above a colleague\'s buyer', () => {
+    const owner: Person = { id: 'p-owner', name: 'Mrs Wang', isOwner: true };
+    const chen: Person = { id: 'p-chen', name: 'Xiao Chen', isOwner: false };
+    for (const l of LOCALES) {
+      const team = html(l, {}, [owner, chen]);
+      expect(team, l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.team')}</h2>`);
+      expect(team, l).not.toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.yours')}</h2>`);
+      expect(html(l), l).toContain(`<h2 class="bgroup-h">${shown(l, 'buyers.group.yours')}</h2>`);
+    }
+  });
+
   it('on the other tabs only the deletion group is headed', () => {
     const h = html('en', { filter: 'pending' });
     expect([...h.matchAll(/<h2 class="bgroup-h">/g)]).toHaveLength(1);
@@ -242,7 +254,7 @@ describe('A · the groups and the tabs', () => {
 
 describe('A · three languages, right to left', () => {
   it('every new sentence is its own in each language — nothing falls back to English', () => {
-    const keys = ['buyers.tabs', 'buyers.search.label', 'buyers.search.placeholder', 'buyers.search.go',
+    const keys = ['buyers.tabs', 'buyers.group.team', 'buyers.search.label', 'buyers.search.placeholder', 'buyers.search.go',
       'buyers.search.clear', 'buyers.search.found', 'buyers.search.none', 'buyers.search.noneBody',
       'buyers.page.nav', 'buyers.page.prev', 'buyers.page.next', 'buyers.page.position', 'conv.file.title', 'conv.notFound'];
     for (const k of keys) {

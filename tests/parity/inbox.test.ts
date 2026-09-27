@@ -296,7 +296,9 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
   it('renders in all locales; ar keeps its own words (nothing falls back to English)', () => {
     for (const l of LOCALES) expect(renderInboxList(mixed, l, NOW).length).toBeGreaterThan(200);
     const ar = renderInboxList(mixed, 'ar', NOW);
-    expect(ar).toContain('يحتاجون إليك'); expect(ar).toContain(shown('ar', 'buyers.badge.review'));
+    // V1 close-out — the heading is the tab's own noun phrase ("بحاجة إليك"): the
+    // verb it had ("يحتاجون") agreed with the buyers, which Arabic copy never does.
+    expect(ar).toContain('بحاجة إليك'); expect(ar).not.toContain('يحتاجون'); expect(ar).toContain(shown('ar', 'buyers.badge.review'));
     expect(ar).not.toContain('Needs you'); expect(ar).not.toContain(shown('en', 'buyers.badge.review'));
     const zh = renderInboxList(mixed, 'zh', NOW);
     expect(zh).toContain('需要你处理'); expect(zh).toContain(shown('zh', 'buyers.badge.review'));

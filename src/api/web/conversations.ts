@@ -258,16 +258,28 @@ const TL_CLASS: Record<MilestoneKind, string> = {
 const statusPill = (label: string, tone: Tone): string =>
   `<span class="pill ${tone}">${tone === 'warn' ? '● ' : ''}${esc(label)}</span>`;
 
-function milestoneText(locale: Locale, m: Milestone): string {
+/**
+ * One history line, as markup: the sentence in the page's language, and what
+ * it quotes — the buyer's words, a reply, the figures — isolated, so an
+ * English sentence or a price inside an Arabic line keeps its own order (the
+ * sentence and the words ran together, and an ellipsis landed at the wrong end).
+ */
+function milestoneHtml(locale: Locale, m: Milestone): string {
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
+  const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
+  /** The sentence escaped, with the quoted part put in — isolated — where its blank was. */
+  const said = (key: MessageKey, params: Record<string, string>, blank: string, part: string): string =>
+    esc(t(locale, key, { ...params, [blank]: '\u0000' })).replace('\u0000', part);
   switch (m.kind) {
-    case 'buyer_text': return t(locale, 'conv.tl.buyer_text', { text: m.text ?? '' });
-    case 'buyer_image': return t(locale, 'conv.tl.buyer_image');
-    case 'reply': return t(locale, 'conv.tl.reply', { name, text: m.text ?? '' });
-    case 'quote': return t(locale, 'conv.tl.quote', { name, detail: `${formatQty(locale, m.qty ?? 0)}${pcs} · ${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}` });
-    case 'order': return t(locale, 'conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? ''), qty: `${formatQty(locale, m.qty ?? 0)}${pcs}` });
-    default: return t(locale, `conv.tl.${m.kind}` as MessageKey);
+    case 'buyer_text': return said('conv.tl.buyer_text', {}, 'text', iso(m.text ?? ''));
+    case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
+    case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
+    case 'quote': return said('conv.tl.quote', { name }, 'detail',
+      [iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`), iso(`${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}`)].join(' · '));
+    case 'order': return said('conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? '') }, 'qty',
+      iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`));
+    default: return esc(t(locale, `conv.tl.${m.kind}` as MessageKey));
   }
 }
 
@@ -397,7 +409,7 @@ export function renderCustomerFile(
   const productsLabel = formatList(locale, p.products.map((pr) => productName(locale, pr)).filter((x): x is string => Boolean(x)));
   const profileRows = [
     p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(formatDate(locale, p.firstContact))}</b></div>` : '',
-    productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b>${esc(productsLabel)}</b></div>` : '',
+    productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b><bdi>${esc(productsLabel)}</bdi></b></div>` : '',
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${p.quoteCount}</b></div>` : '',
     p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${p.orderCount}</b></div>` : '',
   ].filter(Boolean).join('');
@@ -416,7 +428,7 @@ export function renderCustomerFile(
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
-          <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
+          <div><div class="tx">${milestoneHtml(locale, m)}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
         ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 
@@ -424,7 +436,12 @@ export function renderCustomerFile(
   const ctxParts = [
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
       `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${pr.sku ? `<span class="muted"> · ${esc(pr.sku)}</span>` : ''}`).join('<br>')}</div></div>` : '',
-    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${esc(formatQty(locale, ctx.latestQuote.qty))}${esc(pcs)} · ${esc(formatMoney(ctx.latestQuote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(ctx.latestQuote.total))}</div></div>` : '',
+    // Each figure isolated, so Arabic keeps quantity, price and total apart and in order.
+    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${[
+      `${formatQty(locale, ctx.latestQuote.qty)}${pcs}`,
+      `${formatMoney(ctx.latestQuote.unitPrice)}/${pcs}`,
+      `${t(locale, 'product.detail.total')} ${formatMoney(ctx.latestQuote.total)}`,
+    ].map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
     ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
       // G4 — the reference opens the order, so what she tells a buyer who asks
       // after it is one tap away.

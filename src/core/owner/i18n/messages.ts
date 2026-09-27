@@ -424,6 +424,7 @@ const EN = {
   // Nomi Phase D · Buyers — taking care of people, not viewing messages
   'buyers.group.needsYou': 'Needs you',
   'buyers.group.yours': 'You are handling',
+  'buyers.group.team': 'Your team is handling',
   'buyers.group.hers': '{name} is handling',
   'buyers.group.deletion': 'Asked for their data to be deleted',
   'buyers.badge.waiting': 'Asked for a person',
@@ -2573,6 +2574,7 @@ const ZH: Record<MessageKey, string> = {
   // Nomi Phase D · 买家
   'buyers.group.needsYou': '需要你处理',
   'buyers.group.yours': '你在处理',
+  'buyers.group.team': '团队在处理',
   'buyers.group.hers': '{name}在处理',
   'buyers.group.deletion': '要求删除数据的买家',
   'buyers.badge.waiting': '要求真人',
@@ -4597,7 +4599,7 @@ const AR: Record<MessageKey, string> = {
   'account.flash.wrong': 'هذه ليست كلمة مرورك الحالية.',
   'account.flash.short': 'يلزم {n} أحرف على الأقل.',
   'account.flash.failed': 'لم يتم ذلك. يُرجى المحاولة بعد دقيقة.',
-  'common.buyer': 'عميل',
+  'common.buyer': 'مشترٍ',
   // M16.2b · واجهة العمليات
   'ops.title': 'اليوم',
   'ops.attention.title': 'يحتاج انتباهك',
@@ -4643,8 +4645,9 @@ const AR: Record<MessageKey, string> = {
   'her.teach.asked': 'سُئل {count}×',
   'her.teach.go': 'تعليم {name}',
   // Nomi Phase D · المشترون
-  'buyers.group.needsYou': 'يحتاجون إليك',
+  'buyers.group.needsYou': 'بحاجة إليك',
   'buyers.group.yours': 'في عهدتك',
+  'buyers.group.team': 'في عهدة فريقك',
   'buyers.group.hers': 'في عهدة {name}',
   'buyers.group.deletion': 'طلبات حذف البيانات',
   'buyers.badge.waiting': 'طلب شخصاً حقيقياً',

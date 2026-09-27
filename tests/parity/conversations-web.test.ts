@@ -45,9 +45,10 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
   it('timeline milestones localize from neutral kinds; empty state honest', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
     expect(zh).toContain('沟通记录'); expect(zh).toContain('买家发来产品图片');
-    expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '5000个 · $0.92/个' })); expect(zh).toContain('你确认发送');
+    // V1 close-out — the figures are isolated, one each, so they keep their order in Arabic.
+    expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi>5000个</bdi> · <bdi>$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
-    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '5,000pcs · $0.92/pcs' }));
+    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
     expect(en).toContain('You approved sending');
     expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });
@@ -88,6 +89,11 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
     expect(html).toContain('maxlength="80"');
     // And a saved change is confirmed on the page she lands back on.
     expect(renderCustomerFile(file, 'zh', NOW, { text: '称呼已保存。', bad: false })).toContain('称呼已保存。');
+  });
+
+  it('a buyer\'s words inside a history line keep their own direction — isolated, and still escaped', () => {
+    const ar = renderCustomerFile({ ...file, timeline: [m({ kind: 'buyer_text', at: NOW, text: 'Price for 5,000 pcs?' })] }, 'ar', NOW);
+    expect(ar).toContain(`${t('ar', 'conv.tl.buyer_text', { text: '\u0000' }).split('\u0000')[0]}<bdi>Price for 5,000 pcs?</bdi>`);
   });
 
   it('escapes buyer text and messages (no XSS)', () => {
