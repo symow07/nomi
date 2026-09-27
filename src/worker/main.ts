@@ -17,7 +17,9 @@ import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
 import { assistantHold } from '../db/assistantStop.js';
-import { handToPerson, recordReceivedMessage, recordTypedMessage } from '../pipeline/received.js';
+import {
+  handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
+} from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
@@ -517,6 +519,18 @@ export async function startWorker(
       await boss.send(QUEUES.notify, {
         businessId, kind: 'dead_letter', conversationId: null,
       } satisfies NotifyJob, { singletonKey: `${businessId}:dead_letter:${name}` });
+      // 0077 — and a turn that gave up is a buyer nobody answered: a person
+      // does, told the way any hand-off is told (pipeline/received.ts). Only
+      // the queue that runs turns. After the operator's alert, so a hand-off
+      // that fails cannot silence it; it throws, and the dead letter retries.
+      if (name === QUEUES.inbound) {
+        const unanswered = unansweredIn(job.data);
+        if (unanswered) {
+          const effects = await withTenantTx(db, unanswered.businessId, (tx) =>
+            handOverUnanswered(tx, tenantRepos(tx, unanswered.businessId), unanswered));
+          await alertHandoff(unanswered.businessId, unanswered.conversationId, effects);
+        }
+      }
     });
   }
 
