@@ -107,7 +107,8 @@ d('CC-10 · errors are written down, and the operator hears of each once (requir
       throw Object.assign(new Error(`kaboom ${k} in run ${RUN}`), { name: boom(k) });
     });
     app.get('/test-secret', async () => {
-      throw Object.assign(new Error(`upstream said Bearer sk-live-${RUN}abcdef0123456789 password=hunter2 key ${SECRET_IN_ENV}`), { name: boom('Secret') });
+      // Fake values, shaped only enough to meet the patterns.
+      throw Object.assign(new Error(`upstream said Bearer fakebearer${RUN}0123456789 password=hunter2 key ${SECRET_IN_ENV}`), { name: boom('Secret') });
     });
     app.get('/test-refusal', async () => { throw Object.assign(new Error(`refused on purpose ${RUN}`), { statusCode: 400 }); });
     await app.ready();
@@ -156,7 +157,7 @@ d('CC-10 · errors are written down, and the operator hears of each once (requir
     for (const text of [s!.message, mailbox[2]!.text]) {
       expect(text).toContain('[redacted]');
       expect(text).not.toContain('hunter2');
-      expect(text).not.toContain(`sk-live-${RUN}`);
+      expect(text).not.toContain(`fakebearer${RUN}`);
       expect(text).not.toContain(SECRET_IN_ENV);
     }
   });

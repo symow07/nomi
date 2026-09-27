@@ -112,15 +112,16 @@ describe('what is kept of an error — nothing secret, nothing long', () => {
     appErrorEntry(new Error(message), 'web', { route }, { root: ROOT, knownSecrets });
 
   it('keys, tokens and passwords by their shape', () => {
+    // Every value here is FAKE, shaped only enough to meet the patterns.
     const m = entry([
-      'upstream said Bearer sk-live-abcdef0123456789abcdef',
-      'password=hunter2 api_key=AKIA1234567890',
+      'upstream said Bearer fakebearer0123456789abcdef',
+      'password=hunter2 api_key=notreal1234567890',
       'postgresql://nomi_app:s3cretPassw0rd@db.internal:5432/nomi',
-      'token: EAAGm0PX4ZCpsBAKZCZBabcdefghijklmnopqrst',
-      'jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N',
-      'key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX',
+      'token: EAAFAKEnotarealtoken0123456789abc',
+      'jwt eyJmYWtlIjoxfQ.eyJ0ZXN0Ijp0cnVlfQ.bm90LWEtc2lnbmF0dXJl',
+      'key sk-ant-FAKE-not-a-real-key-000000',
     ].join(' | ')).message;
-    for (const secret of ['sk-live-abcdef', 'hunter2', 'AKIA1234567890', 's3cretPassw0rd', 'EAAGm0PX4', 'dozjgNryP4J3', 'sk-ant-api03']) {
+    for (const secret of ['fakebearer', 'hunter2', 'notreal1234567890', 's3cretPassw0rd', 'EAAFAKE', 'bm90LWEtc2lnbmF0dXJl', 'sk-ant-FAKE']) {
       expect(m, secret).not.toContain(secret);
     }
     expect(m).toContain('[redacted]');
