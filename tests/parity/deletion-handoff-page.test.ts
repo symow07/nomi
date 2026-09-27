@@ -61,7 +61,8 @@ describe('0075 · the signal', () => {
     // The statements, not the comment that explains them.
     const sql = read(`migrations/${newest}`).split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
     expect(sql.match(/'deletion_requested'/g)).toHaveLength(2);
-    expect(sql).toMatch(/insert into _migrations \(version, name\) values \(75, 'deletion_handoff'\)/);
+    // …and 0075 itself is the migration that recorded 75 (0077 restates the CHECKs since).
+    expect(read('migrations/0075_deletion_handoff.sql')).toMatch(/insert into _migrations \(version, name\) values \(75, 'deletion_handoff'\)/);
     expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(75);
   });
 });
