@@ -310,15 +310,12 @@ describe('0076 · where no turn runs — stopped, paused, not on the list, an e-
 });
 
 /**
- * FOUND 2026-09-27, NOT A DELETION MATTER: the older request-for-a-person list
- * (`HUMAN_PHRASES` in src/core/scoring/detect.ts, ported from n8n) matches the
- * word "manager" anywhere, so "my account manager" hands the conversation to a
- * person — with the ORDINARY sentence, not silently, and nothing written
- * down. Reported to the owner; pinned here so a second such case cannot slip in.
+ * Found 2026-09-27: "my account manager" handed off — the request-for-a-person
+ * list matched "manager" anywhere. Fixed 2026-09-28 (the buyer's own manager is
+ * not a request for a person, src/core/scoring/detect.ts), so all 45 are now
+ * answered as usual, and none may hand off for ANY reason.
  */
-const HANDED_OFF_AS_A_REQUEST_FOR_A_PERSON = new Set(['Can you remove my account manager from the cc?']);
-
-describe('0076 · the 45 passing mentions, through the real turn: none is a deletion hand-off, none is written down', () => {
+describe('0076 · the 45 passing mentions, through the real turn: none hands off, none is written down', () => {
   for (const [lang, texts] of Object.entries(NOT_REQUESTS)) {
     for (const text of texts) {
       it(`${lang}: ${JSON.stringify(text)}`, async () => {
@@ -330,14 +327,9 @@ describe('0076 · the 45 passing mentions, through the real turn: none is a dele
         expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind), text).not.toContain('deletion_requested');
         expect(p.tenant.deletionAsksNoted, text).toEqual([]);
         expect(alertKindFor(fx), text).not.toBe('deletion_requested');
-        if (HANDED_OFF_AS_A_REQUEST_FOR_A_PERSON.has(text)) {
-          expect(r.decision.action.kind).toBe('handoff');
-          expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('human_requested');
-          expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
-        } else {
-          expect(r.decision.action.kind, text).not.toBe('handoff');
-          expect(fx.outbound?.reply, text).toBe('Noted.');
-        }
+        expect(r.decision.action.kind, text).not.toBe('handoff');
+        expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind), text).not.toContain('human_requested');
+        expect(fx.outbound?.reply, text).toBe('Noted.');
       });
     }
   }
