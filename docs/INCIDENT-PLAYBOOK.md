@@ -123,8 +123,9 @@ select flag, capability, business_id, set_at from ops_flags where cleared_at is 
   restore and you get a database with tenant isolation missing. Do not skip that
   document's verify block. After restore: reconcile `sending` rows (auto-reclaim),
   re-run parity spot checks.
-- No continuous archiving is configured — the recovery point is the age of the
-  last dump.
+- The recovery point from the dumps is the age of the newest pair (under a
+  day while the scheduled backup runs); PITR is on as well, restoring as a new
+  sibling service (`BACKUP-RESTORE.md`, "Point-in-time expectations").
 
 ### 4. Bad deploy
 - Rollback = redeploy the previous commit (**`DEPLOYMENT.md`**). Migrations are

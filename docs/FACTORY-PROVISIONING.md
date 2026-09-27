@@ -166,8 +166,11 @@ update channels set status='disconnected', disconnected_at=now() where business_
 update channel_credentials set is_active=false where business_id='<uuid>';
 ```
 
-Take a final backup (`BACKUP-RESTORE.md`) before any decommissioning, and keep
-it for as long as the factory's data-retention agreement requires.
+Take a final backup (`BACKUP-RESTORE.md`) before any decommissioning. Backups
+are pruned — manual pairs after 180 days, dailies after 60 — so if the
+factory's data-retention agreement requires that pair for longer, move it out
+of the prune's reach first (`BACKUP-RESTORE.md`, "How long copies are kept")
+and write down where it is and until when.
 
 ## Not built yet (deliberately)
 

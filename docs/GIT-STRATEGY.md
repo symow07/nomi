@@ -27,7 +27,7 @@ Solo-dev rules. Anything more ceremonial than this is theater.
 |---|---|---|
 | Code | **Push to a private remote after every session.** `git remote add origin <url> && git push -u origin main` | ⛔ **You: create the private GitHub repo.** Until this exists, the repo is one laptop failure from gone. |
 | Database schema | `migrations/` in git + Supabase's own migration history | done |
-| Database data | Supabase daily backups (free tier: 1 day; Pro: 7 days + PITR) | Pro tier at first paying tenant |
+| Database data | Railway (Supabase is gone): a daily dump kept 60 days, manual pairs kept 180 days, PITR — `BACKUP-RESTORE.md` | done |
 | n8n workflows | `n8n/*.json` in git (importable) | done |
 | Prompts | `prompts/` in git, hash-versioned per turn in `turns.prompt_version` | done |
 

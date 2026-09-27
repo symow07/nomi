@@ -10,8 +10,9 @@
 #             — a dump that does not restore is not uploaded
 #   3. encrypt with the age PUBLIC key (the private key never lives on Railway)
 #   4. upload to the bucket under daily/<name>/, then read the listing back
-#   5. prune  dailies older than RETENTION_DAYS (the laptop's manual pairs at the
-#             bucket root are never touched)
+#   5. prune  dailies older than 60 days, and the manual pairs tools/backup.sh
+#             leaves at the bucket root older than 180 — one rule for both,
+#             with both limits side by side in backup/retention.sh
 #   6. record a row in backup_runs (what the app's stale-backup alert reads),
 #             then ping the dead-man's switch
 #
@@ -27,8 +28,19 @@ set -uo pipefail
 
 : "${PGHOST:?}" "${PGPORT:?}" "${PGUSER:?}" "${PGPASSWORD:?}" "${PGDATABASE:?}"
 : "${AGE_RECIPIENT:?}" "${BUCKET:?}" "${ACCESS_KEY_ID:?}" "${SECRET_ACCESS_KEY:?}" "${ENDPOINT:?}"
-RETENTION_DAYS="${RETENTION_DAYS:-60}"
 PING="${BACKUP_PING_URL:-}"
+
+# How long copies are kept, and the rule that prunes them (step 5): one file,
+# shared with the laptop's tools. If it is missing the backup still runs — the
+# prune never stands between the database and a copy of it — and the run ends
+# as failed once the copy is safe and recorded, so somebody looks.
+RETENTION_OK=""
+if [ -r "$(dirname "$0")/retention.sh" ] && . "$(dirname "$0")/retention.sh"; then RETENTION_OK=1; fi
+# The limits are code now, reviewed like code. A service variable left over
+# from before is named, never obeyed.
+if [ -n "${RETENTION_DAYS:-}" ] && [ "$RETENTION_DAYS" != "${BACKUP_KEEP_DAILY_DAYS:-}" ]; then
+  echo "note: RETENTION_DAYS=$RETENTION_DAYS is set on this service and is not read — the limits are in backup/retention.sh" >&2
+fi
 PGBIN="${PGBIN:-/usr/lib/postgresql/18/bin}"
 export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-20}"
 
@@ -51,6 +63,12 @@ RUNTIME_ROLE="$("$PGBIN/psql" -tAc \
   "select rolname from pg_roles where rolname in ('nomi_app','yiwuflow_app') order by rolname limit 1" 2>/dev/null | tr -d ' ')"
 [ -n "$SERVER" ] && [ -n "$SCHEMA_V" ] && [ -n "$RUNTIME_ROLE" ] \
   || fail "could not read what to back up (server='$SERVER' schema='$SCHEMA_V' role='$RUNTIME_ROLE')"
+# The prune (step 5) dates pairs by the DATABASE's clock, not this
+# container's: a clock that ran ahead here would age every pair at once. This
+# container's clock only measures the minutes between now and step 5.
+DB_EPOCH="$("$PGBIN/psql" -tAc 'select extract(epoch from now())::bigint' 2>/dev/null | tr -d ' ')"
+CLOCK_OFFSET=""
+case "$DB_EPOCH" in ''|*[!0-9]*) ;; *) CLOCK_OFFSET=$(( DB_EPOCH - $(date -u +%s) )) ;; esac
 
 "$PGBIN/pg_dumpall" --roles-only -l "$PGDATABASE" -f "$STAGE/roles-$TS.sql" || fail "roles dump"
 grep -qE "CREATE ROLE $RUNTIME_ROLE([^a-zA-Z0-9_]|$)" "$STAGE/roles-$TS.sql" \
@@ -111,9 +129,28 @@ LISTED="$(rclone ls "BK:$BUCKET/daily/$NAME/" 2>/dev/null)"
 echo "$LISTED" | awk '{printf "      %-40s %s bytes\n", $2, $1}'
 
 # ── 5 · prune ───────────────────────────────────────────────────────────────
-echo "[5/6] pruning dailies older than $RETENTION_DAYS days"
-rclone delete "BK:$BUCKET/daily/" --min-age "${RETENTION_DAYS}d" || echo "    (prune skipped: $?)" >&2
-rclone rmdirs "BK:$BUCKET/daily/" --leave-root 2>/dev/null || true
+# Dailies after 60 days; the manual pairs tools/backup.sh leaves at the bucket
+# root after 180. One rule for both (backup/retention.sh): dated by the UTC
+# time in the name, whole pairs only, never a name it cannot date, never the
+# pair just uploaded, never the newest pair of its kind. A prune that cannot
+# finish does not stop the run here — the copy above is good and is recorded
+# first (step 6) — and the run then ends as failed, naming why.
+echo "[5/6] pruning: dailies older than ${BACKUP_KEEP_DAILY_DAYS:-?} days, manual pairs older than ${BACKUP_KEEP_MANUAL_DAYS:-?} days"
+PRUNE_PROBLEM=""
+PRUNE_SUMMARY="nothing pruned"
+if [ -z "$RETENTION_OK" ]; then
+  PRUNE_PROBLEM="backup/retention.sh is not beside run.sh in the image"
+elif [ -z "$CLOCK_OFFSET" ]; then
+  PRUNE_PROBLEM="could not read the database's clock to date the pairs by"
+else
+  NOW=$(( $(date -u +%s) + CLOCK_OFFSET ))
+  prune_bucket daily "BK:$BUCKET/daily/" "$BACKUP_KEEP_DAILY_DAYS" "$NOW" "$NAME" || PRUNE_PROBLEM="the dailies"
+  DAILY_PRUNED="$RETENTION_PRUNED"
+  prune_bucket manual "BK:$BUCKET/" "$BACKUP_KEEP_MANUAL_DAYS" "$NOW" \
+    || PRUNE_PROBLEM="${PRUNE_PROBLEM:+$PRUNE_PROBLEM and }the manual pairs"
+  PRUNE_SUMMARY="pruned $DAILY_PRUNED daily and $RETENTION_PRUNED manual pair(s)"
+fi
+if [ -n "$PRUNE_PROBLEM" ]; then echo "    THE PRUNE DID NOT FINISH: $PRUNE_PROBLEM" >&2; fi
 
 # ── 6 · record, then ping ───────────────────────────────────────────────────
 echo "[6/6] recording the run"
@@ -124,5 +161,8 @@ insert into backup_runs (name, taken_at, dump_bytes, sha256, schema_version, dri
 values (:'name', to_timestamp(:'taken', 'YYYYMMDD"T"HH24MISS"Z"') at time zone 'UTC', :'bytes'::bigint, :'sha', :'schema'::int, true, 'railway-cron');
 SQL
 
-ping ""
-echo "OK — $NAME: dumped, restored in a throwaway cluster, encrypted, uploaded, recorded."
+# The copy is safe and recorded; only now may a prune problem fail the run.
+[ -z "$PRUNE_PROBLEM" ] \
+  || fail "$NAME is uploaded and recorded, but the prune did not finish: $PRUNE_PROBLEM (see [5/6])"
+ping "" "$PRUNE_SUMMARY"
+echo "OK — $NAME: dumped, restored in a throwaway cluster, encrypted, uploaded, recorded; $PRUNE_SUMMARY."
