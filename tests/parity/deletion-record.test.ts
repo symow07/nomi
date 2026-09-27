@@ -247,7 +247,7 @@ describe('0076 · the table, its guard rails, and erasure', () => {
       expect(sql, verb).toContain(`'${verb}'`);
     }
     expect(sql).toMatch(/values \(76, 'deletion_asks'\)/);
-    expect(REQUIRED_SCHEMA_VERSION).toBe(76);
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(76);
   });
 
   it('erased with the buyer: it holds their conversation and their message', () => {

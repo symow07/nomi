@@ -1463,6 +1463,9 @@ const EN = {
   'takeover.reason.email_reply': 'an answer to your e-mail',
   // 0075 — "delete my data": a person answers, and nothing was said to the buyer.
   'takeover.reason.deletion_requested': 'the buyer asked for their data to be deleted',
+  // 2026-09-28 — the turn could not read its own answer about the message, or
+  // failed until it gave up: a person answers ("ambiguous means hand off").
+  'takeover.reason.not_answered': 'a message that could not be answered',
   // M34 — what happened, why, and what the owner does about it. Three reasons,
   // because the owner's next action genuinely differs: wait, ask for text, or
   // finish setting the installation up.
@@ -3567,6 +3570,7 @@ const ZH: Record<MessageKey, string> = {
   'takeover.reason.unlisted_number': '一个不在你名单上的号码',
   'takeover.reason.email_reply': '对你邮件的回复',
   'takeover.reason.deletion_requested': '买家要求删除自己的数据',
+  'takeover.reason.not_answered': '一条没能回复的消息',
   'unheard.title': '有条语音没听清',
   'unheard.what': '{name}收到一条语音，但没听清里面说了什么，所以没有回复。',
   'unheard.why.not_configured': '这里还不能听语音。',
@@ -5638,6 +5642,7 @@ const AR: Record<MessageKey, string> = {
   'takeover.reason.unlisted_number': 'رقم ليس في قائمتك',
   'takeover.reason.email_reply': 'ردّ على بريدك',
   'takeover.reason.deletion_requested': 'طلب المشتري حذف البيانات',
+  'takeover.reason.not_answered': 'رسالة تعذّر الردّ عليها',
   'unheard.title': 'رسالة صوتية تعذّر سماعها',
   'unheard.what': 'وصلت إلى {name} رسالة صوتية تعذّر تبيّن كلماتها، لذلك لم يُرسَل ردّ.',
   'unheard.why.not_configured': 'هذا التركيب لا يستطيع بعد الاستماع إلى الرسائل الصوتية.',

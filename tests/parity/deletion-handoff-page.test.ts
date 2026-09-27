@@ -56,7 +56,8 @@ describe('0075 · the signal', () => {
   it('migration 0075 admits it in both CHECKs, and the build requires 75', () => {
     const newest = readdirSync(`${ROOT}migrations`).filter((f) => f.endsWith('.sql')).sort()
       .filter((f) => read(`migrations/${f}`).includes('add constraint conversation_signals_kind_check')).pop();
-    expect(newest).toBe('0075_deletion_handoff.sql');
+    // 0075 first admitted it; any later migration that restates the CHECKs keeps it.
+    expect(Number(newest!.slice(0, 4))).toBeGreaterThanOrEqual(75);
     // The statements, not the comment that explains them.
     const sql = read(`migrations/${newest}`).split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
     expect(sql.match(/'deletion_requested'/g)).toHaveLength(2);
