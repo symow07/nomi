@@ -1,9 +1,9 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-27**, after #105 — a deletion request in chat is
-written down when it arrives and has its own alert (0076), on top of #102's
-silent hand-off (0075). Written so the next session needs nothing from the one
-that wrote it.
+Last updated **2026-09-28**, after #107 — "wants a person" no longer fires on
+the buyer's own manager; before it, #105 wrote a deletion request down when it
+arrives (0076) on top of #102's silent hand-off (0075). Written so the next
+session needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -100,7 +100,8 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `0c8e0ac` (merge of #105, the deletion record, 0076).
+- **Deployed:** `09fd109` (merge of #107, "wants a person" split by whose
+  manager it is; no migration). Before it `0c8e0ac` (#105, 0076).
   `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
   production `schema_version` = **76**; no business is stopped and no silence
   flag is on; exactly one business has `outreach_area` on. Backup before
@@ -139,6 +140,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 107 | **"Wants a person": the buyer's own manager is not a request for a person** — see §5 rule 19; plus the usability seed's freshest conversation is always today's (the Monday-00:12 flake) |
+| 106 | CLAUDE.md handoff |
 | 105 | **The deletion request is written down when it arrives, and has its own alert** (0076) — see §5 rule 18 |
 | 104 | CLAUDE.md: the corpus holds 43 requests, not 50 |
 | 103 | CLAUDE.md handoff |
@@ -261,7 +264,11 @@ Recent PRs, newest first:
    - **0076 — written down when it arrives** (`src/db/deletionAsks.ts`, table `deletion_asks`). The hand-off writes the buyer, the conversation, the message that asked and its time, in the turn's transaction, whoever holds the conversation — and on the paths where no turn runs (stopped, paused, unlisted number, e-mail reply: `handToPerson(…, said)`). The REMINDER, never the action: `erase-buyer` acts only on an open `deletion_requests` row. One waiting per buyer: a repeat is counted (`asks`), the first time kept; after the owner recorded one, nothing new is noted. The owner decides on the buyer's page: record it (no note; `asked_at` = when the buyer asked) or "not a deletion request" (`deletion_dismissed` on the audit trail). Handing back clears the hand-off's reason, never this row.
    - **Its own alert** `deletion_requested` — never the generic hand-off's — sent when a request is new or the conversation was handed over because of one; delivered like the operator alerts (e-mail to the sign-in address always, WhatsApp where live; `goesByMail`). It names no deadline: the only one stored is Nomi's 30 days, which starts when the owner records it and is shown there.
    - **Its own thing wherever hand-offs are listed:** the conversation card stays while it waits (with the date); the Buyers list leads with a headed group and a `filter=deletion` tab; Today's second attention row (under "did not reach the buyer"); Your data lists it first. The erasure tools erase it with the buyer (`deletion_asks: erase`).
-   - Found, not fixed (the owner's to decide): the older request-for-a-person list (`HUMAN_PHRASES`, detect.ts, ported from n8n) matches "manager" anywhere — "Can you remove my account manager from the cc?" is handed to a person with the ORDINARY sentence. Pinned in the turn tests.
+   - The "account manager" exception (one of the 45 passing mentions handed off by the "wants a person" list) is gone since #107: all 45 are answered as usual, and the turn test now demands it.
+19. **"Wants a person" — "manager" split by whose it is** (the owner's decision, 2026-09-28; `asksForPerson`, `src/core/scoring/detect.ts`).
+   - The buyer's own — "my / our … manager" (≤ 2 words between, never "your / to / with / for"), "I'm the … manager", "the … manager at / of my / our" — is NOT a hand-off. Every other mention still is, including the ambiguous "the manager approved it": a missed hand-off loses a buyer, a wrong one costs the owner a minute — that asymmetry decides close calls.
+   - "Someone in charge" / "the person in charge" / "your person in charge" hand off (added: the owner named it as the seller's side), unless "… in charge at / of my / our …".
+   - Reported, NOT changed (the owner's to decide), pinned in `tests/parity/person-request.test.ts`: own-side hand-offs from 'speak to someone', 'speak to a person', 'call me' ("you can call me Ahmed"), 'real person', 'التحدث مع شخص', '找真人'; other meanings: 'human' (human hair), 'اريد احد' (inside «احدث»), '找人工' (labour cost); misses: 'talk to someone', 'speak with a person', Arabic typed with the hamza («أريد أحدًا»), and no Chinese or Arabic word for a manager at all ("我要找你们经理", «أريد التحدث مع مديركم» never hand off).
 
 ## 6 · What's next
 
@@ -351,6 +358,7 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - The personal address removed from `docs/legal/PRIVACY-zh.md` stays in git history — the owner chose not to rewrite history (open PRs; the address is public on served pages).
 - Manual backups prune after 180 days (#99). Open: the pre-0026 backups that BACKUP-RESTORE.md once said "do not prune" will go from about 2027-02-04 unless moved out of the bucket root — the owner's call. PITR keeps ~4 weeks (Railway: last 4 weekly full backups); Railway volume-backup retention was not checked (not visible to the tools).
 - **Deletion requests in chat → a person, nothing sent** — the owner chose NOTHING (no receipt, no acknowledgment); built and deployed as #102 (§5 rule 18).
+- **"Wants a person": the buyer's own manager is not a hand-off** (#107, rule 19). The other words' problems were reported and left for the owner.
 - **…written down when the hand-off fires, with its own alert** (#105). Claude's calls, reported: a repeat while one waits REUSES it (counted; the first time is when it was received); a waiting request shows on Today (second row); the alert names no date (none is stored before the owner records it).
 
 **Parked / owner's to unblock**
