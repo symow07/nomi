@@ -10,6 +10,7 @@ import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { setupFrom, SETUP_STEPS, NOTHING_DONE } from '../../src/db/setup.js';
 import { t, messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { withSheets } from './linked-css.js';
 
 /**
  * D — the drawer split (docs/IA-PROPOSAL.md §D, decided 2026-09-21).
@@ -96,8 +97,10 @@ describe('D · the Setup count', () => {
   });
 
   it('the count is a figure in secondary ink, not a state colour', () => {
-    const html = page('/app', facts());
+    // V1 close-out — the rule is in the sheet the page links.
+    const html = withSheets(page('/app', facts()));
     const rule = html.match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
+    expect(rule, 'the rule is found').not.toBe('');
     expect(rule).toContain('var(--color-ink-secondary)');
     expect(rule).not.toMatch(/warn|jade|ok|waiting/);
   });

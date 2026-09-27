@@ -3,6 +3,10 @@ import { usd } from '../../src/core/types/money.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { shell, loginPage } from '../../src/api/web/layout.js';
 import { renderProof, notFoundPage, type ProofView } from '../../src/api/web/proof.js';
+import { renderSite } from '../../src/api/web/site.js';
+import { renderPrivacy } from '../../src/api/web/legal.js';
+import { DEFAULT_PROCESSOR, HOSTING } from '../../src/core/legal/processors.js';
+import { sheetLinks, linkedCss } from './linked-css.js';
 
 /**
  * M35.2 — DOES THE STYLESHEET PARSE?
@@ -32,9 +36,15 @@ const PROOF: ProofView = {
   issuedAt: new Date('2026-08-12T02:00:00Z'), locale: 'en',
 };
 
-/** Every <style> block in a document, in order. */
-const stylesheets = (html: string): string[] =>
-  [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1] ?? '');
+/**
+ * Every stylesheet a document is drawn with, in order: its inline blocks, if
+ * any, and — since the V1 close-out, where they all are — the sheets it links,
+ * read through the function the route serves them with.
+ */
+const stylesheets = (html: string): string[] => [
+  ...[...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1] ?? ''),
+  ...sheetLinks(html).map((href) => linkedCss(`<link rel="stylesheet" href="${href}">`)),
+];
 
 /**
  * Strip comments and quoted strings so a brace or a colon inside them cannot be
@@ -82,6 +92,9 @@ const DOCUMENTS: readonly (readonly [string, string])[] = [
   ['the proof page', renderProof(PROOF)],
   ['the proof page, RTL', renderProof({ ...PROOF, locale: 'ar' })],
   ['the proof 404', notFoundPage()],
+  ['the site', renderSite({ locale: 'en', path: '/site', contact: null, signIn: '/login', noindex: true })],
+  ['the site, RTL', renderSite({ locale: 'ar', path: '/site', contact: null, signIn: '/login', noindex: true })],
+  ['a legal page', renderPrivacy('en', null, { processor: DEFAULT_PROCESSOR, hosting: HOSTING })],
 ];
 
 describe('M35.2 · every stylesheet we emit is valid CSS', () => {
@@ -95,6 +108,8 @@ describe('M35.2 · every stylesheet we emit is valid CSS', () => {
   it.each(DOCUMENTS)('%s: braces balance and no :root is nested', (_name, html) => {
     const sheets = stylesheets(html);
     expect(sheets.length, 'this document emits no stylesheet at all').toBeGreaterThan(0);
+    // a link the route does not know would be a page drawn with nothing
+    for (const css of sheets) expect(css.length, 'a linked sheet the route does not serve').toBeGreaterThan(0);
     for (const css of sheets) {
       const a = analyse(css);
       expect(a.balance, 'a rule is left open — the browser discards the rest').toBe(0);
@@ -143,13 +158,32 @@ describe('M36.0 · no template literal is terminated by a stray backtick', () =>
     'src/api/web/onboarding.ts', 'src/api/web/priceRules.ts', 'src/api/web/factory.ts',
   ];
 
-  it.each([...new Set(RENDERERS)])('%s: no backtick inside a CSS comment', async (file) => {
+  /**
+   * Where CSS is written in a source: a `<style>` block, or — since the V1
+   * close-out, where the rules all are — a stylesheet constant (`const STYLE =
+   * \`…`, `PROOF_CSS`, `SITE_CSS`…), which runs from its opening backtick to a
+   * line that is only the closing one. That end is found by the line, not by
+   * the next backtick, so a stray backtick in a comment cannot hide itself.
+   */
+  const cssRegions = (src: string): string[] => [
+    ...[...src.matchAll(/<style[\s\S]*?<\/style>/g)].map((m) => m[0]),
+    ...[...src.matchAll(/^(?:export )?const [A-Z_]*(?:STYLE|CSS)[A-Z_]* = `([\s\S]*?)^`;/gm)].map((m) => m[1]!),
+  ];
+
+  it('finds the stylesheet constants it is meant to search', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const layout = await readFile(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+    expect(cssRegions(layout).length, 'STYLE, STYLE_PAGES, the door, the public document, the switch').toBeGreaterThanOrEqual(5);
+    const proof = await readFile(new URL('../../src/api/web/proof.ts', import.meta.url), 'utf8');
+    expect(cssRegions(proof).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each([...new Set([...RENDERERS, 'src/api/web/site.ts'])])('%s: no backtick inside a CSS comment', async (file) => {
     const { readFile } = await import('node:fs/promises');
     const src = await readFile(new URL(`../../${file}`, import.meta.url), 'utf8');
     const offenders: string[] = [];
-    // CSS comments only exist meaningfully inside the <style> blocks we emit.
-    for (const m of src.matchAll(/<style[\s\S]*?<\/style>/g)) {
-      for (const c of m[0].matchAll(/\/\*[\s\S]*?\*\//g)) {
+    for (const region of cssRegions(src)) {
+      for (const c of region.matchAll(/\/\*[\s\S]*?\*\//g)) {
         if (c[0].includes('`')) offenders.push(c[0].slice(0, 90).replace(/\s+/g, ' '));
       }
     }

@@ -4,6 +4,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
+import { createHash } from 'node:crypto';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -288,7 +289,7 @@ ${LANGSW_CSS}
      Three of them (the rate, the closures, the samples) referenced these
      classes while emitting no rule for them, so their fields rendered as
      inline labels strung across the page — the same failure as a renderer
-     reaching for a token nobody emits, and invisible to every test that reads
+     reaching for a variable nobody emits, and invisible to every test that reads
      strings rather than boxes. Caught by a screenshot. */
   .pform { display:flex; flex-direction:column; gap:var(--space-16);
            max-width:var(--measure-form); margin-top:var(--space-12); }
@@ -995,22 +996,50 @@ const STYLE_PAGES = `
 `;
 
 /**
- * V1 step four — the ONE public document: the legal pages, the unsubscribe
- * page and the proof page stand outside the owner's shell (no nav, no
- * session). Same tokens, one stylesheet, a page's own rules passed in — so a
- * second hand-rolled palette cannot drift.
+ * V1 close-out (2026-09-28) — THE STYLESHEETS ARE FILES.
+ *
+ * Every page used to carry the whole stylesheet inside itself: an owner page
+ * was about sixty kilobytes of markup of which half was the same rules, sent
+ * again on every tap, on a phone. Each stylesheet is now served once, at an
+ * address named by its content (`/assets/app.<hash>.css`), and kept by the
+ * browser for good: a change to a rule is a new hash, so a new address, so
+ * nobody is ever served yesterday's rules under today's page. No page carries
+ * a stylesheet of its own; the count the one-stylesheet test keeps is zero.
+ *
+ * TWO SHEETS, the same split as before: the shell's (the base rules and
+ * every page's section) and the door's (the base rules and the door's own —
+ * the login, sign-up, code and error pages). The public document below keeps
+ * its rules inside itself, on purpose; it says why.
+ *
+ * An address from an EARLIER build (a page drawn before a deploy, its sheet
+ * not yet fetched) is answered with this build's rules, but not kept: only
+ * the exact address is kept for good.
  */
-export function publicDocument(input: {
-  readonly locale: Locale; readonly title: string; readonly body: string;
-  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
-  /** Phase 5 — the site: a search-result line, and the mark in the tab. */
-  readonly description?: string; readonly icon?: boolean;
-}): string {
-  return `<!doctype html>
-<html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
-${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>
+export type Stylesheet = { readonly name: string; readonly href: string };
+
+const SHEETS = new Map<string, { readonly css: string; readonly hash: string }>();
+
+/** Register a stylesheet under its name; its address carries the hash of its rules. */
+function sheet(name: string, css: string): Stylesheet {
+  const hash = createHash('sha256').update(css).digest('hex').slice(0, 16);
+  SHEETS.set(name, { css, hash });
+  return { name, href: `/assets/${name}.${hash}.css` };
+}
+
+/**
+ * The rules an address under `/assets/` names, for the route that serves them:
+ * `current` when it is this build's own address, which may then be kept for good.
+ */
+export function stylesheetAt(file: string): { readonly css: string; readonly current: boolean } | null {
+  const m = /^([a-z]+)\.([0-9a-f]{16})\.css$/.exec(file);
+  const s = m ? SHEETS.get(m[1]!) : undefined;
+  return m && s ? { css: s.css, current: s.hash === m[2] } : null;
+}
+
+const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
+
+/** The public document's base rules: the same tokens, a reading page on paper. */
+const PUBLIC_STYLE = `
 ${cssVariables()}
   * { box-sizing:border-box; }
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
@@ -1026,10 +1055,39 @@ ${cssVariables()}
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
            border-radius:var(--radius-card); background:var(--color-jade);
            color:var(--color-surface); cursor:pointer; }
-${input.extraCss ?? ''}
+`;
+
+/**
+ * V1 step four — the ONE public document: the legal pages, the unsubscribe
+ * page, the proof page and the site stand outside the owner's shell (no nav,
+ * no session). Same tokens, one stylesheet, a page's own rules passed in — so
+ * a second hand-rolled palette cannot drift.
+ *
+ * V1 close-out — THE ONE PAGE FAMILY THAT KEEPS ITS RULES INSIDE ITSELF, on
+ * purpose. A stranger opens these from an e-mail, a Page or a forwarded link,
+ * often after a mail scanner or a platform's crawler has fetched the address
+ * and nothing else; each must arrive complete, with nothing more to fetch —
+ * no script, no stylesheet, no font (legal-pages.test.ts and
+ * m40-unsubscribe.test.ts hold it). A cached file saves an owner who opens
+ * sixty pages a day; it saves nothing for someone who opens one page once.
+ */
+export function publicDocument(input: {
+  readonly locale: Locale; readonly title: string; readonly body: string;
+  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+  /** Phase 5 — the site: a search-result line, and the mark in the tab. */
+  readonly description?: string; readonly icon?: boolean;
+}): string {
+  return `<!doctype html>
+<html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
+${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }
+
+/** The shell's sheet: the base rules and every page's section. */
+const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 
 /**
  * A7 — WHICH of the four is lit, for a page that is not one of the four.
@@ -1135,7 +1193,7 @@ export function shell(input: {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(name)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}${STYLE_PAGES}</style></head>
+${linkTo(APP_SHEET)}</head>
 <body><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
@@ -1189,12 +1247,15 @@ const DOOR_STYLE = `
   .login .foot { text-align:center; font-size:var(--font-size-caption); }
 `;
 
+/** The door's sheet: the base rules and the door's own — never the pages' sections. */
+const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
+
 const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}${DOOR_STYLE}</style></head>
+${linkTo(DOOR_SHEET)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>

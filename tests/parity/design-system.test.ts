@@ -8,6 +8,7 @@ import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { computeQuote } from '../../src/core/commerce/quote.js';
 import { product, tiers, policy } from './fixtures.js';
+import { withSheets, linkedCss } from './linked-css.js';
 
 /**
  * M2 — the design system, enforced. Exit criterion: any five surfaces look
@@ -102,9 +103,11 @@ describe('M2 · budgets are tokens', () => {
  * ones that are genuinely about the object: that its status vocabulary matches
  * `STATUS`, and that the emitter derives rather than transcribes.
  */
-const page = shell({
+// V1 close-out — the stylesheet is a file the shell links; the page as the
+// browser has it is the markup and the rules it links.
+const page = withSheets(shell({
   title: 'T', active: 'home', locale: 'en', path: '/app', avatar: '👩', bodyHtml: '<p>body</p>',
-});
+}));
 
 /** The shell minus the generated token block — i.e. everything hand-written. */
 const handWritten = page.replace(cssVariables(), '');
@@ -130,7 +133,7 @@ describe('M30 · the rendered shell IS the design system', () => {
   });
 
   it('the login page obeys the same rule — it shares the shell stylesheet', () => {
-    const login = loginPage({ locale: 'en', path: '/login' }).replace(cssVariables(), '');
+    const login = withSheets(loginPage({ locale: 'en', path: '/login' })).replace(cssVariables(), '');
     const strays = login.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
     expect(strays, `hardcoded colour(s) in login: ${strays.join(', ')}`).toEqual([]);
   });
@@ -183,7 +186,7 @@ describe('M30 · the emitter derives, it does not transcribe', () => {
  * renderers actually put speech inside.
  */
 describe('M30 · two voices — a person is serif, the product is sans', () => {
-  const css = page.match(/<style>([\s\S]*?)<\/style>/)![1]!;
+  const css = linkedCss(page);
   /** Selectors of every rule that sets the voice family. */
   const voiced = [...css.matchAll(/([^{}]+)\{[^}]*font-family:\s*var\(--font-voice\)/g)]
     .flatMap((m) => m[1]!.split(',').map((s) => s.trim()));

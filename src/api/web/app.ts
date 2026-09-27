@@ -125,7 +125,9 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS } from './layout.js';
+import {
+  shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, stylesheetAt,
+} from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -357,6 +359,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
+  { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -915,6 +918,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(renderDataDeletion(localeOf(req), deps.legalContact ?? null)));
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
+
+  // ── The stylesheets (V1 close-out) ─────────────────────────────────────
+  // Named by their content, so this build's own address is kept by a browser
+  // for good; an address from an earlier build gets this build's rules, not
+  // kept. Anything else is not found. Public: the door needs its rules before
+  // anyone has signed in, and they are the same text for everyone.
+  app.get('/assets/:file', async (req, reply) => {
+    const found = stylesheetAt((req.params as { file: string }).file);
+    if (!found) return reply.callNotFound();
+    return reply
+      .header('cache-control', found.current ? 'public, max-age=31536000, immutable' : 'no-cache')
+      .header('x-content-type-options', 'nosniff')
+      .type('text/css; charset=utf-8')
+      .send(found.css);
+  });
 
   // ── Auth ────────────────────────────────────────────────────────────────
   // Phase 5 — on a site host, `/` is the site; everywhere else it is the door.
