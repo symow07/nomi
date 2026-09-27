@@ -34,6 +34,13 @@ export const QUEUES = {
    */
   backups: 'ops.backups',
   /**
+   * CC-02a — the once-a-day look at deletion requests: is any open one within
+   * seven days of its thirty, or past them? Only the question and the
+   * operator alert; the deletion itself is carried out by hand
+   * (docs/DATA-DELETION-RUNBOOK.md).
+   */
+  deletions: 'ops.deletions',
+  /**
    * CC-10 — every five minutes: the error alert the hourly limit held back,
    * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
    * where they happen; this only makes sure a held one is not forgotten when
@@ -50,6 +57,8 @@ export const QUEUES = {
 
 export type SequenceSweepJob = { businessId: string };
 export type BackupWatchJob = { businessId: string };
+/** The business whose owner runs this installation — the alert goes to them. */
+export type DeletionWatchJob = { businessId: string };
 export type ErrorSweepJob = { businessId: string };
 export type HeartbeatJob = Record<string, never>;
 
@@ -133,10 +142,16 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'app_error';
+  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
+  /**
+   * `deletion_due` only: the open requests within seven days of their thirty,
+   * or past them — whose, which kind, asked when (ISO), and whether already
+   * late when the check ran. Never the buyer and never the note.
+   */
+  deletionsDue?: { business: string; scope: 'workspace' | 'buyer'; askedAt: string; overdue: boolean }[];
   /** `app_error` only (CC-10): what went wrong, as `app_errors` holds it. */
   appError?: AppErrorAlertJob;
 };

@@ -62,7 +62,13 @@ describe('Legal pages · what a stranger may read', () => {
     expect(renderPrivacy('zh', null, FACTS)).toContain('href="/terms"');
     expect(renderDataDeletion('zh', null)).toContain('href="/privacy"');
     expect(renderLegalTerms('zh', null)).toContain('href="/privacy"');
-    for (const { html } of pages(null)) expect(html('en')).toContain(esc(t('en', 'legal.updated')));
+    // The terms keep their own date; privacy and deletion changed together
+    // (CC-02a) and carry theirs — a date that moved with no change to the
+    // terms would read as a change to them.
+    expect(renderLegalTerms('en', null)).toContain(esc(t('en', 'legal.updated')));
+    for (const h of [renderPrivacy('en', null, FACTS), renderDataDeletion('en', null)]) {
+      expect(h).toContain(esc(t('en', 'legal.updated.privacy')));
+    }
   });
 
   it('the terms are the business\'s, and say the people who write in are not bound by them', () => {
@@ -76,16 +82,16 @@ describe('Legal pages · what a stranger may read', () => {
     // DELETE on any table (migration 0005 and seven `revoke delete` since), so
     // nothing in the product can remove a record. What the page may promise is
     // therefore what a person does — and it must say so out loud.
+    // CC-02a — that person is Nomi's operator, and the step is step 3; the
+    // whole page is held by tests/parity/deletion-page.test.ts.
     for (const l of LOCALES) {
-      expect(t(l, 'legal.deletion.step2'), `${l} must keep the window`).toContain('30');
+      expect(t(l, 'legal.deletion.step3'), `${l} must keep the window`).toContain('30');
     }
-    expect(t('en', 'legal.deletion.step2')).toMatch(/person|by hand/i);
-    expect(t('en', 'legal.deletion.step2')).toContain('this product deletes nothing on its own');
+    expect(t('en', 'legal.deletion.step3')).toMatch(/by hand/i);
     // …and must not say the product does it, in any language.
-    expect(t('en', 'legal.deletion.step2')).not.toMatch(/are removed from Nomi/i);
-    expect(t('zh', 'legal.deletion.step2')).toContain('手动');
-    expect(t('zh', 'legal.deletion.step2')).toContain('产品本身不会自己删掉');
-    expect(t('ar', 'legal.deletion.step2')).toContain('يدويًا');
+    expect(t('en', 'legal.deletion.step3')).not.toMatch(/are removed from Nomi/i);
+    expect(t('zh', 'legal.deletion.step3')).toContain('手动');
+    expect(t('ar', 'legal.deletion.step3')).toContain('يدويًا');
   });
 });
 

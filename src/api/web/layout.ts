@@ -352,6 +352,9 @@ ${LANGSW_CSS}
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* CC-25 — a link into a transcript lands on its newest message: clear of the
+     sticky phone nav, with the message before it still in view. */
+  #latest { scroll-margin-top:25vh; }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on

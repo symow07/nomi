@@ -31,7 +31,13 @@ const contact = (l: Locale, email: string | null): string => `
   ${email ? `<p>${esc(t(l, 'legal.contact.write'))} <a href="mailto:${esc(email)}">${esc(email)}</a>.</p>` : ''}
   <p>${esc(t(l, 'legal.contact.same'))}</p>`;
 
-const updated = (l: Locale): string => `<p class="updated">${esc(t(l, 'legal.updated'))}</p>`;
+/**
+ * When the page last changed. The terms keep their own date: a date that moved
+ * with no change to the terms would read as a change to them. The privacy and
+ * deletion pages changed together (CC-02a) and share theirs.
+ */
+const updated = (l: Locale, key: 'legal.updated' | 'legal.updated.privacy' = 'legal.updated'): string =>
+  `<p class="updated">${esc(t(l, key))}</p>`;
 
 /**
  * Everything the legal pages must state about where a buyer's words go. Passed
@@ -68,7 +74,7 @@ export function renderPrivacy(l: Locale, email: string | null, facts: LegalFacts
     ${section('legal.privacy.choices.title', 'legal.privacy.choices.body')}
     <p><a href="/data-deletion">${esc(t(l, 'legal.privacy.deletionLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
     ${contact(l, email)}
-    ${updated(l)}`);
+    ${updated(l, 'legal.updated.privacy')}`);
 }
 
 /**
@@ -95,17 +101,52 @@ export function renderLegalTerms(l: Locale, email: string | null): string {
     ${updated(l)}`);
 }
 
+/**
+ * CC-02a — what actually happens when a buyer asks, and nothing more.
+ *
+ * The page used to promise that "a person at the business" removes the
+ * records by hand within 30 days and tells the buyer "on the same channel".
+ * None of it was true: the business could not record the request, nothing
+ * counted the days, and nothing told anyone. Every sentence here now names a
+ * step the product or its operator performs:
+ *
+ *   HOW — the buyer asks the business (or writes to the legal address, and
+ *   the operator passes it on); the business records it on the buyer's page
+ *   (`askBuyerDeletion`); Nomi's operator carries it out by hand within 30
+ *   days of that (docs/DATA-DELETION-RUNBOOK.md), told a week ahead by the
+ *   daily check (`deletionDueAlert`); the business then sees it marked done
+ *   and can tell the buyer. Nothing writes to the buyer by itself, and the
+ *   page says so rather than leaving it to be assumed.
+ *
+ *   WHAT IS DELETED and WHAT IS KEPT — the operator's contract, item by item,
+ *   including the copies no deletion inside Nomi reaches (Meta's, the
+ *   business's own mailbox, the service's backups).
+ *
+ * tests/parity/deletion-page.test.ts holds every one of these in all three
+ * languages, and holds the old promises out.
+ */
 export function renderDataDeletion(l: Locale, email: string | null): string {
+  const k = (key: string) => esc(t(l, key as Parameters<typeof t>[1]));
+  const list = (keys: readonly string[]) => keys.map((x) => `<li>${k(x)}</li>`).join('');
   return SHELL(l, t(l, 'legal.deletion.title'), `
-    <h1>${esc(t(l, 'legal.deletion.title'))}</h1>
-    <p>${esc(t(l, 'legal.deletion.intro'))}</p>
+    <h1>${k('legal.deletion.title')}</h1>
+    <p>${k('legal.deletion.intro')}</p>
+    <h2>${k('legal.deletion.how.title')}</h2>
     <ol>
-      <li>${esc(t(l, 'legal.deletion.step1'))}</li>
-      <li>${esc(t(l, 'legal.deletion.step2'))}</li>
-      <li>${esc(t(l, 'legal.deletion.step3'))}</li>
+      <li>${k('legal.deletion.step1')}${email ? `<br>${k('legal.deletion.viaUs')}` : ''}</li>
+      ${list(['legal.deletion.step2', 'legal.deletion.step3', 'legal.deletion.step4'])}
     </ol>
-    <p>${esc(t(l, 'legal.deletion.revoked'))}</p>
+    <h2>${k('legal.deletion.erased.title')}</h2>
+    <ul>${list([
+      'legal.deletion.erased.identity', 'legal.deletion.erased.messages', 'legal.deletion.erased.prepared',
+      'legal.deletion.erased.notes', 'legal.deletion.erased.conversations',
+    ])}</ul>
+    <h2>${k('legal.deletion.kept.title')}</h2>
+    <ul>${list([
+      'legal.deletion.kept.orders', 'legal.deletion.kept.doNotContact', 'legal.deletion.kept.record',
+      'legal.deletion.kept.meta', 'legal.deletion.kept.elsewhere', 'legal.deletion.kept.backups',
+    ])}</ul>
     ${contact(l, email)}
-    <p><a href="/privacy">${esc(t(l, 'legal.privacyLink'))}</a> · <a href="/terms">${esc(t(l, 'legal.termsLink'))}</a></p>
-    ${updated(l)}`);
+    <p><a href="/privacy">${k('legal.privacyLink')}</a> · <a href="/terms">${k('legal.termsLink')}</a></p>
+    ${updated(l, 'legal.updated.privacy')}`);
 }

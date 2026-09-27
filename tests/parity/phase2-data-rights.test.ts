@@ -247,13 +247,17 @@ describe('the follow-ups · a request reaches a person, and the page states a ti
   });
 
   it('/data-deletion COMMITS to 30 days, in all three languages', () => {
+    // CC-02a — the step that carries the date is now the operator's (step 3),
+    // and the date runs from the business RECORDING the request: that is the
+    // moment the row, and so the clock, exists. tests/parity/deletion-page
+    // holds the rest of the page.
     for (const locale of LOCALES) {
-      expect(messages[locale]['legal.deletion.step2'], locale).toContain('30');
+      expect(messages[locale]['legal.deletion.step3'], locale).toContain('30');
     }
     // Not "ask again if you have not heard" — that was the old wording, which
     // set a date for the BUYER to chase rather than one we keep. There is now
-    // a row, a notice and a runbook behind it.
-    expect(messages.en['legal.deletion.step2']).toMatch(/done within 30 days/i);
-    expect(messages.en['legal.deletion.step2']).not.toMatch(/ask again/i);
+    // a row, a notice, a daily deadline check and a runbook behind it.
+    expect(messages.en['legal.deletion.step3']).toMatch(/within 30 days of the business recording/i);
+    expect(messages.en['legal.deletion.step3']).not.toMatch(/ask again/i);
   });
 });

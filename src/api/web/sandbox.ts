@@ -21,8 +21,9 @@ import {
   type Expectation, type Scenario,
 } from '../../trust/scenarios.js';
 import { runCheck, type CheckResult, type TurnOutcome } from '../../trust/invariants.js';
-import { esc } from './layout.js';
+import { esc, deeper, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { loadTranscriptWindow } from '../../db/transcript.js';
 
 /**
  * M12.2 — Interactive pilot sandbox.
@@ -312,7 +313,10 @@ export async function runScriptedPractice(): Promise<PracticeReport> {
 
 export type SandboxView = {
   readonly hasConversation: boolean;
+  /** CC-25 — one window of the practice transcript, the newest unless `transcript.older`; oldest first. */
   readonly messages: readonly SandboxMessage[];
+  /** CC-25 — the same window the conversation page reads; absent reads as the newest, with nothing before it. */
+  readonly transcript?: { readonly earlier: string | null; readonly older: boolean };
   readonly pendingDraft: { readonly draftId: string; readonly draftText: string } | null;
   readonly lastTurn: SandboxTrust | null;
   /** M16.3 — the SAME ownership model as the inbox (ownershipOf), so the owner
@@ -320,7 +324,11 @@ export type SandboxView = {
   readonly ownership: ConversationOwnership;
 };
 
-export async function loadSandboxView(deps: SandboxDeps): Promise<SandboxView> {
+export async function loadSandboxView(
+  deps: SandboxDeps,
+  /** CC-25 — the request's `before`: an older window of the practice transcript, or the newest. */
+  before: unknown = null,
+): Promise<SandboxView> {
   const businessId = bidOf(deps.businessId);
   return withTenantTx(deps.db, businessId, async (tx) => {
     const conversationId = await findActiveConversation(tx, businessId);
@@ -330,10 +338,11 @@ export async function loadSandboxView(deps: SandboxDeps): Promise<SandboxView> {
       select assigned_to from conversations where id = ${conversationId} limit 1
     `.execute(tx)).rows[0]?.assigned_to ?? null;
 
-    const messages = (await sql<{ direction: string; input_type: string; text_content: string | null }>`
-      select direction, input_type, text_content from messages
-       where conversation_id = ${conversationId} order by sent_at asc limit 200
-    `.execute(tx)).rows
+    // CC-25 — the newest window, as on the conversation page. This read the
+    // oldest two hundred, so a long practice ran on with its newest lines —
+    // the ones she had just typed — nowhere on the page.
+    const transcript = await loadTranscriptWindow(tx, conversationId, before);
+    const messages = transcript.rows
       .filter((m) => m.text_content !== null)
       .map((m): SandboxMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image' }));
 
@@ -351,6 +360,7 @@ export async function loadSandboxView(deps: SandboxDeps): Promise<SandboxView> {
     return {
       hasConversation: true,
       messages,
+      transcript: { earlier: transcript.earlier, older: transcript.older },
       pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
       lastTurn: evt ? evt.payload : null,
       ownership: ownershipOf(assigned),
@@ -502,13 +512,22 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
   const flashHtml = flashBanner(opts.flash);
 
+  // CC-25 — one window, newest at the bottom and marked `latest`; the same
+  // doors as the conversation page, carrying the mode she is practising in.
+  const older = view.transcript?.older === true;
+  const earlier = view.transcript?.earlier ?? null;
+  const last = view.messages.length - 1;
   const timeline = view.messages.length
-    ? `<div class="timeline">${view.messages.map((m) => `
-        <div class="msg ${m.direction}">
+    ? `<div class="timeline">${view.messages.map((m, i) => `
+        <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           <div dir="auto" class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
           <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : esc(name)}</div>
         </div>`).join('')}</div>`
+    : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;
+  const log = `${earlier ? back(esc(`/app/sandbox?mode=${opts.mode}&before=${earlier}#latest`), t(locale, 'inbox.log.earlier')) : ''}
+    ${timeline}
+    ${older ? deeper(esc(`/app/sandbox?mode=${opts.mode}#latest`), t(locale, 'inbox.log.latest')) : ''}`;
 
   const draftCard = view.pendingDraft
     ? `<div class="card draft" role="region">
@@ -541,7 +560,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     ${sandboxTakeoverCard(view, locale, opts.mode)}
     ${renderTrust(view.lastTurn, locale)}
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
-    <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${timeline}</div>
+    <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${log}</div>
     `;
 }
 

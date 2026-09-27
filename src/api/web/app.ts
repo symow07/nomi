@@ -141,6 +141,8 @@ import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { isExportSubject, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
+import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
@@ -1460,7 +1462,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // ONE clock for the request: the loader decides whether a closure blocks a
     // date with the same "now" the renderer uses for its timestamps.
     const now = new Date();
-    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now);
+    // CC-25 — `before` pages the transcript back; anything else is the newest window.
+    const before = (req.query as { before?: unknown } | undefined)?.before;
+    const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now, before);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       bodyHtml: `<h1 class="page">${esc(t(locale, 'inbox.notFound'))}</h1><div class="block"><a href="/app/inbox">${esc(t(locale, 'inbox.detail.back'))}</a></div>`,
@@ -2330,8 +2334,54 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
-      bodyHtml: renderCustomerFile(file, locale, new Date(), flash),
+      bodyHtml: renderCustomerFile(file, locale, new Date(), flash, personOf(s)),
     }));
+  });
+
+  /**
+   * CC-02a — a buyer asked for their data to be deleted, and the owner records
+   * it here, on that buyer's page. OWNER-ONLY (`data_rights`, the workspace
+   * request's own action): it is the business's word to Nomi's operator that
+   * this person asked, and once carried out nobody can undo it. A sales
+   * assistant is refused with the owner's sentence and nothing is written.
+   */
+  app.post('/app/conversations/:conversationId/deletion', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const s = await ownerOnly(req, reply, 'data_rights', here);
+    if (!s) return reply;
+    const note = buyerDeletionNote(String((req.body as { note?: unknown } | undefined)?.note ?? ''));
+    if (!note.ok) {
+      return flashTo(reply, here, note.reason === 'missing'
+        ? 'conv.deletion.flash.note_missing' : 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    }
+    const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note.value, personOf(s).id);
+    if (r.outcome === 'not_found') return reply.redirect('/app/conversations');
+    /**
+     * The operator hears of it the day it is recorded, as a workspace request
+     * is heard of — the daily deadline check only speaks a week before the
+     * date. AFTER the row is written and never instead of it; a send that
+     * fails is logged and the owner is still told it was recorded. The ids
+     * and the dates only: never the note and never the buyer's name, which
+     * are the buyer's and are in the row already.
+     */
+    if (r.outcome === 'asked' && deps.systemMail && deps.legalContact) {
+      const day = (d: Date) => d.toISOString().slice(0, 10);
+      void deps.systemMail.send({
+        to: deps.legalContact,
+        subject: `Buyer deletion requested · ${s.businessId}`,
+        text: `A business recorded a buyer's request to have their data deleted.\n\n`
+          + `workspace: ${s.businessId}\nrequest: ${r.requestId}\nrecorded by: ${personOf(s).id}\n`
+          + `recorded on: ${day(r.askedAt)}\ndue by: ${day(deletionDueBy(r.askedAt))}\n\n`
+          + `Due within ${DELETION_DAYS} days of being recorded, which /data-deletion states.\n`
+          + `Follow docs/DATA-DELETION-RUNBOOK.md.\n`,
+      }).then(
+        (m) => { if (!m.ok) req.log.warn({ reason: m.error }, 'buyer deletion notice could not be sent'); },
+        (e: unknown) => req.log.warn({ err: e }, 'buyer deletion notice could not be sent'),
+      );
+    }
+    return flashTo(reply, here, r.outcome === 'asked' ? 'conv.deletion.flash.asked'
+      : r.outcome === 'already_open' ? 'conv.deletion.flash.already_open' : 'data.flash.failed');
   });
 
   // What she calls him — owner or staff, whoever is looking after him. The
@@ -3381,7 +3431,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const q = req.query as { mode?: string; ask?: string };
+      const q = req.query as { mode?: string; ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
       const prefill = typeof q.ask === 'string' ? q.ask : '';
       // M20.4 (F-04) — the safety checks run IN MEMORY, so a factory provisioned
@@ -3389,7 +3439,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const practice = await runScriptedPractice();
       // The free-typing half still needs a practice conversation. If this
       // installation has none, say so — never render a picker that does nothing.
-      const view = await loadSandboxView(sbxDeps).catch(() => null);
+      // CC-25 — `before` pages the practice transcript back, as on a conversation.
+      const view = await loadSandboxView(sbxDeps, q.before).catch(() => null);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale) + (view
