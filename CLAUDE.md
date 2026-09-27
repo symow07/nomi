@@ -99,14 +99,17 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `b4d8076` (merge of #91, CC-24). `/health` →
-  `{"ok":true,"db":true,"worker":true,"provider":"active"}`; production
-  `schema_version` = **72**; no business is stopped and no silence flag is on;
-  exactly one business has `outreach_area` on. Backup before 0070–0072:
-  `nomi-backup-20260926T030221Z` (PITR on). `TRANSCRIBE_API_KEY` is unset in
-  production — if it is ever set, the privacy page must name that processor too.
-- **Schema:** 72. Last three: `0070 assistant_stop`, `0071 silence_handoff`,
-  `0072 kept_words`.
+- **Deployed:** `173e5db` (merge of #97, the last of the CC-02 / CC-25 / CC-10
+  batch). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
+  production `schema_version` = **74**; no business is stopped and no silence
+  flag is on; exactly one business has `outreach_area` on. Backup before
+  0073–0074: `nomi-backup-20260926T030221Z` (21.8 h, drill passed; PITR on).
+  `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
+  page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
+  says so at boot; until the owner pastes a Healthchecks.io URL
+  (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
+- **Schema:** 74. Last three: `0072 kept_words`, `0073 buyer_deletion_requests`,
+  `0074 app_errors`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -135,6 +138,11 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 97 | **CC-10** — error reporting (`app_errors`, 0074, operator e-mail, rate-limited) and the uptime heartbeat (`HEALTH_PING_URL`); `railway.json` health check |
+| 96 | **CC-02b** — `tools/erase-buyer.mjs`: carries out one buyer's deletion request per the contract; schema-driven, refuses what it cannot classify |
+| 95 | **CC-25** — the conversation page shows the newest 50, pages back by cursor, transcript above the approval; verified on a 450-message thread |
+| 94 | **CC-02a** — a buyer deletion request (buyer file → `/app/settings/data`, 0073), `/data-deletion` rewritten to what happens, the `deletion_due` alert; plus the PRIVACY-zh personal address removed and `erase-workspace` completed |
+| 93 | Operator alerts: `deliverOperatorAlert` / `OPERATOR_ALERT_KINDS` (the backup alert's delivery, for any kind) |
 | 91 | **CC-24** — the owner's words survive a refusal (0072): the edit box opens with the draft or the kept edit; a refused edit is kept on the draft; a refused own reply waits in the box |
 | 90 | **The emergency silence hides nobody** (0071) — `global_silence` hands each buyer to a person (`ops_silenced`); hand-back / approve / edit refused; Today and My business say sending is paused |
 | 88 | **The owner's Stop, on every channel** (0070) — see §5 rule 13; queued replies cancelled at send time, silent while stopped, waiting buyers handed to a person so they stay on Needs you; hand-back / answer-now / approve / edit refused while stopped |
@@ -229,6 +237,12 @@ Recent PRs, newest first:
    - Start leaves conversations handed over during the stop with their person. `tests/integration/assistant-stop.test.ts` holds all of it; each guard is proven load-bearing by switching it off.
    - **The ops kill switch behaves the same** (0071): while `global_silence` is on, the worker hands each buyer to a person under `ops_silenced` (not the owner's reason), and hand-back / approve / edit are refused (`assistant_silenced`). One question answers both: `assistantHold` in `src/db/assistantStop.ts` (ops first). Today and My business say sending is paused. `tests/integration/ops-silence-handoff.test.ts`.
 14. **The owner's words survive a refusal** (CC-24, 0072; `src/db/ownerWords.ts`). The draft edit box opens with the draft itself, or with the owner's kept edit (`drafts.owner_edit`). An edit refused anywhere — the approval path's hold refusal, or the route's window/allowlist verdict — is kept on the draft; the owner's own reply refused before queueing is kept in `conversations.owner_unsent_reply` and cleared when a reply goes. Nothing kept is sent except by the owner pressing send again. `tests/integration/kept-words.test.ts`.
+15. **A buyer's data can be deleted, and /data-deletion says exactly how** (CC-02; 0073).
+   - The owner records it on the buyer file (`/app/conversations/:id`, owner-only `data_rights`; one open request per buyer); `/app/settings/data` lists it with its due date (asked + 30 days). The legal contact gets a notice the day it is recorded; the daily `deletion_due` operator alert fires from 7 days before the date (`deletion_requests_due()`, security definer).
+   - The operator carries it out with `tools/erase-buyer.mjs --request <id>` (admin role; dry run by default; `--yes --confirm <8 chars> --by "<name>"`; refuses anything it cannot classify). Erased: the buyer's identities, messages, drafts, quotes, samples, signals, events, their conversations. Kept: orders (detached from contact details), do-not-contact entries, the request row. `/data-deletion` promises exactly that and nothing more — no automatic confirmation to the buyer.
+   - `tools/erase-workspace.mjs` also erases `shadow.turn_decisions` and the workspace's queued jobs, and refuses a row-security-filtered role (found 2026-09-27; `tests/integration/erase-workspace.test.ts` runs it for real).
+16. **The conversation page always shows the newest messages** (CC-25): newest 50 (`TRANSCRIPT_WINDOW`, `src/db/transcript.ts`), "Earlier messages" pages back by cursor (`<epoch_ms>_<uuid>`, tenant-checked); transcript first, then the draft and take-over cards; Buyers rows land on `#latest`. Practice and the buyer file use the same window.
+17. **Errors are reported and the app has a heartbeat** (CC-10; 0074; `docs/MONITORING.md`). Every 5xx, failed queue job, dead letter and process crash upserts `app_errors` (redacted, fingerprinted) and sends the operator an `app_error` e-mail — once per fingerprint per 6 h, at most 6 an hour. `tools/errors.mjs` lists them. Every 5 minutes the app checks its DB and its own `/health` and pings `HEALTH_PING_URL` (`/fail` when unhealthy) — the dead-man's switch; unset until the owner pastes it. `railway.json` has `healthcheckPath: /health`.
 
 ## 6 · What's next
 
