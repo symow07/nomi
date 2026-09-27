@@ -7414,3 +7414,186 @@ reader, the buyer or the assistant; in Arabic, verbal nouns, the passive or «ي
 
 - en: No buyer is waiting for your decision about deleting their data.
 - **ar: لا توجد طلبات حذف بيانات بانتظار القرار.**
+
+## 2026-09-28 — A: Buyers and Customers are one list; the V1 close-out
+
+**New strings, and some rewritten.** Customers merged into Buyers: one list with a search box
+and pages (`buyers.search.*`, `buyers.page.*`), and a heading for the group a colleague holds
+(`buyers.group.team`). One word for one idea: the buyer's page no longer says "customer"
+(`conv.file.title`, `conv.notFound`), and in Arabic the word for a buyer on the rows and in the
+transcript is مشترٍ, as in the nav (`common.buyer`, which was عميل, "customer"). The Arabic
+Needs-you heading is the tab's own noun phrase (`buyers.group.needsYou`: the verb it had
+agreed with the buyers). Same rules: nothing genders the reader, the buyer or the assistant; in
+Arabic, verbal nouns, a noun phrase, or «يمكن». `tests/parity/buyers-merge.test.ts` renders them
+in all three languages. Removed with Customers, and so not listed: `conv.title`, `conv.back`,
+`conv.search.*`, `conv.empty.*`, `conv.lastContact`, `buyers.all.link`, `nav.conversations`.
+
+### 中文 — 15 strings
+
+#### `buyers.tabs`
+
+- en: Which buyers to show
+- **zh: 显示哪些买家**
+
+#### `buyers.group.team`
+
+- en: Your team is handling
+- **zh: 团队在处理**
+
+#### `buyers.search.label`
+
+- en: Find a buyer
+- **zh: 找买家**
+
+#### `buyers.search.placeholder`
+
+- en: Name, number or product
+- **zh: 名字、号码或产品**
+
+#### `buyers.search.go`
+
+- en: Find
+- **zh: 找**
+
+#### `buyers.search.clear`
+
+- en: Clear
+- **zh: 清除**
+
+#### `buyers.search.found`
+
+- en: {n} found for “{q}”
+- **zh: 按「{q}」找到 {n} 位**
+
+#### `buyers.search.none`
+
+- en: Nobody found for “{q}”.
+- **zh: 没有找到「{q}」。**
+
+#### `buyers.search.noneBody`
+
+- en: Try part of a name, a phone number or a product.
+- **zh: 换个名字、号码的一部分或产品再试试。**
+
+#### `buyers.page.nav`
+
+- en: Pages
+- **zh: 翻页**
+
+#### `buyers.page.prev`
+
+- en: Previous page
+- **zh: 上一页**
+
+#### `buyers.page.next`
+
+- en: Next page
+- **zh: 下一页**
+
+#### `buyers.page.position`
+
+- en: {from}–{to} of {total}
+- **zh: 第 {from}–{to} 位，共 {total} 位**
+
+#### `conv.file.title`
+
+- en: About this buyer
+- before: 客户档案
+- **zh: 关于这位买家**
+
+#### `conv.notFound`
+
+- en: Buyer not found
+- before: 找不到这位客户
+- **zh: 找不到这位买家**
+
+### العربية — 17 strings
+
+#### `buyers.tabs`
+
+- en: Which buyers to show
+- **ar: عرض المشترين**
+
+#### `buyers.group.team`
+
+- en: Your team is handling
+- **ar: في عهدة فريقك**
+
+#### `buyers.search.label`
+
+- en: Find a buyer
+- **ar: البحث عن مشترٍ**
+
+#### `buyers.search.placeholder`
+
+- en: Name, number or product
+- **ar: الاسم أو الرقم أو المنتج**
+
+#### `buyers.search.go`
+
+- en: Find
+- **ar: بحث**
+
+#### `buyers.search.clear`
+
+- en: Clear
+- **ar: مسح**
+
+#### `buyers.search.found`
+
+- en: {n} found for “{q}”
+- **ar: نتائج «{q}»: {n}**
+
+#### `buyers.search.none`
+
+- en: Nobody found for “{q}”.
+- **ar: لا نتائج لـ«{q}».**
+
+#### `buyers.search.noneBody`
+
+- en: Try part of a name, a phone number or a product.
+- **ar: يمكن تجربة جزء من الاسم أو رقم الهاتف أو المنتج.**
+
+#### `buyers.page.nav`
+
+- en: Pages
+- **ar: الصفحات**
+
+#### `buyers.page.prev`
+
+- en: Previous page
+- **ar: الصفحة السابقة**
+
+#### `buyers.page.next`
+
+- en: Next page
+- **ar: الصفحة التالية**
+
+#### `buyers.page.position`
+
+- en: {from}–{to} of {total}
+- **ar: {from} إلى {to} من {total}**
+
+#### `conv.file.title`
+
+- en: About this buyer
+- before: ملف العميل
+- **ar: عن المشتري**
+
+#### `conv.notFound`
+
+- en: Buyer not found
+- before: العميل غير موجود
+- **ar: المشتري غير موجود**
+
+#### `buyers.group.needsYou`
+
+- en: Needs you
+- before: يحتاجون إليك
+- **ar: بحاجة إليك**
+
+#### `common.buyer`
+
+- en: Buyer
+- before: عميل
+- **ar: مشترٍ**

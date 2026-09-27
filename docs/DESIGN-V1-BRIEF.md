@@ -413,6 +413,26 @@ collision from step four), the assistant's face and shouted caveat, products
 as cards with green marks on every one, the row measure at desktop, and
 Latin speech right-aligned in Arabic. Two items wait on decision 5.
 
+**The close-out (2026-09-28).** With decision 5 settled, the last of V1:
+Buyers' two blocks and the buyer page's one moved into the shell's sections
+(6 → 3), and then the shell's own two — the shell and the login door — became
+files: each served once at an address named by its rules
+(`/assets/app.<hash>.css`, `/assets/door.<hash>.css`), kept by the browser
+for good, so an owner page no longer carries half its weight in the same
+rules on every tap. **One block is left, on purpose:** `publicDocument()`'s
+(legal, unsubscribe, proof, site). A stranger opens those from an e-mail, a
+Page or a forwarded link, often after a scanner or a crawler has fetched the
+address and nothing else, and each must arrive complete with nothing more to
+fetch — two tests pin exactly that. So the count is **1**, in `layout.ts`.
+Buyers, the buyer's page and the conversation page were restyled in V1's
+language with the row as it is: the list keeps the prose measure at desktop;
+each figure is its own isolate, so Arabic stops reordering a product name, a
+quantity and a price into one run; the tag is the shell's row tag; the deal
+box's quiet button is visible again. The calendar's kind wears the neutral
+tag; Log out is Setup's last row and a button; the channels page's states
+line up (the row family's grid, not the page). Screenshots in
+`docs/design/v1-closeout/` (en · zh · ar, phone; desktop for four).
+
 ### 5 · The row — DECIDED
 
 Decided by the owner on 2026-09-28:

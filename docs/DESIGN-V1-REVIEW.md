@@ -83,3 +83,23 @@ The owner's call on the five and the plainly-wrong ones:
 Also: Practice and Knowledge have page titles; the four knowledge counts are the stat size; My business has one door idiom, the next step marked `next`.
 
 Left, on purpose: "Log out" on Setup and channels' trailing pills wait on decision 5.
+
+## Closed — 2026-09-28, the V1 close-out
+
+Decision 5 was settled by the owner — the row stays as it is — and the two
+left items went with the rest of the close-out. Screenshots in
+`docs/design/v1-closeout/`.
+
+- **Log out on Setup** — the last thing on the page, alone under a hairline,
+  and a button (`btn ghost`, a form that posts to `/logout`): it ends the
+  session, so it does something rather than going somewhere (decision 4).
+  The language switch stays Setup's first row. `setup-*-phone.png`.
+- **Channels' trailing pills** — the cause was the row family, not the page:
+  `.row.lines` is a grid, and the row's `space-between` shrank its one column
+  to the widest line, so each state sat wherever its name ended. The column
+  is the row's width now and a spreading header reaches the row's end, so the
+  four states line up at one edge in every language (`channels-accounts-*`).
+- **The calendar's kind** is the row's tag — the one Buyers' rows wear — in
+  its neutral form (a kind is not a state).
+- **Buyers and Customers are one list** (A), in the row as it is; Buyers',
+  Customers' and the conversation page's stylesheets are the shell's now.
