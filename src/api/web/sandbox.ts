@@ -40,6 +40,16 @@ import { loadTranscriptWindow } from '../../db/transcript.js';
 
 export type SandboxMode = 'scripted' | 'live';
 
+/**
+ * CC-25 — the practice page's address. It lands where the conversation page
+ * lands (`conversationUrl`): on the newest line, with the notice and the reply
+ * to approve under it. Every practice action comes back through here, in the
+ * mode she was practising in; `before` is the "Earlier messages" door. A
+ * cursor is digits, hex and `_`, so no `%` reaches the page.
+ */
+export const practiceUrl = (mode: SandboxMode, before?: string | null): string =>
+  `/app/sandbox?mode=${mode}${before ? `&before=${encodeURIComponent(before)}` : ''}#latest`;
+
 export type SandboxDeps = {
   readonly db: Db;
   readonly businessId: string;          // the sandbox tenant (never the pilot)
@@ -436,8 +446,10 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
   const scenarioOpts = SCENARIOS.map((s) => `<option value="${esc(s.id)}">${esc(caseName(locale, s.id))}</option>`).join('');
   const modeRadio = (m: SandboxMode, labelKey: MessageKey, disabled = false) =>
     `<label class="radio ${disabled ? 'off' : ''}"><input type="radio" name="mode" value="${m}" ${m === mode && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(t(locale, labelKey))}</label>`;
+  // CC-25 — `compose` is where a "try it in practice" link lands: the box sits
+  // under the transcript now, where the conversation continues.
   return `
-  <div class="card sbx-compose">
+  <div id="compose" class="card sbx-compose">
     <div class="modebar">
       <span class="muted">${esc(t(locale, 'sandbox.mode.label'))}:</span>
       ${modeRadio('scripted', 'sandbox.mode.scripted')}
@@ -510,13 +522,19 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
-  const flashHtml = flashBanner(opts.flash);
+  // CC-25 — the notice is where every practice action lands, as on a
+  // conversation: under the newest line, carrying the `latest` mark itself.
+  // That is also what brings Reset — which empties the transcript — onto its
+  // notice, rather than to the top of a page whose first screen is the
+  // safety-check card.
+  const flashHtml = flashBanner(opts.flash, 'latest');
 
-  // CC-25 — one window, newest at the bottom and marked `latest`; the same
-  // doors as the conversation page, carrying the mode she is practising in.
+  // CC-25 — one window, newest at the bottom and marked `latest` (unless a
+  // notice carries the mark); the same doors as the conversation page,
+  // carrying the mode she is practising in.
   const older = view.transcript?.older === true;
   const earlier = view.transcript?.earlier ?? null;
-  const last = view.messages.length - 1;
+  const last = opts.flash === null ? view.messages.length - 1 : -1;
   const timeline = view.messages.length
     ? `<div class="timeline">${view.messages.map((m, i) => `
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
@@ -525,9 +543,9 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
         </div>`).join('')}</div>`
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;
-  const log = `${earlier ? back(esc(`/app/sandbox?mode=${opts.mode}&before=${earlier}#latest`), t(locale, 'inbox.log.earlier')) : ''}
+  const log = `${earlier ? back(esc(practiceUrl(opts.mode, earlier)), t(locale, 'inbox.log.earlier')) : ''}
     ${timeline}
-    ${older ? deeper(esc(`/app/sandbox?mode=${opts.mode}#latest`), t(locale, 'inbox.log.latest')) : ''}`;
+    ${older ? deeper(esc(practiceUrl(opts.mode)), t(locale, 'inbox.log.latest')) : ''}`;
 
   const draftCard = view.pendingDraft
     ? `<div class="card draft" role="region">
@@ -549,18 +567,32 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
       </div>`
     : '';
 
+  /**
+   * CC-25 — THE CONVERSATION PAGE'S ORDER. The transcript; the notice, where
+   * every practice action lands; her reply for approval directly under the
+   * newest line; the take-over card; then what she checked on that turn, and
+   * the buyer's next message, where the conversation goes on. The box and the
+   * checks sat above the transcript and the approval above them both, so each
+   * turn was read upwards, with the question off the screen.
+   *
+   * A window further back is for reading, as on a conversation: the transcript
+   * and the way home, and nothing to act on under a message from earlier.
+   */
+  const acts = older ? '' : `
+    ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
+    ${sandboxTakeoverCard(view, locale, opts.mode)}
+    ${renderTrust(view.lastTurn, locale)}
+    ${renderComposer(locale, opts.mode, opts.liveAvailable, opts.prefill ?? '')}`;
+
   return `
     <div class="dhead spread">
-      <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
+      <form method="post" action="/app/sandbox/reset"><input type="hidden" name="mode" value="${opts.mode}" /><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
     </div>
     ${banner}
     ${intro}
-    ${flashHtml}
-    ${renderComposer(locale, opts.mode, opts.liveAvailable, opts.prefill ?? '')}
-    ${sandboxTakeoverCard(view, locale, opts.mode)}
-    ${renderTrust(view.lastTurn, locale)}
-    ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${log}</div>
+    ${flashHtml}
+    ${acts}
     `;
 }
 

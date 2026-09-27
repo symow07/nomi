@@ -7,7 +7,7 @@ import { countryName, orderStatusName, capabilityName, type MessageKey } from '.
 import { t, assistantName, outreachShown } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { flag } from './inbox.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
@@ -492,7 +492,7 @@ export function renderCustomerFile(
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
           <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
-        ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(`/app/inbox/${encodeURIComponent(f.conversationId)}#latest`, t(locale, 'conv.tl.whole'))}`
+        ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 
   const ctx = f.context;
@@ -511,7 +511,7 @@ export function renderCustomerFile(
 
   const actLink = f.needsOwner
     ? `<div class="card need-card"><span>${esc(t(locale, 'conv.needCard'))}</span>
-        <a class="btn send" href="/app/inbox/${encodeURIComponent(f.conversationId)}#latest">${esc(t(locale, 'conv.needCardCta'))}</a></div>`
+        <a class="btn send" href="${conversationUrl(f.conversationId)}">${esc(t(locale, 'conv.needCardCta'))}</a></div>`
     : '';
 
   return `

@@ -116,7 +116,7 @@ import { renderComponents } from './components.js';
 import {
   loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
   activeSandboxConversationId, sandboxFlushOutbound,
-  runScriptedPractice, renderPractice,
+  runScriptedPractice, renderPractice, practiceUrl,
   type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -127,7 +127,7 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute } from './layout.js';
+import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -1486,13 +1486,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // The ONLY mutation: resolve a pending draft through applyOwnerCommand.
   // POST only; Post/Redirect/Get so a refresh never re-submits.
+  //
+  // CC-25 — every action on a conversation sends her back through
+  // `conversationUrl` (`#latest`): onto the notice it leaves, drawn under the
+  // newest message, with the next thing to do under that. Back to the bare
+  // address, she landed at the top of the page and scrolled down to where she
+  // had been.
   app.post('/app/inbox/:conversationId/act', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const body = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok || !body.draftId) return reply.redirect(`/app/inbox/${encodeURIComponent(conversationId)}`);
+    if (!bid.ok || !body.draftId) return reply.redirect(conversationUrl(conversationId));
     facts.evict(s.businessId);   // D — the first approved reply is the last setup step
 
     // G10 — the question the reply route asks, asked here too. Approving said
@@ -1509,7 +1515,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (body.command === '改') {
         await withTenantTx(deps.db, bid.value, (tx) => keepDraftEdit(tx, bid.value, body.draftId!, body.edit ?? ''));
       }
-      return flashTo(reply, `/app/inbox/${encodeURIComponent(conversationId)}`, `inbox.blocked.${verdict}` as MessageKey);
+      return flashTo(reply, conversationUrl(conversationId), `inbox.blocked.${verdict}` as MessageKey);
     }
     const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
 
@@ -1522,7 +1528,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const key: MessageKey = (r.outcome === 'sent' || r.outcome === 'edited_sent') && notLive
       ? 'inbox.flash.sentNotLive'
       : `inbox.flash.${r.outcome}` as MessageKey;
-    return flashTo(reply, `/app/inbox/${encodeURIComponent(conversationId)}`, key);
+    return flashTo(reply, conversationUrl(conversationId), key);
   });
 
   // ── M16.1 Human takeover: take over / owner reply / return to AI ───────────
@@ -1532,7 +1538,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const key: MessageKey = outcome === 'sent' && !messagingEnabled
       ? 'inbox.flash.sentNotLive'
       : `takeover.flash.${outcome}` as MessageKey;
-    return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, key);
+    return flashTo(reply, conversationUrl(cid), key);
   };
 
   app.post('/app/inbox/:conversationId/takeover', async (req, reply) => {
@@ -1567,7 +1573,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (r.done && decision === 'send_again' && r.conversationId) {
         await (deps.kickDrive ?? (async () => {}))(s.businessId, r.conversationId);
       }
-      const where = r.conversationId ? `/app/inbox/${encodeURIComponent(r.conversationId)}` : '/app/inbox';
+      const where = r.conversationId ? conversationUrl(r.conversationId) : '/app/inbox';
       return flashTo(reply, where, key);
     });
   };
@@ -1585,15 +1591,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await handTo({ db: deps.db, now: () => new Date() },
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id, toPersonId: to });
     return r.outcome === 'handed'
-      ? flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, 'takeover.flash.handed', { name: r.toName ?? '' })
-      : flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, `takeover.flash.${r.outcome}` as MessageKey);
+      ? flashTo(reply, conversationUrl(cid), 'takeover.flash.handed', { name: r.toName ?? '' })
+      : flashTo(reply, conversationUrl(cid), `takeover.flash.${r.outcome}` as MessageKey);
   });
 
   // A5.4 — hand this buyer to another assistant. Owner-only, by the rule the
   // team page follows: who answers a buyer is who is on the team.
   app.post('/app/inbox/:conversationId/assistant', async (req, reply) => {
     const cid = (req.params as { conversationId: string }).conversationId;
-    const back = `/app/inbox/${encodeURIComponent(cid)}`;
+    const back = conversationUrl(cid);
     const s = await ownerOnly(req, reply, 'people', back);
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
@@ -1620,7 +1626,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (verdict !== 'ok') {
       // CC-24 — refused before it was queued: the reply waits in the box.
       await withTenantTx(deps.db, bid.value, (tx) => keepUnsentReply(tx, bid.value, cid, text));
-      return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`, `inbox.blocked.${verdict}` as MessageKey);
+      return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
     }
     const r = await ownerReply(
       { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
@@ -1660,7 +1666,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       .send(page(req, {
         title: t(localeOf(req), 'nav.inbox'), active: 'inbox',
         bodyHtml: `<div class="block"><p class="muted">${esc(t(localeOf(req), 'voice.expired'))}</p>`
-          + `${back(`/app/inbox/${esc(cid)}`, t(localeOf(req), 'inbox.detail.back'))}</div>`,
+          + `${back(conversationUrl(cid), t(localeOf(req), 'inbox.detail.back'))}</div>`,
       }));
 
     // The id comes from the ROW, never from the URL: a media id in a query
@@ -1691,7 +1697,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cid = (req.params as { conversationId: string }).conversationId;
     const messageId = String((req.body as { messageId?: string } | undefined)?.messageId ?? '');
     const bid = parseBusinessId(s.businessId);
-    const back0 = `/app/inbox/${encodeURIComponent(cid)}`;
+    const back0 = conversationUrl(cid);
     if (!bid.ok || !messageId || !deps.kickAnswer) return reply.redirect(back0);
 
     const said = await withTenantTx(deps.db, bid.value, (tx) => sql<{ text: string | null }>`
@@ -1729,7 +1735,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const body = req.body as { messageId?: string; heard?: string } | undefined;
     const messageId = String(body?.messageId ?? '');
     const heard = String(body?.heard ?? '').trim();
-    const back = `/app/inbox/${encodeURIComponent(cid)}`;
+    const back = conversationUrl(cid);
     if (!messageId || !heard) return reply.redirect(back);
 
     const corrected = await withTenantTx(deps.db, bid.value, async (tx) => {
@@ -2287,8 +2293,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       const cid = (req.params as { conversationId: string }).conversationId;
       const r = await run(sess.businessId, cid);
-      return flashTo(reply, `/app/inbox/${encodeURIComponent(cid)}`,
-        `proof.owner.flash.${r.code}` as MessageKey);
+      return flashTo(reply, conversationUrl(cid), `proof.owner.flash.${r.code}` as MessageKey);
     });
 
   proofAction('', async (biz, cid) => {
@@ -3132,7 +3137,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     );
 
     if (r.outcome === 'queued' && r.conversationId) {
-      return flashTo(reply, `/app/inbox/${encodeURIComponent(r.conversationId)}`, 'contacts.flash.queued');
+      return flashTo(reply, conversationUrl(r.conversationId), 'contacts.flash.queued');
     }
     // Her words come back to her when the fault is in the form, not in him.
     if (r.outcome === 'empty' && found) {
@@ -3449,12 +3454,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }));
     });
 
+    // CC-25 — every practice action returns through `practiceUrl`, in the mode
+    // she was practising in: onto its notice under the newest line (onto the
+    // line itself when there is nothing to say), the reply to approve under
+    // it — the conversation page's landing, not the top of a page whose first
+    // screen is the safety-check card.
     app.post('/app/sandbox/message', async (req, reply) => {
       if (!sessionOf(req)) return reply.redirect('/login');
       const b = (req.body ?? {}) as { text?: string; image?: string; mode?: string };
       const mode = modeOf(b.mode);
       await runSandboxTurn(sbxDeps, { mode, text: String(b.text ?? ''), kind: b.image === '1' ? 'image' : 'text' });
-      return reply.redirect(`/app/sandbox?mode=${mode}`);
+      return reply.redirect(practiceUrl(mode));
     });
 
     app.post('/app/sandbox/scenario', async (req, reply) => {
@@ -3462,7 +3472,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const b = (req.body ?? {}) as { scenarioId?: string; mode?: string };
       const mode = modeOf(b.mode);
       if (b.scenarioId) await runSandboxTurn(sbxDeps, { mode, scenarioId: String(b.scenarioId) });
-      return reply.redirect(`/app/sandbox?mode=${mode}`);
+      return reply.redirect(practiceUrl(mode));
     });
 
     // Approval reuses the ONE approval service; the sink records, never transmits.
@@ -3479,30 +3489,35 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           { businessId: bid.value, draftId: b.draftId, rawReply, decidedBy: personOf(s).id },
         );
       }
-      return reply.redirect(`/app/sandbox?mode=${mode}`);
+      return reply.redirect(practiceUrl(mode));
     });
 
+    // An emptied practice lands on its notice, under the empty transcript.
     app.post('/app/sandbox/reset', async (req, reply) => {
       if (!sessionOf(req)) return reply.redirect('/login');
       await resetSandbox(sbxDeps);
-      return flashTo(reply, '/app/sandbox', 'sandbox.reset.done');
+      return flashTo(reply, practiceUrl(modeOf((req.body as { mode?: unknown } | undefined)?.mode)), 'sandbox.reset.done');
     });
 
     // ── M16.3 sandbox human-control rehearsal ─────────────────────────────────
     // The SAME lifecycle as the inbox: takeOver / ownerReply / resumeAi on the
     // sandbox tenant. The owner reply goes through ownerReply (the one send path)
     // and is flushed to the transcript by the sandbox sink — never a real send.
-    const sbxFlash = (reply: FastifyReply, outcome: string) =>
-      flashTo(reply, '/app/sandbox', `takeover.flash.${outcome}` as MessageKey);
+    //
+    // CC-25 — the forms always carried the mode; these routes dropped it, so
+    // taking over a live rehearsal put her back in scripted practice.
+    const sbxFlash = (reply: FastifyReply, mode: SandboxMode, outcome: string) =>
+      flashTo(reply, practiceUrl(mode), `takeover.flash.${outcome}` as MessageKey);
     const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest, actor: string) => Promise<{ outcome: string }>) =>
       app.post(path, async (req, reply) => {
         const s = sessionOf(req);
         if (!s) return reply.redirect('/login');
+        const mode = modeOf((req.body as { mode?: unknown } | undefined)?.mode);
         const bid = parseBusinessId(deps.sandboxBusinessId!);
         const cid = await activeSandboxConversationId(sbxDeps);
-        if (!bid.ok || !cid) return reply.redirect('/app/sandbox');
+        if (!bid.ok || !cid) return reply.redirect(practiceUrl(mode));
         const r = await run(bid.value, cid, req, personOf(s).id);
-        return sbxFlash(reply, r.outcome);
+        return sbxFlash(reply, mode, r.outcome);
       });
     sbxAction('/app/sandbox/takeover', (bid, cid, _req, actor) =>
       takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));

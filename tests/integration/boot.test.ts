@@ -405,7 +405,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: `draftId=${draftId}&command=${encodeURIComponent('发送')}` });
     expect(act.statusCode).toBe(302);
-    expect(act.headers['location']).toBe(`/app/inbox/${CONV}`);
+    // CC-25 — back onto the newest message, where the notice is drawn; not the top of the page.
+    expect(act.headers['location']).toBe(`/app/inbox/${CONV}#latest`);
     expect(flashSaid(act, WEB_SECRET)).not.toBe('');
     expect(await draftStatus(draftId)).toBe('approved');
 

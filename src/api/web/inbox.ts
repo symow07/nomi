@@ -13,7 +13,7 @@ import { t, assistantName } from './say.js';
 import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
 import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -895,7 +895,7 @@ export function renderInboxList(
       c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
     ].filter(Boolean).join(' · ');
     // CC-25 — a buyer opens on the newest message, the reply waiting under it.
-    return `<a class="buyer" href="/app/inbox/${encodeURIComponent(c.conversationId)}#latest">
+    return `<a class="buyer" href="${conversationUrl(c.conversationId)}">
       <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
       ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
       ${c.latestMessage ? `<div class="buyer-m voice"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
@@ -1188,12 +1188,17 @@ export function renderConversationDetail(
    *
    * "Earlier messages" is a door to the window before this one; a window
    * further back has "Latest messages" to come home. Both land on the newest
-   * message the page they open shows.
+   * message the page they open shows — both are `conversationUrl`, like every
+   * other way into this page.
+   *
+   * After an action the page lands on the NOTICE instead, which sits right
+   * under the newest message (below): landing on the message put the notice
+   * off the screen whenever that message was long — an e-mail, a list of
+   * questions — and the notice is the one thing she came back to read.
    */
-  const cid = encodeURIComponent(d.conversationId);
   const older = d.transcript?.older === true;
   const earlier = d.transcript?.earlier ?? null;
-  const last = d.messages.length - 1;
+  const last = flash === null ? d.messages.length - 1 : -1;
   const timeline = d.messages.length
     ? `<div class="timeline">${d.messages.map((m, i) => `
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
@@ -1210,9 +1215,9 @@ export function renderConversationDetail(
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'inbox.detail.noMessages'))}</div>`;
   const log = `<div class="block"><h2>${esc(t(locale, 'inbox.detail.log'))}</h2>
-      ${earlier ? back(`/app/inbox/${cid}?before=${earlier}#latest`, t(locale, 'inbox.log.earlier')) : ''}
+      ${earlier ? back(conversationUrl(d.conversationId, earlier), t(locale, 'inbox.log.earlier')) : ''}
       ${timeline}
-      ${older ? deeper(`/app/inbox/${cid}#latest`, t(locale, 'inbox.log.latest')) : ''}
+      ${older ? deeper(conversationUrl(d.conversationId), t(locale, 'inbox.log.latest')) : ''}
     </div>`;
 
   const draftCard = d.pendingDraft
@@ -1358,7 +1363,16 @@ export function renderConversationDetail(
       </div>`
     : '';
 
-  const flashHtml = flashBanner(flash);
+  /**
+   * CC-25 — THE NOTICE IS WHERE SHE LANDS. Every action on this page sends her
+   * back to `#latest`, and what the action said is drawn there: under the
+   * newest message, above what she does next, and carrying the mark itself so
+   * the page opens on it however long that message is. At the top of the page
+   * it was a screen or a whole transcript away from where she had been, and
+   * she scrolled up to learn whether it went. `flashBanner` still paints it;
+   * this only decides where.
+   */
+  const flashHtml = flashBanner(flash, 'latest');
 
   /**
    * CC-25 — THE ORDER OF THE PAGE. The transcript first; then what the owner
@@ -1396,8 +1410,8 @@ export function renderConversationDetail(
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
     ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
-    ${flashHtml}
     ${log}
+    ${flashHtml}
     ${acts}
     ${INBOX_STYLE}`;
 }

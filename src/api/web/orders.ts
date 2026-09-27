@@ -11,7 +11,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
-import { esc, back, deeper } from './layout.js';
+import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 
 /**
@@ -259,7 +259,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
           ${deeper('/app/settings/terms', t(locale, 'terms.title'))}</section>`
       : '';
 
-  return `<div class="dhead">${back(`/app/inbox/${esc(v.conversationId)}`, t(locale, 'order.back'))}</div>
+  return `<div class="dhead">${back(conversationUrl(v.conversationId), t(locale, 'order.back'))}</div>
     <h1 class="page"><bdi>${esc(v.reference)}</bdi></h1>
     ${flashBanner(flash)}
     <section class="block">

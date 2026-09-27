@@ -141,7 +141,10 @@ export const saidFlash = (
  * The banner itself, in one place — so a route cannot accidentally paint a
  * refusal green by forgetting a class, and so the role a screen reader hears
  * follows the tone rather than being copied `role="status"` twenty-seven times.
+ *
+ * `id` makes the banner a page's landing point (CC-25: a conversation's
+ * `#latest`), so the address an action returns to opens on the notice itself.
  */
-export const flashBanner = (f: Flash | null): string =>
+export const flashBanner = (f: Flash | null, id?: string): string =>
   f === null ? ''
-    : `<div class="flash${f.bad ? ' bad' : ''}" role="${f.bad ? 'alert' : 'status'}">${esc(f.text)}</div>`;
+    : `<div class="flash${f.bad ? ' bad' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${esc(f.text)}</div>`;

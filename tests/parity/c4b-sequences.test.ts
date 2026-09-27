@@ -347,7 +347,8 @@ describe('C4.b · the pages', () => {
       }), locale, null, { messagingEnabled: true });
       expect(html, locale).toContain(esc(t(locale, 'seq.stop.replied')));
       expect(html, locale).not.toContain('/enrollments/e2/stop');
-      expect(html, locale).toContain('href="/app/inbox/c1"');
+      // CC-25 — the thread opens on its newest message (their reply), like every door into a conversation.
+      expect(html, locale).toContain('href="/app/inbox/c1#latest"');
     }
   });
 

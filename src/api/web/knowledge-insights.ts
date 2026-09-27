@@ -207,7 +207,9 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
     const teachHref = g.productId
       ? `/app/knowledge/${encodeURIComponent(g.productId)}?teach=${encodeURIComponent(g.question)}`
       : `/app/knowledge?teach=${encodeURIComponent(g.question)}`;
-    const testHref = `/app/sandbox?ask=${encodeURIComponent(g.question)}`;
+    // CC-25 — onto the box the question is waiting in, which follows the
+    // practice transcript now rather than preceding it.
+    const testHref = `/app/sandbox?ask=${encodeURIComponent(g.question)}#compose`;
     return `<div class="gap">
       <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
