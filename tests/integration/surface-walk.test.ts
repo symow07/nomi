@@ -208,6 +208,68 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
   });
 
+  /**
+   * The audit's last rows (2026-09-28), over real rows instead of a fixture:
+   * every page drawn in English and Arabic, as an owner opens it.
+   *   CC-13 — no Chinese colon or space in the page's own words, and no
+   *           figure run into its unit ("5,000pcs", "5,000قطعة").
+   *   CC-14 — the shell names the business, from its own row.
+   *   CC-20 — the skip link first, `main` its target, one heading per page.
+   *   CC-29 — every form that takes something away asks first.
+   * What a PERSON wrote (a bubble, a draft, a field's value) is theirs, and
+   * is left out of the punctuation check.
+   */
+  it('CC-13, CC-14, CC-20, CC-29 · every owner page, in English and Arabic, on real rows', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(RUN_BIZ); if (!bid.ok) throw new Error('fixture');
+    const business = await withTenantTx(db, bid.value, (tx) => sql<{ name: string }>`
+      select name from businesses where id = ${RUN_BIZ}::uuid`.execute(tx).then((r) => r.rows[0]!.name));
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const ASK = 'onclick="return confirm(this.dataset.confirm)"';
+    const TAKES = /\/(remove|archive|disconnect|revoke|promote|withdraw|dismiss|delete|stop)$|^\/app\/channels\/outreach$/;
+    const words = (html: string) => html
+      .replace(/<(textarea|script|template)\b[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<div[^>]*class="[^"]*\b(bubble|proposed|buyer-m)\b[^"]*"[^>]*>[\s\S]*?<\/div>/g, ' ')
+      .replace(/<p class="voice">[\s\S]*?<\/p>/g, ' ')
+      .replace(/\svalue="[^"]*"/g, ' ')
+      .replace(/<[^>]+>/g, ' ');
+    const problems: string[] = [];
+    let pages = 0;
+    for (const locale of ['en', 'ar'] as const) {
+      for (const url of [...new Set(routes)]) {
+        if (!url.startsWith('/app') || url.startsWith('/app/live')) continue;
+        let target = url; let skip = false;
+        for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
+          const v = real[m[1]!];
+          if (!v) { skip = true; break; }
+          target = target.replace(`:${m[1]}`, encodeURIComponent(v));
+        }
+        if (skip) continue;
+        const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=${locale}` } });
+        if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
+        const html = res.body;
+        if (!html.includes('<nav class="side">')) continue;   // a download or a fragment, not a page
+        pages++;
+        const at = `${locale} ${target}`;
+        const text = words(html);
+        for (const m of text.matchAll(/[：　]|\d(?:pcs|قطعة)/g)) {
+          problems.push(`${at}: "${text.slice(Math.max(0, m.index! - 40), m.index! + 20).replace(/\s+/g, ' ').trim()}"`);
+        }
+        if (!html.includes(`<span class="brandname"><bdi>${esc(business)}</bdi><small>Nomi</small></span>`)) problems.push(`${at}: the shell does not name the business`);
+        if (!/<body><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !html.includes('<main id="main">')) problems.push(`${at}: no skip link to main`);
+        const h1 = html.match(/<h1[\s>]/g)?.length ?? 0;
+        if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
+        for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
+          const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;
+          if (TAKES.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);
+        }
+      }
+    }
+    expect(pages, 'the walk drew no owner page').toBeGreaterThan(40);
+    expect(problems).toEqual([]);
+  }, 180_000);
+
   it('and every surface returns 200, not merely "not 500"', async () => {
     const notOk: string[] = [];
     for (const url of [...new Set(routes)]) {

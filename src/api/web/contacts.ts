@@ -263,17 +263,22 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
       <a class="btn stop" href="/app/contacts/suppress?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
         >${esc(t(locale, 'contacts.suppress.button'))}</a>
       ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
-        <button class="btn" type="submit">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'contacts.archive.confirm', { who: c.displayName ?? shown(c) }))}">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
     return `<li class="ct ${c.archivedAt ? 'gone' : ''} ${stopped ? 'stopped' : ''}">
       <div class="ct-h">
         <span class="who">${c.displayName ? `<bdi>${esc(c.displayName)}</bdi>` : ''}
           <span class="id"><bdi>${esc(shown(c))}</bdi></span></span>
         ${state}
       </div>
-      <div class="ct-b muted">${esc(t(locale, `contacts.channel.${c.channel}` as MessageKey))}
-        　·　${esc(t(locale, `contacts.source.${c.source}` as MessageKey))}
-        ${c.title ? `　·　<bdi>${esc(c.title)}</bdi>` : ''}
-        ${c.company ? `　·　<bdi>${esc(c.company)}</bdi>` : ''}</div>
+      <div class="ct-b muted">${[
+        esc(t(locale, `contacts.channel.${c.channel}` as MessageKey)),
+        esc(t(locale, `contacts.source.${c.source}` as MessageKey)),
+        c.title ? `<bdi>${esc(c.title)}</bdi>` : '',
+        c.company ? `<bdi>${esc(c.company)}</bdi>` : '',
+      // CC-13 — the gap between the facts in the page's own language: " · " in
+      // English and Arabic, as on every other row; Chinese keeps its full-width one.
+      ].filter(Boolean).join(locale === 'zh' ? '　·　' : ' · ')}</div>
       ${company}
       ${outreachLine}
       ${actions.trim() ? `<div class="ct-a">${actions}</div>` : ''}

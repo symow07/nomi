@@ -544,7 +544,8 @@ export function renderReach(
             ? loginButton('reach.inbound.connectMeta') : ''}
           ${link.connectedAs && viewer.isOwner && !link.needsAttention
             ? `<form method="post" action="/app/connect/meta/disconnect" class="inline">
-                <button class="btn" type="submit">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
+                <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+                  data-confirm="${esc(t(locale, 'reach.inbound.disconnectConfirm', { page: link.connectedAs }))}">${esc(t(locale, 'reach.inbound.disconnect'))}</button></form>` : ''}`
         : `${link.noInstagram ? `<div class="muted win">${esc(t(locale, 'reach.inbound.noInstagram'))}</div>` : ''}
           ${loginButton(link.connectHref ? 'reach.inbound.connectMeta' : 'reach.inbound.connect')}`;
 
@@ -576,7 +577,9 @@ export function renderReach(
         <form method="post" action="/app/channels/outreach" class="inline">
           <input type="hidden" name="channel" value="${esc(channel)}" />
           <input type="hidden" name="enabled" value="${on ? 'false' : 'true'}" />
-          <button class="btn ${on ? 'stop' : 'send'}" type="submit"
+          <button class="btn ${on ? 'stop' : 'send'}" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, on ? 'outreach.turnOffConfirm' : 'outreach.turnOnConfirm', {
+              channel: t(locale, `reach.channel.${channel}` as MessageKey) }))}"
             >${esc(t(locale, on ? 'outreach.turnOff' : 'outreach.turnOn'))}</button>
         </form>
         ${decision.ok ? capForm(locale, channel, caps.get(channel) ?? null) : ''}
@@ -635,7 +638,8 @@ export function renderChannels(
     ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
     : w.connected
     ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
-       <form method="post" action="/app/channels/whatsapp/disconnect" style="display:inline"><button class="btn danger">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
+       <form method="post" action="/app/channels/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+         data-confirm="${esc(t(locale, 'channel.action.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
     : w.status === 'disconnected'
       ? `<form method="post" action="/app/channels/whatsapp/reconnect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.reconnect'))}</button></form>`
       // G3 — with a number configured, Connect DOES it; the guide is only for

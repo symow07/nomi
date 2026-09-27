@@ -56,6 +56,9 @@ Chinese and Arabic**; nothing adjusts per script.
 | ok / waiting / warn / highlight | `#0F7B3E` · `#B45309` · `#B42318` · `#8A6D00` | `#4ADE80` · `#FBBF24` · `#F87171` · `#FACC15` |
 | each state also has a wash and a line | e.g. waiting `#F5E7DD` · `#E5C3A9` | e.g. waiting `#2A1F12` · `#4A3418` |
 
+(As measured on 2026-09-24. Since the audit close-out, 2026-09-28, waiting is `#A64C08` and highlight
+`#7F6400` in light — see §8, "The audit close-out".)
+
 Rules already in force: colour is spent on **state only** (M49); the accent is
 the same green as "ok"; one accent per screen. Dark mode exists as tokens and
 a `prefers-color-scheme` block; it has never been reviewed by eye.
@@ -448,6 +451,35 @@ The draft's edit box and the owner's reply box keep what she typed through
 the reload, in the same box. With scripting off every page is the page it
 was. Screenshots in `docs/design/live-refresh/` (en · ar at 390 px, zh, one
 at 1280).
+
+**The audit close-out (2026-09-28).** The last open rows of the 2026-09-20 audit, in V1's
+language, nothing new invented:
+- **The shell names the business (CC-14).** The rail's brand block leads with the business's own
+  name, as the owner typed it (isolated, so a Latin name sits right in Arabic), and "Nomi" is the
+  small line under it — it read "Nomi · {name}'s workspace" to everyone. On a phone option A
+  stands: the row is the mark and the five entries, and the chrome at rest measured 80 / 85 / 87 px
+  (en / zh / ar), unchanged. The name heads Today instead, as one caption line above the title that
+  scrolls away with the page, drawn on phones only; no other page gains a line.
+- **Two state colours a step darker (CC-20).** Every state is read as text on its own wash, and two
+  sat under the 4.5:1 text needs: waiting `#B45309` → `#A64C08` (4.15 → 4.74:1), highlight
+  `#8A6D00` → `#7F6400` (4.12 → 4.72:1). Same hues, the least change that clears it. Decision 3 said
+  no colour token changes; this is a legibility correction, and Symow may choose other values — the
+  test computes every text-on-background pair in the shipped sheets and holds 4.5:1, not a hex.
+- **The rest of CC-20, with no visible change:** a skip link, first on every owner page, out of
+  sight until a keyboard reaches it; the selected tab said to a screen reader on every tab row; the
+  conversation, the buyer's and the product's page each have one heading — the name in the header,
+  drawn at the size it was; the knowledge page no longer prints its title twice (its lede moved under
+  the one title); a field error is announced as a refusal; the sign-in page's brand line is its heading.
+- **Each language its own punctuation (CC-13):** no Chinese colon or full-width space in an English
+  or Arabic page; a figure and its unit are two words in English and Arabic ("5,000 pcs",
+  "5,000 قطعة", a no-break space) and one in Chinese ("5000个"); a price after an Arabic word is its
+  own isolate, so it reads "$2.10", not "2.10$".
+- **One way of asking first (CC-29):** the button's own confirm, the words in `data-confirm` — the
+  idiom seven actions already used — now on every action that takes something away, and on the two
+  that let the assistant do more alone. The last form-level confirm (Your data) moved onto its button.
+- **An article number the owner never typed is not shown (CC-31);** hers is, muted, isolated.
+
+Screenshots in `docs/design/audit-closeout/`.
 
 ### 5 · The row — DECIDED
 

@@ -9,7 +9,7 @@ import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+import { formatDate, labelled } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -236,7 +236,7 @@ export function renderEmployee(
     <div class="emp-h">
       <div><div class="emp-name">${esc(name)}</div>
         <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
-    ${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(t(locale, 'employee.hired'))}：${esc(formatDate(locale, e.hireDate))}</div>` : ''}
+    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(labelled(locale, t(locale, 'employee.hired'), formatDate(locale, e.hireDate)))}</div>` : ''}
   </div>`;
 
   // 2 · What can she handle? Permission and trust boundaries — never a measure
@@ -333,10 +333,14 @@ export function renderEmployee(
     ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'staff.ownerDecides'))}</div></div>`
     : (grantable.length || revocable.length)
     ? `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2>
-        ${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
+        ${/* CC-29 — each asks first, in this block's own words: grant, revoke. */ ''}${revocable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/revoke" class="actrow">
+            <span>${esc(t(locale, 'employee.actions.granted', { cap: capName(c.capability) }))}</span><button class="btn danger" type="submit"
+              onclick="return confirm(this.dataset.confirm)"
+              data-confirm="${esc(t(locale, 'employee.actions.revokeConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.revoke'))}</button></form>`).join('')}
         ${grantable.map((c) => `<form method="post" action="/app/employee/capability/${esc(c.capability)}/promote" class="actrow">
-            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
+            <span>${esc(t(locale, 'employee.actions.eligible', { cap: capName(c.capability) }))}</span><button class="btn send" type="submit"
+              onclick="return confirm(this.dataset.confirm)"
+              data-confirm="${esc(t(locale, 'employee.actions.grantConfirm', { cap: capName(c.capability) }))}">${esc(t(locale, 'employee.actions.grant'))}</button></form>`).join('')}
         <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'employee.actions.note'))}</p>
       </div>`
     : `<div class="block"><h2>${esc(t(locale, 'employee.actions.title'))}</h2><div class="muted empty">${esc(t(locale, 'employee.actions.empty'))}</div></div>`;

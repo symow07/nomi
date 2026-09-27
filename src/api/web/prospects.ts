@@ -103,7 +103,8 @@ function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
         <button class="btn send" type="submit">${esc(t(locale, status.kind === 'stored' ? 'prospects.key.replace' : 'prospects.key.save'))}</button>
       </form>
       ${status.kind === 'stored' ? `<form method="post" action="/app/prospects/key/remove" class="inline">
-        <button class="btn stop" type="submit">${esc(t(locale, 'prospects.key.remove'))}</button></form>` : ''}`;
+        <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'prospects.key.removeConfirm'))}">${esc(t(locale, 'prospects.key.remove'))}</button></form>` : ''}`;
   return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
     <p class="muted">${esc(state)}</p>${controls}</section>`;
 }

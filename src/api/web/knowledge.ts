@@ -173,9 +173,10 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
     : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;
 
   const biz = data.business.map((i) => itemCard(i, locale, null)).join('');
+  // CC-20 — no title of its own: this is the second half of the knowledge page,
+  // under the one <h1> the page's first half draws (`renderKnowledgeOps`), which
+  // carries this page's lede too. It printed the same title a second time.
   return `
-    <h1 class="page">${esc(t(locale, 'knowledge.title'))}</h1>
-    <p class="muted">${esc(t(locale, 'knowledge.intro'))}</p>
     <div class="block"><h2>${esc(t(locale, 'knowledge.products'))}</h2>${products}</div>
     <div class="block"><h2>${esc(t(locale, 'knowledge.business'))}</h2>
       ${biz || `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`}
@@ -202,7 +203,8 @@ function itemCard(i: KItem, locale: Locale, productId: string | null, usageHtml 
     <form method="post" action="/app/knowledge/archive" class="inline">
       <input type="hidden" name="id" value="${esc(i.id)}" />
       <input type="hidden" name="productId" value="${pid}" />
-      <button class="btn ghost" type="submit">${esc(t(locale, 'knowledge.archive'))}</button>
+      <button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'knowledge.archive.confirm', { label: i.label }))}">${esc(t(locale, 'knowledge.archive'))}</button>
     </form>
   </div>`;
 }

@@ -329,20 +329,23 @@ export function renderDataRights(
   const ask = !viewer.isOwner
     ? `<p class="muted">${esc(t(locale, 'data.deletion.ownerOnly'))}</p>`
     : open
-      ? `<div class="flash bad" role="status">${esc(t(locale, 'data.deletion.pending', {
+      // CC-20 — a standing state, said the way the buyer's page says one (a pill
+      // and a sentence): it was drawn as a refusal notice, announced as a passing status.
+      ? `<p><span class="pill warn">${esc(t(locale, 'data.deletion.state.open'))}</span>${esc(t(locale, 'data.deletion.pending', {
           date: formatDate(locale, open.askedAt),
-        }))}</div>
+        }))}</p>
         <form method="post" action="/app/settings/data/withdraw" class="pform">
           <input type="hidden" name="id" value="${esc(open.id)}" />
-          <button class="btn" type="submit">${esc(t(locale, 'data.deletion.withdraw'))}</button>
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
         </form>`
-      : `<form method="post" action="/app/settings/data/delete" class="pform"
-               onsubmit="return confirm(${esc(JSON.stringify(t(locale, 'data.deletion.confirm')))})">
+      : `<form method="post" action="/app/settings/data/delete" class="pform">
           <div class="fld"><label for="dr-name">${esc(t(locale, 'data.deletion.typeName', { name: v.businessName }))}</label>
             <input id="dr-name" name="name" required autocomplete="off" spellcheck="false" maxlength="200" /></div>
           <div class="fld"><label for="dr-note">${esc(t(locale, 'data.deletion.why'))}</label>
             <input id="dr-note" name="note" maxlength="500" autocomplete="off" /></div>
-          <button class="btn stop" type="submit">${esc(t(locale, 'data.deletion.ask'))}</button>
+          ${/* CC-29 — the product's one way of asking first: on the button, the words in data-confirm. */ ''}<button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.deletion.confirm'))}">${esc(t(locale, 'data.deletion.ask'))}</button>
         </form>`;
 
   const workspace = v.requests.filter((r) => r.scope === 'workspace');
@@ -411,7 +414,8 @@ function buyerRequests(
     const withdraw = r.state === 'open' && viewer.isOwner
       ? `<form method="post" action="/app/settings/data/withdraw" class="inline">
           <input type="hidden" name="id" value="${esc(r.id)}" />
-          <button class="btn" type="submit">${esc(t(locale, 'data.deletion.withdraw'))}</button>
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'data.buyers.withdrawConfirm'))}">${esc(t(locale, 'data.deletion.withdraw'))}</button>
         </form>`
       : '';
     return `<li class="row">

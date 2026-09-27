@@ -7662,3 +7662,209 @@ all three languages; the screenshots are in `docs/design/live-refresh/`.
 
 - en: What needs your attention has changed
 - **ar: تغييرات فيما يحتاج انتباهك**
+
+## 2026-09-28 — the audit close-out: the skip link, and a question before anything goes (CC-20, CC-29)
+
+**New strings.** One is the skip link every owner page now starts with (CC-20): it takes a keyboard or a
+screen reader past the five nav entries to the page. The other eighteen are the questions the product asks
+before an action that takes something away — a fact archived, a word or a closure removed, a channel or a
+mailbox disconnected, writing first switched on or off, a sequence stopped, a request taken back — or that lets
+{name} do something alone (CC-29). Each is read in the browser's own confirm box, so each is a question, short,
+and says what goes and whether it comes back. Same rules: nothing genders the reader, the buyer or the assistant
+(`{name}` is the name the owner chose, or "your assistant" / 你的助手 / مساعدك); in Arabic, verbal nouns and the
+passive only.
+`tests/parity/audit-closeout.test.ts` renders them in all three languages.
+
+### 中文 — 19 strings
+
+#### `shell.skip`
+
+- en: Skip to content
+- **zh: 跳到正文**
+
+#### `employee.actions.grantConfirm`
+
+- en: Let {name} handle “{cap}” without you? Replies of this kind stop waiting for your OK. You can revoke it at any time.
+- **zh: 给「{cap}」放权？这类事{name}会自己做，不再等你点头。你随时可以收回。**
+
+#### `employee.actions.revokeConfirm`
+
+- en: Revoke “{cap}”? From now on, each one waits for your OK.
+- **zh: 收回「{cap}」？以后每一条都要等你点头。**
+
+#### `knowledge.archive.confirm`
+
+- en: Archive “{label}”? {name} stops using it with buyers. You can teach it again at any time.
+- **zh: 归档「{label}」？{name}回答买家时不再用这一条。你随时可以重新教。**
+
+#### `reach.inbound.disconnectConfirm`
+
+- en: Disconnect {page}? Nothing from that Page or Instagram reaches you until you connect again.
+- **zh: 断开{page}？在你重新连接之前，这个主页和 Instagram 的消息都不会到你这里。**
+
+#### `outreach.turnOnConfirm`
+
+- en: Let {name} write first on {channel}? You can stop it here at any time.
+- **zh: 让{name}在{channel}上先开口？你随时可以在这里停下。**
+
+#### `outreach.turnOffConfirm`
+
+- en: Stop {name} writing first on {channel}? Nothing new is started there until you allow it again.
+- **zh: 让{name}在{channel}上别再先开口？在你重新允许之前，那里不会再先开口。**
+
+#### `seq.enrolment.stopConfirm`
+
+- en: Stop this sequence for {who}? Nothing more from it is sent to them.
+- **zh: 对{who}停下这组邮件？后面的邮件都不会再发给对方。**
+
+#### `seq.archive.confirm`
+
+- en: Take this sequence out of use? It stops for everyone still receiving it, and stays here to read.
+- **zh: 停用这组邮件？还在收的人都会停下，内容仍留在这里可以看。**
+
+#### `contacts.archive.confirm`
+
+- en: Take {who} off your list? They can be added again later.
+- **zh: 把{who}从名单里去掉？以后可以再加回来。**
+
+#### `prospects.key.removeConfirm`
+
+- en: Remove the Apollo key? Searching stops until a key is added again.
+- **zh: 删掉 Apollo 密钥？再加密钥之前不能搜索。**
+
+#### `channel.action.disconnectConfirm`
+
+- en: Disconnect WhatsApp? {name} cannot receive or send messages there until you tap Reconnect.
+- **zh: 断开 WhatsApp？在你点「重新连接」之前，{name}在那里收不到也发不出消息。**
+
+#### `connect.action.disconnectConfirm`
+
+- en: Disconnect {address}? No e-mail leaves until an account is connected again.
+- **zh: 断开{address}？再连接一个账户之前不会发出任何邮件。**
+
+#### `forbidden.removeConfirm`
+
+- en: Remove “{term}” from the words {name} must never use?
+- **zh: 把「{term}」从{name}绝对不能说的话里去掉？**
+
+#### `closures.removeConfirm`
+
+- en: Remove “{label}”? {name} may promise dates that run through those days again.
+- **zh: 去掉「{label}」？{name}又可能承诺落在那几天里的日期。**
+
+#### `prices.volume.removeConfirm`
+
+- en: Stop offering this discount? It will not be offered to buyers any more.
+- **zh: 不再给这个优惠？之后不会再向买家提出。**
+
+#### `data.deletion.withdrawConfirm`
+
+- en: Take back your request to have everything deleted? Nothing will be deleted.
+- **zh: 撤回删除全部数据的请求？不会删除任何东西。**
+
+#### `data.buyers.withdrawConfirm`
+
+- en: Take this buyer's request back? Nothing of theirs will be deleted.
+- **zh: 撤回这个买家的请求？对方的数据都不会被删除。**
+
+#### `conv.deletion.dismissConfirm`
+
+- en: Set this aside as not a request to delete their data? It stops waiting for your decision.
+- **zh: 确定这不是删除数据的要求？这一条之后不再等你决定。**
+
+### العربية — 19 strings
+
+#### `shell.skip`
+
+- en: Skip to content
+- **ar: الانتقال إلى المحتوى**
+
+#### `employee.actions.grantConfirm`
+
+- en: Let {name} handle “{cap}” without you? Replies of this kind stop waiting for your OK. You can revoke it at any time.
+- **ar: منح «{cap}»؟ بعد المنح يُنجز هذا دون انتظارك، ويمكن السحب في أي وقت.**
+
+#### `employee.actions.revokeConfirm`
+
+- en: Revoke “{cap}”? From now on, each one waits for your OK.
+- **ar: سحب «{cap}»؟ من الآن ينتظر كل ردّ من هذا النوع موافقتك.**
+
+#### `knowledge.archive.confirm`
+
+- en: Archive “{label}”? {name} stops using it with buyers. You can teach it again at any time.
+- **ar: أرشفة «{label}»؟ يتوقف استخدام ذلك في الردود على المشترين، ويمكن إضافته من جديد في أي وقت.**
+
+#### `reach.inbound.disconnectConfirm`
+
+- en: Disconnect {page}? Nothing from that Page or Instagram reaches you until you connect again.
+- **ar: فصل {page}؟ لا يصلك شيء من تلك الصفحة أو إنستغرام حتى إعادة الربط.**
+
+#### `outreach.turnOnConfirm`
+
+- en: Let {name} write first on {channel}? You can stop it here at any time.
+- **ar: السماح لـ {name} بالمبادرة بالكتابة على {channel}؟ يمكن الإيقاف من هنا في أي وقت.**
+
+#### `outreach.turnOffConfirm`
+
+- en: Stop {name} writing first on {channel}? Nothing new is started there until you allow it again.
+- **ar: إيقاف مبادرة {name} بالكتابة على {channel}؟ لا مبادرة هناك حتى السماح بها من جديد.**
+
+#### `seq.enrolment.stopConfirm`
+
+- en: Stop this sequence for {who}? Nothing more from it is sent to them.
+- **ar: إيقاف الإرسال إلى {who}؟ لا تُرسل أي رسالة أخرى من هذه السلسلة.**
+
+#### `seq.archive.confirm`
+
+- en: Take this sequence out of use? It stops for everyone still receiving it, and stays here to read.
+- **ar: إيقاف استخدام هذه السلسلة؟ يتوقف الإرسال للجميع، وتبقى هنا للقراءة.**
+
+#### `contacts.archive.confirm`
+
+- en: Take {who} off your list? They can be added again later.
+- **ar: إزالة {who} من القائمة؟ يمكن الإضافة إلى القائمة من جديد لاحقًا.**
+
+#### `prospects.key.removeConfirm`
+
+- en: Remove the Apollo key? Searching stops until a key is added again.
+- **ar: حذف مفتاح Apollo؟ يتوقف البحث حتى يُضاف مفتاح من جديد.**
+
+#### `channel.action.disconnectConfirm`
+
+- en: Disconnect WhatsApp? {name} cannot receive or send messages there until you tap Reconnect.
+- **ar: قطع اتصال واتساب؟ لا تصل رسائل جديدة إلى {name} ولا يُرسل شيء هناك حتى «إعادة الاتصال».**
+
+#### `connect.action.disconnectConfirm`
+
+- en: Disconnect {address}? No e-mail leaves until an account is connected again.
+- **ar: فصل {address}؟ لن يخرج أي بريد حتى يُربط حساب من جديد.**
+
+#### `forbidden.removeConfirm`
+
+- en: Remove “{term}” from the words {name} must never use?
+- **ar: حذف «{term}» من الكلمات الممنوعة في ردود {name}؟**
+
+#### `closures.removeConfirm`
+
+- en: Remove “{label}”? {name} may promise dates that run through those days again.
+- **ar: إزالة «{label}»؟ قد يُذكر من جديد موعد يمرّ خلال تلك الأيام.**
+
+#### `prices.volume.removeConfirm`
+
+- en: Stop offering this discount? It will not be offered to buyers any more.
+- **ar: إيقاف هذا العرض؟ لا يُعرض على المشترين بعد الآن.**
+
+#### `data.deletion.withdrawConfirm`
+
+- en: Take back your request to have everything deleted? Nothing will be deleted.
+- **ar: التراجع عن طلب حذف كل شيء؟ لن يُحذف شيء.**
+
+#### `data.buyers.withdrawConfirm`
+
+- en: Take this buyer's request back? Nothing of theirs will be deleted.
+- **ar: التراجع عن هذا الطلب؟ لن يُحذف شيء من بيانات هذا المشتري.**
+
+#### `conv.deletion.dismissConfirm`
+
+- en: Set this aside as not a request to delete their data? It stops waiting for your decision.
+- **ar: تنحية هذا الطلب جانبًا لأنه ليس طلب حذف؟ لن يبقى بانتظار القرار بعد ذلك.**

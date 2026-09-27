@@ -26,7 +26,10 @@ describe('M9.5 · product list (localized)', () => {
     const html = renderProductList(items, 'zh');
     expect(html).toContain('产品目录'); expect(html).toContain('帆布袋'); expect(html).toContain('ZX-100');
     expect(html).toContain('$0.92');
-    expect(html).toContain('最低起订: 1000个');
+    // CC-13 — the Chinese colon, full width and with no space after it; a figure and 个 together,
+    // each figure isolated (the Arabic line reordered a bare price).
+    expect(html).toContain('最低起订：<bdi>1000个</bdi>');
+    expect(html).toContain('<bdi>5000个</bdi>：<bdi>$0.92</bdi>');
     expect(html).not.toContain('已学习 ✓'); expect(html).not.toContain('可以被图片识别');   // V1 review fix 3: an absent mark means fine
     expect(html).toContain('href="/app/products/p1"');
     expect(html).toContain('需要价格'); expect(html).toContain('价格待补');
@@ -35,7 +38,10 @@ describe('M9.5 · product list (localized)', () => {
   it('en: uses the neutral latin name; localized chrome', () => {
     const html = renderProductList(items, 'en');
     expect(html).toContain('Products'); expect(html).toContain('Canvas bag');
-    expect(html).toContain('Min. order: 1,000pcs');
+    // CC-13 — a figure and its unit are two words (a no-break space between); the gap between
+    // the two facts is the product's own " · ", not a full-width space.
+    expect(html).toContain('Min. order: <bdi>1,000\u00a0pcs</bdi>');
+    expect(html).toContain('<bdi>5,000\u00a0pcs</bdi>: <bdi>$0.92</bdi> · Min. order');
     // V1 review fix 3: an absent mark means fine — nothing says "Learned" or "Recognizable".
     expect(html).not.toContain('Learned ✓'); expect(html).not.toContain('Recognizable by photo');
     expect(html.split('Not recognizable by photo yet').length - 1).toBe(items.filter((i) => !i.imageMatchable).length);

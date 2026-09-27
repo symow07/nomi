@@ -10,7 +10,7 @@ import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, outreachShown } from './say.js';
-import { formatMoney, formatQty, formatRelative, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
@@ -1037,7 +1037,7 @@ export function renderInboxList(
     // run ("5,0001.45$"). The separators sit between them, in the page's direction.
     const detail = [
       prod ?? '',
-      c.quantity !== null ? `${formatQty(locale, c.quantity)}${pcs}` : '',
+      c.quantity !== null ? formatQtyUnit(locale, c.quantity, pcs) : '',
       c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
     ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
     // Who wrote the newest message — the transcript's words for each speaker.
@@ -1337,7 +1337,7 @@ export function renderConversationDetail(
   const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${[
-        iso(`${formatQty(locale, d.quote.quantity)}${pcs}`),
+        iso(formatQtyUnit(locale, d.quote.quantity, pcs)),
         iso(`${formatMoney(d.quote.unitPrice)}/${pcs}`),
         iso(`${t(locale, 'product.detail.total')} ${formatMoney(d.quote.total)}`),
       ].join(' · ')}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
@@ -1605,14 +1605,14 @@ export function renderConversationDetail(
   return `
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      <div class="who">${buyerWho(locale, d.buyer, d.country)}</div>
+      ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
       ${headerPill(d, locale, viewer)}
     </div>
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
     ${prod || d.quantity !== null ? `<div class="muted subline">${[
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
-      d.quantity !== null ? `<bdi>${esc(formatQty(locale, d.quantity))}${esc(pcs)}</bdi>` : '',
+      d.quantity !== null ? `<bdi>${esc(formatQtyUnit(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
     ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
       deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'))}

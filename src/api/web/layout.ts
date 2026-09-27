@@ -1,7 +1,7 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
+import { t, assistantName, assistantsAreSeveral, setupState, businessName } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { createHash } from 'node:crypto';
@@ -215,6 +215,21 @@ ${cssVariables()}
   .brand .mark-small { display:none; }
   .brand small { display:block; color:var(--color-ink-secondary); font-weight:500;
     font-size:var(--font-size-caption); letter-spacing:0; margin-top:var(--space-4); }
+  /* CC-14 — the business's own name leads the block, and a long one wraps
+     inside the rail rather than widening it. */
+  .brand .brandname { min-width:0; overflow-wrap:anywhere; }
+  /* On a phone the rail is one row with no room for a name, so the name heads
+     Today instead: one line that scrolls away with the page. Drawn on the
+     phone only; the rail carries it everywhere else. */
+  .business-name { display:none; margin:0 0 var(--space-4); font-size:var(--font-size-caption);
+    font-weight:600; color:var(--color-ink-secondary); overflow-wrap:anywhere; }
+  /* CC-20 — the way past the nav for a keyboard: out of sight until it has
+     focus, then the first thing on the page, over the rail. */
+  .skip { position:absolute; top:calc(-2 * var(--space-48)); inset-inline-start:var(--space-8); z-index:3;
+    padding:var(--space-8) var(--space-16); border-radius:var(--radius-card);
+    background:var(--color-surface); color:var(--color-ink); box-shadow:var(--shadow-lift2);
+    font-size:var(--font-size-small); font-weight:600; }
+  .skip:focus, .skip:focus-visible { top:var(--space-8); }
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
@@ -396,7 +411,7 @@ ${LANGSW_CSS}
      sticky phone nav, with the message before it still in view. After an
      action it lands on the notice the action left, drawn under that message.
      The practice box is a landing of the same kind. */
-  #latest, #compose { scroll-margin-top:25vh; }
+  #latest, #compose, #main { scroll-margin-top:25vh; }
   /* Her PROPOSAL — visually subordinate to the buyer's words above it. Not a
      boxed rival: a quiet serif paragraph behind a jade hairline that means
      "hers, awaiting your decision". border-inline-start keeps the hairline on
@@ -538,6 +553,7 @@ ${LANGSW_CSS}
     nav.side .brand .mark-detail { display:none; }
     nav.side .brand .mark-small { display:flex; }
     nav.side .brand .brandname { display:none; }
+    .business-name { display:block; }
     nav.side a.navlink { flex:1; flex-direction:row; flex-wrap:wrap; gap:var(--space-4); margin:0;
       padding:var(--space-8) var(--space-4); min-height:56px; align-items:center; justify-content:center;
       font-size:var(--font-size-caption); text-align:center; }
@@ -864,6 +880,9 @@ const STYLE_PAGES = `
   .buyer.unanswered .buyer-m { color:var(--color-ink); }
   .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
   .dhead .who { font-size:var(--font-size-small); }
+  /* CC-20 — on the conversation, the buyer's and the product's page, the name
+     in the header is the page's title (an h1), drawn the size it always was. */
+  .dhead h1.who { margin:0; font-weight:400; }
   .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
     margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
   /* The reply waiting for review. */
@@ -1256,6 +1275,26 @@ export function shell(input: {
     return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}${aria}
        >${esc(label)}${badge}</a>`;
   }).join('');
+  /**
+   * CC-14 — whose workspace this is, in the owner's own words. It read
+   * "Nomi · Lily's workspace" to everyone, and a new owner never saw the name
+   * they had typed two minutes earlier. The business leads; the product is the
+   * line under it. Outside a workspace (a fragment in a test, a failed
+   * look-up) the block says what it always said.
+   *
+   * On a phone the brand is the small mark alone (option A: the nav row is the
+   * whole chrome, 80–87 px at rest), so the name is not squeezed into that row:
+   * it heads Today instead — the page every visit starts on — as one line that
+   * scrolls away with the page and is not drawn where the sidebar shows it.
+   */
+  const business = businessName();
+  const brandname = business
+    ? `<span class="brandname"><bdi>${esc(business)}</bdi><small>Nomi</small></span>`
+    : `<span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span>`;
+  const home = ((input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app') === '/app';
+  const heading = business && home ? `<p class="business-name"><bdi>${esc(business)}</bdi></p>` : '';
+  // CC-20 — the first stop for a keyboard or a screen reader: past the five
+  // nav entries, straight to the page. Out of sight until it has focus.
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1263,13 +1302,13 @@ export function shell(input: {
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(APP_SHEET)}
 ${scriptTo(LIVE_JS)}</head>
-<body><div class="layout">
+<body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
-    <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
+    <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span>${brandname}</div>
     ${nav}
   </nav>
   <div class="content">
-    <main>${input.bodyHtml}${input.live ?? ''}</main>
+    <main id="main">${heading}${input.bodyHtml}${input.live ?? ''}</main>
   </div>
 </div></body></html>`;
 }
@@ -1319,7 +1358,12 @@ const DOOR_STYLE = `
 /** The door's sheet: the base rules and the door's own — never the pages' sections. */
 const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
 
-const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string): string => `<!doctype html>
+/**
+ * CC-20 — every door page has one heading. Sign-up, the code and the error
+ * pages carry theirs in the card; the sign-in page has none there, so its
+ * brand line is its heading (`brandIsTitle`), drawn exactly as before.
+ */
+const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string, brandIsTitle = false): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
@@ -1327,7 +1371,7 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 ${linkTo(DOOR_SHEET)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
-  <div class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>
+  <${brandIsTitle ? 'h1' : 'div'} class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></${brandIsTitle ? 'h1' : 'div'}>
   <div class="card">${card}</div>
   ${other}
   <p class="muted foot">${esc(t(locale, 'login.footer'))}</p>
@@ -1368,7 +1412,7 @@ export function loginPage(input: {
     </details>`;
   const other = input.signupOpen === false ? ''
     : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`;
-  return doorFrame(locale, input.path, t(locale, 'login.title'), card, other);
+  return doorFrame(locale, input.path, t(locale, 'login.title'), card, other, true);
 }
 
 export type SignupPageInput = {

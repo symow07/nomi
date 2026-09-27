@@ -179,7 +179,8 @@ describe('CC-26 · the live region: empty, polite, and the line waiting in a tem
 
   it('the shell puts the region at the foot of the column, after everything the page draws', () => {
     const html = page('en', liveRegion('en', W), `/app/inbox/${CONV}`);
-    const main = html.slice(html.indexOf('<main>'), html.indexOf('</main>'));
+    // CC-20 — main carries the skip link's target now: <main id="main">.
+    const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
     expect(main.indexOf('<p>body</p>')).toBeGreaterThan(0);
     expect(main.indexOf('<div class="live"')).toBeGreaterThan(main.indexOf('<p>body</p>'));
     expect(main.endsWith('</template>')).toBe(true);

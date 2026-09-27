@@ -24,7 +24,10 @@ describe('M13 · knowledge UI (localized renderer)', () => {
   it('index lists products + a business section + a teach form, in en/zh/ar', () => {
     for (const l of LOCALES) {
       const html = renderKnowledgeIndex(index, l);
-      expect(html).toContain(t(l, 'knowledge.title'));
+      // CC-20 — the knowledge page has ONE title: its first half draws it, with
+      // the lede (renderKnowledgeOps). This half printed the same title again.
+      expect(html).not.toContain('<h1');
+      expect(html).not.toContain(t(l, 'knowledge.intro'));
       expect(html).toContain('href="/app/knowledge/p1"');       // product deep link
       expect(html).toContain('Non-woven bag');                  // product name (data)
       expect(html).toContain(t(l, 'knowledge.business'));
