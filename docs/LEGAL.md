@@ -20,13 +20,40 @@ runs the product. The draft terms for the business itself are in
   platform identifier, the time; for e-mail, the address and the thread.
 - Who sees it: the business; Meta (carriage); Anthropic (drafting); Railway
   (hosting); Google or Microsoft when a mailbox is connected. Nobody else.
-- How long: while the business uses the product; sooner on request.
-- Deletion: a request from the account used, or to `LEGAL_CONTACT_EMAIL`;
-  **removal within 30 days**, confirmed on the same channel; what the law
-  makes the business keep (an invoice) and Meta's own copies stay.
+- How long: until the business asks for its records to be deleted, or the
+  person asks for theirs.
+- Deletion (CC-02a, 2026-09-27): the person asks the business — a message from
+  the account they used — or writes to `LEGAL_CONTACT_EMAIL`, and **the
+  operator passes it on to that business**. The business records it on the
+  buyer's page (`/app/conversations/:id`), which writes a `deletion_requests`
+  row (`scope = 'buyer'`). **The operator carries it out by hand within 30
+  days of it being recorded.** When the row is closed as done, the business
+  sees it on the buyer's page and on Your data and can tell the person; the
+  product sends the person nothing, and the page says so.
+- What is deleted: their identities on every channel; every message to or
+  from them; drafts, quotes and sample requests written for them; notes and
+  signals about their conversations; the conversations, except what an order
+  needs. What is kept: their orders (items, prices, status history) detached
+  from contact details and messages; a do-not-contact note if they asked not
+  to be written to; the record that they asked and when it was done; Meta's
+  own copies; anything the business keeps outside Nomi (its mailbox, files it
+  exported); and copies inside backups until those backups are deleted.
 
-A parity test (`tests/parity/legal-pages.test.ts`) pins the thirty days in
-all three locales to the number written here. Change one, change both.
+`tests/parity/deletion-page.test.ts` holds every item above in all three
+locales, holds the old promises out ("the same channel", a confirmation, an
+instant or automatic deletion), and ties the 30 days to `DELETION_DAYS` and to
+migration 0073. Change one, change all three.
+
+### The deadline, and who hears of it
+
+- The day a business records a request, a notice goes to `LEGAL_CONTACT_EMAIL`
+  (ids and dates only — never the note, never the buyer's name).
+- Every morning at 07:00 UTC the app asks `deletion_requests_due()` (0073, a
+  definer function: business name, scope, asked-at, nothing else) for every
+  open request within 7 days of its 30, or past them, across all businesses,
+  and sends ONE `deletion_due` operator alert — by e-mail to the pilot owner's
+  sign-in address always, by WhatsApp too where a channel is live. It repeats
+  daily until each request is closed.
 
 ## Keeping the deletion promise
 
@@ -45,8 +72,9 @@ with the migrate role, done once per request:
    `suppressions` rows for an e-mail address go too, unless the person asked to
    be left alone — a suppression is the record that keeps that promise, and
    the page says so.
-5. Take a backup before, verify after (`docs/BACKUP-RESTORE.md`), and confirm
-   to the person on the channel they asked on.
+5. Take a backup before, verify after (`docs/BACKUP-RESTORE.md`), then close
+   the request (`state = 'done'`, `closed_at`, `closed_by`). The business
+   sees it done and tells the person; the product does not write to them.
 
 What stays, and the page says so: an invoice or order the business must keep
 by law (leave `orders` rows for a confirmed order; the conversation they came

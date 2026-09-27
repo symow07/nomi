@@ -1,10 +1,11 @@
 import { sql } from 'kysely';
-import { withTenantTx, type Db } from '../../db/client.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
+import { deletionDueBy } from '../../core/ops/deletions.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -29,6 +30,14 @@ import type { Viewer } from '../../core/conversation/people.js';
  * row is what makes the promise checkable: before it, a request lived in
  * somebody's inbox and nobody could say how many were open or how old the
  * oldest was.
+ *
+ * CC-02a — A BUYER'S REQUEST, TOO. A buyer asks the business; the owner
+ * records it on that buyer's page (`askBuyerDeletion`), and this page lists
+ * every one with the date it must be carried out by — 30 days from being
+ * recorded, the number /data-deletion states — and, once the operator has
+ * carried it out, the date it was done, which is when the owner tells the
+ * buyer. The operator hears of it the day it is recorded, and again every day
+ * from a week before the date (`deletionDueAlert`).
  */
 
 export type DeletionRequest = {
@@ -42,34 +51,82 @@ export type DeletionRequest = {
   readonly closedNote: string | null;
 };
 
+/**
+ * CC-02a — a buyer's request, as the owner's pages show it: whom it is about
+ * (their name while the business still has one for them) and where their file
+ * is, if it is still there.
+ */
+export type BuyerDeletionRequest = DeletionRequest & {
+  readonly buyer: string | null;
+  readonly conversationId: string | null;
+};
+
 export type DataRightsView = {
-  /** Every request this workspace has made, newest first. */
+  /** Every request for the WHOLE workspace this business has made, newest first. */
   readonly requests: readonly DeletionRequest[];
+  /** CC-02a — buyers' requests: every open one first, then the recent rest. */
+  readonly buyers?: readonly BuyerDeletionRequest[];
   /** The name she must type to confirm — her own business's. */
   readonly businessName: string;
 };
 
+type RequestRow = {
+  id: string; scope: 'workspace' | 'buyer'; subject_note: string | null; asked_by: string;
+  asked_at: Date; state: DeletionRequest['state']; closed_at: Date | null; closed_note: string | null;
+};
+const requestOf = (x: RequestRow): DeletionRequest => ({
+  id: x.id, scope: x.scope, subjectNote: x.subject_note, askedBy: x.asked_by,
+  askedAt: x.asked_at, state: x.state, closedAt: x.closed_at, closedNote: x.closed_note,
+});
+
 export async function loadDataRights(db: Db, businessIdRaw: string): Promise<DataRightsView> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { requests: [], businessName: '' };
+  if (!bid.ok) return { requests: [], buyers: [], businessName: '' };
   return withTenantTx(db, bid.value, async (tx) => {
     const name = (await sql<{ name: string }>`
       select name from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.name ?? '';
-    const r = await sql<{
-      id: string; scope: 'workspace' | 'buyer'; subject_note: string | null; asked_by: string;
-      asked_at: Date; state: DeletionRequest['state']; closed_at: Date | null; closed_note: string | null;
-    }>`
+    const r = await sql<RequestRow>`
       select id::text as id, scope, subject_note, asked_by, asked_at, state, closed_at, closed_note
-        from deletion_requests where business_id = ${bid.value}
+        from deletion_requests where business_id = ${bid.value} and scope = 'workspace'
        order by asked_at desc limit 20`.execute(tx);
+    // An open request is never pushed off the list by closed ones: those are
+    // the ones with a date still to keep.
+    const b = await sql<RequestRow & { buyer: string | null; conversation_id: string | null }>`
+      select r.id::text as id, r.scope, r.subject_note, r.asked_by, r.asked_at, r.state,
+             r.closed_at, r.closed_note, c.display_name as buyer,
+             (select v.id::text from conversations v where v.client_id = r.client_id
+               order by v.updated_at desc limit 1) as conversation_id
+        from deletion_requests r
+        left join clients c on c.id = r.client_id
+       where r.business_id = ${bid.value} and r.scope = 'buyer'
+       order by (r.state = 'open') desc, r.asked_at desc
+       limit 100`.execute(tx);
     return {
       businessName: name,
-      requests: r.rows.map((x) => ({
-        id: x.id, scope: x.scope, subjectNote: x.subject_note, askedBy: x.asked_by,
-        askedAt: x.asked_at, state: x.state, closedAt: x.closed_at, closedNote: x.closed_note,
-      })),
+      requests: r.rows.map(requestOf),
+      buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id })),
     };
   });
+}
+
+/** CC-02a — the request this buyer's page shows: their latest, in any state. */
+export type BuyerDeletionState = {
+  readonly state: DeletionRequest['state'];
+  readonly askedAt: Date;
+  readonly closedAt: Date | null;
+  readonly closedNote: string | null;
+};
+
+/** Inside the caller's tenant transaction, so the policy scopes it as it scopes the page. */
+export async function buyerDeletionOf(tx: Tx, conversationId: string): Promise<BuyerDeletionState | null> {
+  const r = (await sql<{ state: DeletionRequest['state']; asked_at: Date; closed_at: Date | null; closed_note: string | null }>`
+    select r.state, r.asked_at, r.closed_at, r.closed_note
+      from deletion_requests r
+     where r.scope = 'buyer'
+       and r.client_id = (select client_id from conversations where id = ${conversationId}::uuid)
+     order by (r.state = 'open') desc, r.asked_at desc
+     limit 1`.execute(tx)).rows[0];
+  return r ? { state: r.state, askedAt: r.asked_at, closedAt: r.closed_at, closedNote: r.closed_note } : null;
 }
 
 export type AskOutcome = 'asked' | 'already_open' | 'name_wrong' | 'failed';
@@ -135,6 +192,76 @@ export async function withdrawDeletion(
   });
 }
 
+/**
+ * CC-02a — the owner's note on a buyer's request: how and when the buyer
+ * asked ("on WhatsApp, 27 September"). REQUIRED, because it is the only record
+ * of the asking itself — the buyer's message may be the very thing that is
+ * deleted — and BOUNDED, because it is a note, not a transcript. Runs of space
+ * collapse to one; nothing is cut silently: too long is refused and said.
+ */
+export const BUYER_NOTE_MAX = 300;
+export function buyerDeletionNote(raw: string):
+  { readonly ok: true; readonly value: string } | { readonly ok: false; readonly reason: 'missing' | 'long' } {
+  const value = raw.replace(/\s+/g, ' ').trim();
+  if (value === '') return { ok: false, reason: 'missing' };
+  if (value.length > BUYER_NOTE_MAX) return { ok: false, reason: 'long' };
+  return { ok: true, value };
+}
+
+export type BuyerAskOutcome =
+  | { readonly outcome: 'asked'; readonly requestId: string; readonly askedAt: Date }
+  | { readonly outcome: 'already_open' | 'not_found' | 'failed' };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * CC-02a — a buyer asked to be deleted, and the owner writes it down here, on
+ * that buyer's page: which buyer (the conversation's client), who recorded it,
+ * the note. The deadline starts now — /data-deletion promises the buyer 30
+ * days from this moment, and the operator is told as it nears.
+ *
+ * NOTHING IS ERASED BY THIS. As with the workspace request, the app role holds
+ * no DELETE grant; Nomi's operator carries it out by hand, following
+ * docs/DATA-DELETION-RUNBOOK.md.
+ *
+ * ONE OPEN REQUEST PER BUYER. Asked twice, the second is told, not written:
+ * the count below answers the ordinary case, and the partial unique index in
+ * 0073 answers the race — two presses in the same instant — which surfaces as
+ * a unique violation and is read as the same answer.
+ */
+export async function askBuyerDeletion(
+  db: Db, businessIdRaw: string, conversationId: string, note: string, actor: string,
+): Promise<BuyerAskOutcome> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { outcome: 'failed' };
+  if (!UUID.test(conversationId)) return { outcome: 'not_found' };
+  try {
+    return await withTenantTx(db, bid.value, async (tx): Promise<BuyerAskOutcome> => {
+      const client = (await sql<{ client_id: string }>`
+        select client_id::text as client_id from conversations
+         where id = ${conversationId}::uuid and client_id is not null limit 1`.execute(tx)).rows[0]?.client_id ?? null;
+      if (client === null) return { outcome: 'not_found' };
+      const open = (await sql<{ n: number }>`
+        select count(*)::int as n from deletion_requests
+         where client_id = ${client}::uuid and scope = 'buyer' and state = 'open'`.execute(tx)).rows[0]?.n ?? 0;
+      if (open > 0) return { outcome: 'already_open' };
+      const row = (await sql<{ id: string; asked_at: Date }>`
+        insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note)
+        values (${bid.value}, 'buyer', ${client}::uuid, ${actor}, ${note})
+        returning id::text as id, asked_at`.execute(tx)).rows[0]!;
+      // The trail says a request was made and which one — never the note, and
+      // never whom it is about: both are the buyer's, and the row holds them.
+      await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
+                values (${bid.value}, null, 'deletion_requested', ${actor},
+                        ${JSON.stringify({ scope: 'buyer', request: row.id })}::jsonb)`.execute(tx);
+      return { outcome: 'asked', requestId: row.id, askedAt: row.asked_at };
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === '23505') return { outcome: 'already_open' };
+    throw e;
+  }
+}
+
 /** ── The page ─────────────────────────────────────────────────────────────── */
 
 const STATE_KEY: Readonly<Record<DeletionRequest['state'], MessageKey>> = {
@@ -191,11 +318,11 @@ export function renderDataRights(
           <button class="btn stop" type="submit">${esc(t(locale, 'data.deletion.ask'))}</button>
         </form>`;
 
-  const history = v.requests.length === 0 ? '' : `<section class="block">
+  const workspace = v.requests.filter((r) => r.scope === 'workspace');
+  const history = workspace.length === 0 ? '' : `<section class="block">
     <h2>${esc(t(locale, 'data.deletion.history'))}</h2>
-    <ul class="list">${v.requests.map((r) => `<li class="row">
-      <span class="person">${esc(t(locale, r.scope === 'workspace'
-        ? 'data.deletion.scope.workspace' : 'data.deletion.scope.buyer'))}</span>
+    <ul class="list">${workspace.map((r) => `<li class="row">
+      <span class="person">${esc(t(locale, 'data.deletion.scope.workspace'))}</span>
       <span class="muted">${esc(formatDate(locale, r.askedAt))}</span>
       <span class="pill ${r.state === 'open' ? 'warn' : 'ok'}">${esc(t(locale, STATE_KEY[r.state]))}</span>
       ${r.closedNote ? `<div class="muted"><bdi>${esc(r.closedNote)}</bdi></div>` : ''}
@@ -206,6 +333,7 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
+    ${buyerRequests(v.buyers ?? [], locale, viewer)}
     <section class="block">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
       <p class="muted">${esc(t(locale, 'data.deletion.lead'))}</p>
@@ -215,5 +343,53 @@ export function renderDataRights(
     ${history}
     ${deeper('/privacy', t(locale, 'legal.privacyLink'))}
     `;
+}
+
+/** A state is a state colour: waiting, done, not done; taken back is neutral. */
+const STATE_TONE: Readonly<Record<DeletionRequest['state'], string>> = {
+  open: 'warn', done: 'ok', refused: 'bad', withdrawn: 'stop',
+};
+
+/**
+ * CC-02a — the buyers who asked to be deleted. Each is recorded on that
+ * buyer's own page; here the owner sees every one in one place — when it was
+ * asked, the date it must be carried out by, and when it was done, which is
+ * the moment to tell the buyer (Nomi does not write to them about it). While a
+ * request is still waiting it can be taken back, with the workspace request's
+ * own route: one way back, not two.
+ */
+function buyerRequests(buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer): string {
+  const rows = buyers.map((r) => {
+    const who = esc(r.buyer ?? t(locale, 'common.buyer'));
+    const name = r.conversationId && r.state !== 'done'
+      ? `<a href="/app/conversations/${encodeURIComponent(r.conversationId)}"><b><bdi>${who}</bdi></b></a>`
+      : `<b><bdi>${who}</bdi></b>`;
+    const asked = formatDate(locale, r.askedAt);
+    const when = r.state === 'open'
+      ? t(locale, 'data.buyers.due', { asked, due: formatDate(locale, deletionDueBy(r.askedAt)) })
+      : r.state === 'done' && r.closedAt
+        ? t(locale, 'data.buyers.done', { asked, done: formatDate(locale, r.closedAt) })
+        : t(locale, 'data.buyers.asked', { asked });
+    const withdraw = r.state === 'open' && viewer.isOwner
+      ? `<form method="post" action="/app/settings/data/withdraw" class="inline">
+          <input type="hidden" name="id" value="${esc(r.id)}" />
+          <button class="btn" type="submit">${esc(t(locale, 'data.deletion.withdraw'))}</button>
+        </form>`
+      : '';
+    return `<li class="row">
+      <div class="person">${name}
+        <span class="muted">${esc(when)}</span>
+        ${r.subjectNote ? `<span class="muted"><bdi>${esc(r.subjectNote)}</bdi></span>` : ''}
+        ${r.state === 'refused' && r.closedNote ? `<span class="muted"><bdi>${esc(r.closedNote)}</bdi></span>` : ''}
+      </div>
+      <span class="pill ${STATE_TONE[r.state]}">${esc(t(locale, STATE_KEY[r.state]))}</span>
+      ${withdraw}
+    </li>`;
+  }).join('');
+  return `<section class="block">
+    <h2>${esc(t(locale, 'data.buyers.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'data.buyers.lead'))}</p>
+    ${rows ? `<ul class="rows">${rows}</ul>` : `<p class="muted">${esc(t(locale, 'data.buyers.none'))}</p>`}
+  </section>`;
 }
 

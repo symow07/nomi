@@ -214,8 +214,13 @@ import type { Db } from './client.js';
  *      and `conversations.owner_unsent_reply` are read on every conversation
  *      page and written when a send is refused. Against a 71 database the
  *      conversation page throws on the missing columns.
+ * 73 = a buyer's deletion request, and its deadline (0073, CC-02a). The daily
+ *      check calls `deletion_requests_due()`, and the one-open-per-buyer index
+ *      is what makes a second press "already asked". Against a 72 database the
+ *      check throws every morning — the operator is never told a deletion is
+ *      due, the silent failure the alert exists to prevent.
  */
-export const REQUIRED_SCHEMA_VERSION = 72;
+export const REQUIRED_SCHEMA_VERSION = 73;
 
 export type SchemaState = {
   readonly required: number;
