@@ -7047,3 +7047,146 @@ a reviewed rewording may need that file's markers updated in the same commit.
 
 - en: You can ask the business for a copy of what is kept about you, or ask for it to be deleted as the deletion page describes. Every e-mail the business sends carries a link that stops further mail.
 - **ar: يمكنك طلب نسخة من البيانات المحفوظة عنك من الشركة، أو طلب حذفها كما تصف صفحة الحذف. وكل بريد إلكتروني ترسله الشركة يحمل رابطًا يوقف أي رسائل لاحقة.**
+
+## 2026-09-27 — 0075: a deletion request in chat goes to a person
+
+**New strings, not a pronoun rewording.** A buyer who asks in chat for their data to be deleted is
+handed to a person and nothing is sent to them; the conversation page names the reason and shows a
+card: nothing was sent, why, and where the request is recorded (`staff.deletionAsked` is the line
+a sales assistant sees instead). The `sandbox.case.*` lines name the seven new practice cases. Same
+rules: nothing genders the reader, the buyer or the assistant; in Arabic, verbal nouns, the passive
+or «يمكن / يُرجى». `tests/parity/deletion-handoff-page.test.ts` renders the card in all three languages.
+
+### 中文 — 13 strings
+
+#### `takeover.reason.deletion_requested`
+
+- en: the buyer asked for their data to be deleted
+- **zh: 买家要求删除自己的数据**
+
+#### `deletionAsked.title`
+
+- en: A request to delete their data
+- **zh: 删除数据的要求**
+
+#### `deletionAsked.what`
+
+- en: {name} sent nothing: no reply and no receipt. A person answers a request like this.
+- **zh: {name}什么都没有发：没有回复，也没有回执。这类要求由人来回复。**
+
+#### `deletionAsked.why`
+
+- en: A deletion is recorded on the buyer's page and carried out by Nomi's operator by hand, so nothing about it is promised in the chat.
+- **zh: 删除要在买家的页面上记录，再由 Nomi 的运营方手动执行，所以聊天里不会就删除做任何承诺。**
+
+#### `deletionAsked.do`
+
+- en: Record the request on the buyer's page, then answer them yourself
+- **zh: 先在买家的页面记录这条要求，再自己回复对方**
+
+#### `staff.deletionAsked`
+
+- en: The owner records the request on the buyer's page. Answer them yourself.
+- **zh: 这条要求由老板在买家的页面记录。请你自己回复对方。**
+
+#### `sandbox.case.deletion-request-en-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (English)
+- **zh: 买家要求删除自己的数据（英文）**
+
+#### `sandbox.case.deletion-request-zh-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (Chinese)
+- **zh: 买家要求删除自己的数据（中文）**
+
+#### `sandbox.case.deletion-request-ar-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (Arabic)
+- **zh: 买家要求删除自己的数据（阿拉伯文）**
+
+#### `sandbox.case.deletion-promise-in-a-reply-is-never-sent`
+
+- en: A reply promising to delete their data is never sent
+- **zh: 承诺删除数据的回复绝不会发出**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-en`
+
+- en: Buyer asks to delete a line from the quote (English)
+- **zh: 买家要删掉报价里的一行（英文）**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-zh`
+
+- en: Buyer asks to delete a line from the quote (Chinese)
+- **zh: 买家要删掉报价里的一行（中文）**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-ar`
+
+- en: Buyer asks to delete a line from the quote (Arabic)
+- **zh: 买家要删掉报价里的一行（阿拉伯文）**
+
+### العربية — 13 strings
+
+#### `takeover.reason.deletion_requested`
+
+- en: the buyer asked for their data to be deleted
+- **ar: طلب المشتري حذف البيانات**
+
+#### `deletionAsked.title`
+
+- en: A request to delete their data
+- **ar: طلب حذف البيانات**
+
+#### `deletionAsked.what`
+
+- en: {name} sent nothing: no reply and no receipt. A person answers a request like this.
+- **ar: لم يُرسَل أي شيء من {name}: لا ردّ ولا إشعار بالاستلام. الردّ على طلب كهذا يكون من شخص.**
+
+#### `deletionAsked.why`
+
+- en: A deletion is recorded on the buyer's page and carried out by Nomi's operator by hand, so nothing about it is promised in the chat.
+- **ar: يُسجَّل الحذف في صفحة المشتري وينفّذه مشغّل Nomi يدويًا، لذلك لا يُقطَع في المحادثة أي وعد بشأنه.**
+
+#### `deletionAsked.do`
+
+- en: Record the request on the buyer's page, then answer them yourself
+- **ar: تسجيل الطلب في صفحة المشتري، ثم الردّ مباشرةً**
+
+#### `staff.deletionAsked`
+
+- en: The owner records the request on the buyer's page. Answer them yourself.
+- **ar: تسجيل الطلب في صفحة المشتري من شأن مالك الحساب. يُرجى الردّ مباشرةً.**
+
+#### `sandbox.case.deletion-request-en-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (English)
+- **ar: المشتري يطلب حذف البيانات (إنجليزي)**
+
+#### `sandbox.case.deletion-request-zh-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (Chinese)
+- **ar: المشتري يطلب حذف البيانات (صيني)**
+
+#### `sandbox.case.deletion-request-ar-hands-off-silently`
+
+- en: Buyer asks for their data to be deleted (Arabic)
+- **ar: المشتري يطلب حذف البيانات (عربي)**
+
+#### `sandbox.case.deletion-promise-in-a-reply-is-never-sent`
+
+- en: A reply promising to delete their data is never sent
+- **ar: ردّ يَعِد بحذف البيانات لا يُرسَل أبدًا**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-en`
+
+- en: Buyer asks to delete a line from the quote (English)
+- **ar: المشتري يطلب حذف سطر من عرض السعر (إنجليزي)**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-zh`
+
+- en: Buyer asks to delete a line from the quote (Chinese)
+- **ar: المشتري يطلب حذف سطر من عرض السعر (صيني)**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-ar`
+
+- en: Buyer asks to delete a line from the quote (Arabic)
+- **ar: المشتري يطلب حذف سطر من عرض السعر (عربي)**
