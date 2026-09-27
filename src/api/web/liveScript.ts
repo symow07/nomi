@@ -1,0 +1,220 @@
+/**
+ * CC-26 — THE ONE SCRIPT, as the browser receives it.
+ *
+ * The audit: "Nothing on the page updates by itself. A new buyer message
+ * appears only if she reloads, and there is no script anywhere in the app to
+ * tell her." This is that script, and the only one: the shell links it once,
+ * at an address named by its content (`/assets/live.<hash>.js`, the stylesheets'
+ * mechanism), so the browser fetches it once per build and keeps it.
+ *
+ * WHAT IT DOES, AND NOTHING ELSE:
+ *
+ *   1. On a page that declares a watch (a `[data-live]` region, drawn by
+ *      `liveRegion` in flash.ts), it asks the address in that attribute every
+ *      twenty seconds whether anything arrived since the page was drawn. The
+ *      page carries the mark it was drawn at; the app compares — the browser's
+ *      clock never decides anything. When the answer is yes it puts the line
+ *      the page prepared (a `<template>`) into the region, once, and stops
+ *      asking. It never reloads by itself and never moves the page.
+ *   2. It does not ask while the tab is hidden, asks at once when it is shown
+ *      again, lets an answer that never comes go after fifteen seconds, waits
+ *      longer after each failure (up to five minutes), and stops for good when
+ *      the answer says the owner is signed out or the page is gone (401, 403,
+ *      404, a redirect) — no error loops.
+ *   3. The line's door reloads the page when it is the same address — a link
+ *      to the address a page already has only scrolls to its mark — and lands
+ *      where a fresh page lands (CC-25's `#latest`), not where this one was.
+ *   4. The draft's edit box and the owner's own reply box (`textarea[data-keep]`)
+ *      keep what she typed in the tab's own memory, by conversation and box,
+ *      until it is sent: any reload puts it back in the same box, and after
+ *      this script's door, with the caret where it was. CC-24 already keeps a
+ *      REFUSED edit or reply on the server; this covers the words that never
+ *      left the page. Signing out forgets them.
+ *
+ * Progressive: every page works exactly as before with scripting off — read,
+ * reply, approve, send. Nothing here is needed for any of it.
+ *
+ * It is written for the browser, not compiled: plain ES2017 in a string, so
+ * what is tested is byte for byte what ships (`tests/parity/live-refresh.test.ts`
+ * runs it against a small stand-in for the page). It ships to the owner's
+ * browser like the stylesheet, so it is held to the owner vocabulary the same
+ * way (the exceptions are the browser's own two names for the answer's
+ * format: the `.json()` method and the `application/json` type it asks for).
+ */
+export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new arrives (CC-26).
+   One small script, linked once by the shell. Every page works without it. */
+(function () {
+  'use strict';
+  var doc = document;
+  var EVERY = 20000;
+  var LONGEST = 300000;
+
+  /* The tab's own memory: it goes when the tab closes and is never sent. */
+  var memory = (function () {
+    try {
+      var s = window.sessionStorage;
+      s.setItem('nomi.probe', '1');
+      s.removeItem('nomi.probe');
+      return s;
+    } catch (e) { return false; }
+  })();
+  function recall(k) { try { return memory ? memory.getItem(k) : ''; } catch (e) { return ''; } }
+  function note(k, v) { try { if (memory) memory.setItem(k, v); } catch (e) { /* full or refused: the words stay in the box */ } }
+  function forget(k) { try { if (memory) memory.removeItem(k); } catch (e) { /* nothing to do */ } }
+
+  /* The half-typed reply: kept by conversation and box until it is sent. */
+  var boxes = [];
+  var typing = '';
+
+  function keepBox(box, back) {
+    var which = box.getAttribute('data-keep');
+    var key = 'nomi.words.' + which;
+    var kept = recall(key);
+    if (kept) {
+      var words = kept.slice(1);
+      if (box.value !== words) box.value = words;
+    }
+    if (back && back === which) {
+      try { box.focus({ preventScroll: true }); } catch (e) { box.focus(); }
+      var caret = String(recall(key + '.caret') || '').split(',');
+      var a = Number(caret[0]);
+      var b = Number(caret[1]);
+      if (caret.length === 2 && a >= 0 && b >= a && b <= box.value.length) {
+        try { box.setSelectionRange(a, b); } catch (e) { /* not every box can say where */ }
+      }
+    }
+    /* Sent: the words are on their way, and leaving the page must not
+       write them back. Typing again takes them back. */
+    var entry = { box: box, key: key, sent: false, save: save };
+    function save() {
+      if (entry.sent) return;
+      if (box.value === box.defaultValue) { forget(key); forget(key + '.caret'); return; }
+      note(key, '=' + box.value);
+      note(key + '.caret', box.selectionStart + ',' + box.selectionEnd);
+    }
+    box.addEventListener('input', function () { entry.sent = false; save(); });
+    box.addEventListener('blur', save);
+    boxes.push(entry);
+  }
+
+  /* Only the line's door asks for the caret back: any other way out keeps the words alone. */
+  function keepNow(returning) {
+    for (var i = 0; i < boxes.length; i++) boxes[i].save();
+    if (returning === true && typing) note('nomi.return', typing);
+  }
+
+  function keepWords() {
+    var back = recall('nomi.return');
+    forget('nomi.return');
+    var found = doc.querySelectorAll('textarea[data-keep]');
+    for (var i = 0; i < found.length; i++) keepBox(found[i], back);
+    doc.addEventListener('focusin', function (e) {
+      var t = e.target;
+      var tag = t && t.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') typing = t.getAttribute('data-keep') || '';
+    });
+    doc.addEventListener('submit', function (e) {
+      var form = e.target;
+      var to = form && form.action ? String(form.action) : '';
+      if (/\\/logout$/.test(to)) { forgetAll(); return; }
+      for (var i = 0; i < boxes.length; i++) {
+        var own = boxes[i].box.form;
+        if (own && String(own.action) === to) {
+          boxes[i].sent = true;
+          forget(boxes[i].key);
+          forget(boxes[i].key + '.caret');
+        }
+      }
+    }, true);
+  }
+
+  function forgetAll() {
+    if (!memory) return;
+    try {
+      for (var i = memory.length - 1; i >= 0; i--) {
+        var k = memory.key(i);
+        if (k && k.indexOf('nomi.') === 0) memory.removeItem(k);
+      }
+    } catch (e) { /* nothing to do */ }
+  }
+
+  /* The door: the same address is loaded again, landing where a fresh page lands. */
+  function go(e, door) {
+    keepNow(true);
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var to;
+    try { to = new URL(door.href, location.href); } catch (x) { return; }
+    if (to.pathname + to.search !== location.pathname + location.search) return;
+    e.preventDefault();
+    try { history.scrollRestoration = 'manual'; } catch (x) { /* the browser keeps its own */ }
+    if (to.hash !== location.hash) history.replaceState(history.state, '', to.href);
+    location.reload();
+  }
+
+  /* The line: put in once, from the page's own template, and never moved. */
+  function show(region, what) {
+    if (region.firstChild) return;
+    var tpl = doc.querySelector('template[data-live-news="' + (/^[a-z]+$/.test(String(what)) ? what : '') + '"]')
+      || doc.querySelector('template[data-live-news]');
+    if (!tpl) return;
+    region.appendChild(tpl.content.cloneNode(true));
+    var door = region.querySelector('a');
+    if (door) door.addEventListener('click', function (e) { go(e, door); });
+  }
+
+  function watch() {
+    var region = doc.querySelector('[data-live]');
+    if (!region || !window.fetch) return;
+    var ask = region.getAttribute('data-live');
+    var wait = EVERY;
+    var timer = 0;
+    var over = false;
+    var asking = false;
+    function later(ms) {
+      clearTimeout(timer);
+      timer = over ? 0 : setTimeout(look, ms);
+    }
+    function stop() { over = true; clearTimeout(timer); }
+    function look() {
+      if (over || asking || doc.visibilityState === 'hidden') return;
+      asking = true;
+      var init = {
+        credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      };
+      /* An answer that never comes is let go after fifteen seconds, like any failure. */
+      var ctl = window.AbortController ? new window.AbortController() : 0;
+      var cut = ctl ? setTimeout(function () { ctl.abort(); }, 15000) : 0;
+      if (ctl) init.signal = ctl.signal;
+      fetch(ask, init).then(function (r) {
+        /* Signed out, the page gone, or an answer this page cannot use: stop, quietly. */
+        if (r.type === 'opaqueredirect' || (r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429)) {
+          stop();
+          return;
+        }
+        if (!r.ok) throw new Error('not now');
+        return r.json().then(function (said) {
+          wait = EVERY;
+          if (said && said.news === true) { show(region, said.what); stop(); } else later(EVERY);
+        });
+      }).catch(function () {
+        wait = Math.min(wait * 2, LONGEST);
+        later(wait);
+      }).then(function () { clearTimeout(cut); asking = false; });
+    }
+    doc.addEventListener('visibilitychange', function () {
+      if (doc.visibilityState === 'hidden') clearTimeout(timer);
+      else later(0);
+    });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) later(0); });
+    later(EVERY);
+  }
+
+  keepWords();
+  watch();
+  window.addEventListener('pagehide', keepNow);
+  window.addEventListener('load', function () {
+    try { if (history.scrollRestoration === 'manual') history.scrollRestoration = 'auto'; } catch (e) { /* the browser keeps its own */ }
+  });
+})();
+`;

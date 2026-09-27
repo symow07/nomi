@@ -725,7 +725,7 @@ export async function loadConversationDetail(
                  and e.payload->>'draftId' = d.id::text
                order by e.id desc limit 1) as pending
         from drafts d where d.conversation_id = ${conversationId} and d.status = 'pending'
-       order by d.created_at desc limit 1
+       order by d.created_at desc, d.id desc limit 1
     `.execute(tx)).rows[0];
 
     // M22 — what did not reach this buyer. Read through the shared loader, so
@@ -884,7 +884,7 @@ const preview = (text: string): string => Array.from(text).slice(0, 90).join('')
  * browser encodes the rest on the way out. A cursor is digits, hex, `-` and
  * `_` already (`src/db/buyersList.ts`).
  */
-const buyersHref = (o: {
+export const buyersHref = (o: {
   readonly filter?: InboxFilter; readonly q?: string;
   readonly after?: string | null; readonly before?: string | null;
 }): string => {
@@ -1214,7 +1214,7 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         ${handToForm}
         <form method="post" action="/app/inbox/${cid}/reply" class="replyform">
           ${d.ownerUnsentReply ? `<p class="muted" role="note">${esc(t(locale, 'takeover.reply.kept'))}</p>` : ''}
-          <textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required>${esc(d.ownerUnsentReply ?? '')}</textarea>
+          <textarea name="text" rows="2" dir="auto" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required data-keep="${esc(`${d.conversationId}:reply`)}">${esc(d.ownerUnsentReply ?? '')}</textarea>
           <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
         <form method="post" action="/app/inbox/${cid}/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
@@ -1418,7 +1418,8 @@ export function renderConversationDetail(
           <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
           <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
           ${d.pendingDraft.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
-          ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping. */ ''}<textarea id="edit" name="edit" rows="4" dir="auto" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}">${esc(d.pendingDraft.ownerEdit ?? d.pendingDraft.draftText)}</textarea>
+          ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
+               CC-26 — and what she types in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="edit" name="edit" rows="4" dir="auto" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(d.pendingDraft.ownerEdit ?? d.pendingDraft.draftText)}</textarea>
           <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
         </form>
       </div>`

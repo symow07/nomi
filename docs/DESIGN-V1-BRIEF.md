@@ -433,6 +433,22 @@ tag; Log out is Setup's last row and a button; the channels page's states
 line up (the row family's grid, not the page). Screenshots in
 `docs/design/v1-closeout/` (en · zh · ar at 390 px; five at 1280).
 
+**CC-26, the first script (2026-09-28).** The shell now links ONE script, by
+the stylesheets' mechanism (`/assets/live.<hash>.js`, deferred, kept by the
+browser for good; `src/api/web/liveScript.ts`). It is not the collapse — that
+stays CSS and needs no script (`tests/parity/v1-shell.test.ts`). A
+conversation, Buyers and Today ask every twenty seconds, while the tab is in
+view, whether anything arrived since they were drawn, and say so in one quiet
+line: the notice's shape and good-news tone, sticky at the foot of the
+column at the reading measure, the whole line one door (sentence and
+chevron) to the newest — a conversation's `#latest`. Empty, it takes no room;
+when it appears nothing above it moves (measured in Chromium: scroll position
+and the newest message's place unchanged, the line 46–48 px tall at 390 px).
+The draft's edit box and the owner's reply box keep what she typed through
+the reload, in the same box. With scripting off every page is the page it
+was. Screenshots in `docs/design/live-refresh/` (en · ar at 390 px, zh, one
+at 1280).
+
 ### 5 · The row — DECIDED
 
 Decided by the owner on 2026-09-28:

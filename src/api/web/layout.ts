@@ -5,6 +5,7 @@ import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { createHash } from 'node:crypto';
+import { LIVE_SCRIPT } from './liveScript.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -317,6 +318,16 @@ ${LANGSW_CSS}
     margin-bottom:var(--space-16); font-size:var(--font-size-small); }
   .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
     border-color:var(--color-warn-line); }
+  /* CC-26 · the line a page shows when something new arrives while it is
+     open: the notice's own shape and tone, and the whole line one door to
+     the newest. It sits at the foot of the column, at the reading measure,
+     and stays in view while she scrolls, over nothing she is reading until
+     she reaches it; empty, it takes no room. Nothing above it moves when it
+     appears. */
+  .live { position:sticky; bottom:var(--space-16); z-index:1; max-width:var(--measure-prose); }
+  .live-line { padding:0; margin:var(--space-16) 0 0; box-shadow:var(--shadow-lift2); }
+  .live-line .deeper { width:100%; justify-content:space-between; gap:var(--space-12);
+    padding:var(--space-8) var(--space-16); color:inherit; font-weight:600; }
 
   /* One tab row. */
   .tabs { display:flex; gap:var(--space-8); margin-bottom:var(--space-16); }
@@ -1026,23 +1037,56 @@ const STYLE_PAGES = `
  */
 export type Stylesheet = { readonly name: string; readonly href: string };
 
-const SHEETS = new Map<string, { readonly css: string; readonly hash: string }>();
+/**
+ * CC-26 — and ONE SCRIPT, by the same mechanism: `/assets/live.<hash>.js`,
+ * named by its content, kept for good at its exact address, never inline and
+ * never per page (`liveScript.ts` says what it does). An asset is its name and
+ * its kind; the kinds are the two a browser is sent.
+ */
+const ASSET_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8' } as const;
+type AssetKind = keyof typeof ASSET_TYPES;
+
+const ASSETS = new Map<string, { readonly body: string; readonly hash: string }>();
+
+/** Register an asset under its name and kind; its address carries the hash of its text. */
+function asset(name: string, kind: AssetKind, body: string): string {
+  const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+  ASSETS.set(`${name}.${kind}`, { body, hash });
+  return `/assets/${name}.${hash}.${kind}`;
+}
 
 /** Register a stylesheet under its name; its address carries the hash of its rules. */
 function sheet(name: string, css: string): Stylesheet {
-  const hash = createHash('sha256').update(css).digest('hex').slice(0, 16);
-  SHEETS.set(name, { css, hash });
-  return { name, href: `/assets/${name}.${hash}.css` };
+  return { name, href: asset(name, 'css', css) };
+}
+
+/** The asset of this kind an address names, and whether it is this build's own address. */
+function lookup(file: string, kind: AssetKind): { readonly body: string; readonly current: boolean } | null {
+  const m = /^([a-z]+)\.([0-9a-f]{16})\.([a-z]+)$/.exec(file);
+  const a = m && m[3] === kind ? ASSETS.get(`${m[1]!}.${kind}`) : undefined;
+  return m && a ? { body: a.body, current: a.hash === m[2] } : null;
 }
 
 /**
- * The rules an address under `/assets/` names, for the route that serves them:
- * `current` when it is this build's own address, which may then be kept for good.
+ * The rules a stylesheet address names: `current` when it is this build's own
+ * address, which may then be kept for good. The tests read the sheets through
+ * this, the way the browser does (`tests/parity/linked-css.ts`).
  */
 export function stylesheetAt(file: string): { readonly css: string; readonly current: boolean } | null {
-  const m = /^([a-z]+)\.([0-9a-f]{16})\.css$/.exec(file);
-  const s = m ? SHEETS.get(m[1]!) : undefined;
-  return m && s ? { css: s.css, current: s.hash === m[2] } : null;
+  const a = lookup(file, 'css');
+  return a ? { css: a.body, current: a.current } : null;
+}
+
+/**
+ * What an address under `/assets/` names, for the route that serves it: a
+ * stylesheet or the script, with its type. An address from an earlier build
+ * gets this build's text, not kept; anything else is nothing.
+ */
+export function assetAt(file: string): { readonly body: string; readonly type: string; readonly current: boolean } | null {
+  const css = stylesheetAt(file);
+  if (css) return { body: css.css, type: ASSET_TYPES.css, current: css.current };
+  const js = lookup(file, 'js');
+  return js ? { body: js.body, type: ASSET_TYPES.js, current: js.current } : null;
 }
 
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
@@ -1097,6 +1141,15 @@ ${input.description ? `<meta name="description" content="${esc(input.description
 
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
+
+/**
+ * CC-26 — the one script, linked by the shell on every owner page and by
+ * nothing else: not the door, not a public document (those arrive complete,
+ * with nothing to run). Deferred, so it runs once the page is read, and a page
+ * that declares no watch gives it nothing to do but keep a half-typed reply.
+ */
+const LIVE_JS = asset('live', 'js', LIVE_SCRIPT);
+const scriptTo = (href: string): string => `<script src="${href}" defer></script>`;
 
 /**
  * A7 — WHICH of the four is lit, for a page that is not one of the four.
@@ -1169,6 +1222,12 @@ export function shell(input: {
   /** Ignored since V1 step three: the assistant is named, never drawn. Kept so callers need not change. */
   readonly avatar?: string;
   readonly bodyHtml: string;
+  /**
+   * CC-26 — the page's live region (`liveRegion` in flash.ts): what it watches
+   * and the line it shows when that changes. Placed at the foot of the column,
+   * after everything the page draws. Absent, the page watches nothing.
+   */
+  readonly live?: string;
 }): string {
   const { locale } = input;
   const name = assistantName(locale);
@@ -1202,14 +1261,15 @@ export function shell(input: {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(name)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-${linkTo(APP_SHEET)}</head>
+${linkTo(APP_SHEET)}
+${scriptTo(LIVE_JS)}</head>
 <body><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
     ${nav}
   </nav>
   <div class="content">
-    <main>${input.bodyHtml}</main>
+    <main>${input.bodyHtml}${input.live ?? ''}</main>
   </div>
 </div></body></html>`;
 }

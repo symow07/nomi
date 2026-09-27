@@ -35,7 +35,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey, messages } from '../../core/owner/i18n/messages.js';
 import { flashTone } from '../../core/owner/flashTone.js';
-import { esc } from './layout.js';
+import { esc, deeper } from './layout.js';
 import { t } from './say.js';
 
 /** Good news, or a refusal. Nothing in between — two tones is a decision, not a palette. */
@@ -148,3 +148,37 @@ export const saidFlash = (
 export const flashBanner = (f: Flash | null, id?: string): string =>
   f === null ? ''
     : `<div class="flash${f.bad ? ' bad' : ''}" role="${f.bad ? 'alert' : 'status'}"${id ? ` id="${esc(id)}"` : ''}>${esc(f.text)}</div>`;
+
+/**
+ * CC-26 — what a page watches while it is open, and what it says when that
+ * changes. Built per page by `src/api/web/live.ts`; drawn here, like every
+ * notice, so no page paints its own.
+ */
+export type LiveWatch = {
+  /** The address the page asks, carrying the mark it was drawn at. Digits, hex, dots: no `%`. */
+  readonly ask: string;
+  /** The line's door: the newest of what the page shows (a conversation's `#latest`, CC-25). */
+  readonly door: string;
+  /** What the address can report, each with its sentence. */
+  readonly says: readonly { readonly what: string; readonly key: MessageKey }[];
+};
+
+/**
+ * CC-26 — the page's live region, and the line waiting to go into it.
+ *
+ * The region is EMPTY and present from the start — a polite live region
+ * (`role="status"`), so a screen reader hears the line once, when it is put
+ * in, and never on its own. The line itself waits in a `<template>`: inert,
+ * unread, invisible, fetched by nothing. With scripting off the region stays
+ * empty and the page is exactly the page it was.
+ *
+ * The line is a notice in the good-news tone, and the whole of it is ONE door
+ * (`deeper`, decision 4: it goes somewhere) — the sentence is its label and
+ * the chevron says where it leads, as on every door in the product; one
+ * target the width of the line. The script puts it in once and stops asking;
+ * it never reloads by itself, and nothing above it moves.
+ */
+export const liveRegion = (locale: Locale, w: LiveWatch): string =>
+  `<div class="live" role="status" aria-live="polite" data-live="${esc(w.ask)}"></div>`
+  + w.says.map((s) => `<template data-live-news="${esc(s.what)}"><div class="flash live-line">${
+    deeper(esc(w.door), t(locale, s.key), 'live-door')}</div></template>`).join('');
