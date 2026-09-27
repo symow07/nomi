@@ -34,6 +34,7 @@ import type { AllowedClaim, ClaimKind } from '../core/safety/claims.js';
 import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { issueProofLinkTx } from './proofs.js';
+import { noteDeletionAsk } from './deletionAsks.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -695,6 +696,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     },
   };
 
+  // 0076 — the request is written down when it arrives (db/deletionAsks.ts).
+  const deletionAsks: import('./ports.js').DeletionAskRepo = {
+    note: (input) => noteDeletionAsk(tx, businessId, input),
+  };
+
   // ── knowledge (M13) ──────────────────────────────────────────────────────
   // Read-only in the turn: the identified product's active rows + business-level,
   // ranked by relevance then confidence tier. retrieve_knowledge runs under RLS.
@@ -719,5 +725,5 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     issue: (quoteId) => issueProofLinkTx(tx, businessId, quoteId),
   };
 
-  return { businessId, conversations, clients, catalog, orders, samples, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
+  return { businessId, conversations, clients, catalog, orders, samples, deletionAsks, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
 }

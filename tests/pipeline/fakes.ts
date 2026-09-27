@@ -173,6 +173,23 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  /**
+   * 0076 — each deletion request the turn wrote down, and what the store said.
+   * One waiting per conversation here (a buyer is one conversation in these
+   * fakes); `recorded` stands for a request the owner already recorded.
+   */
+  deletionAsksNoted: Array<{ conversationId: string; messageId: string; outcome: import('../../src/db/deletionAsks.js').DeletionAskNoted }> = [];
+  deletionRecorded = false;
+  deletionAsks: import('../../src/db/ports.js').DeletionAskRepo = {
+    note: async ({ conversationId, messageId }) => {
+      const outcome = this.deletionRecorded ? 'already_recorded' as const
+        : this.deletionAsksNoted.some((x) => x.conversationId === (conversationId as string) && x.outcome === 'noted') ? 'asked_again' as const
+        : 'noted' as const;
+      this.deletionAsksNoted.push({ conversationId: conversationId as string, messageId, outcome });
+      return outcome;
+    },
+  };
+
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
   priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {

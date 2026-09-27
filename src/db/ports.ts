@@ -48,6 +48,7 @@ export interface Tenant {
   readonly catalog: CatalogRepo;
   readonly orders: OrderRepo;
   readonly samples: SampleRepo;
+  readonly deletionAsks: DeletionAskRepo;
   readonly signals: SignalRepo;
   readonly events: EventLog;
   readonly audit: AuditRepo;
@@ -276,6 +277,21 @@ export interface CatalogRepo {
  * milestone — a request that reaches her beats an automated flow built on
  * guesses about how she ships.
  */
+/**
+ * 0076 — a buyer asked, in this conversation, for their data to be deleted.
+ * Written the moment the hand-off fires (src/db/deletionAsks.ts), so the
+ * request outlives the conversation being handed back. The reminder, never the
+ * action: nothing is erased because of it and nobody else is told.
+ */
+export interface DeletionAskRepo {
+  note(input: {
+    readonly conversationId: ConversationId;
+    /** The turn's message, as the channel named it (`messages.external_id`). */
+    readonly messageId: string;
+    readonly now: Date;
+  }): Promise<import('./deletionAsks.js').DeletionAskNoted>;
+}
+
 export interface SampleRepo {
   /** Idempotent: a buyer who asks twice is one buyer waiting for one sample. */
   record(conversationId: ConversationId, askedText: string): Promise<void>;

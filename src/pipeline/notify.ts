@@ -49,6 +49,18 @@ export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error'
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
+/**
+ * 0076 — the alerts that may not depend on WhatsApp: every operator alert, and
+ * one about a buyer — `deletion_requested`. A buyer asking for their data to be
+ * deleted starts a clock the owner answers to, and the ordinary hand-off alert
+ * goes nowhere at all when no alert number is set. So it travels the operator
+ * alerts' way: by e-mail to the owner's sign-in address, always, and by
+ * WhatsApp too where a channel is live and a number is set. Each needs
+ * `notify.<kind>.subject` in every locale.
+ */
+export const goesByMail = (kind: AlertKind): boolean =>
+  isOperatorAlert(kind) || kind === 'deletion_requested';
+
 /** One open deletion request the operator must carry out soon, as the alert names it. */
 export type DeletionDueLine = {
   readonly business: string;
@@ -69,8 +81,14 @@ export type OperatorAlertDetail = {
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
 const DELETION_ALERT_LINES = 10;
 
-/** Event → neutral alert code (business logic stays locale-free). */
-export function alertKindFor(effects: { readonly hotLeadAlert: boolean; readonly handoffAlert: boolean }): AlertKind | null {
+/**
+ * Event → neutral alert code (business logic stays locale-free). A deletion
+ * request is its own alert, never the generic hand-off's "wants a person".
+ */
+export function alertKindFor(effects: {
+  readonly hotLeadAlert: boolean; readonly handoffAlert: boolean; readonly deletionAlert?: boolean;
+}): AlertKind | null {
+  if (effects.deletionAlert) return 'deletion_requested';
   if (effects.handoffAlert) return 'handoff';
   if (effects.hotLeadAlert) return 'hot_lead';
   return null;
@@ -142,7 +160,7 @@ export type NotifyDeps = {
 export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promise<AlertOutcome> {
   const bid = parseBusinessId(job.businessId);
   if (!bid.ok) return 'skipped_no_destination';
-  if (isOperatorAlert(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
+  if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
 
   const found = await withTenantTx(deps.db, bid.value, async (tx) => {
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
@@ -168,8 +186,8 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
 }
 
 /**
- * An operator alert (the backup alert first): e-mail first, WhatsApp too where
- * it can actually arrive.
+ * An operator alert (the backup alert first) — or a buyer's deletion request
+ * (`MAIL_ALWAYS_KINDS`): e-mail first, WhatsApp too where it can actually arrive.
  *
  * Outcome is `sent` when at least one way delivered; `failed_permanent` when
  * every way that existed failed; `skipped_no_destination` when there was no

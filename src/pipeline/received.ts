@@ -5,6 +5,7 @@ import type { ConversationId } from '../core/types/ids.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { TurnEffects } from './turn.js';
 import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
+import { asksForDeletion } from '../core/safety/deletion.js';
 
 /**
  * G2c — recording a message she will not answer: a reaction or a sticker she
@@ -78,11 +79,25 @@ export async function recordReceivedMessage(
  * The ownership model is unchanged: this is the existing AI → WAITING_HUMAN
  * transition, taken through `canTransition`. A conversation a person already
  * holds is left with that person.
+ *
+ * 0076 — AND WHAT THE BUYER WROTE, WHEN THERE WERE WORDS. No turn runs on
+ * these paths (the assistant is stopped or paused, the number is not on the
+ * list, a stranger answered a cold e-mail), so the turn's own check cannot see
+ * a deletion request in them. This one does: the request is written down with
+ * the hand-off and named as its own reason and its own alert, exactly as the
+ * turn would have — an emergency stop is the worst moment for one to be
+ * filed under "stopped" and forgotten.
  */
 export async function handToPerson(
   tenant: ReturnType<typeof tenantRepos>, conversationId: ConversationId, signal: Signal,
+  said: readonly { readonly messageId: string; readonly text: string | null }[] = [],
 ): Promise<TurnEffects> {
   await tenant.signals.record(conversationId, signal);
+  const asking = said.find((x) => asksForDeletion(x.text ?? '') !== null) ?? null;
+  if (asking) {
+    await tenant.signals.record(conversationId, { kind: 'deletion_requested' });
+    await tenant.deletionAsks.note({ conversationId, messageId: asking.messageId, now: new Date() });
+  }
   const state = await tenant.conversations.loadState(conversationId);
   const from = ownershipOf(state?.assignedTo ?? null);
   // Only AI → WAITING_HUMAN is an allowed move into waiting; a person who
@@ -93,6 +108,6 @@ export async function handToPerson(
   await tenant.events.append(conversationId, 'handoff', { reason: signal.kind });
   return {
     outbound: null, draftCreated: null, hotLeadAlert: false,
-    handoffAlert: true, orderCreated: null,
+    handoffAlert: true, deletionAlert: asking !== null, orderCreated: null,
   } satisfies TurnEffects;
 }

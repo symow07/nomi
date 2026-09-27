@@ -143,7 +143,8 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
    * out: the request is recorded; the turn is a hand-off that pauses the
    * assistant; there is no reply at all — not the hand-off sentence, not a
    * receipt; nothing was sent or drafted; and, when the buyer's own words said
-   * it, no model was asked anything.
+   * it, no model was asked anything. 0076 — and the owner is told in the
+   * deletion request's own words, not the generic hand-off's.
    */
   deletionHandsOffSilently(ctx, exp) {
     const beforeAnyModel = exp.invariant === 'deletionHandsOffSilently' && exp.beforeAnyModel;
@@ -153,10 +154,12 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
     const nothingSaid = r.reply === null && ctx.effects.outbound === null
       && ctx.effects.draftCreated === null && ctx.appliedMode === 'none';
     const noModel = !beforeAnyModel || (r.usage.llmCalls === 0 && r.analysis === null);
-    const ok = recorded && handedOver && nothingSaid && noModel;
+    const ownAlert = ctx.effects.deletionAlert === true;
+    const ok = recorded && handedOver && nothingSaid && noModel && ownAlert;
     return mk('deletionHandsOffSilently', ok,
       `recorded=${recorded}, action=${r.decision.action.kind}, assignedTo=${r.newState.assignedTo ?? 'null'}, `
-      + `reply=${r.reply === null ? 'none' : JSON.stringify(r.reply.slice(0, 60))}, applied=${ctx.appliedMode}, llmCalls=${r.usage.llmCalls}`);
+      + `reply=${r.reply === null ? 'none' : JSON.stringify(r.reply.slice(0, 60))}, applied=${ctx.appliedMode}, llmCalls=${r.usage.llmCalls}, `
+      + `ownAlert=${ownAlert}`);
   },
 
   /** 0075 — a passing mention of deleting something ("that line") is answered as usual. */

@@ -102,7 +102,7 @@ const A = {
   esc: id(29), ho: id(30), sr: id(31), o1: id(32), dl: id(33), rp: id(34), sc: id(35),
   c2: id(40), q2: id(41), order: id(42), ou1: id(43), ou2: id(44), ec: id(45), m4: id(46), d2: id(47), o2: id(48), s2: id(49),
   c3: id(50), o3: id(51), en: id(52), ct1: id(53), ct2: id(54), cn: id(55), sup: id(56), pl: id(57),
-  req: id(60), dup: id(61),
+  req: id(60), dup: id(61), ask: id(62),
   frag: `frag-a1-${RUN}`, shadow: `shadow-a1-${RUN}`, proof1: `proof-a1-${RUN}-${'x'.repeat(24)}`, proof2: `proof-a2-${RUN}-${'x'.repeat(24)}`,
   ev1: '', ev2: '', tr1: '', au1: '', au2: '', jobIn: '', jobDone: '',
 };
@@ -322,6 +322,13 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       await ins('deletion_requests', {
         id: A.req, business_id: B1, scope: 'buyer', client_id: A.client, asked_by: 'owner',
         subject_note: `the WhatsApp number ending ${PHONE_A.slice(-4)}`, asked_at: new Date(now.getTime() - 3 * 86400_000),
+      });
+      // 0076 — the request as it was noted from their message, then recorded:
+      // it holds their conversation and their message, so it goes with them.
+      await ins('deletion_asks', {
+        id: A.ask, business_id: B1, client_id: A.client, conversation_id: A.c1, message_id: A.m1,
+        asked_at: new Date(now.getTime() - 3 * 86400_000), state: 'recorded', request_id: A.req,
+        decided_at: now, decided_by: 'owner',
       });
       // An open WORKSPACE request in the same business: not this tool's to carry out.
       await ins('deletion_requests', { id: WS_REQ, business_id: B1, scope: 'workspace', asked_by: 'owner' });
@@ -589,6 +596,7 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       `escalation_events:${k(A.esc)}`,
       `handoffs:${k(A.ho)}`,
       `sample_requests:${k(A.sr)}`,
+      `deletion_asks:${k(A.ask)}`,
       ...[A.o1, A.o2, A.o3].map((x) => `outbound_messages:${k(x)}`),
       `outbound_transitions:${k(A.tr1)}`,
       `deliveries:${k(A.dl)}`,

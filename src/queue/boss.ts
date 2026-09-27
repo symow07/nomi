@@ -142,7 +142,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error';
+  kind: 'hot_lead' | 'handoff' | 'deletion_requested' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;

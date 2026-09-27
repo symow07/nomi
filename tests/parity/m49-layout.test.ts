@@ -156,6 +156,7 @@ describe('M49 · the two voices are on the right axis', () => {
     ['layout.ts', 'declares .voice, .bubble and .proposed — the components speech is made of'],
     ['inbox.ts', 'the buyer\'s own latest message, and the bubble classes'],
     ['proof.ts', 'a fact the OWNER wrote, quoted to the buyer'],
+    ['conversations.ts', 'the buyer\'s own message that asked for their data to be deleted (0076)'],
   ]);
 
   it('only speech components use the serif', async () => {

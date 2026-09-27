@@ -7190,3 +7190,227 @@ or «يمكن / يُرجى». `tests/parity/deletion-handoff-page.test.ts` rende
 
 - en: Buyer asks to delete a line from the quote (Arabic)
 - **ar: المشتري يطلب حذف سطر من عرض السعر (عربي)**
+
+
+## 2026-09-27 — 0076: a deletion request in chat is written down when it arrives
+
+**New strings, and three rewritten** (`deletionAsked.do`, `staff.deletionAsked`, `conv.deletion.lead`,
+which supersede their entries above). The deletion hand-off has its own alert (`notify.deletion_requested`,
+by e-mail as well as WhatsApp); the request is noted with the hand-off and waits for the owner's decision
+on the buyer's page, on Your data, on Today and in its own Buyers tab. Same rules: nothing genders the
+reader, the buyer or the assistant; in Arabic, verbal nouns, the passive or «يمكن / يُرجى».
+`tests/parity/deletion-record.test.ts` renders them in all three languages.
+
+### 中文 — 21 strings
+
+#### `notify.deletion_requested`
+
+- en: A buyer asked for their data to be deleted. Nothing was sent to them, and it needs an answer from you. The request is noted on the buyer's page, where you decide what happens next.
+- **zh: 有买家要求删除自己的数据。没有给对方发任何东西，这需要你来答复。这条要求已记在买家的页面上，下一步在那里决定。**
+
+#### `notify.deletion_requested.subject`
+
+- en: A buyer asked for their data to be deleted
+- **zh: 有买家要求删除自己的数据**
+
+#### `deletionAsked.noted`
+
+- en: Noted on {date}. It waits on the buyer's page, on Your data and on Today until you decide; handing the conversation back does not clear it.
+- **zh: 已于 {date} 记下。在你决定之前，这条要求会一直留在买家的页面、「你的数据」和「今天」上；把对话交回也不会清掉这条要求。**
+
+#### `deletionAsked.recorded`
+
+- en: Already recorded as a deletion request. Nomi's operator carries it out by {due}.
+- **zh: 已经记录为删除要求。Nomi 的运营方会在 {due} 前执行。**
+
+#### `deletionAsked.do`
+
+- en: Decide on the buyer's page, then answer them yourself
+- **zh: 先在买家的页面上做决定，再自己回复对方**
+
+#### `staff.deletionAsked`
+
+- en: The owner decides on the buyer's page. Answer them yourself.
+- **zh: 由老板在买家的页面上决定。请你自己回复对方。**
+
+#### `conv.deletion.lead`
+
+- en: When this buyer asks in a message for their data to be deleted, the request is usually noted here as it arrives, for you to decide. If they ask another way, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- **zh: 这位买家在消息里要求删除自己的数据时，这条要求通常一到就会记在这里，由你决定。如果对方是用别的方式提出的，就在这里记录。Nomi 的运营方会在 30 天内由人手动执行，完成后这里会显示。**
+
+#### `conv.deletion.waiting`
+
+- en: Asked in a message on {date}. Nothing has gone to Nomi's operator yet: you decide.
+- **zh: {date} 在消息里提出。还没有交给 Nomi 的运营方：由你决定。**
+
+#### `conv.deletion.record`
+
+- en: Record it as a deletion request
+- **zh: 记录为删除要求**
+
+#### `conv.deletion.dismiss`
+
+- en: Not a deletion request
+- **zh: 不是删除要求**
+
+#### `conv.deletion.dismissHint`
+
+- en: If it was not a request to delete their data, set it aside. Nothing is deleted, and nothing is sent to them.
+- **zh: 如果这其实不是删除数据的要求，就放到一边。不会删除任何东西，也不会给对方发任何消息。**
+
+#### `conv.deletion.flash.recordedAsk`
+
+- en: Recorded, dated from when they asked. Nomi's operator carries it out by {due}, and it shows here when it is done.
+- **zh: 已记录，日期按对方提出的时间算。Nomi 的运营方会在 {due} 前执行，完成后这里会显示。**
+
+#### `conv.deletion.flash.dismissed`
+
+- en: Set aside: not a deletion request. Nothing was deleted or sent.
+- **zh: 已放到一边：不是删除要求。没有删除任何东西，也没有发出任何消息。**
+
+#### `conv.deletion.flash.not_waiting`
+
+- en: Nothing changed: that request was already decided.
+- **zh: 没有改动：这条要求已经处理过了。**
+
+#### `data.ask.state.waiting`
+
+- en: Needs your decision
+- **zh: 等你决定**
+
+#### `data.buyers.waiting`
+
+- en: Asked in a message on {asked} · waiting for your decision
+- **zh: {asked} 在消息里提出 · 等你决定**
+
+#### `data.buyers.fromChat`
+
+- en: A request made in a message is usually listed here as it arrives, and waits until you decide on the buyer's page.
+- **zh: 在消息里提出的要求，通常一到就会列在这里，等你在买家的页面上决定。**
+
+#### `ops.card.deletionAsks`
+
+- en: Asked for their data to be deleted
+- **zh: 要求删除数据**
+
+#### `buyers.group.deletion`
+
+- en: Asked for their data to be deleted
+- **zh: 要求删除数据的买家**
+
+#### `inbox.filter.deletion`
+
+- en: Deletion requests
+- **zh: 删除要求**
+
+#### `inbox.empty.deletion`
+
+- en: No buyer is waiting for your decision about deleting their data.
+- **zh: 没有等你决定的删除数据要求。**
+
+### العربية — 21 strings
+
+#### `notify.deletion_requested`
+
+- en: A buyer asked for their data to be deleted. Nothing was sent to them, and it needs an answer from you. The request is noted on the buyer's page, where you decide what happens next.
+- **ar: وصل طلب من أحد المشترين بحذف البيانات. لم يُرسَل أي شيء إلى المشتري، والأمر يحتاج إلى ردّ منك. الطلب مسجَّل في صفحة المشتري، وهناك يُتَّخذ القرار التالي.**
+
+#### `notify.deletion_requested.subject`
+
+- en: A buyer asked for their data to be deleted
+- **ar: طلب حذف بيانات من أحد المشترين**
+
+#### `deletionAsked.noted`
+
+- en: Noted on {date}. It waits on the buyer's page, on Your data and on Today until you decide; handing the conversation back does not clear it.
+- **ar: سُجِّل في {date}. ويبقى في صفحة المشتري وفي «بياناتك» وفي «اليوم» إلى أن يُتَّخذ القرار، ولا تمحوه إعادة المحادثة.**
+
+#### `deletionAsked.recorded`
+
+- en: Already recorded as a deletion request. Nomi's operator carries it out by {due}.
+- **ar: سُجِّل بالفعل كطلب حذف، وينفّذه مشغّل Nomi قبل {due}.**
+
+#### `deletionAsked.do`
+
+- en: Decide on the buyer's page, then answer them yourself
+- **ar: اتخاذ القرار في صفحة المشتري، ثم الردّ مباشرةً**
+
+#### `staff.deletionAsked`
+
+- en: The owner decides on the buyer's page. Answer them yourself.
+- **ar: القرار في صفحة المشتري لمالك الحساب. يُرجى الردّ مباشرةً.**
+
+#### `conv.deletion.lead`
+
+- en: When this buyer asks in a message for their data to be deleted, the request is usually noted here as it arrives, for you to decide. If they ask another way, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- **ar: عند طلب هذا المشتري في رسالةٍ حذفَ البيانات، يُسجَّل الطلب هنا عادةً فور وصوله ليُتَّخذ القرار بشأنه. وإن جاء الطلب بطريقة أخرى، يُسجَّل هنا. ينفّذ مشغّل Nomi الحذف يدويًا خلال 30 يومًا، ويظهر هنا عند التنفيذ.**
+
+#### `conv.deletion.waiting`
+
+- en: Asked in a message on {date}. Nothing has gone to Nomi's operator yet: you decide.
+- **ar: طُلب ذلك في رسالة بتاريخ {date}، ولم يُحَل شيء إلى مشغّل Nomi بعد: القرار لك.**
+
+#### `conv.deletion.record`
+
+- en: Record it as a deletion request
+- **ar: تسجيله كطلب حذف**
+
+#### `conv.deletion.dismiss`
+
+- en: Not a deletion request
+- **ar: ليس طلب حذف**
+
+#### `conv.deletion.dismissHint`
+
+- en: If it was not a request to delete their data, set it aside. Nothing is deleted, and nothing is sent to them.
+- **ar: إن لم يكن طلبًا لحذف البيانات، يمكن تنحيته جانبًا. لا يُحذف شيء، ولا يُرسَل أي شيء إلى المشتري.**
+
+#### `conv.deletion.flash.recordedAsk`
+
+- en: Recorded, dated from when they asked. Nomi's operator carries it out by {due}, and it shows here when it is done.
+- **ar: سُجِّل الطلب بتاريخ وروده، وينفّذه مشغّل Nomi قبل {due}، ويظهر هنا عند التنفيذ.**
+
+#### `conv.deletion.flash.dismissed`
+
+- en: Set aside: not a deletion request. Nothing was deleted or sent.
+- **ar: نُحِّي الطلب جانبًا: ليس طلب حذف. لم يُحذف شيء ولم يُرسَل شيء.**
+
+#### `conv.deletion.flash.not_waiting`
+
+- en: Nothing changed: that request was already decided.
+- **ar: لم يتغيّر شيء: سبق اتخاذ قرار بشأن هذا الطلب.**
+
+#### `data.ask.state.waiting`
+
+- en: Needs your decision
+- **ar: بانتظار القرار**
+
+#### `data.buyers.waiting`
+
+- en: Asked in a message on {asked} · waiting for your decision
+- **ar: طُلب في رسالة بتاريخ {asked} · بانتظار القرار**
+
+#### `data.buyers.fromChat`
+
+- en: A request made in a message is usually listed here as it arrives, and waits until you decide on the buyer's page.
+- **ar: الطلب المقدَّم في رسالة يُدرَج هنا عادةً فور وصوله، ويبقى بانتظار القرار في صفحة المشتري.**
+
+#### `ops.card.deletionAsks`
+
+- en: Asked for their data to be deleted
+- **ar: طلبات حذف البيانات**
+
+#### `buyers.group.deletion`
+
+- en: Asked for their data to be deleted
+- **ar: طلبات حذف البيانات**
+
+#### `inbox.filter.deletion`
+
+- en: Deletion requests
+- **ar: طلبات الحذف**
+
+#### `inbox.empty.deletion`
+
+- en: No buyer is waiting for your decision about deleting their data.
+- **ar: لا توجد طلبات حذف بيانات بانتظار القرار.**

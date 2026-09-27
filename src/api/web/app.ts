@@ -142,7 +142,9 @@ import { csvFile, csvFilename } from '../../core/owner/csv.js';
 import { isExportSubject, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
+import { dismissDeletionAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
+import { formatDate } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
@@ -1444,7 +1446,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const me = personOf(s).id;
     const list0 = await loadInboxList(deps.db, s.businessId, 'all', me);
     const filter: InboxFilter = requested === 'pending' || requested === 'all'
-      || requested === 'blocked' || requested === 'mine'
+      || requested === 'blocked' || requested === 'mine' || requested === 'deletion'
       ? requested : defaultFilter(list0.waitingCount);
     const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me);
     return reply.type('text/html; charset=utf-8').send(page(req, {
@@ -2355,13 +2357,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
     const s = await ownerOnly(req, reply, 'data_rights', here);
     if (!s) return reply;
-    const note = buyerDeletionNote(String((req.body as { note?: unknown } | undefined)?.note ?? ''));
-    if (!note.ok) {
-      return flashTo(reply, here, note.reason === 'missing'
-        ? 'conv.deletion.flash.note_missing' : 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
+    // 0076 — the note says how and when they asked, so it is needed only when
+    // nothing was noted from their message; askBuyerDeletion decides which.
+    const raw = String((req.body as { note?: unknown } | undefined)?.note ?? '');
+    const note = raw.trim() === '' ? null : buyerDeletionNote(raw);
+    if (note && !note.ok) {
+      return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
     }
-    const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note.value, personOf(s).id);
+    const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note?.ok ? note.value : null, personOf(s).id);
     if (r.outcome === 'not_found') return reply.redirect('/app/conversations');
+    if (r.outcome === 'note_missing') return flashTo(reply, here, 'conv.deletion.flash.note_missing');
     /**
      * The operator hears of it the day it is recorded, as a workspace request
      * is heard of — the daily deadline check only speaks a week before the
@@ -2377,7 +2382,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         subject: `Buyer deletion requested · ${s.businessId}`,
         text: `A business recorded a buyer's request to have their data deleted.\n\n`
           + `workspace: ${s.businessId}\nrequest: ${r.requestId}\nrecorded by: ${personOf(s).id}\n`
-          + `recorded on: ${day(r.askedAt)}\ndue by: ${day(deletionDueBy(r.askedAt))}\n\n`
+          + (r.fromChat ? `asked in a message on: ${day(r.askedAt)} (noted when it arrived)\n` : '')
+          + `recorded on: ${day(r.fromChat ? new Date() : r.askedAt)}\ndue by: ${day(deletionDueBy(r.askedAt))}\n\n`
           + `Due within ${DELETION_DAYS} days of being recorded, which /data-deletion states.\n`
           + `Follow docs/DATA-DELETION-RUNBOOK.md.\n`,
       }).then(
@@ -2385,8 +2391,28 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         (e: unknown) => req.log.warn({ err: e }, 'buyer deletion notice could not be sent'),
       );
     }
+    if (r.outcome === 'asked' && r.fromChat) {
+      return flashTo(reply, here, 'conv.deletion.flash.recordedAsk',
+        { due: formatDate(localeOf(req), deletionDueBy(r.askedAt)) });
+    }
     return flashTo(reply, here, r.outcome === 'asked' ? 'conv.deletion.flash.asked'
       : r.outcome === 'already_open' ? 'conv.deletion.flash.already_open' : 'data.flash.failed');
+  });
+
+  /**
+   * 0076 — the owner decides a request noted from a message was not a
+   * deletion request. Owner-only, like recording one: it is the business's
+   * answer to a buyer's legal request. Nothing is deleted and nothing is sent;
+   * the row stops waiting and keeps who decided and when.
+   */
+  app.post('/app/conversations/:conversationId/deletion/dismiss', async (req, reply) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const here = `/app/conversations/${encodeURIComponent(conversationId)}`;
+    const s = await ownerOnly(req, reply, 'data_rights', here);
+    if (!s) return reply;
+    const r = await dismissDeletionAsk(deps.db, s.businessId, conversationId, personOf(s).id);
+    return flashTo(reply, here, r === 'dismissed' ? 'conv.deletion.flash.dismissed'
+      : r === 'not_waiting' ? 'conv.deletion.flash.not_waiting' : 'data.flash.failed');
   });
 
   // What she calls him — owner or staff, whoever is looking after him. The
