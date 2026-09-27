@@ -1,8 +1,9 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-27**, after #102 — a deletion request in chat goes to
-a person and the assistant says nothing (0075). Written so the next session
-needs nothing from the one that wrote it.
+Last updated **2026-09-27**, after #105 — a deletion request in chat is
+written down when it arrives and has its own alert (0076), on top of #102's
+silent hand-off (0075). Written so the next session needs nothing from the one
+that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -99,17 +100,17 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `29dcf3e` (merge of #102, the deletion hand-off, 0075).
+- **Deployed:** `0c8e0ac` (merge of #105, the deletion record, 0076).
   `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
-  production `schema_version` = **75**; no business is stopped and no silence
+  production `schema_version` = **76**; no business is stopped and no silence
   flag is on; exactly one business has `outreach_area` on. Backup before
-  0075: `nomi-backup-20260927T030454Z` (7.3 h, drill passed; PITR on).
+  0076: `nomi-backup-20260927T030454Z` (9.3 h, drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 75. Last three: `0073 buyer_deletion_requests`, `0074 app_errors`,
-  `0075 deletion_handoff`.
+- **Schema:** 76. Last three: `0074 app_errors`, `0075 deletion_handoff`,
+  `0076 deletion_asks`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -138,6 +139,9 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 105 | **The deletion request is written down when it arrives, and has its own alert** (0076) — see §5 rule 18 |
+| 104 | CLAUDE.md: the corpus holds 43 requests, not 50 |
+| 103 | CLAUDE.md handoff |
 | 102 | **A deletion request in chat goes to a person; nothing is sent** (0075) — see §5 rule 18 |
 | 101 | CLAUDE.md handoff |
 | 100 | CC-25 leftovers — `conversationUrl()` (layout.ts) is the only way to address a conversation: every action redirect and every link lands at `#latest`, the notice renders there (`flashBanner` id); Practice puts its transcript before its draft (`practiceUrl`) |
@@ -254,6 +258,10 @@ Recent PRs, newest first:
    - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is the ordinary hand-off alert.
    - Not covered, by design: while the assistant is stopped or silenced a request shows under that reason (the worker hands over before any turn); a request in words neither layer knows, answered by a reply that promises nothing ("I'll pass that on"), still goes out; languages outside the nine. Handing the conversation back resolves the signal like every hand-off — record the request first.
    - Tests: `tests/pipeline/deletion-handoff.test.ts`, 7 golden scenarios (40 in all; the pin is `factory-rehearsal.test.ts`), `tests/parity/deletion-handoff-page.test.ts`, `tests/integration/deletion-handoff.test.ts` (production composition, en/zh/ar). Each layer switched off fails its own tests.
+   - **0076 — written down when it arrives** (`src/db/deletionAsks.ts`, table `deletion_asks`). The hand-off writes the buyer, the conversation, the message that asked and its time, in the turn's transaction, whoever holds the conversation — and on the paths where no turn runs (stopped, paused, unlisted number, e-mail reply: `handToPerson(…, said)`). The REMINDER, never the action: `erase-buyer` acts only on an open `deletion_requests` row. One waiting per buyer: a repeat is counted (`asks`), the first time kept; after the owner recorded one, nothing new is noted. The owner decides on the buyer's page: record it (no note; `asked_at` = when the buyer asked) or "not a deletion request" (`deletion_dismissed` on the audit trail). Handing back clears the hand-off's reason, never this row.
+   - **Its own alert** `deletion_requested` — never the generic hand-off's — sent when a request is new or the conversation was handed over because of one; delivered like the operator alerts (e-mail to the sign-in address always, WhatsApp where live; `goesByMail`). It names no deadline: the only one stored is Nomi's 30 days, which starts when the owner records it and is shown there.
+   - **Its own thing wherever hand-offs are listed:** the conversation card stays while it waits (with the date); the Buyers list leads with a headed group and a `filter=deletion` tab; Today's second attention row (under "did not reach the buyer"); Your data lists it first. The erasure tools erase it with the buyer (`deletion_asks: erase`).
+   - Found, not fixed (the owner's to decide): the older request-for-a-person list (`HUMAN_PHRASES`, detect.ts, ported from n8n) matches "manager" anywhere — "Can you remove my account manager from the cc?" is handed to a person with the ORDINARY sentence. Pinned in the turn tests.
 
 ## 6 · What's next
 
@@ -343,6 +351,7 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - The personal address removed from `docs/legal/PRIVACY-zh.md` stays in git history — the owner chose not to rewrite history (open PRs; the address is public on served pages).
 - Manual backups prune after 180 days (#99). Open: the pre-0026 backups that BACKUP-RESTORE.md once said "do not prune" will go from about 2027-02-04 unless moved out of the bucket root — the owner's call. PITR keeps ~4 weeks (Railway: last 4 weekly full backups); Railway volume-backup retention was not checked (not visible to the tools).
 - **Deletion requests in chat → a person, nothing sent** — the owner chose NOTHING (no receipt, no acknowledgment); built and deployed as #102 (§5 rule 18).
+- **…written down when the hand-off fires, with its own alert** (#105). Claude's calls, reported: a repeat while one waits REUSES it (counted; the first time is when it was received); a waiting request shows on Today (second row); the alert names no date (none is stored before the owner records it).
 
 **Parked / owner's to unblock**
 - Native review of the zh/ar disclosure (gates all autonomy).
