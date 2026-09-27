@@ -82,16 +82,19 @@ d('D · the outreach area exists only where it is switched on (requires DATABASE
       const r = await app.inject({ method: 'POST', url, payload: 'channel=email&enabled=true', headers: { cookie, ...FORM } });
       expect(r.statusCode, `POST ${url}`).toBe(404);
     }
-    // and the pages around it still answer
+    // and the pages around it still answer — Buyers, where its door would hang
+    // (A: Customers merged into Buyers; the old address is a redirect there)
     expect((await get('/app/channels')).statusCode).toBe(200);
-    expect((await get('/app/conversations')).statusCode).toBe(200);
+    expect((await get('/app/inbox?filter=all')).statusCode).toBe(200);
+    expect((await get('/app/conversations')).statusCode).toBe(302);
   });
 
   it('OFF: no page links into the area — not the nav, not a hub, not a card, not a switch', async () => {
     const pages = [
       ...NAV.map((n) => n.href),
       ...CONTEXTUAL_ROUTES_BY_HUB.filter((g) => !g.outreach).flatMap((g) => g.routes),
-      '/app/conversations',
+      // A — the list the contacts door hangs off, on the tab that shows everyone
+      '/app/inbox?filter=all',
     ].filter((u) => !isOutreachRoute(u));
     let checked = 0;
     for (const url of pages) {

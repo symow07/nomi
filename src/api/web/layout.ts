@@ -4,6 +4,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
+import { createHash } from 'node:crypto';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -69,6 +70,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
   // V2 — the calendar: each entry opens a buyer, so it is reached from Buyers.
   { hub: '/app/inbox', routes: ['/app/calendar'] },
+  // M38 — everyone the assistant may write to, reached from the list of
+  // everyone who wrote. A — that list is Buyers now (it was Customers).
+  { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
@@ -76,12 +80,20 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   ] },
   // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
   { hub: '/app/onboarding', routes: ['/app/onboarding/technical'] },
-  { hub: '/app/conversations', routes: ['/app/contacts'], outreach: true },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
-  { hub: '/app', routes: ['/app/conversations', '/app/analytics'] },
+  { hub: '/app', routes: ['/app/analytics'] },
 ];
+
+/**
+ * A (2026-09-28) — an address that is another page now. Customers
+ * (`/app/conversations`) merged into Buyers: the address answers with a
+ * redirect to the one list (app.ts), and the buyer's own pages beneath it
+ * (`/app/conversations/:id`) did not move — the URLs of pages do not move
+ * (`docs/IA-PROPOSAL.md`) — and belong to Buyers, which `hubFor` reads here.
+ */
+export const MERGED_INTO_BUYERS = '/app/conversations';
 
 export const CONTEXTUAL_ROUTES: readonly string[] =
   CONTEXTUAL_ROUTES_BY_HUB.flatMap((g) => g.routes);
@@ -277,7 +289,7 @@ ${LANGSW_CSS}
      Three of them (the rate, the closures, the samples) referenced these
      classes while emitting no rule for them, so their fields rendered as
      inline labels strung across the page — the same failure as a renderer
-     reaching for a token nobody emits, and invisible to every test that reads
+     reaching for a variable nobody emits, and invisible to every test that reads
      strings rather than boxes. Caught by a screenshot. */
   .pform { display:flex; flex-direction:column; gap:var(--space-16);
            max-width:var(--measure-form); margin-top:var(--space-12); }
@@ -431,7 +443,12 @@ ${LANGSW_CSS}
   .row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap;
     padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .row:last-child { border-bottom:0; }
-  .row.lines { display:grid; gap:var(--space-4); }
+  /* One column the width of the row, each line at its own width, so a line
+     that spreads (a name and its state) reaches the row's far edge. Left to
+     the row's space-between, the column shrank to its content, and on the
+     channels page each state sat a different distance from its name. */
+  .row.lines { display:grid; grid-template-columns:minmax(0, 1fr); justify-items:start; gap:var(--space-4); }
+  .row.lines > .spread { justify-self:stretch; }
   .row.top { align-items:flex-start; }
   .row p { margin:0; }
   .row .btn { flex:none; }
@@ -447,6 +464,17 @@ ${LANGSW_CSS}
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
   .choices legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
+  /* V1 · decision 5 (2026-09-28): the row's one tag. Caption size, never
+     wrapped; state colour only when it names a state — now (waiting for the
+     owner), you (a person here holds it). Any other label, the calendar's
+     kinds among them, is the neutral tag. */
+  .tag { display:inline-flex; align-items:center; padding:5px 11px; border-radius:var(--radius-chip);
+    font-size:var(--font-size-caption); font-weight:600; white-space:nowrap;
+    background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  /* The doors either side of one page of a list, and where it sits in the whole. */
+  .pager { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
   /* Today (step four). The calm state IS the page: a short rule and one
      sentence in the product's voice — quiet, not jade, while messaging is off.
      And a count you can tap: the stat row as a link, its figure one step up. */
@@ -722,6 +750,8 @@ const STYLE_PAGES = `
   .dns li { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:var(--space-4) 0; font-size:var(--font-size-small); }
   .dns .host { color:var(--color-ink-secondary); overflow-wrap:anywhere; }
   .domform { display:grid; gap:var(--space-8); margin-top:var(--space-12); }
+  /* M49 — a button is as wide as its word; a grid cell would stretch it to the card. */
+  .domform .btn { justify-self:start; }
   /* V1 type scale — the headline pill carries a sentence ("You can write first once these are in place"); at caption 13 it no longer fits beside the name on a 390 px phone, and a pill is nowrap by rule. Let the row wrap and let this one pill break, rather than push the page 7 px wider than the screen. */
   .ch-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-8); }
   .ch-h .pill { white-space:normal; }
@@ -794,16 +824,118 @@ const STYLE_PAGES = `
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
 
-  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The category is the neutral chip: a category is not a state. */
+  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
   .cal-tabs { flex-wrap:wrap; }
   .cal-buyer { margin-bottom:var(--space-12); }
   .cal-span { margin:var(--space-8) 0 0; color:var(--color-ink-secondary); }
-  .cal-range { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
   .cal-day { margin:var(--space-24) 0 0; }
   .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
   .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-jade-deep); }
   .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
+
+  /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
+  /* The search: the field takes the room, its button and the way back beside it. */
+  .search { display:flex; align-items:center; gap:var(--space-8); margin:0 0 var(--space-16); max-width:var(--measure-prose); }
+  .search input { flex:1; min-width:0; appearance:none; }
+  .search .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Grouped by who is speaking; the list keeps the prose measure at desktop. */
+  .bgroup { margin-bottom:var(--space-24); max-width:var(--measure-prose); }
+  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
+  /* The row, as decision 5 keeps it: a tile per buyer. */
+  a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); padding:var(--space-16); }
+  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
+  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
+  .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* The buyer's own words with nothing after them: full ink, the transcript's rule for whose words lead. */
+  .buyer.unanswered .buyer-m { color:var(--color-ink); }
+  .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
+  .dhead .who { font-size:var(--font-size-small); }
+  .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
+    margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
+  /* The reply waiting for review. */
+  .review-intro { margin:0 0 var(--space-12); }
+  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-waiting); }
+  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-small); }
+  .draft .held-then b { font-weight:600; }
+  .revoke-note { margin:var(--space-8) 0 0; }
+  .draft .editform { margin-top:var(--space-16); }
+  /* Who holds it, and handing it on. The card a person holds is a column; its pill stays a pill. */
+  .takeover.owner > .pill { align-self:flex-start; }
+  .why, .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
+  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+    margin-top:var(--space-12); font-size:var(--font-size-small); }
+  /* The name, the list of people and the button on one line where they fit: a select at the full width pushed its own button under it. */
+  .handto select, .as-hand select { width:auto; flex:1 1 12em; min-width:0; max-width:var(--measure-form); }
+  /* M22 — a refusal is information, not an alarm: amber, like a disconnected
+     channel. Something needs the owner, and nothing is broken. 0052 — a send
+     nobody can account for is the same amber, with the words and two answers. */
+  .card.refused, .card.unsure { background:var(--color-highlight-wash); }
+  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
+  .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
+  .rf:first-of-type { border-top:0; padding-top:0; }
+  .rf-w { font-size:var(--font-size-small); color:var(--color-highlight); }
+  .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
+  .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
+  .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
+    border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
+    font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); white-space:pre-wrap; }
+  .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
+  /* M34 — a heard message says so. The label and the superseded reading are
+     the product speaking about the speech, so they stay sans; the words keep
+     the voice serif of the bubble. The bubble keeps a buyer's own line breaks;
+     a voiced one holds several elements, so it opts out and the words opt in. */
+  .bubble.voiced { white-space:normal; }
+  .bubble.voiced .said { white-space:pre-wrap; }
+  .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
+  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
+  .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);
+    border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
+  .fixheard { margin-top:var(--space-12); font-family:var(--font-family); }
+  .fixheard summary { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fixheard form { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); }
+  .voiceplay { display:block; margin:var(--space-8) 0; }
+  .answernow { margin-top:var(--space-8); }
+  /* What the assistant leaned on, and the deal: a provenance list and a sunk box. */
+  .knewlist { list-style:none; margin:0; padding:0; max-width:var(--measure-prose); }
+  .knewlist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .knewlist li:last-child { border-bottom:0; }
+  .ctx { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk);
+    border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
+    margin-bottom:var(--space-16); font-size:var(--font-size-small); }
+  .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+    margin-top:var(--space-12); font-size:var(--font-size-small); }
+  .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
+  /* A quiet button on the sunk box would be the box's own colour: it lifts to the surface. */
+  .ctx .btn:not(.send):not(.danger) { background:var(--color-surface); box-shadow:var(--shadow-lift1); }
+  .ctx .btn:not(.send):not(.danger):hover { background:var(--color-border); }
+  /* Three actions stay on one row: the destructive one belongs beside its alternatives. */
+  @media (max-width:560px) { .acts .btn { padding-inline:12px; } }
+
+  /* ── conversations.ts — the buyer's own page; moved in at the V1 close-out. */
+  .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .need-card { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-12); font-size:var(--font-size-small); }
+  .name-form { max-width:var(--measure-form); margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
+  .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
+  .name-row { display:flex; gap:var(--space-8); align-items:center; }
+  .name-row input { flex:1; min-width:0; }
+  .name-form .hint { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* A label and its value stay together at desktop: the prose measure, like every row. */
+  .prow, .cx { max-width:var(--measure-prose); border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; }
+  .cx { display:flex; gap:var(--space-12); padding:var(--space-8) 0; }
+  .prow:last-child, .cx:last-child { border-bottom:0; }
+  .cx-l { color:var(--color-ink-secondary); min-width:72px; }
+  /* The history: a line down the reading edge, each kind told by its mark, not by a colour. */
+  .tl { list-style:none; padding:0; margin:0; max-width:var(--measure-prose); }
+  .tl li { display:flex; gap:var(--space-12); position:relative; padding:10px 0; padding-inline-start:16px;
+    margin-inline-start:var(--space-8); border-inline-start:2px solid var(--color-border); }
+  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface-alt);
+    font-size:var(--font-size-small); line-height:1; }
+  .tl .tx { font-size:var(--font-size-small); }
 
   /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
   .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }
@@ -873,22 +1005,50 @@ const STYLE_PAGES = `
 `;
 
 /**
- * V1 step four — the ONE public document: the legal pages, the unsubscribe
- * page and the proof page stand outside the owner's shell (no nav, no
- * session). Same tokens, one stylesheet, a page's own rules passed in — so a
- * second hand-rolled palette cannot drift.
+ * V1 close-out (2026-09-28) — THE STYLESHEETS ARE FILES.
+ *
+ * Every page used to carry the whole stylesheet inside itself: an owner page
+ * was about sixty kilobytes of markup of which half was the same rules, sent
+ * again on every tap, on a phone. Each stylesheet is now served once, at an
+ * address named by its content (`/assets/app.<hash>.css`), and kept by the
+ * browser for good: a change to a rule is a new hash, so a new address, so
+ * nobody is ever served yesterday's rules under today's page. No page carries
+ * a stylesheet of its own; the count the one-stylesheet test keeps is zero.
+ *
+ * TWO SHEETS, the same split as before: the shell's (the base rules and
+ * every page's section) and the door's (the base rules and the door's own —
+ * the login, sign-up, code and error pages). The public document below keeps
+ * its rules inside itself, on purpose; it says why.
+ *
+ * An address from an EARLIER build (a page drawn before a deploy, its sheet
+ * not yet fetched) is answered with this build's rules, but not kept: only
+ * the exact address is kept for good.
  */
-export function publicDocument(input: {
-  readonly locale: Locale; readonly title: string; readonly body: string;
-  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
-  /** Phase 5 — the site: a search-result line, and the mark in the tab. */
-  readonly description?: string; readonly icon?: boolean;
-}): string {
-  return `<!doctype html>
-<html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
-${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>
+export type Stylesheet = { readonly name: string; readonly href: string };
+
+const SHEETS = new Map<string, { readonly css: string; readonly hash: string }>();
+
+/** Register a stylesheet under its name; its address carries the hash of its rules. */
+function sheet(name: string, css: string): Stylesheet {
+  const hash = createHash('sha256').update(css).digest('hex').slice(0, 16);
+  SHEETS.set(name, { css, hash });
+  return { name, href: `/assets/${name}.${hash}.css` };
+}
+
+/**
+ * The rules an address under `/assets/` names, for the route that serves them:
+ * `current` when it is this build's own address, which may then be kept for good.
+ */
+export function stylesheetAt(file: string): { readonly css: string; readonly current: boolean } | null {
+  const m = /^([a-z]+)\.([0-9a-f]{16})\.css$/.exec(file);
+  const s = m ? SHEETS.get(m[1]!) : undefined;
+  return m && s ? { css: s.css, current: s.hash === m[2] } : null;
+}
+
+const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
+
+/** The public document's base rules: the same tokens, a reading page on paper. */
+const PUBLIC_STYLE = `
 ${cssVariables()}
   * { box-sizing:border-box; }
   body { margin:0; background:var(--color-paper); color:var(--color-ink);
@@ -904,10 +1064,39 @@ ${cssVariables()}
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
            border-radius:var(--radius-card); background:var(--color-jade);
            color:var(--color-surface); cursor:pointer; }
-${input.extraCss ?? ''}
+`;
+
+/**
+ * V1 step four — the ONE public document: the legal pages, the unsubscribe
+ * page, the proof page and the site stand outside the owner's shell (no nav,
+ * no session). Same tokens, one stylesheet, a page's own rules passed in — so
+ * a second hand-rolled palette cannot drift.
+ *
+ * V1 close-out — THE ONE PAGE FAMILY THAT KEEPS ITS RULES INSIDE ITSELF, on
+ * purpose. A stranger opens these from an e-mail, a Page or a forwarded link,
+ * often after a mail scanner or a platform's crawler has fetched the address
+ * and nothing else; each must arrive complete, with nothing more to fetch —
+ * no script, no stylesheet, no font (legal-pages.test.ts and
+ * m40-unsubscribe.test.ts hold it). A cached file saves an owner who opens
+ * sixty pages a day; it saves nothing for someone who opens one page once.
+ */
+export function publicDocument(input: {
+  readonly locale: Locale; readonly title: string; readonly body: string;
+  readonly noindex?: boolean; readonly extraCss?: string; readonly mainClass?: string;
+  /** Phase 5 — the site: a search-result line, and the mark in the tab. */
+  readonly description?: string; readonly icon?: boolean;
+}): string {
+  return `<!doctype html>
+<html lang="${esc(input.locale)}" dir="${esc(dirOf(input.locale))}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${input.noindex ? '<meta name="robots" content="noindex, nofollow">\n' : ''}<title>${esc(input.title)}</title>
+${input.description ? `<meta name="description" content="${esc(input.description)}">\n` : ''}${input.icon ? `<link rel="icon" href="${faviconDataUri()}">\n` : ''}<style>${PUBLIC_STYLE}${input.extraCss ?? ''}
 </style>
 </head><body><main${input.mainClass ? ` class="${esc(input.mainClass)}"` : ''}>${input.body}</main></body></html>`;
 }
+
+/** The shell's sheet: the base rules and every page's section. */
+const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
 
 /**
  * A7 — WHICH of the four is lit, for a page that is not one of the four.
@@ -930,9 +1119,9 @@ ${input.extraCss ?? ''}
  * `startsWith` would light Today on all of them.
  *
  * AND THE MAP CHAINS. `/app/sequences` is reached from `/app/contacts`, which
- * is reached from `/app/conversations`, which is reached from `/app` — only
- * that last one is in the nav. So the lookup FOLLOWS the chain rather than
- * stopping at the first hop, which would light nothing three times over.
+ * is reached from `/app/inbox` — only that last one is in the nav. So the
+ * lookup FOLLOWS the chain rather than stopping at the first hop, which would
+ * light nothing twice over.
  */
 export function hubFor(path: string, active: string): string {
   const url = (path.split('?')[0] ?? path).replace(/\/+$/, '') || '/app';
@@ -956,6 +1145,8 @@ export function hubFor(path: string, active: string): string {
     // beneath them: `/app/inbox/<id>` really is Buyers.
     for (const n of NAV) consider(n.href, { nav: n.id }, n.href === '/app');
     for (const g of CONTEXTUAL_ROUTES_BY_HUB) for (const r of g.routes) consider(r, { hub: g.hub });
+    // A — the buyer's pages sit under the address Customers had; they are Buyers'.
+    consider(MERGED_INTO_BUYERS, { hub: '/app/inbox' });
     return best ?? {};
   };
 
@@ -1011,7 +1202,7 @@ export function shell(input: {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(name)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}${STYLE_PAGES}</style></head>
+${linkTo(APP_SHEET)}</head>
 <body><div class="layout">
   <nav class="side">
     <div class="brand"><span class="mark-detail">${markDetail(40, null)}</span><span class="mark-small">${markSmall(28, null)}</span><span class="brandname">Nomi<small>${esc(t(locale, 'app.tagline', { name }))}</small></span></div>
@@ -1065,12 +1256,15 @@ const DOOR_STYLE = `
   .login .foot { text-align:center; font-size:var(--font-size-caption); }
 `;
 
+/** The door's sheet: the base rules and the door's own — never the pages' sections. */
+const DOOR_SHEET = sheet('door', STYLE + DOOR_STYLE);
+
 const doorFrame = (locale: Locale, path: string, title: string, card: string, other: string): string => `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-<style>${STYLE}${DOOR_STYLE}</style></head>
+${linkTo(DOOR_SHEET)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <div class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></div>

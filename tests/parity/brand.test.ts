@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { linkedCss } from './linked-css.js';
 import { readFile } from 'node:fs/promises';
 import { shell, loginPage } from '../../src/api/web/layout.js';
 import { MARK_FIGURE, markDetail, markSmall, faviconDataUri } from '../../src/core/owner/brand.js';
@@ -66,7 +67,7 @@ describe('M30 · the shell wears the mark', () => {
   });
 
   it('does not mirror in RTL — only directional glyphs do', () => {
-    const style = page('ar').match(/<style>[\s\S]*?<\/style>/)![0];
+    const style = linkedCss(page('ar'));
     expect(style).toContain('[dir="rtl"] .go');          // the chevron still mirrors
     expect(style).not.toMatch(/\[dir="rtl"\][^{]*\.mark/);
     // and the Arabic page draws the same mark as the English one

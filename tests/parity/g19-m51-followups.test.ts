@@ -83,14 +83,14 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
 describe('G19 · the month never loses its place to a busy month', () => {
   const three = [insight('insight.draftsWaiting'), insight('insight.quotedNoReply'), insight('insight.productsNoPrice')];
   const month = insight('insight.monthChange.inquiries.up', {
-    params: { from: 12, to: 30 }, action: { kind: 'seeBuyers', href: '/app/conversations' },
+    params: { from: 12, to: 30 }, action: { kind: 'seeBuyers', href: '/app/inbox?filter=all' },
   });
 
   it('three things to do AND the month change are all shown', () => {
     const data: InsightsData = { insights: three, monthChange: month };
     const html = renderInsights(data, 'en');
     expect(three.length).toBe(MAX_INSIGHTS);
-    expect(html).toContain('/app/conversations');
+    expect(html).toContain('/app/inbox?filter=all')   // A — every buyer, on the one list;
     expect(html).toContain(esc(t('en', 'insight.action.seeBuyers')));
     // and the three it was competing with are all still there
     for (const i of three) expect(html).toContain(esc(t('en', `insight.action.${i.action.kind}`)));

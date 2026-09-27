@@ -3,10 +3,10 @@ import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, outreachShown } from './say.js';
-import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
-import { flag } from './inbox.js';
+import { orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName } from './say.js';
+import { formatMoney, formatQty, formatRelative, formatDate, formatList } from '../../core/owner/i18n/format.js';
+import { buyerWho, channelName, productName } from './inbox.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
@@ -15,10 +15,17 @@ import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
- * M9.7 + ADR-0008 — Conversations / customer memory. NOT a chat viewer and NOT a
- * second inbox. A read model over existing activity; the read model is
- * language-NEUTRAL (status/phase codes, milestone kinds, capability codes, raw
- * names); the renderer localizes. Actions live in the Inbox.
+ * M9.7 + ADR-0008 — the buyer's own page (`/app/conversations/:id`): what the
+ * business knows about one buyer. NOT a chat viewer and NOT a second inbox. A
+ * read model over existing activity; the read model is language-NEUTRAL
+ * (status/phase codes, milestone kinds, capability codes, raw names); the
+ * renderer localizes. Actions live on the conversation page.
+ *
+ * A (2026-09-28) — the LIST that lived here, Customers, is Buyers now: one
+ * list, searched and paged (`inbox.ts`, `src/db/buyersList.ts`), and
+ * `/app/conversations` answers with a redirect to it. The buyer's page stays
+ * where it was — addresses of pages do not move — and is one door from the
+ * conversation page.
  */
 
 type Tone = 'ok' | 'warn' | 'muted';
@@ -26,16 +33,13 @@ type RelStatus =
   | { readonly t: 'awaiting' } | { readonly t: 'order'; readonly s: string } | { readonly t: 'closed' }
   | { readonly t: 'quoted' } | { readonly t: 'phase'; readonly s: string } | { readonly t: 'talking' };
 
-const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…` : s);
-const productName = (locale: Locale, p: { name: string | null; nameZh: string | null }): string | null =>
-  locale === 'zh' ? (p.nameZh ?? p.name) : (p.name ?? p.nameZh);
-/**
- * D3 — every channel a conversation can be on has a name in the catalogue, and
- * this reads it. Two had none (`email`, `messenger`) and two were spelled out
- * here instead, so the page printed `conv.channel.email` at the owner as though
- * it were a word.
- */
-export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
+/** The first `n` characters — counted as characters, so an emoji is never cut in half. */
+const truncate = (s: string, n: number): string => {
+  const chars = Array.from(s);
+  return chars.length > n ? `${chars.slice(0, n).join('')}…` : s;
+};
+/** D3 — the channel's name, read in one place (`inbox.ts`); named here too, where it was first. */
+export { channelName };
 
 function relationshipOf(row: {
   pending: number; order_status: string | null; quote_count: number;
@@ -58,76 +62,6 @@ function relLabel(locale: Locale, s: RelStatus): string {
     case 'talking': return t(locale, 'conv.status.talking');
     case 'phase': return t(locale, `conv.phase.${s.s}` as MessageKey);
   }
-}
-
-/** ── Section 1: customer list ─────────────────────────────────────────────── */
-
-export type CustomerCard = {
-  readonly conversationId: string;
-  readonly buyer: string | null;
-  readonly country: string | null;
-  readonly channel: string;
-  readonly status: RelStatus;
-  readonly statusTone: Tone;
-  readonly needsOwner: boolean;
-  readonly product: { readonly name: string | null; readonly nameZh: string | null } | null;
-  readonly lastActivity: Date | null;
-};
-
-export type CustomerList = { readonly query: string; readonly customers: readonly CustomerCard[] };
-
-export async function loadCustomerList(db: Db, businessIdRaw: string, query: string): Promise<CustomerList> {
-  const q = query.trim();
-  const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { query: q, customers: [] };
-  const like = q ? `%${q}%` : null;
-
-  return withTenantTx(db, bid.value, async (tx) => {
-    const rows = (await sql<{
-      id: string; buyer: string | null; country: string | null; is_vip: boolean;
-      channel: string; phase: string; is_active: boolean; closed_at: Date | null;
-      name_zh: string | null; name: string | null; last_activity: Date | null;
-      pending: number; quote_count: number; order_status: string | null;
-    }>`
-      select c.id, cl.display_name as buyer, cl.country, cl.is_vip,
-             c.channel, c.phase, c.is_active, c.closed_at,
-             p.name_zh, p.name,
-             greatest(coalesce(lm.sent_at, c.updated_at), c.updated_at) as last_activity,
-             (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
-             (select count(*)::int from quotes q where q.conversation_id = c.id) as quote_count,
-             ord.status as order_status
-        from conversations c
-        left join clients cl on cl.id = c.client_id
-        left join conversation_state cs on cs.conversation_id = c.id
-        left join products p on p.id = cs.identified_product_id
-        left join lateral (select sent_at from messages m
-                            where m.conversation_id = c.id order by m.sent_at desc limit 1) lm on true
-        left join lateral (select status from orders o
-                            where o.conversation_id = c.id order by o.created_at desc limit 1) ord on true
-       where ${like}::text is null
-          or cl.display_name ilike ${like}
-          or p.name_zh ilike ${like}
-          or p.name ilike ${like}
-       order by cl.is_vip desc nulls last,
-                (c.is_active and c.closed_at is null) desc,
-                greatest(coalesce(lm.sent_at, c.updated_at), c.updated_at) desc nulls last
-       limit 100
-    `.execute(tx)).rows;
-
-    const customers = rows.map((r): CustomerCard => {
-      const rel = relationshipOf({
-        pending: r.pending, order_status: r.order_status, quote_count: r.quote_count,
-        is_active: r.is_active, closed_at: r.closed_at, phase: r.phase,
-      });
-      return {
-        conversationId: r.id, buyer: r.buyer, country: r.country, channel: r.channel,
-        status: rel.status, statusTone: rel.tone, needsOwner: rel.needsOwner,
-        product: (r.name || r.name_zh) ? { name: r.name, nameZh: r.name_zh } : null,
-        lastActivity: r.last_activity,
-      };
-    });
-    return { query: q, customers };
-  });
 }
 
 /** ── Sections 2–4: the customer file ──────────────────────────────────────── */
@@ -328,57 +262,28 @@ const TL_CLASS: Record<MilestoneKind, string> = {
 const statusPill = (label: string, tone: Tone): string =>
   `<span class="pill ${tone}">${tone === 'warn' ? '● ' : ''}${esc(label)}</span>`;
 
-const who = (locale: Locale, buyer: string | null, country: string | null): string => {
-  const name = buyer ?? t(locale, 'common.buyer');
-  const cn = countryName(locale, country);
-  return `${flag(country)} <b>${esc(name)}</b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
-};
-
-export function renderCustomerList(list: CustomerList, locale: Locale, now: Date): string {
-  const title = `<h1 class="page">${esc(t(locale, 'conv.title'))}</h1>`;
-  const search = `<form class="search" method="get" action="/app/conversations" role="search">
-      <input type="search" name="q" value="${esc(list.query)}" placeholder="${esc(t(locale, 'conv.search.placeholder'))}" aria-label="${esc(t(locale, 'conv.title'))}" />
-      <button class="btn">${esc(t(locale, 'conv.search.go'))}</button>${list.query ? `<a class="clear muted" href="/app/conversations">${esc(t(locale, 'conv.search.clear'))}</a>` : ''}
-    </form>`;
-
-  // M38 — the wider list: everyone the assistant may write to, not only who
-  // wrote in. D — a door only where the outreach area exists.
-  const toContacts = outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : '';
-
-  if (list.customers.length === 0) {
-    const body = list.query
-      ? `<div class="empty">${esc(t(locale, 'conv.empty.noMatch', { q: list.query }))}<br><span class="muted">${esc(t(locale, 'conv.empty.noMatchBody'))}</span></div>`
-      // Phase F: no ✓ here — zero customers is not an achievement. State it
-      //          plainly and offer the one thing that changes it.
-      : `<div class="empty"><div class="big">${esc(t(locale, 'conv.empty.noneTitle'))}</div>
-         <p class="muted">${esc(t(locale, 'conv.empty.noneBody'))}</p>
-         ${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div>`;
-    return `${title}${search}<div class="block">${body}${toContacts}</div>${CONV_STYLE}`;
-  }
-
-  const cards = list.customers.map((c) => {
-    const prod = c.product ? productName(locale, c.product) : null;
-    return `
-    <a class="cust ${c.needsOwner ? 'needs' : ''}" href="/app/conversations/${encodeURIComponent(c.conversationId)}">
-      <div class="cust-h"><span class="who">${who(locale, c.buyer, c.country)}</span>${statusPill(relLabel(locale, c.status), c.statusTone)}</div>
-      <div class="cust-b muted">${esc(channelName(locale, c.channel))}${prod ? `　·　${esc(prod)}` : ''}</div>
-      <div class="cust-t muted">${esc(t(locale, 'conv.lastContact'))}：${c.lastActivity ? esc(formatRelative(locale, c.lastActivity, now)) : '—'}</div>
-    </a>`;
-  }).join('');
-
-  return `${title}${search}<div class="list">${cards}</div>${toContacts}${CONV_STYLE}`;
-}
-
-function milestoneText(locale: Locale, m: Milestone): string {
+/**
+ * One history line, as markup: the sentence in the page's language, and what
+ * it quotes — the buyer's words, a reply, the figures — isolated, so an
+ * English sentence or a price inside an Arabic line keeps its own order (the
+ * sentence and the words ran together, and an ellipsis landed at the wrong end).
+ */
+function milestoneHtml(locale: Locale, m: Milestone): string {
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
+  const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
+  /** The sentence escaped, with the quoted part put in — isolated — where its blank was. */
+  const said = (key: MessageKey, params: Record<string, string>, blank: string, part: string): string =>
+    esc(t(locale, key, { ...params, [blank]: '\u0000' })).replace('\u0000', part);
   switch (m.kind) {
-    case 'buyer_text': return t(locale, 'conv.tl.buyer_text', { text: m.text ?? '' });
-    case 'buyer_image': return t(locale, 'conv.tl.buyer_image');
-    case 'reply': return t(locale, 'conv.tl.reply', { name, text: m.text ?? '' });
-    case 'quote': return t(locale, 'conv.tl.quote', { name, detail: `${formatQty(locale, m.qty ?? 0)}${pcs} · ${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}` });
-    case 'order': return t(locale, 'conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? ''), qty: `${formatQty(locale, m.qty ?? 0)}${pcs}` });
-    default: return t(locale, `conv.tl.${m.kind}` as MessageKey);
+    case 'buyer_text': return said('conv.tl.buyer_text', {}, 'text', iso(m.text ?? ''));
+    case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
+    case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
+    case 'quote': return said('conv.tl.quote', { name }, 'detail',
+      [iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`), iso(`${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}`)].join(' · '));
+    case 'order': return said('conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? '') }, 'qty',
+      iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`));
+    default: return esc(t(locale, `conv.tl.${m.kind}` as MessageKey));
   }
 }
 
@@ -504,10 +409,11 @@ export function renderCustomerFile(
 ): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
-  const productsLabel = p.products.map((pr) => productName(locale, pr)).filter(Boolean).join('、');
+  // CC-13 — each locale's own list, not the Chinese enumeration comma in every language.
+  const productsLabel = formatList(locale, p.products.map((pr) => productName(locale, pr)).filter((x): x is string => Boolean(x)));
   const profileRows = [
     p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(formatDate(locale, p.firstContact))}</b></div>` : '',
-    productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b>${esc(productsLabel)}</b></div>` : '',
+    productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b><bdi>${esc(productsLabel)}</bdi></b></div>` : '',
     p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${p.quoteCount}</b></div>` : '',
     p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${p.orderCount}</b></div>` : '',
   ].filter(Boolean).join('');
@@ -526,7 +432,7 @@ export function renderCustomerFile(
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
-          <div><div class="tx">${esc(milestoneText(locale, m))}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
+          <div><div class="tx">${milestoneHtml(locale, m)}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
         ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 
@@ -534,25 +440,32 @@ export function renderCustomerFile(
   const ctxParts = [
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
       `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${pr.sku ? `<span class="muted"> · ${esc(pr.sku)}</span>` : ''}`).join('<br>')}</div></div>` : '',
-    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${esc(formatQty(locale, ctx.latestQuote.qty))}${esc(pcs)} · ${esc(formatMoney(ctx.latestQuote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(ctx.latestQuote.total))}</div></div>` : '',
+    // Each figure isolated, so Arabic keeps quantity, price and total apart and in order.
+    ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${[
+      `${formatQty(locale, ctx.latestQuote.qty)}${pcs}`,
+      `${formatMoney(ctx.latestQuote.unitPrice)}/${pcs}`,
+      `${t(locale, 'product.detail.total')} ${formatMoney(ctx.latestQuote.total)}`,
+    ].map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
     ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
       // G4 — the reference opens the order, so what she tells a buyer who asks
       // after it is one tap away.
       ctx.order.id ? `<a href="/app/orders/${encodeURIComponent(ctx.order.id)}">${esc(ctx.order.reference)}</a>` : esc(ctx.order.reference)
     } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(formatMoney(ctx.order.total))}` : ''}</div></div>` : '',
-    ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${ctx.corrections.map((c) => esc(capabilityName(locale, c))).join('、')}</div></div>` : '',
+    ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${esc(formatList(locale, ctx.corrections.map((c) => capabilityName(locale, c))))}</div></div>` : '',
   ].filter(Boolean).join('');
   const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';
 
+  // Decision 4 — it goes somewhere, so it is a door, not a button.
   const actLink = f.needsOwner
     ? `<div class="card need-card"><span>${esc(t(locale, 'conv.needCard'))}</span>
-        <a class="btn send" href="${conversationUrl(f.conversationId)}">${esc(t(locale, 'conv.needCardCta'))}</a></div>`
+        ${deeper(conversationUrl(f.conversationId), t(locale, 'conv.needCardCta'), 'next')}</div>`
     : '';
 
+  // A — back to Buyers, where every buyer is listed now (Customers was the same list).
   return `
     <div class="dhead">
-      ${back('/app/conversations', t(locale, 'conv.back'))}
-      <div class="who">${who(locale, f.buyer, f.country)}</div>
+      ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
+      <div class="who">${buyerWho(locale, f.buyer, f.country)}</div>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
     <div class="muted subline">${esc(channelName(locale, f.channel))}</div>
@@ -561,39 +474,5 @@ export function renderCustomerFile(
     ${profile}
     ${timeline}
     ${context}
-    ${deletionSection(f, locale, viewer)}
-    ${CONV_STYLE}`;
+    ${deletionSection(f, locale, viewer)}`;
 }
-
-const CONV_STYLE = `<style>
-  .search { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-16); }
-  .search input { flex:1; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .search .clear { font-size:var(--font-size-caption); }
-  .cust { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
-  .cust.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
-  .cust:hover { border-color:var(--color-border); }
-  .cust-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
-  .cust-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .cust-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
-
-
-  .dhead .who { font-size:var(--font-size-small); }
-
-  .name-form { margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
-  .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
-  .name-row { display:flex; gap:var(--space-8); align-items:center; }
-  .name-row input { flex:1; min-width:0; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
-  .name-form .hint { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:9px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
-  .prow:last-child { border-bottom:none; }
-  .tl { list-style:none; padding:0; margin:0; }
-  .tl li { display:flex; gap:var(--space-12); padding:11px 0; border-inline-start:2px solid var(--color-border); margin-inline-start:var(--space-8); padding-inline-start:16px; position:relative; }
-  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface); font-size:var(--font-size-small); line-height:1; }
-  .tl .tx { font-size:var(--font-size-small); } .tl .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  /* Event TYPES are told apart by their icons; colouring the text per type was
-     colour carrying no state. The page's one state colour is the status pill. */
-  .cx { display:flex; gap:var(--space-12); padding:10px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
-  .cx:last-child { border-bottom:none; } .cx-l { color:var(--color-ink-secondary); min-width:72px; }
-  .need-card { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); border-color:var(--color-waiting-line); font-size:var(--font-size-small); }
-  @media (max-width:560px) { .cust { border-radius:12px; } }
-</style>`;

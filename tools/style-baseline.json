@@ -1,5 +1,5 @@
 {
-  "_why": "V1 step two \u2014 <style> blocks in src/api/web, the shell's own two included. tests/parity/v1-one-stylesheet.test.ts fails when the count RISES above this; it is meant to FALL as each page is restyled and its block retired (docs/DESIGN-V1-BRIEF.md \u00a78, decision 4). Lower it deliberately when it does.",
-  "_measured": "2026-09-24 (step four, the batch: \u2192 6)",
-  "styleBlocks": 6
+  "_why": "V1 step two — <style> blocks in src/api/web. tests/parity/v1-one-stylesheet.test.ts fails when the count RISES above this; it is meant to FALL as each page is restyled and its block retired (docs/DESIGN-V1-BRIEF.md §8, decision 4). Lower it deliberately when it does. Since the V1 close-out the shell and the door are served as files (/assets/<name>.<hash>.css); the one block left is publicDocument()'s, kept inside the page on purpose — a stranger's page (legal, unsubscribe, proof, site) arrives complete, with nothing more to fetch.",
+  "_measured": "2026-09-28 (V1 close-out: 6 → 3 → 1 — the shell and the door are files; the public document keeps its one block)",
+  "styleBlocks": 1
 }

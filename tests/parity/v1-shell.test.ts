@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { shell, loginPage } from '../../src/api/web/layout.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { withSheets } from './linked-css.js';
 
 /**
  * V1 step three — the shell (Symow, decisions 2 and 4; the owner's condition
@@ -18,8 +19,10 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
  */
 const page = (locale: (typeof LOCALES)[number] = 'en', avatar = ''): string =>
   shell({ title: 'T', active: 'home', locale, path: '/app', avatar, bodyHtml: '<p>x</p>' });
+/** The page with the rules it links (V1 close-out: the stylesheet is a file). */
+const drawn = (locale: (typeof LOCALES)[number] = 'en'): string => withSheets(page(locale));
 const phoneBlock = (): string => {
-  const html = page();
+  const html = drawn();
   const i = html.indexOf('@media (max-width: 720px)');
   expect(i).toBeGreaterThan(0);
   return html.slice(i);
@@ -48,7 +51,7 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
   });
 
   it('the compacted nav is still a target: 44px, spacing from the scale', () => {
-    const html = page();
+    const html = drawn();
     expect(html).toMatch(/@keyframes navlink-compact \{ to \{ min-height:44px; padding-top:var\(--space-4\); padding-bottom:var\(--space-4\); \} \}/);
     expect(html).toMatch(/@keyframes nav-compact \{ to \{ padding-top:var\(--space-4\); padding-bottom:var\(--space-4\); \} \}/);
   });
@@ -72,15 +75,23 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(html).not.toContain('class="who"');
   });
 
-  it('the language switch and log out are the first rows of Setup, and the login page keeps its switcher', () => {
+  it('the language switch is the first row of Setup, log out its last — a button — and the login page keeps its switcher', () => {
+    // V1 close-out (the review's noted item): log out sat second, as a door,
+    // between the language and Getting ready. It ends the session, so it is a
+    // button (decision 4: buttons do things), and it is the last thing on the
+    // page, after every door. The switch stays first.
     const src = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
     const ret = src.slice(src.indexOf('return `<h1 class="page">${esc(t(locale, \'nav.settings\'))}</h1>'));
     const lang = ret.indexOf("switcher(locale, '/app/settings')");
-    const out = ret.indexOf("deeper('/logout'");
     const firstDoor = ret.indexOf("deeper('/app/onboarding'");
+    const lastDoor = ret.indexOf("deeper('/app/settings/components'");
+    const out = ret.indexOf('<form method="post" action="/logout">');
     expect(lang).toBeGreaterThan(0);
-    expect(out).toBeGreaterThan(lang);
-    expect(firstDoor).toBeGreaterThan(out);
+    expect(firstDoor).toBeGreaterThan(lang);
+    expect(lastDoor).toBeGreaterThan(firstDoor);
+    expect(out, 'log out comes after every door').toBeGreaterThan(lastDoor);
+    expect(ret).not.toContain("deeper('/logout'");
+    expect(ret.slice(out, ret.indexOf('</form>', out))).toMatch(/<button class="btn ghost" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 
@@ -93,7 +104,7 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
       expect(brand.split(MARK_FIGURE).length - 1, l).toBe(2);            // the detail cut and the small cut
       expect(html.split(MARK_FIGURE).length - 1, l).toBe(2);
     }
-    const html = page();
+    const html = drawn();
     expect(html).toContain('.brand .mark-small { display:none; }');      // desktop: the detail cut beside the word
     const block = phoneBlock();
     expect(block).toContain('nav.side .brand { display:flex;');
@@ -103,7 +114,7 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
   });
 
   it('the Setup count sits beside its word, not at the far end', () => {
-    const rule = page().match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
+    const rule = drawn().match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
     expect(rule).toContain('margin-inline-start:var(--space-8)');
     expect(rule).not.toContain('auto');
     expect(phoneBlock()).toMatch(/nav\.side a\.navlink \{[^}]*flex-direction:row; flex-wrap:wrap/);

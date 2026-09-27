@@ -5,11 +5,9 @@ import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
 import { renderFactory } from '../../src/api/web/factory.js';
-import { renderCustomerList } from '../../src/api/web/conversations.js';
 import type { OperationsSnapshot } from '../../src/api/web/operations.js';
 import type { FactoryView } from '../../src/api/web/factory.js';
 import type { EmployeeProfile, HerContext } from '../../src/api/web/employee.js';
-import type { CustomerList } from '../../src/api/web/conversations.js';
 import { renderCalendar } from '../../src/api/web/calendar.js';
 
 /**
@@ -63,8 +61,8 @@ const emptyFactoryView: FactoryView = {
 };
 const emptyFactory = renderFactory(emptyFactoryView, 'en');
 
-const emptyCustomerList: CustomerList = { query: '', customers: [] };
-const emptyCustomers = renderCustomerList(emptyCustomerList, 'en', NOW);
+// A — Customers merged into Buyers; its empty room is a search that found nobody.
+const emptySearch = renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [], query: 'Zhang' }, 'en', NOW);
 
 // V2 — a calendar with nothing dated in its three weeks.
 const emptyCalendar = renderCalendar({
@@ -78,7 +76,7 @@ const SURFACES: readonly (readonly [string, string])[] = [
   ['Buyers · all', emptyBuyers('all')],
   ['小雅', emptyHer],
   ['My factory', emptyFactory],
-  ['Customers', emptyCustomers],
+  ['Buyers · a search that found nobody', emptySearch],
   ['Calendar', emptyCalendar],
 ];
 
@@ -104,20 +102,23 @@ describe('Phase F · every empty surface says what happens next', () => {
     expect(emptyHer).not.toContain(t('en', 'her.teach.none'));
     expect(emptyHer).toContain(t('en', 'her.teach.unasked'));
     expect(emptyHer).toContain('href="/app/knowledge"');
-    // and a factory with no customers is not an achievement
-    expect(emptyCustomers).not.toContain('class="ok"');
+    // and a search that found nobody is not an achievement
+    expect(emptySearch).not.toContain('class="ok"');
+    expect(emptySearch).not.toContain('ok-line');
   });
 
   it('the quiet branches still lead somewhere', () => {
     expect(emptyToday).toContain('href="/app/knowledge"');   // nothing learned yet
     expect(emptyBuyers('all')).toContain('href="/app/factory"');
-    expect(emptyCustomers).toContain('href="/app/factory"');
+    expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
     expect(emptyCalendar).toContain('href="/app/inbox"');
   });
 
   it('does not offer a door into another empty room', () => {
-    // "Everyone you have talked to" is pointless when nobody has talked to you.
+    // "Everyone you have talked to" is pointless when nobody has talked to you
+    // — and since A there is no second list to send anyone to at all.
     expect(emptyBuyers('all')).not.toContain('/app/conversations');
+    expect(emptyBuyers('pending')).not.toContain('/app/conversations');
   });
 
   it('reads the same way in every locale — nothing falls back to English', () => {

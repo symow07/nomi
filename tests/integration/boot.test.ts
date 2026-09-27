@@ -651,21 +651,29 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.headers['location']).toBe('/login');
   });
 
-  it('M9.7 conversations: list renders demo customers (memory, not a chat log)', async () => {
+  // A (2026-09-28) — Customers merged into Buyers. The address answers with
+  // the one list; the list and its search are asserted where they live now.
+  it('M9.7 conversations: the list is Buyers now — every demo buyer, one list (memory, not a chat log)', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/conversations', headers: { cookie } });
+    const moved = await prod.app.inject({ method: 'GET', url: '/app/conversations', headers: { cookie } });
+    expect(moved.statusCode).toBe(302);
+    expect(moved.headers['location']).toBe('/app/inbox?filter=all');
+    const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Customers');   // English default
+    expect(res.body).toContain('<h1 class="page">Buyers</h1>');   // English default, one word
+    expect(res.body).not.toContain('Customers');
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
-    expect(res.body).toContain('WhatsApp');
     expect(res.body).not.toContain('置信度');   // no invented score
     expect(res.body).not.toContain('<table');   // mobile: no wide tables
   });
 
-  it('M9.7 conversations: simple search filters by buyer name', async () => {
+  it('M9.7 conversations: simple search filters by buyer name — the old address carries it', async () => {
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/conversations?q=Ivan', headers: { cookie } });
+    const moved = await prod.app.inject({ method: 'GET', url: '/app/conversations?q=Ivan', headers: { cookie } });
+    expect(moved.statusCode).toBe(302);
+    expect(moved.headers['location']).toBe('/app/inbox?q=Ivan');
+    const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?q=Ivan', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ivan Petrov');
     expect(res.body).not.toContain('Ahmed Al-Rashid');
@@ -677,7 +685,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-000000000301`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
-    expect(res.body).toContain('Customer file');
+    expect(res.body).toContain('About this buyer');   // A — one word: buyer
     expect(res.body).toContain('First contact');
     expect(res.body).toContain('History');
   });
@@ -687,7 +695,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET',
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-0000000009ff`, headers: { cookie } });
     expect(res.statusCode).toBe(404);
-    expect(res.body).toContain('Customer not found');
+    expect(res.body).toContain('Buyer not found');
   });
 
   it('M9.8 analytics: requires auth', async () => {

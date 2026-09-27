@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
 import { cssVariables } from '../../src/core/owner/css.js';
+import { withSheets } from './linked-css.js';
 import { shell } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
@@ -42,7 +43,7 @@ describe('V1 · type — decision 1', () => {
     expect(css).toContain('html[lang="zh"] { --line-height: 1.7; }');
     expect(css).toContain('html[lang="ar"] { --line-height: 1.75; }');
     for (const locale of LOCALES) {
-      const page = shell({ title: 'T', active: 'home', locale, path: '/app', avatar: '', bodyHtml: '<p>x</p>' });
+      const page = withSheets(shell({ title: 'T', active: 'home', locale, path: '/app', avatar: '', bodyHtml: '<p>x</p>' }));
       expect(page, locale).toContain(`<html lang="${locale}"`);
       expect(page).toMatch(/body \{[^}]*var\(--line-height\)/);
     }

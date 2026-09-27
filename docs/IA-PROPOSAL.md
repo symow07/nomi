@@ -296,7 +296,52 @@ Each its own PR against the verification set:
    hardcoded names go; the nav label follows the assistant count.
 2. **D** — the drawer splits; Setup joins the nav, with its progress badge and
    Today's "finish setup" card; outreach goes behind the per-workspace flag.
-3. **A** — the two lists become one, with search and paging.
+3. ~~**A** — the two lists become one, with search and paging.~~ ✅ built
+   2026-09-28 (the V1 close-out, after decision 5). See "A — as built" below.
 
 Nothing here touches `activate()`, any outbound send, the price floor, order
 confirmation, or the RLS grants.
+
+---
+
+## A — as built (2026-09-28)
+
+- **One list, the name "Buyers".** `/app/inbox` lists every conversation of
+  the workspace. `/app/conversations` answers with a redirect to it — the
+  search carried (`?q=` → `?q=`), otherwise "All", which is what Customers
+  showed; a stranger is sent to sign in. `/app/conversations/:id`, the buyer's
+  own page, did not move (the URLs of pages do not move): it lights Buyers,
+  goes back to Buyers, and is one door ("About this buyer") from the
+  conversation page. Every door that opened Customers opens Buyers (Today's
+  month-change insight: `/app/inbox?filter=all`); the contacts door (outreach
+  area only) hangs off Buyers, and so does the outreach chain in the hub map.
+- **The read model** Customers carried and Buyers did not: the channel (named
+  on a row once the workspace talks on more than one, A5's rule for the
+  assistant's name), who wrote the last message and whether the buyer's words
+  are still unanswered — "unread", as far as stored messages can say it:
+  nothing records who has read a conversation, and that would be a migration
+  — and the last contact, which is the row's time. The relationship status
+  ("Discussing price") stays on the buyer's page, not on the row: decision 5
+  keeps the row as it is.
+- **Search** reads the buyer's name, their address on their channel (phone,
+  e-mail, handle; a number typed with spaces or a plus is matched on its
+  digits) and the product the conversation is about, in either language. Not
+  the messages: that is a different question, better answered by a full-text
+  index (a migration), and a match buried in an old message would show a row
+  whose preview does not contain the word. No index was added; the match runs
+  inside the tenant's own rows. A search is a find, not a view: with no tab it
+  looks across everyone, and the tabs leave it behind.
+- **Paging** is by keyset, 50 a page: the list is ranked by the groups the
+  page draws (a deletion request, then needs you — waiting for a person, then a
+  reply to review — then a person here holds it, then the assistant's; within
+  each, a buyer still waiting before the rest, then the newest), so a page is
+  a run of whole groups and everyone who needs the owner comes before anyone
+  who does not, on the first page whenever they last wrote. The cursor carries
+  the key (rank, the newest message to the microsecond, the id), so a page
+  starts exactly where the last stopped even if that row moved; a malformed or
+  stale cursor is the first page. The tab counts stay of everything (A9); the
+  page says where it sits ("51–100 of 312"), counted in the same statement.
+- Code: `src/db/buyersList.ts` (rank, search, keyset, counts), `inbox.ts`
+  (what each row shows, the page). Tests: `tests/parity/buyers-merge.test.ts`,
+  `tests/integration/buyers-merge.test.ts`.
+

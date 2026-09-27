@@ -154,8 +154,8 @@ describe('M9 + ADR-0008 · command-center shell', () => {
     for (const n of NAV) expect(html).toContain(t('en', `nav.${n.id}` as MessageKey));
     expect(html).toContain('class="navlink active"');   // inbox highlighted
     expect(html).toContain('<p>hi</p>');
-    // V1 · option A (2026-09-24): the shell has no header band. Log out and the
-    // switcher are the first rows of Setup (tests/parity/v1-shell.test.ts).
+    // V1 · option A (2026-09-24): the shell has no header band. The switcher
+    // is Setup's first row and log out its last (tests/parity/v1-shell.test.ts).
     expect(html).not.toContain('/logout');
     expect(html).not.toContain('class="langsw"');
     expect(html).toContain('Nomi');                       // Phase A: customer-facing brand

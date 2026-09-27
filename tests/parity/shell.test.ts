@@ -4,6 +4,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { cssVariables } from '../../src/core/owner/css.js';
 import { DESIGN_TOKENS } from '../../src/core/owner/tokens.js';
+import { linkedCss, sheetLinks } from './linked-css.js';
 
 /**
  * Phase F — the shared shell, enforced. Every owner surface is drawn inside it,
@@ -53,8 +54,11 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     const navHrefs = new Set(NAV.map((n) => n.href));
     for (const r of CONTEXTUAL_ROUTES) expect(navHrefs.has(r), r).toBe(false);
     // and the ones that were demoted are still real routes someone links to
-    for (const r of ['/app/onboarding', '/app/sandbox', '/app/conversations', '/app/analytics'])
+    for (const r of ['/app/onboarding', '/app/sandbox', '/app/analytics'])
       expect(CONTEXTUAL_ROUTES, r).toContain(r);
+    // A — Customers is not a route of its own any more: it merged into Buyers,
+    // and its address answers with a redirect there, so nothing links to it.
+    expect(CONTEXTUAL_ROUTES).not.toContain('/app/conversations');
   });
 
   it('marks the active destination, and only that one', () => {
@@ -70,8 +74,21 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   });
 });
 
+describe('V1 close-out · the stylesheet is a file', () => {
+  it('the shell links one sheet, by its content, and carries no rules of its own', () => {
+    for (const l of LOCALES) {
+      const html = page(l);
+      expect(html, l).not.toContain('<style');
+      expect(sheetLinks(html), l).toEqual([expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/)]);
+      expect(linkedCss(html).length, l).toBeGreaterThan(10_000);
+    }
+    // one sheet for every page and every language: the address does not vary
+    expect(new Set(LOCALES.map((l) => sheetLinks(page(l))[0])).size).toBe(1);
+  });
+});
+
 describe('Phase F · the shell is usable with a thumb', () => {
-  const style = page().match(/<style>[\s\S]*?<\/style>/)![0];
+  const style = linkedCss(page());
 
   it('every header and nav control clears a 44px target', () => {
     expect(style).toMatch(/nav\.side a\.navlink \{[^}]*min-height: 44px/);
@@ -218,7 +235,7 @@ describe('Phase F · one “go deeper” affordance for the whole product', () =
   it('renders one shape, with a chevron that mirrors in RTL', () => {
     expect(deeper('/app/products', 'See your products'))
       .toBe('<a class="deeper" href="/app/products">See your products<span class="go" aria-hidden="true">›</span></a>');
-    const style = page().match(/<style>[\s\S]*?<\/style>/)![0];
+    const style = linkedCss(page());
     expect(style).toContain('[dir="rtl"] .go { transform:scaleX(-1)');
   });
 
@@ -232,7 +249,7 @@ describe('Phase F · direction', () => {
     expect(page('ar')).toContain('dir="rtl"');
     expect(page('en')).toContain('dir="ltr"');
     expect(page('zh')).toContain('dir="ltr"');
-    const style = page().match(/<style>[\s\S]*?<\/style>/)![0];
+    const style = linkedCss(page());
     // the grid mirrors itself; re-flipping it is what broke Arabic desktop
     expect(style).not.toMatch(/\[dir="rtl"\]\s*\.layout/);
     expect(style).not.toMatch(/\[dir="rtl"\]\s*nav\.side/);
@@ -300,7 +317,7 @@ describe('Phase F · direction is never baked into the copy', () => {
   });
 
   it('the back link is a real touch target', () => {
-    const style = page().match(/<style>[\s\S]*?<\/style>/)![0];
+    const style = linkedCss(page());
     expect(style).toMatch(/\.back \{[^}]*min-height:44px/);
   });
 });

@@ -6,9 +6,11 @@ import { DEMO_BUSINESS, DEMO_NAMESPACE, DEMO_PRODUCTS, demoPhone, type DemoProdu
  *
  * The script's five tasks need a workspace that looks real, and each line of
  * its list is a row here:
- *   - sixty-plus conversations, so the inbox's fifty-row window is exceeded;
+ *   - sixty-plus conversations — more than one page of Buyers, and more than
+ *     the fifty-row window the list had before A;
  *   - one of them handed to a NAMED colleague, replied to, and idle for
- *     weeks — the case A9 fixed, which must still be findable;
+ *     weeks — the case A9 fixed, which must still be findable (since A it
+ *     leads its group on the first page of every tab it belongs to);
  *   - a draft waiting for approval, on a buyer who wrote within the hour;
  *   - three products with price tiers (the demo factory's twelve);
  *   - activity yesterday, so Results has something to show;
@@ -154,7 +156,8 @@ const thousands = (n: number): string => n.toLocaleString('en-US');
 /**
  * When the last message of plain conversation i was written, in minutes ago:
  * six today, ten yesterday, the rest spread over the past three weeks — all
- * newer than the handed one, which is what pushes it past the window.
+ * newer than the handed one, which is what pushed it past the old fifty-row
+ * window (A9), and what the paged list must now rank past (A).
  */
 const lastAgeOf = (i: number): number =>
   i < 6 ? 40 + i * 65
@@ -195,8 +198,9 @@ function specials(): readonly UsabilityConversation[] {
   const box = sku('ZX-500'), lights = sku('ZX-300'), thermos = sku('ZX-200'), mug = sku('ZX-210'), board = sku('ZX-700');
   return [
     // 60 · Handed to 陈莉 three weeks ago; her reply was the last word. Nothing
-    //      since. The oldest conversation in the workspace, so it sits past the
-    //      fifty-row window on "All" and must still be on "Waiting" (A9).
+    //      since. The oldest conversation in the workspace: past the old
+    //      fifty-row window on "All" (A9), so it proves the paged list ranks
+    //      it by who needs the owner, not by time (A) — and it is on "Waiting".
     { id: uid('e2', HANDED), kind: 'handed', buyer: USABILITY_BUYERS[HANDED]!, product: box, qty: 3000, phase: 'commercial_discussion',
       messages: [
         { dir: 'inbound', text: 'Can you do 3,000 pcs of the foldable storage box with our logo? Need price and lead time.', ageMin: 30300 },
@@ -394,7 +398,7 @@ export function usabilityChecks(namespace: string = DEMO_NAMESPACE): readonly Us
              where c.business_id = '${bid}' and c.is_active and not p.is_owner and p.archived_at is null
                and (select m.direction from messages m where m.conversation_id = c.id order by m.sent_at desc limit 1) = 'outbound'
                and ${lastAt('c.id')} < now() - interval '7 days') as ok` },
-    { key: 'window', zh: '那个对话排在 50 行之外（A9 修的那一类）', en: 'that conversation sits past the fifty-row window (the A9 case)',
+    { key: 'window', zh: '那个对话比另外 50 个都旧（50 行的旧窗口会漏掉它，A9 修的那一类）', en: 'that conversation is older than fifty others (what the old fifty-row window lost — the A9 case)',
       sql: `select (select count(*) from conversations c2
                     where c2.business_id = '${bid}' and c2.id <> '${handed}'
                       and ${lastAt('c2.id')} > ${lastAt(`'${handed}'`)}) >= 50 as ok` },

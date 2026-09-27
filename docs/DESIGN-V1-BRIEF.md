@@ -219,8 +219,8 @@ Observations, for you to weigh. Not proposals.
 ## 7 · The five decisions, and the shape of each answer
 
 The implementer can start the moment these exist, in any order; tokens first
-is the natural one. **Symow answered 1–4 on 2026-09-24; §8 records them.
-5 is deferred until after the usability session.**
+is the natural one. **Symow answered 1–4 on 2026-09-24; the owner answered
+5 on 2026-09-28. §8 records all five.**
 
 | # | Decision | What the implementer needs from you |
 |---|---|---|
@@ -238,13 +238,12 @@ only does not ship.
 
 ---
 
-## 8 · Decided — Symow, 2026-09-24
+## 8 · Decided — Symow, 2026-09-24; the owner, 2026-09-28
 
 Decisions 1–4, in his words, each followed by what it means for the
-implementer. Decision 5 is **deliberately deferred** until after the
-usability session: F7 in the script is written to test the row and the
-conversation page, and the answer waits for what the participants do. It is
-recorded as pending; nothing is guessed in its place.
+implementer. Decision 5 was deferred until after the usability session (F7
+in the script tests the row and the conversation page); the owner settled it
+on 2026-09-28 — the row stays as it is — and it is recorded below.
 
 ### 1 · Type — decided
 
@@ -414,11 +413,54 @@ collision from step four), the assistant's face and shouted caveat, products
 as cards with green marks on every one, the row measure at desktop, and
 Latin speech right-aligned in Arabic. Two items wait on decision 5.
 
-### 5 · The row — PENDING
+**The close-out (2026-09-28).** With decision 5 settled, the last of V1:
+Buyers' two blocks and the buyer page's one moved into the shell's sections
+(6 → 3), and then the shell's own two — the shell and the login door — became
+files: each served once at an address named by its rules
+(`/assets/app.<hash>.css`, `/assets/door.<hash>.css`), kept by the browser
+for good, so an owner page no longer carries half its weight in the same
+rules on every tap. **One block is left, on purpose:** `publicDocument()`'s
+(legal, unsubscribe, proof, site). A stranger opens those from an e-mail, a
+Page or a forwarded link, often after a scanner or a crawler has fetched the
+address and nothing else, and each must arrive complete with nothing more to
+fetch — two tests pin exactly that. So the count is **1**, in `layout.ts`.
+Buyers, the buyer's page and the conversation page were restyled in V1's
+language with the row as it is: the list keeps the prose measure at desktop;
+each figure is its own isolate, so Arabic stops reordering a product name, a
+quantity and a price into one run; the tag is the shell's row tag; the deal
+box's quiet button is visible again. The calendar's kind wears the neutral
+tag; Log out is Setup's last row and a button; the channels page's states
+line up (the row family's grid, not the page). Screenshots in
+`docs/design/v1-closeout/` (en · zh · ar at 390 px; five at 1280).
 
-Deferred until the usability session has run (F7 tests exactly this).
-Until then the inbox row and the buyer row keep their current shape, and
-the inbox step of V1 waits behind this answer.
+### 5 · The row — DECIDED
+
+Decided by the owner on 2026-09-28:
+
+> The row stays as it is — name, last message, time. I looked and had no
+> complaint, so nothing is invented. Revisit after real daily use.
+
+What it means:
+- The Buyers row keeps its fields and their order: the flag, the buyer's
+  name and country, and the one tag (why the buyer needs the owner, or who
+  holds the conversation) on the first line; what they asked about; the last
+  message in the person's serif; the time. No field is added to it and none
+  is taken away, and it stays a bordered tile.
+- The one tag is V1's row tag (`.tag`, in the shell). It carries state
+  colour only when it names a state — `now` (waiting for the owner) and
+  `you` (a person holds it); a label that is not a state wears the neutral
+  tag. The calendar's category is that neutral tag.
+- A — the merged list (Buyers and Customers are one list since this
+  decision) uses this row. What Customers carried and the row did not is
+  said in the row's own words rather than in new fields: the channel joins
+  the time line when a workspace talks on more than one, and the time line
+  names who wrote the last message, as the transcript does under each
+  message — so a buyer still waiting for an answer reads as the buyer's
+  words, and a reply reads as a reply.
+- Everything that waited on this answer is built: A (search and paging over
+  the one list), the calendar's tag, Log out on Setup, the channels page's
+  pills, and the last page-level stylesheets.
+- To revisit after real daily use, not before.
 
 ---
 

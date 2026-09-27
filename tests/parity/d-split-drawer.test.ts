@@ -3,13 +3,14 @@ import { shell, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutr
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
 import { renderSettings } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
-import { renderCustomerList } from '../../src/api/web/conversations.js';
+import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderAccounts } from '../../src/api/web/connect.js';
 import { renderReach } from '../../src/api/web/channels.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { setupFrom, SETUP_STEPS, NOTHING_DONE } from '../../src/db/setup.js';
 import { t, messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { withSheets } from './linked-css.js';
 
 /**
  * D — the drawer split (docs/IA-PROPOSAL.md §D, decided 2026-09-21).
@@ -68,8 +69,9 @@ describe('D · five entries', () => {
     expect(hubFor('/app/settings/data', 'x')).toBe('settings');
     expect(hubFor('/app/channels', 'x')).toBe('settings');
     expect(hubFor('/app/onboarding', 'x')).toBe('settings');
-    // the outreach chain still resolves, for a workspace that has it
-    expect(hubFor('/app/sequences/abc', 'x')).toBe('home');
+    // the outreach chain still resolves, for a workspace that has it — under
+    // Buyers since A (contacts hung off Customers, which merged into Buyers)
+    expect(hubFor('/app/sequences/abc', 'x')).toBe('inbox');
   });
 });
 
@@ -95,8 +97,10 @@ describe('D · the Setup count', () => {
   });
 
   it('the count is a figure in secondary ink, not a state colour', () => {
-    const html = page('/app', facts());
+    // V1 close-out — the rule is in the sheet the page links.
+    const html = withSheets(page('/app', facts()));
     const rule = html.match(/nav\.side \.navcount \{[^}]*\}/)?.[0] ?? '';
+    expect(rule, 'the rule is found').not.toBe('');
     expect(rule).toContain('var(--color-ink-secondary)');
     expect(rule).not.toMatch(/warn|jade|ok|waiting/);
   });
@@ -174,7 +178,8 @@ describe('D · the outreach area exists only where it is switched on', () => {
     expect(withWorkspace(facts({ outreach: true }), () => withAssistantName('Noor', outreachShown))).toBe(true);
   });
 
-  const list = { customers: [], query: '' } as unknown as Parameters<typeof renderCustomerList>[0];
+  // A — the contacts door moved with the list it hangs off: Customers is Buyers now.
+  const list: Parameters<typeof renderInboxList>[0] = { filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] };
   const accounts: Parameters<typeof renderAccounts>[0] = {
     mail: null, connectable: { google: true, microsoft: false }, sendingDomain: 'example.com', smtpFrom: null,
     apollo: { kind: 'none' },
@@ -182,8 +187,8 @@ describe('D · the outreach area exists only where it is switched on', () => {
 
   it('the door to contacts, the Apollo card and the writing-first switch appear only with the area on', () => {
     const off = facts({ outreach: false }); const on = facts({ outreach: true });
-    expect(withWorkspace(off, () => renderCustomerList(list, 'en', new Date()))).not.toContain('href="/app/contacts"');
-    expect(withWorkspace(on, () => renderCustomerList(list, 'en', new Date()))).toContain('href="/app/contacts"');
+    expect(withWorkspace(off, () => renderInboxList(list, 'en', new Date()))).not.toContain('href="/app/contacts"');
+    expect(withWorkspace(on, () => renderInboxList(list, 'en', new Date()))).toContain('href="/app/contacts"');
 
     expect(withWorkspace(off, () => renderAccounts(accounts, 'en'))).not.toContain('/app/prospects');
     expect(withWorkspace(on, () => renderAccounts(accounts, 'en'))).toContain('href="/app/prospects"');

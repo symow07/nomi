@@ -48,6 +48,8 @@ const list = (name, all) => {
 };
 
 const BASE = (opt('base') ?? process.env.NOMI_BASE_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+/** A — what the Buyers search is shown with; the usability workspace has two Haddads. */
+const SEARCH = opt('search') ?? 'Haddad';
 const CODE = opt('code') ?? process.env.OWNER_ACCESS_CODE ?? 'smoke-code';
 const OUT = path.resolve(ROOT, opt('out') ?? 'screenshots');
 const MARKER = '.nomi-screenshots';
@@ -71,10 +73,15 @@ const PAGES = list('pages', [
   { name: 'today', path: '/app' },
   { name: 'inbox', path: '/app/inbox' },
   { name: 'inbox-all', path: '/app/inbox?filter=all' },
-  { name: 'conversation', find: { from: ['/app/inbox?filter=all'], href: /^\/app\/inbox\/[0-9a-f-]{36}$/ } },
-  { name: 'buyers', path: '/app/conversations' },
-  { name: 'buyer', find: { from: ['/app/conversations'], href: /^\/app\/conversations\/[0-9a-f-]{36}$/ } },
+  // A — Buyers is the one list (Customers merged into it): a search, and the page after the first.
+  { name: 'inbox-search', path: `/app/inbox?q=${encodeURIComponent(SEARCH)}` },
+  { name: 'inbox-page2', find: { from: ['/app/inbox?filter=all'], href: /^\/app\/inbox\?filter=all&after=/ } },
+  // CC-25 — a row opens its conversation on the newest message.
+  { name: 'conversation', find: { from: ['/app/inbox?filter=all'], href: /^\/app\/inbox\/[0-9a-f-]{36}(#latest)?$/ } },
+  // A — the buyer's own page is one door from the conversation.
+  { name: 'buyer', find: { from: ['@conversation'], href: /^\/app\/conversations\/[0-9a-f-]{36}$/ } },
   { name: 'order', find: { from: ['@buyer', '@conversation'], href: /^\/app\/orders\/[0-9a-f-]{36}$/ } },
+  { name: 'calendar', path: '/app/calendar' },
   { name: 'factory', path: '/app/factory' },
   { name: 'prices', path: '/app/factory/prices' },
   { name: 'products', path: '/app/products' },
@@ -153,8 +160,8 @@ async function resolvePaths(browser, state) {
   // Found pages may depend on each other ('@buyer'), so resolve in list order,
   // including the ones filtered out of this run.
   const all = [
-    { name: 'conversation', from: ['/app/inbox?filter=all'], href: /^\/app\/inbox\/[0-9a-f-]{36}$/ },
-    { name: 'buyer', from: ['/app/conversations'], href: /^\/app\/conversations\/[0-9a-f-]{36}$/ },
+    { name: 'conversation', from: ['/app/inbox?filter=all'], href: /^\/app\/inbox\/[0-9a-f-]{36}(#latest)?$/ },
+    { name: 'buyer', from: ['@conversation'], href: /^\/app\/conversations\/[0-9a-f-]{36}$/ },
     ...PAGES.filter((p) => p.find).map((p) => ({ name: p.name, ...p.find })),
   ];
   for (const f of all) {

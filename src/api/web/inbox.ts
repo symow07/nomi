@@ -9,9 +9,9 @@ import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
-import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/owner/i18n/format.js';
-import { ownershipOf, WAITING_HUMAN_AGENT, type ConversationOwnership } from '../../core/conversation/ownership.js';
+import { t, assistantName, outreachShown } from './say.js';
+import { formatMoney, formatQty, formatRelative, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -22,6 +22,7 @@ import { loadTranscriptWindow } from '../../db/transcript.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
+import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, type BuyersFilter } from '../../db/buyersList.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,8 +66,14 @@ export const productName = (locale: Locale, p: { name: string | null; nameZh: st
  * consequence of something going wrong, so it appears only when it has
  * something to show. Same rule the shell applies to contextual destinations.
  */
-export type InboxFilter = 'pending' | 'all' | 'blocked' | 'mine' | 'deletion';
+export type InboxFilter = BuyersFilter;
 type InboxStatus = 'awaiting' | 'paused' | 'done' | 'handled';
+
+/**
+ * A — who wrote a conversation's newest message: the buyer, a person here
+ * (the owner or a colleague), or the assistant.
+ */
+export type LastFrom = 'buyer' | 'person' | 'assistant';
 
 export type ConversationSummary = {
   readonly conversationId: string;
@@ -97,10 +104,24 @@ export type ConversationSummary = {
    */
   readonly deletionWaiting?: boolean;
   readonly latestMessage: string | null;
+  /** A — the last contact: when the newest message was written, either way. */
   readonly latestAt: Date | null;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
   readonly quantity: number | null;
   readonly unitPrice: Money | null;
+  /**
+   * A — what Customers carried and Buyers did not. The channel the
+   * conversation is on; optional so a summary built before A still types.
+   */
+  readonly channel?: string;
+  /**
+   * A — "unread", as the stored messages can say it: the buyer's message is
+   * the newest, and nothing has answered it. (Nothing records who has READ
+   * a conversation; the buyer still waiting is the fact that exists.)
+   */
+  readonly unanswered?: boolean;
+  /** A — who wrote the newest message. Absent: no message yet, or a summary from before A. */
+  readonly lastFrom?: LastFrom;
 };
 
 export type InboxList = {
@@ -113,6 +134,19 @@ export type InboxList = {
   readonly deletionCount?: number;
   readonly waitingCount: number;
   readonly conversations: readonly ConversationSummary[];
+  /** A — the search, as it was matched (trimmed); absent or '' when there is none. */
+  readonly query?: string;
+  /**
+   * A — where this page sits in the whole list the tab and the search hold.
+   * Absent on a list built before A: one page, nothing either side.
+   */
+  readonly page?: {
+    readonly from: number; readonly to: number; readonly total: number;
+    readonly next: string | null;
+    readonly prev: { readonly cursor: string | null } | null;
+  };
+  /** A — how many channels the workspace's conversations are on; a row names its channel only past one. */
+  readonly channels?: number;
 };
 
 function statusOf(row: { pending: number; assigned_to: string | null; closed_at: Date | null }): { status: InboxStatus; needs: boolean } {
@@ -124,70 +158,44 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
   return { status: 'handled', needs: false };
 }
 
-/**
- * 0076 — a deletion request noted from this conversation, still waiting for
- * the owner's decision. It needs the owner whoever holds the conversation —
- * handing it back to the assistant does not answer it.
- */
-const DELETION_WAITING = sql`exists (select 1 from deletion_asks a
-  where a.conversation_id = c.id and a.state = 'waiting')`;
+/** The request's own words for the list: which tab, the search, and which page. */
+export type InboxAsk = {
+  /** The search box, as typed; anything that is not text is no search. */
+  readonly q?: unknown;
+  /** A cursor from a "Next page" door. */
+  readonly after?: unknown;
+  /** A cursor from a "Previous page" door. */
+  readonly before?: unknown;
+};
 
 /**
- * A9 — "needs a person", in SQL, so the fifty-row window cannot hide one.
+ * A — the Buyers list: one page of the tab (and the search), in the order
+ * the page groups it, with the counts of everything.
  *
- * It is the same rule `needsOwner` applies below and must stay that way: a
- * pending draft, or an `assigned_to` that is not null (the waiting sentinel,
- * or a named person a conversation was handed to under G12).
- *
- * THE ORDERING WAS NOT ENOUGH. It floats `assigned_to = 'unclaimed' and
- * is_active` and rows with a pending draft — which is why its comment says a
- * handoff "can never fall out of the 50-row window", and for those it is
- * right. A conversation handed to a NAMED person is not the sentinel, so once
- * she has replied and the last message is outbound it scores the lowest
- * priority there is, while still needing her. Past fifty conversations it left
- * the list, the count and that person's Mine — and Mine is the only way a
- * hand-off reaches a staff member, who has no phone.
+ * The page, its place in the list and the tab counts are `src/db/buyersList.ts`;
+ * this reads what each row shows, for the page's conversations only.
  */
-const NEEDS_OWNER = sql`(c.assigned_to is not null
-  or exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending')
-  or ${DELETION_WAITING})`;
-
-/**
- * M22 — holding a message that never reached the buyer. Was a second query and
- * a JavaScript filter over the capped rows, which under-counted for the same
- * reason.
- */
-const IS_BLOCKED = sql`exists (
-  select 1 from outbound_messages o
-   where o.conversation_id = c.id and o.status = 'canceled'
-     and o.cancel_reason is not null
-     and o.created_at > now() - make_interval(days => 7))`;
-
 export async function loadInboxList(
   db: Db, businessIdRaw: string, filter: InboxFilter,
   /** G12 — who is looking, so 'mine' means the conversations THEY hold. */
   viewerId?: string,
+  ask: InboxAsk = {},
 ): Promise<InboxList> {
+  const q = searchOf(ask.q);
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [] };
+  if (!bid.ok) return { filter, waitingCount: 0, blockedCount: 0, conversations: [], query: q };
 
   return withTenantTx(db, bid.value, async (tx) => {
-    // The tab decides WHICH rows are eligible, before the window is applied.
-    // 'mine' with no viewer is nobody's, which is what the old filter returned.
-    const eligible = filter === 'pending' ? NEEDS_OWNER
-      : filter === 'blocked' ? IS_BLOCKED
-      : filter === 'mine' ? (viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`)
-      : filter === 'deletion' ? DELETION_WAITING
-      : sql`true`;
-    const rows = (await sql<{
-      id: string; buyer: string | null; country: string | null;
+    const page = await readBuyersPage(tx, { filter, ...(viewerId ? { viewerId } : {}), q, after: ask.after, before: ask.before });
+    const rows = page.ids.length === 0 ? [] : (await sql<{
+      id: string; buyer: string | null; country: string | null; channel: string;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null;
-      last_text: string | null; last_dir: string | null; last_at: Date | null;
-      is_active: boolean; pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
+      last_text: string | null; last_dir: string | null; last_at: Date | null; last_origin: string | null;
+      pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
       answered_by: string | null; assistants: number; deletion_waiting: boolean;
     }>`
-      select c.id, cl.display_name as buyer, cl.country,
+      select c.id::text as id, cl.display_name as buyer, cl.country, c.channel,
              coalesce(
                (select a.name from assistants a where a.id = c.assistant_id),
                (select a.name from assistants a
@@ -195,8 +203,12 @@ export async function loadInboxList(
              (select count(*)::int from assistants a
                where a.business_id = c.business_id and a.archived_at is null) as assistants,
              p.name_zh, p.name, cs.inquiry_quantity as qty,
-             c.assigned_to, c.closed_at, c.is_active,
+             c.assigned_to, c.closed_at,
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
+             -- D4 — who wrote an outbound message: the sent row it was copied from.
+             (select o.origin from outbound_messages o
+               where o.id = (case when lm.direction = 'outbound' and lm.external_id ~ '^out:[0-9a-f-]{36}$'
+                                  then substr(lm.external_id, 5)::uuid end)) as last_origin,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
              q.unit_price_usd as unit_price, q.currency as quote_currency,
              sig.kind as handoff_reason,
@@ -205,7 +217,7 @@ export async function loadInboxList(
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
         left join products p on p.id = cs.identified_product_id
-        left join lateral (select text_content, direction, sent_at from messages m
+        left join lateral (select text_content, direction, sent_at, external_id from messages m
                             where m.conversation_id = c.id order by m.sent_at desc, m.id desc limit 1) lm on true
         left join lateral (select unit_price_usd, currency from quotes qq
                             where qq.conversation_id = c.id order by qq.created_at desc limit 1) q on true
@@ -215,24 +227,18 @@ export async function loadInboxList(
                             -- 0075: a deletion request is the reason to show whatever else
                             -- came with it ("delete my data, and get me a person").
                             order by (cs.kind = 'deletion_requested') desc, cs.created_at desc limit 1) sig on true
-       where ${eligible}
-       order by
-         -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
-         -- fall out of the 50-row window. The sentinel comes from the ownership
-         -- module, never a literal — one source of truth for what it means.
-         -- 0076: a deletion request waiting for the owner leads, above every hand-off.
-         (case when ${DELETION_WAITING} then -1
-               when c.assigned_to = ${WAITING_HUMAN_AGENT} and c.is_active then 0
-               when (select count(*) from drafts d where d.conversation_id = c.id and d.status = 'pending') > 0 then 1
-               when lm.direction = 'inbound' and c.is_active then 2
-               else 3 end),
-         lm.sent_at desc nulls last
-       limit 50
+       where c.id = any(${[...page.ids]}::uuid[])
     `.execute(tx)).rows;
 
-    const all = rows.map((r): ConversationSummary => {
+    // The page's order is the list's (`readBuyersPage`); the details come back in any order.
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const conversations = page.ids.flatMap((id): ConversationSummary[] => {
+      const r = byId.get(id);
+      if (!r) return [];
       const st = statusOf({ pending: r.pending, assigned_to: r.assigned_to, closed_at: r.closed_at });
-      return {
+      const lastFrom: LastFrom | undefined = r.last_dir === 'inbound' ? 'buyer'
+        : r.last_dir === 'outbound' ? (r.last_origin === 'owner' ? 'person' : 'assistant') : undefined;
+      return [{
         conversationId: r.id, buyer: r.buyer, country: r.country,
         status: st.status, needsAction: st.needs,
         ownership: ownershipOf(r.assigned_to),
@@ -246,31 +252,24 @@ export async function loadInboxList(
         // G18 — in the currency the quote was made in. Rebuilding it as dollars
         // put a "$" in front of a number that was never dollars.
         unitPrice: r.unit_price !== null ? moneyFromRow(Number(r.unit_price), r.quote_currency ?? 'USD') : null,
-      };
+        channel: r.channel,
+        unanswered: lastFrom === 'buyer',
+        ...(lastFrom ? { lastFrom } : {}),
+      }];
     });
-    // A9 — THE COUNTS ARE OF EVERYTHING. They were computed by filtering the
-    // fifty rows that had already been fetched, so every one of them
-    // under-reported the moment a business passed fifty conversations — and
-    // `defaultFilter` decides which tab opens from `waitingCount`. Three
-    // aggregates over the whole tenant, in one pass, costing one query.
-    //
-    // The predicates are the SAME sql fragments the list is selected with, so
-    // a count and its tab can never disagree about what the word means.
-    const counts = (await sql<{ waiting: number; blocked: number; mine: number; deletion: number }>`
-      select count(*) filter (where ${NEEDS_OWNER})::int as waiting,
-             count(*) filter (where ${IS_BLOCKED})::int as blocked,
-             count(*) filter (where ${viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`})::int as mine,
-             count(*) filter (where ${DELETION_WAITING})::int as deletion
-        from conversations c`.execute(tx)).rows[0] ?? { waiting: 0, blocked: 0, mine: 0, deletion: 0 };
 
-    // The rows are already the ones this tab asked for — the `where` above ran
-    // before the window, which is the whole point of A9.
+    // A9 — THE COUNTS ARE OF EVERYTHING, never of the page: `defaultFilter`
+    // decides which tab opens from `waitingCount`.
+    const counts = await readBuyerCounts(tx, viewerId);
     return {
-      filter, conversations: all,
+      filter, conversations,
       waitingCount: counts.waiting,
       blockedCount: counts.blocked,
       mineCount: counts.mine,
       deletionCount: counts.deletion,
+      channels: counts.channels,
+      query: q,
+      page: { from: page.from, to: page.to, total: page.total, next: page.next, prev: page.prev },
     };
   });
 }
@@ -850,12 +849,68 @@ export async function loadConversationDetail(
 const statusPill = (locale: Locale, status: InboxStatus, needs: boolean): string =>
   `<span class="pill ${needs ? 'warn' : 'ok'}">${needs ? '● ' : ''}${esc(t(locale, `inbox.status.${status}` as MessageKey))}</span>`;
 
-const who = (locale: Locale, buyer: string | null, country: string | null): string => {
+/**
+ * The buyer, in one inline run: flag, name, country. The name is isolated, so
+ * a Latin name inside an Arabic line keeps its own order and the separator
+ * stays between the two (the conversation page's header and the buyer's page
+ * draw the same run).
+ */
+export const buyerWho = (locale: Locale, buyer: string | null, country: string | null): string => {
   const name = buyer ?? t(locale, 'common.buyer');
   const cn = countryName(locale, country);
-  return `${flag(country)} <b>${esc(name)}</b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
+  const f = flag(country);
+  return `${f ? `${f} ` : ''}<b><bdi>${esc(name)}</bdi></b>${cn ? `<span class="muted"> · ${esc(cn)}</span>` : ''}`;
 };
 
+/**
+ * D3 — every channel a conversation can be on has a name in the catalogue, and
+ * this reads it. Two had none (`email`, `messenger`) and two were spelled out
+ * here instead, so the page printed `conv.channel.email` at the owner as though
+ * it were a word.
+ */
+export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
+
+/**
+ * The row's glimpse of the last message: its first ninety characters, counted
+ * as characters — cutting by UTF-16 units split an emoji into a broken glyph.
+ */
+const preview = (text: string): string => Array.from(text).slice(0, 90).join('');
+
+/**
+ * A — an address on the Buyers list that keeps what the owner is looking at:
+ * the tab, the search, the page. The search is written as typed; only the five
+ * characters that would change what the address means are escaped, so a name
+ * in any script puts no `%` into the page (the owner surface's rule) and the
+ * browser encodes the rest on the way out. A cursor is digits, hex, `-` and
+ * `_` already (`src/db/buyersList.ts`).
+ */
+const buyersHref = (o: {
+  readonly filter?: InboxFilter; readonly q?: string;
+  readonly after?: string | null; readonly before?: string | null;
+}): string => {
+  const typed = (v: string): string => v
+    .replace(/[%&+#=]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/\s/g, '+');
+  const parts = [
+    o.filter ? `filter=${o.filter}` : '',
+    o.q ? `q=${typed(o.q)}` : '',
+    o.after ? `after=${o.after}` : '',
+    o.before ? `before=${o.before}` : '',
+  ].filter(Boolean);
+  return `/app/inbox${parts.length ? `?${parts.join('&')}` : ''}`;
+};
+
+/**
+ * A — Buyers: every conversation the business has, one list (Customers was
+ * the same people a second time). A search box over it; the tabs; the groups
+ * by who is speaking; one page at a time, with doors to the pages either side
+ * and where this one sits in the whole — the counts are of everything.
+ *
+ * The row is decision 5's: it stays as it is (2026-09-28). What Customers
+ * carried that the row did not is said in the row's own time line: who wrote
+ * the last message — the transcript's idiom, so a reply never reads as the
+ * buyer's words — and the channel, once there is more than one.
+ */
 export function renderInboxList(
   data: InboxList, locale: Locale, now: Date,
   /**
@@ -867,8 +922,15 @@ export function renderInboxList(
 ): string {
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
-  const tab = (f: InboxFilter) =>
-    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'mine' && (data.mineCount ?? 0) > 0 ? ` (${data.mineCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}${f === 'deletion' && (data.deletionCount ?? 0) > 0 ? ` (${data.deletionCount})` : ''}</a>`;
+  const q = data.query ?? '';
+  const count = (n: number | undefined) => (n ?? 0) > 0 ? ` (${formatQty(locale, n ?? 0)})` : '';
+  const tab = (f: InboxFilter) => {
+    const on = data.filter === f;
+    const n = f === 'pending' ? count(data.waitingCount) : f === 'mine' ? count(data.mineCount)
+      : f === 'blocked' ? count(data.blockedCount) : f === 'deletion' ? count(data.deletionCount) : '';
+    return `<a class="tab${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''} href="${esc(buyersHref({ filter: f }))}">${
+      esc(t(locale, `inbox.filter.${f}` as MessageKey))}${n}</a>`;
+  };
   // M22 — `blocked` is not a permanent tab. It appears when something did not
   // reach a buyer, or when the owner arrived here from Today's link, and
   // disappears again once there is nothing to show. An always-present tab that
@@ -881,31 +943,58 @@ export function renderInboxList(
   // 0076 — like `blocked`: there while a deletion request waits for the
   // owner, or when Today's row brought her here, and gone again after.
   const showDeletion = (data.deletionCount ?? 0) > 0 || data.filter === 'deletion';
-  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}${showDeletion ? tab('deletion') : ''}</div>`;
+  const tabs = `<nav class="tabs" aria-label="${esc(t(locale, 'buyers.tabs'))}">${tab('pending')}${tab('all')}${
+    showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}${showDeletion ? tab('deletion') : ''}</nav>`;
   const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
 
+  // A — the search. A find, not a view: it looks across every buyer (the
+  // route reads a search with no tab as All), and the tabs leave it behind.
+  const search = `<form class="search" method="get" action="/app/inbox" role="search">
+      <input type="search" name="q" value="${esc(q)}" placeholder="${esc(t(locale, 'buyers.search.placeholder'))}" aria-label="${esc(t(locale, 'buyers.search.label'))}" />
+      <button class="btn" type="submit">${esc(t(locale, 'buyers.search.go'))}</button>
+      ${q ? `<a class="clear" href="/app/inbox">${esc(t(locale, 'buyers.search.clear'))}</a>` : ''}
+    </form>`;
+  const page = data.page;
+  const total = page?.total ?? data.conversations.length;
+  const found = q && data.conversations.length > 0
+    ? `<p class="caption muted" role="status">${esc(t(locale, 'buyers.search.found', { q, n: formatQty(locale, total) }))}</p>` : '';
+  const position = page ? t(locale, 'buyers.page.position', {
+    from: formatQty(locale, page.from), to: formatQty(locale, page.to), total: formatQty(locale, page.total),
+  }) : '';
+  // Not the first page: say where this is before the rows start.
+  const where = page && page.prev ? `<p class="caption muted">${esc(position)}</p>` : '';
+
+  // M38 — the wider list: everyone the assistant may write to, not only who
+  // wrote in. D — a door only where the outreach area exists. A — Customers
+  // carried it; it moved here with the list.
+  const doors = `<div class="doors">${deeper('/app/calendar', t(locale, 'calendar.door'))}${
+    outreachShown() ? deeper('/app/contacts', t(locale, 'contacts.title')) : ''}</div>`;
+  const head = `${title}${search}${tabs}${found}${where}`;
+
   if (data.conversations.length === 0) {
-    const body = data.filter === 'pending'
+    const body = q
+      ? `<div class="empty">${esc(t(locale, 'buyers.search.none', { q }))}<br><span class="muted">${esc(t(locale, 'buyers.search.noneBody'))}</span>
+          <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
+      : data.filter === 'pending'
       ? `<div class="empty"><div class="ok-line">✓ ${esc(t(locale, 'buyers.empty.calm'))}</div>
-          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
+          <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="${esc(buyersHref({ filter: 'all' }))}">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
       // "no message failed" is the normal state and not an achievement.
       : data.filter === 'deletion'
       ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}
-          <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
+          <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : data.filter === 'blocked'
       ? `<div class="empty">${esc(t(locale, 'refused.none'))}
-          <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
+          <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
           <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
-    return `${title}${tabs}<div class="block">${body}</div>
-      ${data.filter === 'pending' ? deeper('/app/conversations', t(locale, 'buyers.all.link')) : ''}
-      ${deeper('/app/calendar', t(locale, 'calendar.door'))}${INBOX_STYLE}`;
+    return `${head}<div class="block">${body}</div>${doors}`;
   }
 
   // Phase D — an owner thinks in people, and the question that orders them is
   // "who is speaking now?". Grouped through the ONE ownership model, never by an
-  // internal status code.
+  // internal status code — and by the same four predicates the list is ORDERED
+  // by (`src/db/buyersList.ts`), so a page is a run of whole groups.
   //
   // 0076 — a buyer who asked for their data to be deleted is not one more
   // hand-off in the pile: their own group, first and always headed, whoever
@@ -939,43 +1028,58 @@ export function renderInboxList(
     return '';
   };
 
+  // A5's rule, for the channel: named on every row only once there is more than one.
+  const showChannel = (data.channels ?? 0) > 1;
   const row = (c: ConversationSummary) => {
     const prod = productName(locale, c.product);
+    // Each part isolated on its own: one isolate around the whole line let
+    // Arabic reorder a Latin product name, a quantity and a price into one
+    // run ("5,0001.45$"). The separators sit between them, in the page's direction.
     const detail = [
       prod ?? '',
       c.quantity !== null ? `${formatQty(locale, c.quantity)}${pcs}` : '',
       c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
+    ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
+    // Who wrote the newest message — the transcript's words for each speaker.
+    const speaker = c.lastFrom === 'buyer' ? t(locale, 'common.buyer')
+      : c.lastFrom === 'person' ? t(locale, 'conv.by.you')
+      : c.lastFrom === 'assistant' ? (c.answeredBy ?? name) : null;
+    const meta = [
+      c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : '',
+      speaker ? `<bdi>${esc(speaker)}</bdi>` : '',
+      showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
+      c.answeredBy && speaker !== c.answeredBy ? `<bdi>${esc(t(locale, 'conv.answeredBy', { who: c.answeredBy }))}</bdi>` : '',
     ].filter(Boolean).join(' · ');
     // CC-25 — a buyer opens on the newest message, the reply waiting under it.
-    return `<a class="buyer" href="${conversationUrl(c.conversationId)}">
-      <div class="buyer-top"><span class="who">${who(locale, c.buyer, c.country)}</span>${badge(c)}</div>
-      ${detail ? `<div class="buyer-d muted"><bdi>${esc(detail)}</bdi></div>` : ''}
-      ${c.latestMessage ? `<div class="buyer-m voice"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
-      <div class="buyer-t muted">${[
-        c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : '',
-        c.answeredBy ? `<bdi>${esc(t(locale, 'conv.answeredBy', { who: c.answeredBy }))}</bdi>` : '',
-      ].filter(Boolean).join(' · ')}</div>
+    return `<a class="buyer${c.unanswered ? ' unanswered' : ''}" href="${conversationUrl(c.conversationId)}">
+      <div class="buyer-top"><span class="who">${buyerWho(locale, c.buyer, c.country)}</span>${badge(c)}</div>
+      ${detail ? `<div class="buyer-d muted">${detail}</div>` : ''}
+      ${c.latestMessage ? `<div class="buyer-m voice" dir="auto"><bdi>${esc(preview(c.latestMessage))}</bdi></div>` : ''}
+      ${meta ? `<div class="buyer-t muted">${meta}</div>` : ''}
     </a>`;
   };
 
   const heads = data.filter === 'all';
-  const group = (label: string, items: readonly ConversationSummary[]) =>
+  const group = (label: string, items: readonly ConversationSummary[], always = false) =>
     items.length ? `<section class="bgroup">
-      ${heads ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
+      ${heads || always ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
       <div class="list">${items.map(row).join('')}</div></section>` : '';
 
-  const deletionGroup = deletion.length ? `<section class="bgroup">
-      <h2 class="bgroup-h">${esc(t(locale, 'buyers.group.deletion'))}</h2>
-      <div class="list">${deletion.map(row).join('')}</div></section>` : '';
+  // A — the doors either side of this page, and where it sits in the whole.
+  const pager = page && (page.prev || page.next)
+    ? `<nav class="pager" aria-label="${esc(t(locale, 'buyers.page.nav'))}">
+        ${page.prev ? back(esc(buyersHref({ filter: data.filter, q, before: page.prev.cursor })), t(locale, 'buyers.page.prev')) : ''}
+        <span class="caption muted">${esc(position)}</span>
+        ${page.next ? deeper(esc(buyersHref({ filter: data.filter, q, after: page.next })), t(locale, 'buyers.page.next')) : ''}
+      </nav>` : '';
 
-  return `${title}${tabs}
-    ${deletionGroup}
+  return `${head}
+    ${group(t(locale, 'buyers.group.deletion'), deletion, true)}
     ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
-    ${group(t(locale, 'buyers.group.yours'), yours)}
+    ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}
     ${group(t(locale, 'buyers.group.hers', { name }), hers)}
-    ${deeper('/app/conversations', t(locale, 'buyers.all.link'))}
-    ${deeper('/app/calendar', t(locale, 'calendar.door'))}
-    ${INBOX_STYLE}`;
+    ${pager}
+    ${doors}`;
 }
 
 /** "What happened last?" — a localized one-liner: kind + who + when. No body. */
@@ -987,7 +1091,7 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: r
   });
   const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: assistantName(locale) });
   const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
-  return `<div class="lastact muted">${esc(t(locale, 'takeover.lastLabel'))}: ${esc(phrase + when)}</div>`;
+  return `<div class="lastact muted">${esc(labelled(locale, t(locale, 'takeover.lastLabel'), phrase + when))}</div>`;
 }
 
 /**
@@ -1074,7 +1178,8 @@ function headerPill(d: ConversationDetail, locale: Locale, viewer: Viewer): stri
 function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
   const cid = encodeURIComponent(d.conversationId);
   const reasons = d.handoffReasons.length
-    ? `<div class="why muted">${esc(t(locale, 'takeover.why'))}: ${d.handoffReasons.map((k) => esc(t(locale, `takeover.reason.${k}` as MessageKey))).join('、')}</div>`
+    ? `<div class="why muted">${esc(labelled(locale, t(locale, 'takeover.why'),
+        formatList(locale, d.handoffReasons.map((k) => t(locale, `takeover.reason.${k}` as MessageKey)))))}</div>`
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
   const takeBtn = `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
@@ -1219,11 +1324,7 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
       <select id="as-hand" name="assistant">${choices.map((c) =>
         `<option value="${esc(c.id)}"${c.current ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
       <button class="btn" type="submit">${esc(t(locale, 'conv.assistant.button'))}</button>
-    </form>
-    <style>
-      .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
-                 margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
-    </style>`;
+    </form>`;
 }
 
 export function renderConversationDetail(
@@ -1231,9 +1332,19 @@ export function renderConversationDetail(
 ): string {
   const pcs = t(locale, 'product.unit.pcs');
   const prod = productName(locale, d.product);
+  // Each figure isolated: in Arabic one run of quantity, unit, price and total
+  // reordered itself ("1.45$/قطعة"). The separators keep the page's direction.
+  const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
   const context = (d.quote || d.order) ? `<div class="ctx">
-      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${esc(formatQty(locale, d.quote.quantity))}${esc(pcs)} · ${esc(formatMoney(d.quote.unitPrice))}/${esc(pcs)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(d.quote.total))}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
-      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${esc(d.order.reference)} · ${esc(orderStatusName(locale, d.order.status))}${d.order.total !== null ? ` · ${esc(formatMoney(d.order.total))}${inHerMoney(d.order.total, d.rate, locale)}` : ''}
+      ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${[
+        iso(`${formatQty(locale, d.quote.quantity)}${pcs}`),
+        iso(`${formatMoney(d.quote.unitPrice)}/${pcs}`),
+        iso(`${t(locale, 'product.detail.total')} ${formatMoney(d.quote.total)}`),
+      ].join(' · ')}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
+      ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${[
+        iso(d.order.reference), iso(orderStatusName(locale, d.order.status)),
+        ...(d.order.total !== null ? [iso(formatMoney(d.order.total))] : []),
+      ].join(' · ')}${d.order.total !== null ? inHerMoney(d.order.total, d.rate, locale) : ''}
         <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}<span class="go" aria-hidden="true">›</span></a></div>` : ''}
       ${proofRow(d, locale)}
     </div>` : '';
@@ -1493,111 +1604,18 @@ export function renderConversationDetail(
   return `
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      <div class="who">${who(locale, d.buyer, d.country)}</div>
+      <div class="who">${buyerWho(locale, d.buyer, d.country)}</div>
       ${headerPill(d, locale, viewer)}
     </div>
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
-    ${prod || d.quantity !== null ? `<div class="muted subline">${prod ? `<bdi>${esc(prod)}</bdi>` : ''}${d.quantity !== null ? ` · ${esc(formatQty(locale, d.quantity))}${esc(pcs)}` : ''}</div>` : ''}
+    ${prod || d.quantity !== null ? `<div class="muted subline">${[
+      prod ? `<bdi>${esc(prod)}</bdi>` : '',
+      d.quantity !== null ? `<bdi>${esc(formatQty(locale, d.quantity))}${esc(pcs)}</bdi>` : '',
+    ].filter(Boolean).join(' · ')}</div>` : ''}
+    ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
+      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'))}
     ${log}
     ${flashHtml}
-    ${acts}
-    ${INBOX_STYLE}`;
+    ${acts}`;
 }
-
-const INBOX_STYLE = `<style>
-  /* M22 — a refusal is information, not an alarm. Amber, like the disconnected
-     channel: something needs the owner, and nothing is broken. */
-  .card.refused { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
-  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
-  .rf { padding:10px 0; border-top:1px solid var(--color-waiting-wash); }
-  .rf:first-of-type { border-top:0; padding-top:0; }
-  .rf-w { font-size:var(--font-size-small); color:var(--color-highlight); }
-  .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
-  .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
-  .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
-  /* 0052 — a question, not a refusal: the same amber, plus her own words and
-     the two answers. Nothing is pre-selected, because nothing may happen by
-     itself here. */
-  .card.unsure { border-color:var(--color-highlight); background:var(--color-highlight-wash); }
-  .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
-    border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
-    font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose);
-    white-space:pre-wrap; }
-  .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
-  /* Phase D — buyers grouped by who is speaking; rows are large touch targets. */
-  .bgroup { margin-bottom:var(--space-24); }
-  .bgroup-h { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary);
-              margin:0 0 var(--space-12); font-weight:600; }
-  a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px 18px; }
-  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
-  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
-  .tag { font-size:var(--font-size-caption); font-weight:600; padding:5px 11px; border-radius:999px; white-space:nowrap; }
-  .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
-  .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
-  .review-intro { margin:0 0 var(--space-12); }
-  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-waiting); }
-  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-small); }
-  .draft .held-then b { font-weight:600; }
-  .voiceplay { display:block; margin:var(--space-8) 0; }
-  .answernow { margin-top:var(--space-8); }
-  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
-            margin-top:var(--space-12); font-size:var(--font-size-small); }
-  .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
-              margin-top:var(--space-12); font-size:var(--font-size-small); }
-  .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
-  .revoke-note { margin:var(--space-8) 0 0; }
-  /* M34 — a heard message says so. The label and the superseded reading are the
-     product speaking ABOUT the speech, so they stay sans while the words
-     themselves keep the voice serif they inherit from .bubble. */
-  /* The bubble is pre-wrap so a buyer's own line breaks survive; a voiced
-     bubble holds several elements, so the wrapper opts out and the spoken
-     words opt back in. Without this the markup's indentation renders as
-     blank lines — invisible in tests, obvious in a screenshot. */
-  .bubble.voiced { white-space:normal; }
-  .bubble.voiced .said { white-space:pre-wrap; }
-  .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
-  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
-  .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);
-          border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
-  .fixheard { margin-top:var(--space-12); font-family:var(--font-family); }
-  .fixheard summary { font-size:var(--font-size-caption); color:var(--color-ink-secondary); cursor:pointer; }
-  .fixheard form { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); }
-  .knew { /* provenance panel, not a state boundary — no card, no tinted border */ }
-  .knewlist { list-style:none; margin:0; padding:0; }
-  .knewlist li { padding:8px 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .knewlist li:last-child { border-bottom:0; }
-  @media (max-width:560px) {
-    a.buyer { padding:15px 16px; }
-    /* Three actions must stay on one row: the destructive one belongs beside
-       its alternatives, not alone under Send where it reads as a primary. */
-    .acts .btn { padding-inline:12px; }
-  }
-  .conv { display:block; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; padding:16px; }
-  .conv.needs { border-color:var(--color-waiting-line); background:var(--color-highlight-wash); }
-  .conv:hover { border-color:var(--color-border); }
-  .conv-h { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
-  .need { color:var(--color-waiting); font-size:var(--font-size-caption); font-weight:600; margin-top:var(--space-8); }
-  .conv-b { font-size:var(--font-size-caption); margin-top:var(--space-8); } .conv-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
-  .conv-t { font-size:var(--font-size-caption); margin-top:var(--space-8); }
-
-
-  .dhead .who { font-size:var(--font-size-small); }
-
-  .ctx { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:12px 16px; margin-bottom:var(--space-16); font-size:var(--font-size-small); display:flex; flex-direction:column; gap:var(--space-4); }
-  .card.draft { border-color:var(--color-waiting-line); }
-
-
-  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
-  /* .timeline/.msg/.bubble/.ts/.proposed are the shell's — the speech
-     components live in one place so the two voices cannot fork per page. */
-
-  .takeover.warn { border-color:var(--color-waiting-line); } .takeover.owner { border-color:var(--color-highlight-line); flex-direction:column; align-items:stretch; }
-  .why { flex-basis:100%; font-size:var(--font-size-caption); }
-  .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
-
-  @media (max-width:560px) { .conv { border-radius:12px; } }
-</style>`;

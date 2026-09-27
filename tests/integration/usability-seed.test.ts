@@ -57,11 +57,15 @@ d('usability workspace · what the pages read (requires DATABASE_URL + MIGRATE_D
     }
   });
 
-  it('the handed conversation is past the window on All and still on Waiting (A9)', async () => {
+  it('the handed conversation is older than fifty others, and still on the first page of All and on Waiting (A9, then A)', async () => {
+    // It is placed where a fifty-row window lost it (A9). Since A the list is
+    // paged and ranked by who needs the owner, so it leads its group on the
+    // FIRST page of All instead of falling off the end — and it is on Waiting.
     const { loadInboxList } = await import('../../src/api/web/inbox.js');
     const all = await loadInboxList(db, RUN_BIZ, 'all');
     expect(all.conversations).toHaveLength(50);
-    expect(all.conversations.some((c) => c.conversationId === handedId)).toBe(false);
+    expect(all.page?.total).toBeGreaterThan(50);
+    expect(all.conversations.some((c) => c.conversationId === handedId)).toBe(true);
 
     const waiting = await loadInboxList(db, RUN_BIZ, 'pending');
     const handed = waiting.conversations.find((c) => c.conversationId === handedId);

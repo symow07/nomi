@@ -2,9 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Fastify from 'fastify';
+import { createHash } from 'node:crypto';
 import { renderComponents } from '../../src/api/web/components.js';
-import { shell, CONTEXTUAL_ROUTES_BY_HUB } from '../../src/api/web/layout.js';
+import { shell, loginPage, errorPage, publicDocument, CONTEXTUAL_ROUTES_BY_HUB, stylesheetAt } from '../../src/api/web/layout.js';
+import { registerWebApp, PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { sheetLinks, linkedCss } from './linked-css.js';
+import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
 
 /**
  * V1 · decision 4 (Symow, 2026-09-24): "define what already exists, once, in
@@ -70,6 +75,98 @@ describe('V1 · one stylesheet — decision 4', () => {
     expect(shellCss).toMatch(/\.btn:disabled, \.btn\.is-disabled \{/);
     expect(shellCss).toMatch(/details > summary \{/);
     expect(shellCss).toMatch(/main select, main textarea, main input/);
+  });
+});
+
+/**
+ * V1 close-out (2026-09-28) — the stylesheets are FILES. The shell and the door
+ * link one sheet each, at an address named by its rules; the route serves it
+ * to anyone (the door is drawn before sign-in), kept for good at its exact
+ * address and never at an old one. The public document is the one family that
+ * still carries its rules inside itself, on purpose: a stranger's page arrives
+ * complete, with nothing more to fetch (legal-pages.test.ts,
+ * m40-unsubscribe.test.ts). So the one surviving block is in layout.ts, and it
+ * is that one.
+ */
+describe('V1 close-out · the shell and the door link their stylesheets', () => {
+  const app = () => {
+    const a = Fastify({ logger: false });
+    registerWebApp(a, {
+      db: {} as never, sessionSecret: 'x'.repeat(64), accessCode: 'let-me-in',
+      businessId: 'de300000-0000-4000-8000-0000000000b1', employeeName: 'Lily', avatar: '', provider: 'disabled',
+      secureCookie: false, kickOutbound: async () => {}, resolveDns: async () => ({ spf: [], dkim: [], dmarc: [] }),
+    });
+    return a;
+  };
+
+  it('the one surviving block is the public document\'s, in layout.ts', () => {
+    const where = files.filter((f) => read(f).includes('<style'));
+    expect(where).toEqual(['layout.ts']);
+    expect(read('layout.ts').match(/<style/g)?.length).toBe(1);
+    const doc = publicDocument({ locale: 'en', title: 'T', body: '<p>x</p>' });
+    expect(doc.match(/<style>/g)?.length).toBe(1);
+    expect(doc).not.toContain('<link rel="stylesheet"');
+  });
+
+  it('the shell and every door page link exactly one sheet, and carry no rules', () => {
+    const pages = [
+      ['shell', shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '<p>x</p>' }), 'app'],
+      ['login', loginPage({ locale: 'ar', path: '/login' }), 'door'],
+      ['error', errorPage({ locale: 'zh', path: '/nope', kind: 'notfound' }), 'door'],
+    ] as const;
+    for (const [name, html, sheet] of pages) {
+      expect(html, name).not.toContain('<style');
+      const links = sheetLinks(html);
+      expect(links, name).toHaveLength(1);
+      expect(links[0], name).toMatch(new RegExp(`^/assets/${sheet}\\.[0-9a-f]{16}\\.css$`));
+      expect(linkedCss(html).length, name).toBeGreaterThan(5_000);
+    }
+    // the door never carries the pages' sections; the shell carries both
+    const door = linkedCss(loginPage({ locale: 'en', path: '/login' }));
+    const shellCss = linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
+    expect(door).toContain('.login .card');
+    expect(door).not.toContain('.buyer-top');
+    expect(shellCss).toContain('.buyer-top');
+    expect(shellCss).not.toContain('.login .card');
+  });
+
+  it('the route serves them to anyone: kept for good at the exact address, not at an old one, nothing else', async () => {
+    const a = app();
+    const [href] = sheetLinks(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
+    const exact = await a.inject({ method: 'GET', url: href! });
+    expect(exact.statusCode).toBe(200);
+    expect(exact.headers['content-type']).toBe('text/css; charset=utf-8');
+    expect(exact.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(exact.body).toBe(stylesheetAt(href!.slice('/assets/'.length))!.css);
+    const old = await a.inject({ method: 'GET', url: '/assets/app.0123456789abcdef.css' });
+    expect(old.statusCode).toBe(200);
+    expect(old.headers['cache-control']).toBe('no-cache');
+    expect(old.body).toBe(exact.body);
+    for (const bad of ['/assets/app.css', '/assets/nope.0123456789abcdef.css', '/assets/..%2Fapp.ts', '/assets/app.0123456789abcdef.css.map']) {
+      expect((await a.inject({ method: 'GET', url: bad })).statusCode, bad).toBe(404);
+    }
+    // declared public, with its reason — a stranger's first page is the door
+    expect(PUBLIC_ROUTES.find((r) => r.url === '/assets/:file')?.why).toMatch(/before anyone signs in/);
+    await a.close();
+  });
+
+  it('the rules a browser downloads say nothing the owner surface bans — selectors and comments included', () => {
+    // A stylesheet in a file still ships: every rule and comment in it is in
+    // the owner's browser, where the page's own words are held to this list.
+    for (const html of [shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }), loginPage({ locale: 'en', path: '/login' })]) {
+      const css = linkedCss(html).toLowerCase();
+      for (const banned of [...BANNED_OWNER_TERMS, 'stack']) {
+        const b = banned.toLowerCase();
+        const hit = /^[a-z ]+$/.test(b) ? new RegExp(`(?<![a-z-])${b}(?![a-z-])`).test(css) : css.includes(b);
+        expect(hit, `"${banned}" in ${sheetLinks(html)[0]}`).toBe(false);
+      }
+    }
+  });
+
+  it('a change to a rule is a new address', () => {
+    const [href] = sheetLinks(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' }));
+    const hash = /\.([0-9a-f]{16})\.css$/.exec(href!)![1]!;
+    expect(createHash('sha256').update(stylesheetAt(href!.slice('/assets/'.length))!.css).digest('hex').slice(0, 16)).toBe(hash);
   });
 });
 

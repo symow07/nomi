@@ -71,7 +71,7 @@ const containsBanned = (s: string, banned: string): boolean => {
 
 describe('V2 · the calendar page, by structure', () => {
   for (const locale of LOCALES) {
-    it(`${locale}: title, tabs, chips, rows and day headings`, () => {
+    it(`${locale}: title, tabs, tags, rows and day headings`, () => {
       const html = renderCalendar(view(), locale);
       expect(html).toContain(`<h1 class="page">`);
       expect(html).toContain(t(locale, 'nav.calendar'));
@@ -79,13 +79,17 @@ describe('V2 · the calendar page, by structure', () => {
       const tabs = [...html.matchAll(/<a class="tab( on)?"/g)];
       expect(tabs).toHaveLength(7);
       expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar">/);
-      // One row per entry, each naming its source row; one neutral chip each.
+      // One row per entry, each naming its source row; one row tag each —
+      // V1's tag, the one Buyers' rows wear (decision 5, 2026-09-28), in its
+      // neutral form: a category is not a state, so no state class, ever.
       const rows = [...html.matchAll(/<li class="row" data-src="([^"]+)" data-col="([^"]+)"/g)];
       expect(rows.map((r) => `${r[1]}#${r[2]}`).sort()).toEqual(
         ENTRIES.map((x) => `${x.source.table}:${x.source.id}#${x.source.column}`).sort());
-      const chips = [...html.matchAll(/<span class="([^"]*\bchip\b[^"]*)"/g)].map((m) => m[1]);
-      expect(chips).toHaveLength(ENTRIES.length);
-      for (const c of chips) expect(c, 'a category is not a state').toBe('chip');
+      const tags = [...html.matchAll(/<span class="([^"]*\btag\b[^"]*)" data-cat="([^"]+)">/g)];
+      expect(tags).toHaveLength(ENTRIES.length);
+      for (const m of tags) expect(m[1], 'a category is not a state').toBe('tag');
+      expect(tags.map((m) => m[2]).sort()).toEqual(ENTRIES.map((x) => x.category).sort());
+      expect(html, 'the placeholder chip is gone').not.toMatch(/<span class="chip"/);
       // A heading per day that holds something; today named in words.
       const days = new Set(ENTRIES.map((x) => x.day));
       expect([...html.matchAll(/<h2 class="cal-day"/g)]).toHaveLength(days.size);

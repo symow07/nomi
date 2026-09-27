@@ -272,7 +272,9 @@ describe('M38 · her page', () => {
       "app.post('/app/contacts/suppress'",
       "app.post('/app/contacts/:id/archive'",
     ]) expect(app, r).toContain(r);
-    const conv = await readFile(new URL('../../src/api/web/conversations.ts', import.meta.url), 'utf8');
-    expect(conv).toContain("deeper('/app/contacts'");
+    // A — the door hangs off the list of everyone who wrote, which is Buyers
+    // since Customers merged into it.
+    const buyers = await readFile(new URL('../../src/api/web/inbox.ts', import.meta.url), 'utf8');
+    expect(buyers).toContain("deeper('/app/contacts'");
   });
 });

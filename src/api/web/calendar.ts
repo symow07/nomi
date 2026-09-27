@@ -16,10 +16,10 @@ import {
  * Read-only: there is no form here that writes anything; the one form is a
  * GET that narrows the list to a buyer.
  *
- * The category is drawn with the shell's neutral `.chip`, never a state
- * colour: a category is not a state. Decision 5 (the row, and the inbox's
- * tags) is still open with the designer; when it lands, this chip swaps to
- * V1's row tag, and the inbox's `.tag` is not borrowed in the meantime.
+ * The category is V1's row tag — the one Buyers' rows wear (decision 5,
+ * settled 2026-09-28) — in its neutral form, with the kind named on the
+ * element (`data-cat`): a category is not a state, so it never takes a state
+ * colour.
  */
 
 /** Three weeks a page: the past week, and the coming two. */
@@ -115,7 +115,7 @@ function who(locale: Locale, e: CalendarEntry): string {
 function entry(locale: Locale, e: CalendarEntry): string {
   const when = e.allDay ? t(locale, 'calendar.allDay') : formatTime(locale, e.at);
   const body = `<span class="person">
-        <span class="cal-head"><span class="chip">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span>${who(locale, e)}</span>
+        <span class="cal-head"><span class="tag" data-cat="${esc(e.category)}">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span>${who(locale, e)}</span>
         <span class="small">${esc(line(locale, e))}</span></span>`;
   // CC-25 — a conversation opens on its newest message, like every door into one.
   const to = e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
@@ -166,7 +166,7 @@ export function renderCalendar(v: CalendarView, locale: Locale): string {
   }))}</p>`;
   const earlier = addDays(v.from, -WINDOW_DAYS);
   const later = addDays(v.from, WINDOW_DAYS);
-  const pager = `<nav class="cal-range" aria-label="${esc(t(locale, 'calendar.filter.window'))}">
+  const pager = `<nav class="pager" aria-label="${esc(t(locale, 'calendar.filter.window'))}">
       ${back(esc(href({ from: earlier === defaultFrom(v.today) ? null : earlier, category: v.category, buyer: buyerId })), t(locale, 'calendar.earlier'))}
       ${isDefault ? '' : deeper(esc(href({ category: v.category, buyer: buyerId })), t(locale, 'calendar.now'))}
       ${deeper(esc(href({ from: later === defaultFrom(v.today) ? null : later, category: v.category, buyer: buyerId })), t(locale, 'calendar.later'))}
