@@ -28,6 +28,12 @@ export type RequestScope = {
   readonly outreach: boolean;
   /** Null outside a workspace — a public page, a test rendering a fragment. */
   readonly setup: SetupProgress | null;
+  /**
+   * CC-14 — the business's own name, as the owner typed it at sign-up or last
+   * saved it. The shell leads with it; absent (outside a workspace, or a
+   * look-up that failed), the shell says what it always said.
+   */
+  readonly business?: string | null;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -45,11 +51,19 @@ export const withAssistantName = <T>(
 ): T => {
   if (!name) return fn();
   const outer = scope.getStore();
-  return scope.run({ name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null }, fn);
+  return scope.run({
+    name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
+  }, fn);
 };
 
 /** Is the outreach area shown for this workspace? Outside a scope: no. */
 export const outreachShown = (): boolean => scope.getStore()?.outreach ?? false;
+
+/** CC-14 — the business's name for this request, or null outside a workspace. Never blank. */
+export const businessName = (): string | null => {
+  const n = scope.getStore()?.business?.trim();
+  return n ? n : null;
+};
 
 /** How far setup has come, for the badge and the Today card. Outside a scope: nothing to say. */
 export const setupState = (): SetupProgress | null => scope.getStore()?.setup ?? null;

@@ -74,7 +74,8 @@ describe('M9.8 · business review (localized)', () => {
 
   it('range tabs reflect the active range', () => {
     const html = renderAnalytics(active, 'en');
-    expect(html).toContain('class="tab on" href="/app/analytics?range=week"');
+    // CC-20 — the chosen range is said to a screen reader too, as on every tab row.
+    expect(html).toContain('class="tab on" aria-current="page" href="/app/analytics?range=week"');
     expect(html).toContain('href="/app/analytics?range=today"');
   });
 

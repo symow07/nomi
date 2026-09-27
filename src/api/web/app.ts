@@ -574,8 +574,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * Cached for a minute per business; every write below that can change one
    * of the three facts calls `facts.evict`, so the badge and the name never
    * lag behind the thing the owner just did.
+   *
+   * CC-14 — and the business's own name, which the shell leads with: read in
+   * the same transaction, and forgotten with the rest when the profile is
+   * saved (`/app/settings` evicts).
    */
-  const facts = makeNameCache<WorkspaceFacts>(deps.factsTtlMs);
+  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
@@ -584,7 +588,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const now = Date.now();
     const hit = facts.get(s.businessId, now);
     if (hit !== undefined) return withWorkspace(hit, done);
-    withTenantTx(deps.db, bid.value, (tx) => workspaceFacts(tx, bid.value)).then(
+    withTenantTx(deps.db, bid.value, async (tx) => ({
+      ...(await workspaceFacts(tx, bid.value)),
+      business: (await sql<{ name: string | null }>`
+        select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
+    })).then(
       (f) => { facts.set(s.businessId, f, now); withWorkspace(f, done); },
       () => done(),
     );

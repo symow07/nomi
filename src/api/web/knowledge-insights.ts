@@ -186,7 +186,7 @@ const reasonLabel = (l: Locale, r: GapReason) => t(l, `knowledge.gap.reason.${r}
 
 export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date): string {
   const tab = (r: Range) =>
-    `<a class="tab ${ops.range === r ? 'on' : ''}" href="/app/knowledge?range=${r}">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
+    `<a class="tab ${ops.range === r ? 'on' : ''}"${ops.range === r ? ' aria-current="page"' : ''} href="/app/knowledge?range=${r}">${esc(t(locale, `knowledge.ops.range.${r}` as MessageKey))}</a>`;
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
 
   const stat = (labelKey: MessageKey, n: number) =>
@@ -229,7 +229,10 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
       : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noActivity'))}</div>`}
   </div>`;
 
+  // The page's one title and its lede; the list of what was taught follows
+  // (`renderKnowledgeIndex`), under this same heading.
   return `<h1 class="page">${esc(t(locale, 'nav.knowledge'))}</h1>
+    <p class="lede">${esc(t(locale, 'knowledge.intro'))}</p>
     ${tabs}${report}${gaps}${activity}`;
 }
 

@@ -5,7 +5,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney, formatQty, formatRelative, formatDate, formatList } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQtyUnit, formatRelative, formatDate, formatList } from '../../core/owner/i18n/format.js';
 import { buyerWho, channelName, productName } from './inbox.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -13,6 +13,7 @@ import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './data
 import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import { ownSku } from '../../core/owner/sku.js';
 
 /**
  * M9.7 + ADR-0008 — the buyer's own page (`/app/conversations/:id`): what the
@@ -280,9 +281,9 @@ function milestoneHtml(locale: Locale, m: Milestone): string {
     case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
     case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
     case 'quote': return said('conv.tl.quote', { name }, 'detail',
-      [iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`), iso(`${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}`)].join(' · '));
+      [iso(formatQtyUnit(locale, m.qty ?? 0, pcs)), iso(`${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}`)].join(' · '));
     case 'order': return said('conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? '') }, 'qty',
-      iso(`${formatQty(locale, m.qty ?? 0)}${pcs}`));
+      iso(formatQtyUnit(locale, m.qty ?? 0, pcs)));
     default: return esc(t(locale, `conv.tl.${m.kind}` as MessageKey));
   }
 }
@@ -353,7 +354,8 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
         </form>
         <form method="post" action="${here}/deletion/dismiss" class="pform">
           <p class="muted">${esc(t(locale, 'conv.deletion.dismissHint'))}</p>
-          <button class="btn" type="submit">${esc(t(locale, 'conv.deletion.dismiss'))}</button>
+          <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'conv.deletion.dismissConfirm'))}">${esc(t(locale, 'conv.deletion.dismiss'))}</button>
         </form>`
       : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
     return `<div class="block" id="deletion">${head}
@@ -439,10 +441,11 @@ export function renderCustomerFile(
   const ctx = f.context;
   const ctxParts = [
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
-      `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${pr.sku ? `<span class="muted"> · ${esc(pr.sku)}</span>` : ''}`).join('<br>')}</div></div>` : '',
+      // CC-31 — her own article number only; one the import made up is not hers to read.
+      `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${ownSku(pr.sku) ? `<span class="muted"> · <bdi>${esc(ownSku(pr.sku)!)}</bdi></span>` : ''}`).join('<br>')}</div></div>` : '',
     // Each figure isolated, so Arabic keeps quantity, price and total apart and in order.
     ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${[
-      `${formatQty(locale, ctx.latestQuote.qty)}${pcs}`,
+      formatQtyUnit(locale, ctx.latestQuote.qty, pcs),
       `${formatMoney(ctx.latestQuote.unitPrice)}/${pcs}`,
       `${t(locale, 'product.detail.total')} ${formatMoney(ctx.latestQuote.total)}`,
     ].map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
@@ -465,7 +468,7 @@ export function renderCustomerFile(
   return `
     <div class="dhead">
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
-      <div class="who">${buyerWho(locale, f.buyer, f.country)}</div>
+      ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, f.buyer, f.country)}</h1>
       ${statusPill(relLabel(locale, f.status), f.statusTone)}
     </div>
     <div class="muted subline">${esc(channelName(locale, f.channel))}</div>

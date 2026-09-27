@@ -9,6 +9,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatMoney } from '../../core/owner/i18n/format.js';
 import { publicDocument, esc } from './layout.js';
+import { ownSku } from '../../core/owner/sku.js';
 
 /**
  * M35 — the proof link. The FIRST buyer-facing surface this product has.
@@ -350,7 +351,7 @@ export function renderProof(v: ProofView): string {
   <header class="head">
     <div class="seller">${esc(v.seller)}</div>
     <h1>${esc(v.productName)}</h1>
-    <div class="sku">${esc(v.sku)}</div>
+    ${/* CC-31 — the owner's own article number; one the import made up means nothing to a buyer. */ ''}${ownSku(v.sku) ? `<div class="sku">${esc(ownSku(v.sku)!)}</div>` : ''}
   </header>
 
   <section class="sec">

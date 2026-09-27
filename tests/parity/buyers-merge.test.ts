@@ -144,7 +144,8 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
     const row = /<a class="buyer[^"]*" href="\/app\/inbox\/c-hers#latest">([\s\S]*?)<\/a>/.exec(h)?.[1] ?? '';
     expect(row).toMatch(/<div class="buyer-top"><span class="who">🇦🇪 <b><bdi>Buyer c-hers<\/bdi><\/b><span class="muted"> · /);
     // each part isolated, so Arabic cannot run a Latin name, a quantity and a price together
-    expect(row).toContain('<div class="buyer-d muted"><bdi>Vacuum cup</bdi> · <bdi>500pcs</bdi> · <bdi>$2.40</bdi></div>');
+    // CC-13 — a figure and its unit are two words in English (a no-break space between them).
+    expect(row).toContain('<div class="buyer-d muted"><bdi>Vacuum cup</bdi> · <bdi>500\u00a0pcs</bdi> · <bdi>$2.40</bdi></div>');
     expect(row).toContain('<div class="buyer-m voice" dir="auto"><bdi>last words of c-hers</bdi></div>');
     expect(row).toMatch(/<div class="buyer-t muted">Today 13:30 · /);
   });

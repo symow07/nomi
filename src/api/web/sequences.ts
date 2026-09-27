@@ -213,7 +213,8 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
   const thread = e.conversationId
     ? `<a href="${conversationUrl(e.conversationId)}">${esc(t(locale, 'seq.enrolment.thread'))}</a>` : '';
   const stop = live ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/stop" class="inline">
-      <button class="btn stop" type="submit">${esc(t(locale, 'seq.enrolment.stop'))}</button></form>` : '';
+      <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'seq.enrolment.stopConfirm', { who: e.displayName ?? e.identity }))}">${esc(t(locale, 'seq.enrolment.stop'))}</button></form>` : '';
   return `<li class="en ${live ? '' : 'gone'}"><div class="en-h"><span class="who">${who}</span>${state}</div>
     ${ask}${thread || stop || confirm ? `<div class="en-a">${confirm}${thread}${stop}</div>` : ''}</li>`;
 }
@@ -288,7 +289,8 @@ export function renderSequenceDetail(
     <section class="block">
       <p class="muted">${esc(t(locale, 'seq.archive.hint'))}</p>
       <form method="post" action="/app/sequences/${id}/archive" class="inline">
-        <button class="btn stop" type="submit">${esc(t(locale, 'seq.archive.button'))}</button>
+        <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'seq.archive.confirm'))}">${esc(t(locale, 'seq.archive.button'))}</button>
       </form>
     </section>`;
 

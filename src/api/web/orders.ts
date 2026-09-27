@@ -10,7 +10,9 @@ import { moneyFromRow, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatDate, formatQty, formatMoney } from '../../core/owner/i18n/format.js';
+import { formatDate, formatQtyUnit, formatMoney, labelled } from '../../core/owner/i18n/format.js';
+import { isGeneratedSku } from '../../core/owner/sku.js';
+import { unitLabel } from './products.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 
@@ -203,7 +205,8 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
   const facts = [
     [t(locale, 'order.field.buyer'), v.buyer ?? t(locale, 'common.buyer')],
     [t(locale, 'order.field.product'), v.productName ?? v.productSku],
-    [t(locale, 'order.field.quantity'), `${formatQty(locale, v.quantity)} ${v.unit}`],
+    // CC-13 — the unit in the page's language, spaced the locale's way ("5,000 pcs", "5000个").
+    [t(locale, 'order.field.quantity'), formatQtyUnit(locale, v.quantity, unitLabel(locale, v.unit))],
     ...(total ? [[t(locale, 'order.field.total'), formatMoney(total)]] : []),
     ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), formatDate(locale, v.confirmedAt)]] : []),
   ].map(([l, val]) => `<div class="frow"><span class="flabel">${esc(l!)}</span><span class="fval"><bdi>${esc(val!)}</bdi></span></div>`).join('');
@@ -212,7 +215,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
     ? `<p class="muted empty-p">${esc(t(locale, 'order.history.empty'))}</p>`
     : `<ul class="rows">${v.history.map((u) => `<li class="row lines">
         <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(formatDate(locale, u.at))}</span></div>
-        ${u.trackingReference ? `<div class="muted"><bdi>${esc(t(locale, 'order.field.tracking'))}: ${esc(u.trackingReference)}</bdi></div>` : ''}
+        ${u.trackingReference ? `<div class="muted"><bdi>${esc(labelled(locale, t(locale, 'order.field.tracking'), u.trackingReference))}</bdi></div>` : ''}
         ${u.note ? `<div class="muted measure-prose"><bdi>${esc(u.note)}</bdi></div>` : ''}
       </li>`).join('')}</ul>`;
 
@@ -224,10 +227,14 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
   // neither came from her. Without her terms on the order, the page says what
   // is missing and where she states it, instead of printing a guess.
   const hasTerms = !!v.paymentTerms && !!v.incoterm;
+  // CC-31 — the proforma goes to the buyer: it names her own article number,
+  // and leaves off one the import made up ("Canvas bag (NEW-mfp2k3x4-0)").
+  const withoutMadeUpSku = (text: string): string =>
+    isGeneratedSku(v.productSku) ? text.replace(` (${v.productSku})`, '') : text;
   const proforma = unitPrice && total && hasTerms
     ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
         <p class="muted">${esc(t(locale, 'order.invoice.intro'))}</p>
-        <pre>${esc(renderInvoiceEn({ ...buildInvoice({
+        <pre>${esc(withoutMadeUpSku(renderInvoiceEn({ ...buildInvoice({
           quote: {
             productId: '' as never,
             quantity: { value: v.quantity, unit: v.unit },
@@ -248,7 +255,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
           // it on. Only when the two currencies agree; see the note below.
           sampleCredit: v.sampleCredit?.kind === 'credit' ? v.sampleCredit.amount : null,
           now: v.confirmedAt ?? v.history[v.history.length - 1]?.at ?? new Date(0),
-        }), piNumber: v.reference }))}</pre>
+        }), piNumber: v.reference })))}</pre>
         ${v.sampleCredit?.kind === 'mismatch'
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
               amount: formatMoney(v.sampleCredit.amount) }))}</p>`

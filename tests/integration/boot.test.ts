@@ -309,7 +309,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // Authenticated: the shell renders with the M16.2b Operations Home (real data).
     const home = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
     expect(home.statusCode).toBe(200);
-    expect(home.body).toContain(esc(t('en', 'app.tagline')));     // shell tagline (English default)
+    // CC-14 — the shell names the signed-in business, from its own row, with the
+    // product's name the line under it. It said "Your assistant's workspace" to everyone.
+    expect(home.body).toMatch(/<span class="brandname"><bdi>[^<]+<\/bdi><small>Nomi<\/small><\/span>/);
+    expect(home.body).not.toContain(esc(t('en', 'app.tagline')));
     // Phase B: the attention section states either the real work or the calm
     // truth. M22 (F-01) added a THIRD honest state — messaging off, so nobody
     // can reach her — and this run's tenant is freshly seeded and not live, so
@@ -718,7 +721,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // and silently became false the moment the real logo landed, which nobody
     // saw because the integration suite does not run without DATABASE_URL.
     // The rule is unchanged — the page still may not draw a chart.
-    const main = res.body.slice(res.body.indexOf('<main>'), res.body.indexOf('</main>'));
+    // CC-20 — main is the skip link's target now: <main id="main">.
+    const main = res.body.slice(res.body.indexOf('<main'), res.body.indexOf('</main>'));
     expect(main.length).toBeGreaterThan(0);
     expect(main).not.toContain('<svg');
     expect(res.body).not.toContain('<table');  // mobile: no wide tables

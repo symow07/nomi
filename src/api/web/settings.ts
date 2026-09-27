@@ -344,7 +344,8 @@ export function renderForbidden(v: ForbiddenView, locale: Locale, flash: Flash |
             <span><bdi>${esc(x.term)}</bdi>${x.note
               ? `<span class="fnote muted"><bdi>${esc(x.note)}</bdi></span>` : ''}</span>
             <form method="post" action="/app/settings/forbidden/${esc(x.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'forbidden.remove'))}</button>
+              <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+                data-confirm="${esc(t(locale, 'forbidden.removeConfirm', { term: x.term }))}">${esc(t(locale, 'forbidden.remove'))}</button>
             </form></li>`).join('')}</ul>`}
     </section>
     <section class="block">
@@ -535,7 +536,8 @@ export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | nu
         : `<ul class="closures">${v.closures.map((c) => `<li>
             <span><bdi>${esc(c.label)}</bdi> <span class="muted">${esc(range(c))}</span></span>
             <form method="post" action="/app/settings/closures/${esc(c.id)}/remove" class="inline">
-              <button class="btn" type="submit">${esc(t(locale, 'closures.remove'))}</button>
+              <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+                data-confirm="${esc(t(locale, 'closures.removeConfirm', { label: c.label }))}">${esc(t(locale, 'closures.remove'))}</button>
             </form></li>`).join('')}</ul>`}
     </section>`;
 }

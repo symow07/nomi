@@ -15,7 +15,7 @@ import { ownershipOf, type ConversationOwnership } from '../../core/conversation
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney } from '../../core/owner/i18n/format.js';
+import { formatMoney, labelled } from '../../core/owner/i18n/format.js';
 import {
   SCENARIOS, analysis as buildAnalysis, candidate as toCandidate,
   type Expectation, type Scenario,
@@ -426,13 +426,15 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
     `<li class="chk ${c.pass ? 'ok' : 'bad'}"><span class="mk">${c.pass ? '✓' : '✗'}</span>
        <span class="lbl">${esc(invLabel(locale, c.invariant))}</span>
        <span class="dt muted">${esc(c.detail)}</span></li>`).join('');
+  // CC-13 — each label and its value with the locale's own colon ("Skill: …", "技能：…"),
+  // and the unit in the page's language, as on every other price ("$0.85/pcs", "$0.85/个").
   const chips = [
-    `<span class="chip">${esc(t(locale, 'sandbox.xray.skill'))}: ${esc(capabilityName(locale, trust.capability))}</span>`,
-    `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(t(locale, 'sandbox.xray.delivery'))}: ${esc(t(locale, deliveryKey as MessageKey))}</span>`,
-    trust.quote ? `<span class="chip">${esc(formatMoney(quoteUnit(trust.quote)))}/pc</span>` : '',
+    `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
+    `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(labelled(locale, t(locale, 'sandbox.xray.delivery'), t(locale, deliveryKey as MessageKey)))}</span>`,
+    trust.quote ? `<span class="chip"><bdi>${esc(formatMoney(quoteUnit(trust.quote)))}/${esc(t(locale, 'product.unit.pcs'))}</bdi></span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
     trust.scenarioId
-      ? `<span class="chip badge">${esc(t(locale, 'sandbox.scenario.badge'))}: ${esc(caseName(locale, trust.scenarioId))}</span>`
+      ? `<span class="chip badge">${esc(labelled(locale, t(locale, 'sandbox.scenario.badge'), caseName(locale, trust.scenarioId)))}</span>`
       : '',
   ].join('');
   return `<div class="card sbx-trust ${allPass ? 'pass' : 'fail'}">

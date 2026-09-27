@@ -92,12 +92,20 @@ export const DESIGN_TOKENS = {
      */
     weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
   },
-  /** Semantic colors — mirror the text markers one-to-one. */
+  /**
+   * Semantic colors — mirror the text markers one-to-one.
+   *
+   * CC-20 (2026-09-28) — every state is read as TEXT on its own wash (a pill,
+   * a tag), so each pair must reach the 4.5:1 WCAG asks of text that size.
+   * `waiting` (#B45309) and `highlight` (#8A6D00) sat at 4.15 and 4.12 on
+   * theirs; each moved the least that clears it — the same hue, a step
+   * darker — to 4.74 and 4.72. `audit-closeout.test.ts` computes every pair.
+   */
   color: {
     ok: '#0F7B3E',        // MARK.ok
-    waiting: '#B45309',   // 等你审批
+    waiting: '#A64C08',   // 等你审批
     warn: '#B42318',      // MARK.warn
-    highlight: '#8A6D00', // MARK.star
+    highlight: '#7F6400', // MARK.star
     ink: '#1A1A1A',
     inkSecondary: '#5C5C5C',
     surface: '#FFFFFF',

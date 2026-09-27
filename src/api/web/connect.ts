@@ -122,7 +122,8 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
         ${offDomain ? `<p class="muted">${esc(t(locale, 'connect.mail.offDomain', { domain: v.sendingDomain! }))}</p>` : ''}
         ${viewer.isOwner && provider === 'google' && !mine.readsInbox && v.connectable[provider] ? start : ''}
         ${viewer.isOwner ? `<form method="post" action="/app/connect/mail/disconnect" class="inline">
-          <button class="btn stop" type="submit">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
+          <button class="btn stop" type="submit" onclick="return confirm(this.dataset.confirm)"
+            data-confirm="${esc(t(locale, 'connect.action.disconnectConfirm', { address: mine.address }))}">${esc(t(locale, 'connect.action.disconnect'))}</button></form>` : ''}`,
     };
   }
   if (!v.connectable[provider]) {

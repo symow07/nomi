@@ -10,6 +10,7 @@ import { formatMoney, formatQty } from '../../core/owner/i18n/format.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
+import { ownSku } from '../../core/owner/sku.js';
 import {
   validatePriceRules, priceRuleChanges,
   type PriceRules, type PriceRuleError, type PriceRuleField,
@@ -411,7 +412,8 @@ export function renderPriceRules(
 ): string {
   const name = assistantName(locale);
   const err = (f: PriceRuleField): string =>
-    errors[f] ? `<p class="perr">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+    // CC-20 — a refusal is announced as one, like every other field error.
+    errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
   const form = (
     productId: string | null, current: PriceRules | null, title: string, sub: string,
@@ -450,7 +452,7 @@ export function renderPriceRules(
     const label = productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku;
     const open = draft.productId === p.productId;
     return `<li class="row lines">
-      <div class="dhead muted"><bdi>${esc(label)}</bdi> <span class="muted">${esc(p.sku)}</span>
+      <div class="dhead muted"><bdi>${esc(label)}</bdi>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
         ${p.listPrice !== null ? `<span class="muted">${esc(formatMoney(p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
@@ -508,7 +510,7 @@ function volumeSection(
 ): string {
   const name = assistantName(locale);
   const err = (f: VolumeField): string =>
-    errors[f] ? `<p class="perr">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+    errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `prices.volume.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
 
   const rows = v.volume.map((d) => `<li class="row lines">
       <div class="dhead muted"><bdi>${esc(t(locale, 'prices.volume.row', {
@@ -517,7 +519,8 @@ function volumeSection(
       }))}</bdi></div>
       ${d.asksFirst ? `<p class="fdesc">${esc(t(locale, 'prices.volume.asksFirst', { name }))}</p>` : ''}
       <form method="post" action="/app/factory/prices/volume/${esc(d.id)}/archive">
-        <button class="btn" type="submit">${esc(t(locale, 'prices.volume.remove'))}</button>
+        <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
+          data-confirm="${esc(t(locale, 'prices.volume.removeConfirm'))}">${esc(t(locale, 'prices.volume.remove'))}</button>
       </form>
     </li>`).join('');
 

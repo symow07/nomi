@@ -97,6 +97,22 @@ export const labelled = (locale: Locale, label: string, value: string): string =
   `${label}${locale === 'zh' ? '：' : ': '}${value}`;
 
 /**
+ * CC-13 — a figure and the unit it counts, the way each locale writes them:
+ * Chinese sets them together ("5000个", "1.2万个"); English and Arabic put a
+ * space between them ("5,000 pcs", "5,000 قطعة") — a no-break space, so the
+ * pair never wraps apart at the end of a narrow row. The pages glued them in
+ * every language, which Arabic cannot read as two words ("5,000قطعة").
+ * `figure` is already written: a quantity, or a range of them ("1,000–4,999",
+ * "5,000+").
+ */
+export const withUnit = (locale: Locale, figure: string, unit: string): string =>
+  `${figure}${locale === 'zh' ? '' : '\u00a0'}${unit}`;
+
+/** A quantity and its unit: `formatQty`, then `withUnit`. */
+export const formatQtyUnit = (locale: Locale, n: number, unit: string): string =>
+  withUnit(locale, formatQty(locale, n), unit);
+
+/**
  * CC-13 — a list the way each locale writes one: "a, b and c", "a、b和c",
  * "a وb". The pages joined every list with the Chinese enumeration comma, in
  * every language.

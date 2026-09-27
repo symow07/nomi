@@ -48,7 +48,8 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
     // V1 close-out — the figures are isolated, one each, so they keep their order in Arabic.
     expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi>5000个</bdi> · <bdi>$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
-    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
+    // CC-13 — English spaces a figure from its unit (no-break); Chinese, above, sets them together.
+    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000\u00a0pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
     expect(en).toContain('You approved sending');
     expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });

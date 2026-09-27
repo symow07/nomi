@@ -7,7 +7,8 @@ import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '.
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatQty, formatMoney } from '../../core/owner/i18n/format.js';
+import { formatQty, formatQtyUnit, formatMoney, withUnit, labelled } from '../../core/owner/i18n/format.js';
+import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
@@ -31,8 +32,17 @@ const ownerDecides = (locale: Locale): string =>
 
 const displayName = (locale: Locale, name: string, nameZh: string | null): string =>
   locale === 'zh' ? (nameZh ?? name) : name;
-const unitLabel = (locale: Locale, unit: string): string =>
+export const unitLabel = (locale: Locale, unit: string): string =>
   unit === 'pcs' ? t(locale, 'product.unit.pcs') : unit;
+
+/** One figure (or a figure and its word), isolated so a right-to-left line cannot reorder it. */
+const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
+
+/** CC-31 — her own article number beside a name, muted; nothing for one the import made up. */
+const skuMark = (sku: string): string => {
+  const own = ownSku(sku);
+  return own ? ` <span class="muted"><bdi>${esc(own)}</bdi></span>` : '';
+};
 
 export type ProductListItem = {
   readonly id: string;
@@ -271,7 +281,7 @@ export async function confirmImport(
       // factory floor. A generated id in its place means she cannot find her own
       // goods and every re-import silently duplicates her catalogue. One is
       // generated ONLY when the line carried no number at all.
-      const sku = p.sku ?? `NEW-${Date.now().toString(36)}-${i}`;
+      const sku = p.sku ?? generatedSku(Date.now(), i);
       const moq = p.moq ?? 100;
       // M29 — TRUST RULE, now applied to BOTH halves of a sellable product.
       // A price with no owner-stated floor is not a product she can quote: the
@@ -380,13 +390,17 @@ export function renderProductList(
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
+    // CC-13 — each locale's own colon and gap: "500 pcs: $2.10 · Min. order: 500 pcs",
+    // "500个：$2.10　最低起订：500个". The full-width colon and space were in every language.
+    // Each figure isolated: after an Arabic word a bare "$2.10" is drawn "2.10$".
+    const price = p.entryPrice !== null && p.entryQty !== null
+      ? labelled(locale, iso(formatQtyUnit(locale, p.entryQty, u)), iso(formatMoney(p.entryPrice)))
+      : esc(t(locale, 'product.list.priceTbd'));
+    const moq = labelled(locale, esc(t(locale, 'product.list.moq')), iso(formatQtyUnit(locale, p.moq, u)));
     return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
-      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b> <span class="muted">${esc(p.sku)}</span>${statusPill(locale, p.status)}</div>
-      <div class="prod-b muted">
-        ${p.entryPrice !== null && p.entryQty !== null ? `${esc(formatQty(locale, p.entryQty))}${esc(u)}: ${esc(formatMoney(p.entryPrice))}　` : `${esc(t(locale, 'product.list.priceTbd'))}　`}
-        ${esc(t(locale, 'product.list.moq'))}: ${esc(formatQty(locale, p.moq))}${esc(u)}
-      </div>
+      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
+      <div class="prod-b muted">${price}${locale === 'zh' ? '　' : ' · '}${moq}</div>
       ${p.imageMatchable ? '' : `<div class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</div>`}
     </a>`;
   }).join('');
@@ -408,7 +422,8 @@ export function renderProductDetail(
   // questions about the business, not fields on a row.
   const name = assistantName(locale);
   const ferr = (f: ProductEditField): string =>
-    errors[f] ? `<p class="perr">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
+    // CC-20 — a refusal is announced as one, like every other field error.
+    errors[f] ? `<p class="perr" role="alert">${esc(t(locale, `product.edit.error.${errors[f]}` as MessageKey, { name }))}</p>` : '';
   const val = (f: string, fallback: string): string =>
     esc(draft[f] !== undefined ? draft[f]! : fallback);
   const editForm = !viewer.isOwner ? `<div class="block">
@@ -432,7 +447,7 @@ export function renderProductDetail(
 
   const tiers = d.tiers.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
-        `<div class="tier"><span>${esc(formatQty(locale, tr.minQty))}${tr.maxQty ? `–${esc(formatQty(locale, tr.maxQty))}` : '+'}${esc(u)}</span><b>${esc(formatMoney(tr.unitPrice))}</b></div>`).join('')}</div></div>`
+        `<div class="tier"><span>${esc(withUnit(locale, tr.maxQty ? `${formatQty(locale, tr.minQty)}–${formatQty(locale, tr.maxQty)}` : `${formatQty(locale, tr.minQty)}+`, u))}</span><b>${esc(formatMoney(tr.unitPrice))}</b></div>`).join('')}</div></div>`
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   const aliases = d.aliases.length
@@ -446,18 +461,19 @@ export function renderProductDetail(
 
   const quotes = d.recentQuotes.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
-        `<div class="qrow muted">${esc(formatQty(locale, q.quantity))}${esc(u)} · ${esc(formatMoney(q.unitPrice))}/${esc(u)} · ${esc(t(locale, 'product.detail.total'))} ${esc(formatMoney(q.total))}</div>`).join('')}</div>`
+        `<div class="qrow muted">${[formatQtyUnit(locale, q.quantity, u), `${formatMoney(q.unitPrice)}/${u}`,
+          `${t(locale, 'product.detail.total')} ${formatMoney(q.total)}`].map(iso).join(' · ')}</div>`).join('')}</div>`
     : '';
 
   return `
     ${flashBanner(flash)}
     <div class="dhead">${back('/app/products', t(locale, 'product.detail.back'))}
-      <div class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''} <span class="muted">${esc(d.sku)}</span></div>${statusPill(locale, d.status)}</div>
+      <h1 class="who"><b>${esc(title)}</b>${alt ? ` <span class="muted">${esc(alt)}</span>` : ''}${skuMark(d.sku)}</h1>${statusPill(locale, d.status)}</div>
     ${d.imageMatchable ? `<div class="p-tag big">📷 ${esc(t(locale, 'product.detail.imageMatchBig', { name: assistantName(locale) }))}</div>` : ''}
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
-        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(formatQty(locale, d.moq))}${esc(u)}</div>
+        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(formatQtyUnit(locale, d.moq, u))}</div>
         ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
@@ -507,7 +523,7 @@ export function renderReview(
   const from = (p: ExtractedProduct): string => p.sourceLine
     ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : '';
   const known = (e: CatalogueEntry): string =>
-    `<b>${esc(displayName(locale, e.name, e.nameZh))}</b> <span class="muted">${esc(e.sku)}</span>`;
+    `<b>${esc(displayName(locale, e.name, e.nameZh))}</b>${skuMark(e.sku)}`;
 
   // G16 — what the page CHANGES, first: the one thing she must look at. Each
   // change is its own tick, on by default, so a price the page does not really

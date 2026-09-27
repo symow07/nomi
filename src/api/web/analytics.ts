@@ -134,7 +134,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
     `<div class="stat"><div class="v">${value}</div><div class="l">${esc(t(locale, key))}</div></div>`;
 
   const tab = (r: Range) =>
-    `<a class="tab ${d.range === r ? 'on' : ''}" href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
+    `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
   const title = `<h1 class="page">${esc(t(locale, 'analytics.title'))}</h1>`;
 
