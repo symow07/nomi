@@ -227,6 +227,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   // Text-only signal detection runs BEFORE the analyzer: "I want to speak to a
   // human" must trigger the handoff without first paying for (and waiting on)
   // an LLM analysis of a message whose outcome is already determined.
+  //
+  // That is "wants a person", layer 1 (core/scoring/detect.ts). Layer 2 is the
+  // analyser's `wantsPerson`, read by the second detectSignals below — after
+  // the analysis and BEFORE any reply is written, so a buyer it hands off
+  // never reaches the writer: the decision is a hand-off, not a reply.
   const textOnlySignals = detectSignals({
     text: req.text, state, analysis: null, unitPrice: null,
   });
@@ -408,7 +413,11 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       // (2026-09-27) — anything said here could be read as a promise about the
       // buyer's data that only a person can make. Any unresolved request
       // counts, not only this turn's.
-      if (signals.some((s) => s.kind === 'deletion_requested')) {
+      //
+      // 0077 — nor when nobody could tell what the message asked (the
+      // analyser's answer could not be read): the same silence as an unheard
+      // voice note or an unreadable file. A person reads it and answers.
+      if (signals.some((s) => s.kind === 'deletion_requested' || s.kind === 'not_answered')) {
         reply = null;
         answerPath = 'silent';
       } else {

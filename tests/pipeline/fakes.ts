@@ -307,10 +307,19 @@ export class FakeRetriever implements Retriever {
 export class FakeAnalyzer implements Analyzer {
   calls = 0;
   next: Analysis | null = null;
-  async analyze(): Promise<{ analysis: Analysis; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
+  /**
+   * 2026-09-28 — an answer for one message in particular ("wants a person",
+   * layer 2): its text → the analysis to return. `next` answers the rest.
+   */
+  byText = new Map<string, Analysis>();
+  /** The texts it was asked about, in order — so a test can say no model was asked. */
+  texts: string[] = [];
+  async analyze(input?: Parameters<Analyzer['analyze']>[0]): Promise<{ analysis: Analysis; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
     this.calls++;
-    if (!this.next) throw new Error('FakeAnalyzer.next not set');
-    return { analysis: this.next, promptVersion: 'test@1', modelId: 'fake-model', usage: { inputTokens: 500, outputTokens: 120 } };
+    if (input) this.texts.push(input.text);
+    const analysis = (input && this.byText.get(input.text)) ?? this.next;
+    if (!analysis) throw new Error('FakeAnalyzer.next not set');
+    return { analysis, promptVersion: 'test@1', modelId: 'fake-model', usage: { inputTokens: 500, outputTokens: 120 } };
   }
 }
 

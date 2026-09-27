@@ -234,8 +234,15 @@ import type { Db } from './client.js';
  *      page, Your data, Today and the Buyers list read it. Against a 75
  *      database the turn throws on the missing table and the message
  *      dead-letters; every owner page that reads it throws.
+ * 77 = a message nobody could read goes to a person (0077). When the
+ *      analyser's answer to "does this buyer want a person?" cannot be read,
+ *      or a turn fails until the queue gives up on it, the conversation is
+ *      handed over with the 'not_answered' signal. Against a 76 database that
+ *      insert fails the CHECK: the turn throws and dead-letters, and the dead
+ *      letter's own hand-off fails the same way — the buyer never reaches
+ *      "Needs you", the one thing this exists to do.
  */
-export const REQUIRED_SCHEMA_VERSION = 76;
+export const REQUIRED_SCHEMA_VERSION = 77;
 
 export type SchemaState = {
   readonly required: number;

@@ -70,6 +70,17 @@ export type Signal =
    * before any model call; the turn then sends nothing (pipeline/turn.ts).
    */
   | { readonly kind: 'deletion_requested' }
+  /**
+   * 0077 — nobody could tell what this message asked, so a person answers it.
+   * Two ways in: the analyser was asked whether the buyer wants a person and
+   * its answer could not be read (`Analysis.wantsPerson === null`), or the
+   * turn failed until the queue gave up on it (the worker's dead letter).
+   * "Ambiguous means hand off": a missed request for a person loses a buyer,
+   * a needless hand-off costs the owner a minute. Scored like a request for a
+   * person, and the buyer is told nothing (pipeline/turn.ts) — nothing was
+   * understood, so there is nothing true to say yet.
+   */
+  | { readonly kind: 'not_answered' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -105,6 +116,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'ops_silenced',
   // 0075 — the buyer asked for their data to be deleted; a person answers.
   'deletion_requested',
+  // 0077 — nobody could tell what the message asked; a person answers.
+  'not_answered',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -127,6 +140,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   assistant_stopped: { kind: 'assistant_stopped' },
   ops_silenced: { kind: 'ops_silenced' },
   deletion_requested: { kind: 'deletion_requested' },
+  not_answered: { kind: 'not_answered' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -161,6 +175,7 @@ export const TRIGGER_REASONS = [
   'assistant_stopped',
   'ops_silenced',
   'deletion_requested',
+  'not_answered',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -189,6 +204,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'ops_silenced';
     case 'deletion_requested':
       return 'deletion_requested';
+    case 'not_answered':
+      return 'not_answered';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -221,6 +238,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'deletion_requested':
         problem = 100; // absolute: only a person answers a deletion request.
+        break;
+      case 'not_answered':
+        problem = 100; // absolute: nobody knows what it asked, so a person answers.
         break;
       case 'complaint':
         problem += 40;

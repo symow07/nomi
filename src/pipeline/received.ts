@@ -1,9 +1,10 @@
 import { sql } from 'kysely';
-import type { Tx } from '../db/client.js';
+import { lockConversation, type Tx } from '../db/client.js';
 import type { tenantRepos } from '../db/repos.js';
-import type { ConversationId } from '../core/types/ids.js';
+import { parseBusinessId, parseConversationId, type BusinessId, type ConversationId } from '../core/types/ids.js';
 import type { Signal } from '../core/scoring/signals.js';
 import type { TurnEffects } from './turn.js';
+import type { InboundJob } from '../queue/boss.js';
 import { ownershipOf, canTransition, WAITING_HUMAN_AGENT } from '../core/conversation/ownership.js';
 import { asksForDeletion } from '../core/safety/deletion.js';
 
@@ -110,4 +111,79 @@ export async function handToPerson(
     outbound: null, draftCreated: null, hotLeadAlert: false,
     handoffAlert: true, deletionAlert: asking !== null, orderCreated: null,
   } satisfies TurnEffects;
+}
+
+/**
+ * 0077 — what a dead inbound job leaves for a person: the conversation, and the
+ * message its turn never answered. Read defensively — a dead letter is whatever
+ * was queued, possibly by an older build — and null when it names no
+ * conversation, which leaves nothing to hand over (the operator's `dead_letter`
+ * alert still goes).
+ */
+export type Unanswered = {
+  readonly businessId: BusinessId;
+  readonly conversationId: ConversationId;
+  readonly messageId: string | null;
+  readonly text: string | null;
+  /**
+   * How the message goes on the timeline, in case the turn's own record rolled
+   * back with it (a voice note, a photo): typed words, or named as what
+   * arrived — never opened. Null when it is already there: an owner's "answer
+   * this" names a message on the timeline.
+   */
+  readonly record: { readonly kind: 'typed' } | { readonly kind: 'received'; readonly received: string } | null;
+};
+
+export function unansweredIn(data: unknown): Unanswered | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const job = data as { readonly [K in keyof InboundJob]?: unknown };
+  const businessId = parseBusinessId(typeof job.businessId === 'string' ? job.businessId : '');
+  const conversationId = parseConversationId(typeof job.conversationId === 'string' ? job.conversationId : '');
+  if (!businessId.ok || !conversationId.ok) return null;
+  const messageId = typeof job.messageId === 'string' && job.messageId !== '' ? job.messageId : null;
+  const text = typeof job.text === 'string' && job.text.trim() !== '' ? job.text : null;
+  const type = typeof job.messageType === 'string' ? job.messageType : 'text';
+  const record: Unanswered['record'] = messageId === null || job.answerOnly === true ? null
+    : type === 'text' ? { kind: 'typed' }
+    : { kind: 'received', received: type === 'image' ? 'photo' : type === 'audio' ? 'voice'
+        : typeof job.received === 'string' && job.received !== '' ? job.received : 'other' };
+  return { businessId: businessId.value, conversationId: conversationId.value, messageId, text, record };
+}
+
+/**
+ * 0077 — A TURN THAT GAVE UP IS A BUYER NOBODY ANSWERED.
+ *
+ * The queue retried it and moved it to the dead letter queue. Until now that
+ * only told the operator (the `dead_letter` alert, CC-10's error record): the
+ * buyer's message sat unanswered, the conversation stayed with the assistant,
+ * and nobody on the owner's side knew someone was waiting. Now, in the same
+ * way as a voice note that could not be heard, a person answers it:
+ *
+ *   · the message is on the timeline — a typed line already is; a voice note
+ *     or a photo whose turn rolled back is recorded by name, not opened;
+ *   · the conversation is handed over as `not_answered`, which puts it on
+ *     "Needs you" with its reason, and the caller sends the ordinary hand-off
+ *     alert; a deletion request in those words is written down as its own
+ *     reason (handToPerson);
+ *   · a conversation that is gone (erased) is left alone: null.
+ *
+ * Lines of the buyer's still waiting in a batch stay waiting: closing one needs
+ * the turn it was answered in (`processed_in` references `turns`), and no turn
+ * ran. The next turn takes them — a silent one while a person holds the
+ * conversation.
+ */
+export async function handOverUnanswered(
+  tx: Tx, tenant: ReturnType<typeof tenantRepos>, u: Unanswered,
+): Promise<TurnEffects | null> {
+  await lockConversation(tx, u.conversationId);
+  const exists = await sql<{ one: number }>`
+    select 1 as one from conversations where id = ${u.conversationId}::uuid`.execute(tx);
+  if (exists.rows.length === 0) return null;
+  if (u.messageId !== null && u.record?.kind === 'typed') {
+    await recordTypedMessage(tx, u.conversationId, u.messageId, u.text ?? '');
+  } else if (u.messageId !== null && u.record?.kind === 'received') {
+    await recordReceivedMessage(tx, u.conversationId, u.messageId, u.text, u.record.received);
+  }
+  return handToPerson(tenant, u.conversationId, { kind: 'not_answered' },
+    u.messageId === null ? [] : [{ messageId: u.messageId, text: u.text }]);
 }
