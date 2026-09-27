@@ -149,6 +149,7 @@ import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type Owner
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown } from './say.js';
+import type { ReportError } from '../../core/ops/appErrors.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -310,6 +311,11 @@ export type WebDeps = {
    * keeps working.
    */
   readonly pageTranscriber?: PageTranscriber;
+  /**
+   * CC-10 — where a crashed page is written down (`app_errors`, and the
+   * operator's e-mail). Absent, a crash is only logged, as before.
+   */
+  readonly reportError?: ReportError;
 };
 
 /**
@@ -608,6 +614,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const wantsHtml = (req: FastifyRequest): boolean =>
     String(req.headers['accept'] ?? '').includes('text/html');
 
+  /**
+   * CC-10 — a page that broke is written down (`app_errors`) and the operator
+   * hears of it: the route PATTERN, never the address asked (it can carry a
+   * token), never the body. Not awaited — the page answers now, whatever the
+   * recorder is doing — and never allowed to throw into the error handler.
+   */
+  const recordCrash = (err: FastifyError, req: FastifyRequest): void => {
+    if (!deps.reportError) return;
+    try {
+      void deps.reportError(err, 'web', {
+        route: `${req.method} ${req.routeOptions?.url ?? '(no route)'}`,
+        businessId: sessionOf(req)?.businessId ?? null,
+      });
+    } catch { /* the reporter never throws; the page must not depend on that */ }
+  };
+
   app.setNotFoundHandler(async (req, reply) => {
     if (!wantsHtml(req)) {
       return reply.code(404).send({ message: `Route ${req.method}:${req.url} not found`, error: 'Not Found', statusCode: 404 });
@@ -625,6 +647,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // One reference, in the log beside the reason and on the page without it.
     const reference = randomBytes(4).toString('hex');
     req.log.error({ err, reference }, 'unhandled error');
+    recordCrash(err, req);
     if (!wantsHtml(req)) {
       return reply.code(500).send({ message: 'Internal Server Error', error: 'Internal Server Error', statusCode: 500 });
     }

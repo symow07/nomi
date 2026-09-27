@@ -53,6 +53,10 @@ import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
+import type { ErrorSweepJob } from './queue/boss.js';
+import type { ReportError } from './core/ops/appErrors.js';
+import { installCrashReporting } from './worker/appErrors.js';
+import { startHeartbeat } from './worker/heartbeat.js';
 
 /**
  * PRODUCTION ENTRYPOINT (audit C1). Composes existing components — worker,
@@ -115,6 +119,12 @@ export type ProdConfig = {
    * door everywhere, as before. Plain host names, comma-separated.
    */
   SITE_HOSTS?: string;
+  /**
+   * CC-10 — the uptime heartbeat's address (a Healthchecks.io check). Optional:
+   * absent, nothing is pinged and the boot says so once. A secret-ish token —
+   * whoever has it can mark the check up — so it is never logged.
+   */
+  HEALTH_PING_URL?: string;
 };
 
 type Shape = (v: string) => boolean;
@@ -169,6 +179,9 @@ const OPTIONAL_SHAPES: Record<string, Shape> = {
   PUBLIC_BASE_URL: (v) => /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(v),
   // Phase 5 — host names only: no scheme, no port, no path.
   SITE_HOSTS: SITE_HOSTS_SHAPE,
+  // CC-10 — https, a host AND a path: the path is the check's key, so a bare
+  // host would ping nothing, and `/fail` is appended to it on a bad tick.
+  HEALTH_PING_URL: (v) => /^https:\/\/[^\s/?#]+\/[^\s]+$/.test(v),
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
@@ -239,6 +252,7 @@ export function validateEnv(env: Record<string, string | undefined>):
       ...(env['TRANSCRIBE_BASE_URL'] ? pick('TRANSCRIBE_BASE_URL') : {}),
       ...(env['PUBLIC_BASE_URL'] ? pick('PUBLIC_BASE_URL') : {}),
       ...(env['SITE_HOSTS'] ? pick('SITE_HOSTS') : {}),
+      ...(env['HEALTH_PING_URL'] ? pick('HEALTH_PING_URL') : {}),
     },
   };
 }
@@ -361,8 +375,16 @@ export type Production = {
   readonly ownerAccessCodeGenerated: boolean;
   /** The channels with a webhook mounted here — empty in deployment mode. */
   readonly channels: readonly string[];
+  /** CC-10 — the process's error recorder; the CLI hands it the process's own crashes. */
+  readonly reportError: ReportError;
   close(): Promise<void>;
 };
+
+/**
+ * PILOT_BUSINESS_ID's default: the demo's business, which exists only in a
+ * seeded development database (M23 — production refuses to boot on it).
+ */
+const DEMO_PILOT_BUSINESS_ID = 'de300000-0000-4000-8000-0000000000b1';
 
 export async function buildProduction(
   cfg: ProdConfig,
@@ -410,11 +432,13 @@ export async function buildProduction(
   // and the Command Center plays back through the same fetcher. Built once, so
   // a test that injects its own cannot end up with the web app using another.
   const mediaPorts = overrides?.media ?? mediaPortsFor(cfg);
-  const { db, boss } = await startWorker({
+  const { db, boss, errors } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
     // G11 — the worker mints the proof link a quote carries, so it needs the
     // address as much as the web app does.
     ...(cfg.PUBLIC_BASE_URL ? { PUBLIC_BASE_URL: cfg.PUBLIC_BASE_URL } : {}),
+    // CC-10 — whoever runs this installation hears of its errors.
+    PILOT_BUSINESS_ID: process.env['PILOT_BUSINESS_ID'] ?? DEMO_PILOT_BUSINESS_ID,
   }, mediaPorts, overrides?.models ?? {},
     overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {});
 
@@ -438,7 +462,7 @@ export async function buildProduction(
   // the first product dies on a foreign key) or inside the sandbox itself
   // (silent: it all works, into the space whose reset archives conversations).
   // Neither shows on /health. Refuse, as with role and schema.
-  const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? 'de300000-0000-4000-8000-0000000000b1';
+  const PILOT_BUSINESS_ID = process.env['PILOT_BUSINESS_ID'] ?? DEMO_PILOT_BUSINESS_ID;
   const SANDBOX_ID = process.env['SANDBOX_BUSINESS_ID'] ?? SANDBOX_BUSINESS_ID;
   await assertPilotTenant(db, {
     pilotBusinessId: PILOT_BUSINESS_ID,
@@ -611,6 +635,8 @@ export async function buildProduction(
       siteHosts: parseSiteHosts(cfg.SITE_HOSTS),
       // G13 — the same fetcher the worker hears with, so she can play a note.
       ...(mediaPorts.audio ? { audio: mediaPorts.audio } : {}),
+      // CC-10 — a crashed page is written down, and the operator hears of it.
+      reportError: errors.report,
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
@@ -686,7 +712,7 @@ export async function buildProduction(
   const INBOX_READS_PER_SWEEP = 3;
   const finalize = (a: FastifyInstance): Production => ({
     app: a, db, boss, ownerAccessCode, ownerAccessCodeGenerated: !process.env['OWNER_ACCESS_CODE'],
-    channels: channelsHere,
+    channels: channelsHere, reportError: errors.report,
     async close() {
       if (closing) return;
       closing = true;
@@ -947,12 +973,12 @@ export async function buildProduction(
       if (lookedUp < DOMAIN_CHECKS_PER_SWEEP) {
         const r = await refreshDomainCheckIfDue({
           db, resolveDns: resolveSendingRecords, sendingInclude: process.env['SENDING_SPF_INCLUDE'] ?? null,
-        }, tenant, new Date()).catch((e: unknown) => { console.warn('[domain-check]', e instanceof Error ? e.message : e); return 'checked' as const; });
+        }, tenant, new Date()).catch((e: unknown) => { console.warn('[domain-check]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return 'checked' as const; });
         if (r === 'checked') lookedUp++;
       }
       if (spent()) return;
       await runDueSteps(sequenceDeps, tenant)
-        .catch((e: unknown) => console.warn('[sequences]', e instanceof Error ? e.message : e));
+        .catch((e: unknown) => { console.warn('[sequences]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); });
     }
 
     /**
@@ -979,7 +1005,7 @@ export async function buildProduction(
         db, credentialKey, clients: oauthClients, fetchImpl: oauthFetch, cache: tokenCache,
         ownAddresses: systemSmtp ? [systemSmtp.from, systemSmtp.user] : [],
         enqueue: (job) => enqueueInbound(boss, { ...job, messageType: 'text' }),
-      }, tenant).catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); return null; });
+      }, tenant).catch((e: unknown) => { console.warn('[inbox]', e instanceof Error ? e.message : e); void errors.report(e, `worker:${QUEUES.sequences}`, { businessId: tenant }); return null; });
       if (read && read.outcome !== 'not_reading') inboxesRead++;
       if (read && read.outcome === 'read' && read.recorded > 0) console.log(`[inbox] ${read.recorded} new mail(s) recorded`);
     }
@@ -1019,6 +1045,19 @@ export async function buildProduction(
       businessId: job.data.businessId, kind: 'backup_stale', conversationId: null,
       lastBackupAt: latest?.uploadedAt.toISOString() ?? null,
     } satisfies NotifyJob, { singletonKey: 'backup_stale' });
+  });
+
+  /**
+   * CC-10 — no error waits for ever behind the hourly limit. At most six error
+   * alerts leave in an hour; one owed while the hour is full is held and
+   * counted in the next alert. When the flood has stopped there may be no
+   * next one, so every five minutes the oldest held error gets the alert it
+   * was owed, once the hour has room (src/db/appErrors.ts).
+   */
+  await boss.schedule(QUEUES.errors, '*/5 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies ErrorSweepJob);
+  await boss.work<ErrorSweepJob>(QUEUES.errors, async ([job]: { data: ErrorSweepJob }[]) => {
+    if (!job) return;
+    await errors.releaseHeld();
   });
 
   // The provider that carried THIS channel's event: Meta for the Page and
@@ -1160,7 +1199,16 @@ if (isMain) {
   }
 
   const prod = await buildProduction(v.cfg);
+  // CC-10 — a crash is written down, and the operator told, before the process
+  // ends with code 1 as it always did (Railway restarts it).
+  installCrashReporting(process, {
+    report: prod.reportError,
+    exit: (code) => process.exit(code),
+    log: (line, err) => console.error(line, err),
+  });
   await prod.app.listen({ port: v.cfg.PORT, host: '0.0.0.0' });
+  // CC-10 — the dead-man's switch: only now that /health can answer on loopback.
+  await startHeartbeat(prod.boss, { url: v.cfg.HEALTH_PING_URL ?? null, port: v.cfg.PORT, db: prod.db });
   if (prod.ownerAccessCodeGenerated) {
     // The owner needs this to log into the command center. Set OWNER_ACCESS_CODE
     // in the host to make it stable across deploys.

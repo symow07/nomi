@@ -121,6 +121,7 @@ media setting to keep in step with it.
 | `DATABASE_CONNECT_TIMEOUT_MS` | `10000` | How long a connection attempt waits. |
 | `DATABASE_QUERY_TIMEOUT_MS` | `30000` | Server-side `statement_timeout`: a hung query returns an error instead of holding a pool slot for ever. |
 | `MIGRATE_DATABASE_URL` | — | **Not read by the app.** Used by `tools/migrate.mjs` and `tools/provision-factory.mjs`; an admin role that can run DDL. Runtime and migration credentials should differ. |
+| `HEALTH_PING_URL` | unset | CC-10 — the uptime heartbeat: a Healthchecks.io check's ping URL (`https://hc-ping.com/<uuid>`). Checked at boot when set: `https://`, a host **and** a path. Every five minutes the app checks itself (the database answers; its own `/health` answers on loopback) and GETs this URL — or `<url>/fail` when a check failed. If the app, the database or the job queue dies, the pings stop and Healthchecks.io e-mails the owner. **Unset, nothing is pinged** and the boot logs one line saying so. Whoever has the URL can mark the check up, so it is never logged. Steps: `docs/MONITORING.md`. |
 
 ---
 

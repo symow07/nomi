@@ -87,6 +87,7 @@ describe('every tool that can reach production uses it', () => {
   const TOOLS = [
     'tools/migrate.mjs', 'tools/erase-workspace.mjs', 'tools/prune-test-tenants.mjs',
     'tools/invite-factory.mjs', 'tools/provision-factory.mjs', 'tools/outreach-area.mjs',
+    'tools/errors.mjs',
   ];
   for (const f of TOOLS) {
     it(f, () => {

@@ -204,9 +204,11 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
   });
 
   it('an alert never leaves a placeholder unfilled', () => {
+    // `count` since CC-10: the error alert says how many times, and how many
+    // more were held back — `renderOwnerAlert` fills it, so the test does too.
     for (const locale of LOCALES) {
       for (const k of ALERT_KEYS) {
-        expect(t(locale, k, { name: '小雅', buyer: 'Ahmed', when: '20 Sep' })).not.toContain('{');
+        expect(t(locale, k, { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3 })).not.toContain('{');
       }
     }
   });

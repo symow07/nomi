@@ -33,10 +33,40 @@ export const QUEUES = {
    * did, and the owner alert when it did not (src/core/ops/backups.ts).
    */
   backups: 'ops.backups',
+  /**
+   * CC-10 — every five minutes: the error alert the hourly limit held back,
+   * once the hour has room for it (src/db/appErrors.ts). Errors are recorded
+   * where they happen; this only makes sure a held one is not forgotten when
+   * the flood that held it has stopped.
+   */
+  errors: 'ops.errors',
+  /**
+   * CC-10 — the uptime heartbeat: every five minutes the app checks itself and
+   * pings HEALTH_PING_URL (src/worker/heartbeat.ts). Scheduled only when that
+   * is set, and only once the server listens.
+   */
+  heartbeat: 'ops.heartbeat',
 } as const;
 
 export type SequenceSweepJob = { businessId: string };
 export type BackupWatchJob = { businessId: string };
+export type ErrorSweepJob = { businessId: string };
+export type HeartbeatJob = Record<string, never>;
+
+/** `app_error` only: the error the alert is about, as recorded — redacted, cut. Dates as ISO strings. */
+export type AppErrorAlertJob = {
+  fingerprint: string;
+  where: string;
+  name: string;
+  message: string;
+  frame: string | null;
+  route: string | null;
+  count: number;
+  firstSeen: string;
+  lastSeen: string;
+  /** Other errors the hourly limit held back, counted in this alert. */
+  more: number;
+};
 
 export async function startBoss(connectionString: string): Promise<PgBoss> {
   const boss = new PgBoss({
@@ -103,10 +133,12 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale';
+  kind: 'hot_lead' | 'handoff' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'app_error';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
+  /** `app_error` only (CC-10): what went wrong, as `app_errors` holds it. */
+  appError?: AppErrorAlertJob;
 };
 
 /**

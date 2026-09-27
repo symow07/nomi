@@ -214,8 +214,13 @@ import type { Db } from './client.js';
  *      and `conversations.owner_unsent_reply` are read on every conversation
  *      page and written when a send is refused. Against a 71 database the
  *      conversation page throws on the missing columns.
+ * 74 = errors are written down (0074, CC-10). Every failure path — a page
+ *      that crashed, a failed queue job, the process — upserts `app_errors`,
+ *      and the operator alert is decided from its row. Against a database
+ *      without it every recording fails; the recorder only logs that, so the
+ *      app runs on — deaf, which is the state this migration ends.
  */
-export const REQUIRED_SCHEMA_VERSION = 72;
+export const REQUIRED_SCHEMA_VERSION = 74;
 
 export type SchemaState = {
   readonly required: number;
