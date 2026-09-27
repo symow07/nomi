@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { detectSignals } from '../../src/core/scoring/detect.js';
-import { emptyState } from './fixtures.js';
+import { emptyState } from '../parity/fixtures.js';
 
 /**
  * "WANTS A PERSON" — "manager", split by whose manager it is (the owner's
