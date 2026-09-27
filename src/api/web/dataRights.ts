@@ -10,6 +10,7 @@ import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, type ExportSubject } from './dataExpo
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import type { Viewer } from '../../core/conversation/people.js';
+import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
 
 /**
  * CC-12 + CC-02 — one page for the two things a business may ask of a product
@@ -66,6 +67,8 @@ export type DataRightsView = {
   readonly requests: readonly DeletionRequest[];
   /** CC-02a — buyers' requests: every open one first, then the recent rest. */
   readonly buyers?: readonly BuyerDeletionRequest[];
+  /** 0076 — requests noted from a buyer's message, waiting for the owner to decide. */
+  readonly asks?: readonly WaitingAsk[];
   /** The name she must type to confirm — her own business's. */
   readonly businessName: string;
 };
@@ -81,7 +84,7 @@ const requestOf = (x: RequestRow): DeletionRequest => ({
 
 export async function loadDataRights(db: Db, businessIdRaw: string): Promise<DataRightsView> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { requests: [], buyers: [], businessName: '' };
+  if (!bid.ok) return { requests: [], buyers: [], asks: [], businessName: '' };
   return withTenantTx(db, bid.value, async (tx) => {
     const name = (await sql<{ name: string }>`
       select name from businesses where id = ${bid.value}`.execute(tx)).rows[0]?.name ?? '';
@@ -105,6 +108,7 @@ export async function loadDataRights(db: Db, businessIdRaw: string): Promise<Dat
       businessName: name,
       requests: r.rows.map(requestOf),
       buyers: b.rows.map((x) => ({ ...requestOf(x), buyer: x.buyer, conversationId: x.conversation_id })),
+      asks: await waitingAsks(tx, bid.value),
     };
   });
 }
@@ -209,8 +213,13 @@ export function buyerDeletionNote(raw: string):
 }
 
 export type BuyerAskOutcome =
-  | { readonly outcome: 'asked'; readonly requestId: string; readonly askedAt: Date }
-  | { readonly outcome: 'already_open' | 'not_found' | 'failed' };
+  | {
+      readonly outcome: 'asked'; readonly requestId: string; readonly askedAt: Date;
+      /** 0076 — it was the request noted from their message, now recorded. */
+      readonly fromChat: boolean;
+    }
+  /** Nothing was noted from chat, and the owner gave no note of how they asked. */
+  | { readonly outcome: 'already_open' | 'not_found' | 'failed' | 'note_missing' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -228,9 +237,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * the count below answers the ordinary case, and the partial unique index in
  * 0073 answers the race — two presses in the same instant — which surfaces as
  * a unique violation and is read as the same answer.
+ *
+ * 0076 — AND WHAT WAS ALREADY NOTED IS NOT ASKED FOR AGAIN. A request the
+ * buyer made in a message was written down when it arrived (`deletion_asks`),
+ * with the conversation, the message and the time. Recording it needs no note
+ * — those say how and when they asked — and the request is dated from when
+ * they asked, because that is when it was received. The noted row points at
+ * the request from then on. The note is required only when nothing was noted.
  */
 export async function askBuyerDeletion(
-  db: Db, businessIdRaw: string, conversationId: string, note: string, actor: string,
+  db: Db, businessIdRaw: string, conversationId: string, note: string | null, actor: string,
 ): Promise<BuyerAskOutcome> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { outcome: 'failed' };
@@ -245,16 +261,27 @@ export async function askBuyerDeletion(
         select count(*)::int as n from deletion_requests
          where client_id = ${client}::uuid and scope = 'buyer' and state = 'open'`.execute(tx)).rows[0]?.n ?? 0;
       if (open > 0) return { outcome: 'already_open' };
+      const noted = (await sql<{ id: string; asked_at: Date }>`
+        select id::text as id, asked_at from deletion_asks
+         where client_id = ${client}::uuid and state = 'waiting'
+         for update`.execute(tx)).rows[0] ?? null;
+      if (noted === null && note === null) return { outcome: 'note_missing' };
       const row = (await sql<{ id: string; asked_at: Date }>`
-        insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note)
-        values (${bid.value}, 'buyer', ${client}::uuid, ${actor}, ${note})
+        insert into deletion_requests (business_id, scope, client_id, asked_by, subject_note, asked_at)
+        values (${bid.value}, 'buyer', ${client}::uuid, ${actor}, ${note},
+                coalesce(${noted?.asked_at ?? null}::timestamptz, now()))
         returning id::text as id, asked_at`.execute(tx)).rows[0]!;
+      if (noted !== null) {
+        await sql`update deletion_asks
+                     set state = 'recorded', request_id = ${row.id}::uuid, decided_at = now(), decided_by = ${actor}
+                   where id = ${noted.id}::uuid and state = 'waiting'`.execute(tx);
+      }
       // The trail says a request was made and which one — never the note, and
       // never whom it is about: both are the buyer's, and the row holds them.
       await sql`insert into channel_audit (business_id, channel_id, action, actor, detail)
                 values (${bid.value}, null, 'deletion_requested', ${actor},
-                        ${JSON.stringify({ scope: 'buyer', request: row.id })}::jsonb)`.execute(tx);
-      return { outcome: 'asked', requestId: row.id, askedAt: row.asked_at };
+                        ${JSON.stringify({ scope: 'buyer', request: row.id, ...(noted ? { noted: noted.id } : {}) })}::jsonb)`.execute(tx);
+      return { outcome: 'asked', requestId: row.id, askedAt: row.asked_at, fromChat: noted !== null };
     });
   } catch (e) {
     if ((e as { code?: string }).code === '23505') return { outcome: 'already_open' };
@@ -333,7 +360,7 @@ export function renderDataRights(
     <h1 class="page">${esc(t(locale, 'data.title'))}</h1>
     ${flashBanner(flash)}
     ${files}
-    ${buyerRequests(v.buyers ?? [], locale, viewer)}
+    ${buyerRequests(v.buyers ?? [], locale, viewer, v.asks ?? [])}
     <section class="block">
       <h2>${esc(t(locale, 'data.deletion.title'))}</h2>
       <p class="muted">${esc(t(locale, 'data.deletion.lead'))}</p>
@@ -357,8 +384,19 @@ const STATE_TONE: Readonly<Record<DeletionRequest['state'], string>> = {
  * the moment to tell the buyer (Nomi does not write to them about it). While a
  * request is still waiting it can be taken back, with the workspace request's
  * own route: one way back, not two.
+ *
+ * 0076 — a request noted from a buyer's message leads the list until the owner
+ * decides, on the buyer's page, where the door goes.
  */
-function buyerRequests(buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer): string {
+function buyerRequests(
+  buyers: readonly BuyerDeletionRequest[], locale: Locale, viewer: Viewer, asks: readonly WaitingAsk[] = [],
+): string {
+  const noted = asks.map((a) => `<li class="row">
+      <div class="person"><a href="/app/conversations/${encodeURIComponent(a.conversationId)}#deletion"><b><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></b></a>
+        <span class="muted">${esc(t(locale, 'data.buyers.waiting', { asked: formatDate(locale, a.askedAt) }))}</span>
+      </div>
+      <span class="pill warn">${esc(t(locale, 'data.ask.state.waiting'))}</span>
+    </li>`).join('');
   const rows = buyers.map((r) => {
     const who = esc(r.buyer ?? t(locale, 'common.buyer'));
     const name = r.conversationId && r.state !== 'done'
@@ -386,10 +424,11 @@ function buyerRequests(buyers: readonly BuyerDeletionRequest[], locale: Locale, 
       ${withdraw}
     </li>`;
   }).join('');
-  return `<section class="block">
+  return `<section class="block" id="buyers">
     <h2>${esc(t(locale, 'data.buyers.title'))}</h2>
     <p class="muted">${esc(t(locale, 'data.buyers.lead'))}</p>
-    ${rows ? `<ul class="rows">${rows}</ul>` : `<p class="muted">${esc(t(locale, 'data.buyers.none'))}</p>`}
+    <p class="muted">${esc(t(locale, 'data.buyers.fromChat'))}</p>
+    ${noted || rows ? `<ul class="rows">${noted}${rows}</ul>` : `<p class="muted">${esc(t(locale, 'data.buyers.none'))}</p>`}
   </section>`;
 }
 

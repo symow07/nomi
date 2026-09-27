@@ -5,6 +5,11 @@ import { HANDOFF_REPLY } from '../../src/core/conversation/templates.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
 import { emptyState, CONVERSATION, PRODUCT } from '../parity/fixtures.js';
 import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fakes.js';
+import { alertKindFor } from '../../src/pipeline/notify.js';
+import { handToPerson } from '../../src/pipeline/received.js';
+import { OWNER_AGENT } from '../../src/core/conversation/ownership.js';
+import type { AgentId } from '../../src/core/types/ids.js';
+import { NOT_REQUESTS } from '../parity/deletion-corpus.js';
 
 /**
  * 0075 — a buyer who asks for their data to be deleted is answered by a
@@ -61,8 +66,11 @@ async function run(p: ReturnType<typeof ports>, text: string) {
   return { r, fx };
 }
 
-/** Everything the owner's rule forbids, asserted together. */
-function expectSilentHandoff(p: ReturnType<typeof ports>, r: Awaited<ReturnType<typeof run>>['r'], fx: Awaited<ReturnType<typeof run>>['fx']) {
+/** Everything the owner's rule forbids, asserted together. `noted`: this message wrote the request down. */
+function expectSilentHandoff(
+  p: ReturnType<typeof ports>, r: Awaited<ReturnType<typeof run>>['r'], fx: Awaited<ReturnType<typeof run>>['fx'],
+  noted = true,
+) {
   expect(r.reply).toBeNull();
   expect(r.answerPath).toBe('silent');
   expect(r.decision.action).toEqual({ kind: 'handoff', notifyOnly: false });
@@ -74,6 +82,10 @@ function expectSilentHandoff(p: ReturnType<typeof ports>, r: Awaited<ReturnType<
   expect(p.tenant.eventRows.map((e) => e.type)).toContain('handoff');
   expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('deletion_requested');
   expect(p.tenant.states.get(CONVERSATION)?.assignedTo).toBe(UNCLAIMED_AGENT);
+  // 0076 — written down with the hand-off, and the owner told in its own words.
+  if (noted) expect(p.tenant.deletionAsksNoted.map((x) => x.conversationId)).toContain(CONVERSATION);
+  expect(fx.deletionAlert).toBe(true);
+  expect(alertKindFor(fx)).toBe('deletion_requested');
 }
 
 const LAYER_ONE: Record<'en' | 'zh' | 'ar', readonly string[]> = {
@@ -110,7 +122,9 @@ describe('0075 · layer 1 — the buyer asks, and nothing at all is sent', () =>
     p.tenant.signalRows.set(CONVERSATION, [{ kind: 'deletion_requested' }]);
     const { r, fx } = await run(p, 'hello?');
     expect(p.analyzer.calls).toBe(0);
-    expectSilentHandoff(p, r, fx);
+    // Written down when it came, not again for "hello?" — and still its own alert.
+    expectSilentHandoff(p, r, fx, false);
+    expect(p.tenant.deletionAsksNoted).toEqual([]);
   });
 
   it('a request for a person on its own still gets the hand-off sentence (unchanged)', async () => {
@@ -208,5 +222,123 @@ describe('0075 · the comparison — a passing mention is answered as usual, and
       expect(r.newState.assignedTo).toBeNull();
       expect(fx.outbound?.reply).toBe(answer);
     });
+  }
+});
+
+describe('0076 · the request is written down when the hand-off fires', () => {
+  it('with the conversation and the message that asked', async () => {
+    const p = ports();
+    const r = await computeTurn(p, req('Please delete my data.'));
+    await commitTurn(p, req('Please delete my data.'), r, Date.now());
+    expect(r.deletionAsked).toBe(true);
+    expect(p.tenant.deletionAsksNoted).toEqual([
+      { conversationId: CONVERSATION, messageId: req('Please delete my data.').messageId, outcome: 'noted' },
+    ]);
+  });
+
+  it('when a person already holds the conversation: nothing sent, still written down, and the owner told', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState({ assignedTo: OWNER_AGENT as AgentId }));
+    const { r, fx } = await run(p, '请删除我的个人信息');
+    expect(r.decision.action.kind).toBe('silent');
+    expect(p.analyzer.calls).toBe(0);
+    expect(fx.outbound).toBeNull();
+    expect(fx.draftCreated).toBeNull();
+    expect(p.tenant.deletionAsksNoted).toHaveLength(1);
+    expect(alertKindFor(fx)).toBe('deletion_requested');
+  });
+
+  it('asked again into a conversation a person holds: the same request, counted — and no second alert', async () => {
+    const p = ports();
+    p.tenant.seed(CONVERSATION, emptyState({ assignedTo: OWNER_AGENT as AgentId }));
+    await run(p, 'أرجو حذف بياناتي');
+    const { fx } = await run(p, 'أرجو حذف بياناتي مرة أخرى');
+    expect(p.tenant.deletionAsksNoted.map((x) => x.outcome)).toEqual(['noted', 'asked_again']);
+    expect(alertKindFor(fx)).toBeNull();
+  });
+
+  it('already recorded by the owner, and the assistant held it again: nothing new noted, the owner told', async () => {
+    const p = ports();
+    p.tenant.deletionRecorded = true;
+    const { r, fx } = await run(p, 'Delete my account');
+    expect(r.reply).toBeNull();
+    expect(p.tenant.deletionAsksNoted.map((x) => x.outcome)).toEqual(['already_recorded']);
+    expect(alertKindFor(fx)).toBe('deletion_requested');
+  });
+
+  it('a reply that promised it (layer 2) writes it down too', async () => {
+    const p = ports();
+    p.replyWriter.replies = ["Of course — I've deleted your data."];
+    const { r, fx } = await run(p, "Can you get rid of everything about me? I don't want to be in your files.");
+    expect(r.deletionAsked).toBe(true);
+    expect(p.tenant.deletionAsksNoted).toHaveLength(1);
+    expect(alertKindFor(fx)).toBe('deletion_requested');
+  });
+
+  it('a request for a person alone writes nothing down, and keeps the ordinary alert', async () => {
+    const p = ports();
+    const { r, fx } = await run(p, 'I want to speak to a real person.');
+    expect(r.deletionAsked).toBe(false);
+    expect(p.tenant.deletionAsksNoted).toEqual([]);
+    expect(alertKindFor(fx)).toBe('handoff');
+  });
+});
+
+describe('0076 · where no turn runs — stopped, paused, not on the list, an e-mail answer', () => {
+  const tenant = () => {
+    const t = new FakeTenant();
+    t.seed(CONVERSATION, emptyState());
+    return t;
+  };
+
+  it('a deletion request in what they wrote is written down, named as its own reason, and alerted as one', async () => {
+    const t = tenant();
+    const fx = await handToPerson(t, CONVERSATION, { kind: 'assistant_stopped' },
+      [{ messageId: 'wamid.1', text: 'hello' }, { messageId: 'wamid.2', text: 'Please delete my data' }]);
+    expect((t.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind).sort()).toEqual(['assistant_stopped', 'deletion_requested']);
+    expect(t.deletionAsksNoted).toEqual([{ conversationId: CONVERSATION, messageId: 'wamid.2', outcome: 'noted' }]);
+    expect(alertKindFor(fx)).toBe('deletion_requested');
+  });
+
+  it('anything else is the ordinary hand-off, with nothing written down', async () => {
+    const t = tenant();
+    const fx = await handToPerson(t, CONVERSATION, { kind: 'unlisted_number' },
+      [{ messageId: 'wamid.3', text: 'delete that line from the quote' }]);
+    expect(t.deletionAsksNoted).toEqual([]);
+    expect(alertKindFor(fx)).toBe('handoff');
+  });
+});
+
+/**
+ * FOUND 2026-09-27, NOT A DELETION MATTER: the older request-for-a-person list
+ * (`HUMAN_PHRASES` in src/core/scoring/detect.ts, ported from n8n) matches the
+ * word "manager" anywhere, so "my account manager" hands the conversation to a
+ * person — with the ORDINARY sentence, not silently, and nothing written
+ * down. Reported to the owner; pinned here so a second such case cannot slip in.
+ */
+const HANDED_OFF_AS_A_REQUEST_FOR_A_PERSON = new Set(['Can you remove my account manager from the cc?']);
+
+describe('0076 · the 45 passing mentions, through the real turn: none is a deletion hand-off, none is written down', () => {
+  for (const [lang, texts] of Object.entries(NOT_REQUESTS)) {
+    for (const text of texts) {
+      it(`${lang}: ${JSON.stringify(text)}`, async () => {
+        const p = ports();
+        p.analyzer.next = analysis({}, lang);
+        p.replyWriter.replies = ['Noted.'];
+        const { r, fx } = await run(p, text);
+        expect(r.deletionAsked, text).toBe(false);
+        expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind), text).not.toContain('deletion_requested');
+        expect(p.tenant.deletionAsksNoted, text).toEqual([]);
+        expect(alertKindFor(fx), text).not.toBe('deletion_requested');
+        if (HANDED_OFF_AS_A_REQUEST_FOR_A_PERSON.has(text)) {
+          expect(r.decision.action.kind).toBe('handoff');
+          expect((p.tenant.signalRows.get(CONVERSATION) ?? []).map((s) => s.kind)).toContain('human_requested');
+          expect(fx.outbound?.reply).toBe(HANDOFF_REPLY);
+        } else {
+          expect(r.decision.action.kind, text).not.toBe('handoff');
+          expect(fx.outbound?.reply, text).toBe('Noted.');
+        }
+      });
+    }
   }
 });

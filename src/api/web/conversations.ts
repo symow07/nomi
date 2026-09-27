@@ -10,6 +10,7 @@ import { flag } from './inbox.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
+import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
@@ -171,6 +172,11 @@ export type CustomerFile = {
    * fixture without one reads as a buyer who never asked.
    */
   readonly deletion?: BuyerDeletionState | null;
+  /**
+   * 0076 — a request noted from this buyer's message, waiting for the owner.
+   * Optional so a fixture without one reads as nothing waiting.
+   */
+  readonly deletionAsk?: WaitingAsk | null;
 };
 
 const mile = (kind: MilestoneKind, at: Date | null, extra: Partial<Milestone> = {}): Milestone =>
@@ -232,6 +238,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
        where conversation_id = ${conversationId} and status = 'edited'`.execute(tx)).rows.map((r) => r.capability);
 
     const deletion = await buyerDeletionOf(tx, conversationId);
+    const deletionAsk = await waitingAskOf(tx, conversationId);
 
     // Relationship timeline — neutral milestone kinds; renderer localizes.
     const timeline: Milestone[] = [];
@@ -302,6 +309,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
         corrections,
       },
       deletion,
+      deletionAsk,
     };
   });
 }
@@ -415,6 +423,11 @@ export async function renameBuyer(
  * before it asks for anything — the same words the public page gives the buyer.
  * The note is required: it is the record of the asking, and the buyer's own
  * message may be among what is deleted.
+ *
+ * 0076 — UNLESS IT WAS NOTED FROM THEIR MESSAGE. Then the section says when
+ * they asked and what they wrote, and asks the owner only for the decision:
+ * record it (no note — the message is the record of how and when), or mark it
+ * as not a deletion request. It is never offered as something to create.
  */
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
@@ -422,6 +435,28 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   const state = (tone: string, key: MessageKey) =>
     `<span class="pill ${tone}">${esc(t(locale, key))}</span>`;
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
+  const here = `/app/conversations/${encodeURIComponent(f.conversationId)}`;
+
+  const ask = f.deletionAsk ?? null;
+  if (ask && d?.state !== 'open') {
+    const decide = viewer.isOwner
+      ? `<p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
+        <form method="post" action="${here}/deletion" class="pform">
+          <button class="btn danger" type="submit">${esc(t(locale, 'conv.deletion.record'))}</button>
+        </form>
+        <form method="post" action="${here}/deletion/dismiss" class="pform">
+          <p class="muted">${esc(t(locale, 'conv.deletion.dismissHint'))}</p>
+          <button class="btn" type="submit">${esc(t(locale, 'conv.deletion.dismiss'))}</button>
+        </form>`
+      : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+    return `<div class="block" id="deletion">${head}
+      <p>${state('warn', 'data.ask.state.waiting')}${esc(t(locale, 'conv.deletion.waiting', { date: date(ask.askedAt) }))}</p>
+      ${ask.words ? `<p class="voice"><bdi dir="auto">${esc(ask.words)}</bdi></p>` : ''}
+      ${decide}
+    </div>`;
+  }
 
   if (d?.state === 'open') {
     return `<div class="block" id="deletion">${head}

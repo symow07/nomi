@@ -165,6 +165,15 @@ class HarnessTenant implements Tenant {
       this.samplesRecorded.push({ conversationId: conversationId as string, askedText });
     },
   };
+  /** 0076 — the deletion requests a turn wrote down; read by the invariants. */
+  deletionAsksNoted: Array<{ conversationId: string; messageId: string }> = [];
+  deletionAsks: import('../db/ports.js').DeletionAskRepo = {
+    note: async ({ conversationId, messageId }) => {
+      const again = this.deletionAsksNoted.some((x) => x.conversationId === (conversationId as string));
+      this.deletionAsksNoted.push({ conversationId: conversationId as string, messageId });
+      return again ? 'asked_again' : 'noted';
+    },
+  };
   /** M36 — prior prices this buyer was given. Empty unless a test sets it. */
   priorQuotes: Array<{ quantity: number; unitPrice: Money; at: Date }> = [];
   audit: AuditRepo = {

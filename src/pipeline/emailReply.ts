@@ -87,7 +87,11 @@ export async function recordEmailReply(
       });
     }
 
-    await handToPerson(tenantRepos(tx, bid.value), cid as ConversationId, { kind: 'email_reply' });
+    // 0076 — "remove me from your list" is a likely answer to a cold e-mail:
+    // a deletion request in his words is written down with this hand-off.
+    // (No alert leaves this route — none ever has for an e-mail reply.)
+    await handToPerson(tenantRepos(tx, bid.value), cid as ConversationId, { kind: 'email_reply' },
+      [{ messageId: `email:${mail.messageId}`, text: mail.text }]);
     return { outcome: 'recorded' as const, conversationId: cid };
   });
 }

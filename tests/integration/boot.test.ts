@@ -1546,7 +1546,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('empty / unknown factory → honest zeros', async () => {
       const { loadOperationsSnapshot } = await import('../../src/api/web/operations.js');
       const s = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'month', 'disabled');
-      expect(s.attention).toEqual({ pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 });
+      expect(s.attention).toEqual({ pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0 });
       expect(s.activity).toEqual({ handled: 0, draftsCreated: 0, corrections: 0 });
       expect(s.hasAttention).toBe(false);
       expect(s.channel.status).toBe('not_connected');

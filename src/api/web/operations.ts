@@ -44,6 +44,13 @@ export type OperationsSnapshot = {
      * while a refused message left a buyer waiting on a reply nobody sent.
      */
     readonly blockedMessages: number;
+    /**
+     * 0076 — buyers who asked, in a message, for their data to be deleted, and
+     * are waiting for the owner's decision. Leads the list: it is a request the
+     * owner answers to, and it does not go away by handing a conversation back.
+     * Absent (a snapshot built before 0076) is none.
+     */
+    readonly deletionAsks?: number;
   };
   /** What the employee did in the range. */
   readonly activity: {
@@ -94,12 +101,12 @@ export type OperationsSnapshot = {
  * than invented.
  */
 export const ATTENTION_PRIORITY =
-  ['blockedMessages', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
+  ['blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
 export type AttentionKind = (typeof ATTENTION_PRIORITY)[number];
 
 const EMPTY = (range: Range, provider: string, live = provider !== 'disabled'): OperationsSnapshot => ({
   range,
-  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0 },
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { status: 'not_connected', provider, live },
@@ -163,9 +170,10 @@ export async function loadOperationsSnapshot(
         else if (o === 'OWNER_CONTROLLED') ownerHandling += r.n;
       }
 
-      const q = (await sql<{ pending: number; handled: number; drafts: number; corrections: number }>`
+      const q = (await sql<{ pending: number; handled: number; drafts: number; corrections: number; deletion_asks: number }>`
         select
           (select count(*)::int from drafts where business_id = ${B} and status = 'pending') as pending,
+          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks,
           (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}) as handled,
           (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
@@ -200,6 +208,7 @@ export async function loadOperationsSnapshot(
   const attention = {
     pendingApprovals: counts.pending, handoffs: counts.handoffs,
     ownerHandling: counts.ownerHandling, blockedMessages,
+    deletionAsks: counts.deletion_asks,
   };
   return {
     range,
@@ -213,7 +222,7 @@ export async function loadOperationsSnapshot(
     channel: { status: channels.whatsapp.status, provider, live },
     budget: budgetOf(budgetRow),
     hasAttention: attention.pendingApprovals + attention.handoffs
-                + attention.ownerHandling + attention.blockedMessages > 0,   // see needsOwnerAttention
+                + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
     opsSilenced,
   };
@@ -230,6 +239,12 @@ export async function loadOperationsSnapshot(
 
 /** What the owner may still need to do, in the M16.2a priority order. */
 const ATTENTION_ROW: Record<AttentionKind, { readonly label: MessageKey; readonly href: string }> = {
+  // 0076 — a buyer asked for their data to be deleted and the owner has not
+  // decided. Right under the message that never arrived (the one concern with
+  // no other way to be found), above every ordinary hand-off; to the Buyers
+  // tab that lists only them — a door every reader may open (Your data is the
+  // owner's alone).
+  deletionAsks:     { label: 'ops.card.deletionAsks', href: '/app/inbox?filter=deletion' },
   // M22 — a buyer who was never replied to. Leads the list; the link goes to
   // the conversations it happened in, where the reason and the fix are stated.
   blockedMessages:  { label: 'ops.card.blocked',   href: '/app/inbox?filter=blocked' },
@@ -243,7 +258,7 @@ const ATTENTION_ROW: Record<AttentionKind, { readonly label: MessageKey; readonl
 };
 
 const attentionCount = (s: OperationsSnapshot, k: AttentionKind): number =>
-  k === 'openGaps' ? s.knowledge.openGaps : s.attention[k];
+  k === 'openGaps' ? s.knowledge.openGaps : s.attention[k] ?? 0;
 
 /** True only when nothing anywhere needs the owner — including her own threads. */
 export const needsOwnerAttention = (s: OperationsSnapshot): boolean =>

@@ -160,7 +160,8 @@ export async function startWorker(
       // been in the vocabulary and rendered by the inbox since M4; until this
       // commit nothing ever wrote it, because nothing ever ran.
       if (input.seen?.kind === 'refused') {
-        return handToPerson(tenant, conversationId.value, { kind: 'low_confidence_image' });
+        return handToPerson(tenant, conversationId.value, { kind: 'low_confidence_image' },
+          [{ messageId: input.messageId, text: input.caption }]);
       }
 
       const req = {
@@ -212,6 +213,22 @@ export async function startWorker(
     // into an owner alert. The producer went first; the queue itself was
     // deleted in M28. The order is already persisted by commitTurn; when there
     // are real post-order effects, add the consumer and the producer together.
+  };
+
+  /**
+   * The alert a hand-off earns, sent after its transaction commits: a deletion
+   * request's own (0076), or the ordinary one. One per kind per conversation
+   * while it is queued.
+   */
+  const alertHandoff = async (
+    businessId: BusinessId, conversationId: ConversationId,
+    effects: Parameters<typeof alertKindFor>[0] | null,
+  ): Promise<void> => {
+    const kind = effects ? alertKindFor(effects) : null;
+    if (!kind) return;
+    await boss.send(QUEUES.notify, {
+      businessId, kind, conversationId,
+    } satisfies NotifyJob, { singletonKey: `${businessId}:${kind}:${conversationId}` });
   };
 
   /**
@@ -299,14 +316,15 @@ export async function startWorker(
         await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
         const d = inboundDisposition(type, job.data.received);
         if (d.kind === 'ignore' && waiting.length === 0) return null;   // a reaction asks nothing of anyone
+        // 0076 — his words, and the lines still waiting in his batch: a
+        // deletion request among them is written down now, not filed under
+        // "stopped" for the owner to notice.
         return handToPerson(tenantRepos(tx, businessId.value), conversationId.value,
-          { kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' });
+          { kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' },
+          [{ messageId: job.data.messageId, text: job.data.text || null },
+           ...waiting.map((f) => ({ messageId: f.id, text: f.text }))]);
       });
-      if (effects?.handoffAlert) {
-        await boss.send(QUEUES.notify, {
-          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
-        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
-      }
+      await alertHandoff(businessId.value, conversationId.value, effects);
       return;
     }
 
@@ -352,13 +370,10 @@ export async function startWorker(
         }
         const d = inboundDisposition(type, job.data.received);
         if (d.kind === 'ignore') return null;      // a reaction asks nothing of anyone
-        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, { kind: 'unlisted_number' });
+        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, { kind: 'unlisted_number' },
+          [{ messageId: job.data.messageId, text: job.data.text || null }]);
       });
-      if (effects?.handoffAlert) {
-        await boss.send(QUEUES.notify, {
-          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
-        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
-      }
+      await alertHandoff(businessId.value, conversationId.value, effects);
       return;
     }
 
@@ -400,13 +415,9 @@ export async function startWorker(
         if (disposition.kind === 'ignore') return null;
         return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, {
           kind: 'media_unreadable', received: disposition.received,
-        });
+        }, [{ messageId: job.data.messageId, text: job.data.text || null }]);
       });
-      if (effects?.handoffAlert) {
-        await boss.send(QUEUES.notify, {
-          businessId: businessId.value, kind: 'handoff', conversationId: conversationId.value,
-        } satisfies NotifyJob, { singletonKey: `${businessId.value}:handoff:${conversationId.value}` });
-      }
+      await alertHandoff(businessId.value, conversationId.value, effects);
       return;
     }
 

@@ -176,6 +176,10 @@ export const RULES = Object.freeze({
 
   // ── The request itself ────────────────────────────────────────────────────
   deletion_requests: { do: 'keep', says: 'the request, closed as done (and any earlier one naming them)' },
+  // 0076 — the request as noted from their message: their conversation, the
+  // message itself and when. It was the reminder; the request above is what
+  // stays as the record that they asked.
+  deletion_asks: { do: 'erase' },
 
   // ── Records that can quote them with no key at all (see textLinks) ────────
   channel_events: {

@@ -40,10 +40,13 @@ describe('M16.2a · operations snapshot (pure)', () => {
     // M22: a message that never reached a buyer comes first — it is the only
     // concern here the owner has no other way to find. A handoff at least sits
     // visibly in the inbox; a refused reply left a buyer waiting on nothing.
+    // 0076: then a buyer who asked for their data to be deleted and is waiting
+    // for the owner's decision — a request she answers to, which handing the
+    // conversation back does not clear; above every ordinary hand-off.
     // Then a buyer waiting for a person, replies to review, the threads she
     // took over herself, and knowledge gaps.
     expect(ATTENTION_PRIORITY).toEqual(
-      ['blockedMessages', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
+      ['blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
     expect(ATTENTION_PRIORITY).not.toContain('activity');
   });
 

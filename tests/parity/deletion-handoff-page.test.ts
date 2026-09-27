@@ -61,7 +61,7 @@ describe('0075 · the signal', () => {
     const sql = read(`migrations/${newest}`).split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
     expect(sql.match(/'deletion_requested'/g)).toHaveLength(2);
     expect(sql).toMatch(/insert into _migrations \(version, name\) values \(75, 'deletion_handoff'\)/);
-    expect(REQUIRED_SCHEMA_VERSION).toBe(75);
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(75);
   });
 });
 

@@ -190,6 +190,12 @@ export type TurnResult = {
    * Null on every other turn.
    */
   deletionPromiseWithheld: string | null;
+  /**
+   * 0076 — THIS message asked for the buyer's data to be deleted: its own words
+   * said so (layer 1), or a reply to it promised the deletion (layer 2). Not an
+   * earlier request still unresolved — that one was written down when it came.
+   */
+  deletionAsked: boolean;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
@@ -745,6 +751,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     sampleRequested,
     hold,
     deletionPromiseWithheld,
+    deletionAsked: textOnlySignals.some((s) => s.kind === 'deletion_requested') || deletionPromiseWithheld !== null,
     timings, usage,
     fingerprint,
   };
@@ -759,6 +766,12 @@ export type TurnEffects = {
   draftCreated: { conversationId: ConversationId; draftId: string } | null;
   hotLeadAlert: boolean;
   handoffAlert: boolean;
+  /**
+   * 0076 — the owner is told THIS was a deletion request, in its own words and
+   * by e-mail as well as WhatsApp (notify.ts), instead of the ordinary hand-off
+   * alert. Absent on effects that predate it: false.
+   */
+  deletionAlert?: boolean;
   orderCreated: { orderId: string; orderReference: string } | null;
 };
 
@@ -858,6 +871,27 @@ export async function commitTurn(
   // Signals: persist fresh ones (idempotent per kind in the repo).
   for (const s of r.signals) {
     await tenant.signals.record(req.conversationId, s);
+  }
+
+  /*
+   * 0076 — THE REQUEST IS WRITTEN DOWN WITH THE HAND-OFF, not later by hand.
+   *
+   * The hand-off's reason is cleared when the conversation is handed back, so
+   * it cannot be the record: the buyer, this conversation, the message that
+   * asked and when are written here, in the turn's own transaction, whoever
+   * holds the conversation. The owner decides what happens on the buyer's page.
+   *
+   * The owner is told in its own words when it is new, and whenever the
+   * conversation was handed over because of one — not for a repeat into a
+   * conversation a person already holds.
+   */
+  let deletionAlert = r.decision.action.kind === 'handoff'
+    && r.signals.some((s) => s.kind === 'deletion_requested');
+  if (r.deletionAsked) {
+    const noted = await tenant.deletionAsks.note({
+      conversationId: req.conversationId, messageId: req.messageId, now: ports.now(),
+    });
+    deletionAlert ||= noted === 'noted';
   }
 
   // G11 — the language he writes in, remembered on him rather than re-derived
@@ -1141,6 +1175,7 @@ export async function commitTurn(
     draftCreated,
     hotLeadAlert: r.decision.hotLead,
     handoffAlert: r.decision.action.kind === 'handoff',
+    deletionAlert,
     orderCreated,
   };
 }

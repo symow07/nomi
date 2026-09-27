@@ -97,6 +97,23 @@ that buyer's page — one open request per buyer. **The 30-day clock starts at
 `asked_at`** — when the owner recorded it — and the dry run prints the date it
 is due. What is waiting:
 
+**A request made in a message is noted by itself (0076).** When a buyer's
+message asks for their data to be deleted, the hand-off writes a row in
+`deletion_asks` — the buyer, the conversation, the message and its time — and
+the owner is alerted. That row is a reminder, never an instruction: the tool
+below acts only on an OPEN `deletion_requests` row, which exists once the owner
+records it on the buyer's page. Recorded from a noted request, its `asked_at`
+is **when the buyer asked**, not when the owner pressed the button — so the due
+date may be close, or past, the day you first see it. Requests noted and not
+yet decided (the owner's to answer, not yours):
+
+```sql
+select id, business_id, client_id, conversation_id, asked_at, asks
+  from deletion_asks where state = 'waiting' order by asked_at;
+```
+
+What the owner has recorded, and is yours to carry out:
+
 ```sql
 select id, business_id, client_id, asked_at, asked_at + interval '30 days' as due, subject_note
   from deletion_requests

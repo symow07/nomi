@@ -229,8 +229,13 @@ import type { Db } from './client.js';
  *      signal. Against a 74 database that insert fails the CHECK, so the turn
  *      throws and the message dead-letters: nothing is sent — closed, as the
  *      owner wants — but the buyer never reaches "Needs you".
+ * 76 = a deletion request in chat is written down when it arrives (0076).
+ *      Every turn whose message asks writes `deletion_asks`, and the buyer's
+ *      page, Your data, Today and the Buyers list read it. Against a 75
+ *      database the turn throws on the missing table and the message
+ *      dead-letters; every owner page that reads it throws.
  */
-export const REQUIRED_SCHEMA_VERSION = 75;
+export const REQUIRED_SCHEMA_VERSION = 76;
 
 export type SchemaState = {
   readonly required: number;

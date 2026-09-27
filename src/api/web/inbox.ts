@@ -19,6 +19,9 @@ import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { waitingAskOf } from '../../db/deletionAsks.js';
+import { buyerDeletionOf } from './dataRights.js';
+import { deletionDueBy } from '../../core/ops/deletions.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -62,7 +65,7 @@ export const productName = (locale: Locale, p: { name: string | null; nameZh: st
  * consequence of something going wrong, so it appears only when it has
  * something to show. Same rule the shell applies to contextual destinations.
  */
-export type InboxFilter = 'pending' | 'all' | 'blocked' | 'mine';
+export type InboxFilter = 'pending' | 'all' | 'blocked' | 'mine' | 'deletion';
 type InboxStatus = 'awaiting' | 'paused' | 'done' | 'handled';
 
 export type ConversationSummary = {
@@ -87,6 +90,12 @@ export type ConversationSummary = {
   readonly awaitingReview: boolean;
   /** The stored problem-signal that caused the handoff. Never inferred. */
   readonly handoffReason: string | null;
+  /**
+   * 0076 — a deletion request noted from this conversation waits for the
+   * owner. It leads the list as its own group, whoever holds the conversation.
+   * Optional so a summary built before 0076 still types.
+   */
+  readonly deletionWaiting?: boolean;
   readonly latestMessage: string | null;
   readonly latestAt: Date | null;
   readonly product: { readonly name: string | null; readonly nameZh: string | null };
@@ -100,6 +109,8 @@ export type InboxList = {
   readonly mineCount?: number;
   /** M22 — conversations holding a message that never reached the buyer. */
   readonly blockedCount: number;
+  /** 0076 — conversations with a deletion request waiting for the owner. Absent = none. */
+  readonly deletionCount?: number;
   readonly waitingCount: number;
   readonly conversations: readonly ConversationSummary[];
 };
@@ -112,6 +123,14 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
   if (row.closed_at !== null) return { status: 'done', needs: false };
   return { status: 'handled', needs: false };
 }
+
+/**
+ * 0076 — a deletion request noted from this conversation, still waiting for
+ * the owner's decision. It needs the owner whoever holds the conversation —
+ * handing it back to the assistant does not answer it.
+ */
+const DELETION_WAITING = sql`exists (select 1 from deletion_asks a
+  where a.conversation_id = c.id and a.state = 'waiting')`;
 
 /**
  * A9 — "needs a person", in SQL, so the fifty-row window cannot hide one.
@@ -130,7 +149,8 @@ function statusOf(row: { pending: number; assigned_to: string | null; closed_at:
  * hand-off reaches a staff member, who has no phone.
  */
 const NEEDS_OWNER = sql`(c.assigned_to is not null
-  or exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending'))`;
+  or exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending')
+  or ${DELETION_WAITING})`;
 
 /**
  * M22 — holding a message that never reached the buyer. Was a second query and
@@ -157,6 +177,7 @@ export async function loadInboxList(
     const eligible = filter === 'pending' ? NEEDS_OWNER
       : filter === 'blocked' ? IS_BLOCKED
       : filter === 'mine' ? (viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`)
+      : filter === 'deletion' ? DELETION_WAITING
       : sql`true`;
     const rows = (await sql<{
       id: string; buyer: string | null; country: string | null;
@@ -164,7 +185,7 @@ export async function loadInboxList(
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null;
       is_active: boolean; pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
-      answered_by: string | null; assistants: number;
+      answered_by: string | null; assistants: number; deletion_waiting: boolean;
     }>`
       select c.id, cl.display_name as buyer, cl.country,
              coalesce(
@@ -178,7 +199,8 @@ export async function loadInboxList(
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
              q.unit_price_usd as unit_price, q.currency as quote_currency,
-             sig.kind as handoff_reason
+             sig.kind as handoff_reason,
+             ${DELETION_WAITING} as deletion_waiting
         from conversations c
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
@@ -198,7 +220,9 @@ export async function loadInboxList(
          -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
          -- fall out of the 50-row window. The sentinel comes from the ownership
          -- module, never a literal — one source of truth for what it means.
-         (case when c.assigned_to = ${WAITING_HUMAN_AGENT} and c.is_active then 0
+         -- 0076: a deletion request waiting for the owner leads, above every hand-off.
+         (case when ${DELETION_WAITING} then -1
+               when c.assigned_to = ${WAITING_HUMAN_AGENT} and c.is_active then 0
                when (select count(*) from drafts d where d.conversation_id = c.id and d.status = 'pending') > 0 then 1
                when lm.direction = 'inbound' and c.is_active then 2
                else 3 end),
@@ -216,6 +240,7 @@ export async function loadInboxList(
         answeredBy: r.assistants > 1 ? r.answered_by : null,
         awaitingReview: r.pending > 0,
         handoffReason: r.handoff_reason,
+        deletionWaiting: r.deletion_waiting,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         // G18 — in the currency the quote was made in. Rebuilding it as dollars
@@ -231,11 +256,12 @@ export async function loadInboxList(
     //
     // The predicates are the SAME sql fragments the list is selected with, so
     // a count and its tab can never disagree about what the word means.
-    const counts = (await sql<{ waiting: number; blocked: number; mine: number }>`
+    const counts = (await sql<{ waiting: number; blocked: number; mine: number; deletion: number }>`
       select count(*) filter (where ${NEEDS_OWNER})::int as waiting,
              count(*) filter (where ${IS_BLOCKED})::int as blocked,
-             count(*) filter (where ${viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`})::int as mine
-        from conversations c`.execute(tx)).rows[0] ?? { waiting: 0, blocked: 0, mine: 0 };
+             count(*) filter (where ${viewerId ? sql`c.assigned_to = ${viewerId}` : sql`false`})::int as mine,
+             count(*) filter (where ${DELETION_WAITING})::int as deletion
+        from conversations c`.execute(tx)).rows[0] ?? { waiting: 0, blocked: 0, mine: 0, deletion: 0 };
 
     // The rows are already the ones this tab asked for — the `where` above ran
     // before the window, which is the whole point of A9.
@@ -244,6 +270,7 @@ export async function loadInboxList(
       waitingCount: counts.waiting,
       blockedCount: counts.blocked,
       mineCount: counts.mine,
+      deletionCount: counts.deletion,
     };
   });
 }
@@ -534,6 +561,14 @@ export type ConversationDetail = {
    */
   readonly uncertainSends: readonly UncertainSend[];
   readonly handoffReasons: readonly string[];   // unresolved problem-signal kinds
+  /**
+   * 0076 — the deletion request noted from this buyer's message, while it waits
+   * for the owner; and one the owner already recorded. They outlive the
+   * hand-off's reason, which handing the conversation back clears. Optional so
+   * a detail built before 0076 (a fixture, the sandbox) still types.
+   */
+  readonly deletionAsk?: { readonly askedAt: Date } | null;
+  readonly deletionRecorded?: { readonly askedAt: Date } | null;
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
   /**
@@ -788,6 +823,9 @@ export async function loadConversationDetail(
       refusals,
       uncertainSends,
       handoffReasons,
+      deletionAsk: await waitingAskOf(tx, conversationId).then((a) => (a ? { askedAt: a.askedAt } : null)),
+      deletionRecorded: await buyerDeletionOf(tx, conversationId)
+        .then((r) => (r?.state === 'open' ? { askedAt: r.askedAt } : null)),
       unheardReason,
       unreadable,
       rate: await loadCurrentRate(tx, bid.value),
@@ -830,7 +868,7 @@ export function renderInboxList(
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   const tab = (f: InboxFilter) =>
-    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'mine' && (data.mineCount ?? 0) > 0 ? ` (${data.mineCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}</a>`;
+    `<a class="tab ${data.filter === f ? 'on' : ''}" href="/app/inbox?filter=${f}">${esc(t(locale, `inbox.filter.${f}` as MessageKey))}${f === 'pending' && data.waitingCount > 0 ? ` (${data.waitingCount})` : ''}${f === 'mine' && (data.mineCount ?? 0) > 0 ? ` (${data.mineCount})` : ''}${f === 'blocked' && data.blockedCount > 0 ? ` (${data.blockedCount})` : ''}${f === 'deletion' && (data.deletionCount ?? 0) > 0 ? ` (${data.deletionCount})` : ''}</a>`;
   // M22 — `blocked` is not a permanent tab. It appears when something did not
   // reach a buyer, or when the owner arrived here from Today's link, and
   // disappears again once there is nothing to show. An always-present tab that
@@ -840,7 +878,10 @@ export function renderInboxList(
   // single owner every conversation is hers, and a tab that filters nothing
   // is a tab that teaches her to ignore tabs.
   const showMine = people.length > 1;
-  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}</div>`;
+  // 0076 — like `blocked`: there while a deletion request waits for the
+  // owner, or when Today's row brought her here, and gone again after.
+  const showDeletion = (data.deletionCount ?? 0) > 0 || data.filter === 'deletion';
+  const tabs = `<div class="tabs">${tab('pending')}${tab('all')}${showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}${showDeletion ? tab('deletion') : ''}</div>`;
   const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
 
   if (data.conversations.length === 0) {
@@ -849,6 +890,9 @@ export function renderInboxList(
           <p class="muted">${esc(t(locale, 'inbox.empty.allGoodBody'))} <a href="/app/inbox?filter=all">${esc(t(locale, 'inbox.empty.seeAll'))}</a></p></div>`
       // M22 — nothing was refused. Stated as the fact it is; not a ✓, because
       // "no message failed" is the normal state and not an achievement.
+      : data.filter === 'deletion'
+      ? `<div class="empty">${esc(t(locale, 'inbox.empty.deletion'))}
+          <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : data.filter === 'blocked'
       ? `<div class="empty">${esc(t(locale, 'refused.none'))}
           <div>${deeper('/app/inbox?filter=all', t(locale, 'inbox.empty.seeAll'))}</div></div>`
@@ -862,9 +906,15 @@ export function renderInboxList(
   // Phase D — an owner thinks in people, and the question that orders them is
   // "who is speaking now?". Grouped through the ONE ownership model, never by an
   // internal status code.
-  const needsYou = data.conversations.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
-  const yours    = data.conversations.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
-  const hers     = data.conversations.filter((c) => !needsYou.includes(c) && !yours.includes(c));
+  //
+  // 0076 — a buyer who asked for their data to be deleted is not one more
+  // hand-off in the pile: their own group, first and always headed, whoever
+  // holds the conversation, until the owner decides on the buyer's page.
+  const deletion = data.conversations.filter((c) => c.deletionWaiting === true);
+  const rest     = data.conversations.filter((c) => !deletion.includes(c));
+  const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
+  const yours    = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
+  const hers     = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
 
   const badge = (c: ConversationSummary): string => {
     if (c.ownership === 'WAITING_HUMAN') {
@@ -914,7 +964,12 @@ export function renderInboxList(
       ${heads ? `<h2 class="bgroup-h">${esc(label)}</h2>` : ''}
       <div class="list">${items.map(row).join('')}</div></section>` : '';
 
+  const deletionGroup = deletion.length ? `<section class="bgroup">
+      <h2 class="bgroup-h">${esc(t(locale, 'buyers.group.deletion'))}</h2>
+      <div class="list">${deletion.map(row).join('')}</div></section>` : '';
+
   return `${title}${tabs}
+    ${deletionGroup}
     ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
     ${group(t(locale, 'buyers.group.yours'), yours)}
     ${group(t(locale, 'buyers.group.hers', { name }), hers)}
@@ -1318,15 +1373,26 @@ export function renderConversationDetail(
   /**
    * 0075 — the buyer asked for their data to be deleted. The same three parts:
    * nothing went and a person answers; why nothing about it may be promised in
-   * the chat; what to do — record it in the deletion section of the buyer's page
-   * (CC-02, `#deletion`), then reply in person. Recording is the owner's; staff
+   * the chat; what to do — decide in the deletion section of the buyer's page
+   * (CC-02, `#deletion`), then reply in person. Deciding is the owner's; staff
    * are told so, where the page itself would tell them.
+   *
+   * 0076 — the card outlives the hand-off. Handing the conversation back
+   * clears the hand-off's reason, not the request: while one noted from this
+   * buyer's message waits, the card stays and says when it was noted; once the
+   * owner recorded one, a new ask says it is already recorded, and by when.
    */
-  const deletionCard = d.handoffReasons.includes('deletion_requested')
+  const deletionAsked = d.handoffReasons.includes('deletion_requested');
+  const deletionCard = deletionAsked || d.deletionAsk
     ? `<div class="card refused">
         <h3 class="rf-h">${esc(t(locale, 'deletionAsked.title'))}</h3>
         <div class="rf">
-          <div class="rf-w">${esc(t(locale, 'deletionAsked.what', { name: assistantName(locale) }))}</div>
+          ${deletionAsked ? `<div class="rf-w">${esc(t(locale, 'deletionAsked.what', { name: assistantName(locale) }))}</div>` : ''}
+          ${d.deletionAsk
+            ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.noted', { date: formatDate(locale, d.deletionAsk.askedAt) }))}</div>`
+            : d.deletionRecorded
+              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { due: formatDate(locale, deletionDueBy(d.deletionRecorded.askedAt)) }))}</div>`
+              : ''}
           <div class="rf-y muted">${esc(t(locale, 'deletionAsked.why'))}</div>
           <div class="rf-d">${viewer.isOwner
             ? `<a href="/app/conversations/${encodeURIComponent(d.conversationId)}#deletion">${esc(t(locale, 'deletionAsked.do'))}</a>`
