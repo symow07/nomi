@@ -431,7 +431,7 @@ quantity and a price into one run; the tag is the shell's row tag; the deal
 box's quiet button is visible again. The calendar's kind wears the neutral
 tag; Log out is Setup's last row and a button; the channels page's states
 line up (the row family's grid, not the page). Screenshots in
-`docs/design/v1-closeout/` (en · zh · ar, phone; desktop for four).
+`docs/design/v1-closeout/` (en · zh · ar at 390 px; five at 1280).
 
 ### 5 · The row — DECIDED
 
