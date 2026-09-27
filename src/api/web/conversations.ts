@@ -33,7 +33,11 @@ type RelStatus =
   | { readonly t: 'awaiting' } | { readonly t: 'order'; readonly s: string } | { readonly t: 'closed' }
   | { readonly t: 'quoted' } | { readonly t: 'phase'; readonly s: string } | { readonly t: 'talking' };
 
-const truncate = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…` : s);
+/** The first `n` characters — counted as characters, so an emoji is never cut in half. */
+const truncate = (s: string, n: number): string => {
+  const chars = Array.from(s);
+  return chars.length > n ? `${chars.slice(0, n).join('')}…` : s;
+};
 /** D3 — the channel's name, read in one place (`inbox.ts`); named here too, where it was first. */
 export { channelName };
 

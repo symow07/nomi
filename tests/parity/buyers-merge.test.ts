@@ -183,6 +183,13 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
     expect(b).toContain(esc(t('en', 'conv.answeredBy', { who: 'Noor' })));
   });
 
+  it('the glimpse of a long message is cut by characters — never through an emoji', () => {
+    const long = `${'a'.repeat(89)}😀 and the rest`;
+    const h = html('en', { conversations: [conv('c-long', { latestMessage: long })] });
+    expect(h).toContain(`<bdi>${'a'.repeat(89)}😀</bdi>`);
+    expect(h).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  });
+
   it('a row with no message yet shows no speaker and no empty line', () => {
     const { lastFrom: _none, ...fresh } = conv('c-new', { latestMessage: null, latestAt: null });
     const h = html('en', { conversations: [fresh], channels: 1 });

@@ -871,6 +871,12 @@ export const buyerWho = (locale: Locale, buyer: string | null, country: string |
 export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
 
 /**
+ * The row's glimpse of the last message: its first ninety characters, counted
+ * as characters — cutting by UTF-16 units split an emoji into a broken glyph.
+ */
+const preview = (text: string): string => Array.from(text).slice(0, 90).join('');
+
+/**
  * A — an address on the Buyers list that keeps what the owner is looking at:
  * the tab, the search, the page. The search is written as typed; only the five
  * characters that would change what the address means are escaped, so a name
@@ -1048,7 +1054,7 @@ export function renderInboxList(
     return `<a class="buyer${c.unanswered ? ' unanswered' : ''}" href="${conversationUrl(c.conversationId)}">
       <div class="buyer-top"><span class="who">${buyerWho(locale, c.buyer, c.country)}</span>${badge(c)}</div>
       ${detail ? `<div class="buyer-d muted">${detail}</div>` : ''}
-      ${c.latestMessage ? `<div class="buyer-m voice" dir="auto"><bdi>${esc(c.latestMessage.slice(0, 90))}</bdi></div>` : ''}
+      ${c.latestMessage ? `<div class="buyer-m voice" dir="auto"><bdi>${esc(preview(c.latestMessage))}</bdi></div>` : ''}
       ${meta ? `<div class="buyer-t muted">${meta}</div>` : ''}
     </a>`;
   };
