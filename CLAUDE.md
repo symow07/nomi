@@ -1,9 +1,9 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after #107 — "wants a person" no longer fires on
-the buyer's own manager; before it, #105 wrote a deletion request down when it
-arrives (0076) on top of #102's silent hand-off (0075). Written so the next
-session needs nothing from the one that wrote it.
+Last updated **2026-09-28**, after the "clear the queue" batch (#110–#113):
+"wants a person" in two layers (0077), Buyers and Customers one list with
+search and paging (A), V1 closed, live refresh (CC-26) and the audit's last
+items. Written so the next session needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -75,16 +75,20 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 ## 3 · Verification set (run all four before a PR)
 
 ```bash
-env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2560 unit
+env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~3040 unit
 npm run trust                                                 # 40/40 golden scenarios (43 tests)
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
-  node tools/run-integration.mjs                              # ~806, none skipped, ~3 min
+  node tools/run-integration.mjs                              # ~862, none skipped, ~5 min
 ```
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
-(12/12) with the same two DB vars, **before and after**. Never run it while
+(12/12) with the same two DB vars, **before and after**. For anything touching
+the analysis prompt or the model (`LLM_MODEL` / `LLM_BASE_URL`), also the live
+check, before and after: `npm run build && railway run --service nomi -- node
+tools/check-person-model.mjs` — a model that stops answering `wants_person`
+hands EVERY analysed turn to a person (§5 rule 19). Never run it while
 the integration suite runs (both start pg-boss workers on the same queues).
 
 The integration runner prunes earlier runs' tenants **and their queued pg-boss
@@ -98,20 +102,19 @@ before suspecting code.
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
 
-## 4 · What is live (production, 2026-09-27)
+## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** `09fd109` (merge of #107, "wants a person" split by whose
-  manager it is; no migration). Before it `0c8e0ac` (#105, 0076).
-  `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
-  production `schema_version` = **76**; no business is stopped and no silence
-  flag is on; exactly one business has `outreach_area` on. Backup before
-  0076: `nomi-backup-20260927T030454Z` (9.3 h, drill passed; PITR on).
+- **Deployed:** `079d776` (merge of #113, the audit's last items). Before it
+  #112 (CC-26), #111 (A + the V1 close-out), #110 (0077, "wants a person" in
+  two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
+  production `schema_version` = **77**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0077:
+  `nomi-backup-20260927T030454Z` (16.3 h, drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 76. Last three: `0074 app_errors`, `0075 deletion_handoff`,
-  `0076 deletion_asks`.
+- **Schema:** 77. Last three: `0075 deletion_handoff`, `0076 deletion_asks`,
+  `0077 not_answered`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -140,6 +143,13 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 114 | CLAUDE.md handoff; ROADMAP §2b; the usability script after A |
+| 113 | **The audit's last items** — see §6 |
+| 112 | **CC-26 live refresh** — see §5 rule 21 |
+| 111 | **A: Buyers and Customers are one list, searched and paged; the V1 close-out** — decision 5 (the row stays), stylesheets served as files, one `<style>` left on purpose; see §5 rule 20 |
+| 110 | **"Wants a person" in two layers; a message nobody could read goes to a person** (0077) — see §5 rule 19; `tools/check-person-model.mjs` |
+| 109 | Batch prep: the `not_answered` reason's words; the person-request test in its own folder |
+| 108 | CLAUDE.md handoff |
 | 107 | **"Wants a person": the buyer's own manager is not a request for a person** — see §5 rule 19; plus the usability seed's freshest conversation is always today's (the Monday-00:12 flake) |
 | 106 | CLAUDE.md handoff |
 | 105 | **The deletion request is written down when it arrives, and has its own alert** (0076) — see §5 rule 18 |
@@ -258,79 +268,76 @@ Recent PRs, newest first:
    - Layer 1, before any model: `asksForDeletion` — a deletion verb with the buyer's OWN data as its object, or a fixed phrase (right to be forgotten / 被遗忘权 / الحق في النسيان); en/zh/ar + fr/es/pt/de/ru/tr. It is the `deletion_requested` signal (problem 100): the turn is gated, handed off, and the hand-off sends nothing — not `HANDOFF_REPLY`, not a receipt (`answerPath: 'silent'`). Any unresolved request keeps later hand-offs silent.
    - Layer 2, the reply: `promisesDeletion` on every writer attempt and the final reply (taught answers, stand-ins too). A promise is thrown away and the turn re-decided as the same silent hand-off, in auto AND draft; no quote is recorded; a `deletion_promise_withheld` event keeps the words.
    - Precision is the point: `tests/parity/deletion-requests.test.ts` holds 43 requests and 45 passing mentions, and 19 promises and 13 non-promises for the reply net ("delete that line from the quote", "remove my email from the cc", 我的邮箱写错了，删掉重发, احذف السطر من عرض السعر…). A new phrasing goes into that file with its reason, never into the patterns alone.
-   - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is the ordinary hand-off alert.
+   - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is its own since #105 (below).
    - Not covered, by design: while the assistant is stopped or silenced a request shows under that reason (the worker hands over before any turn); a request in words neither layer knows, answered by a reply that promises nothing ("I'll pass that on"), still goes out; languages outside the nine. Handing the conversation back resolves the signal like every hand-off — record the request first.
    - Tests: `tests/pipeline/deletion-handoff.test.ts`, 7 golden scenarios (40 in all; the pin is `factory-rehearsal.test.ts`), `tests/parity/deletion-handoff-page.test.ts`, `tests/integration/deletion-handoff.test.ts` (production composition, en/zh/ar). Each layer switched off fails its own tests.
    - **0076 — written down when it arrives** (`src/db/deletionAsks.ts`, table `deletion_asks`). The hand-off writes the buyer, the conversation, the message that asked and its time, in the turn's transaction, whoever holds the conversation — and on the paths where no turn runs (stopped, paused, unlisted number, e-mail reply: `handToPerson(…, said)`). The REMINDER, never the action: `erase-buyer` acts only on an open `deletion_requests` row. One waiting per buyer: a repeat is counted (`asks`), the first time kept; after the owner recorded one, nothing new is noted. The owner decides on the buyer's page: record it (no note; `asked_at` = when the buyer asked) or "not a deletion request" (`deletion_dismissed` on the audit trail). Handing back clears the hand-off's reason, never this row.
    - **Its own alert** `deletion_requested` — never the generic hand-off's — sent when a request is new or the conversation was handed over because of one; delivered like the operator alerts (e-mail to the sign-in address always, WhatsApp where live; `goesByMail`). It names no deadline: the only one stored is Nomi's 30 days, which starts when the owner records it and is shown there.
    - **Its own thing wherever hand-offs are listed:** the conversation card stays while it waits (with the date); the Buyers list leads with a headed group and a `filter=deletion` tab; Today's second attention row (under "did not reach the buyer"); Your data lists it first. The erasure tools erase it with the buyer (`deletion_asks: erase`).
    - The "account manager" exception (one of the 45 passing mentions handed off by the "wants a person" list) is gone since #107: all 45 are answered as usual, and the turn test now demands it.
-19. **"Wants a person" — "manager" split by whose it is** (the owner's decision, 2026-09-28; `asksForPerson`, `src/core/scoring/detect.ts`).
-   - The buyer's own — "my / our … manager" (≤ 2 words between, never "your / to / with / for"), "I'm the … manager", "the … manager at / of my / our" — is NOT a hand-off. Every other mention still is, including the ambiguous "the manager approved it": a missed hand-off loses a buyer, a wrong one costs the owner a minute — that asymmetry decides close calls.
-   - "Someone in charge" / "the person in charge" / "your person in charge" hand off (added: the owner named it as the seller's side), unless "… in charge at / of my / our …".
-   - Reported, NOT changed (the owner's to decide), pinned in `tests/parity/person-request.test.ts`: own-side hand-offs from 'speak to someone', 'speak to a person', 'call me' ("you can call me Ahmed"), 'real person', 'التحدث مع شخص', '找真人'; other meanings: 'human' (human hair), 'اريد احد' (inside «احدث»), '找人工' (labour cost); misses: 'talk to someone', 'speak with a person', Arabic typed with the hamza («أريد أحدًا»), and no Chinese or Arabic word for a manager at all ("我要找你们经理", «أريد التحدث مع مديركم» never hand off).
+19. **"Wants a person", in two layers** (the owner's direction, 2026-09-28; 0077; `src/core/scoring/detect.ts`, `prompts/analysis.txt`).
+   - **Layer 1, before any model — `asksForPerson`:** unambiguous requests only. A request's frame around a person who can only be the seller's: "can I talk to …", "I'd like to speak with …", "put me through to …", "please call me", 转人工 / 人工客服 / 你们经理, «أريد التحدث مع …» / «مديركم» / «حولني على موظف». Normalised like the deletion check (NFKC, case, Arabic hamza and diacritics, ی/ک). Never: bare "human" ("human hair"), 找人工 / 人工成本, «احدث», "call me Ahmed", a person followed by the buyer's own side ("in my team", «في شركتي»), a negation (不用转人工, «لا أريد»). #107's manager split stands: the buyer's own manager is not a hand-off; an ambiguous English "the manager …" still is.
+   - **Layer 2, the analysis the turn already makes:** `wants_person` → `Analysis.wantsPerson`, read after the analysis and BEFORE the writer. `true` → `human_requested` (the ordinary sentence); `false` → nothing; **`null` (unreadable, or JSON that does not parse) → `not_answered`, a SILENT hand-off**; absent (scripted analysers) → nothing. Ambiguous means hand off.
+   - **Failure:** the analysis request is `{ timeout 30 s, maxRetries 1 }`; a turn that still fails is retried by the queue, and a dead-lettered inbound job hands its conversation to a person as `not_answered` with the ordinary alert (`handOverUnanswered`, `src/pipeline/received.ts`; the worker's dead-letter handler).
+   - **Live, on the production provider (deepseek-flash, 2026-09-28):** the owner's sentences both ways in en/zh/ar all as intended, none unreadable; median +39 ms. Of the 45 deletion passing mentions, «أرسل رقمي إلى المندوب» (4/4 runs) and 把我的号码加到群里 (3/4) come back as wanting a person — the ordinary hand-off, kept. Re-run `tools/check-person-model.mjs` (§3) whenever the model or the prompt changes.
+   - Identity questions ("are you a bot?") no longer hand off by the word "human": they are answered, with the disclosure (rule 3), unless the buyer also asks for a person.
+   - Tests: `tests/person/person-request.test.ts` (the corpus, per layer), `tests/pipeline/{person-handoff,analyzer-wants-person,unanswered}.test.ts`, `tests/integration/person-request.test.ts`. Layer 1, layer 2 and `not_answered` each switched off fail their own tests.
+20. **Buyers is ONE list** (A, #111, 2026-09-28; `src/db/buyersList.ts`).
+   - `/app/inbox`: the tabs (Needs you, All, Mine, Did not send, Deletion requests); search `q` over the name, the phone / e-mail / handle (a number matched on its digits) and the product in en/zh — never message text (that needs a full-text index: a migration); keyset paging, 50 a page (`after` / `before` = `<rank>_<µs|n>_<uuid>`), ranked by the page's own groups (deletion → waiting for a person → a reply to review → held by a person → the assistant's), so everyone who needs the owner is on page 1; "51–100 of 312"; the counts are of everything (A9); a stale cursor is the first page.
+   - `/app/conversations` → 302 `/app/inbox?filter=all` (or `?q=`); the buyer's page `/app/conversations/:id` stays and lights Buyers (`MERGED_INTO_BUYERS`). The row is decision 5's: name, last message, time.
+   - Tests: `tests/parity/buyers-merge.test.ts`, `tests/integration/buyers-merge.test.ts`.
+21. **A page left open says when something new arrived** (CC-26, #112; `src/api/web/live.ts`, `liveScript.ts`).
+   - The conversation page, Buyers and Today are drawn with a MARK, read before the page; the page asks `GET /app/live/{conversation/:id,buyers,today}?since=<mark>` every 20 s while the tab is visible (`EVERY`), and the server compares marks — the browser's clock decides nothing. Poll, not server-sent events (one process on Railway, every deploy drops a stream, and nothing would push). Session + RLS; another business's conversation is 404; signed out, 401 and the script stops.
+   - One quiet line (a polite live region, the line itself the door — the conversation lands at `#latest`); never a reload. Typed words are kept in the tab's `sessionStorage`, per conversation and box, and forgotten when sent and on sign-out; CC-24's kept words stay the box's first text. The buyer's page does not watch.
+   - The app's ONE script, `/assets/live.<hash>.js`, served like the stylesheets (`assetAt`, `layout.ts`); every page works without it. Tests: `tests/parity/live-refresh.test.ts`, `tests/integration/live-refresh.test.ts`; the endpoint, the script's link and the kept words each switched off fail their own tests.
 
 ## 6 · What's next
 
-**The 2026-09-27 batch** (the owner's order, ahead of the queue below): Phase 4
-(#81, #82), V2 (#83) and the site (#80) shipped. Open from it:
-- **DNS is the owner's** — `docs/SITE-DNS.md` (Railway custom domain
-  `www.nomidoes.com`, `SITE_HOSTS`, GoDaddy www CNAME + apex forwarding; never
-  touch MX/SPF/`app`). Until then the site is only at `/site`.
-- Owner decisions still open: CC-28 open vs invite sign-up; the site's zh/ar copy
-  wants a native read; "Ready to go live" on My business still says "Connect
-  WhatsApp" (it is WhatsApp activation — send path); KB 01 still says 连 WhatsApp.
-- V2's category chip becomes V1's row tag when decision 5 lands.
-- Two test flakes are fixed at the cause, not retried: the reachability
-  checker now flushes before it exits (#85), and no test writes into the
-  tree the others read (#87, `tests-leave-the-tree-alone.test.ts`).
-- Builder worktrees under `.claude/worktrees/` are picked up by vitest and
-  inflate every count ×4 — move them out (`git worktree move`) before verifying.
+**The 2026-09-28 batch — "clear the queue"** (the owner's order): Task 1
+"wants a person" in two layers (#110, rule 19); Task 2 A and the V1 close-out
+(#111, rule 20); Task 3 CC-26 live refresh (#112, rule 21); Task 4 the audit's
+last items (#113); Task 5 housekeeping — the `backup` service's unread
+`RETENTION_DAYS` deleted, iCloud's `.git/index 2` moved to the scratchpad.
+- Task 4 closed **CC-13** (the locale's own punctuation; a figure and its unit
+  spaced once — `formatQtyUnit`: "5,000 pcs", "5,000 قطعة", "5000个"), **CC-14**
+  (the business's name in the rail, "Nomi" under it), **CC-20** (skip link,
+  `aria-current` on every tab set, one `h1` per page, field errors as alerts;
+  `waiting` `#A64C08` and `highlight` `#7F6400` now clear 4.5:1 on their wash —
+  Symow may pick other values that do), **CC-29** (17 more destructive actions
+  confirm with `data-confirm`; the one-tap ones left are named in
+  `tests/parity/audit-closeout.test.ts`) and **CC-31** (a SKU the import made up
+  is never shown; `src/core/owner/sku.ts`). **CC-09** needs nothing more in code.
 
-The queue is `docs/ROADMAP.md` §2b (written 2026-09-24). In order: the owner
-runs the usability script → **V1 visual design pass** (Symow directs, Claude
-Code implements) → **A** → **V2 calendar view** → Phase 4 permissions and
-first-run → Phase 5 marketing site → Phase 6 billing, then Meta Tech Provider.
-**V1 is in progress.** Decisions 1–4 are in the brief's §8 (Symow,
-2026-09-24); decision 5, the row, waits for the usability session. Step one
-(tokens, #64) and step two (one stylesheet + the components page, #66)
-shipped, and step three (the shell, #68) too: the phone nav is sticky and
-compacts through a CSS scroll timeline (no script — measured in
-`docs/design/v1-step3/`), the name band scrolls away, the mark is the
-product's, the Setup count sits with its word. **Option A built** (brief
-§11): no header band on any width; the language switch and log out are
-Setup's first rows; the login page keeps its switcher; `header.stage`
-retired. Chrome at rest on a phone is the nav row alone.
-**Step four is under way:** pages retire their `<style>` blocks onto the
-shell's families (brief §8, decision 4). Done as far as it goes without decision 5:
-baseline 40 → **6** (`tools/style-baseline.json`). The six: the shell's
-own three `<style>` tags in `layout.ts` (the shell, the login door,
-`publicDocument()` — which the legal, unsubscribe and proof pages now
-share), Buyers' two (`inbox.ts`) and Customers' one (`conversations.ts`),
-which wait on decision 5 (the row). Every other page's rules sit in
-`STYLE_PAGES` in `layout.ts` under a `/* ── <file>.ts` section, names
-unchanged, defined once — served with the shell only; the login door and
-`publicDocument()` carry the base `STYLE` alone (an owner page is ~60 KB of
-HTML now, the door 32 KB as before).
-Page tests no longer read a page's own `<style>`: they assert the page is
-bare and, where they must, read the shell's section from `layout.ts`
-(factory.test.ts shows how).
-**The V1 review** (`docs/DESIGN-V1-REVIEW.md`) found five things; all five
-and the plainly-wrong extras were fixed the same day (the `.who` column
-became `.person`; no face anywhere; products a dense list with marks only
-for what is NOT fine; `.stats/.rows` keep the prose measure; `dir="auto"`
-on speech; titles on Today, Practice, Knowledge; one door idiom, the next
-step marked `deeper next`). Still open, behind decision 5: "Log out" on
-Setup, channels' trailing pills.
+Still the owner's, from before:
+- **DNS** — `docs/SITE-DNS.md` (Railway custom domain `www.nomidoes.com`,
+  `SITE_HOSTS`, GoDaddy www CNAME + apex forwarding; never touch MX/SPF/`app`).
+  Until then the site is only at `/site`.
+- CC-28 open vs invite sign-up; the site's zh/ar copy wants a native read;
+  "Ready to go live" on My business still says "Connect WhatsApp" (it is
+  WhatsApp activation — send path); KB 01 still says 连 WhatsApp.
+- Builder worktrees under `.claude/worktrees/` are picked up by vitest and
+  inflate every count ×4 — keep them outside the checkout (the scratchpad).
+
+**V1 is done** (`docs/DESIGN-V1-BRIEF.md`; decisions 1–4 Symow, 2026-09-24;
+decision 5, 2026-09-28: **the row stays** — name, last message, time — to be
+revisited after real daily use). Every owner page and the door link one
+content-hashed stylesheet (`/assets/app.<hash>.css`, `/assets/door.<hash>.css`,
+`assetAt` in `layout.ts`, cached for good; an older hash gets this build's text,
+not cached). The ONE `<style>` left is `publicDocument()`'s (legal,
+unsubscribe, proof, site), on purpose: those pages must arrive complete with
+nothing to fetch (`legal-pages.test.ts`, `m40-unsubscribe.test.ts`);
+`tools/style-baseline.json` = 1. Page tests read CSS through the links
+(`tests/parity/linked-css.ts`); the served sheets and the script are scanned
+for banned words. Log out is Setup's last row, a button (`POST /logout`).
 Recurring traps: a CSS comment or class name ships to the browser and is
-scanned (no "token", no "stack", no "%"); a page never paints its own
-notice (`flashBanner`); `<a class="btn">` is still common — the
-buttons-versus-doors rule is not tested yet. **The V1 brief for Symow is `docs/DESIGN-V1-BRIEF.md`**
-(tokens, where styling lives — 40 page-level stylesheets, 37 classes defined
-twice — the component inventory, 27 surfaces, what the screenshots show, the
-five decisions in the shape the implementer needs). Reference screenshots in
-`docs/design/v1-before/`; the full set is `node tools/screenshots.mjs` on a
-local instance (its login was fixed 2026-09-24).
+scanned (no "token", no "stack", no "%"); a page never paints its own notice
+(`flashBanner`); `<a class="btn">` is still common — the buttons-versus-doors
+rule is not tested yet. Screenshots: `docs/design/v1-closeout/`,
+`docs/design/live-refresh/`; the full set is `node tools/screenshots.mjs` on a
+local instance.
+
+The queue (`docs/ROADMAP.md` §2b) is down to: the owner runs the usability
+script, then Phase 6 billing, then Meta Tech Provider (M52 last, always).
 
 **The usability session** (top of the queue, the owner runs it): two commands
 prepare the local workspace — `bash .claude/skills/run-nomi/smoke.sh`, then
@@ -340,11 +347,6 @@ Login: "I have an access code" → `smoke-code`. The doc has the three ways a
 local instance differs. Never host the 55451 integration cluster in
 `/tmp/yf-run`: `smoke.sh` wipes it (it did, 2026-09-24; rebuilt in the
 session scratchpad — see memory `local-integration-postgres`).
-
-**A — merge Buyers into Customers** (keep the name "Buyers"), with search and
-paging. Spec: `docs/IA-PROPOSAL.md` §A. `/app/conversations` then redirects
-to `/app/inbox`; the hub map's `/app/conversations` group moves with it.
-Styled in V1's language, so it comes after V1.
 
 D shipped (see §4). What it did, for orientation: `src/api/web/layout.ts`
 (NAV, `CONTEXTUAL_ROUTES_BY_HUB`, `OUTREACH_PREFIXES`), `src/db/workspace.ts`
@@ -361,6 +363,12 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - **"Wants a person": the buyer's own manager is not a hand-off** (#107, rule 19). The other words' problems were reported and left for the owner.
 - **…written down when the hand-off fires, with its own alert** (#105). Claude's calls, reported: a repeat while one waits REUSES it (counted; the first time is when it was received); a waiting request shows on Today (second row); the alert names no date (none is stored before the owner records it).
 
+**Owner decisions and Claude's calls, 2026-09-28**
+- **Decision 5: the row stays as it is** (name, last message, time); revisit after real daily use.
+- **"Wants a person" in two layers** (rule 19). Claude's calls, reported: the model's layer sits inside the analysis, before any reply; an unreadable answer or a failed turn is a SILENT hand-off (`not_answered`), like an unheard voice note; the analysis gives up after 30 s and one retry; latency measured live +39 ms median; identity questions are answered with the disclosure rather than handed off; the two live hand-offs among the 45 passing mentions are kept.
+- **A** (rule 20): "unread" is not recorded anywhere, so the row says who wrote last (a real per-person "seen" is a migration); search leaves message text out (a full-text index is a migration); Customers' VIP-first order is dropped (only the demo seed set VIP); the relationship pill stays on the buyer's page, not the row. Arabic `common.buyer` is مشترٍ now (was عميل), for the native read.
+- **CC-26** (rule 21): 20 s is one constant (`EVERY`); Buyers' line also fires on the assistant's own replies (the list does change — it may be noisy in auto mode); a "this conversation has changed" line when it is handed over, taken or a send is refused; the line is its own door.
+
 **Parked / owner's to unblock**
 - Native review of the zh/ar disclosure (gates all autonomy).
 - The live workspace confirming its assistant's name (in progress 2026-09-23;
@@ -373,6 +381,16 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - Buyer-facing fixed sentences in `src/core/conversation/fastpath.ts` address
   the buyer in the Arabic masculine («تحتاج»). They are on the send path and
   were left alone in the pronoun PR.
+- **Found, not fixed (send path, needs a decision):** Stop pressed while a
+  buyer's batch is still waiting fails the hold path — `markFragmentsProcessed`
+  writes `processed_in`, which references `turns`, and the hold path writes no
+  turn. The job dead-letters and, since #110, the buyer reaches "Needs you" as
+  `not_answered` about five minutes later instead of as "stopped". Fix: a turn
+  row for the hold, leave the lines pending, or a schema change.
+- In Chromium on macOS (the screenshots, desktop Chrome) English renders in
+  PingFang SC: the font stack starts with `-apple-system`, which Chromium does
+  not match (hyphens look wide). `system-ui` after it would fix it — type is
+  Symow's to decide.
 
 ## 7 · Where things are
 
@@ -387,4 +405,6 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - Design tokens only (`src/api/web/layout.ts`); a state colour needs a
   state-named class (`tests/parity/shell.test.ts`). Inline CSS comments ship to
   the browser — they're scanned too.
+- The Buyers list: `src/db/buyersList.ts`. The live line: `src/api/web/live.ts`, `liveScript.ts`.
+  Static files (stylesheets, the one script): `assetAt` in `layout.ts`, route `/assets/:file`.
 - Local Postgres: port 55451 (see memory "local-integration-postgres").

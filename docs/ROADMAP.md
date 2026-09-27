@@ -2304,11 +2304,12 @@ above it has shipped.
 | Phase 2 | Her data, out and gone (0064) | ✅ 2026-09-21 |
 | Phase 3 | The IA restructure (`docs/IA-PROPOSAL.md`): A9, B + C, D | ✅ PRs #44, #46, #54 (2026-09-21 → 23). **A** remains, below |
 | — | The usability script (`docs/USABILITY-SCRIPT.md`) | The owner runs it before A. What stalls feeds V1 and A |
-| **V1** | **The visual design pass** — a design system for the app | Before A, so the merged list is styled once |
-| Phase 3 · A | Merge Buyers into Customers, keep the name "Buyers"; search and paging | After V1, in its language |
+| **V1** | **The visual design pass** — a design system for the app | ✅ steps one to four #64–#78, closed #111 (2026-09-28): decision 5 settled (the row stays), stylesheets served as files, one `<style>` left on purpose (`publicDocument()`) |
+| Phase 3 · A | Merge Buyers into Customers, keep the name "Buyers"; search and paging | ✅ #111 (2026-09-28) — `/app/conversations` redirects to `/app/inbox`; keyset paging by the page's groups |
 | **V2** | **The calendar view** — a timeline over dates the data already holds | ✅ #83 (2026-09-27), built ahead of A at the owner's call; its rows link to `/app/inbox/:id` and move with A |
 | Phase 4 | Permissions and first-run | ✅ #81, #82 (2026-09-27) — CC-04/A10, CC-07, CC-08, CC-11/A4, CC-15, CC-27, F2, F3, F4. Open: CC-28 (owner) |
 | Phase 5 | nomidoes.com, the marketing site | ✅ built #80 (2026-09-27), served by the app; live at `/site`; the domain waits on the owner's DNS (`docs/SITE-DNS.md`) |
+| — | The audit's last items: CC-26 live refresh (P1), CC-09, CC-13, CC-14, CC-20, CC-29, CC-31 | ✅ #112, #113 (2026-09-28); what needs the owner is in CLAUDE.md §6 |
 | Phase 6 | Billing, then Meta Tech Provider review | M52 stays last, always |
 
 V2 sits after A rather than straight after V1 because its entries are per
@@ -2316,7 +2317,7 @@ buyer and open the buyer's conversation; building it against a list that A is
 about to replace would style and link it twice. Moving it later costs
 nothing; moving it earlier does.
 
-### V1 — The visual design pass · QUEUED, before A
+### V1 — The visual design pass · DONE (closed #111, 2026-09-28)
 
 Everything so far has been structure. M49 fixed the measure, the rhythm and
 the two voices; Phase 3 fixed where things live. Nothing has yet been
