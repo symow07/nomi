@@ -243,6 +243,7 @@ roles file restores with RLS enabled and zero policies. See
 | [docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md) | Backup that actually restores |
 | [docs/GO-LIVE.md](docs/GO-LIVE.md) | Turning messaging on, and off again |
 | [docs/OPS-RUNBOOK.md](docs/OPS-RUNBOOK.md) · [docs/INCIDENT-PLAYBOOK.md](docs/INCIDENT-PLAYBOOK.md) | Running it, and when it breaks |
+| [docs/MONITORING.md](docs/MONITORING.md) | How you hear that it broke: error alerts, and the uptime heartbeat |
 | [docs/SECRET-ROTATION.md](docs/SECRET-ROTATION.md) | Rotating credentials |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is next |
 

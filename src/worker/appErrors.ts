@@ -34,7 +34,7 @@ import { QUEUES, type NotifyJob } from '../queue/boss.js';
  * not reported either (`isAppErrorAlertJob`).
  */
 
-/** The repository root, whichever tree this runs from: src/ under the tests, dist/ in production. */
+/** The repository root — two up from src/worker/ under the tests, from dist/worker/ in production. */
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
