@@ -78,6 +78,25 @@ const PHASES_SET = new Set<Phase>([
   'commercial_discussion', 'confirmation', 'escalated', 'closed',
 ]);
 
+/**
+ * How long ONE analysis request may take before it is given up — 2026-09-28,
+ * when the analysis started deciding whether a buyer wants a person.
+ *
+ * The SDK's default is ten minutes, and the call is made inside the turn's
+ * transaction, holding the conversation's lock, on a worker that takes one
+ * message at a time (pg-boss's default): one hung request held every buyer's
+ * message for up to half an hour (ten minutes, retried twice). An answer takes
+ * a few seconds (Haiku writes this JSON in under five; a slower provider in
+ * well under thirty), so thirty seconds, and ONE quick retry for a request
+ * that failed outright (the SDK's own backoff, for an overloaded or
+ * rate-limited moment): a hung request gives up within about a minute and the
+ * turn fails into the queue's retry (message.inbound: three more tries, about
+ * 10–20 s, 20–40 s and 40–80 s apart). When those are spent too, the dead
+ * letter hands the conversation to a person as `not_answered`
+ * (src/worker/main.ts).
+ */
+const ANALYSIS_REQUEST = { timeout: 30_000, maxRetries: 1 } as const;
+
 export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): Analyzer {
   const prompt = loadPrompt('analysis.txt');
 
@@ -103,7 +122,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
             `PRODUCT CATALOG:\n${catalog}\n\nCONVERSATION HISTORY:\n${history}\n\n` +
             `CLIENT MESSAGE:\n${text || '[no text]'}\n\nCURRENT PHASE: ${state.phase}`,
         }],
-      });
+      }, ANALYSIS_REQUEST);
 
       const block = firstText(res.content);
       const raw = block?.type === 'text' ? stripFences(block.text) : '{}';
@@ -112,7 +131,10 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
       try {
         analysis = parseAnalysis(JSON.parse(raw), state.phase);
       } catch {
-        // Same safe fallback the n8n parser used: unknown intent, stay put.
+        // Unknown intent, stay put — the n8n parser's fallback — and one thing
+        // it never had to say: whether the buyer asked for a person is NOT
+        // known. It used to answer as if they had asked an ordinary question;
+        // `null` hands the turn to a person as `not_answered` instead.
         analysis = {
           language: { detected: 'en', replyIn: state.preferredLanguage ?? 'en' },
           intent: {
@@ -120,6 +142,7 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
             nextLogicalQuestion: null, missingFields: ['product'],
           },
           recommendedPhase: state.phase,
+          wantsPerson: null,
         };
       }
       return { analysis, promptVersion: prompt.version, modelId: model,
@@ -177,6 +200,10 @@ function parseAnalysis(j: Record<string, unknown>, currentPhase: Phase): Analysi
         : [],
     },
     recommendedPhase: PHASES_SET.has(recommended) ? recommended : currentPhase,
+    // "Wants a person", layer 2. Only a real boolean is an answer: a missing
+    // key, "true" in quotes, null or anything else is an answer that cannot be
+    // read, and hands off (core/scoring/detect.ts).
+    wantsPerson: typeof j['wants_person'] === 'boolean' ? j['wants_person'] : null,
   };
 }
 

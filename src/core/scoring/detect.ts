@@ -2,62 +2,251 @@ import type { Signal } from './signals.js';
 import { type Money, scaleMoney, isAbove } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import type { Analysis } from '../conversation/decide.js';
-import { asksForDeletion } from '../safety/deletion.js';
+import { asksForDeletion, normalizeForDeletion } from '../safety/deletion.js';
 
 /**
  * Deterministic signal detection from the message text and analysis.
- * Ported from the n8n Escalation Score Calculator — same phrase lists, same
- * thresholds, so the shadow diff compares like with like.
+ * Ported from the n8n Escalation Score Calculator; the request for a person
+ * has since been rebuilt in two layers (below).
  */
 
-const HUMAN_PHRASES = [
-  'speak to someone', 'real person', 'call me', 'human',
-  'speak to a person',
-  'التحدث مع شخص', 'اريد احد',      // Arabic
-  '找人工', '找真人',                 // Chinese
+/**
+ * ── "WANTS A PERSON", IN TWO LAYERS (the owner's direction, 2026-09-28) ─────
+ *
+ * The n8n word list (`HUMAN_PHRASES`) matched words, not meaning, and failed
+ * both ways: "human" fired on "human hair wigs", 找人工 on 找人工成本低的工厂
+ * (a factory with low labour cost), «اريد احد» inside «اريد احدث موديل» (the
+ * newest model), "call me" on "you can call me Ahmed" — while "Can I talk to
+ * someone?", «أريد أحدًا يساعدني» typed with its hamza, "我要找你们经理" and
+ * «أريد التحدث مع مديركم» handed nothing to anybody.
+ *
+ *   LAYER 1 — `asksForPerson`, here: the UNAMBIGUOUS requests only, in en / zh
+ *   / ar. Instant, and no model is asked anything: the turn is gated before the
+ *   analyser (pipeline/turn.ts). Each pattern needs a request's FRAME ("can I
+ *   talk to", "I want to speak with", "put me through to", 转人工, «أريد التحدث
+ *   مع») around a person who can only be the seller's, or a word that means one
+ *   by itself (人工客服, "your manager", «مديركم»). A frame whose person is
+ *   followed by the buyer's own side — "in my team", "at our company", «في
+ *   شركتي» — does not count here.
+ *
+ *   LAYER 2 — `Analysis.wantsPerson`: everything layer 1 leaves goes to the
+ *   analyser the turn already calls (prompts/analysis.txt): "is this buyer
+ *   asking to speak to a person?" The buyer's own colleagues, a name, a product
+ *   and a bare "are you a bot?" are its to rule out; when it is unsure it says
+ *   yes, and an answer that cannot be read hands off as `not_answered`.
+ *
+ * AMBIGUOUS MEANS HAND OFF: a missed hand-off loses a buyer, a wrong one costs
+ * the owner a minute. That decides every close call — which is why a phrase
+ * leaves this list only for layer 2, never for nobody.
+ *
+ * tests/person/person-request.test.ts holds the corpus, both ways, per layer.
+ */
+
+/**
+ * The text as the patterns read it: the deletion check's normalisation — NFKC,
+ * lower case, Arabic diacritics and tatweel gone, «أ إ آ ٱ» read as «ا» (so
+ * «أريد» with its hamza is the «اريد» written here), curly apostrophes
+ * straightened, whitespace collapsed — and the letters a Persian or Urdu
+ * keyboard gives Arabic: «ی ى» as «ي», «ک» as «ك». Every Arabic pattern below
+ * is written in that folded form («على» is «علي», «إلى» is «الي»).
+ *
+ * NFKC turns the full-width ，！？；： into ASCII; 。 and 、 stay as they are, so
+ * the Chinese stops name both.
+ */
+const readable = (text: string): string =>
+  normalizeForDeletion(text).replace(/[یى]/g, 'ي').replace(/ک/g, 'ك');
+
+/** Arabic letters, for word edges: `\b` knows only ASCII. */
+const AR = String.raw`\u0621-\u064A\u066E-\u06D3`;
+
+/**
+ * A pattern that fires wherever it matches — unless the words right after the
+ * person it matched put that person on the buyer's own side: "someone in my
+ * team", "a person at our office", «شخص في شركتي». Those are the buyer's
+ * business, and layer 2's to read.
+ */
+type Framed = { readonly re: RegExp; readonly own: RegExp | null };
+
+const firesIn = (t: string, { re, own }: Framed): boolean => {
+  for (const m of t.matchAll(re)) {
+    if (own === null) return true;
+    const end = m.index + m[0].length;
+    if (!own.test(t.slice(end, end + 60))) return true;
+  }
+  return false;
+};
+
+// ── English ──────────────────────────────────────────────────────────────────
+const EN_TALK = String.raw`(?:speak|talk|chat)\s+(?:to|with)`;
+/**
+ * "human" as a person, never as a product: it must end the phrase or be
+ * followed by a word that cannot make it "human hair".
+ */
+const EN_HUMAN = String.raw`human(?:\s+being)?(?=\s*(?:$|[.!?,;:)]|(?:please|pls|plz|now|asap|not|instead|who|that|to|and|or|for|here|there|agent|on|at|about|in|from|with|i|we|if|so|because|thanks|thank)\b))`;
+/** Who it is when it can only be the seller's: a human, an agent, customer service, "your …". */
+const EN_THEIRS = String.raw`(?:(?:a|an|the|some|any)\s+)?(?:(?:real|actual|live)\s+)?(?:person|${EN_HUMAN}|agent|representative|rep|operator|salesperson|sales\s+(?:person|rep|representative|agent)|customer\s+(?:service|support|care)(?:\s+(?:agent|representative|rep|person|team))?)`
+  + String.raw`|(?:one\s+of\s+)?your\s+(?:[a-z'-]+\s+){0,2}?(?:people|person|team|staff|colleagues?|boss|owner|supervisor|agents?|representatives?|reps?|salespeople|salesperson|support|customer\s+service)\b`;
+/** "Someone" — the seller's only where the frame asks the seller for them. */
+const EN_SOMEONE = String.raw`(?:someone|somebody|anyone|anybody)(?:\s+(?:from|at|in|on)\s+your\s+[a-z'-]+)?`;
+/** Asked of the seller outright ("can I speak to the owner?"), their own boss is not meant. */
+const EN_ASKED = String.raw`(?:${EN_THEIRS}|${EN_SOMEONE}|the\s+(?:owner|boss|supervisor))`;
+/** The buyer's own side, right after the person: "in my team", "at our office", "of mine". */
+const EN_OWN = /^(?:\s+[a-z'-]+){0,3}?\s+(?:in|at|from|of|on|within|inside)\s+(?:my|our)\b|^\s+of\s+(?:mine|ours)\b/;
+/** What may follow "call me" when it is a call and not a name ("call me Ahmed"). */
+const EN_CALL_TAIL = String.raw`(?=\s*(?:$|[.!?,;:)]|\+?\d|(?:back|asap|now|please|pls|plz|at|on|when|whenever|tomorrow|today|tonight|later|soon|anytime|urgently|directly|right|immediately|first|instead|to|about|regarding|if|so|and|or)\b))`;
+const EN_START = String.raw`(?:^|[.!?,;:]\s*)`;
+/** Not asked for: "don't put me through to anyone", "no need to connect me with a person". */
+const EN_NOT = String.raw`(?<!\b(?:don't|dont|do\s+not|no\s+need\s+to|never)\s+)`;
+/** "I want", "we need", "I'd like", "I would rather" — a request, never a habit ("I like to talk to…"). */
+const EN_WANT = String.raw`\b(?:i|we)(?:(?:\s+(?:really|just|do|still))?\s+(?:want|wanna|need|wish|demand|insist\s+on|prefer)|(?:'d|\s+would)\s+(?:(?:really|much)\s+)?(?:like|love|prefer|rather))`;
+
+const EN: readonly Framed[] = [
+  // "Can I talk to someone?", "could we speak with a person", "may I talk to the owner"
+  { re: new RegExp(String.raw`\b(?:can|could|may|might)\s+(?:i|we)\s+(?:please\s+)?(?:just\s+)?${EN_TALK}\s+(?:${EN_ASKED})`, 'g'), own: EN_OWN },
+  // "I want to speak to a real person", "I'd like to speak with a person", "we need to talk to someone"
+  { re: new RegExp(String.raw`${EN_WANT}\s+(?:to\s+)?${EN_TALK}\s+(?:${EN_THEIRS}|${EN_SOMEONE})`, 'g'), own: EN_OWN },
+  // "let me talk to a human" — never "let me talk to someone", which is as often their own
+  { re: new RegExp(String.raw`${EN_NOT}\blet\s+(?:me|us)\s+${EN_TALK}\s+(?:${EN_THEIRS})`, 'g'), own: EN_OWN },
+  // "put me through to someone", "connect me with a real person", "transfer me to customer service"
+  { re: new RegExp(String.raw`${EN_NOT}\b(?:put|transfer|connect|pass|forward|switch|redirect|escalate)\s+(?:me|us|this|my\s+(?:call|chat|case|query|request))\s+(?:through\s+|over\s+)?(?:to|with)\s+(?:${EN_ASKED})`, 'g'), own: EN_OWN },
+  // "I want a real person", "can I get a human?", "get me a live agent" — never "a human hair wig"
+  { re: new RegExp(String.raw`(?:${EN_WANT}|\b(?:get|find|bring)\s+me|\b(?:can|could|may)\s+(?:i|we)\s+(?:please\s+)?(?:get|have))\s+(?:(?:to\s+(?:have|get)\s+)?(?:a|an))\s+(?:(?:real|actual|live)\s+(?:person|${EN_HUMAN}|agent|representative|rep)|human\s+(?:agent|representative|rep)|${EN_HUMAN})`, 'g'), own: EN_OWN },
+  // "Speak with a person", "please talk to someone" — an imperative, at the start of a sentence
+  { re: new RegExp(String.raw`${EN_START}(?:(?:please|pls|plz|kindly)\s+)?(?:just\s+)?${EN_TALK}\s+(?:${EN_THEIRS}|${EN_SOMEONE})`, 'g'), own: EN_OWN },
+  // "is there someone I can talk to?"
+  { re: new RegExp(String.raw`\b(?:is|are)\s+there\s+(?:someone|somebody|anyone|anybody|a\s+(?:real\s+)?(?:person|human))\s+(?:(?:i|we)\s+(?:can|could)\s+)?${EN_TALK}\b`, 'g'), own: null },
+  // The whole message is the request: "real person please", "live agent", "human please", "agent!"
+  { re: /^(?:(?:please|pls|plz)\s+)?(?:a\s+)?(?:real|live|actual|human)\s+(?:person|human|agent|operator|representative|rep)(?:\s+(?:please|pls|plz|now|asap))?\s*[.!?]*$/g, own: null },
+  { re: /^(?:(?:please|pls|plz)\s+)?(?:human|agent|operator|representative|customer\s+service)(?:\s+(?:please|pls|plz|now|asap)\s*[.!]*|\s*!+)$/g, own: null },
+  // A call — which only a person can make: "please call me", "can you call me back?", "call me asap",
+  // "give me a call", "can I call you?". Never "you can call me Ahmed": a name is not a call.
+  { re: new RegExp(String.raw`\b(?:please|pls|plz|kindly|can\s+you|could\s+you|would\s+you|will\s+you|can\s+(?:someone|somebody|anyone)|could\s+(?:someone|somebody|anyone))\s+(?:please\s+)?(?:call|phone|ring)\s+me${EN_CALL_TAIL}`, 'g'), own: null },
+  { re: new RegExp(String.raw`${EN_START}(?:call|phone|ring)\s+me${EN_CALL_TAIL}`, 'g'), own: null },
+  { re: new RegExp(String.raw`(?:${EN_START}|\b(?:please|pls|can\s+you|could\s+you)\s+)give\s+me\s+a\s+(?:call|ring)\b`, 'g'), own: null },
+  { re: new RegExp(String.raw`(?:${EN_START}|\b(?:please|pls|kindly|can\s+you|could\s+you)\s+)(?:have|get|ask)\s+(?:someone|somebody|a\s+person)\s+(?:to\s+)?(?:call|phone|ring)\s+me${EN_CALL_TAIL}`, 'g'), own: null },
+  { re: new RegExp(String.raw`\b(?:can|could|may)\s+(?:i|we)\s+(?:call|phone|ring)\s+you${EN_CALL_TAIL}`, 'g'), own: null },
 ];
 
 /**
- * "MANAGER", SPLIT BY WHOSE IT IS (the owner's decision, 2026-09-28).
+ * "MANAGER", SPLIT BY WHOSE IT IS (the owner's decision, 2026-09-28; kept as
+ * it was decided).
  *
- * It was on the list above as a bare word, so "my manager approved it" and
- * "my manager will confirm the price" — a buyer talking about their own
- * colleague, which trade chat does constantly — handed the conversation to a
- * person every time, for nothing.
+ * It was on the n8n list as a bare word, so "my manager approved it" and "my
+ * manager will confirm the price" — a buyer talking about their own colleague,
+ * which trade chat does constantly — handed the conversation to a person
+ * every time, for nothing.
  *
  *   · The buyer's OWN manager is not a request to reach a person: "my …
  *     manager", "our … manager", "I'm the … manager", "the … manager at my
  *     company". Up to two words between ("my new sales manager"), never
  *     "your", "to", "with" or "for" — "I'm talking to your manager" is not
  *     theirs.
- *   · Every OTHER mention still hands off, exactly as before: "your manager",
- *     "speak to a manager", "the manager approved it". Whose manager "the
- *     manager" is cannot be told, and a wrong hand-off costs the owner a
- *     minute where a missed one loses a buyer.
+ *   · Every OTHER mention hands off: "your manager", "speak to a manager",
+ *     "the manager approved it". Whose manager "the manager" is cannot be told,
+ *     and a wrong hand-off costs the owner a minute where a missed one loses a
+ *     buyer.
  *
- * The same test for "someone in charge", which the owner named as the
- * seller's side and the list never had: "let me talk to someone in charge"
- * hands off; "someone in charge at my company" does not.
+ * The same test for "someone in charge", which the owner named as the seller's
+ * side: "let me talk to someone in charge" hands off; "someone in charge at my
+ * company" does not.
  *
- * Chinese and Arabic never had a word for a manager on this list; nothing
- * changes there. tests/parity/person-request.test.ts holds both sides, and
- * pins what was reported to the owner about the rest of the list.
+ * Chinese and Arabic have their manager below, in the seller's forms only
+ * ("你们经理", «مديركم»); a bare 经理 or «المدير» outside a request is layer 2's
+ * to read — "我问一下经理再回复你" is the buyer's own.
  */
-const FILL = String.raw`(?:(?!your\b|yours\b|to\b|with\b|for\b)[a-z][a-z'’-]*\s+){0,2}`;
+const FILL = String.raw`(?:(?!your\b|yours\b|to\b|with\b|for\b)[a-z][a-z'-]*\s+){0,2}`;
 const THEIR_OWN_MANAGER = new RegExp([
   String.raw`\b(?:my|our)\s+${FILL}managers?\b`,                                // my (new sales) manager
-  String.raw`\bi(?:'?m|’m| am)\s+(?:(?:the|a|an)\s+)?${FILL}managers?\b`,      // I'm the purchasing manager
+  String.raw`\bi(?:'?m| am)\s+(?:(?:the|a|an)\s+)?${FILL}managers?\b`,          // I'm the purchasing manager
   String.raw`\b(?:the|a)\s+${FILL}managers?\s+(?:of|at|in|from|on)\s+(?:my|our)\b`, // the manager at my company
 ].join('|'), 'g');
 const IN_CHARGE = String.raw`\b(?:someone|somebody|anyone|anybody|(?:the|a|your)\s+person)\s+in\s+charge\b`;
 const THEIR_OWN_IN_CHARGE = new RegExp(`${IN_CHARGE}\\s+(?:at|of|in|from|on)\\s+(?:my|our)\\b`, 'g');
 const SELLERS_IN_CHARGE = new RegExp(IN_CHARGE);
 
-/** Lower-cased text: does it ask for a person — or name the seller's manager? */
-export function asksForPerson(t: string): boolean {
-  if (HUMAN_PHRASES.some((p) => t.includes(p))) return true;
-  if (t.includes('manager') && t.replace(THEIR_OWN_MANAGER, ' ').includes('manager')) return true;
-  return SELLERS_IN_CHARGE.test(t.replace(THEIR_OWN_IN_CHARGE, ' '));
+const namesSellersManager = (t: string): boolean =>
+  (t.includes('manager') && t.replace(THEIR_OWN_MANAGER, ' ').includes('manager'))
+  || SELLERS_IN_CHARGE.test(t.replace(THEIR_OWN_IN_CHARGE, ' '));
+
+// ── Chinese ──────────────────────────────────────────────────────────────────
+/**
+ * Where the word ends: anything that is not a Chinese character (punctuation,
+ * full-width or not, a space, an emoji), or a particle or thanks. Another
+ * character would make a compound: 人工成本 is labour cost, 人工智能 is AI.
+ */
+const ZH_STOP = String.raw`(?=$|[^\u4e00-\u9fff]|吧|啊|呀|哦|哈|吗|嗎|嘛|呢|谢|謝|好吗|好嗎|可以|行吗|行嗎)`;
+const ZH_HEAD = String.raw`(?:经理|經理|老板|老闆|负责人|負責人|主管(?!部门|部門|单位|單位)|领导|領導|老总|老總)`;
+/** Not asked for: 不用转人工, 别找真人, 不需要人工客服 — the buyer declining a person. */
+const ZH_NOT = String.raw`(?<!不用|无需|無需|别|別|不|不需要|不要)`;
+const ZH_TALK = String.raw`(?:说|說|聊|谈|談|沟通|溝通|对话|對話|交流|讲|講|联系|聯繫|通话|通話)`;
+
+const ZH: readonly Framed[] = [
+  // 人工客服 / 人工服务 — the human agent; never 人工 alone (人工成本 is labour cost, 人工智能 is AI)
+  { re: new RegExp(String.raw`${ZH_NOT}人工(?:客服|服务|服務|坐席|座席|台)`, 'g'), own: null },
+  // 转人工 / 我要人工 / 人工！ — 人工 where the request ends; never 需要人工 ("needs manual
+  // labour") nor 没有人工 ("no hand work"), where it is the work and not a person
+  { re: new RegExp(String.raw`${ZH_NOT}(?:转|轉|接|找|(?<!需)要|换|換|切|叫|呼叫)(?:个|個)?人工${ZH_STOP}`, 'g'), own: null },
+  { re: /^人工[!.。]*$/g, own: null },
+  // 转接客服 / 转接到经理 — put through to someone
+  { re: new RegExp(String.raw`${ZH_NOT}(?:转接|轉接)(?:到|给|給)?(?:人工|真人|客服|经理|經理|负责人|負責人|工作人员|工作人員|主管)`, 'g'), own: null },
+  // 真人客服; 找个真人 / 要真人 where it ends — never 找真人模特 (real models, for a photo shoot)
+  { re: new RegExp(String.raw`${ZH_NOT}真人(?:客服|服务|服務)`, 'g'), own: null },
+  { re: new RegExp(String.raw`${ZH_NOT}(?:找|(?<!需)要|换|換|转|轉|接)(?:一个|一個|个|個|一位|位)?真人${ZH_STOP}`, 'g'), own: null },
+  // 我想和真人聊 / 跟工作人员谈 — a person the assistant is not
+  { re: new RegExp(String.raw`${ZH_NOT}(?:和|跟|与|與|同)(?:一个|一個|个|個|一位|位)?(?:真人|工作人员|工作人員|客服人员|客服人員)${ZH_TALK}`, 'g'), own: null },
+  // 你们经理 / 你们的负责人 / 贵公司老板 — the seller's manager, boss or person in charge, however named
+  { re: new RegExp(String.raw`(?:你们|你們|您们|您們|贵公司|貴公司|贵司|貴司|贵厂|貴廠|(?:你|您)的)(?:(?![我])[\u4e00-\u9fff]){0,4}?${ZH_HEAD}`, 'g'), own: null },
+  // 请经理联系我 / 让负责人跟我谈 — asked to come to THEM ("我让经理联系你" is their own)
+  { re: new RegExp(String.raw`(?:请|請|让|讓|叫|麻烦|麻煩)(?:你们|你們|贵司|貴司)?的?${ZH_HEAD}(?:直接|马上|馬上)?(?:(?:联系|聯繫|打电话给|打電話給|回复|回覆)(?:一下)?我|给我打|給我打|回电|回電|跟我|和我|找我)`, 'g'), own: null },
+];
+
+// ── Arabic (read in the folded form: «اريد», «الي», «علي») ───────────────────
+/** A word's start, and not after «لا / ما / مش / مو / لن / مب» (not): «لا اريد التحدث مع شخص» declines. */
+const AR_NOT = String.raw`(?<![${AR}])(?<!(?:لا|ما|مش|مو|لن|مب)\s)`;
+/** "I want", "I need", "can" — in MSA and the dialects buyers write in. */
+const AR_WANTS = 'اريد|نريد|احتاج|نحتاج|ابي|ابغي|بدي|بدنا|عايز|عاوز|ممكن';
+/** …before a person: «اريد احدا», «ممكن حد يرد». */
+const AR_WANT_ONE = `(?:${AR_WANTS})`;
+/** …before a verb, which more of them take: «اود التحدث», «يمكنني التواصل». */
+const AR_WANT = `(?:${AR_WANTS}|ابغا|عايزه|عاوزه|حابب|حابه|اود|نود|يمكنني|اقدر|نقدر|ارجو|نرجو|اطلب|نطلب)`;
+const AR_TALK = String.raw`(?:التحدث|التكلم|الحديث|الكلام|التواصل|الاتصال|اتحدث|اتكلم|اكلم|احكي|اتواصل|اتصل|نتحدث|نتكلم|نكلم|نحكي|نتواصل)`;
+/**
+ * Somebody the buyer asks the seller for — including a manager, «المدير», when
+ * it is asked for. «احد» is "someone" only before a verb, «من», or the end:
+ * before a noun it is "one of" («التواصل مع احد المصانع», one of the factories).
+ */
+const AR_WHO = String.raw`(?:شخصا?(?:\s+حقيقيا?)?|انسانا?(?:\s+حقيقيا?)?|بشر|موظف[اهة]?|احد\s+(?:الموظفين|موظفيكم)|احدا|حدا|(?:احد|حد)(?=\s*(?:$|[.!?،,؟])|\s+(?:ي[${AR}]+|من\s))|مس[ؤئو]?ول[اهة]?|المس[ؤئو]?ول[هة]?|مدير[اهة]?|المدير[هة]?|مدير(?:ت)?(?:كم|ك)|خدم[هة]\s+العملاء|الدعم(?:\s+الفني)?|ممثلا?(?:\s+(?:عن|ل)?\s*(?:الشرك[هة]|خدم[هة]\s+العملاء))?|صاحب\s+(?:الشرك[هة]|المصنع|المحل))(?![${AR}])`;
+/**
+ * The buyer's own side after the person: «في شركتي», «من فريقنا», «لدينا» — a
+ * preposition and a word ending in «ي» (my) or «نا» (our). Wider than it needs
+ * to be («في دبي» ends in «ي» too), which only ever sends a message to layer 2.
+ */
+const AR_OWN = new RegExp(String.raw`^(?:\s+[${AR}]+){0,2}?\s+(?:في|من|لدي|عند|داخل|مع)\s+[${AR}]*(?:ي|نا)(?![${AR}])|^\s+(?:لدي|لدينا|عندي|عندنا|تبعي|تبعنا)(?![${AR}])`);
+
+const AR_FRAMES: readonly Framed[] = [
+  // «أريد التحدث مع شخص حقيقي», «ابغى اكلم موظف», «ممكن اتواصل مع مسؤول», «أريد التحدث مع مديركم»
+  { re: new RegExp(String.raw`${AR_NOT}${AR_WANT}\s+(?:ان\s+)?${AR_TALK}(?:\s+(?:مع|الي)\s+|\s+[بل]|\s+)${AR_WHO}`, 'g'), own: AR_OWN },
+  // «أريد أحدًا يساعدني» (with the tanween's alef: someone, whatever follows)
+  { re: new RegExp(String.raw`${AR_NOT}${AR_WANT_ONE}\s+(?:احدا|حدا)(?![${AR}])`, 'g'), own: AR_OWN },
+  // «اريد احد يساعدني», «ممكن حد يرد علي» — «احد» is "someone" before a verb or at the end, and
+  // "one of" before a noun («اريد احد الموديلات»); «احدث» (the newest) is another word altogether
+  { re: new RegExp(String.raw`${AR_NOT}${AR_WANT_ONE}\s+(?:احد|حد|شخص|شخصا|انسان)(?![${AR}])(?=\s+(?:ي[${AR}]+|من\s+(?:فريقكم|فريقك|عندكم|طرفكم|موظفيكم|الموظفين|المبيعات|الشرك[هة]|خدم[هة]|الدعم))|\s*(?:$|[.!?،,؟]))`, 'g'), own: AR_OWN },
+  // «مديركم», «مسؤولتكم», «المدير عندكم» — the seller's manager or official, however it comes up
+  { re: new RegExp(String.raw`(?<![${AR}])(?:مدير|مس[ؤئو]?ول)(?:ت)?(?:كم|ك)(?![${AR}])|(?<![${AR}])(?:ال)?(?:مدير|مس[ؤئو]?ول)[هة]?(?:\s+(?:الشرك[هة]|المصنع|المبيعات))?\s+(?:عندكم|لديكم|لكم)(?![${AR}])`, 'g'), own: null },
+  // «حولني على موظف», «وصلني بمسؤول»
+  { re: new RegExp(String.raw`(?<![${AR}])(?:حولني|حولوني|وصلني|وصلوني|اوصلني)(?:\s+(?:علي|الي|مع)\s+|\s+[بل]|\s+)${AR_WHO}`, 'g'), own: AR_OWN },
+];
+
+const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES];
+
+/**
+ * Layer 1: does the buyer's own text ask, unmistakably, for a person on the
+ * seller's side — or name the seller's manager? Raw text in; it normalises.
+ */
+export function asksForPerson(text: string): boolean {
+  const t = readable(text ?? '');
+  if (!t) return false;
+  return namesSellersManager(t) || LAYER_ONE.some((f) => firesIn(t, f));
 }
 
 const LOGISTICS_PHRASES = [
@@ -76,8 +265,14 @@ export function detectSignals(input: {
   const t = (text ?? '').toLowerCase();
   const out: Signal[] = [];
 
-  if (asksForPerson(t)) {
+  // "Wants a person": layer 1 from the words, layer 2 from the analyser's
+  // reading of them. `wantsPerson` absent means this analyser was not asked,
+  // and changes nothing; null means it was asked and could not be read — the
+  // turn hands off as not answered, because ambiguous means hand off.
+  if (asksForPerson(text) || analysis?.wantsPerson === true) {
     out.push({ kind: 'human_requested' });
+  } else if (analysis?.wantsPerson === null) {
+    out.push({ kind: 'not_answered' });
   }
 
   // 0075 — "delete my data" goes to a person, and nothing is said to the buyer.

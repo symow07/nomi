@@ -26,6 +26,24 @@ export type Analysis = {
     readonly missingFields: readonly string[];
   };
   readonly recommendedPhase: Phase;
+  /**
+   * "Wants a person", layer 2 — the analyser's answer to "is this buyer asking
+   * to reach a person on the SELLER's side?" (a human, an agent, the manager,
+   * someone in charge; any language, any phrasing). Layer 1 is the word list
+   * in core/scoring/detect.ts, which settles the unambiguous ones before any
+   * model is asked; this reads the meaning of everything else.
+   *
+   *   true    — they ask for a person: the turn hands off (`human_requested`).
+   *   false   — they do not.
+   *   null    — the analyser was asked and its answer could not be read: the
+   *             turn hands off as `not_answered` ("ambiguous means hand off").
+   *   absent  — this analyser does not answer the question (the scripted and
+   *             sandbox ones, the trust harness's stub): nothing changes.
+   *
+   * Optional on purpose, so every Analysis built before the question existed
+   * still means what it meant.
+   */
+  readonly wantsPerson?: boolean | null;
 };
 
 export type TurnInput = {
