@@ -248,6 +248,20 @@ export const USABILITY_DRAFT_TEXT =
 const esc = (s: string): string => s.replace(/'/g, "''");
 const ago = (min: number): string => `now() - interval '${min} minutes'`;
 
+/**
+ * THE FRESHEST CONVERSATION IS ALWAYS TODAY'S (found 2026-09-28, 00:12).
+ *
+ * Its lines are "40 minutes ago" and older, which, seeded in the first minutes
+ * of a Shanghai day, is yesterday — and on a Monday, last week. Results'
+ * default range is this week, counted from Monday 00:00 in Shanghai
+ * (analytics.ts), so the page showed no reply at all and the seed's test
+ * failed every Monday just after midnight. So its k-th line is never earlier
+ * than k + 1 milliseconds into this Shanghai day: the order holds, and the day,
+ * the week and the month all count it.
+ */
+const TODAY_START = `(date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')`;
+const agoToday = (min: number, k: number): string => `greatest(${ago(min)}, ${TODAY_START} + interval '${k + 1} milliseconds')`;
+
 /** The demo business id under a namespace. */
 export const usabilityBusinessId = (namespace: string = DEMO_NAMESPACE): string => B.replaceAll(DEMO_NAMESPACE, namespace);
 /** Any usability id under a namespace. */
@@ -288,10 +302,11 @@ export function usabilitySeedSql(namespace: string = DEMO_NAMESPACE): string {
       `  ('${c.id}', '${c.phase}', '${c.product.id}', 0.90, ${c.qty}, 'pcs', ${c.messages.length}, ${ago(last)})`,
       `  on conflict (conversation_id) do nothing;`,
     );
+    const freshest = c.id === USABILITY_CONVERSATIONS[0]!.id;
     c.messages.forEach((m, k) => {
       out.push(
         `insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at) values`,
-        `  ('${c.id}', 'usab-${c.id.slice(-4)}-${k}', '${m.dir}', 'text', '${esc(m.text)}', ${ago(m.ageMin)})`,
+        `  ('${c.id}', 'usab-${c.id.slice(-4)}-${k}', '${m.dir}', 'text', '${esc(m.text)}', ${freshest ? agoToday(m.ageMin, k) : ago(m.ageMin)})`,
         `  on conflict do nothing;`,
       );
     });

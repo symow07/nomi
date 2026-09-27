@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { seedRunTenant, RUN_NS, RUN_BIZ } from './tenant.js';
 import {
-  usabilitySeedSql, usabilityChecks, inNamespace, USABILITY_HANDED, USABILITY_DRAFT,
+  usabilitySeedSql, usabilityChecks, inNamespace, USABILITY_HANDED, USABILITY_DRAFT, USABILITY_CONVERSATIONS,
 } from '../../src/demo/usability.js';
 
 /**
@@ -79,6 +79,29 @@ d('usability workspace · what the pages read (requires DATABASE_URL + MIGRATE_D
     expect(a.activity.inbound).toBeGreaterThan(0);
     expect(a.activity.replied).toBeGreaterThan(0);
     expect(a.employee.waiting).toBeGreaterThanOrEqual(1);
+  });
+
+  /**
+   * FOUND 2026-09-28 00:12 (Shanghai), a Monday: "Results has this week's
+   * activity" failed — the freshest reply was seeded "40 minutes ago", which
+   * was last week. Replayed here at that clock: the old expression falls
+   * outside the week, the seed's expression inside it.
+   */
+  it('seeded just after midnight on a Monday in Shanghai, this week still has its replies', async () => {
+    const at = `'2026-09-28 00:12:00+08'::timestamptz`;
+    const fresh = USABILITY_CONVERSATIONS[0]!;
+    const seeded = usabilitySeedSql(RUN_NS);
+    const lines = seeded.split('\n').filter((l) => l.includes(`'usab-${fresh.id.slice(-4)}-`));
+    expect(lines.length).toBe(fresh.messages.length);
+    const weekStart = `(date_trunc('week', ${at} at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')`;
+    for (const [k, line] of lines.entries()) {
+      const expr = line.slice(line.lastIndexOf(", greatest(") + 2, line.lastIndexOf(')'));
+      expect(expr.startsWith('greatest(now() - interval'), line).toBe(true);
+      const r = (await tx((t) => sql.raw<{ seeded: boolean; old: boolean }>(`
+        select (${expr.replaceAll('now()', at)}) >= ${weekStart} as seeded,
+               (${at} - interval '${fresh.messages[k]!.ageMin} minutes') >= ${weekStart} as old`).execute(t))).rows[0]!;
+      expect(r).toEqual({ seeded: true, old: false });
+    }
   });
 
   it('a third run changes nothing', async () => {
