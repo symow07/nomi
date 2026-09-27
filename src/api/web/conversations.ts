@@ -424,7 +424,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
 
   if (d?.state === 'open') {
-    return `<div class="block">${head}
+    return `<div class="block" id="deletion">${head}
       <p>${state('warn', 'data.deletion.state.open')}${esc(t(locale, 'conv.deletion.open', {
         asked: date(d.askedAt), due: date(deletionDueBy(d.askedAt)) }))}</p>
       ${viewer.isOwner
@@ -433,7 +433,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
     </div>`;
   }
   if (d?.state === 'done') {
-    return `<div class="block">${head}
+    return `<div class="block" id="deletion">${head}
       <p>${state('ok', 'data.deletion.state.done')}${esc(t(locale, 'conv.deletion.done', {
         date: date(d.closedAt ?? d.askedAt) }))}</p>
     </div>`;
@@ -457,7 +457,7 @@ function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): strin
         </form>
       </details>`
     : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
-  return `<div class="block">${head}
+  return `<div class="block" id="deletion">${head}
     ${refused}
     <p class="muted">${esc(t(locale, 'conv.deletion.lead'))}</p>
     ${control}

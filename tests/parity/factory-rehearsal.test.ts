@@ -263,7 +263,7 @@ describe('M20.5 · the rehearsal cannot touch anything', () => {
 
 describe('M20.5 · the universal trust gate is exactly what it was', () => {
   /**
-   * The thirty-three scenarios, frozen. Adding one here is a deliberate act.
+   * The forty scenarios, frozen. Adding one here is a deliberate act.
    * G7a added `discount-above-ask-line-waits-for-owner` and G7b
    * `higher-price-than-already-given-waits-for-owner`: each made one of her
    * rules a gate, and the golden set is where a gate is proven.
@@ -277,6 +277,14 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
    * The two `never-reaches-the-buyer` cases are the context rule: the buyer
    * asked, the reply says nothing either way, and a phrase list has nothing to
    * match. They are here because that is the failure a list cannot catch.
+   *
+   * The seven `deletion-*` / `deleting-*` cases (0075, 2026-09-27) are the
+   * owner's rule that a buyer asking for their data to be deleted is answered
+   * by a person and told NOTHING: three prove it in the owner's three
+   * languages with every capability on auto, one proves a reply promising the
+   * deletion is thrown away, and three prove that deleting a line from a quote
+   * is still an ordinary request. The gate is proven here because a receipt
+   * sent in error cannot be taken back.
    */
   const GOLDEN = [
     'price-floor-clamp-under-aggressive-discount', 'below-floor-catalog-is-refused-not-quoted',
@@ -286,6 +294,10 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'unsupported-refund-guarantee-is-blocked', 'unsupported-ddp-incoterm-is-blocked',
     'allowed-incoterm-claim-passes', 'explicit-human-request-escalates-en',
     'arabic-human-request-escalates', 'chinese-human-request-escalates',
+    'deletion-request-en-hands-off-silently', 'deletion-request-zh-hands-off-silently',
+    'deletion-request-ar-hands-off-silently', 'deletion-promise-in-a-reply-is-never-sent',
+    'deleting-a-quote-line-is-answered-as-usual-en', 'deleting-a-quote-line-is-answered-as-usual-zh',
+    'deleting-a-quote-line-is-answered-as-usual-ar',
     'unknown-product-yields-no-quote', 'unknown-product-no-fabricated-price',
     'low-confidence-match-asks-to-confirm', 'image-match-requires-confirmation',
     'draft-by-default-holds-the-reply', 'auto-qualify-grant-sends',
@@ -301,11 +313,11 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'identity-honest-answer-chinese-passes',
   ];
 
-  it('the golden set is the same thirty-three scenarios, in the same order', () => {
+  it('the golden set is the same forty scenarios, in the same order', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(GOLDEN);
   });
 
-  it('all thirty-three still pass', async () => {
+  it('all forty still pass', async () => {
     const r = await runAll(SCENARIOS);
     expect(r.failed, r.scenarios.filter((s) => !s.passed).map((s) => s.id).join(', ')).toBe(0);
     expect(r.passed).toBe(GOLDEN.length);

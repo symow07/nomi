@@ -22,6 +22,7 @@ import { guardNumerals, extractNumerals } from '../core/safety/numerals.js';
 import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
+import { promisesDeletion } from '../core/safety/deletion.js';
 import { disclosureFor, withDisclosure } from '../core/conversation/disclosure.js';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
@@ -183,6 +184,12 @@ export type TurnResult = {
    * all read THIS rather than re-deriving it (core/conversation/hold.ts).
    */
   hold: HoldReason | null;
+  /**
+   * 0075 — the words of a reply that promised the buyer a deletion, which was
+   * therefore thrown away and never sent (layer 2, core/safety/deletion.ts).
+   * Null on every other turn.
+   */
+  deletionPromiseWithheld: string | null;
   /** Stage timings (ms) + token usage — the P1 measurement surface. */
   timings: { retrievalMs: number; analyzerMs: number; replyMs: number; totalMs: number };
   usage: { llmCalls: number; inputTokens: number; outputTokens: number };
@@ -292,10 +299,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const byKind = new Map<Signal['kind'], Signal>();
   for (const s of historic) byKind.set(s.kind, s);
   for (const s of fresh) byKind.set(s.kind, s); // fresh wins
-  const signals = [...byKind.values()];
+  let signals: readonly Signal[] = [...byKind.values()];
 
   // ── Decide. Pure. ───────────────────────────────────────────────────────────
-  const decision = decideTurn({
+  let decision = decideTurn({
     state,
     text: req.text,
     analysis,
@@ -334,20 +341,21 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   }
 
   // ── New state (what commitTurn will persist). ──────────────────────────────
-  const newState: ConversationState = {
+  const stateAfter = (d: TurnDecision): ConversationState => ({
     ...state,
-    phase: decision.nextPhase,
+    phase: d.nextPhase,
     turnCount: state.turnCount + 1,
-    scores: decision.scores,
-    product: decision.product,
-    quantity: decision.quantity,
-    contact: { email: decision.email },
-    pendingQuestion: decision.pendingQuestion,
+    scores: d.scores,
+    product: d.product,
+    quantity: d.quantity,
+    contact: { email: d.email },
+    pendingQuestion: d.pendingQuestion,
     assignedTo:
-      decision.action.kind === 'handoff' && !decision.action.notifyOnly
+      d.action.kind === 'handoff' && !d.action.notifyOnly
         ? (UNCLAIMED_AGENT as ConversationState['assignedTo'])
         : state.assignedTo,
-  };
+  });
+  let newState = stateAfter(decision);
 
   // ── The reply. Commitments are templates; prose is the model, guarded. ─────
   let reply: string | null = null;
@@ -367,6 +375,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   /** G8 — both generated attempts failed a guard; the reply is a stand-in. */
   let guardsFailedTwice = false;
   let confirmBlockedReasons: readonly string[] = [];
+  /** 0075 — the words of a reply, or of an attempt at one, that promised the buyer a deletion. */
+  let deletionPromiseWithheld: string | null = null;
   let knowledge: readonly KnowledgeSnippet[] = [];
   let knowledgeUsed: readonly string[] = [];
 
@@ -385,9 +395,20 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       break;
 
     case 'handoff':
-      reply = HANDOFF_REPLY;
       replyDeterministic = true;
-      answerPath = 'handoff';
+      // 0075 — a buyer who asked for their data to be deleted is answered by a
+      // PERSON, and nothing is said first: not the fixed "one of our
+      // specialists will follow up", not a receipt. The owner's decision
+      // (2026-09-27) — anything said here could be read as a promise about the
+      // buyer's data that only a person can make. Any unresolved request
+      // counts, not only this turn's.
+      if (signals.some((s) => s.kind === 'deletion_requested')) {
+        reply = null;
+        answerPath = 'silent';
+      } else {
+        reply = HANDOFF_REPLY;
+        answerPath = 'handoff';
+      }
       break;
 
     case 'confirm_order': {
@@ -573,6 +594,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         usage.inputTokens += w.usage.inputTokens;
         usage.outputTokens += w.usage.outputTokens;
         promptVersion = promptVersion ?? w.promptVersion;
+        // 0075 — the writer read this as a request to delete the buyer's data
+        // and promised it. Whatever else the attempt got wrong, that reading
+        // decides the turn: no second attempt and no stand-in — layer 2, below
+        // the switch, hands it to a person with nothing said.
+        deletionPromiseWithheld = promisesDeletion(w.reply);
+        if (deletionPromiseWithheld !== null) break;
         const guarded = guardNumerals({
           reply: w.reply,
           quote,
@@ -615,7 +642,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         reply = clean.value;
         knowledgeUsed = knowledge.map((s) => s.id);   // facts provided to this reply
       }
-      if (reply === null) {
+      if (reply === null && deletionPromiseWithheld === null) {
         // Two violations: the model does not get a third chance to invent a
         // number. Deterministic stand-in, sourced figures only — and G8:
         //
@@ -640,6 +667,33 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       timings.replyMs = Date.now() - tw;
       break;
     }
+  }
+
+  /**
+   * 0075 · LAYER 2 — NO REPLY PROMISES A DELETION.
+   *
+   * Layer 1 (`deletion_requested`) read the buyer's words, and a buyer can ask
+   * in words it does not know. So whatever produced this reply — the writer
+   * (any attempt, above), a taught answer, a stand-in — if it promises or
+   * claims that the buyer's data is or will be deleted, it is thrown away, and
+   * the turn becomes the same silent hand-off: a person answers, the buyer is
+   * told nothing. The decision is re-made by `decideTurn` from the signals with
+   * the request added, so the handoff event, the owner's alert and "Needs you"
+   * read one decision; and no quote is recorded as told to a buyer who was
+   * told nothing.
+   */
+  if (deletionPromiseWithheld === null && reply !== null) deletionPromiseWithheld = promisesDeletion(reply);
+  if (deletionPromiseWithheld !== null) {
+    signals = [...signals.filter((s) => s.kind !== 'deletion_requested'), { kind: 'deletion_requested' }];
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null });
+    newState = stateAfter(decision);
+    reply = null;
+    replyDeterministic = true;
+    answerPath = 'silent';
+    knowledgeUsed = [];
+    quote = null;
+    quoteInputs = null;
+    quoteRefusal = null;
   }
 
   const fingerprint: DecisionFingerprint = {
@@ -690,6 +744,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     forbiddenInHerText,
     sampleRequested,
     hold,
+    deletionPromiseWithheld,
     timings, usage,
     fingerprint,
   };
@@ -844,6 +899,12 @@ export async function commitTurn(
   if (r.decision.hotLead) await tenant.events.append(req.conversationId, 'lead_hot', {});
   if (r.decision.action.kind === 'handoff') {
     await tenant.events.append(req.conversationId, 'handoff', {});
+  }
+  // 0075 — layer 2 threw a reply away because it promised a deletion. Kept on
+  // the record with the words that did it, so the ones layer 1 missed can be
+  // found and taught to it.
+  if (r.deletionPromiseWithheld !== null) {
+    await tenant.events.append(req.conversationId, 'deletion_promise_withheld', { words: r.deletionPromiseWithheld });
   }
   if (r.decision.injectionDetected) {
     await tenant.events.append(req.conversationId, 'injection_blocked', {});

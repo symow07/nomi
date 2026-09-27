@@ -224,8 +224,13 @@ import type { Db } from './client.js';
  *      and the operator alert is decided from its row. Against a database
  *      without it every recording fails; the recorder only logs that, so the
  *      app runs on — deaf, which is the state this migration ends.
+ * 75 = a deletion request in chat goes to a person (0075). A buyer asking for
+ *      their data to be deleted is handed over with the 'deletion_requested'
+ *      signal. Against a 74 database that insert fails the CHECK, so the turn
+ *      throws and the message dead-letters: nothing is sent — closed, as the
+ *      owner wants — but the buyer never reaches "Needs you".
  */
-export const REQUIRED_SCHEMA_VERSION = 74;
+export const REQUIRED_SCHEMA_VERSION = 75;
 
 export type SchemaState = {
   readonly required: number;

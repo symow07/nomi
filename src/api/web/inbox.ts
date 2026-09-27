@@ -190,7 +190,9 @@ export async function loadInboxList(
         left join lateral (select kind from conversation_signals cs
                             where cs.conversation_id = c.id and cs.resolved_at is null
                               and cs.kind = any(${sql.raw(`array[${[...PROBLEM_KINDS].map((k) => `'${k}'`).join(',')}]`)})
-                            order by cs.created_at desc limit 1) sig on true
+                            -- 0075: a deletion request is the reason to show whatever else
+                            -- came with it ("delete my data, and get me a person").
+                            order by (cs.kind = 'deletion_requested') desc, cs.created_at desc limit 1) sig on true
        where ${eligible}
        order by
          -- Phase D: a waiting HUMAN outranks everything, so a handoff can never
@@ -1314,6 +1316,26 @@ export function renderConversationDetail(
     : '';
 
   /**
+   * 0075 — the buyer asked for their data to be deleted. The same three parts:
+   * nothing went and a person answers; why nothing about it may be promised in
+   * the chat; what to do — record it in the deletion section of the buyer's page
+   * (CC-02, `#deletion`), then reply in person. Recording is the owner's; staff
+   * are told so, where the page itself would tell them.
+   */
+  const deletionCard = d.handoffReasons.includes('deletion_requested')
+    ? `<div class="card refused">
+        <h3 class="rf-h">${esc(t(locale, 'deletionAsked.title'))}</h3>
+        <div class="rf">
+          <div class="rf-w">${esc(t(locale, 'deletionAsked.what', { name: assistantName(locale) }))}</div>
+          <div class="rf-y muted">${esc(t(locale, 'deletionAsked.why'))}</div>
+          <div class="rf-d">${viewer.isOwner
+            ? `<a href="/app/conversations/${encodeURIComponent(d.conversationId)}#deletion">${esc(t(locale, 'deletionAsked.do'))}</a>`
+            : esc(t(locale, 'staff.deletionAsked'))}</div>
+        </div>
+      </div>`
+    : '';
+
+  /**
    * M44 — she promised no date, and this says which of her own closures is the
    * reason. Same three-part shape as the refusal and unheard cards: what
    * happened, why, and what she can go and do about it.
@@ -1390,6 +1412,7 @@ export function renderConversationDetail(
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
     ${d.ownership === 'OWNER_CONTROLLED' || d.pendingDraft ? '' : noDraft}
+    ${deletionCard}
     ${unheardCard}
     ${unreadableCard}
     ${unlistedCard}

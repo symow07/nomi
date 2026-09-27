@@ -62,6 +62,14 @@ export type Signal =
    * not press anything.
    */
   | { readonly kind: 'ops_silenced' }
+  /**
+   * 0075 — the buyer asked for THEIR data to be deleted (core/safety/deletion.ts:
+   * "delete my data", not "delete that line from the quote"). A person answers,
+   * and the assistant says NOTHING — no reply, no receipt: the owner's decision
+   * of 2026-09-27. Scored like a request for a person, so the turn is gated
+   * before any model call; the turn then sends nothing (pipeline/turn.ts).
+   */
+  | { readonly kind: 'deletion_requested' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -95,6 +103,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'assistant_stopped',
   // 0071 — sending is paused by ops, so a person answers.
   'ops_silenced',
+  // 0075 — the buyer asked for their data to be deleted; a person answers.
+  'deletion_requested',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -116,6 +126,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   email_reply: { kind: 'email_reply' },
   assistant_stopped: { kind: 'assistant_stopped' },
   ops_silenced: { kind: 'ops_silenced' },
+  deletion_requested: { kind: 'deletion_requested' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -149,6 +160,7 @@ export const TRIGGER_REASONS = [
   'email_reply',
   'assistant_stopped',
   'ops_silenced',
+  'deletion_requested',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -175,6 +187,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'assistant_stopped';
     case 'ops_silenced':
       return 'ops_silenced';
+    case 'deletion_requested':
+      return 'deletion_requested';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -204,6 +218,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
       // --- problem ---
       case 'human_requested':
         problem = 100; // absolute. Stop the AI.
+        break;
+      case 'deletion_requested':
+        problem = 100; // absolute: only a person answers a deletion request.
         break;
       case 'complaint':
         problem += 40;

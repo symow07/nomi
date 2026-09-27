@@ -2,6 +2,7 @@ import type { Signal } from './signals.js';
 import { type Money, scaleMoney, isAbove } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import type { Analysis } from '../conversation/decide.js';
+import { asksForDeletion } from '../safety/deletion.js';
 
 /**
  * Deterministic signal detection from the message text and analysis.
@@ -34,6 +35,13 @@ export function detectSignals(input: {
 
   if (HUMAN_PHRASES.some((p) => t.includes(p))) {
     out.push({ kind: 'human_requested' });
+  }
+
+  // 0075 — "delete my data" goes to a person, and nothing is said to the buyer.
+  // The buyer's own data as the object, never "delete that line from the quote"
+  // (core/safety/deletion.ts, both lists in tests/parity/deletion-requests).
+  if (asksForDeletion(text)) {
+    out.push({ kind: 'deletion_requested' });
   }
 
   if (LOGISTICS_PHRASES.some((p) => t.includes(p))) {
