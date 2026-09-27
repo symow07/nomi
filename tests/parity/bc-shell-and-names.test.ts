@@ -35,12 +35,18 @@ describe('B · every page knows which hub it belongs to', () => {
 
   it('the map CHAINS, and the chain is followed to a nav entry', () => {
     // /app/sequences is reached from /app/contacts, which is reached from
-    // /app/conversations, which is reached from /app. Only the last is in the
-    // nav, so stopping at the first hop would light nothing three times over.
-    expect(hubFor('/app/sequences', 'nonsense')).toBe('home');
-    expect(hubFor('/app/contacts', 'nonsense')).toBe('home');
-    expect(hubFor('/app/conversations', 'nonsense')).toBe('home');
-    expect(hubFor('/app/prospects', 'nonsense')).toBe('home');
+    // Buyers. Only Buyers is in the nav, so stopping at the first hop would
+    // light nothing. (A, 2026-09-28: contacts hung off Customers, which was
+    // reached from Today; Customers merged into Buyers, and the chain with it.)
+    expect(hubFor('/app/sequences', 'nonsense')).toBe('inbox');
+    expect(hubFor('/app/contacts', 'nonsense')).toBe('inbox');
+    expect(hubFor('/app/prospects', 'nonsense')).toBe('inbox');
+  });
+
+  it('A — the buyer\'s own pages, still at /app/conversations/:id, light Buyers', () => {
+    expect(hubFor('/app/conversations/abc-123', 'nonsense')).toBe('inbox');
+    expect(hubFor('/app/conversations', 'nonsense')).toBe('inbox');
+    expect(page('/app/conversations/abc-123')).toMatch(/href="\/app\/inbox"[^>]*aria-current="page"/);
   });
 
   it('a page BELOW a contextual route belongs to the same hub', () => {
@@ -49,7 +55,7 @@ describe('B · every page knows which hub it belongs to', () => {
     expect(hubFor('/app/settings/data', 'nonsense')).toBe('settings');
     expect(hubFor('/app/settings/terms', 'nonsense')).toBe('factory');
     expect(hubFor('/app/products/abc-123', 'nonsense')).toBe('factory');
-    expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('home');
+    expect(hubFor('/app/sequences/abc-123', 'nonsense')).toBe('inbox');
     expect(hubFor('/app/inbox/abc-123', 'nonsense')).toBe('inbox');
   });
 

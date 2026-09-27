@@ -87,6 +87,23 @@ export function dayStart(ymd: string): Date {
   return new Date(guess - zoneOffsetMs(new Date(first)));
 }
 
+/**
+ * CC-13 — a label and what it labels, with the locale's own colon: "Last
+ * action: …", "最近操作：…". The Chinese colon is full width and takes no
+ * space after it; English and Arabic take the plain colon and a space. Pages
+ * printed "Last contact：Today" to English readers.
+ */
+export const labelled = (locale: Locale, label: string, value: string): string =>
+  `${label}${locale === 'zh' ? '：' : ': '}${value}`;
+
+/**
+ * CC-13 — a list the way each locale writes one: "a, b and c", "a、b和c",
+ * "a وb". The pages joined every list with the Chinese enumeration comma, in
+ * every language.
+ */
+export const formatList = (locale: Locale, items: readonly string[]): string =>
+  new Intl.ListFormat(INTL_TAG[locale], { type: 'conjunction' }).format(items);
+
 /** "Today 09:15" / "昨天 23:40" / "Jul 17 09:15" — relative day words + time. */
 export function formatRelative(locale: Locale, d: Date, now: Date): string {
   const time = formatTime(locale, d);

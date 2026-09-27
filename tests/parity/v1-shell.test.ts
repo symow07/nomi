@@ -72,15 +72,23 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     expect(html).not.toContain('class="who"');
   });
 
-  it('the language switch and log out are the first rows of Setup, and the login page keeps its switcher', () => {
+  it('the language switch is the first row of Setup, log out its last — a button — and the login page keeps its switcher', () => {
+    // V1 close-out (the review's noted item): log out sat second, as a door,
+    // between the language and Getting ready. It ends the session, so it is a
+    // button (decision 4: buttons do things), and it is the last thing on the
+    // page, after every door. The switch stays first.
     const src = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
     const ret = src.slice(src.indexOf('return `<h1 class="page">${esc(t(locale, \'nav.settings\'))}</h1>'));
     const lang = ret.indexOf("switcher(locale, '/app/settings')");
-    const out = ret.indexOf("deeper('/logout'");
     const firstDoor = ret.indexOf("deeper('/app/onboarding'");
+    const lastDoor = ret.indexOf("deeper('/app/settings/components'");
+    const out = ret.indexOf('<form method="post" action="/logout">');
     expect(lang).toBeGreaterThan(0);
-    expect(out).toBeGreaterThan(lang);
-    expect(firstDoor).toBeGreaterThan(out);
+    expect(firstDoor).toBeGreaterThan(lang);
+    expect(lastDoor).toBeGreaterThan(firstDoor);
+    expect(out, 'log out comes after every door').toBeGreaterThan(lastDoor);
+    expect(ret).not.toContain("deeper('/logout'");
+    expect(ret.slice(out, ret.indexOf('</form>', out))).toMatch(/<button class="btn ghost" type="submit">/);
     expect(loginPage({ locale: 'en', path: '/login' })).toContain('class="langsw"');
   });
 

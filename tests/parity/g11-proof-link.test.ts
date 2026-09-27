@@ -87,8 +87,12 @@ describe('G11 · the owner’s row', () => {
   });
 
   it('the row has styles of its own — it used to inherit none', async () => {
-    const inbox = await src('src/api/web/inbox.ts');
+    // V1 close-out — the conversation page's rules live in the shell's
+    // stylesheet now, under the page's own section; the page is bare.
+    const layout = await src('src/api/web/layout.ts');
+    const inbox = layout.slice(layout.indexOf('/* ── inbox.ts'), layout.indexOf('/* ── conversations.ts'));
     expect(inbox).toMatch(/\.proofrow \{[^}]*gap:/);
     expect(inbox).toMatch(/\.prooflink \{[^}]*overflow-wrap:anywhere/);
+    expect(await src('src/api/web/inbox.ts')).not.toContain('<style');
   });
 });

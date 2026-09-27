@@ -1,26 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { usd } from '../../src/core/types/money.js';
-import {
-  renderCustomerList, renderCustomerFile, type CustomerList, type CustomerFile, type Milestone,
-} from '../../src/api/web/conversations.js';
+import { renderCustomerFile, type CustomerFile, type Milestone } from '../../src/api/web/conversations.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 
 const NOW = new Date('2026-07-27T02:30:00Z'); // 10:30 Beijing
 const m = (o: Partial<Milestone> & Pick<Milestone, 'kind' | 'at'>): Milestone =>
   ({ text: null, qty: null, unitPrice: null, orderStatus: null, ...o });
-
-const list: CustomerList = {
-  query: '',
-  customers: [
-    { conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channel: 'whatsapp',
-      status: { t: 'awaiting' }, statusTone: 'warn', needsOwner: true,
-      product: { name: 'Vacuum cup', nameZh: '保温杯' }, lastActivity: NOW },
-    { conversationId: 'c2', buyer: 'Ivan', country: 'RU', channel: 'whatsapp',
-      status: { t: 'quoted' }, statusTone: 'ok', needsOwner: false,
-      product: { name: 'Canvas bag', nameZh: '帆布袋' }, lastActivity: new Date('2026-07-20T02:30:00Z') },
-  ],
-};
 
 const file: CustomerFile = {
   conversationId: 'c1', buyer: 'Ahmed', country: 'AE', channel: 'whatsapp',
@@ -39,45 +25,18 @@ const file: CustomerFile = {
   },
 };
 
-describe('M9.7 · conversations / customer memory (localized)', () => {
-  it('zh list: buyer, country, channel, status, product, last activity', () => {
-    const html = renderCustomerList(list, 'zh', NOW);
-    expect(html).toContain('客户'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
-    expect(html).toContain('阿联酋'); expect(html).toContain('WhatsApp'); expect(html).toContain('等待确认');
-    expect(html).toContain('保温杯'); expect(html).toContain('最后联系：今天');
-    expect(html).toContain('href="/app/conversations/c1"');
-  });
-
-  it('en list: latin product name + localized chrome', () => {
-    const html = renderCustomerList(list, 'en', NOW);
-    expect(html).toContain('Customers'); expect(html).toContain('Vacuum cup');
-    expect(html).toContain('Awaiting confirmation'); expect(html).toContain('Last contact');
-    expect(html).not.toContain('保温杯');
-  });
-
-  it('search box keeps the query (per locale)', () => {
-    const q = renderCustomerList({ ...list, query: 'Ahmed' }, 'en', NOW);
-    expect(q).toContain('name="q"'); expect(q).toContain('value="Ahmed"'); expect(q).toContain('Clear');
-  });
-
-  it('empty states are honest, never "no data"', () => {
-    // M34.8 — this pinned the literal string 暂无客户记录 while its own name
-    // forbade "no data". 暂无 IS the dead-end phrase M2 banned, so the test was
-    // holding the violation in place. It now asserts the RULE, in both
-    // directions, and the copy was fixed rather than the assertion relaxed.
-    const zh = renderCustomerList({ query: '', customers: [] }, 'zh', NOW);
-    expect(zh).toContain('还没有客户');
-    for (const dead of ['暂无', '无数据']) expect(zh).not.toContain(dead);
-    const en = renderCustomerList({ query: '', customers: [] }, 'en', NOW);
-    expect(en).toContain('No customers yet'); expect(en.toLowerCase()).not.toContain('no data');
-    expect(renderCustomerList({ query: '张三', customers: [] }, 'zh', NOW)).toContain('没找到「张三」');
-    const bob = renderCustomerList({ query: 'Bob', customers: [] }, 'en', NOW);
-    expect(bob).toContain('No customers match'); expect(bob).toContain('Bob');
-  });
-
+/**
+ * A (2026-09-28) — the Customers LIST merged into Buyers; its tests (the
+ * channel, the search box, the empty states) moved with it, to
+ * tests/parity/buyers-merge.test.ts. What stays here is the buyer's own page,
+ * which did not move.
+ */
+describe('M9.7 · the buyer\'s own page (localized)', () => {
   it('buyer profile shows only data that exists', () => {
     const en = renderCustomerFile(file, 'en', NOW);
-    expect(en).toContain('Customer file'); expect(en).toContain('First contact');
+    // A — one word for one idea: the page is about a BUYER, never a "customer".
+    expect(en).toContain('About this buyer'); expect(en).not.toContain('Customer');
+    expect(en).toContain('First contact');
     expect(en).toContain('Products of interest'); expect(en).toContain('Quotes'); expect(en).toContain('Orders');
     const bare = renderCustomerFile({ ...file, profile: { ...file.profile, quoteCount: 0, orderCount: 0 } }, 'en', NOW);
     expect(bare).toContain('First contact'); expect(bare).not.toContain('>Quotes<');
@@ -106,7 +65,9 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   it('needsOwner links to the inbox — no approval form here', () => {
     const html = renderCustomerFile(file, 'en', NOW);
     // CC-25 — onto the newest message, where the reply waits for her OK.
-    expect(html).toMatch(/class="card need-card">[\s\S]*?href="\/app\/inbox\/c1#latest"/);
+    // V1 (decision 4) — it goes somewhere, so it is a door, not a button.
+    expect(html).toMatch(/class="card need-card">[\s\S]*?<a class="deeper next" href="\/app\/inbox\/c1#latest"/);
+    expect(html).not.toMatch(/<a class="btn/);
     // Approving is the inbox's, and only the inbox's: no draft command posts
     // from this page. The one form here (2026-09-18) names the buyer — it
     // posts to this page's own route and carries no draft, no command.
@@ -140,7 +101,7 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
 
   it('no technical vocabulary — every locale', () => {
     for (const l of LOCALES) {
-      const html = (renderCustomerList(list, l, NOW) + renderCustomerFile(file, l, NOW)).toLowerCase();
+      const html = renderCustomerFile(file, l, NOW).toLowerCase();
       for (const w of ['ai', 'llm', 'model', 'api', 'webhook', 'automation', 'confidence']) {
         expect(new RegExp(`\\b${w}\\b`).test(html), `${l}:${w}`).toBe(false);
       }
@@ -149,7 +110,30 @@ describe('M9.7 · conversations / customer memory (localized)', () => {
   });
 
   it('mobile: no tables', () => {
-    expect(renderCustomerList(list, 'en', NOW)).not.toContain('<table');
     expect(renderCustomerFile(file, 'en', NOW)).not.toContain('<table');
+  });
+
+  it('A — back goes to Buyers, the one list; the page carries no stylesheet of its own', () => {
+    for (const l of LOCALES) {
+      const html = renderCustomerFile(file, l, NOW);
+      expect(html, l).toContain('<a class="back" href="/app/inbox">');
+      expect(html, l).not.toContain('href="/app/conversations"');
+      expect(html, l).not.toContain('<style');
+    }
+  });
+
+  it('CC-13 — each locale writes its own lists: no Chinese enumeration comma in English or Arabic', () => {
+    const two = { ...file, profile: { ...file.profile, products: [{ name: 'Vacuum cup', nameZh: '保温杯' }, { name: 'Canvas bag', nameZh: '帆布袋' }] },
+      context: { ...file.context, corrections: ['quote', 'confirm_order'] } };
+    const en = renderCustomerFile(two, 'en', NOW);
+    const ar = renderCustomerFile(two, 'ar', NOW);
+    const zh = renderCustomerFile(two, 'zh', NOW);
+    for (const [l, html] of [['en', en], ['ar', ar]] as const) {
+      expect(html, l).not.toContain('、');
+      expect(html, l).not.toContain('：');
+      expect(html, l).not.toContain('　');
+    }
+    expect(en).toContain('Vacuum cup and Canvas bag');
+    expect(zh).toContain('保温杯和帆布袋');
   });
 });

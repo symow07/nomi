@@ -93,14 +93,14 @@ describe('M51.5 · it obeys the insight rule', () => {
     monthChange: {
       key: 'insight.monthChange.inquiries.down',
       params: { from: 40, to: 25 },
-      action: { kind: 'seeBuyers', href: '/app/conversations' },
+      action: { kind: 'seeBuyers', href: '/app/inbox?filter=all' },
     },
   });
 
   it('ends in something to tap, in every locale', () => {
     for (const locale of LOCALES) {
       const html = renderInsights(data(), locale);
-      expect(html, locale).toContain('/app/conversations');
+      expect(html, locale).toContain('/app/inbox?filter=all')   // A — every buyer, on the one list;
       expect(html, locale).toContain(t(locale, 'insight.action.seeBuyers'));
       expect(html).toContain('40');
       expect(html).toContain('25');

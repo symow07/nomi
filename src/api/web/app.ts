@@ -84,9 +84,7 @@ import {
 } from './sequences.js';
 import { type Person, type OwnerOnlyAction, mayDo, heldByName } from '../../core/conversation/people.js';
 import { loadEmployee, renderEmployee } from './employee.js';
-import {
-  loadCustomerList, loadCustomerFile, renderCustomerList, renderCustomerFile, renameBuyer,
-} from './conversations.js';
+import { loadCustomerFile, renderCustomerFile, renameBuyer } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
 import { loadCalendar } from '../../db/calendar.js';
@@ -127,7 +125,7 @@ import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
-import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl } from './layout.js';
+import { shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
@@ -1386,10 +1384,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return done(saved ? 'account.flash.changed' : 'account.flash.failed');
   });
 
-  app.get('/logout', async (_req, reply) => {
+  // V1 close-out — Setup signs out with a BUTTON (a form that posts here):
+  // ending the session is an action, not a place. The address itself still
+  // signs out for anything that learned it as a link.
+  const logout = async (_req: FastifyRequest, reply: FastifyReply) => {
     setCookie(reply, '', 0);
     return reply.redirect('/login');
-  });
+  };
+  app.get('/logout', logout);
+  app.post('/logout', logout);
 
   // ADR-0008: public language switch. Sets the yf_locale cookie, returns to `next`.
   app.get('/locale', async (req, reply) => {
@@ -1437,18 +1440,25 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
+  // A — Buyers is the one list of every buyer (Customers merged into it): a
+  // tab, a search and a page, each from the address, so every door keeps
+  // what the owner was looking at.
   app.get('/app/inbox', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
-    const requested = (req.query as { filter?: string } | undefined)?.filter;
+    const query = (req.query ?? {}) as { filter?: unknown; q?: unknown; after?: unknown; before?: unknown };
+    const requested = query.filter;
+    const ask = { q: query.q, after: query.after, before: query.before };
     // G12 — 'mine' needs to know who is looking.
     const me = personOf(s).id;
-    const list0 = await loadInboxList(deps.db, s.businessId, 'all', me);
-    const filter: InboxFilter = requested === 'pending' || requested === 'all'
-      || requested === 'blocked' || requested === 'mine' || requested === 'deletion'
-      ? requested : defaultFilter(list0.waitingCount);
-    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me);
+    const chosen: InboxFilter | null = requested === 'pending' || requested === 'all'
+      || requested === 'blocked' || requested === 'mine' || requested === 'deletion' ? requested : null;
+    // A search with no tab looks across every buyer: it is a find, not a view.
+    const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
+    const list0 = await loadInboxList(deps.db, s.businessId, chosen ?? 'all', me, ask);
+    const filter: InboxFilter = chosen ?? (searching ? 'all' : defaultFilter(list0.waitingCount));
+    const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me, ask);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       // M47 — so the list can name WHICH human holds each conversation.
@@ -2323,11 +2333,22 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return { code: 'revoked' as const };
   });
 
-  // ── M9.7 Conversations: customer memory over existing activity ────────────
-  app.get('/app/conversations', authed('conversations', async (s, req, locale, reply) => {
-    const q = typeof (req.query as { q?: string }).q === 'string' ? (req.query as { q: string }).q : '';
-    return renderCustomerList(await loadCustomerList(deps.db, s.businessId, q), locale, new Date());
-  }));
+  // ── A · Customers is Buyers now ──────────────────────────────────────────
+  // The list at `/app/conversations` was the same buyers as `/app/inbox`
+  // under a second word. It answers with the one list now, the search
+  // carried across (`q`, the only thing it ever took); with none, the whole
+  // list — "All", which is what Customers showed. A stranger is sent to sign
+  // in first, like every address here, and learns nothing about what is
+  // behind it. A plain redirect, not a permanent one: which answer comes back
+  // depends on who asks, and a browser must not remember one for everybody.
+  app.get(MERGED_INTO_BUYERS, async (req, reply) => {
+    if (!sessionOf(req)) return reply.redirect('/login');
+    const q = (req.query as { q?: unknown } | undefined)?.q;
+    const typed = typeof q === 'string' ? q.trim() : '';
+    return reply.redirect(typed ? `/app/inbox?q=${encodeURIComponent(typed)}` : '/app/inbox?filter=all');
+  });
+
+  // ── M9.7 the buyer's own page: what is known about one buyer ──────────────
   app.get('/app/conversations/:conversationId', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
@@ -2335,12 +2356,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const file = await loadCustomerFile(deps.db, s.businessId, conversationId);
     if (!file) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'conv.title'), active: 'conversations',
-      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block"><a href="/app/conversations">${esc(t(locale, 'conv.back'))}</a></div>`,
+      title: t(locale, 'nav.inbox'), active: 'inbox',
+      bodyHtml: `<h1 class="page">${esc(t(locale, 'conv.notFound'))}</h1><div class="block">${back('/app/inbox', t(locale, 'inbox.detail.back'))}</div>`,
     }));
     const flash = takeFlash(req, reply);
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: file.buyer ?? t(locale, 'common.buyer'), active: 'conversations',
+      title: file.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
       bodyHtml: renderCustomerFile(file, locale, new Date(), flash, personOf(s)),
     }));
   });
@@ -2365,7 +2386,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return flashTo(reply, here, 'conv.deletion.flash.note_long', { n: BUYER_NOTE_MAX });
     }
     const r = await askBuyerDeletion(deps.db, s.businessId, conversationId, note?.ok ? note.value : null, personOf(s).id);
-    if (r.outcome === 'not_found') return reply.redirect('/app/conversations');
+    if (r.outcome === 'not_found') return reply.redirect('/app/inbox');
     if (r.outcome === 'note_missing') return flashTo(reply, here, 'conv.deletion.flash.note_missing');
     /**
      * The operator hears of it the day it is recorded, as a workspace request
@@ -2423,7 +2444,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const raw = String((req.body as { name?: unknown } | undefined)?.name ?? '');
     const r = await renameBuyer(deps.db, s.businessId, conversationId, raw, personOf(s).name);
-    if (r === 'not_found') return reply.redirect('/app/conversations');
+    if (r === 'not_found') return reply.redirect('/app/inbox');
     const key = `conv.flash.name${r === 'saved' ? 'Saved' : r === 'cleared' ? 'Cleared' : 'Invalid'}` as MessageKey;
     return flashTo(reply, `/app/conversations/${encodeURIComponent(conversationId)}`, key, { buyer: t(locale, 'common.buyer') });
   });

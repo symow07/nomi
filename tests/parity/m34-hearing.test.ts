@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+
+/** V1 close-out — the conversation page's rules, as they sit in the shell's stylesheet. */
+const inboxSectionOfShell = async (): Promise<string> => {
+  const src = await readFile(new URL('../../src/api/web/layout.ts', import.meta.url), 'utf8');
+  const start = src.indexOf('/* ── inbox.ts');
+  return start > 0 ? src.slice(start, src.indexOf('/* ── conversations.ts', start)) : '';
+};
 import { decideHearing } from '../../src/core/conversation/hearing.js';
 import { hearVoiceNote } from '../../src/pipeline/voiceTurn.js';
 import { whisperTranscriber, MAX_AUDIO_BYTES } from '../../src/llm/transcribe.js';
@@ -267,7 +274,8 @@ describe('M34 · the owner is told, in her own language', () => {
   });
 
   it('spoken words keep their own line breaks; the bubble does not keep the markup\'s', async () => {
-    const src = await readFile(new URL('../../src/api/web/inbox.ts', import.meta.url), 'utf8');
+    // V1 close-out — the conversation page's rules are the shell's now, in its section.
+    const src = await inboxSectionOfShell();
     // A voiced bubble holds several elements inside a pre-wrap component, so
     // the wrapper opts out and only the words opt back in. Without this the
     // file's own indentation renders as blank lines inside every voice bubble
@@ -289,7 +297,7 @@ describe('M34 · the owner is told, in her own language', () => {
   });
 
   it('spoken words are in the voice serif; the label about them is not', async () => {
-    const src = await readFile(new URL('../../src/api/web/inbox.ts', import.meta.url), 'utf8');
+    const src = await inboxSectionOfShell();
     // .bubble is voiced by the shell; the label is the product speaking ABOUT
     // the speech, so it opts back into the sans family.
     expect(src).toMatch(/\.heard-label \{[^}]*font-family:var\(--font-family\)/);

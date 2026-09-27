@@ -69,6 +69,9 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },
   // V2 — the calendar: each entry opens a buyer, so it is reached from Buyers.
   { hub: '/app/inbox', routes: ['/app/calendar'] },
+  // M38 — everyone the assistant may write to, reached from the list of
+  // everyone who wrote. A — that list is Buyers now (it was Customers).
+  { hub: '/app/inbox', routes: ['/app/contacts'], outreach: true },
   { hub: '/app/settings', routes: [
     '/app/onboarding', '/app/channels',
     '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data',
@@ -76,12 +79,20 @@ export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   ] },
   // Phase 4b — the machine room is reached from Getting ready, and lights Setup through it.
   { hub: '/app/onboarding', routes: ['/app/onboarding/technical'] },
-  { hub: '/app/conversations', routes: ['/app/contacts'], outreach: true },
   // C4.b — follow-ups are written for the people on her list, so they are
   // reached from it.
   { hub: '/app/contacts', routes: ['/app/sequences', '/app/prospects'], outreach: true },
-  { hub: '/app', routes: ['/app/conversations', '/app/analytics'] },
+  { hub: '/app', routes: ['/app/analytics'] },
 ];
+
+/**
+ * A (2026-09-28) — an address that is another page now. Customers
+ * (`/app/conversations`) merged into Buyers: the address answers with a
+ * redirect to the one list (app.ts), and the buyer's own pages beneath it
+ * (`/app/conversations/:id`) did not move — the URLs of pages do not move
+ * (`docs/IA-PROPOSAL.md`) — and belong to Buyers, which `hubFor` reads here.
+ */
+export const MERGED_INTO_BUYERS = '/app/conversations';
 
 export const CONTEXTUAL_ROUTES: readonly string[] =
   CONTEXTUAL_ROUTES_BY_HUB.flatMap((g) => g.routes);
@@ -431,7 +442,12 @@ ${LANGSW_CSS}
   .row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap;
     padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .row:last-child { border-bottom:0; }
-  .row.lines { display:grid; gap:var(--space-4); }
+  /* One column the width of the row, each line at its own width, so a line
+     that spreads (a name and its state) reaches the row's far edge. Left to
+     the row's space-between, the column shrank to its content, and on the
+     channels page each state sat a different distance from its name. */
+  .row.lines { display:grid; grid-template-columns:minmax(0, 1fr); justify-items:start; gap:var(--space-4); }
+  .row.lines > .spread { justify-self:stretch; }
   .row.top { align-items:flex-start; }
   .row p { margin:0; }
   .row .btn { flex:none; }
@@ -447,6 +463,17 @@ ${LANGSW_CSS}
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
   .choices legend { padding:0; margin-bottom:var(--space-4); font-size:var(--font-size-caption); }
+  /* V1 · decision 5 (2026-09-28): the row's one tag. Caption size, never
+     wrapped; state colour only when it names a state — now (waiting for the
+     owner), you (a person here holds it). Any other label, the calendar's
+     kinds among them, is the neutral tag. */
+  .tag { display:inline-flex; align-items:center; padding:5px 11px; border-radius:var(--radius-chip);
+    font-size:var(--font-size-caption); font-weight:600; white-space:nowrap;
+    background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
+  .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  /* The doors either side of one page of a list, and where it sits in the whole. */
+  .pager { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
   /* Today (step four). The calm state IS the page: a short rule and one
      sentence in the product's voice — quiet, not jade, while messaging is off.
      And a count you can tap: the stat row as a link, its figure one step up. */
@@ -794,16 +821,111 @@ const STYLE_PAGES = `
   .wform textarea { width:100%; font:inherit; }
   .wact { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; }
 
-  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The category is the neutral chip: a category is not a state. */
+  /* ── calendar.ts — V2: a read-only list of dated rows under day headings. The kind of each row is the row's neutral tag: a kind is not a state. */
   .cal-tabs { flex-wrap:wrap; }
   .cal-buyer { margin-bottom:var(--space-12); }
   .cal-span { margin:var(--space-8) 0 0; color:var(--color-ink-secondary); }
-  .cal-range { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
   .cal-day { margin:var(--space-24) 0 0; }
   .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
   .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-jade-deep); }
   .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
+
+  /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
+  /* The search: the field takes the room, its button and the way back beside it. */
+  .search { display:flex; align-items:center; gap:var(--space-8); margin:0 0 var(--space-16); max-width:var(--measure-prose); }
+  .search input { flex:1; min-width:0; appearance:none; }
+  .search .clear { display:inline-flex; align-items:center; min-height:44px; font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* Grouped by who is speaking; the list keeps the prose measure at desktop. */
+  .bgroup { margin-bottom:var(--space-24); max-width:var(--measure-prose); }
+  .bgroup-h { font-size:var(--font-size-caption); font-weight:600; color:var(--color-ink-secondary); margin:0 0 var(--space-12); }
+  /* The row, as decision 5 keeps it: a tile per buyer. */
+  a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border);
+    border-radius:var(--radius-card); padding:var(--space-16); }
+  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
+  .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
+  .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
+  .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  /* The buyer's own words with nothing after them: full ink, the transcript's rule for whose words lead. */
+  .buyer.unanswered .buyer-m { color:var(--color-ink); }
+  .buyer-t { font-size:var(--font-size-caption); margin-top:var(--space-12); }
+  .dhead .who { font-size:var(--font-size-small); }
+  .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
+    margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
+  /* The reply waiting for review. */
+  .review-intro { margin:0 0 var(--space-12); }
+  .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-waiting); }
+  .draft .held-then { display:flex; flex-direction:column; gap:var(--space-4); margin:0 0 var(--space-12); font-size:var(--font-size-small); }
+  .draft .held-then b { font-weight:600; }
+  .revoke-note { margin:var(--space-8) 0 0; }
+  /* Who holds it, and handing it on. */
+  .why, .lastact { flex-basis:100%; font-size:var(--font-size-caption); }
+  .handto { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+    margin-top:var(--space-12); font-size:var(--font-size-small); }
+  /* M22 — a refusal is information, not an alarm: amber, like a disconnected
+     channel. Something needs the owner, and nothing is broken. 0052 — a send
+     nobody can account for is the same amber, with the words and two answers. */
+  .card.refused, .card.unsure { background:var(--color-highlight-wash); }
+  .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
+  .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
+  .rf:first-of-type { border-top:0; padding-top:0; }
+  .rf-w { font-size:var(--font-size-small); color:var(--color-highlight); }
+  .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
+  .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
+  .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
+    border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
+    font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); white-space:pre-wrap; }
+  .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
+  /* M34 — a heard message says so. The label and the superseded reading are
+     the product speaking about the speech, so they stay sans; the words keep
+     the voice serif of the bubble. The bubble keeps a buyer's own line breaks;
+     a voiced one holds several elements, so it opts out and the words opt in. */
+  .bubble.voiced { white-space:normal; }
+  .bubble.voiced .said { white-space:pre-wrap; }
+  .heard-label { font-family:var(--font-family); font-size:var(--font-size-caption); margin-bottom:var(--space-8); }
+  .unheard-line { font-family:var(--font-family); font-size:var(--font-size-small); }
+  .orig { font-size:var(--font-size-caption); margin-top:var(--space-8);
+    border-inline-start:2px solid var(--color-border); padding-inline-start:10px; }
+  .fixheard { margin-top:var(--space-12); font-family:var(--font-family); }
+  .fixheard summary { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .fixheard form { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); }
+  .voiceplay { display:block; margin:var(--space-8) 0; }
+  .answernow { margin-top:var(--space-8); }
+  /* What the assistant leaned on, and the deal: a provenance list and a sunk box. */
+  .knewlist { list-style:none; margin:0; padding:0; max-width:var(--measure-prose); }
+  .knewlist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
+  .knewlist li:last-child { border-bottom:0; }
+  .ctx { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk);
+    border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
+    margin-bottom:var(--space-16); font-size:var(--font-size-small); }
+  .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
+    margin-top:var(--space-12); font-size:var(--font-size-small); }
+  .prooflink { overflow-wrap:anywhere; color:var(--color-ink-secondary); }
+  /* Three actions stay on one row: the destructive one belongs beside its alternatives. */
+  @media (max-width:560px) { .acts .btn { padding-inline:12px; } }
+
+  /* ── conversations.ts — the buyer's own page; moved in at the V1 close-out. */
+  .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .need-card { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-12); font-size:var(--font-size-small); }
+  .name-form { max-width:var(--measure-form); margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
+  .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
+  .name-row { display:flex; gap:var(--space-8); align-items:center; }
+  .name-row input { flex:1; min-width:0; }
+  .name-form .hint { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  /* A label and its value stay together at desktop: the prose measure, like every row. */
+  .prow, .cx { max-width:var(--measure-prose); border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .prow { display:flex; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; }
+  .cx { display:flex; gap:var(--space-12); padding:var(--space-8) 0; }
+  .prow:last-child, .cx:last-child { border-bottom:0; }
+  .cx-l { color:var(--color-ink-secondary); min-width:72px; }
+  /* The history: a line down the reading edge, each kind told by its mark, not by a colour. */
+  .tl { list-style:none; padding:0; margin:0; max-width:var(--measure-prose); }
+  .tl li { display:flex; gap:var(--space-12); position:relative; padding:10px 0; padding-inline-start:16px;
+    margin-inline-start:var(--space-8); border-inline-start:2px solid var(--color-border); }
+  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface-alt);
+    font-size:var(--font-size-small); line-height:1; }
+  .tl .tx { font-size:var(--font-size-small); }
 
   /* ── sequences.ts — moved here whole in step four: page-specific names, defined once. */
   .sqs { list-style:none; margin:var(--space-12) 0; padding:0; }
@@ -930,9 +1052,9 @@ ${input.extraCss ?? ''}
  * `startsWith` would light Today on all of them.
  *
  * AND THE MAP CHAINS. `/app/sequences` is reached from `/app/contacts`, which
- * is reached from `/app/conversations`, which is reached from `/app` — only
- * that last one is in the nav. So the lookup FOLLOWS the chain rather than
- * stopping at the first hop, which would light nothing three times over.
+ * is reached from `/app/inbox` — only that last one is in the nav. So the
+ * lookup FOLLOWS the chain rather than stopping at the first hop, which would
+ * light nothing twice over.
  */
 export function hubFor(path: string, active: string): string {
   const url = (path.split('?')[0] ?? path).replace(/\/+$/, '') || '/app';
@@ -956,6 +1078,8 @@ export function hubFor(path: string, active: string): string {
     // beneath them: `/app/inbox/<id>` really is Buyers.
     for (const n of NAV) consider(n.href, { nav: n.id }, n.href === '/app');
     for (const g of CONTEXTUAL_ROUTES_BY_HUB) for (const r of g.routes) consider(r, { hub: g.hub });
+    // A — the buyer's pages sit under the address Customers had; they are Buyers'.
+    consider(MERGED_INTO_BUYERS, { hub: '/app/inbox' });
     return best ?? {};
   };
 

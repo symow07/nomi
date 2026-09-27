@@ -226,11 +226,16 @@ export function renderSettings(
     ? `<p class="muted setup-line">${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>`
     : '';
 
+  // V1 · option A put the language switch and log out at the top of Setup.
+  // The switch stays first — it is the one thing here an owner looks for in a
+  // hurry. Log out moved LAST, and is a button (V1 close-out, the review's
+  // noted item): it ends the session, so it does something rather than going
+  // somewhere (decision 4), and the one action that signs the owner out no
+  // longer sits between the language and Getting ready.
   return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
     ${flashBanner(flash)}
     ${progress}
     <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
-    ${deeper('/logout', t(locale, 'header.logout'))}
     ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}
     ${deeper('/app/channels', t(locale, 'nav.channels'))}
     ${form}${categories}
@@ -239,6 +244,9 @@ export function renderSettings(
     ${deeper('/app/settings/account', t(locale, 'account.title'))}
     ${deeper('/app/settings/data', t(locale, 'data.title'))}
     ${deeper('/app/settings/components', t(locale, 'components.title'))}
+    <div class="block signout"><form method="post" action="/logout">
+      <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
+    </form></div>
     `;
 }
 

@@ -50,7 +50,7 @@ export type InsightAction =
   | { readonly kind: 'confirm_follow_ups'; readonly href: '/app/sequences' }
   /** M51.5 — a change in the month is a change in HER BUYERS. That is where
    *  it is visible one conversation at a time, so that is where it points. */
-  | { readonly kind: 'seeBuyers'; readonly href: '/app/conversations' };
+  | { readonly kind: 'seeBuyers'; readonly href: '/app/inbox?filter=all' };
 
 export type Insight = {
   /** Language-NEUTRAL: the renderer localizes. Params are counts and names. */
@@ -247,7 +247,8 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
       ? {
           key: `insight.monthChange.${changed.driver}.${changed.change > 0 ? 'up' : 'down'}` as MessageKey,
           params: { from: changed.from, to: changed.to },
-          action: { kind: 'seeBuyers', href: '/app/conversations' },
+          // A — every buyer, on the one list (Customers merged into Buyers).
+          action: { kind: 'seeBuyers', href: '/app/inbox?filter=all' },
         }
       : null;
 

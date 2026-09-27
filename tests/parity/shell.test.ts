@@ -53,8 +53,11 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     const navHrefs = new Set(NAV.map((n) => n.href));
     for (const r of CONTEXTUAL_ROUTES) expect(navHrefs.has(r), r).toBe(false);
     // and the ones that were demoted are still real routes someone links to
-    for (const r of ['/app/onboarding', '/app/sandbox', '/app/conversations', '/app/analytics'])
+    for (const r of ['/app/onboarding', '/app/sandbox', '/app/analytics'])
       expect(CONTEXTUAL_ROUTES, r).toContain(r);
+    // A — Customers is not a route of its own any more: it merged into Buyers,
+    // and its address answers with a redirect there, so nothing links to it.
+    expect(CONTEXTUAL_ROUTES).not.toContain('/app/conversations');
   });
 
   it('marks the active destination, and only that one', () => {
