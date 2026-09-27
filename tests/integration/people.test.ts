@@ -172,6 +172,8 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       ['/app/factory/allowlist/add', 'phone=%2B971500009999&label=test'],
       ['/app/channels/whatsapp/disconnect', undefined],
       ['/app/settings/rate', 'rate=7.1'],
+      // CC-02a — recording a buyer's request to be deleted is the owner's.
+      [`/app/conversations/${randomUUID()}/deletion`, 'note=asked%20on%20WhatsApp'],
     ] as const) {
       const res = await post(staffCookie, url, payload);
       expect(res.statusCode, url).toBe(302);

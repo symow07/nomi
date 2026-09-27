@@ -19,6 +19,8 @@ import { latestBackupRun } from './db/backups.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
 import { liveBusinessIds } from './db/accounts.js';
+import { deletionDueAlert } from './pipeline/deletionWatch.js';
+import type { DeletionWatchJob } from './queue/boss.js';
 import { META_SHAPE } from './core/channel/metaReadiness.js';
 import { assertSafeRuntimeRole } from './db/runtimeIdentity.js';
 import { assertSchemaCurrent } from './db/schemaVersion.js';
@@ -1019,6 +1021,26 @@ export async function buildProduction(
       businessId: job.data.businessId, kind: 'backup_stale', conversationId: null,
       lastBackupAt: latest?.uploadedAt.toISOString() ?? null,
     } satisfies NotifyJob, { singletonKey: 'backup_stale' });
+  });
+
+  /**
+   * CC-02a — the deletion deadlines. /data-deletion promises every buyer that
+   * Nomi's operator carries a deletion out within 30 days of the business
+   * recording it. Once a day, after the backup check, ask across every
+   * business which open requests are within 7 days of that or past it, and
+   * tell whoever runs this installation — the operator alert, by e-mail
+   * always (`deletionDueAlert`). A singleton per day on top of the daily
+   * schedule: a redeploy or a retry never makes it two, and a request left
+   * late is news again the next morning, every morning, until it is done.
+   */
+  await boss.schedule(QUEUES.deletions, '0 7 * * *', { businessId: PILOT_BUSINESS_ID } satisfies DeletionWatchJob);
+  await boss.work<DeletionWatchJob>(QUEUES.deletions, async ([job]: { data: DeletionWatchJob }[]) => {
+    if (!job) return;
+    const alert = await deletionDueAlert(db, job.data.businessId, new Date());
+    if (!alert) { console.log('[deletions] nothing due within 7 days'); return; }
+    console.warn(`[deletions] ${alert.deletionsDue?.length ?? 0} request(s) due within 7 days or late`);
+    await boss.send(QUEUES.notify, alert satisfies NotifyJob,
+      { singletonKey: 'deletion_due', singletonSeconds: 24 * 3600 });
   });
 
   // The provider that carried THIS channel's event: Meta for the Page and

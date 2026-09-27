@@ -28,6 +28,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'account.flash.failed', 'account.flash.short', 'account.flash.wrong', 'allowlist.flash.invalid',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
+  // CC-02a — a buyer's deletion request that was not recorded.
+  'conv.deletion.flash.already_open', 'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
   'assistants.flash.channel_taken', 'assistants.flash.is_default', 'assistants.flash.name_long',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
@@ -79,6 +81,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.flash.disconnected', 'connect.meta.flash.connected', 'connect.meta.flash.connectedNoIg',
   'connect.meta.flash.disconnected', 'contacts.flash.added', 'contacts.flash.archived',
   'data.flash.asked', 'data.flash.withdrawn',
+  'conv.deletion.flash.asked',
   'contacts.flash.attested', 'contacts.flash.queued', 'contacts.flash.suppressed',
   'contacts.lookup.flash.found', 'contacts.lookup.flash.reused', 'conv.assistant.flash.changed',
   'conv.flash.nameCleared', 'conv.flash.nameSaved', 'domain.flash.checked', 'domain.flash.saved',

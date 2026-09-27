@@ -17,18 +17,25 @@ could say how many were open or how old the oldest was.
 
 ## The two kinds of request
 
-| | Who asks | Where it lands |
-|---|---|---|
-| **Workspace** | the owner, for their whole account | `/app/settings/data` → a `deletion_requests` row, `scope = 'workspace'` |
-| **Buyer** | one person who wrote to a business | reaches the **business**, not us — the public `/data-deletion` page tells them to ask the business they wrote to |
+| | Who asks | Where it lands | Carried out with |
+|---|---|---|---|
+| **Workspace** | the owner, for their whole account | `/app/settings/data` → a `deletion_requests` row, `scope = 'workspace'` | `tools/erase-workspace.mjs` |
+| **Buyer** | one person who wrote to a business | the business records it on that buyer's page (`/app/conversations/:id`) → a `deletion_requests` row, `scope = 'buyer'`, `client_id` set; due **30 days after `asked_at`** | `tools/erase-buyer.mjs` |
 
-A buyer's request is the business's to carry out, because the business is the
-controller of that buyer's data and we are its processor. If a buyer writes to
-us directly, forward it to the business and tell the buyer you have.
+A buyer's request is the business's to make, because the business is the
+controller of that buyer's data; we are its processor, and we carry it out
+within 30 days of the business recording it — `/data-deletion` says exactly
+that (CC-02a). If a buyer writes to us directly, pass it to the business they
+wrote to and tell the buyer you have: the 30 days start when the business
+records it. We hear of each request the day it is recorded (a notice to
+`LEGAL_CONTACT_EMAIL`) and every morning from a week before its date (the
+`deletion_due` alert). `tools/erase-buyer.mjs` closes the row as done when it
+carries it out — the business sees that and tells the buyer; nothing in the
+product writes to them.
 
 ## Before you erase anything
 
-1. **There must be an open request.** The tool refuses without one, and that
+1. **There must be an open request.** Both tools refuse without one, and that
    refusal is load-bearing: no open request means somebody decided on a
    business's behalf. If the request arrived by e-mail or letter, have the
    owner make it in the product first, from their own account.
@@ -37,6 +44,8 @@ us directly, forward it to the business and tell the buyer you have.
 3. **Offer the export first, once.** `/app/settings/data` gives them every
    buyer, message, product, order, quote and contact as CSV. Someone closing a
    business usually wants their order history; after this they cannot have it.
+   For one buyer, the owner may want that buyer's messages first — once erased
+   they are gone for the business too.
 4. **Take a backup you can actually restore**, and know how long it is kept.
    This is the last moment a mistake is recoverable.
 
@@ -67,7 +76,7 @@ The tool:
 the app's. Run it through `railway run --service Postgres` so the value never
 passes through a shell history.
 
-## Afterwards
+## After a workspace deletion
 
 The `deletion_requests` row is itself the business's data, so it goes with
 everything else. That means **the only surviving record is the one you keep**:
@@ -79,21 +88,123 @@ everything else. That means **the only surviving record is the one you keep**:
 
 ## A buyer, inside a business that is staying
 
-There is no tool for this yet, and that is honest rather than accidental: it
-needs the business's own decision about what it must keep by law (an invoice
-for an order is usually one of those), and that is a conversation, not a
-script. Today:
+The buyer asks the business; the owner records the request in the product, on
+that buyer's page — one open request per buyer. **The 30-day clock starts at
+`asked_at`** — when the owner recorded it — and the dry run prints the date it
+is due. What is waiting:
 
-1. Find them: `select id, display_name from clients where business_id = $1 …`
-2. Decide with the business what stays — orders and their `order_updates`
-   normally do; messages, `client_channels`, `contacts` and `contact_consent`
-   normally go.
-3. Delete inside one transaction, deepest first. `messages` hang off
-   `conversations`, `client_channels` off `clients`.
-4. Record it, and tell the buyer.
+```sql
+select id, business_id, client_id, asked_at, asked_at + interval '30 days' as due, subject_note
+  from deletion_requests
+ where scope = 'buyer' and state = 'open'
+ order by asked_at;
+```
 
-When this happens more than once or twice, build it into the tool with a
-`--client` flag rather than repeating it from memory.
+```sh
+# 1 · see what it would erase and keep. Changes nothing.
+MIGRATE_DATABASE_URL=… node tools/erase-buyer.mjs --request <uuid>
+
+# 2 · read the counts, then do it. All three flags are required.
+MIGRATE_DATABASE_URL=… node tools/erase-buyer.mjs --request <uuid> \
+  --yes --confirm <first 8 characters of the request id> --by "<your name>"
+```
+
+Read the dry run before step 2. It prints the business, who asked and when,
+the owner's note on who the buyer is, their identities (masked — check it is
+the right person), how many conversations they have and how many stay as empty
+shells, then three lists: **ERASED**, **KEPT** and **CHANGED IN PLACE**, with a
+count per table. A line starting `!` is something to settle first — a sample
+credit their order page will stop showing, another buyer row holding one of
+their identities (the same person recorded twice needs a request of its own),
+or a worker busy with them right now. `--by` goes on the request as who carried
+it out. On Railway, run both steps through `railway run --service Postgres`, as
+for a workspace, so the URL never passes through a shell history.
+
+### What goes, and what stays
+
+This is the contract the public `/data-deletion` page states. The tool carries
+out exactly this — no more, no less.
+
+**Erased** — their data:
+- their identity on every channel (`client_channels`), and every message to or
+  from them: `messages`, `message_fragments`, `turns`, `outbound_messages` and
+  `outbound_transitions`, `deliveries`;
+- drafts, quotes, sample requests, proof links (`quote_proofs`), conversation
+  signals, events, escalations and notes, handoffs, `repairs`, conversation
+  state, and the service's shadow of each turn (`shadow.turn_decisions`);
+- outreach rows for their identities: `contacts`, `contact_consent`,
+  `sequence_enrollments` and `sequence_sends`, and their number on the
+  `pilot_allowlist`;
+- their conversations — **except** one an order points at;
+- their raw webhook receipts (`channel_events`) and any queued or finished job
+  about them (`pgboss.job` — inbound jobs carry their words).
+
+**Kept**:
+- the orders they placed, with items, prices and status history
+  (`order_updates`, `email_confirmations`). The order's e-mail, shipping
+  address and notes are cleared; a confirmation mail keeps when it went and
+  whether it arrived, not the address or the text;
+- a quote an order was made from (a price snapshot, nothing personal);
+- the conversation an order points at, as an **empty shell**: nothing in it,
+  closed, inactive, held by nobody — it shows as done, never as a live buyer;
+- their `clients` row, with every personal field cleared (name, e-mail, phone,
+  country, language, notes), so the order and the request still point at
+  someone who is nobody;
+- `suppressions` for their identities, so they are never written to again;
+- the request itself, closed as `done`: when, by whom, and the counts in
+  `closed_note`. The audit trail has no verb for a carried-out deletion, so the
+  closed request is the record.
+
+**Changed in place** — rows that are not theirs but quoted them:
+- `spot_checks`: the owner's verdict on the assistant's work stays (promotion
+  and demotion count it); the link to their conversation and the owner's
+  correction go;
+- `channel_audit`: the entry stays; its detail is replaced when it named them
+  or one of their rows (a refused send to their number, their words corrected);
+- `channel_events`: another buyer's receipt that Meta batched with theirs keeps
+  that buyer's part; theirs is taken out.
+
+The same person in **another** business is that business's buyer, and nothing
+there is touched.
+
+### How it decides, and when it refuses
+
+It reads the live schema rather than a list: it starts at the buyer's
+`clients` row, walks every foreign key down, keeps whatever a kept row points
+at, and deletes deepest first. Links that are not foreign keys — an identity
+typed as text, a webhook's JSON, the audit trail's detail, a queued job — are
+written out in the tool with the reason. It is one transaction: it locks the
+buyer's rows, checks every statement's row count against the plan, then plans
+again inside the transaction and commits only if nothing is left to erase and
+every kept row is still there.
+
+It refuses, and changes nothing, when:
+- it is run as a role that row-level security filters — the app's own
+  `DATABASE_URL` pasted by mistake would see a buyer with nothing to erase;
+- the request is not an open buyer request — none, withdrawn, already done
+  (a second run refuses), refused, or a workspace request;
+- `--confirm` is not the request id's first 8 characters, or `--by` is missing;
+- it meets a table it cannot classify — a new table with a key to `clients` or
+  `conversations`, or with a buyer-like column (`client_id`, `conversation_id`,
+  `identity`, `phone`, `email`…). Add it to `RULES` in the tool, with a
+  decision, before running again;
+- a row that stays would need a row the contract erases;
+- a row reached from the buyer belongs to another business or another buyer
+  (inconsistent data is a person's decision);
+- a worker is handling one of their jobs right now — run it again in a minute.
+
+### Afterwards
+
+1. The owner sees the request as done in the product; tell them anyway.
+2. Confirming to the buyer is the business's. Once their identities are
+   erased, Nomi cannot write to them — a confirmation the owner wants to send
+   through Nomi goes out **before** you run the tool.
+3. Backups keep the old rows until they age out; say so.
+
+The tool does not read free text people typed about the buyer elsewhere — the
+owner's own description in `subject_note`, the notes on their order's status
+updates (`order_updates.note`), the pilot log. If the owner knows of one, it is
+theirs to edit.
 
 ## What we do not delete
 

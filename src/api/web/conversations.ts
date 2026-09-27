@@ -9,6 +9,9 @@ import { formatMoney, formatQty, formatRelative, formatDate } from '../../core/o
 import { flag } from './inbox.js';
 import { esc, deeper, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import { buyerDeletionOf, BUYER_NOTE_MAX, type BuyerDeletionState } from './dataRights.js';
+import { deletionDueBy } from '../../core/ops/deletions.js';
+import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
 /**
  * M9.7 + ADR-0008 — Conversations / customer memory. NOT a chat viewer and NOT a
@@ -163,6 +166,11 @@ export type CustomerFile = {
     readonly order: { readonly id?: string; readonly status: string; readonly reference: string; readonly qty: number; readonly total: Money | null } | null;
     readonly corrections: readonly string[];   // capability codes
   };
+  /**
+   * CC-02a — this buyer's latest deletion request, if any. Optional so a
+   * fixture without one reads as a buyer who never asked.
+   */
+  readonly deletion?: BuyerDeletionState | null;
 };
 
 const mile = (kind: MilestoneKind, at: Date | null, extra: Partial<Milestone> = {}): Milestone =>
@@ -222,6 +230,8 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
     const corrections = (await sql<{ capability: string }>`
       select distinct capability from drafts
        where conversation_id = ${conversationId} and status = 'edited'`.execute(tx)).rows.map((r) => r.capability);
+
+    const deletion = await buyerDeletionOf(tx, conversationId);
 
     // Relationship timeline — neutral milestone kinds; renderer localizes.
     const timeline: Milestone[] = [];
@@ -291,6 +301,7 @@ export async function loadCustomerFile(db: Db, businessIdRaw: string, conversati
           : null,
         corrections,
       },
+      deletion,
     };
   });
 }
@@ -393,7 +404,69 @@ export async function renameBuyer(
   });
 }
 
-export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null): string {
+/**
+ * CC-02a — the buyer asked to be deleted: where the owner records it, and
+ * where anyone looking after this buyer sees that it was asked, by when it is
+ * carried out, and when it was done.
+ *
+ * The control is the OWNER's (`data_rights`): a sales assistant sees the state
+ * and whose decision it is, never a form that would only refuse them. It sits
+ * behind a disclosure, last on the page, and says what goes and what stays
+ * before it asks for anything — the same words the public page gives the buyer.
+ * The note is required: it is the record of the asking, and the buyer's own
+ * message may be among what is deleted.
+ */
+function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
+  const d = f.deletion ?? null;
+  const date = (x: Date) => formatDate(locale, x);
+  const state = (tone: string, key: MessageKey) =>
+    `<span class="pill ${tone}">${esc(t(locale, key))}</span>`;
+  const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
+
+  if (d?.state === 'open') {
+    return `<div class="block">${head}
+      <p>${state('warn', 'data.deletion.state.open')}${esc(t(locale, 'conv.deletion.open', {
+        asked: date(d.askedAt), due: date(deletionDueBy(d.askedAt)) }))}</p>
+      ${viewer.isOwner
+        ? `<p class="muted">${esc(t(locale, 'conv.deletion.takeBack'))}</p>${deeper('/app/settings/data', t(locale, 'data.title'))}`
+        : ''}
+    </div>`;
+  }
+  if (d?.state === 'done') {
+    return `<div class="block">${head}
+      <p>${state('ok', 'data.deletion.state.done')}${esc(t(locale, 'conv.deletion.done', {
+        date: date(d.closedAt ?? d.askedAt) }))}</p>
+    </div>`;
+  }
+  // Never asked, taken back, or not carried out: it may be asked (again).
+  const refused = d?.state === 'refused'
+    ? `<p>${state('bad', 'data.deletion.state.refused')}${esc(t(locale, 'conv.deletion.refused', { date: date(d.askedAt) }))}</p>
+       ${d.closedNote ? `<p class="muted"><bdi>${esc(d.closedNote)}</bdi></p>` : ''}`
+    : '';
+  const control = viewer.isOwner
+    ? `<details>
+        <summary>${esc(t(locale, 'conv.deletion.ask'))}</summary>
+        <p class="muted">${esc(t(locale, 'conv.deletion.erased'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.kept'))}</p>
+        <p class="muted">${esc(t(locale, 'conv.deletion.tell'))}</p>
+        <form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/deletion" class="pform">
+          <div class="fld"><label for="deletion-note">${esc(t(locale, 'conv.deletion.note'))}</label>
+            <textarea id="deletion-note" name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"></textarea>
+            <span class="muted">${esc(t(locale, 'conv.deletion.noteHint'))}</span></div>
+          <button class="btn danger" type="submit">${esc(t(locale, 'conv.deletion.submit'))}</button>
+        </form>
+      </details>`
+    : `<p class="muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`;
+  return `<div class="block">${head}
+    ${refused}
+    <p class="muted">${esc(t(locale, 'conv.deletion.lead'))}</p>
+    ${control}
+  </div>`;
+}
+
+export function renderCustomerFile(
+  f: CustomerFile, locale: Locale, now: Date, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+): string {
   const p = f.profile;
   const pcs = t(locale, 'product.unit.pcs');
   const productsLabel = p.products.map((pr) => productName(locale, pr)).filter(Boolean).join('、');
@@ -453,6 +526,7 @@ export function renderCustomerFile(f: CustomerFile, locale: Locale, now: Date, f
     ${profile}
     ${timeline}
     ${context}
+    ${deletionSection(f, locale, viewer)}
     ${CONV_STYLE}`;
 }
 

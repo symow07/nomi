@@ -6501,3 +6501,549 @@ It works for 10 minutes and only once. If you did not ask for it, you can ignore
 - before: لا شيء هنا يصل إلى ذلك العنوان. تحقّقي منه، أو أضيفيه بعنوان آخر.
 - **after: لا شيء هنا يصل إلى ذلك العنوان. يُرجى التحقّق منه، أو الإضافة بعنوان آخر.**
 
+
+
+## 2026-09-27 — CC-02a: the deletion page, a buyer's deletion request, the deadline alert
+
+**New and rewritten strings, not a pronoun rewording.** `/data-deletion` was rewritten to say what
+actually happens (the business records the request, Nomi's operator carries it out within 30 days,
+nothing is sent to the buyer by itself); the owner records a buyer's request on the buyer's page;
+the operator gets a daily alert as the deadline nears. The entries above for `legal.deletion.*`,
+`legal.privacy.howLong.body` and `legal.privacy.choices.body` are superseded by these. Same rules:
+nothing genders the reader, the buyer or the assistant; in Arabic, verbal nouns, the passive or
+«يمكن / يُرجى». `tests/parity/deletion-page.test.ts` pins the phrases that carry the promises, so
+a reviewed rewording may need that file's markers updated in the same commit.
+
+### 中文 — 53 strings
+
+#### `data.buyers.title`
+
+- en: Buyers who asked to be deleted
+- **zh: 要求删除数据的买家**
+
+#### `data.buyers.lead`
+
+- en: Each is recorded on the buyer's own page. Nomi's operator carries it out by hand within 30 days of it being recorded. When it shows as done, tell the buyer — Nomi does not write to them about it.
+- **zh: 每一条都在该买家自己的页面上记录。Nomi 的运营方在记录后 30 天内由人手动执行。显示为已完成时，请告诉买家——Nomi 不会就此联系对方。**
+
+#### `data.buyers.none`
+
+- en: No buyer has asked yet.
+- **zh: 还没有买家提出过。**
+
+#### `data.buyers.due`
+
+- en: Asked {asked} · to be done by {due}
+- **zh: {asked} 提出 · 须在 {due} 前完成**
+
+#### `data.buyers.done`
+
+- en: Asked {asked} · done {done}
+- **zh: {asked} 提出 · {done} 完成**
+
+#### `data.buyers.asked`
+
+- en: Asked {asked}
+- **zh: {asked} 提出**
+
+#### `notify.deletion_due.subject`
+
+- en: Nomi: data deletions are due
+- **zh: Nomi：有数据删除要求到期**
+
+#### `notify.deletion_due`
+
+- en: Deletion requests to carry out within 7 days, or already late: {n}.
+- **zh: 7 天内必须执行、或已经逾期的删除要求：{n} 条。**
+
+#### `notify.deletion_due.soon`
+
+- en: · {business} — {what} — asked {asked}, due by {due}
+- **zh: · {business} — {what} — {asked} 提出，须在 {due} 前执行**
+
+#### `notify.deletion_due.late`
+
+- en: · {business} — {what} — asked {asked}, late since {due}
+- **zh: · {business} — {what} — {asked} 提出，自 {due} 起已逾期**
+
+#### `notify.deletion_due.more`
+
+- en: · and {n} more
+- **zh: · 另有 {n} 条**
+
+#### `notify.deletion_due.how`
+
+- en: Carry each out as the data deletion runbook says. Until a request is marked done, the business sees it as waiting.
+- **zh: 请按数据删除操作手册逐一执行。标记为已完成之前，商家看到的一直是“等待中”。**
+
+#### `conv.deletion.title`
+
+- en: Deleting this buyer's data
+- **zh: 删除这位买家的数据**
+
+#### `conv.deletion.lead`
+
+- en: If this buyer asks for their data to be deleted, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- **zh: 如果这位买家要求删除自己的数据，就在这里记录。Nomi 的运营方会在 30 天内由人手动执行，完成后这里会显示。**
+
+#### `conv.deletion.ask`
+
+- en: Ask for this buyer's data to be deleted
+- **zh: 要求删除这位买家的数据**
+
+#### `conv.deletion.erased`
+
+- en: Deleted: who they are on every channel, every message to or from them, the replies, quotes and sample requests prepared for them, notes about their conversations, and the conversations themselves, except what an order needs.
+- **zh: 会删除：对方在各个渠道上的身份、双方往来的每一条消息、为对方准备的回复、报价和样品申请、关于这些对话的备注，以及对话本身（订单需要的部分除外）。**
+
+#### `conv.deletion.kept`
+
+- en: Kept: orders they placed, without their contact details or messages; if they asked not to be written to, a note of that address so it is never written to again; and the record of this request.
+- **zh: 会保留：对方下过的订单，但不再关联联系方式和消息；如果对方要求过不再联系，保留那个地址的一条记录，确保以后不会再发；以及这次要求本身的记录。**
+
+#### `conv.deletion.tell`
+
+- en: When it is done, it shows here and on Your data. Tell the buyer then — Nomi does not write to them about it.
+- **zh: 完成后，这里和「你的数据」页都会显示。到时请你告诉买家——Nomi 不会就此联系对方。**
+
+#### `conv.deletion.note`
+
+- en: How and when did they ask?
+- **zh: 买家是怎么、在什么时候提出的？**
+
+#### `conv.deletion.noteHint`
+
+- en: For example: on WhatsApp, 27 September. Kept with the request.
+- **zh: 比如：9 月 27 日在 WhatsApp 上提出。会和这条要求一起保存。**
+
+#### `conv.deletion.submit`
+
+- en: Ask for deletion
+- **zh: 要求删除**
+
+#### `conv.deletion.open`
+
+- en: Deletion asked for on {asked} — to be carried out by {due}.
+- **zh: 已在 {asked} 要求删除——须在 {due} 前执行。**
+
+#### `conv.deletion.takeBack`
+
+- en: Until then it can be taken back, on Your data.
+- **zh: 在那之前可以撤回，在「你的数据」页操作。**
+
+#### `conv.deletion.done`
+
+- en: This buyer's data was deleted on {date}.
+- **zh: 这位买家的数据已在 {date} 删除。**
+
+#### `conv.deletion.refused`
+
+- en: The deletion asked for on {date} was not carried out.
+- **zh: {date} 提出的删除要求没有执行。**
+
+#### `conv.deletion.flash.asked`
+
+- en: Recorded. Nomi's operator carries it out within 30 days, and it shows here when it is done.
+- **zh: 已记录。Nomi 的运营方会在 30 天内执行，完成后这里会显示。**
+
+#### `conv.deletion.flash.already_open`
+
+- en: Already asked for, and still waiting. Nothing new was recorded.
+- **zh: 已经提出过，还在等待执行。这次没有新记录。**
+
+#### `conv.deletion.flash.note_missing`
+
+- en: Nothing was recorded: say how and when the buyer asked.
+- **zh: 没有记录：请写明买家是怎么、在什么时候提出的。**
+
+#### `conv.deletion.flash.note_long`
+
+- en: Nothing was recorded: the note is up to {n} characters.
+- **zh: 没有记录：备注最多 {n} 个字。**
+
+#### `legal.deletion.title`
+
+- en: Delete your data
+- **zh: 删除你的数据**
+
+#### `legal.deletion.intro`
+
+- en: If you wrote to a business that uses Nomi, you can ask for what it keeps about you through Nomi to be deleted. This page says how that works, what is deleted, and what is kept.
+- **zh: 如果你曾写信给使用 Nomi 的商家，可以要求删除该商家通过 Nomi 保存的关于你的内容。这一页说明怎么做、会删除什么、会保留什么。**
+
+#### `legal.deletion.how.title`
+
+- en: How it works
+- **zh: 怎么做**
+
+#### `legal.deletion.step1`
+
+- en: You ask the business. Send it a message from the Instagram, Facebook or WhatsApp account you wrote from, or an e-mail from the address you used, saying you want your data deleted.
+- **zh: 向商家提出。用你当时写信的 Instagram、Facebook 或 WhatsApp 账号给商家发消息，或用你当时使用的邮箱给商家发邮件，说明你要删除数据。**
+
+#### `legal.deletion.viaUs`
+
+- en: You can also write to us at the address below, and we pass your request on to the business.
+- **zh: 也可以写信到下面的地址，我们会把你的要求转给商家。**
+
+#### `legal.deletion.step2`
+
+- en: The business records your request in Nomi.
+- **zh: 商家在 Nomi 里记录你的要求。**
+
+#### `legal.deletion.step3`
+
+- en: Nomi's operator, who runs the service for the business, carries out the deletion by hand, within 30 days of the business recording the request.
+- **zh: Nomi 的运营方（为商家提供这项服务的一方）在商家记录要求后的 30 天内，由人手动执行删除。**
+
+#### `legal.deletion.step4`
+
+- en: When it is done, the business sees it marked as done in Nomi, and can tell you. Nomi does not write to you about it.
+- **zh: 完成后，商家会在 Nomi 里看到这条要求已完成，可以告诉你。Nomi 不会就此另外联系你。**
+
+#### `legal.deletion.erased.title`
+
+- en: What is deleted
+- **zh: 会删除的**
+
+#### `legal.deletion.erased.identity`
+
+- en: Who you are on every channel: the name the business saw, your phone number, your e-mail address and your account identifiers.
+- **zh: 你在各个渠道上的身份：商家看到的名字、你的电话号码、邮箱地址和账号标识。**
+
+#### `legal.deletion.erased.messages`
+
+- en: Every message between you and the business.
+- **zh: 你和商家之间往来的每一条消息。**
+
+#### `legal.deletion.erased.prepared`
+
+- en: Replies, quotes and sample requests prepared for you.
+- **zh: 为你准备的回复、报价和样品申请。**
+
+#### `legal.deletion.erased.notes`
+
+- en: Notes and signals about your conversations.
+- **zh: 关于你的对话的备注和标记。**
+
+#### `legal.deletion.erased.conversations`
+
+- en: The conversations themselves, except what is needed to keep an order you placed.
+- **zh: 对话本身——为保留你下过的订单所必需的部分除外。**
+
+#### `legal.deletion.kept.title`
+
+- en: What is kept
+- **zh: 会保留的**
+
+#### `legal.deletion.kept.orders`
+
+- en: Orders you placed — the items, the prices and how each order went — without your contact details or your messages. The business may be required by law to keep them.
+- **zh: 你下过的订单——商品、价格和每笔订单的进展——但不再关联你的联系方式和消息。商家可能依法必须保留这些订单。**
+
+#### `legal.deletion.kept.doNotContact`
+
+- en: If you asked not to be written to, a note of that address, so it is never written to again.
+- **zh: 如果你要求过不再联系你，会保留那个地址的一条记录，确保以后不会再向这个地址发送任何内容。**
+
+#### `legal.deletion.kept.record`
+
+- en: A record that you asked, and when it was done.
+- **zh: 一条记录：你提出过删除要求，以及何时完成。**
+
+#### `legal.deletion.kept.meta`
+
+- en: The copies Meta itself holds, which you manage in your own Instagram or Facebook settings.
+- **zh: Meta 自己保存的副本，那部分在你自己的 Instagram 或 Facebook 设置里管理。**
+
+#### `legal.deletion.kept.elsewhere`
+
+- en: Anything the business keeps outside Nomi, such as e-mails in its own mailbox. Deleting those is up to the business; ask it.
+- **zh: 商家在 Nomi 之外自己保存的内容，比如商家自己邮箱里的邮件。这些由商家删除，请向商家提出。**
+
+#### `legal.deletion.kept.backups`
+
+- en: Copies inside backups of the whole service. A backup is not changed to remove one person; your data leaves it when that backup is deleted.
+- **zh: 整个服务的备份里的副本。备份不会为删除某一个人而修改；你的数据会随该备份被删除而消失。**
+
+#### `legal.updated.privacy`
+
+- en: Last updated 27 September 2026.
+- **zh: 最后更新：2026 年 9 月 27 日。**
+
+#### `legal.privacy.howLong.body`
+
+- en: Until the business asks for its records to be deleted, or you ask for yours. They are kept so the business can see what was agreed with you — a price, an order, a sample. What a deletion removes, and what it keeps, is on the deletion page.
+- **zh: 保存到商家要求删除自己的记录、或你要求删除你的记录为止。保存是为了让商家能查到和你谈定的内容——价格、订单、样品。删除会去掉什么、保留什么，见删除页面。**
+
+#### `legal.privacy.choices.body`
+
+- en: You can ask the business for a copy of what is kept about you, or ask for it to be deleted as the deletion page describes. Every e-mail the business sends carries a link that stops further mail.
+- **zh: 你可以向商家索取一份关于你的保存内容，也可以按删除页面所说要求删除。商家发出的每封邮件都带有一个停止再发的链接。**
+
+### العربية — 53 strings
+
+#### `data.buyers.title`
+
+- en: Buyers who asked to be deleted
+- **ar: طلبات حذف بيانات المشترين**
+
+#### `data.buyers.lead`
+
+- en: Each is recorded on the buyer's own page. Nomi's operator carries it out by hand within 30 days of it being recorded. When it shows as done, tell the buyer — Nomi does not write to them about it.
+- **ar: يُسجَّل كل طلب في صفحة المشتري. ينفّذه مشغّل Nomi يدويًا خلال 30 يومًا من تسجيله. وعند ظهوره منفَّذًا، يُرجى إبلاغ المشتري، فـNomi لا يراسل المشتري بهذا الشأن.**
+
+#### `data.buyers.none`
+
+- en: No buyer has asked yet.
+- **ar: لا طلبات من المشترين حتى الآن.**
+
+#### `data.buyers.due`
+
+- en: Asked {asked} · to be done by {due}
+- **ar: طُلب في {asked} · التنفيذ قبل {due}**
+
+#### `data.buyers.done`
+
+- en: Asked {asked} · done {done}
+- **ar: طُلب في {asked} · نُفِّذ في {done}**
+
+#### `data.buyers.asked`
+
+- en: Asked {asked}
+- **ar: طُلب في {asked}**
+
+#### `notify.deletion_due.subject`
+
+- en: Nomi: data deletions are due
+- **ar: Nomi: طلبات حذف بيانات حان موعدها**
+
+#### `notify.deletion_due`
+
+- en: Deletion requests to carry out within 7 days, or already late: {n}.
+- **ar: طلبات حذف يلزم تنفيذها خلال 7 أيام، أو تأخّر تنفيذها: {n}.**
+
+#### `notify.deletion_due.soon`
+
+- en: · {business} — {what} — asked {asked}, due by {due}
+- **ar: · {business} — {what} — طُلب في {asked}، والتنفيذ قبل {due}**
+
+#### `notify.deletion_due.late`
+
+- en: · {business} — {what} — asked {asked}, late since {due}
+- **ar: · {business} — {what} — طُلب في {asked}، ومتأخر منذ {due}**
+
+#### `notify.deletion_due.more`
+
+- en: · and {n} more
+- **ar: · و{n} غيرها**
+
+#### `notify.deletion_due.how`
+
+- en: Carry each out as the data deletion runbook says. Until a request is marked done, the business sees it as waiting.
+- **ar: يُرجى تنفيذ كل طلب وفق دليل حذف البيانات. وإلى أن يُعلَّم الطلب منفَّذًا، يظهر للشركة في الانتظار.**
+
+#### `conv.deletion.title`
+
+- en: Deleting this buyer's data
+- **ar: حذف بيانات هذا المشتري**
+
+#### `conv.deletion.lead`
+
+- en: If this buyer asks for their data to be deleted, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- **ar: عند طلب حذف بيانات هذا المشتري، يُسجَّل الطلب هنا. ينفّذ مشغّل Nomi الحذف يدويًا خلال 30 يومًا، ويظهر هنا عند التنفيذ.**
+
+#### `conv.deletion.ask`
+
+- en: Ask for this buyer's data to be deleted
+- **ar: طلب حذف بيانات هذا المشتري**
+
+#### `conv.deletion.erased`
+
+- en: Deleted: who they are on every channel, every message to or from them, the replies, quotes and sample requests prepared for them, notes about their conversations, and the conversations themselves, except what an order needs.
+- **ar: يُحذف: الهوية على كل قناة، وكل رسالة متبادلة، والردود والعروض وطلبات العيّنات المُعدّة، والملاحظات عن المحادثات، والمحادثات نفسها إلا ما يلزم لطلب شراء.**
+
+#### `conv.deletion.kept`
+
+- en: Kept: orders they placed, without their contact details or messages; if they asked not to be written to, a note of that address so it is never written to again; and the record of this request.
+- **ar: يبقى: طلبات الشراء المقدَّمة، دون بيانات التواصل ودون الرسائل؛ وملاحظة بالعنوان إن سبق طلب عدم المراسلة، كي لا تُرسَل إليه أي رسالة بعد ذلك؛ وسجلّ هذا الطلب.**
+
+#### `conv.deletion.tell`
+
+- en: When it is done, it shows here and on Your data. Tell the buyer then — Nomi does not write to them about it.
+- **ar: عند التنفيذ يظهر ذلك هنا وفي صفحة «بياناتك». عندها يُرجى إبلاغ المشتري، فـNomi لا يراسل المشتري بهذا الشأن.**
+
+#### `conv.deletion.note`
+
+- en: How and when did they ask?
+- **ar: كيف ومتى جاء الطلب من المشتري؟**
+
+#### `conv.deletion.noteHint`
+
+- en: For example: on WhatsApp, 27 September. Kept with the request.
+- **ar: مثلًا: عبر واتساب في 27 سبتمبر. تُحفظ الملاحظة مع الطلب.**
+
+#### `conv.deletion.submit`
+
+- en: Ask for deletion
+- **ar: طلب الحذف**
+
+#### `conv.deletion.open`
+
+- en: Deletion asked for on {asked} — to be carried out by {due}.
+- **ar: طُلب الحذف في {asked} — والتنفيذ قبل {due}.**
+
+#### `conv.deletion.takeBack`
+
+- en: Until then it can be taken back, on Your data.
+- **ar: حتى ذلك الحين يمكن التراجع عن الطلب من صفحة «بياناتك».**
+
+#### `conv.deletion.done`
+
+- en: This buyer's data was deleted on {date}.
+- **ar: حُذفت بيانات هذا المشتري في {date}.**
+
+#### `conv.deletion.refused`
+
+- en: The deletion asked for on {date} was not carried out.
+- **ar: لم يُنفَّذ طلب الحذف المقدَّم في {date}.**
+
+#### `conv.deletion.flash.asked`
+
+- en: Recorded. Nomi's operator carries it out within 30 days, and it shows here when it is done.
+- **ar: سُجّل الطلب. ينفّذه مشغّل Nomi خلال 30 يومًا، ويظهر هنا عند التنفيذ.**
+
+#### `conv.deletion.flash.already_open`
+
+- en: Already asked for, and still waiting. Nothing new was recorded.
+- **ar: الطلب موجود مسبقًا وما زال في الانتظار. لم يُسجَّل شيء جديد.**
+
+#### `conv.deletion.flash.note_missing`
+
+- en: Nothing was recorded: say how and when the buyer asked.
+- **ar: لم يُسجَّل شيء: يُرجى ذكر كيف ومتى جاء الطلب من المشتري.**
+
+#### `conv.deletion.flash.note_long`
+
+- en: Nothing was recorded: the note is up to {n} characters.
+- **ar: لم يُسجَّل شيء: الملاحظة حتى {n} حرفًا.**
+
+#### `legal.deletion.title`
+
+- en: Delete your data
+- **ar: حذف بياناتك**
+
+#### `legal.deletion.intro`
+
+- en: If you wrote to a business that uses Nomi, you can ask for what it keeps about you through Nomi to be deleted. This page says how that works, what is deleted, and what is kept.
+- **ar: عند مراسلة شركة تستخدم Nomi، يمكنك طلب حذف ما تحتفظ به تلك الشركة عنك عبر Nomi. تشرح هذه الصفحة طريقة ذلك، وما يُحذف، وما يبقى.**
+
+#### `legal.deletion.how.title`
+
+- en: How it works
+- **ar: طريقة الطلب**
+
+#### `legal.deletion.step1`
+
+- en: You ask the business. Send it a message from the Instagram, Facebook or WhatsApp account you wrote from, or an e-mail from the address you used, saying you want your data deleted.
+- **ar: الطلب من الشركة: رسالة إليها من حساب إنستغرام أو فيسبوك أو واتساب الذي جرت منه المراسلة، أو بريد إلكتروني من العنوان المستخدَم فيها، فيها طلب حذف بياناتك.**
+
+#### `legal.deletion.viaUs`
+
+- en: You can also write to us at the address below, and we pass your request on to the business.
+- **ar: ويمكن أيضًا الكتابة إلينا على العنوان أدناه، فنُحيل الطلب إلى الشركة.**
+
+#### `legal.deletion.step2`
+
+- en: The business records your request in Nomi.
+- **ar: تسجّل الشركة الطلب في Nomi.**
+
+#### `legal.deletion.step3`
+
+- en: Nomi's operator, who runs the service for the business, carries out the deletion by hand, within 30 days of the business recording the request.
+- **ar: ينفّذ مشغّل Nomi، أي الجهة التي تقدّم الخدمة للشركة، الحذفَ يدويًا خلال 30 يومًا من تسجيل الشركة للطلب.**
+
+#### `legal.deletion.step4`
+
+- en: When it is done, the business sees it marked as done in Nomi, and can tell you. Nomi does not write to you about it.
+- **ar: بعد التنفيذ، يظهر الطلب في Nomi لدى الشركة على أنه منفَّذ، ويمكنها إبلاغك بذلك. لا يراسلك Nomi بهذا الشأن.**
+
+#### `legal.deletion.erased.title`
+
+- en: What is deleted
+- **ar: ما يُحذف**
+
+#### `legal.deletion.erased.identity`
+
+- en: Who you are on every channel: the name the business saw, your phone number, your e-mail address and your account identifiers.
+- **ar: هويتك على كل قناة: الاسم الذي ظهر للشركة، ورقم هاتفك، وعنوان بريدك، ومعرّفات حساباتك.**
+
+#### `legal.deletion.erased.messages`
+
+- en: Every message between you and the business.
+- **ar: كل رسالة متبادلة بينك وبين الشركة.**
+
+#### `legal.deletion.erased.prepared`
+
+- en: Replies, quotes and sample requests prepared for you.
+- **ar: الردود والعروض وطلبات العيّنات المُعدّة لك.**
+
+#### `legal.deletion.erased.notes`
+
+- en: Notes and signals about your conversations.
+- **ar: الملاحظات والإشارات المتعلقة بمحادثاتك.**
+
+#### `legal.deletion.erased.conversations`
+
+- en: The conversations themselves, except what is needed to keep an order you placed.
+- **ar: المحادثات نفسها، إلا ما يلزم للاحتفاظ بطلب شراء مقدَّم منك.**
+
+#### `legal.deletion.kept.title`
+
+- en: What is kept
+- **ar: ما يبقى**
+
+#### `legal.deletion.kept.orders`
+
+- en: Orders you placed — the items, the prices and how each order went — without your contact details or your messages. The business may be required by law to keep them.
+- **ar: طلبات الشراء المقدَّمة منك — الأصناف والأسعار ومسار كل طلب — دون بيانات التواصل معك ودون رسائلك. قد يُلزِم القانون الشركة بالاحتفاظ بها.**
+
+#### `legal.deletion.kept.doNotContact`
+
+- en: If you asked not to be written to, a note of that address, so it is never written to again.
+- **ar: إن سبق طلب عدم المراسلة، تبقى ملاحظة بذلك العنوان، كي لا تُرسَل إليه أي رسالة بعد ذلك.**
+
+#### `legal.deletion.kept.record`
+
+- en: A record that you asked, and when it was done.
+- **ar: سجلّ بتقديم الطلب وتاريخ تنفيذه.**
+
+#### `legal.deletion.kept.meta`
+
+- en: The copies Meta itself holds, which you manage in your own Instagram or Facebook settings.
+- **ar: النسخ التي تحتفظ بها Meta نفسها، وإدارتها من إعدادات إنستغرام أو فيسبوك الخاصة بك.**
+
+#### `legal.deletion.kept.elsewhere`
+
+- en: Anything the business keeps outside Nomi, such as e-mails in its own mailbox. Deleting those is up to the business; ask it.
+- **ar: ما تحتفظ به الشركة خارج Nomi، كرسائل البريد في صندوق بريدها. حذف ذلك بيد الشركة، ويمكن طلبه منها.**
+
+#### `legal.deletion.kept.backups`
+
+- en: Copies inside backups of the whole service. A backup is not changed to remove one person; your data leaves it when that backup is deleted.
+- **ar: النسخ الموجودة داخل النسخ الاحتياطية للخدمة كلها. لا تُعدَّل النسخة الاحتياطية لإزالة شخص واحد؛ وتزول بياناتك منها بحذف تلك النسخة.**
+
+#### `legal.updated.privacy`
+
+- en: Last updated 27 September 2026.
+- **ar: آخر تحديث: 27 سبتمبر 2026.**
+
+#### `legal.privacy.howLong.body`
+
+- en: Until the business asks for its records to be deleted, or you ask for yours. They are kept so the business can see what was agreed with you — a price, an order, a sample. What a deletion removes, and what it keeps, is on the deletion page.
+- **ar: إلى أن تطلب الشركة حذف سجلاتها، أو يُطلب حذف سجلاتك. وتُحفظ لتتمكن الشركة من الرجوع إلى ما اتُّفق عليه معك: سعر أو طلب أو عيّنة. وما يحذفه طلب الحذف وما يُبقيه مبيَّن في صفحة الحذف.**
+
+#### `legal.privacy.choices.body`
+
+- en: You can ask the business for a copy of what is kept about you, or ask for it to be deleted as the deletion page describes. Every e-mail the business sends carries a link that stops further mail.
+- **ar: يمكنك طلب نسخة من البيانات المحفوظة عنك من الشركة، أو طلب حذفها كما تصف صفحة الحذف. وكل بريد إلكتروني ترسله الشركة يحمل رابطًا يوقف أي رسائل لاحقة.**

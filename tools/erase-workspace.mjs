@@ -133,6 +133,20 @@ async function plan() {
     const one = indirect.find(([n]) => n === t);
     steps.push(rows(t, one ? one[1] : 'business_id = $1'));
   }
+  // Outside `public`, so the scan above never sees it, and with no foreign key
+  // to follow: `shadow.turn_decisions` (0005) carries a bare business_id — and
+  // what the service would have said to each buyer. Found by
+  // tools/erase-buyer.mjs's coverage walk (2026-09-27); erased here since.
+  if ((await client.query("select to_regclass('shadow.turn_decisions') is not null as ok")).rows[0]?.ok) {
+    steps.push(rows('shadow.turn_decisions', 'business_id = $1'));
+  }
+  // Queued and finished work: an inbound job carries a buyer's own words, and
+  // pg-boss keeps finished jobs a week. One a worker holds right now cannot be
+  // taken from under it — `activeJobs` below makes the run refuse until it is
+  // done, so this step never meets one.
+  if ((await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok) {
+    steps.push(rows('pgboss.job', "data->>'businessId' = $1 and state <> 'active'"));
+  }
   // A flag this business owns goes; a global one (business_id is null) stays.
   steps.push(rows('ops_flags', 'business_id = $1'));
   // An invitation this workspace was created from is the OPERATOR's record of
@@ -147,8 +161,27 @@ async function plan() {
   return steps;
 }
 
+/** Jobs a worker is running for this business right now. */
+async function activeJobs() {
+  if (!(await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok) return 0;
+  return (await client.query(
+    "select count(*)::int as n from pgboss.job where data->>'businessId' = $1 and state = 'active'", [business])).rows[0]?.n ?? 0;
+}
+
 try {
   await client.connect();
+
+  // EVERY ROW OR NOTHING, as tools/erase-buyer.mjs: `shadow.turn_decisions`
+  // forces row security even on its owner, so a role that row security filters
+  // would "erase" the rows it can see and leave the rest behind, reporting
+  // success. Only a role that sees every row may run this.
+  const who = (await client.query(
+    'select rolsuper or rolbypassrls as sees_all from pg_roles where rolname = current_user')).rows[0];
+  if (!who?.sees_all) {
+    console.error('\n✗  This database role is subject to row-level security, so it cannot see every row it must erase.\n'
+      + '   Use the migration (owner) role in MIGRATE_DATABASE_URL. Nothing was changed.\n');
+    process.exit(1);
+  }
 
   const biz = (await client.query('select id::text as id, name from businesses where id = $1', [business])).rows[0];
   if (!biz) {
@@ -183,6 +216,13 @@ try {
     total += n;
   }
   console.log(`  ${String(total).padStart(8)}  rows in all\n`);
+
+  const busy = await activeJobs();
+  if (busy > 0) {
+    console.error(`✗  A worker is running ${busy} job(s) for ${biz.name} right now. It must finish before its rows can go —`
+      + ' try again in a minute. Nothing was deleted.\n');
+    process.exit(1);
+  }
 
   if (!go) {
     console.log('  Dry run. Nothing was deleted.');
