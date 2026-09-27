@@ -1,8 +1,8 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-27**, after the batch that shipped Phase 4, V2 and the
-site (PRs #80–#83). Written so the
-next session needs nothing from the one that wrote it.
+Last updated **2026-09-27**, after #102 — a deletion request in chat goes to
+a person and the assistant says nothing (0075). Written so the next session
+needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -74,12 +74,12 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 ## 3 · Verification set (run all four before a PR)
 
 ```bash
-env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2250 unit
-npm run trust                                                 # 36/36 golden scenarios
+env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~2560 unit
+npm run trust                                                 # 40/40 golden scenarios (43 tests)
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
-  node tools/run-integration.mjs                              # ~730, none skipped, ~2 min
+  node tools/run-integration.mjs                              # ~806, none skipped, ~3 min
 ```
 
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
@@ -99,17 +99,17 @@ footer.
 
 ## 4 · What is live (production, 2026-09-27)
 
-- **Deployed:** `0e454e3` (merge of #100, CC-25's leftovers; #99 backup
-  retention before it). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
-  production `schema_version` = **74**; no business is stopped and no silence
+- **Deployed:** `29dcf3e` (merge of #102, the deletion hand-off, 0075).
+  `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
+  production `schema_version` = **75**; no business is stopped and no silence
   flag is on; exactly one business has `outreach_area` on. Backup before
-  0073–0074: `nomi-backup-20260926T030221Z` (21.8 h, drill passed; PITR on).
+  0075: `nomi-backup-20260927T030454Z` (7.3 h, drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 74. Last three: `0072 kept_words`, `0073 buyer_deletion_requests`,
-  `0074 app_errors`.
+- **Schema:** 75. Last three: `0073 buyer_deletion_requests`, `0074 app_errors`,
+  `0075 deletion_handoff`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -138,6 +138,8 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 102 | **A deletion request in chat goes to a person; nothing is sent** (0075) — see §5 rule 18 |
+| 101 | CLAUDE.md handoff |
 | 100 | CC-25 leftovers — `conversationUrl()` (layout.ts) is the only way to address a conversation: every action redirect and every link lands at `#latest`, the notice renders there (`flashBanner` id); Practice puts its transcript before its draft (`practiceUrl`) |
 | 99 | **Backup retention** — `backup/retention.sh`: dailies 60 days, manual pairs (bucket root and laptop) 180 days, by the UTC time in the name; never undated / just-made / newest / newest-complete / future copies. Laptop copies prune only when `tools/backup.sh` or `fetch-backup.sh` runs (`KEEP_ALL=1` skips). The `backup` service's `RETENTION_DAYS` variable is no longer read |
 | 97 | **CC-10** — error reporting (`app_errors`, 0074, operator e-mail, rate-limited) and the uptime heartbeat (`HEALTH_PING_URL`); `railway.json` health check |
@@ -245,6 +247,13 @@ Recent PRs, newest first:
    - `tools/erase-workspace.mjs` also erases `shadow.turn_decisions` and the workspace's queued jobs, and refuses a row-security-filtered role (found 2026-09-27; `tests/integration/erase-workspace.test.ts` runs it for real).
 16. **The conversation page always shows the newest messages** (CC-25): newest 50 (`TRANSCRIPT_WINDOW`, `src/db/transcript.ts`), "Earlier messages" pages back by cursor (`<epoch_ms>_<uuid>`, tenant-checked); transcript first, then the draft and take-over cards; Buyers rows land on `#latest`. Practice and the buyer file use the same window.
 17. **Errors are reported and the app has a heartbeat** (CC-10; 0074; `docs/MONITORING.md`). Every 5xx, failed queue job, dead letter and process crash upserts `app_errors` (redacted, fingerprinted) and sends the operator an `app_error` e-mail — once per fingerprint per 6 h, at most 6 an hour. `tools/errors.mjs` lists them. Every 5 minutes the app checks its DB and its own `/health` and pings `HEALTH_PING_URL` (`/fail` when unhealthy) — the dead-man's switch; unset until the owner pastes it. `railway.json` has `healthcheckPath: /health`.
+18. **A buyer who asks in chat for their data to be deleted is answered by a person, and the assistant says NOTHING** (0075, the owner's decision 2026-09-27; `src/core/safety/deletion.ts`).
+   - Layer 1, before any model: `asksForDeletion` — a deletion verb with the buyer's OWN data as its object, or a fixed phrase (right to be forgotten / 被遗忘权 / الحق في النسيان); en/zh/ar + fr/es/pt/de/ru/tr. It is the `deletion_requested` signal (problem 100): the turn is gated, handed off, and the hand-off sends nothing — not `HANDOFF_REPLY`, not a receipt (`answerPath: 'silent'`). Any unresolved request keeps later hand-offs silent.
+   - Layer 2, the reply: `promisesDeletion` on every writer attempt and the final reply (taught answers, stand-ins too). A promise is thrown away and the turn re-decided as the same silent hand-off, in auto AND draft; no quote is recorded; a `deletion_promise_withheld` event keeps the words.
+   - Precision is the point: `tests/parity/deletion-requests.test.ts` holds 50 requests and 45 passing mentions ("delete that line from the quote", "remove my email from the cc", 我的邮箱写错了，删掉重发, احذف السطر من عرض السعر…). A new phrasing goes into that file with its reason, never into the patterns alone.
+   - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is the ordinary hand-off alert.
+   - Not covered, by design: while the assistant is stopped or silenced a request shows under that reason (the worker hands over before any turn); a request in words neither layer knows, answered by a reply that promises nothing ("I'll pass that on"), still goes out; languages outside the nine. Handing the conversation back resolves the signal like every hand-off — record the request first.
+   - Tests: `tests/pipeline/deletion-handoff.test.ts`, 7 golden scenarios (40 in all; the pin is `factory-rehearsal.test.ts`), `tests/parity/deletion-handoff-page.test.ts`, `tests/integration/deletion-handoff.test.ts` (production composition, en/zh/ar). Each layer switched off fails its own tests.
 
 ## 6 · What's next
 
@@ -333,7 +342,7 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 **Owner decisions, 2026-09-27**
 - The personal address removed from `docs/legal/PRIVACY-zh.md` stays in git history — the owner chose not to rewrite history (open PRs; the address is public on served pages).
 - Manual backups prune after 180 days (#99). Open: the pre-0026 backups that BACKUP-RESTORE.md once said "do not prune" will go from about 2027-02-04 unless moved out of the bucket root — the owner's call. PITR keeps ~4 weeks (Railway: last 4 weekly full backups); Railway volume-backup retention was not checked (not visible to the tools).
-- **Deletion requests in chat → a person, nothing sent** — planned 2026-09-27, NOT built: a pre-model detector (`deletion_requested`, 9 languages) forcing a silent hand-off, a reply net that turns any deletion promise into the same hand-off, a card linking to the buyer file's deletion control, migration 0075. Waits for the owner's go (and "nothing" vs a neutral receipt).
+- **Deletion requests in chat → a person, nothing sent** — the owner chose NOTHING (no receipt, no acknowledgment); built and deployed as #102 (§5 rule 18).
 
 **Parked / owner's to unblock**
 - Native review of the zh/ar disclosure (gates all autonomy).
