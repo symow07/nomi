@@ -7597,3 +7597,68 @@ in all three languages. Removed with Customers, and so not listed: `conv.title`,
 - en: Buyer
 - before: عميل
 - **ar: مشترٍ**
+
+## 2026-09-28 — CC-26: the line a page shows when something new arrives
+
+**New strings.** A conversation, Buyers and Today now learn, while they are open, that something
+new arrived — a buyer's message, a reply waiting for review, the conversation changing hands, a
+change to the list or to what needs the owner — and say so in one quiet line at the foot of the
+page. The whole line is the door to the newest (a tap reloads the page there), so each string is a
+door's label: no closing full stop, like every other door. Same rules: nothing genders the reader,
+the buyer or the assistant (`{name}` is the conversation's own assistant, or "your assistant" /
+你的助手 / مساعدك); in Arabic, noun phrases only. `tests/parity/live-refresh.test.ts` renders them in
+all three languages; the screenshots are in `docs/design/live-refresh/`.
+
+### 中文 — 5 strings
+
+#### `live.message`
+
+- en: New message from the buyer
+- **zh: 买家发来了新消息**
+
+#### `live.reply`
+
+- en: A new reply from {name} is waiting for you
+- **zh: {name}写好了一条新回复，在等你看**
+
+#### `live.changed`
+
+- en: This conversation has changed
+- **zh: 这个对话有变化**
+
+#### `live.list`
+
+- en: This list has changed
+- **zh: 列表有变化**
+
+#### `live.today`
+
+- en: What needs your attention has changed
+- **zh: 需要你处理的事有变化**
+
+### العربية — 5 strings
+
+#### `live.message`
+
+- en: New message from the buyer
+- **ar: رسالة جديدة من المشتري**
+
+#### `live.reply`
+
+- en: A new reply from {name} is waiting for you
+- **ar: ردّ جديد من {name} بانتظارك**
+
+#### `live.changed`
+
+- en: This conversation has changed
+- **ar: تغييرات في هذه المحادثة**
+
+#### `live.list`
+
+- en: This list has changed
+- **ar: تغييرات في هذه القائمة**
+
+#### `live.today`
+
+- en: What needs your attention has changed
+- **ar: تغييرات فيما يحتاج انتباهك**

@@ -21,8 +21,11 @@ import type { OutreachChannel } from '../../core/channel/registry.js';
 import { decideUncertainSend } from '../../outbound/uncertain.js';
 import {
   loadInboxList, loadConversationDetail, renderInboxList, renderConversationDetail,
-  defaultFilter, type InboxFilter,
+  defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
+import {
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, type LiveKind,
+} from './live.js';
 import {
   loadChannels, renderChannels, renderConnectGuide, channelFlash,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
@@ -126,9 +129,9 @@ import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
 import {
-  shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, stylesheetAt,
+  shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
-import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, type Flash, type FlashPart } from './flash.js';
+import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
@@ -359,7 +362,7 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
-  { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
+  { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
@@ -603,8 +606,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const localeOf = (req: FastifyRequest): Locale =>
     resolveLocale(parseCookies(req.headers.cookie)[LOCALE_COOKIE], req.headers['accept-language'] ?? null);
 
-  /** Render a full page: fills locale + path + avatar from the request/deps. */
-  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string }): string =>
+  /**
+   * Render a full page: fills locale + path + avatar from the request/deps.
+   * CC-26 — `live` is the page's live region (`liveRegion`), for the pages
+   * that watch for something new while they are open.
+   */
+  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string }): string =>
     shell({ ...o, locale: localeOf(req), path: req.url });
 
   /**
@@ -705,15 +712,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
   };
 
-  /** Wrap an authed page: verify session or redirect to /login. */
-  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale, reply: FastifyReply) => Promise<string> | string) =>
+  /**
+   * Wrap an authed page: verify session or redirect to /login. A render hands
+   * back its body — or its body and, CC-26, the live region it watches with.
+   */
+  type Drawn = string | { readonly bodyHtml: string; readonly live?: string };
+  const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale, reply: FastifyReply) => Promise<Drawn> | Drawn) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       const locale = localeOf(req);
-      const body = await render(s, req, locale, reply);
+      const drawn = await render(s, req, locale, reply);
       return reply.type('text/html; charset=utf-8').send(
-        page(req, { title: t(locale, `nav.${active}` as MessageKey), active, bodyHtml: body }),
+        page(req, { title: t(locale, `nav.${active}` as MessageKey), active, ...(typeof drawn === 'string' ? { bodyHtml: drawn } : drawn) }),
       );
     };
 
@@ -919,19 +930,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/terms', async (req, reply) =>
     reply.type('text/html; charset=utf-8').send(renderLegalTerms(localeOf(req), deps.legalContact ?? null)));
 
-  // ── The stylesheets (V1 close-out) ─────────────────────────────────────
+  // ── The stylesheets (V1 close-out) and the one script (CC-26) ───────────
   // Named by their content, so this build's own address is kept by a browser
-  // for good; an address from an earlier build gets this build's rules, not
+  // for good; an address from an earlier build gets this build's text, not
   // kept. Anything else is not found. Public: the door needs its rules before
   // anyone has signed in, and they are the same text for everyone.
   app.get('/assets/:file', async (req, reply) => {
-    const found = stylesheetAt((req.params as { file: string }).file);
+    const found = assetAt((req.params as { file: string }).file);
     if (!found) return reply.callNotFound();
     return reply
       .header('cache-control', found.current ? 'public, max-age=31536000, immutable' : 'no-cache')
       .header('x-content-type-options', 'nosniff')
-      .type('text/css; charset=utf-8')
-      .send(found.css);
+      .type(found.type)
+      .send(found.body);
   });
 
   // ── Auth ────────────────────────────────────────────────────────────────
@@ -1451,10 +1462,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       loadPilotFeedback(deps.db, s.businessId, 'today'),
       loadInsights(deps.db, s.businessId),
     ]);
-    return renderOperationsHome(snapshot, locale, {
-      conversationsNeedingYou: feedback.conversationsNeedingYou,
-      reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
-    }, renderInsights(insights, locale));
+    return {
+      bodyHtml: renderOperationsHome(snapshot, locale, {
+        conversationsNeedingYou: feedback.conversationsNeedingYou,
+        reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
+      }, renderInsights(insights, locale)),
+      // CC-26 — Today watches the counts it shows: the mark IS those counts.
+      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
+    };
   }));
 
   // ── M9.3 Inbox: list, detail, and the ONE approval action ────────────────
@@ -1474,6 +1489,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       || requested === 'blocked' || requested === 'mine' || requested === 'deletion' ? requested : null;
     // A search with no tab looks across every buyer: it is a find, not a view.
     const searching = typeof ask.q === 'string' && ask.q.trim() !== '';
+    // CC-26 — the list's mark BEFORE the list: a change between the two reads
+    // is announced once too often, never lost.
+    const bid = parseBusinessId(s.businessId);
+    const mark = bid.ok ? await buyersMark(deps.db, bid.value) : null;
     const list0 = await loadInboxList(deps.db, s.businessId, chosen ?? 'all', me, ask);
     const filter: InboxFilter = chosen ?? (searching ? 'all' : defaultFilter(list0.waitingCount));
     const data = filter === list0.filter ? list0 : await loadInboxList(deps.db, s.businessId, filter, me, ask);
@@ -1481,6 +1500,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.inbox'), active: 'inbox',
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
+      // The door: the first page of the tab and the search she is on — where the newest lands.
+      ...(mark ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' }))) } : {}),
     }));
   });
 
@@ -1494,6 +1515,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const now = new Date();
     // CC-25 — `before` pages the transcript back; anything else is the newest window.
     const before = (req.query as { before?: unknown } | undefined)?.before;
+    // CC-26 — the conversation's mark BEFORE the page: a message that lands
+    // between the two reads is announced once too often, never lost.
+    const bid = parseBusinessId(s.businessId);
+    const mark = bid.ok ? await conversationMark(deps.db, bid.value, conversationId) : null;
     const detail = await loadConversationDetail(deps.db, s.businessId, conversationId, now, before);
     if (!detail) return reply.code(404).type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.inbox'), active: 'inbox',
@@ -1511,8 +1536,44 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
       bodyHtml: withAssistantName(detail.assistantName, () =>
         renderConversationDetail(withProof, locale, now, flash, personOf(s))),
+      // CC-26 — and its line names the same assistant.
+      ...(mark ? { live: withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark))) } : {}),
     }));
   });
+
+  /**
+   * CC-26 — HAS ANYTHING ARRIVED SINCE THIS PAGE WAS DRAWN?
+   *
+   * Asked by the page's own script (`liveScript.ts`) every twenty seconds while
+   * the tab is in view, with the mark the page was drawn at; answered by
+   * comparing it with the mark now (`src/api/web/live.ts`). Everyone signed in
+   * may ask — owner and staff see the same buyers — and a stopped assistant or
+   * a paused business changes nothing here: a buyer who writes is still news.
+   *
+   * Signed out, the script is told so plainly (401) and stops; a person who
+   * types this address into a browser is sent to sign in, like every address
+   * here. Another business's conversation is not found (404). Never kept by a
+   * cache: the answer is about now.
+   */
+  const liveAsk = (kind: LiveKind) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const s = sessionOf(req);
+    const bid = s ? parseBusinessId(s.businessId) : null;
+    if (!s || !bid || !bid.ok) {
+      return String(req.headers['accept'] ?? '').includes('application/json')
+        ? reply.code(401).header('cache-control', 'no-store').send({ news: false })
+        : reply.redirect('/login');
+    }
+    const q = (req.query ?? {}) as { since?: unknown };
+    const id = String((req.params as { conversationId?: string } | undefined)?.conversationId ?? '');
+    const answer = await liveAnswer(deps.db, bid.value, kind, q.since, id);
+    return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
+  };
+  // Asked three times a minute by every open tab: its request lines would bury
+  // the log. A fault is still written (an error is above `warn`).
+  const quiet = { logLevel: 'warn' } as const;
+  app.get('/app/live/today', quiet, liveAsk('today'));
+  app.get('/app/live/buyers', quiet, liveAsk('buyers'));
+  app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));
 
   // The ONLY mutation: resolve a pending draft through applyOwnerCommand.
   // POST only; Post/Redirect/Get so a refresh never re-submits.

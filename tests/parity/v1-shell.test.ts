@@ -4,6 +4,7 @@ import { shell, loginPage } from '../../src/api/web/layout.js';
 import { MARK_FIGURE } from '../../src/core/owner/brand.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { withSheets } from './linked-css.js';
+import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
 
 /**
  * V1 step three — the shell (Symow, decisions 2 and 4; the owner's condition
@@ -29,8 +30,18 @@ const phoneBlock = (): string => {
 };
 
 describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
-  it('the shell ships no script', () => {
-    for (const l of LOCALES) expect(page(l)).not.toContain('<script');
+  // CC-26 (2026-09-28) changed what this held. The shell used to ship no
+  // script at all; it now links ONE — the live line (liveScript.ts) — and the
+  // owner's condition still stands for the collapse: it is CSS, needs no
+  // script, and the one script there is never touches the nav or the scroll.
+  it('the collapse needs no script: the shell links one, the live line, deferred and never inline', () => {
+    for (const l of LOCALES) {
+      const scripts = [...page(l).matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)];
+      expect(scripts, l).toHaveLength(1);
+      expect(scripts[0]![0], l).toMatch(/^<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>$/);
+      expect(scripts[0]![1], l).toBe('');
+    }
+    for (const touch of ['nav', 'scroll(', 'animation', 'navlink', 'classList']) expect(LIVE_SCRIPT, touch).not.toContain(touch);
   });
 
   it('on a phone the nav is sticky at full size, outside any @supports', () => {

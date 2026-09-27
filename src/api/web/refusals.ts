@@ -60,7 +60,8 @@ const parseReason = (stored: string | null): RefusalReason | null => {
 };
 
 /** The one predicate both readers use, so a count can never exceed its list. */
-const isRefusal = sql`status = 'canceled' and cancel_reason = any(${sql.val(STORED)}::text[])`;
+/** A message the send gate refused — the cards' rule, and (CC-26) the live line's. */
+export const isRefusal = sql`status = 'canceled' and cancel_reason = any(${sql.val(STORED)}::text[])`;
 
 /**
  * Refusals, newest first.
@@ -157,7 +158,8 @@ export type UncertainSend = {
   readonly origin: 'employee' | 'owner' | 'outreach';
 };
 
-const UNCERTAIN = sql`status = 'uncertain'`;
+/** A send nobody can account for (0052) — the cards' rule, and (CC-26) the live line's. */
+export const UNCERTAIN = sql`status = 'uncertain'`;
 
 export async function loadUncertainSends(
   db: Db, businessIdRaw: string,

@@ -42,6 +42,20 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   const routes: string[] = [];
   const real: Record<string, string> = {};
   const CODE = 'surface-walk-code';
+  /**
+   * CC-26 — the live line's addresses answer only with the mark a page was
+   * drawn at (a request without one is refused, 400). Walked here the way a
+   * page asks them, with a well-formed mark from long ago, so their reads run
+   * on these real rows like every page's; `live-refresh.test.ts` holds what
+   * they answer.
+   */
+  const STALE_MARK: Record<string, string> = {
+    '/app/live/today': '0.0.0.0.0',
+    '/app/live/buyers': '0.0000000000000000',
+    '/app/live/conversation/:conversationId': '0.0.00000000',
+  };
+  const asked = (url: string, target: string): string =>
+    STALE_MARK[url] ? `${target}?since=${STALE_MARK[url]}` : target;
 
   beforeAll(async () => {
     await seedRunTenant();
@@ -168,7 +182,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       }
       if (skip) continue;
 
-      const res = await app.inject({ method: 'GET', url: target, headers: { cookie } });
+      const res = await app.inject({ method: 'GET', url: asked(url, target), headers: { cookie } });
       if (res.statusCode >= 500) {
         broken.push(`${target} → ${res.statusCode} ${res.body.slice(0, 160)}`);
       }
@@ -209,7 +223,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         target = target.replace(`:${m[1]}`, encodeURIComponent(v));
       }
       if (skip) continue;
-      const res = await app.inject({ method: 'GET', url: target, headers: { cookie } });
+      const res = await app.inject({ method: 'GET', url: asked(url, target), headers: { cookie } });
       if (res.statusCode !== 200 && res.statusCode !== 302) notOk.push(`${target} → ${res.statusCode}`);
     }
     expect(notOk, `unexpected status:\n  ${notOk.join('\n  ')}`).toEqual([]);

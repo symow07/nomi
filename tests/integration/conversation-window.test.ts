@@ -73,7 +73,12 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
   /** Where "Earlier messages" goes, without the fragment the browser keeps to itself. */
   const earlierOf = (html: string, conv: string) =>
     new RegExp(`href="(/app/inbox/${conv}\\?before=[^"#]+)#latest"`).exec(html)?.[1] ?? null;
-  const latestDoor = (conv: string) => `href="/app/inbox/${conv}#latest"`;
+  /**
+   * The transcript's "Latest messages" door. CC-26 — the live line's door goes to
+   * the same address (inert in its template until something new arrives), and it
+   * wears its own class (`deeper live-door`), so this names the transcript's alone.
+   */
+  const latestDoor = (conv: string) => `<a class="deeper" href="/app/inbox/${conv}#latest"`;
   /** The message `id="latest"` sits on. */
   const markedLatest = (html: string) => /id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble"><bdi>(m-\d{3})<\/bdi>/.exec(html)?.[1] ?? null;
   /** The cursor the page hands out for the window before this one. */

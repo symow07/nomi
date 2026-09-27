@@ -2,7 +2,7 @@ import { loadAssistantStop } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { ownershipOf } from '../../core/conversation/ownership.js';
 import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
@@ -138,25 +138,30 @@ const budgetOf = (r: {
   return null;
 };
 
-export async function loadOperationsSnapshot(
-  db: Db, businessIdRaw: string, range: Range, provider = 'disabled',
-  /** Whether anything is sent or received here; WhatsApp's presence, by default. */
-  live: boolean = provider !== 'disabled',
-): Promise<OperationsSnapshot> {
-  const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return EMPTY(range, provider, live);
-  const B = bid.value;
-  const unit = RANGE_UNIT[range];
+/**
+ * CC-26 — the counts Today's "Needs your attention" rows are drawn from, read
+ * in ONE place: the page draws them, and the live line asks for them again to
+ * tell whether they changed while Today was open (`src/api/web/live.ts`). A
+ * second copy would be a second answer to the same question — the line would
+ * speak up for a change the page could never show, or miss one it would.
+ *
+ * Plain counts over the queue tables, as they always were: drafts waiting for
+ * the owner, conversations waiting for a person or held by one (through the
+ * ONE ownership model, never the sentinels in SQL), buyers' deletion requests
+ * waiting, and messages refused in the last week (`countRefusals`, the list's
+ * own predicate).
+ */
+export type AttentionCounts = {
+  readonly pendingApprovals: number;
+  readonly handoffs: number;
+  readonly ownerHandling: number;
+  readonly blockedMessages: number;
+  readonly deletionAsks: number;
+};
 
-  // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
-  const [ops, channels, counts, blockedMessages, budgetRow, stop, opsSilenced] = await Promise.all([
-    loadKnowledgeOps(db, businessIdRaw, range),
-    loadChannels(db, businessIdRaw, provider !== 'disabled'),
+export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCounts> {
+  const [counts, blockedMessages] = await Promise.all([
     withTenantTx(db, B, async (tx) => {
-      const cutoff = (await sql<{ c: Date }>`
-        select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
-      `.execute(tx)).rows[0]!.c;
-
       // Ownership counts: map assigned_to through ownershipOf (M16.1) — never
       // hard-code the sentinel semantics in SQL.
       const own = (await sql<{ assigned_to: string | null; n: number }>`
@@ -169,20 +174,50 @@ export async function loadOperationsSnapshot(
         if (o === 'WAITING_HUMAN') handoffs += r.n;
         else if (o === 'OWNER_CONTROLLED') ownerHandling += r.n;
       }
-
-      const q = (await sql<{ pending: number; handled: number; drafts: number; corrections: number; deletion_asks: number }>`
+      const q = (await sql<{ pending: number; deletion_asks: number }>`
         select
           (select count(*)::int from drafts where business_id = ${B} and status = 'pending') as pending,
-          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks,
+          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks
+      `.execute(tx)).rows[0]!;
+      return { handoffs, ownerHandling, pending: q.pending, deletionAsks: q.deletion_asks };
+    }),
+    // M22 — counted by the database over persisted canceled rows, through the
+    // SAME predicate that lists them, so the number and the list agree.
+    countRefusals(db, B),
+  ]);
+  return {
+    pendingApprovals: counts.pending, handoffs: counts.handoffs, ownerHandling: counts.ownerHandling,
+    blockedMessages, deletionAsks: counts.deletionAsks,
+  };
+}
+
+export async function loadOperationsSnapshot(
+  db: Db, businessIdRaw: string, range: Range, provider = 'disabled',
+  /** Whether anything is sent or received here; WhatsApp's presence, by default. */
+  live: boolean = provider !== 'disabled',
+): Promise<OperationsSnapshot> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return EMPTY(range, provider, live);
+  const B = bid.value;
+  const unit = RANGE_UNIT[range];
+
+  // Compose the existing loaders (their own RLS-scoped txns) — no duplicated SQL.
+  const [ops, channels, attention, counts, budgetRow, stop, opsSilenced] = await Promise.all([
+    loadKnowledgeOps(db, businessIdRaw, range),
+    loadChannels(db, businessIdRaw, provider !== 'disabled'),
+    // CC-26 — what needs her, from the one reader the live line asks too.
+    readAttention(db, B),
+    withTenantTx(db, B, async (tx) => {
+      const cutoff = (await sql<{ c: Date }>`
+        select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
+      `.execute(tx)).rows[0]!.c;
+      return (await sql<{ handled: number; drafts: number; corrections: number }>`
+        select
           (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}) as handled,
           (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
       `.execute(tx)).rows[0]!;
-      return { handoffs, ownerHandling, ...q };
     }),
-    // M22 — counted by the database over persisted canceled rows, through the
-    // SAME predicate that lists them, so the number and the list agree.
-    countRefusals(db, businessIdRaw),
     // G19 — the same numbers the send gate reads, judged by the same function.
     // Absence of a budget row is "she has set no ceiling", never "stop".
     withTenantTx(db, B, async (tx) => (await sql<{
@@ -205,11 +240,6 @@ export async function loadOperationsSnapshot(
     withTenantTx(db, B, (tx) => loadKillSwitches(tx, B)).then((k) => k.globalSilence),
   ]);
 
-  const attention = {
-    pendingApprovals: counts.pending, handoffs: counts.handoffs,
-    ownerHandling: counts.ownerHandling, blockedMessages,
-    deletionAsks: counts.deletion_asks,
-  };
   return {
     range,
     attention,
