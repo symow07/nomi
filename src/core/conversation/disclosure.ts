@@ -123,6 +123,39 @@ export function disclosureFor(input: {
 }
 
 /**
+ * Wordings the sentence had before, recognised but never said again: a message
+ * queued before a wording changed still tells the buyer what it tells him.
+ */
+const EARLIER: readonly string[] = [
+  // ar until 2026-09-28 («المساعد الذكي», and «فأخبرني» addressed him as a man).
+  'مرحبًا، أنا {name}، المساعد الذكي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
+  // ar for a few hours on 2026-09-28 (#117: «مساعد آلي», the old clause after it).
+  'مرحبًا، أنا {name}، مساعد آلي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
+];
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Each wording as a pattern: the words as written, any name and business in
+ * the holes — up to 300 characters each, past the profile's 200 for a business
+ * name and the assistant's 40.
+ */
+const SHAPES: readonly RegExp[] = [...DISCLOSURE_LOCALES.map((l) => TEXT[l]), ...EARLIER].map((w) =>
+  new RegExp(w.split(/\{name\}|\{business\}/)
+    .map((part) => escapeRe(part).replace(/\s+/g, '\\s+'))
+    .join('[\\s\\S]{1,300}?')));
+
+/**
+ * 0079 — does this text TELL the buyer what is answering him: does it carry
+ * the disclosure sentence, in any language it is written in, with whatever
+ * name and business it was said with? The send path asks it of every message
+ * the provider accepts — a reply sent alone, the sentence sent when he asked,
+ * a draft or a reply of the owner's that carries it — because "has he been
+ * told" is a fact about what reached him, not about which mode sent it.
+ */
+export const carriesDisclosure = (text: string): boolean => SHAPES.some((re) => re.test(text));
+
+/**
  * The disclosure in front of what she was going to say anyway.
  *
  * A blank line between them: it is a separate statement, not a clause of the

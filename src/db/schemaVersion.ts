@@ -245,8 +245,11 @@ import type { Db } from './client.js';
  *      (0078, tools/add-login.mjs). The door's `/login/set-password` asks
  *      `login_setup_open` / `login_setup_spend`; against a 77 database both
  *      are missing and the page answers 500 instead of "choose your password".
+ * 79 = when the disclosure REACHED the buyer (0079). Every turn loads
+ *      `conversations.ai_disclosure_delivered_at`; against a 78 database the
+ *      select fails and no turn runs at all.
  */
-export const REQUIRED_SCHEMA_VERSION = 78;
+export const REQUIRED_SCHEMA_VERSION = 79;
 
 export type SchemaState = {
   readonly required: number;

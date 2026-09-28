@@ -43,6 +43,7 @@ function ports(mode: 'auto' | 'draft' = 'auto'): Ports {
     phase: 'qualification',
     // Told on an earlier turn, so an auto reply here is the reply itself.
     aiDisclosedAt: new Date('2026-07-14T03:00:00Z'),
+    aiDisclosureDeliveredAt: new Date('2026-07-14T03:00:00Z'),   // …and it reached them (0079)
   }));
   p.replyWriter.replies = [ANSWER];
   return p;

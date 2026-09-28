@@ -83,7 +83,7 @@ describe('the disclosure rides on the first message nobody approved', () => {
     expect(sent!.indexOf('AI assistant')).toBeLessThan(sent!.indexOf('We make canvas totes'));
   });
 
-  it('AUTO · and never twice in the same conversation', async () => {
+  it('AUTO · and never twice in the same conversation, once it has gone out', async () => {
     const p = ports('auto');
     seed(p);
     p.analyzer.next = analysis();
@@ -92,10 +92,39 @@ describe('the disclosure rides on the first message nobody approved', () => {
     const first = await run(p, 'Hello, do you make canvas bags?');
     expect(first.sent).toContain('AI assistant');
     expect(p.tenant.disclosedAt.get(CONVERSATION)).toEqual(NOW);
+    p.tenant.deliverDisclosure(CONVERSATION);   // the provider accepted it (0079)
 
     const second = await run(p, 'Do you ship to Morocco?');
     expect(second.sent).toBe('Yes, we ship to Morocco.');
     expect(second.sent).not.toContain('AI assistant');
+  });
+
+  it('AUTO · while the first has not been accepted yet, the next reply says it too — twice, rarely, never zero', async () => {
+    // A queued first one may still fail, and the next reply could overtake it
+    // (a retry waits; the next one does not): only an accepted one counts.
+    const p = ports('auto');
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.', 'Yes, we ship to Morocco.'];
+
+    await run(p, 'Hello, do you make canvas bags?');
+    const second = await run(p, 'Do you ship to Morocco?');
+    expect(second.sent).toContain("I'm Lily, Yiwu Canvas Co's AI assistant");
+    expect(second.sent).toContain('Yes, we ship to Morocco.');
+  });
+
+  it('AUTO · but a first one that never went out — refused at send time: Stop, a hand-over — is said again', async () => {
+    const p = ports('auto');
+    seed(p);
+    p.analyzer.next = analysis();
+    p.replyWriter.replies = ['We make canvas totes in several sizes.', 'Yes, we ship to Morocco.'];
+
+    await run(p, 'Hello, do you make canvas bags?');
+    // Queued (the column is written) but never accepted: the buyer was told nothing.
+    expect(p.tenant.disclosedAt.get(CONVERSATION)).toEqual(NOW);
+    const second = await run(p, 'Do you ship to Morocco?');
+    expect(second.sent).toContain("I'm Lily, Yiwu Canvas Co's AI assistant");
+    expect(second.sent).toContain('Yes, we ship to Morocco.');
   });
 
   it('AUTO · in the buyer’s language, from what he wrote', async () => {
@@ -231,7 +260,7 @@ describe('having said it before does not answer a question asked now', () => {
   it('AUTO · already disclosed, he asks anyway, and he is told again', async () => {
     const p = ports('auto');
     // The conversation was told on an earlier turn — days ago, four messages up.
-    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z') });
+    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-09-20T09:00:01Z') });
     p.analyzer.next = analysis();
     p.replyWriter.replies = Array(3).fill('What size were you looking for?');
 
@@ -245,7 +274,7 @@ describe('having said it before does not answer a question asked now', () => {
   it('…and the column still records the FIRST telling, not this one', async () => {
     const first = new Date('2026-09-20T09:00:00Z');
     const p = ports('auto');
-    seed(p, { aiDisclosedAt: first });
+    seed(p, { aiDisclosedAt: first, aiDisclosureDeliveredAt: first });
     p.analyzer.next = analysis();
     p.replyWriter.replies = Array(3).fill('What size were you looking for?');
 
@@ -256,7 +285,7 @@ describe('having said it before does not answer a question asked now', () => {
 
   it('an ordinary auto reply after disclosure still carries nothing', async () => {
     const p = ports('auto');
-    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z') });
+    seed(p, { aiDisclosedAt: new Date('2026-09-20T09:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-09-20T09:00:01Z') });
     p.analyzer.next = analysis();
     p.replyWriter.replies = ['Yes, we ship to Morocco.'];
 

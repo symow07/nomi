@@ -1,4 +1,5 @@
 import { isAllowlisted } from '../channels/allowlist.js';
+import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
 import { checkBudget } from '../core/budget.js';
 import { loadKillSwitches } from './opsFlags.js';
@@ -316,6 +317,16 @@ export function channelStore(
       }
     },
 
+    async markDisclosureDelivered(conversationId) {
+      // The first time stays: it is when he was told. The transaction's clock,
+      // not the caller's: it is the `sent_at` the 'sent' transition just wrote,
+      // so a stamp rebuilt from the rows (reconcileStatus) reads the same.
+      await sql`
+        update conversations set ai_disclosure_delivered_at = now()
+         where id = ${conversationId}::uuid and ai_disclosure_delivered_at is null
+      `.execute(tx);
+    },
+
     async recordProviderId(id, providerMessageId) {
       await sql`
         update outbound_messages set provider_message_id = ${providerMessageId}
@@ -344,8 +355,8 @@ export function channelStore(
      * Returns the conversation so the caller can re-drive its outbound queue
      * (a 'delivered' may unblock the next ordered message). */
     async reconcileStatus(providerMessageId, incoming, detail) {
-      const res = await sql<{ id: string; status: OutboundStatus; conversation_id: string }>`
-        select id, status, conversation_id from outbound_messages
+      const res = await sql<{ id: string; status: OutboundStatus; conversation_id: string; body: string }>`
+        select id, status, conversation_id, body from outbound_messages
          where provider_message_id = ${providerMessageId} for update
       `.execute(tx);
       const row = res.rows[0];
@@ -357,6 +368,22 @@ export function channelStore(
         return { outcome: 'ignored', conversationId: row.conversation_id };
       }
       await this.transition(row.id, verdict.next, detail);
+      // 0079 — accepted, then reported undeliverable: that message told him
+      // nothing after all. The stamp is rebuilt from what still stands, so the
+      // next reply sent alone says it again and a repeated opener is answered.
+      if (verdict.next === 'failed' && carriesDisclosure(row.body)) {
+        const standing = await sql<{ body: string; sent_at: Date }>`
+          select body, sent_at from outbound_messages
+           where conversation_id = ${row.conversation_id}::uuid
+             and status in ('sent', 'delivered', 'read') and sent_at is not null
+           order by sent_at
+        `.execute(tx);
+        const first = standing.rows.find((r) => carriesDisclosure(r.body))?.sent_at ?? null;
+        await sql`
+          update conversations set ai_disclosure_delivered_at = ${first}
+           where id = ${row.conversation_id}::uuid
+        `.execute(tx);
+      }
       if (verdict.next === 'delivered' || verdict.next === 'read') {
         await sql`
           update channels set last_delivered_at = now(), consecutive_send_failures = 0,

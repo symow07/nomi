@@ -25,10 +25,14 @@ import { REQUESTS as DELETION_REQUESTS } from '../parity/deletion-corpus.js';
  *   and what is left to layer 2 on purpose hands off exactly when the model
  *   says so.
  *
- * And a shop's opener (客服在吗, "Is anyone there?", «فيه أحد؟») in both states,
- * two turns of one conversation: as the opener it is answered — the model
- * saying "a person" is set aside — and the disclosure goes with the reply; the
- * same words again, after the disclosure, hand off before any model.
+ * And a shop's opener (客服在吗, "Is anyone there?", «فيه أحد؟») in the four
+ * states the owner named (2026-09-28): the disclosure DELIVERED or not, in
+ * AUTO-SEND or in DRAFT mode — two turns of one conversation each. "Delivered"
+ * is 0079's: a message carrying the disclosure was accepted by the provider,
+ * whoever wrote it (`deliverDisclosure` stands in for the send path, which
+ * tests/parity/disclosure-delivered.test.ts and the integration test prove).
+ * Not delivered, a repeat is still an opener and is answered; delivered, it is
+ * a request and hands off before any model — the same in both modes.
  */
 
 type Ports = TurnPorts & { tenant: FakeTenant; analyzer: FakeAnalyzer; replyWriter: FakeReplyWriter; retriever: FakeRetriever };
@@ -46,8 +50,10 @@ function ports(opts: { told?: boolean; mode?: 'auto' | 'draft' } = {}): Ports {
     .map((capability) => ({ capability, mode: opts.mode ?? 'auto', timeWindow: null }));
   p.tenant.seed(CONVERSATION, emptyState({
     phase: 'qualification',
-    // Told on an earlier turn, unless the test is about the first one.
+    // Told on an earlier turn — the disclosure queued AND delivered — unless
+    // the test is about the first one.
     aiDisclosedAt: (opts.told ?? true) ? new Date('2026-07-14T03:00:00Z') : null,
+    aiDisclosureDeliveredAt: (opts.told ?? true) ? new Date('2026-07-14T03:00:05Z') : null,
   }));
   p.replyWriter.replies = [ANSWER, ANSWER, ANSWER];
   return p;
@@ -123,47 +129,127 @@ describe('left to layer 2 on purpose: handed off exactly when the model says so'
 const toldIn = (lang: string): string =>
   disclosureFor({ detected: lang, name: 'Lily', business: 'Yiwu Canvas Co' })!;
 
-describe("a shop's opener, both states in one conversation: answered with the disclosure, then a hand-off", () => {
-  for (const [lang, rows] of Object.entries(OPENERS)) {
-    for (const [text, why] of rows) {
-      it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
-        const p = ports({ told: false });
-        // The worst case: the model reads the greeting as a request for a person.
-        p.analyzer.next = analysis(lang, true);
+const openers = Object.entries(OPENERS).flatMap(([lang, rows]) => rows.map(([text, why]) => ({ lang, text, why })));
 
-        const first = await run(p, text, 1);
-        expect(first.r.decision.action.kind, text).not.toBe('handoff');
-        expect(signalsOf(p), text).not.toContain('human_requested');
-        expect(first.fx.outbound?.reply ?? null, text).toBe(withDisclosure(toldIn(lang), ANSWER));
-        expect(p.tenant.disclosedAt.has(CONVERSATION), text).toBe(true);
+describe("a shop's opener · AUTO-SEND · the disclosure DELIVERED: answered first, a repeat hands off", () => {
+  for (const { lang, text, why } of openers) {
+    it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
+      const p = ports({ told: false });
+      // The worst case: the model reads the greeting as a request for a person.
+      p.analyzer.next = analysis(lang, true);
 
-        // The same words, now that the buyer has been told: a request — no model asked.
-        const second = await run(p, text, 2);
-        expect(p.analyzer.calls, text).toBe(1);
-        expect(second.r.decision.action.kind, text).toBe('handoff');
-        expect(signalsOf(p), text).toContain('human_requested');
-        expect(second.fx.outbound?.reply ?? null, text).toBe(HANDOFF_REPLY);
-      });
-    }
+      const first = await run(p, text, 1);
+      expect(first.r.decision.action.kind, text).not.toBe('handoff');
+      expect(signalsOf(p), text).not.toContain('human_requested');
+      expect(first.fx.outbound?.reply ?? null, text).toBe(withDisclosure(toldIn(lang), ANSWER));
+
+      p.tenant.deliverDisclosure(CONVERSATION);   // the provider accepted it
+
+      const second = await run(p, text, 2);
+      expect(p.analyzer.calls, text).toBe(1);   // layer 1: no model asked
+      expect(second.r.decision.action.kind, text).toBe('handoff');
+      expect(signalsOf(p), text).toContain('human_requested');
+      expect(second.fx.outbound?.reply ?? null, text).toBe(HANDOFF_REPLY);
+    });
+  }
+});
+
+describe("a shop's opener · AUTO-SEND · the disclosure NOT delivered: a repeat is still an opener, answered", () => {
+  for (const { lang, text, why } of openers) {
+    it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
+      const p = ports({ told: false });
+      p.analyzer.next = analysis(lang, true);
+      const first = await run(p, text, 1);
+      expect(first.fx.outbound?.reply ?? null, text).toBe(withDisclosure(toldIn(lang), ANSWER));
+      expect(p.tenant.disclosedAt.has(CONVERSATION), text).toBe(true);   // queued — but it never left
+
+      // Refused at send time (Stop, a hand-over, the allowlist): he was told nothing.
+      const second = await run(p, text, 2);
+      expect(second.r.decision.action.kind, text).not.toBe('handoff');
+      expect(signalsOf(p), text).not.toContain('human_requested');
+      // …so this reply, sent alone, says it again.
+      expect(second.fx.outbound?.reply ?? null, text).toBe(withDisclosure(toldIn(lang), ANSWER));
+    });
   }
 
+  it('one still queued, not yet accepted, has told him nothing yet: the repeat is answered and says it too', async () => {
+    // Never "on its way": a queued one may still fail, and a reply that overtook
+    // it would have gone out alone (review of #121). Twice, rarely; never zero.
+    const p = ports({ told: false });
+    p.analyzer.next = analysis('zh', true);
+    await run(p, '客服在吗', 1);
+    const second = await run(p, '客服在吗', 2);
+    expect(second.r.decision.action.kind).not.toBe('handoff');
+    expect(second.fx.outbound?.reply ?? null).toBe(withDisclosure(toldIn('zh'), ANSWER));
+  });
+});
+
+describe("a shop's opener · DRAFT · the disclosure NOT delivered: the owner's approved replies told nothing, a repeat is answered", () => {
+  for (const { lang, text, why } of openers) {
+    it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
+      const p = ports({ told: false, mode: 'draft' });
+      p.analyzer.next = analysis(lang, true);
+      for (const n of [1, 2]) {
+        const { r, fx } = await run(p, text, n);
+        expect(r.decision.action.kind, `${text} #${n}`).not.toBe('handoff');
+        expect(signalsOf(p), `${text} #${n}`).not.toContain('human_requested');
+        expect(fx.outbound, `${text} #${n}`).toBeNull();
+        expect(fx.draftCreated, `${text} #${n}`).not.toBeNull();
+        // The owner approves and sends the draft: it does not carry the
+        // disclosure (rule 3), so nothing is stamped — nothing is called here.
+      }
+      expect(p.tenant.disclosedAt.has(CONVERSATION), text).toBe(false);
+    });
+  }
+});
+
+describe("a shop's opener · DRAFT · the disclosure DELIVERED: a repeat hands off, as it would in auto-send", () => {
+  for (const { lang, text, why } of openers) {
+    it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
+      const p = ports({ told: false, mode: 'draft' });
+      p.analyzer.next = analysis(lang, true);
+      const first = await run(p, text, 1);
+      expect(first.r.decision.action.kind, text).not.toBe('handoff');
+      expect(first.fx.draftCreated, text).not.toBeNull();
+
+      // The owner approved and sent a message that carried the disclosure (or an
+      // earlier reply sent alone did): the provider accepted it.
+      p.tenant.deliverDisclosure(CONVERSATION);
+
+      const second = await run(p, text, 2);
+      expect(p.analyzer.calls, text).toBe(1);
+      expect(second.r.decision.action.kind, text).toBe('handoff');
+      expect(signalsOf(p), text).toContain('human_requested');
+    });
+  }
+});
+
+describe("an opener and more: before delivery the model reads the rest; after, the opener hands off — auto and draft", () => {
   for (const [lang, texts] of Object.entries(OPENERS_WITH_MORE)) {
     for (const text of texts) {
-      it(`${lang} · an opener and more: the model decides first, the words after — ${JSON.stringify(text)}`, async () => {
-        const p = ports({ told: false });
-        p.analyzer.next = analysis(lang, false);
-        const first = await run(p, text, 1);
-        expect(first.fx.outbound?.reply ?? null, text).toBe(withDisclosure(toldIn(lang), ANSWER));
-        const second = await run(p, text, 2);
-        expect(p.analyzer.calls, text).toBe(1);
-        expect(second.r.decision.action.kind, text).toBe('handoff');
-      });
+      for (const mode of ['auto', 'draft'] as const) {
+        it(`${lang} · ${mode}: ${JSON.stringify(text)}`, async () => {
+          const p = ports({ told: false, mode });
+          p.analyzer.next = analysis(lang, false);
+          const first = await run(p, text, 1);
+          expect(first.r.decision.action.kind, text).not.toBe('handoff');
+          const again = await run(p, text, 2);   // not delivered: still the model's
+          expect(again.r.decision.action.kind, text).not.toBe('handoff');
+          expect(p.analyzer.calls, text).toBe(2);
+          p.tenant.deliverDisclosure(CONVERSATION);
+          const third = await run(p, text, 3);
+          expect(p.analyzer.calls, text).toBe(2);
+          expect(third.r.decision.action.kind, text).toBe('handoff');
+        });
+      }
     }
   }
+});
 
+describe('not an opener: after the disclosure was delivered, answered as usual', () => {
   for (const [lang, rows] of Object.entries(NOT_OPENERS)) {
     for (const [text, why] of rows) {
-      it(`${lang} · not an opener (${why}): after the disclosure, answered as usual — ${JSON.stringify(text)}`, async () => {
+      it(`${lang} · ${why}: ${JSON.stringify(text)}`, async () => {
         const p = ports();
         p.analyzer.next = analysis(lang, false);
         const { r, fx } = await run(p, text);
@@ -172,18 +258,6 @@ describe("a shop's opener, both states in one conversation: answered with the di
       });
     }
   }
-
-  it('drafting, the disclosure never goes out — the owner reads each reply — so a repeat is drafted again, not handed off', async () => {
-    const p = ports({ told: false, mode: 'draft' });
-    p.analyzer.next = analysis('zh', true);
-    for (const n of [1, 2]) {
-      const { r, fx } = await run(p, '客服在吗', n);
-      expect(r.decision.action.kind).not.toBe('handoff');
-      expect(fx.outbound).toBeNull();
-      expect(fx.draftCreated).not.toBeNull();
-    }
-    expect(p.tenant.disclosedAt.has(CONVERSATION)).toBe(false);
-  });
 });
 
 describe('on the FIRST message, before any disclosure, every plain ask still hands off — and every deletion request, silently', () => {

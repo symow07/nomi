@@ -269,7 +269,7 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       // A2 — the conversation their order points at.
       await ins('conversations', {
         id: A.c2, business_id: B1, client_id: A.client, channel: 'whatsapp', assigned_to: 'someone', assigned_at: now,
-        ai_disclosed_at: now, owner_unsent_reply: `Hi ${NAME_A}, about your order`, owner_unsent_reply_at: now,
+        ai_disclosed_at: now, ai_disclosure_delivered_at: now, owner_unsent_reply: `Hi ${NAME_A}, about your order`, owner_unsent_reply_at: now,
       });
       await ins('messages', { id: A.m4, conversation_id: A.c2, direction: 'inbound', text_content: `${SAID_A}: confirmed` });
       await ins('conversation_state', { id: A.s2, conversation_id: A.c2 });
@@ -630,7 +630,7 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
     expect(client['business_id']).toBe(B1);
 
     const shell = await one<Record<string, unknown>>('select * from conversations where id = $1', [A.c2]);
-    expect(shell).toMatchObject({ is_active: false, phase: 'closed', assigned_to: null, assigned_at: null, ai_disclosed_at: null, owner_unsent_reply: null, owner_unsent_reply_at: null });
+    expect(shell).toMatchObject({ is_active: false, phase: 'closed', assigned_to: null, assigned_at: null, ai_disclosed_at: null, ai_disclosure_delivered_at: null, owner_unsent_reply: null, owner_unsent_reply_at: null });
     expect(shell['closed_at']).not.toBeNull();
     for (const t of ['messages', 'drafts', 'outbound_messages', 'conversation_state', 'conversation_events', 'quote_proofs']) {
       expect((await one<{ n: number }>(`select count(*)::int as n from ${t} where conversation_id = $1`, [A.c2])).n, t).toBe(0);

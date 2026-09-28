@@ -9,6 +9,7 @@ import type { OutreachInput } from '../core/outreach/gate.js';
 import type { Locale } from '../core/owner/i18n/locale.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
+import { carriesDisclosure } from '../core/conversation/disclosure.js';
 
 /**
  * M3 — The outbound drive loop for ONE conversation. Ports in, effects out;
@@ -112,6 +113,13 @@ export type OutboundStore = {
    *  was actually refused for. Optional so in-memory test stores need not
    *  implement it. */
   recordRefusal?(outboundId: string, to: string, reason: RefusalReason): Promise<void>;
+  /**
+   * 0079 — the provider accepted a message carrying the disclosure: this
+   * conversation's buyer has been told what is answering him. Written once
+   * (the first time stays). Optional so in-memory test stores need not
+   * implement it; the database store does (tests/integration/disclosure-delivered).
+   */
+  markDisclosureDelivered?(conversationId: string, at: Date): Promise<void>;
 };
 
 /**
@@ -410,6 +418,10 @@ export async function driveConversationOutbound(
   if (result.ok) {
     await deps.store.recordProviderId(candidate.id, result.providerMessageId);
     await deps.store.transition(candidate.id, 'sent', null);
+    // 0079 — the buyer has been TOLD: a message carrying the disclosure left,
+    // whoever wrote it and whichever mode sent it. Here and nowhere else — a
+    // queued, refused or failed one told him nothing.
+    if (carriesDisclosure(candidate.body)) await deps.store.markDisclosureDelivered?.(conversationId, now);
     return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: result.providerMessageId }];
   }
 

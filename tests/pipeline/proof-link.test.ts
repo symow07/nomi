@@ -38,6 +38,7 @@ function quoting(publicBaseUrl: string | null) {
       // Told on an earlier turn: this file is about what the reply
       // itself says, not about the disclosure in front of the first one.
       aiDisclosedAt: new Date('2026-07-14T03:00:00Z'),
+      aiDisclosureDeliveredAt: new Date('2026-07-14T03:00:00Z'),   // …and it reached them (0079)
     phase: 'commercial_discussion',
     product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
     quantity: { value: 5000, unit: 'pcs' },
@@ -120,6 +121,7 @@ describe('G11 · his language is remembered on him', () => {
       // Told on an earlier turn: this file is about what the reply
       // itself says, not about the disclosure in front of the first one.
       aiDisclosedAt: new Date('2026-07-14T03:00:00Z'),
+      aiDisclosureDeliveredAt: new Date('2026-07-14T03:00:00Z'),   // …and it reached them (0079)
       phase: 'commercial_discussion', preferredLanguage: 'ar',
       product: { productId: PRODUCT, confidence: 0.95, confirmedByClient: true, matchMethod: 'text' },
       quantity: { value: 5000, unit: 'pcs' },

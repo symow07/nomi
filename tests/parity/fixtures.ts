@@ -33,6 +33,7 @@ export const text = (tcId: string): string => String(payload(tcId)['text'] ?? ''
 
 export const emptyState = (over: Partial<ConversationState> = {}): ConversationState => ({
   aiDisclosedAt: null,
+  aiDisclosureDeliveredAt: null,
   conversationId: CONVERSATION,
   businessId: BUSINESS,
   clientId: CLIENT,

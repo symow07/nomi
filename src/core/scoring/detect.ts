@@ -414,8 +414,13 @@ export function detectSignals(input: {
   // A shop's opener (客服在吗, "Is anyone there?", above) is answered while the
   // buyer has not been told what answers them, and asked AFTER the disclosure
   // it is a request — decided here from the words, before any model.
+  //
+  // "Told" is 0079's: a message carrying the disclosure REACHED the buyer — sent
+  // alone, or a draft or reply of the owner's that carried it — never merely
+  // queued. The same in draft and in auto: not told, a repeat is still an
+  // opener and is answered.
   const opener = shopOpener(text);
-  if (asksForPerson(text) || (opener !== null && state.aiDisclosedAt !== null)) {
+  if (asksForPerson(text) || (opener !== null && state.aiDisclosureDeliveredAt !== null)) {
     out.push({ kind: 'human_requested' });
   } else if (opener === 'only') {
     // A greeting, and the disclosure goes with the reply: the model's reading
