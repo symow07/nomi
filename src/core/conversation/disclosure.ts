@@ -26,7 +26,7 @@
  * "right away". A solo owner sleeps, and a disclosure that promises otherwise
  * has replaced one dishonesty with another.
  *
- * zh and ar are PENDING NATIVE REVIEW.
+ * zh and ar were read and signed off by the owner on 2026-09-28 (below).
  */
 
 /** The languages the disclosure is written in. Anything else falls back to en. */
@@ -35,10 +35,14 @@ export type DisclosureLocale = (typeof DISCLOSURE_LOCALES)[number];
 
 const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   en: "Hi, I'm {name}, {business}'s AI assistant. If you'd like a person from our team, just say so and they'll reply as soon as they can.",
-  // pending native review
+  // Signed off by the owner, 2026-09-28, unchanged: 人工服务 is the term a
+  // Chinese buyer expects, and the register is right.
   zh: '您好，我是{name}，{business}的AI助手。如需人工服务请告诉我，同事会尽快回复您。',
-  // pending native review
-  ar: 'مرحبًا، أنا {name}، المساعد الذكي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
+  // Signed off by the owner, 2026-09-28, with one change: «مساعد آلي» (an
+  // automated assistant) for «المساعد الذكي» ("the smart assistant"), which
+  // named a quality rather than a kind and is the ordinary marketing phrase
+  // for any chatbot. This sentence must leave no doubt that it is software.
+  ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
 };
 
 const isDisclosureLocale = (v: string): v is DisclosureLocale =>
@@ -60,13 +64,15 @@ const isDisclosureLocale = (v: string): v is DisclosureLocale =>
  * for the whole product rather than per workspace: the text does not become
  * correct for one business and wrong for another.
  *
- * TO LIFT IT: have a native speaker read the `zh` and `ar` strings above, fix
- * what they say to fix, and set the flag in the same commit. Nothing else.
+ * LIFTED 2026-09-28: the owner read the `zh` and `ar` strings above, changed
+ * one phrase in the Arabic, and the flags were set in the same commit. A
+ * locale added to DISCLOSURE_LOCALES later starts false and closes the gate
+ * again until it too has been read.
  */
 export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = {
   en: true,
-  zh: false,
-  ar: false,
+  zh: true,   // the owner, 2026-09-28
+  ar: true,   // the owner, 2026-09-28
 };
 
 /** The locales still waiting for a native reading, in order. */

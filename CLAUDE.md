@@ -1,9 +1,10 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after #115 — `tools/add-login.mjs` gives a
-workspace that exists a login, with a one-time link to choose its password
-(0078); before it, the "clear the queue" batch (#110–#113). Written so the next
-session needs nothing from the one that wrote it.
+Last updated **2026-09-28**, after #117 — the disclosure gate is open: the
+owner read the zh/ar sentences and messages can send without approval (§5
+rule 1). Before it, #115 (`tools/add-login.mjs`, 0078) and the "clear the
+queue" batch (#110–#113). Written so the next session needs nothing from the
+one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -143,6 +144,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 117 | **The disclosure gate is open** — Arabic «مساعد آلي» for «المساعد الذكي», zh/ar signed off by the owner, `DISCLOSURE_NATIVE_REVIEW` all true; see §5 rule 1 |
 | 116 | **Decision 5 recorded in Symow's words, provisional**; the calendar's kind becomes the first word of its line (not a pill); `docs/UI-PASS-CANDIDATES.md`, the later pass's list |
 | 115 | **`tools/add-login.mjs`** — a login for a workspace that exists, and `/login/set-password` (0078) — see §5 rule 22; integration hooks outlast a graceful stop (`--hookTimeout`) |
 | 114 | CLAUDE.md handoff; ROADMAP §2b; the usability script after A |
@@ -212,14 +214,26 @@ Recent PRs, newest first:
 
 ## 5 · Open rules in force right now
 
-1. **Nothing sends alone anywhere until the zh/ar disclosure has native
-   review.** `DISCLOSURE_NATIVE_REVIEW` in
-   `src/core/conversation/disclosure.ts` = `{ en: true, zh: false, ar: false }`.
-   Enforced on both owner routes that turn autonomy on **and** at the send
-   decision in `commitTurn` (`autonomy_withheld: disclosure_not_reviewed`).
-   No env var lifts it. To lift: native speaker reviews, flags flipped in the
-   same commit, reviewer named, and the assertion in
-   `tests/integration/autonomy-level.test.ts` updated deliberately.
+1. **The disclosure gate is OPEN since 2026-09-28** (#117): the owner read the
+   zh and ar sentences; the Arabic now says «مساعد آلي» (an automated
+   assistant) where it said «المساعد الذكي» ("the smart assistant"), the
+   Chinese is unchanged. `DISCLOSURE_NATIVE_REVIEW` in
+   `src/core/conversation/disclosure.ts` = `{ en: true, zh: true, ar: true }`.
+   The mechanism stays, on both owner routes that turn autonomy on and at the
+   send decision in `commitTurn` (`autonomy_withheld: disclosure_not_reviewed`):
+   a disclosure locale added later starts `false` and closes it again for every
+   workspace until it is read; `tests/integration/autonomy-level.test.ts` pins
+   the real flag and proves the refusal with the gate held closed.
+   **What sends alone now** (production, 2026-09-28): only Westlake Canvas Co.
+   — the one workspace with capabilities on auto (greet, qualify, recommend,
+   quote, negotiate, follow_up), its name confirmed, not stopped. Replies to a
+   buyer's message go out without approval on Instagram and Messenger (anyone
+   who writes first, inside the platform's window) and on WhatsApp only to
+   numbers on its pilot list (one); the first such reply in a conversation
+   carries the disclosure. Confirming an order stays the owner's (`confirm_order` never auto); e-mail answers
+   always go to a person; holds (a voice-note quantity, a discount past the
+   ask-first line) and hand-offs still draft or stop. The ~54 demo copies with
+   greet/qualify on auto still draft: no confirmed name, no activated channel.
 2. **The assistant's name must be confirmed** (Getting ready →
    `onboarding_state.assistant_named_at`) before activation, and before
    anything sends alone. The live workspace must confirm its name.
@@ -379,7 +393,14 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - **CC-26** (rule 21): 20 s is one constant (`EVERY`); Buyers' line also fires on the assistant's own replies (the list does change — it may be noisy in auto mode); a "this conversation has changed" line when it is handed over, taken or a send is refused; the line is its own door.
 
 **Parked / owner's to unblock**
-- Native review of the zh/ar disclosure (gates all autonomy).
+- **Found 2026-09-28, not changed (the owner's to decide):** words that describe
+  the assistant as a person or with praise — Arabic `legal.privacy.ai` (the
+  buyer-facing privacy page) «مساعد ذكي» ("a smart assistant", the phrase just
+  removed from the disclosure); Chinese `login.brandTagline` 你的数字员工工作台
+  (员工, an employee — the English says "digital employee" too); Chinese
+  `assistants.role.support` 客服 (in Chinese usually a human agent). And the
+  Arabic disclosure itself addresses the buyer in the masculine («فأخبرني»,
+  "tell me"), which rule 6 asks buyer-facing Arabic not to do.
 - The live workspace confirming its assistant's name (in progress 2026-09-23;
   check `onboarding_state.assistant_named_at` for Westlake).
 - Moving the checkout out of iCloud (steps given 2026-09-23; see §2).

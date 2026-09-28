@@ -125,13 +125,15 @@ d('T1 · how much she does on her own (requires DATABASE_URL)', () => {
   });
 });
 
-d('T1 · no autonomy until the disclosure has had native review (requires DATABASE_URL)', () => {
+d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)', () => {
   /**
-   * The hard rule: no workspace turns on any autonomy capability in production
-   * until the zh and ar disclosure text has been read by a native speaker. This
-   * drives the REAL route with the REAL product flag — no override — so it fails
-   * the day someone flips the flag without meaning to, and passes again only
-   * when this test is changed on purpose alongside it.
+   * The hard rule: no workspace turns on any autonomy capability until every
+   * disclosure locale has been read. The owner read zh and ar on 2026-09-28
+   * and the flag went up in the same commit as this change — made on purpose,
+   * as this test asked. The first test pins the REAL flag, so it fails the day
+   * it moves without meaning to. The rest drive the real route with the gate
+   * held CLOSED (a locale added later starts closed), so the refusal stays
+   * proven while nothing needs it.
    */
   let app: import('fastify').FastifyInstance;
   let db: import('../../src/db/client.js').Db;
@@ -152,16 +154,18 @@ d('T1 · no autonomy until the disclosure has had native review (requires DATABA
     registerWebApp(app, {
       db, businessId: GATE_BIZ, accessCode: GATE_CODE, sessionSecret: SECRET, employeeName: 'Lily', avatar: '👩‍💼',
       provider: 'disabled', secureCookie: false, messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
+      autonomyReleased: () => false,   // the gate held closed: what a locale not yet read would do
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
   }, 60_000);
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the flag is down today: zh and ar have not been reviewed', async () => {
-    const { disclosureAwaitingReview, autonomyReleased } = await import('../../src/core/conversation/disclosure.js');
-    expect(disclosureAwaitingReview()).toEqual(['zh', 'ar']);
-    expect(autonomyReleased()).toBe(false);
+  it('the real flag is up: the owner read zh and ar on 2026-09-28', async () => {
+    const { disclosureAwaitingReview, autonomyReleased, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
+    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true });
+    expect(disclosureAwaitingReview()).toEqual([]);
+    expect(autonomyReleased()).toBe(true);
   });
 
   it('"talks" and "sells" are REFUSED by the route, and nothing is written', async () => {
@@ -187,10 +191,11 @@ d('T1 · no autonomy until the disclosure has had native review (requires DATABA
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page says why, above the levels', async () => {
+  it('and the page no longer says the sentence is being checked — it reads the real flag, which is up', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
-    expect(page.body).toContain('has not been read by a native speaker');
+    expect(page.statusCode).toBe(200);
+    expect(page.body).not.toContain('has not been read by a native speaker');
   });
 });
