@@ -16,10 +16,15 @@ import {
  * Read-only: there is no form here that writes anything; the one form is a
  * GET that narrows the list to a buyer.
  *
- * The category is V1's row tag — the one Buyers' rows wear (decision 5,
- * settled 2026-09-28) — in its neutral form, with the kind named on the
- * element (`data-cat`): a category is not a state, so it never takes a state
- * colour.
+ * THE KIND OF DATE is the first word of the entry's own line — "Negotiation ·
+ * Price worked out: …" — in the line's quiet voice, named on the element
+ * (`data-cat`). Not a pill: in V1 a pill before or beside a name is a STATE
+ * (Buyers' row tag, decision 5: waiting for you, held by a person), and a kind
+ * of date is not one; set before the name it also pushed the name aside and,
+ * with a flag and a country, wrapped onto a line of its own. The name leads,
+ * as it leads every row. Under a category tab every entry shares the kind, so
+ * the word is left out there (Symow's call on decision 5, 2026-09-28: the
+ * calendar's label is its own choice, not a copy of the row).
  */
 
 /** Three weeks a page: the past week, and the coming two. */
@@ -112,11 +117,16 @@ function who(locale: Locale, e: CalendarEntry): string {
   return '';
 }
 
-function entry(locale: Locale, e: CalendarEntry): string {
+function entry(locale: Locale, e: CalendarEntry, showKind: boolean): string {
   const when = e.allDay ? t(locale, 'calendar.allDay') : formatTime(locale, e.at);
+  // The kind leads the event's own line, in its words — not a pill before the
+  // name (a pill is a state here, and the name leads a row).
+  const kind = showKind
+    ? `<span class="cal-kind" data-cat="${esc(e.category)}">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span> · `
+    : '';
   const body = `<span class="person">
-        <span class="cal-head"><span class="tag" data-cat="${esc(e.category)}">${esc(t(locale, `calendar.cat.${e.category}` as MessageKey))}</span>${who(locale, e)}</span>
-        <span class="small">${esc(line(locale, e))}</span></span>`;
+        <span class="cal-head">${who(locale, e)}</span>
+        <span class="small">${kind}${esc(line(locale, e))}</span></span>`;
   // CC-25 — a conversation opens on its newest message, like every door into one.
   const to = e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
     : e.conversationId ? conversationUrl(e.conversationId) : null;
@@ -199,7 +209,7 @@ export function renderCalendar(v: CalendarView, locale: Locale): string {
     return `<section>
       <h2 class="cal-day"${day === v.today ? ' aria-current="date"' : ''}>${esc(title)}</h2>
       ${items.length
-        ? `<ul class="rows">${items.map((e) => entry(locale, e)).join('')}</ul>`
+        ? `<ul class="rows">${items.map((e) => entry(locale, e, v.category === null)).join('')}</ul>`
         : `<p class="muted">${esc(t(locale, 'calendar.todayNothing'))}</p>`}
     </section>`;
   }).join('');

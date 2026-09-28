@@ -99,7 +99,10 @@ left items went with the rest of the close-out. Screenshots in
   to the widest line, so each state sat wherever its name ended. The column
   is the row's width now and a spreading header reaches the row's end, so the
   four states line up at one edge in every language (`channels-accounts-*`).
-- **The calendar's kind** is the row's tag — the one Buyers' rows wear — in
-  its neutral form (a kind is not a state).
+- **The calendar's kind** — first built as the row's tag in its neutral form,
+  then made its own choice the same day (Symow asked for one rather than a
+  copy of the row): the first word of the entry's own line, "Negotiation ·
+  Price worked out: …", after the name, never a pill (a pill in V1 is a state),
+  and left out under a category tab. `docs/design/calendar-kind/`.
 - **Buyers and Customers are one list** (A), in the row as it is; Buyers',
   Customers' and the conversation page's stylesheets are the shell's now.

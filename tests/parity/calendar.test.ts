@@ -79,22 +79,32 @@ describe('V2 · the calendar page, by structure', () => {
       const tabs = [...html.matchAll(/<a class="tab( on)?"/g)];
       expect(tabs).toHaveLength(7);
       expect(html).toMatch(/<a class="tab on" aria-current="page" href="\/app\/calendar">/);
-      // One row per entry, each naming its source row; one row tag each —
-      // V1's tag, the one Buyers' rows wear (decision 5, 2026-09-28), in its
-      // neutral form: a category is not a state, so no state class, ever.
-      const rows = [...html.matchAll(/<li class="row" data-src="([^"]+)" data-col="([^"]+)"/g)];
+      // One row per entry, each naming its source row. The kind of date is the
+      // first word of the entry's own line (decision 5, 2026-09-28: the
+      // calendar's label is its own choice) — never a pill, which in V1 is a
+      // state, and never before the name, which leads every row.
+      const rows = [...html.matchAll(/<li class="row" data-src="([^"]+)" data-col="([^"]+)"[\s\S]*?<\/li>/g)];
       expect(rows.map((r) => `${r[1]}#${r[2]}`).sort()).toEqual(
         ENTRIES.map((x) => `${x.source.table}:${x.source.id}#${x.source.column}`).sort());
-      const tags = [...html.matchAll(/<span class="([^"]*\btag\b[^"]*)" data-cat="([^"]+)">/g)];
-      expect(tags).toHaveLength(ENTRIES.length);
-      for (const m of tags) expect(m[1], 'a category is not a state').toBe('tag');
-      expect(tags.map((m) => m[2]).sort()).toEqual(ENTRIES.map((x) => x.category).sort());
-      expect(html, 'the placeholder chip is gone').not.toMatch(/<span class="chip"/);
+      const kinds = [...html.matchAll(/<span class="small"><span class="cal-kind" data-cat="([^"]+)">([^<]+)<\/span> · /g)];
+      expect(kinds).toHaveLength(ENTRIES.length);
+      expect(kinds.map((m) => m[1]).sort()).toEqual(ENTRIES.map((x) => x.category).sort());
+      for (const m of kinds) expect(m[2]).toBe(t(locale, `calendar.cat.${m[1]}` as never));
+      for (const [row] of rows) {
+        expect(row, 'no pill in a calendar row').not.toMatch(/class="(?:tag|chip|pill)\b/);
+        expect(row.indexOf('cal-head'), 'the name comes before the kind').toBeLessThan(row.indexOf('cal-kind'));
+      }
       // A heading per day that holds something; today named in words.
       const days = new Set(ENTRIES.map((x) => x.day));
       expect([...html.matchAll(/<h2 class="cal-day"/g)]).toHaveLength(days.size);
       expect(html).toContain('aria-current="date"');
       expect(html).toContain(t(locale, 'calendar.today', { date: '' }).replace(/\s*·\s*$/, ''));
+    });
+
+    it(`${locale}: under a category tab every entry shares the kind, so the word is left out`, () => {
+      const html = renderCalendar({ ...view(), category: 'samples' }, locale);
+      expect(html).toContain('<li class="row"');
+      expect(html).not.toContain('class="cal-kind"');
     });
 
     it(`${locale}: doors go to the conversation, or the order; a closure has none`, () => {

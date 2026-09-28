@@ -222,8 +222,8 @@ Observations, for you to weigh. Not proposals.
 ## 7 · The five decisions, and the shape of each answer
 
 The implementer can start the moment these exist, in any order; tokens first
-is the natural one. **Symow answered 1–4 on 2026-09-24; the owner answered
-5 on 2026-09-28. §8 records all five.**
+is the natural one. **Symow answered 1–4 on 2026-09-24 and 5 on 2026-09-28,
+the fifth provisionally. §8 records all five.**
 
 | # | Decision | What the implementer needs from you |
 |---|---|---|
@@ -241,12 +241,12 @@ only does not ship.
 
 ---
 
-## 8 · Decided — Symow, 2026-09-24; the owner, 2026-09-28
+## 8 · Decided — Symow, 2026-09-24 (1–4) and 2026-09-28 (5)
 
-Decisions 1–4, in his words, each followed by what it means for the
-implementer. Decision 5 was deferred until after the usability session (F7
-in the script tests the row and the conversation page); the owner settled it
-on 2026-09-28 — the row stays as it is — and it is recorded below.
+The five decisions, in Symow's words, each followed by what it means for the
+implementer. Decision 5 was deferred until after the usability session (F7 in
+the script tests the row and the conversation page), then settled on
+2026-09-28, deliberately provisional: V1's answer, not the product's.
 
 ### 1 · Type — decided
 
@@ -481,34 +481,47 @@ language, nothing new invented:
 
 Screenshots in `docs/design/audit-closeout/`.
 
-### 5 · The row — DECIDED
+### 5 · The row — decided, provisionally
 
-Decided by the owner on 2026-09-28:
-
-> The row stays as it is — name, last message, time. I looked and had no
-> complaint, so nothing is invented. Revisit after real daily use.
+> Decision 5 is made: the row stays as it is for V1. I looked at Buyers, the
+> conversation list and Customers on my phone. Nothing about the row annoys me
+> enough to change it now. There will be a larger UI/UX pass later; this
+> decision is not that pass, it just unblocks the work that has been waiting
+> on it.
 
 What it means:
-- The Buyers row keeps its fields and their order: the flag, the buyer's
-  name and country, and the one tag (why the buyer needs the owner, or who
-  holds the conversation) on the first line; what they asked about; the last
-  message in the person's serif; the time. No field is added to it and none
-  is taken away, and it stays a bordered tile.
-- The one tag is V1's row tag (`.tag`, in the shell). It carries state
-  colour only when it names a state — `now` (waiting for the owner) and
-  `you` (a person holds it); a label that is not a state wears the neutral
-  tag. The calendar's category is that neutral tag.
-- A — the merged list (Buyers and Customers are one list since this
-  decision) uses this row. What Customers carried and the row did not is
-  said in the row's own words rather than in new fields: the channel joins
-  the time line when a workspace talks on more than one, and the time line
-  names who wrote the last message, as the transcript does under each
-  message — so a buyer still waiting for an answer reads as the buyer's
-  words, and a reply reads as a reply.
-- Everything that waited on this answer is built: A (search and paging over
-  the one list), the calendar's tag, Log out on Setup, the channels page's
-  pills, and the last page-level stylesheets.
-- To revisit after real daily use, not before.
+- **Provisional on purpose.** This is V1's answer and the later UI/UX pass is
+  expected to revisit it; nothing here is to be defended as final. The pass
+  starts from `docs/UI-PASS-CANDIDATES.md`, which lists what it should look at
+  first. Tests hold the row's structure (one tag family, the lines in order),
+  never a value, so the later pass can change it without fighting them.
+- The Buyers row keeps its fields and their order: the flag, the buyer's name
+  and country, and the one tag (why the buyer needs the owner, or who holds the
+  conversation) on the first line; what they asked about; the last message in
+  the person's serif; the time. No field is added and none is taken away, and
+  it stays a bordered tile.
+- The one tag is V1's row tag (`.tag`, in the shell). It carries state colour
+  only when it names a state — `now` (waiting for the owner) and `you` (a
+  person holds it). A pill in V1 means a state.
+- **The calendar's kind is its own choice, not a copy of the row** (Symow asked
+  for a real choice there). The kind of date is the first word of the entry's
+  own line, in the line's quiet voice — "Negotiation · Price worked out: $3.20
+  each, quantity 1,000" — and the name leads the entry, as it leads every row.
+  Not a pill: a kind of date is not a state, and a pill set before the name
+  pushed the name aside and, with a flag and a country, wrapped onto a line of
+  its own. Under a category tab every entry shares the kind, so the word is
+  left out there.
+- A — the merged list (Buyers and Customers are one list since this decision)
+  uses this row. What Customers carried and the row did not is said in the
+  row's own words rather than in new fields: the channel joins the time line
+  when a workspace talks on more than one, and the time line names who wrote
+  the last message, as the transcript does under each message.
+- Everything that waited on this answer is built (the V1 close-out, #111, and
+  the calendar's kind, 2026-09-28): A, with search and paging over the one
+  list; Buyers', Customers' and the conversation page's styling in V1's
+  language; the calendar's kind; Log out, Setup's last row, a button; the
+  channels page's pills at one edge; and the last page-level stylesheets —
+  one `<style>` is left, `publicDocument()`'s, and the count may not rise.
 
 ---
 
