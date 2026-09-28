@@ -1,9 +1,10 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after #117 — the disclosure gate is open: the
-owner read the zh/ar sentences and messages can send without approval (§5
-rule 1). Before it, #115 (`tools/add-login.mjs`, 0078) and the "clear the
-queue" batch (#110–#113). Written so the next session needs nothing from the
+Last updated **2026-09-28**, after #120 — a shop's opener (客服在吗, "Is
+anyone there?", «فيه أحد؟») is answered, and asked again after the disclosure
+it hands off (§5 rule 19). Before it, #119 ("wants a person" in zh/ar), #117
+(the disclosure gate is open, rule 1), #115 (`tools/add-login.mjs`, 0078) and
+the "clear the queue" batch (#110–#113). Written so the next session needs nothing from the
 one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
@@ -105,8 +106,9 @@ footer.
 
 ## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** the merge of #115 (`tools/add-login.mjs`, 0078). Before it
-  `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
+- **Deployed:** the merge of #120 (shop openers; no migration). Before it
+  #119, #118, #117 (the gate), #116, the merge of #115 (`tools/add-login.mjs`,
+  0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
   close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
   production `schema_version` = **78**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0078:
   `nomi-backup-20260928T030213Z` (1.4 h, drill passed; PITR on).
@@ -144,6 +146,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 120 | **A shop's opener is answered; asked again after the disclosure, it hands off** — see §5 rule 19; openers first message 35/35 handed off → 0/35, after the disclosure 35/35; and a deletion request that reads as an injection ("Forget everything you know about me") is the silent hand-off, not the injection's canned reply |
 | 119 | **"Wants a person" built out in Chinese and Arabic** — layer 1 misses 40/115 → 0/115, no new false fire; `tests/person/person-corpus.ts` (three groups × three languages) through the real turn; the identity rule no longer reads 真人秀 as "a real person?" |
 | 118 | **Buyer-facing Arabic:** the privacy page says «مساعد آلي»; the disclosure and one fixed reply no longer address the buyer in the masculine; all 103 buyer-facing Arabic strings held by `tests/parity/buyer-arabic.test.ts`; the two Chinese labels kept on purpose |
 | 117 | **The disclosure gate is open** — Arabic «مساعد آلي» for «المساعد الذكي», zh/ar signed off by the owner, `DISCLOSURE_NATIVE_REVIEW` all true; see §5 rule 1 |
@@ -290,6 +293,7 @@ Recent PRs, newest first:
    - Layer 2, the reply: `promisesDeletion` on every writer attempt and the final reply (taught answers, stand-ins too). A promise is thrown away and the turn re-decided as the same silent hand-off, in auto AND draft; no quote is recorded; a `deletion_promise_withheld` event keeps the words.
    - Precision is the point: `tests/parity/deletion-requests.test.ts` holds 43 requests and 45 passing mentions, and 19 promises and 13 non-promises for the reply net ("delete that line from the quote", "remove my email from the cc", 我的邮箱写错了，删掉重发, احذف السطر من عرض السعر…). A new phrasing goes into that file with its reason, never into the patterns alone.
    - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is its own since #105 (below).
+   - A request that also reads as an injection ("Forget everything you know about me") is the same silent hand-off: `decideTurn`'s injection gate yields to `deletion_requested` (#120; before, the injection's canned reply went out).
    - Not covered, by design: while the assistant is stopped or silenced a request shows under that reason (the worker hands over before any turn); a request in words neither layer knows, answered by a reply that promises nothing ("I'll pass that on"), still goes out; languages outside the nine. Handing the conversation back resolves the signal like every hand-off — record the request first.
    - Tests: `tests/pipeline/deletion-handoff.test.ts`, 7 golden scenarios (40 in all; the pin is `factory-rehearsal.test.ts`), `tests/parity/deletion-handoff-page.test.ts`, `tests/integration/deletion-handoff.test.ts` (production composition, en/zh/ar). Each layer switched off fails its own tests.
    - **0076 — written down when it arrives** (`src/db/deletionAsks.ts`, table `deletion_asks`). The hand-off writes the buyer, the conversation, the message that asked and its time, in the turn's transaction, whoever holds the conversation — and on the paths where no turn runs (stopped, paused, unlisted number, e-mail reply: `handToPerson(…, said)`). The REMINDER, never the action: `erase-buyer` acts only on an open `deletion_requests` row. One waiting per buyer: a repeat is counted (`asks`), the first time kept; after the owner recorded one, nothing new is noted. The owner decides on the buyer's page: record it (no note; `asked_at` = when the buyer asked) or "not a deletion request" (`deletion_dismissed` on the audit trail). Handing back clears the hand-off's reason, never this row.
@@ -303,8 +307,14 @@ Recent PRs, newest first:
    - **Live, on the production provider (deepseek-flash, 2026-09-28):** the owner's sentences both ways in en/zh/ar all as intended, none unreadable; median +39 ms. Of the 45 deletion passing mentions, «أرسل رقمي إلى المندوب» (4/4 runs) and 把我的号码加到群里 (3/4) come back as wanting a person — the ordinary hand-off, kept. Re-run `tools/check-person-model.mjs` (§3) whenever the model or the prompt changes.
    - Identity questions ("are you a bot?") no longer hand off by the word "human": they are answered, with the disclosure (rule 3), unless the buyer also asks for a person.
    - Tests: `tests/person/person-request.test.ts` (per layer), `tests/pipeline/{person-handoff,analyzer-wants-person,unanswered}.test.ts`, `tests/integration/person-request.test.ts`. Layer 1, layer 2 and `not_answered` each switched off fail their own tests.
-   - **Built out in Chinese and Arabic (#119, 2026-09-28)**, so a plain ask hands off at layer 1 as reliably as in English: zh — talk with / find / call / "someone else" / "not a machine" frames around 人, 真人, 客服, 业务员, 销售, 你们的人, and calls (给我打电话, 打电话给我, 请回电); ar — calls («اتصل بي», «كلمني», «ممكن اتصال»), a real person or human outright, one of their staff, «هل يوجد أحد أتكلم معه», help from a person, "not a robot", the seller «البائع» / sales. Guards: 在找 is sourcing; a report of a call (他给我打电话了, «اتصل بي مديري») is not a request; 客服在吗 / 有人吗 / «فيه أحد يرد؟» / "Is anyone there?" stay layer 2's (greetings as often as asks).
-   - **The corpus is `tests/person/person-corpus.ts`**, like the deletion one: 1 requests, 2 other meanings, 3 the buyer's own side — each in en/zh/ar — plus passing chat, declined, identity questions, and what is left to layer 2 on purpose; `tests/pipeline/person-corpus.test.ts` runs all of it through the real turn. Measured on it: requests missed at layer 1 — the old list 91/115, #110 40/115, #119 0/115; non-requests fired — the old list 25/156, since #110 0/156; the deletion 45 never. Live (deepseek-flash, 2026-09-28) the model hands off 4 of the 50 group-2/3 sentences (one by the prompt's own rule: "I'll call you" needs a person) and every greeting left to it, 客服在吗 included.
+   - **Built out in Chinese and Arabic (#119, 2026-09-28)**, so a plain ask hands off at layer 1 as reliably as in English: zh — talk with / find / call / "someone else" / "not a machine" frames around 人, 真人, 客服, 业务员, 销售, 你们的人, and calls (给我打电话, 打电话给我, 请回电); ar — calls («اتصل بي», «كلمني», «ممكن اتصال»), a real person or human outright, one of their staff, «هل يوجد أحد أتكلم معه», help from a person, "not a robot", the seller «البائع» / sales. Guards: 在找 is sourcing; a report of a call (他给我打电话了, «اتصل بي مديري») is not a request. 人工在吗 / 真人在不在 name the human agent: a plain ask (#120).
+   - **A shop's opener is answered; asked again AFTER the disclosure, it hands off** (the owner's decision, 2026-09-28; #120; `shopOpener` in `detect.ts`). 客服在吗, 老板在吗, 掌柜/店家在吗, 有人吗, 有没有人 · "Is anyone there?", "Anyone around?", "Is customer service available?" · «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «هل خدمة العملاء موجودة؟» — a greeting aimed at a shop, in its own clause. Keyed to `aiDisclosedAt`:
+     - not yet told: a message that is ONLY an opener (greetings, 请问, stops around it) is answered — the model's `wantsPerson` is set aside, true or unreadable — and the disclosure goes with the reply (rule 3). An opener with more ("客服在吗？这个包多少钱") goes to the model, whose prompt says the opener asks for nobody and to judge the rest.
+     - told: the opener anywhere in the message hands off at layer 1, before any model. A second ask is not an opener.
+     - Not openers, either state: 在吗, 亲在吗, "Are you there?", «موجود؟» (addressed to whoever answers); 客服在哪里; the words mid-sentence (有人说…, «في أحد المصانع»). A plain ask is layer 1's on the first message, opener or not (人工在吗, "Anyone there? Can I talk to someone?"); so is every deletion request.
+     - Drafting, the disclosure never goes out (the owner approves each reply), so a repeat is drafted again, never handed off — a person reads it either way.
+     - Corpus: `OPENERS` (35: en 9, zh 16, ar 10), `OPENERS_WITH_MORE` (7), `NOT_OPENERS`, `PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS`; the turn test runs each opener as two turns of one conversation (answered with the disclosure, then handed off with no model call). Live (deepseek-flash, 2026-09-28): first message handed off 35/35 → 0/35, with more 7/7 → 0/7; after the disclosure 42/42. The prompt line moved groups 2/3 11/100 → 9/100 over two paired runs (noise).
+   - **The corpus is `tests/person/person-corpus.ts`**, like the deletion one: 1 requests, 2 other meanings, 3 the buyer's own side — each in en/zh/ar — plus passing chat, declined, identity questions, and what is left to layer 2 on purpose; `tests/pipeline/person-corpus.test.ts` runs all of it through the real turn. Measured on it: requests missed at layer 1 — the old list 91/115, #110 40/115, #119 0/115, #120 0/117; non-requests fired on a first message — the old list 25/156, since #110 0/156, #120 0/170 (openers included); after the disclosure 0/128 besides the 42 openers; the deletion 45 never. Live (deepseek-flash, 2026-09-28) the model hands off 4 of the 50 group-2/3 sentences (one by the prompt's own rule: "I'll call you" needs a person) and every greeting left to it, 客服在吗 included.
 20. **Buyers is ONE list** (A, #111, 2026-09-28; `src/db/buyersList.ts`).
    - `/app/inbox`: the tabs (Needs you, All, Mine, Did not send, Deletion requests); search `q` over the name, the phone / e-mail / handle (a number matched on its digits) and the product in en/zh — never message text (that needs a full-text index: a migration); keyset paging, 50 a page (`after` / `before` = `<rank>_<µs|n>_<uuid>`), ranked by the page's own groups (deletion → waiting for a person → a reply to review → held by a person → the assistant's), so everyone who needs the owner is on page 1; "51–100 of 312"; the counts are of everything (A9); a stale cursor is the first page.
    - `/app/conversations` → 302 `/app/inbox?filter=all` (or `?q=`); the buyer's page `/app/conversations/:id` stays and lights Buyers (`MERGED_INTO_BUYERS`). The row is decision 5's: name, last message, time.

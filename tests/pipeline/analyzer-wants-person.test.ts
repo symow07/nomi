@@ -123,6 +123,16 @@ describe('the request — the question is asked, and a hung call gives up fast',
     expect(system).toMatch(/cannot tell whether they want a person[^.]*answer true/);
   });
 
+  it('a shop\'s opener asks for nobody, and the model is told to read what follows it', async () => {
+    const seen: Seen = {};
+    await analyse(answer({ wants_person: false }), seen);
+    const system = String(seen.req?.['system'] ?? '');
+    expect(system).toMatch(/greeting that opens a chat[^\n]*客服在吗[^\n]*judge the rest of the message/);
+    for (const example of ['"Is anyone there?"', '"فيه أحد؟"', '"客服在吗？这个包多少钱" is false', '"客服在吗？我要跟真人说" is true']) {
+      expect(system, example).toContain(example);
+    }
+  });
+
   it('with its own timeout, far below the SDK’s ten minutes, and at most one quick retry', async () => {
     const seen: Seen = {};
     await analyse(answer({ wants_person: false }), seen);

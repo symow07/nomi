@@ -106,7 +106,12 @@ export function decideTurn(input: TurnInput): TurnDecision {
   }
 
   // ── Gate 1: injection. Canned reply, zero model calls, nothing revealed. ────
-  if (detectInjection(text).detected) {
+  // Except a request to delete the buyer's data (0075): that goes to a person
+  // with nothing said, which reveals nothing either. "Forget everything you
+  // know about me" is both, and was answered with the canned reply instead.
+  const injection = detectInjection(text).detected;
+  const deletionAsked = signals.some((s) => s.kind === 'deletion_requested');
+  if (injection && !deletionAsked) {
     return {
       ...base,
       injectionDetected: true,
@@ -123,6 +128,7 @@ export function decideTurn(input: TurnInput): TurnDecision {
   if (needsHandoff(scores)) {
     return {
       ...base,
+      injectionDetected: injection,
       action: { kind: 'handoff', notifyOnly: false },
       nextPhase: advance(state.phase, 'escalated'),
       pendingQuestion: null,

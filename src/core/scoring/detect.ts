@@ -207,6 +207,9 @@ const ZH: readonly Framed[] = [
   // labour") nor 没有人工 ("no hand work"), where it is the work and not a person
   { re: new RegExp(String.raw`${ZH_NOT}(?:转|轉|接|找|(?<!需)要|换|換|切|叫|呼叫)(?:个|個)?人工${ZH_STOP}`, 'g'), own: null },
   { re: /^人工[!.。]*$/g, own: null },
+  // 人工在吗 / 真人在不在 — the human agent, asked for by name: a plain ask, never a shop's opener
+  // (客服在吗 is one — see shopOpener). Never 真人秀在… (a show).
+  { re: new RegExp(String.raw`${ZH_NOT}(?:人工|真人)(?:客服)?在(?:线|線)?(?:吗|嗎|么|麼|嘛|呢|不在|没有?|沒有?|(?=$|[^一-鿿]))`, 'g'), own: null },
   // 转接客服 / 转接到经理 — put through to someone
   { re: new RegExp(String.raw`${ZH_NOT}(?:转接|轉接)(?:到|给|給)?(?:人工|真人|客服|经理|經理|负责人|負責人|工作人员|工作人員|主管)`, 'g'), own: null },
   // 真人客服; 找个真人 / 要真人 where it ends — never 找真人模特 (real models, for a photo shoot)
@@ -317,6 +320,76 @@ export function asksForPerson(text: string): boolean {
   return namesSellersManager(t) || LAYER_ONE.some((f) => firesIn(t, f));
 }
 
+/**
+ * ── A SHOP'S OPENER (the owner's decision, 2026-09-28) ──────────────────────
+ *
+ * 客服在吗 — "customer service, are you there?" — is how a Chinese buyer opens
+ * a chat with a shop, and 老板在吗, 有人吗, «فيه أحد؟» and "Is anyone there?" are
+ * the same greeting: aimed at a shop, not a request for a named human. Handed
+ * to a person, a buyer's first message waited for the owner to look up.
+ *
+ * So the assistant answers it, and the DISCLOSURE carries the weight: the first
+ * message sent alone already says what the assistant is and how to reach a
+ * person, so nobody is misled. One condition: asked again AFTER the disclosure
+ * went out in this conversation, it is a real request and hands off — at
+ * layer 1, before any model. A second ask is not an opener.
+ *
+ *   · Before the disclosure, only a message that is the opener and nothing
+ *     else (a greeting, 请问, punctuation around it) sets the model's "wants a
+ *     person" aside. With more in it — 客服在吗？这个包多少钱 — the model reads
+ *     the rest (prompts/analysis.txt says the opener alone asks for nobody).
+ *   · After it, the opener anywhere in the message hands off.
+ *   · A plain ask is layer 1's and hands off on the first message, opener or
+ *     not: 人工在吗 and 真人在吗 name the human agent, 转人工, "I want a real
+ *     person". So does everything on the deletion list.
+ *   · 在吗, 亲在吗, "are you there?", «موجود؟» address whoever answers — the
+ *     assistant — and ask for nobody: not openers, answered in either state.
+ *
+ * The corpus holds every opener in both states (tests/person/person-corpus.ts,
+ * OPENERS).
+ */
+/** A greeting that may stand around an opener: 你好, 请问, "hello there", «السلام عليكم». */
+const OPENER_GREETING = String.raw`(?<![a-z${AR}])(?:你好|您好|哈喽|哈囉|嗨|亲亲|亲|親|请问|請問|在吗|在嗎|早上好|下午好|晚上好|(?:hi|hello|hey|hallo)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|excuse\s+me|السلام\s+عليكم(?:\s+ورحم[هة]\s+الله(?:\s+وبركاته)?)?|سلام|مرحبا|اهلا|هلا|مساء\s+الخير|صباح\s+الخير|لو\s+سمحت|من\s+فضلك)(?![a-z${AR}])`;
+/** A clause's end: the end, a stop, or a greeting after it. Never a word: "anyone there knows…". */
+const OPENER_PUNCT = String.raw`[,，、.。!！?？;；:：~～…)）،؟؛]`;
+const OPENER_END = String.raw`(?=\s*(?:$|${OPENER_PUNCT}|${OPENER_GREETING}))`;
+/** A clause's start: the start or a stop, then perhaps greetings — never mid-sentence (没有人在). */
+const OPENER_START = String.raw`(^|${OPENER_PUNCT})(?:[\s,，、!！.。،]*${OPENER_GREETING})*[\s,，、!！.。،]*`;
+const ZH_Q = String.raw`(?:吗|嗎|么|麼|嘛|呢|呀|啊)`;
+
+const OPENER_CLAUSES: readonly string[] = [
+  // 客服在吗 / 你们客服在不在 / 老板在吗 / 掌柜在线吗 — the shop, or its service, asked whether it is
+  // there. The question word ends the clause; without one (客服在？) a stop must — 客服在哪里 is a question.
+  String.raw`(?:(?:你们|你們|您们|您們|贵店|貴店|贵司|貴司)的?)?(?:客服|老板|老闆|掌柜|掌櫃|店家|店主|卖家|賣家|商家)(?:在(?:线|線)?(?:${ZH_Q}|不在|没有?|沒有?)|在(?:线|線)?${OPENER_END})`,
+  // 有人吗 / 有人在吗 / 有没有人 / 有客服吗 — never 有人说… (someone said) or 有没有人能帮我 (the model's)
+  String.raw`有(?:没有|沒有)?(?:人|客服)(?:在(?:线|線)?)?(?:${ZH_Q}|没有?|沒有?|${OPENER_END})`,
+  // "Is anyone there?", "anybody here?", "Is customer service available?", "Hello? Anyone?"
+  String.raw`(?:(?:is|are)\s+(?:there\s+)?)?(?:any\s?one|any\s?body|some\s?one|some\s?body|customer\s+(?:service|support))\s+(?:there|here|around|available|online|in)${OPENER_END}`,
+  String.raw`(?:is|are)\s+there\s+(?:any\s?one|any\s?body|some\s?one|some\s?body)${OPENER_END}`,
+  String.raw`(?:any\s?one|any\s?body)(?=\s*\?)`,
+  // «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «خدمة العملاء موجودة؟» — never
+  // «في أحد المصانع» (in one of the factories): the clause must end there
+  String.raw`(?:(?:(?:هل\s+)?(?:فيه|في|يوجد|هناك|من)\s+(?:احد|حد)(?:\s+(?:موجود|هنا|يرد(?:\s+(?:علي|عليا))?|يجاوب|فاضي))?|(?:احد|حد)\s+(?:موجود|هنا)|(?:هل\s+)?خدم[هة]\s+العملاء\s+موجود[هة]?))${OPENER_END}`,
+];
+const OPENER_RES: readonly RegExp[] = OPENER_CLAUSES.map((c) => new RegExp(`${OPENER_START}(?:${c})`, 'g'));
+const GREETINGS = new RegExp(OPENER_GREETING, 'g');
+
+/**
+ * `only`: the message is a shop's opener and nothing else — greetings and
+ * stops around it. `within`: an opener is one of its clauses. Null: there is
+ * none. Raw text in; it normalises.
+ */
+export function shopOpener(text: string): 'only' | 'within' | null {
+  let rest = readable(text ?? '');
+  let found = false;
+  for (const re of OPENER_RES) {
+    rest = rest.replace(re, (_m, start: string) => { found = true; return `${start} `; });
+  }
+  if (!found) return null;
+  const left = rest.replace(GREETINGS, ' ').replace(/[\p{P}\p{S}\p{M}\p{Cf}\s]+/gu, '');
+  return left === '' ? 'only' : 'within';
+}
+
 const LOGISTICS_PHRASES = [
   'letter of credit', 'lc at sight', 'ddp', 'ddu', 'incoterms',
   'customs clearance', 'lcl', 'fcl', 'freight',
@@ -337,7 +410,17 @@ export function detectSignals(input: {
   // reading of them. `wantsPerson` absent means this analyser was not asked,
   // and changes nothing; null means it was asked and could not be read — the
   // turn hands off as not answered, because ambiguous means hand off.
-  if (asksForPerson(text) || analysis?.wantsPerson === true) {
+  //
+  // A shop's opener (客服在吗, "Is anyone there?", above) is answered while the
+  // buyer has not been told what answers them, and asked AFTER the disclosure
+  // it is a request — decided here from the words, before any model.
+  const opener = shopOpener(text);
+  if (asksForPerson(text) || (opener !== null && state.aiDisclosedAt !== null)) {
+    out.push({ kind: 'human_requested' });
+  } else if (opener === 'only') {
+    // A greeting, and the disclosure goes with the reply: the model's reading
+    // of "a person?" is set aside, whatever it was.
+  } else if (analysis?.wantsPerson === true) {
     out.push({ kind: 'human_requested' });
   } else if (analysis?.wantsPerson === null) {
     out.push({ kind: 'not_answered' });
