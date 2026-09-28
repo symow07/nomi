@@ -92,6 +92,22 @@ export async function liveBusinessIds(db: Db): Promise<readonly string[]> {
   return r.rows.map((x) => x.business_id);
 }
 
+/**
+ * 0078 — a link to choose a password (tools/add-login.mjs). Asked before any
+ * tenant is known, so through the definer functions: which e-mail it is for,
+ * or null when it is not good; and spending it, which sets the password and
+ * closes every open link of that login. Only the token's digest is passed.
+ */
+export async function setupLinkEmail(db: Db, tokenHash: string): Promise<string | null> {
+  const r = (await sql<{ email: string }>`select email from login_setup_open(${tokenHash})`.execute(db)).rows[0];
+  return r?.email ?? null;
+}
+
+export async function spendSetupLink(db: Db, tokenHash: string, passwordHash: string): Promise<string | null> {
+  const r = (await sql<{ email: string }>`select email from login_setup_spend(${tokenHash}, ${passwordHash})`.execute(db)).rows[0];
+  return r?.email ?? null;
+}
+
 // ── Inside a tenant ─────────────────────────────────────────────────────────
 
 /** The signed-in person's own login, if she has one (the pilot's owner signs in by code and has none). */

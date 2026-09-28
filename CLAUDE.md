@@ -1,9 +1,9 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after the "clear the queue" batch (#110–#113):
-"wants a person" in two layers (0077), Buyers and Customers one list with
-search and paging (A), V1 closed, live refresh (CC-26) and the audit's last
-items. Written so the next session needs nothing from the one that wrote it.
+Last updated **2026-09-28**, after #115 — `tools/add-login.mjs` gives a
+workspace that exists a login, with a one-time link to choose its password
+(0078); before it, the "clear the queue" batch (#110–#113). Written so the next
+session needs nothing from the one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
@@ -104,17 +104,17 @@ footer.
 
 ## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** `079d776` (merge of #113, the audit's last items). Before it
-  #112 (CC-26), #111 (A + the V1 close-out), #110 (0077, "wants a person" in
-  two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
-  production `schema_version` = **77**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0077:
-  `nomi-backup-20260927T030454Z` (16.3 h, drill passed; PITR on).
+- **Deployed:** the merge of #115 (`tools/add-login.mjs`, 0078). Before it
+  `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
+  close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
+  production `schema_version` = **78**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0078:
+  `nomi-backup-20260928T030213Z` (1.4 h, drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 77. Last three: `0075 deletion_handoff`, `0076 deletion_asks`,
-  `0077 not_answered`.
+- **Schema:** 78. Last three: `0076 deletion_asks`, `0077 not_answered`,
+  `0078 login_setups`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -143,6 +143,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 115 | **`tools/add-login.mjs`** — a login for a workspace that exists, and `/login/set-password` (0078) — see §5 rule 22; integration hooks outlast a graceful stop (`--hookTimeout`) |
 | 114 | CLAUDE.md handoff; ROADMAP §2b; the usability script after A |
 | 113 | **The audit's last items** — see §6 |
 | 112 | **CC-26 live refresh** — see §5 rule 21 |
@@ -291,6 +292,13 @@ Recent PRs, newest first:
    - One quiet line (a polite live region, the line itself the door — the conversation lands at `#latest`); never a reload. Typed words are kept in the tab's `sessionStorage`, per conversation and box, and forgotten when sent and on sign-out; CC-24's kept words stay the box's first text. The buyer's page does not watch.
    - The app's ONE script, `/assets/live.<hash>.js`, served like the stylesheets (`assetAt`, `layout.ts`); every page works without it. Tests: `tests/parity/live-refresh.test.ts`, `tests/integration/live-refresh.test.ts`; the endpoint, the script's link and the kept words each switched off fail their own tests.
 
+22. **A workspace that exists gets a login from the operator, never from SQL** (0078, 2026-09-28; `tools/add-login.mjs`, `docs/FACTORY-PROVISIONING.md`).
+   - `MIGRATE_DATABASE_URL=<admin url> PUBLIC_BASE_URL=https://app.nomidoes.com node tools/add-login.mjs <business-id> <e-mail>` gives the workspace's OWNER (`people.is_owner`; `--name` only when none is on record) a login — e-mail normalised and shape-checked like sign-up, scrypt with sign-up's parameters of random bytes thrown away — and prints a one-time link `/login/set-password?t=…` (72 h, `--hours`). No password on any command line.
+   - `login_setups` keeps only the token's SHA-256; the app role reaches it through `login_setup_open` / `login_setup_spend` only. Opening the link spends nothing (a preview must not use it up); saving does, once, sets the password like a password change and closes every other open link; then the ordinary door (A3's device code included). Those routes log nothing at `info` (the token is in the address) and send `no-referrer`.
+   - Refuses, changing nothing: no such business, switched off, the practice sandbox, an e-mail another workspace signs in with (named), a role row security filters. A workspace that already has a login is listed and needs `--replace` (archives the owner's login — one live login per person, one owner per business); the owner's own e-mail needs `--reset` (a fresh link; the old password works until the new one is saved).
+   - **The product has no self-service recovery.** Nothing e-mails an owner a link to choose a new password: `login_codes` (0058) only confirm a sign-up or a new browser after the password was right; `email_confirmations` is orders'. An owner who forgets the password asks the operator for `--reset`. The pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE`.
+   - Tests: `tests/parity/add-login.test.ts`, `tests/integration/add-login.test.ts` (runs the tool for real and signs the login in).
+
 ## 6 · What's next
 
 **The 2026-09-28 batch — "clear the queue"** (the owner's order): Task 1
@@ -381,6 +389,10 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - Buyer-facing fixed sentences in `src/core/conversation/fastpath.ts` address
   the buyer in the Arabic masculine («تحتاج»). They are on the send path and
   were left alone in the pronoun PR.
+- **Self-service password recovery ("e-mail me a link") is not built** (rule 22).
+  The pieces exist — a system mail sender (A3) and `login_setups` (0078) — but
+  no page asks for a link. Until then a lost password is the operator's
+  `add-login.mjs --reset`.
 - **Found, not fixed (send path, needs a decision):** Stop pressed while a
   buyer's batch is still waiting fails the hold path — `markFragmentsProcessed`
   writes `processed_in`, which references `turns`, and the hold path writes no

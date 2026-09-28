@@ -60,9 +60,21 @@ if (process.env['MIGRATE_DATABASE_URL'] && !process.argv.includes('--no-prune'))
   spawnSync('node', ['tools/prune-test-tenants.mjs'], { stdio: 'inherit', encoding: 'utf8' });
 }
 
+/**
+ * A HOOK OUTLASTS A GRACEFUL STOP. Most files end with `await prod.close()`,
+ * and close stops pg-boss gracefully: it waits — up to pg-boss's own 30 s — for
+ * a job already running to finish (a buyer's turn, the minute's sweep). The
+ * suite gave that hook vitest's default 10 s, so whether a file passed
+ * depended on whether a job happened to be in flight when it ended: found
+ * 2026-09-28, meta-messaging's `afterAll` timing out with all thirteen of its
+ * tests green, after its buyer's turn started a moment before close. The stop
+ * is right to wait; the hook was too short. 45 s covers the 30 s bound.
+ */
+const HOOK_TIMEOUT_MS = 45_000;
+
 const run = spawnSync(
   'npx',
-  ['vitest', 'run', 'tests/integration/', '--no-file-parallelism',
+  ['vitest', 'run', 'tests/integration/', '--no-file-parallelism', `--hookTimeout=${HOOK_TIMEOUT_MS}`,
    '--reporter=json', `--outputFile=${out}`,
    '--reporter=default', ...process.argv.slice(2).filter((a) => a !== '--no-prune')],
   { stdio: 'inherit', encoding: 'utf8' },

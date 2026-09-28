@@ -7868,3 +7868,138 @@ passive only.
 
 - en: Set this aside as not a request to delete their data? It stops waiting for your decision.
 - **ar: تنحية هذا الطلب جانبًا لأنه ليس طلب حذف؟ لن يبقى بانتظار القرار بعد ذلك.**
+
+## 2026-09-28 — 0078: choosing a password from a one-time link
+
+**New strings.** `tools/add-login.mjs` gives a workspace that exists a login and prints a one-time
+link; the owner opens it on the door (`/login/set-password`) and chooses the password there. The
+page says which account it is for, asks for the new password twice, and — when the link was used,
+lapsed or never existed — says one thing for all three. After saving, the sign-in page says the
+password is saved, with the e-mail filled in. Same rules: nothing genders the reader; in Arabic,
+verbal nouns for the buttons and «يُرجى» / «يمكن» for sentences; the Chinese success line names
+the new password instead of 它. `tests/parity/add-login.test.ts` renders the page in all three.
+
+### 中文 — 12 strings
+
+#### `setpw.title`
+
+- en: Choose your password
+- **zh: 设置你的密码**
+
+#### `setpw.lead`
+
+- en: For {email}.
+- **zh: 账号：{email}**
+
+#### `setpw.password`
+
+- en: New password
+- **zh: 新密码**
+
+#### `setpw.repeat`
+
+- en: The same password again
+- **zh: 再输入一次**
+
+#### `setpw.submit`
+
+- en: Save my password
+- **zh: 保存密码**
+
+#### `setpw.gone`
+
+- en: This link has already been used, or it has expired. Ask whoever sent it for a new one.
+- **zh: 这个链接已经用过，或者已经过期。请找发链接给你的人要一个新的。**
+
+#### `setpw.toLogin`
+
+- en: Sign in instead
+- **zh: 直接登录**
+
+#### `setpw.problem.short`
+
+- en: At least {n} characters.
+- **zh: 至少 {n} 个字符。**
+
+#### `setpw.problem.long`
+
+- en: At most {n} characters.
+- **zh: 最多 {n} 个字符。**
+
+#### `setpw.problem.mismatch`
+
+- en: The two passwords are not the same.
+- **zh: 两次输入的密码不一样。**
+
+#### `setpw.problem.is_email`
+
+- en: Choose something other than your e-mail address.
+- **zh: 密码不能和邮箱地址一样。**
+
+#### `login.passwordSet`
+
+- en: Your password is saved. Sign in with it.
+- **zh: 密码已保存，请用新密码登录。**
+
+### العربية — 12 strings
+
+#### `setpw.title`
+
+- en: Choose your password
+- **ar: اختيار كلمة المرور**
+
+#### `setpw.lead`
+
+- en: For {email}.
+- **ar: للحساب {email}.**
+
+#### `setpw.password`
+
+- en: New password
+- **ar: كلمة المرور الجديدة**
+
+#### `setpw.repeat`
+
+- en: The same password again
+- **ar: كلمة المرور مرة أخرى**
+
+#### `setpw.submit`
+
+- en: Save my password
+- **ar: حفظ كلمة المرور**
+
+#### `setpw.gone`
+
+- en: This link has already been used, or it has expired. Ask whoever sent it for a new one.
+- **ar: هذا الرابط مستخدَم من قبل أو انتهت صلاحيته. يُرجى طلب رابط جديد ممّن أرسله.**
+
+#### `setpw.toLogin`
+
+- en: Sign in instead
+- **ar: تسجيل الدخول بدلًا من ذلك**
+
+#### `setpw.problem.short`
+
+- en: At least {n} characters.
+- **ar: {n} أحرف على الأقل.**
+
+#### `setpw.problem.long`
+
+- en: At most {n} characters.
+- **ar: {n} حرفًا على الأكثر.**
+
+#### `setpw.problem.mismatch`
+
+- en: The two passwords are not the same.
+- **ar: كلمتا المرور غير متطابقتين.**
+
+#### `setpw.problem.is_email`
+
+- en: Choose something other than your e-mail address.
+- **ar: يُرجى اختيار كلمة مرور غير عنوان البريد الإلكتروني.**
+
+#### `login.passwordSet`
+
+- en: Your password is saved. Sign in with it.
+- **ar: تم حفظ كلمة المرور. يمكن تسجيل الدخول بها الآن.**
+
