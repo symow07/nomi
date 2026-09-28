@@ -228,9 +228,14 @@ describe('layer 2 · what layer 1 leaves, the analyser decides', () => {
 
 // ── A shop's opener, in both states (the owner's decision, 2026-09-28) ─────────
 
-/** Before the disclosure went out in the conversation, and after it. */
+/**
+ * Before the disclosure reached the buyer, and after it (0079). QUEUED is the
+ * trap: a reply carrying it was queued (the old stamp) but never accepted by
+ * the provider — refused by Stop or a hand-over. He was told nothing.
+ */
 const BEFORE = emptyState();
-const AFTER = emptyState({ aiDisclosedAt: new Date('2026-07-14T03:00:00Z') });
+const QUEUED = emptyState({ aiDisclosedAt: new Date('2026-07-14T03:00:00Z') });
+const AFTER = emptyState({ aiDisclosedAt: new Date('2026-07-14T03:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-07-14T03:00:05Z') });
 const signalsIn = (text: string, state: typeof BEFORE, a: Analysis | null): string[] =>
   detectSignals({ text, state, analysis: a, unitPrice: null }).map((s) => s.kind);
 
@@ -241,9 +246,11 @@ describe("a shop's opener — answered as the opener, a request after the disclo
         expect(shopOpener(text), text).toBe('only');
         // As the opener: not layer 1's, and a model that says "a person" is set aside — so is one
         // whose answer could not be read.
-        expect(signalsIn(text, BEFORE, null), text).not.toContain('human_requested');
-        expect(signalsIn(text, BEFORE, analysis(true)), text).not.toContain('human_requested');
-        expect(signalsIn(text, BEFORE, analysis(null)), text).not.toContain('not_answered');
+        for (const notTold of [BEFORE, QUEUED]) {
+          expect(signalsIn(text, notTold, null), text).not.toContain('human_requested');
+          expect(signalsIn(text, notTold, analysis(true)), text).not.toContain('human_requested');
+          expect(signalsIn(text, notTold, analysis(null)), text).not.toContain('not_answered');
+        }
         // After the disclosure: a request, at layer 1 — no analysis needed, and none undoes it.
         expect(signalsIn(text, AFTER, null), text).toContain('human_requested');
         expect(signalsIn(text, AFTER, analysis(false)), text).toContain('human_requested');
@@ -267,7 +274,7 @@ describe("a shop's opener — answered as the opener, a request after the disclo
     for (const [text, why] of rows) {
       it(`${lang} · not an opener (${why}), in either state: ${JSON.stringify(text)}`, () => {
         expect(shopOpener(text), text).toBeNull();
-        for (const state of [BEFORE, AFTER]) {
+        for (const state of [BEFORE, QUEUED, AFTER]) {
           expect(signalsIn(text, state, null), text).not.toContain('human_requested');
           expect(signalsIn(text, state, analysis(false)), text).not.toContain('human_requested');
         }

@@ -46,7 +46,7 @@ function emptyState(over: Partial<ConversationState> = {}): ConversationState {
     phase: 'warm_intake', turnCount: 0, scores: { problem: 0, lead: 0 },
     product: null, quantity: null, contact: { email: null }, pendingQuestion: null,
     assignedTo: null, preferredLanguage: null, contextSummary: null,
-    aiDisclosedAt: null, ...over,
+    aiDisclosedAt: null, aiDisclosureDeliveredAt: null, ...over,
   };
 }
 

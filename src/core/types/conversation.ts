@@ -102,6 +102,16 @@ export type ConversationState = {
    * rather than a memory of having heard it once.
    */
   readonly aiDisclosedAt: Date | null;
+
+  /**
+   * 0079 — when a message carrying that disclosure was ACCEPTED by the
+   * provider: the buyer has been told. Not when it was queued — a queued reply
+   * can still be refused (Stop, a hand-over, the allowlist). Written by the
+   * send path only, whatever the mode that sent it. Read by the shop-opener
+   * rule (core/scoring/detect.ts) and by "say it until it has gone out"
+   * (pipeline/turn.ts). Null until then.
+   */
+  readonly aiDisclosureDeliveredAt: Date | null;
 };
 
 /** A conversation a human has taken over. Proven at the type level. */

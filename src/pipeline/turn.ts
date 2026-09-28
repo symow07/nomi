@@ -1106,8 +1106,14 @@ export async function commitTurn(
         });
       } else if (mode === 'auto') {
         // Once per conversation: the first message nobody approved carries it,
-        // and the ones after it do not.
-        const say = r.newState.aiDisclosedAt === null ? sentence : null;
+        // and the ones after it do not. "Once" is counted by what REACHED the
+        // buyer (0079): until a message carrying it has been accepted by the
+        // provider, every reply sent alone carries it. One that was refused
+        // (Stop, a hand-over, the allowlist) or failed told him nothing; one
+        // still queued may yet fail — and a reply that overtook it would have
+        // gone out alone. So two replies queued before either leaves both say
+        // it: read twice, rarely, rather than not at all.
+        const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
         outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
         if (say) await recordDisclosure('first_auto_send');
       } else {

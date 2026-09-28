@@ -86,6 +86,16 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  /**
+   * 0079 — the send path's half, as the outbound worker does it: the provider
+   * accepted a message carrying the disclosure. Nothing else in these fakes
+   * sends, so a test that means "it went out" says so with this.
+   */
+  deliverDisclosure(id: string, at = new Date('2026-07-14T03:30:00Z')): void {
+    const s = this.states.get(id);
+    if (s && s.aiDisclosureDeliveredAt === null) this.states.set(id, { ...s, aiDisclosureDeliveredAt: at });
+  }
+
   /** G11 — the language remembered for this buyer, if a turn wrote one. */
   preferredLanguage: string | null = null;
   clients: ClientRepo = {

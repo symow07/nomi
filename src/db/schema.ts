@@ -49,6 +49,8 @@ export interface Database {
     assistant_id: string | null;
     /** When this conversation was sent the AI disclosure (0066). Null until then. */
     ai_disclosed_at: Timestamp | null;
+    /** When a message carrying the disclosure was accepted by the provider (0079). */
+    ai_disclosure_delivered_at: Timestamp | null;
   };
   conversation_state: {
     id: Generated<string>;

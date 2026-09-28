@@ -112,8 +112,9 @@ export const RULES = Object.freeze({
   conversations: {
     do: 'shell',
     // Who holds it (a held conversation shows under "Needs you"), when the
-    // disclosure went, and words the owner had not yet sent them.
-    clear: ['assigned_to', 'assigned_at', 'ai_disclosed_at', 'owner_unsent_reply', 'owner_unsent_reply_at'],
+    // disclosure was queued and when it reached them (0079), and words the
+    // owner had not yet sent them.
+    clear: ['assigned_to', 'assigned_at', 'ai_disclosed_at', 'ai_disclosure_delivered_at', 'owner_unsent_reply', 'owner_unsent_reply_at'],
     says: 'an order points at it: kept empty, closed and inactive',
   },
   messages: { do: 'erase' },

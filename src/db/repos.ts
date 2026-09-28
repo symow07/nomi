@@ -51,7 +51,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         .innerJoin('clients as cl', 'cl.id', 'c.client_id')
         .select([
           'c.id', 'c.business_id', 'c.client_id', 'c.phase as conv_phase',
-          'c.assigned_to', 'c.is_active', 'c.ai_disclosed_at',
+          'c.assigned_to', 'c.is_active', 'c.ai_disclosed_at', 'c.ai_disclosure_delivered_at',
           'cs.identified_product_id', 'cs.product_confidence',
           'cs.product_confirmed_by_client', 'cs.inquiry_quantity', 'cs.inquiry_unit',
           'cs.problem_score', 'cs.lead_score', 'cs.pending_question',
@@ -89,6 +89,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         preferredLanguage: row.preferred_language ?? null,
         contextSummary: row.context_summary,
         aiDisclosedAt: row.ai_disclosed_at,
+        aiDisclosureDeliveredAt: row.ai_disclosure_delivered_at,
       };
     },
 
