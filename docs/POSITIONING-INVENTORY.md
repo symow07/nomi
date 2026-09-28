@@ -21,14 +21,14 @@ Nomi is not a tool for Yiwu factories. It is for anyone who sells or talks to cu
 1. **The main list is called "Buyers".** The word is in the nav, on every conversation, in the alerts and in the site headline (`nav.inbox`, `common.buyer`, `site.hero.title`).
 2. **A customer cannot get a price without naming a quantity.** The code gives a price only once both product and quantity are known (`turn.ts:330`). The prompt then has the assistant ask: "roughly how many pieces are you looking at?"
 3. **Prices can only be in US dollars or yuan** (`money.ts:41`). The owner's price boxes say US$, and the exchange rate only converts $ to ￥.
-4. **Every time and date is China time** (`BUSINESS_TZ = 'Asia/Shanghai'`). A shop in London sees a message sent at 15:40 as 23:40.
-5. **Everything is counted in "pcs" and has a "Min. order".** This shows on every product row, every quantity and the customer's price page. An imported product with no minimum gets a minimum of 100.
+4. **Every time and date is China time** (`BUSINESS_TZ = 'Asia/Shanghai'`). A shop in London sees a message sent at 15:40 as 22:40 in summer (23:40 in winter).
+5. **Every imported product is counted in "pcs" and has a "Min. order".** The importer writes 'pcs' on every product (the owner can change a product's unit on its page), the fixed replies always say "pieces", and every product row and the customer's price page show a "Min. order". An imported product with no stated minimum gets a minimum of 100 (`products.ts:285`).
 
 **Decisions that are yours**
 1. **Arabic word for "customer".** Going back to عميل / العملاء reverses #111, which chose مشترٍ. Every Arabic suggestion below assumes you say yes.
-2. **zh/ar "company" (公司 / شركة, 33 keys).** It is not a trade word, but a one-person shop is not a company.
+2. **zh/ar "company" (公司 in about 34 owner keys, شركة in about 44 owner keys plus the Arabic legal pages).** It is not a trade word, but a one-person shop is not a company.
 3. **Whether to build the kind-of-business switches in §5.** About 96 items depend on them.
-4. **Giving a price at quantity 1 for products with a single price.** This is a code change in `turn.ts`. Without it, neutral prompt wording leaves the assistant with no price to give.
+4. **Giving a price at quantity 1 for products with a single price.** Two code changes: give a price at quantity 1 (`turn.ts:330`), and stop the import defaulting the minimum to 100 (`products.ts:285`) — otherwise `quote.ts:106` refuses the quantity-1 price as below the minimum. Without both, neutral prompt wording leaves the assistant with no price to give.
 
 ---
 
@@ -81,7 +81,7 @@ These are already almost neutral: they say "the people who write to a business" 
 ### What the assistant is told to say (prompts)
 
 **Four rules in code, not in the prompts, decide whether a price can be given at all:**
-- **Product and quantity:** a price exists only once both are known (`turn.ts:330`), and any figure that is not in that price is blocked (the number check).
+- **Product and quantity:** a price exists only once both are known (`turn.ts:330`), and any figure that does not come from the price, the customer's own message or the product's taught facts is blocked (the number check, `numerals.ts:88-110`).
 - **Quantity tiers:** the price comes from quantity tiers (`selectTier`).
 - **Minimum order:** a quantity below the product's minimum is refused (`quote.ts:107`, `confirmable.ts` rules 3–4).
 - **E-mail:** no order is confirmed without an e-mail address (`confirmable.ts` rule 7).
@@ -92,7 +92,7 @@ The prompt rules that hold the price back until a quantity is given are listed i
 
 Three more things to know before editing prompts:
 - **Phase names:** `warm_intake` … `confirmation` are stored in `conversations.phase`. Describe them in plain words in the prompt; renaming them needs a migration.
-- **The analysis prompt reaches customers:** its next question is sent to the customer word for word when writing fails (`turn.ts:673`).
+- **The analysis prompt reaches customers:** its next question becomes, word for word, the held draft the owner sees when writing fails twice (`turn.ts:673`, held by `hold.ts:74-78`); it reaches the customer if the owner sends it unchanged.
 - **Live check:** re-run `tools/check-person-model.mjs` before and after any change to `analysis.txt` (rule 19).
 
 The prompts are English only, so there is no zh/ar column.
@@ -102,7 +102,7 @@ The prompts are English only, so there is no zh/ar column.
 |---|---|---|---|
 | `:1` role line | "sells to buyers … inbound buyer inquiries" | "talks to its customers … each message a customer sends" | |
 | `:10` + `anthropic.ts:107` catalogue line | Every product is sent with `MOQ:n`. | Add `min:N` only when the minimum is above 1. | **High visibility**: the model reads this on every turn. The prompt also says a price is sent; none is. |
-| `:25` language list | en / ar / zh / es / fr / ru / tr / pt / hi / id / ms / vi | "the ISO-639-1 code of the language they wrote in (en, ar, zh, es, fr, de, ja, …)" | A German or Japanese customer comes out as "unknown". |
+| `:25` language list | en / ar / zh / es / fr / ru / tr / pt / hi / id / ms / vi | "the ISO-639-1 code of the language they wrote in (en, ar, zh, es, fr, de, ja, …)" | The list leaves out German, Japanese and others, so the model may answer "unknown" (the code would accept any code, `anthropic.ts:184-187`). |
 | `:52` quantity_unit | pcs / sets / boxes / kg / cartons | "the unit in their own words (items, pairs, bottles …)", defaulting to 'items' rather than 'pcs' (`anthropic.ts:192`) | This unit reaches the customer. |
 | `:55` destination_country | "country name or null" | Remove it (nothing reads it), or rename it to `delivery_place`. | It nudges the model to ask where the goods are going. |
 | `:65` advance_blocked_by | missing_quantity, missing_email | missing_details, missing_contact | Nothing reads it. |
@@ -141,7 +141,7 @@ The prompts are English only, so there is no zh/ar column.
 | `:6` | "A reference image from another supplier" | "A photo or screenshot of something they saw elsewhere (another shop, a post, an ad)" | |
 | `:24` material | plastic / metal / fabric / paper / glass / ceramic / silicone | "the main material or texture in a word or two (cotton, leather, cream, powder …)" | This feeds product matching. |
 | `:46-49` examples | tea lights, non-woven bags, vacuum bottle, kraft gift bag | lipstick, hoodie, water bottle, gift bag | |
-| `:51` | Selfies and screenshots count as "unusable". | A screenshot of a post, or a photo of someone wearing the product, still counts. | Social media customers send exactly these. |
+| `:51` | Selfies and screenshots of text count as "unusable"; a photo of someone wearing the product may too. | A screenshot of a post, or a photo of someone wearing the product, still counts. | Social media customers send exactly these. |
 | `anthropic.ts:313` | "Buyer caption:" | "Customer caption:" | |
 
 **Notes the code sends the reply writer**
@@ -149,7 +149,7 @@ The prompts are English only, so there is no zh/ar column.
 |---|---|---|---|
 | `closures.ts:75-76` closure note | "The factory is closed for {label}… Do not state or estimate a lead time." | "We are closed for {label}… Do not state or estimate how long it will take." | The model repeats "our factory is closed" to customers. Found by two readers. |
 | `templates.ts:72` no price for this quantity | "…a human must quote." | "There is no price set for this yet. Do not give one; say someone from the team will confirm the price." | It is passed as `next_question`, so it can reach the customer. |
-| `anthropic.ts:252-253` quote keys | `"moq": 1` is sent even for a shop selling single items. | Send the minimum only when it is above 1. | |
+| `anthropic.ts:252-253` quote keys | The minimum is sent on every quote — `"moq": 100` for any imported product without a stated minimum (`products.ts:285`). | Send the minimum only when it is above 1. | |
 
 **`prompts/order_validation.txt`**: no code ever loads this file. It says "a B2B export business" (`:1`) and uses USD fields and risk bands (`:42-43, 56-58`). Suggested: delete the file.
 
@@ -314,13 +314,13 @@ There are 105 entries here (about 96 distinct). Each one needs a condition, not 
 | `product.edit.moq` | Smallest order you will take | Make it optional and empty by default: "(leave empty if there is none)" / 没有就留空 / يُترك فارغًا إن لم يوجد |
 | `product.review.moqSuffix`, `product.review.change.moq`, `product.reject.bad_moq` | MOQ {qty} / MOQ: … / MOQ looks off | Write "Minimum order" in full, and only on lines that state one. |
 | `product.add.example2` | Vacuum cup $2.60 MOQ 1000 | Bulk sellers keep one example with a minimum ("…at least 1000"); everyone else sees "Face serum 30 ml $19". |
-| `proof.fact.moq`, on the customer's price page; the row is always drawn (`proof.ts:316`) | Minimum order (shows "1 pcs") | The wording is fine; show it only when the minimum is above 1. |
-| `templates.ts:47-48`, the customer reply when a quantity is below the minimum | "The minimum order for this product is {moq} pieces…" | Use the product's own unit instead of "pieces". Only bulk sellers ever trigger it. |
+| `proof.fact.moq`, on the customer's price page; the row is always drawn (`proof.ts:316`) | Minimum order (shows "100 pcs" for any imported product without a stated minimum) | The wording is fine; show it only when the minimum is above 1. |
+| `templates.ts:47-48`, the customer reply when a quantity is below the minimum | "The minimum order for this product is {moq} pieces…" | Use the product's own unit instead of "pieces". Any business triggers it for fewer than 100 items, because the import gives every product without a stated minimum a minimum of 100 (`products.ts:285`). |
 | `templates.ts:65`, the note to the writer | "Quantity {requested} is below the minimum of {moq}." | "They asked for {requested}; the smallest order for this product is {moq}." |
 | `order_validation.txt:21, 41, 52` (never loaded) | The MOQ rule and the "50 pcs… 2,000 pcs" example | Delete them along with the file. |
 
 ### 2. Quantity pricing, and holding the price back until a quantity is given. Depends on: whether the price changes with quantity (tiers, or a minimum above 1)
-This needs the code change first: a product with a single price gets a price at quantity 1 (`turn.ts:330`). After that, the prompts can give the price as soon as the product is known.
+This needs two code changes first: a product with a single price gets a price at quantity 1 (`turn.ts:330`), and the import stops defaulting the minimum to 100 (`products.ts:285`; otherwise `quote.ts:106` refuses quantity 1). After that, the prompts can give the price as soon as the product is known.
 
 | Where | Today | Proposed |
 |---|---|---|
@@ -331,12 +331,12 @@ This needs the code change first: a product with a single price gets a price at 
 | `response.txt:69-70` qualification | "Now understand the scale… roughly how many" | Ask how many only when the price depends on it. A clothing store asks about size and colour; an agency asks about scope or dates. |
 | `response.txt:72` | "Do NOT mention price, figures, or ranges under any circumstances" | "Do not state any figure CONTEXT.quote does not give." |
 | `prices.volume.q.minQty` | From how many pieces? | "From how many?", and show the quantity-discount section only where products are sold by quantity. One reader called it neutral: "From how many items?" |
-| `proof.fact.tier` (+ `proof.tier.from`, `.band`) | Price band | Already shown only when a tier exists (`proof.ts:315`); keep it that way. |
+| `proof.fact.tier` (+ `proof.tier.from`, `.band`) | Price band | Shown whenever the price came from a tier — which is every quote, including a single "1+" price (`quote.ts:112-113`, `proof.ts:173-178`, `products.ts:302`). Show it only when the product has two or more tiers. |
 | Products list price line (`products.ts:396-403`) | "500 pcs: $2.10 · Min. order: 500 pcs" | Just "$2.10" when there is one price. |
 | Product page › Pricing (`products.ts:448-451`) | A single price shows as "1+ pcs $12.00". | "$12.00 each"; show bands only when there are two or more. |
 | `sandbox.case.standard-volume-quote-within-authority` | A normal bulk-order quote | "A normal price question" for businesses that don't sell in bulk. One reader called it neutral for everyone. |
 | `scenarios.ts:219, 245, 264, 288, 648` | "5000 pieces please — what is the price?" | One to three items for a shop; thousands only for bulk sellers. |
-| `scenarios.ts:141-147, 559, 593, 596, 691` | "maybe 5000?" / "What quantities are you considering?" | "maybe two?" / "Which one caught your eye?" |
+| `scenarios.ts:559, 596, 611` (plus the fixture at 138-150: MOQ 1000, one 1000+ tier) | "maybe 5000?" / "What quantities are you considering?" | "maybe two?" / "Which one caught your eye?" |
 
 ### 3. Samples. Depends on: whether the business offers samples
 Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. Taking the sample price off the first order only makes sense for bulk and repeat trade.
@@ -349,7 +349,7 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 | `samples.current.free`, `.paid`, `samples.empty`, `samples.price.label`, `samples.flash.saved`, `.price_missing`, `samples.requests.empty`, `samples.asked.unstated`, `.action` | — | The wording is fine; they just follow the page's condition. |
 | `samples.current.credited`, `.notCredited`, `samples.credited.label` | It comes off the first order | Only for bulk and repeat trade. |
 | `samples.requests.title` | Buyers waiting for a sample | "Customers waiting for a sample", and the section only where samples exist. |
-| `calendar.cat.samples`, `calendar.line.sampleAsked`, `.sampleHandled`; the address `?category=samples`, which is the first tab after All (`calendar.ts:71`, `CALENDAR_CATEGORIES`) | Samples come first | Show the Samples tab only where samples exist, and put orders first. Show the Negotiation tab only for businesses that negotiate. |
+| `calendar.cat.samples`, `calendar.line.sampleAsked`, `.sampleHandled`; the address `?category=samples`, which is the first tab after All (`calendar.ts:71`, `CALENDAR_CATEGORIES`) | Samples come first | The Samples and Negotiation tabs already appear only when there are such entries (`calendar.ts:148`, `db/calendar.ts:309`); what is left is the order (samples first) and the words — put orders first. |
 | `calendar.lede` | "…samples, orders, prices…" (zh also 报价, 停工) | Name samples only where they are recorded: "…orders, prices, replies owed, closures." |
 | `order.invoice.sampleMismatch`, `invoice.ts:91` | "Less sample already paid" | Only where samples are taken off the first order. |
 | `samples.ts:75-79`, the note to the writer | "…and that comes off the first order." | Already sent only when a sample policy is set. |
@@ -378,7 +378,7 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 ### 6. Time zone. Depends on: where the business is
 | Where | Today | Proposed |
 |---|---|---|
-| `BUSINESS_TZ = 'Asia/Shanghai'`: `format.ts:10`, `turn.ts:788`; SQL in `operations.ts:212, 233`, `analytics.ts:67`, `insights.ts:208`, `channels.ts:89, 109`, `db/outreach.ts:141`; also `knowledge-insights.ts:84`, `pilot.ts:304` | Every time shown, when "Today" and "Yesterday" start, monthly counts, night windows, daily caps | **High visibility.** Use the business's own time zone. Sign-up already writes a timezone column (`0056:61`), but it is always Asia/Shanghai and nothing reads it. |
+| `BUSINESS_TZ = 'Asia/Shanghai'`: `format.ts:10`, `turn.ts:788`; SQL in `operations.ts:212, 233`, `analytics.ts:67`, `insights.ts:208`, `channels.ts:89, 109`, `db/outreach.ts:141`; also `knowledge-insights.ts:84`, `pilot.ts:304`; a second constant `TZ = 'Asia/Shanghai'` in `core/owner/format.ts:6` (used by `cards.ts`, `analytics.ts`); `tools/provision-factory.mjs:69` writes it too | Every time shown, when "Today" and "Yesterday" start, monthly counts, night windows, daily caps | **High visibility.** Use the business's own time zone. Sign-up already writes a timezone column (`0056:61`), but it is always Asia/Shanghai and nothing reads it. |
 
 ### 7. What the assistant may claim. Depends on: kind of business
 | Where | Today | Proposed |
@@ -418,7 +418,7 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 | Practice tenant (`src/demo/sandbox.ts:34-65`, shared by every owner's `/app/sandbox`) | One bag factory: a non-woven bag with MOQ 1000, three quantity tiers, a 25-day lead time, Shanghai time | Practise on the owner's own products, or on a sample catalogue that matches the kind (a lipstick, a hoodie, a service package, a bulk product). |
 | Demo workspace (`demo/factory.ts:47, 66-103, 129-149`) | 义乌宏发日用品厂; 12 household goods with quantity tiers; "price for 20000 pcs thermos… FOB Ningbo" | One demo per kind, e.g. "Hi, is the canvas tote still in stock? / Yes — $12, ships tomorrow." |
 | Usability workspace (`demo/usability.ts:35-36, 102-144, 206-234, 218, 226, 250, 350, 358`) | 张经理 / 陈莉; "…{price}/pc FOB Ningbo, lead time…"; proforma; 30% deposit; Jebel Ali Free Zone | Match the kind under test, with a mix: a cosmetics order, a clothing size question, an agency brief, and at most one bulk inquiry. Use names that match the session. |
-| Your data CSV rows (`dataExport.ts:282, 341, 350-352`) | Volume price / Delivery term / Sample price / Exchange rate | These rows exist only where set; the labels follow the page names. |
+| Your data CSV rows (`dataExport.ts:282, 341, 350-352`) | Volume price / Delivery term / Sample price / Exchange rate | Delivery term, Sample price and Exchange rate exist only where set; "Volume price" appears for every priced product (its "1+" tier). The labels follow the page names. |
 
 ### 13. Legal basis and the owner's language
 | Where | Today | Proposed |
@@ -437,7 +437,7 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 ### How to make it vary
 
 **What exists today**
-- **The kind of business is chosen at sign-up:** `BUSINESS_KINDS` in `src/core/owner/business.ts:11`, stored since migration 0056, with eight kinds. None of the entries shows any code that reads it to change what the owner or the customer sees.
+- **The kind of business is chosen at sign-up:** `BUSINESS_KINDS` in `src/core/owner/business.ts:11`, stored since migration 0056, with eight kinds. The kind (with the country and description) reaches the reply writer as `CONTEXT.business` (`repos.ts:197`, `anthropic.ts:216-222`, `response.txt:1,46`), and the owner can change it later (`businessKind.ts:32-54`) — but no page, fixed reply or rule changes with it.
 - **The country is chosen at sign-up** (ISO list, `business.ts:63`). A timezone column is written at sign-up, but it is always Asia/Shanghai and nothing reads it.
 - **There is no currency setting per business.** The money type only allows USD and CNY.
 - **There are no switches** for minimum order, quantity pricing, samples, delivery terms or claims. Everyone sees all of them.
@@ -445,7 +445,7 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
 **Proposal**
 1. **Group the kinds into three profiles.**
    - **Bulk:** manufacturer, exporter or trading company, wholesaler.
-   - **Retail:** brand, online shop, retail shop, startup, something else.
+   - **Retail:** brand (shown as "Brand or online shop"), retail ("Retail shop"), other ("Something else"). There is no "startup" kind.
    - **Services:** agency, services company.
 2. **Each profile sets the defaults for six switches** under My business › How you sell:
    - sells with a minimum order
@@ -456,10 +456,10 @@ Bulk and made-to-order sellers offer samples, and so do some cosmetics brands. T
    - sells in another currency
 
    The owner can change any of them.
-3. **The data decides the rest.** Show a minimum only when it is above 1, a price band only when there are two or more, and samples only when a sample policy is set.
+3. **The data decides the rest** — once the import stops giving every product a minimum of 100. Show a minimum only when it is above 1, a price band only when there are two or more, and samples only when a sample policy is set.
 4. **Set currency and time zone per business.** Default both from the sign-up country and let the owner edit them in Business profile. The time zone column already exists.
 5. **Make two code changes that no wording can replace:**
-   - give a price at quantity 1 for products with a single price (`turn.ts:330`);
+   - give a price at quantity 1 for products with a single price (`turn.ts:330`), and stop the import defaulting the minimum to 100 (`products.ts:285`), or `quote.ts:106` refuses it;
    - make the e-mail-before-order rule (`confirmable.ts` rule 7) follow how the business actually confirms orders.
 
 ---
@@ -557,6 +557,7 @@ PRODUCT.md also genders the assistant ("her"; Lily / 小雅 / ياسمين), whi
   - the site, help and legal documents.
 - **Three term-by-term sweep rounds then covered the whole tree** for anything the slices missed. They found the last 59 entries.
 - **Duplicates were merged:** 627 entries became about 563 items. Where two readers suggested different words, both are shown.
+- **Fact-checked afterwards:** about 140 claims in the summary, the prompts section, "Cannot go neutral" and "Found along the way" were checked against the code; 17 were wrong or overstated and are corrected here (the London hour, "pcs", the minimum of 100 and what it does to a quantity-1 price, the company-word counts, what the number check allows, where the analyser's question goes, the language list, the price band, the calendar tabs, the time-zone sites, the data export, what reads the business kind, the kinds' names, order status).
 - **Snapshot:** every reader worked from a clean, read-only checkout of main at #120 (`5957e19`). Nothing was edited.
 - **One Arabic suggestion was changed** to meet rule 6: `knowledge.products` went from ما تبيعه to ما يُباع.
 - **Left out on purpose as already neutral:** the disclosure sentences, `unsub.*`, `order.status.shipped` (agencies don't ship, but that is not a trade assumption), `legal.terms.yours.you3`, and generic "product" wording other than `nav.products`.
@@ -575,4 +576,4 @@ PRODUCT.md also genders the assistant ("her"; Lily / 小雅 / ياسمين), whi
    - `:81` says to ask for an e-mail to send a formal quotation, but `:88` says never to promise an e-mail.
    - `:79` says to "give a range", which the number check blocks.
 4. **Dead and stale prompt parts.** `prompts/order_validation.txt` is never loaded, and the CONTEXT list in `response.txt` names keys that are never sent.
-5. **No intent for order status, returns or exchanges.** The analysis has none, and online stores need all three.
+5. **No intent for order status, returns or exchanges.** Order status is answered by a fixed path in code (`asksOrderStatus`, `orderState.ts:81-94`, answered from the owner's recorded order before any model writes); a refund or return is treated only as a complaint (`understand.ts:128-133`); exchanges have nothing. Online stores need all three as their own intents.
