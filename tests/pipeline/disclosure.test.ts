@@ -109,7 +109,10 @@ describe('the disclosure rides on the first message nobody approved', () => {
     seed(ar);
     ar.analyzer.next = analysis('ar');
     ar.replyWriter.replies = ['نعم، نصنع حقائب القماش.'];
-    expect((await run(ar, 'هل تصنعون حقائب قماشية؟')).sent).toContain('المساعد الذكي لدى');
+    // 2026-09-28 — «مساعد آلي» (an automated assistant), a kind; never «الذكي» (smart), a compliment.
+    const said = (await run(ar, 'هل تصنعون حقائب قماشية؟')).sent;
+    expect(said).toContain('مساعد آلي لدى');
+    expect(said).not.toContain('الذكي');
   });
 
   it('DRAFT · carries nothing, because a person will read it before he does', async () => {
@@ -401,8 +404,9 @@ describe('nothing is sent alone until the disclosure has had native review', () 
     expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
   });
 
-  it('the real flag is down today, for zh and ar', async () => {
-    const { disclosureAwaitingReview } = await import('../../src/core/conversation/disclosure.js');
-    expect(disclosureAwaitingReview()).toEqual(['zh', 'ar']);
+  it('the real flag is up since the owner read zh and ar (2026-09-28); the rung above still holds a closed one', async () => {
+    const { disclosureAwaitingReview, autonomyReleased } = await import('../../src/core/conversation/disclosure.js');
+    expect(disclosureAwaitingReview()).toEqual([]);
+    expect(autonomyReleased()).toBe(true);
   });
 });

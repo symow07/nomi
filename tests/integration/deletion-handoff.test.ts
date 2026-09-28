@@ -18,11 +18,9 @@ import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
  *     reason, and its page says nothing was sent and opens the buyer page's
  *     deletion section;
  *   · the comparison, in the same workspace: "delete that line from the
- *     quote" is answered by the assistant as usual. Today that answer is a
- *     DRAFT, not a send — nothing goes out alone anywhere until the zh/ar
- *     disclosure has native review (rule 1) — and the turn says so on the
- *     record. The send itself, with that gate open, is proved at the turn
- *     (tests/pipeline/deletion-handoff.test.ts).
+ *     quote" is answered by the assistant as usual — and, since the owner read
+ *     the zh/ar disclosure (2026-09-28, rule 1), SENT alone, the disclosure
+ *     first, as every capability here is on auto and the name is confirmed.
  *
  * 0076 — and the request is WRITTEN DOWN with the hand-off, the owner told in
  * its own words (e-mail always):
@@ -245,21 +243,21 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     expect(before).toBe(0);
     expect((await post(sim.inboundText({ from: PASSING.from, text: PASSING.text }))).statusCode).toBe(200);
     const conv = await convOf(PASSING.from);
-    await until(async () => ((await footprint(conv)).drafts > 0 ? true : undefined), 'her answer');
+    await until(async () => ((await footprint(conv)).outbound > 0 ? true : undefined), 'her answer');
     const f = await footprint(conv);
     expect(f.assigned).toBeNull();                     // still hers
     expect(f.signals).not.toContain('deletion_requested');
     expect(f.path).toBe('model');
     expect(await modelCalls()).toBeGreaterThan(0);
-    const draft = await q((tx) => sql<{ text: string }>`
-      select draft_text as text from drafts where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.text));
-    expect(draft).toBe(ANSWER);
-    // A draft and not a send ONLY because nothing goes out alone before the
-    // zh/ar disclosure review — and the turn says so.
-    const withheld = await q((tx) => sql<{ reason: string }>`
-      select payload->>'reason' as reason from conversation_events
-       where conversation_id = ${conv}::uuid and type = 'autonomy_withheld'`.execute(tx).then((x) => x.rows.map((w) => w.reason)));
-    expect(withheld).toEqual(['disclosure_not_reviewed']);
+    // Sent alone — the gate is open since the owner read zh and ar
+    // (2026-09-28) — with the disclosure first, as the first unapproved
+    // message of a conversation must. No draft, and nothing withheld.
+    expect(f.drafts).toBe(0);
+    expect(f.events).not.toContain('autonomy_withheld');
+    const body = await q((tx) => sql<{ body: string }>`
+      select body from outbound_messages where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.body));
+    expect(body).toMatch(/^Hi, I'm Lily, .+'s AI assistant\./);
+    expect(body.endsWith(`\n\n${ANSWER}`)).toBe(true);
   });
 
   it('0076 · handing it back does not clear it: Today, the Buyers tab, Your data, the conversation and the buyer page still show it', async () => {
