@@ -225,6 +225,53 @@ also installation-wide; leave it unset on an installation with more than one
 factory, because a domain's DNS records are public and would let one factory
 "verify" another's domain.
 
-**Not built yet:** a forgotten password is reset by the operator (there is no
-installation-wide mail sender to send a reset link with), and staff still sign
-in with the access codes their owner hands them.
+**Not built yet:** a forgotten password is reset by the operator, with
+`tools/add-login.mjs --reset` (below) — the product does not yet e-mail a reset
+link itself, although since A3 it has a sender that could — and staff still
+sign in with the access codes their owner hands them.
+
+## A workspace that exists gets a login (0078)
+
+Sign-up makes a login only for a NEW workspace. A workspace made any other way
+(the pilot's, provisioned before logins existed, or one made by
+`tools/provision-factory.mjs`) has none, and an owner whose only login is lost has
+no way back in through the product. For both, with admin access:
+
+```bash
+MIGRATE_DATABASE_URL=<admin url> PUBLIC_BASE_URL=https://app.example.com \
+  node tools/add-login.mjs <business-id> <e-mail>
+```
+
+It gives the workspace's **owner** a login with that e-mail and prints a one-time
+link, `/login/set-password?t=…`, good for 72 hours (`--hours N`, up to 168). The
+owner opens it, chooses a password, and signs in on the ordinary door (a browser
+never seen before still answers the e-mailed code). No password is typed on a
+command line, and nobody but the owner ever knows it. Opening the link spends
+nothing — a messenger's preview fetches it too; saving the password does, once.
+Only the link's SHA-256 is stored, so if the printed link is lost, run the tool
+again: a newer link closes the older one.
+
+The rows are the ones sign-up writes: the owner on record (`people.is_owner`,
+one per business), the e-mail trimmed and lower-cased and held to sign-up's
+shape check, and a scrypt hash with sign-up's parameters — of random bytes
+thrown away when hashed, so nothing signs in until the owner chooses a password.
+
+| Situation | What to run |
+|---|---|
+| The workspace has no login | `add-login.mjs <id> <e-mail>` |
+| No owner on record (e.g. made by `provision-factory.mjs`) | add `--name "<owner's name>"` |
+| The owner forgot the password; the e-mail still works | `add-login.mjs <id> <their login e-mail> --reset` |
+| The owner lost the e-mail itself | `add-login.mjs <id> <new e-mail> --replace` — archives the old login |
+
+It refuses, and changes nothing, when the business does not exist or is switched
+off, when it is the practice sandbox, when the e-mail is another workspace's
+login, when the workspace already has a login (it says which, and wants
+`--replace`), and when run with a role that row security filters.
+
+**There is no self-service recovery yet.** Nothing in the product e-mails an
+owner a link to choose a new password: `login_codes` (0058) only confirm a
+sign-up or a new browser *after* the password was right, and
+`email_confirmations` belongs to orders. An owner who forgets the password must
+ask the operator for `--reset`. The pilot's workspace is the one exception: the
+deployment's `OWNER_ACCESS_CODE` ("I have an access code") still opens the
+business `PILOT_BUSINESS_ID` names.

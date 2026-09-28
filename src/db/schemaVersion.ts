@@ -241,8 +241,12 @@ import type { Db } from './client.js';
  *      insert fails the CHECK: the turn throws and dead-letters, and the dead
  *      letter's own hand-off fails the same way — the buyer never reaches
  *      "Needs you", the one thing this exists to do.
+ * 78 = a login for a workspace that exists, and a link to choose its password
+ *      (0078, tools/add-login.mjs). The door's `/login/set-password` asks
+ *      `login_setup_open` / `login_setup_spend`; against a 77 database both
+ *      are missing and the page answers 500 instead of "choose your password".
  */
-export const REQUIRED_SCHEMA_VERSION = 77;
+export const REQUIRED_SCHEMA_VERSION = 78;
 
 export type SchemaState = {
   readonly required: number;

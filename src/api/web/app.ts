@@ -129,7 +129,7 @@ import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
 import {
-  shell, loginPage, signupPage, verifyPage, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
+  shell, loginPage, signupPage, verifyPage, setPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -149,7 +149,11 @@ import { dismissDeletionAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
-import { lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword } from '../../db/accounts.js';
+import {
+  lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword,
+  setupLinkEmail, spendSetupLink,
+} from '../../db/accounts.js';
+import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
@@ -348,6 +352,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/site', why: 'Phase 5 — the public site, previewed on any host and marked noindex; reads nothing and names no tenant' },
   { method: 'GET', url: '/login', why: 'the login form itself' },
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
+  { method: 'GET', url: '/login/set-password', why: '0078 — the one-time link tools/add-login.mjs prints: shows which e-mail it sets a password for, spends nothing' },
+  { method: 'POST', url: '/login/set-password', why: '0078 — saves the password the owner chose and spends the link, once; throttled like the door' },
   { method: 'GET', url: '/signup', why: 'A1 — how a factory gets a workspace; names no tenant, and says nothing about which e-mails have one' },
   { method: 'POST', url: '/signup', why: 'A1 — creates a tenant through provision_account only; throttled, and gated by SIGNUP_MODE' },
   { method: 'GET', url: '/verify', why: 'A3 — where the e-mailed code is typed; renders only for a browser holding the signed pending cookie, and shows the address masked' },
@@ -1157,6 +1163,63 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
 
     return signIn(reply, deps.businessId, person);
+  });
+
+  /**
+   * 0078 — CHOOSE YOUR PASSWORD, from the link tools/add-login.mjs prints.
+   *
+   * Opening it spends nothing (a messenger drawing a preview fetches it too);
+   * saving spends it, once, and sets the password the same way a password
+   * change does. Then she signs in on the ordinary door with it — so a browser
+   * we have not seen still answers the e-mailed code (A3), and nothing here is
+   * a second way past it.
+   *
+   * The token is in the address, so these routes write no request line to the
+   * log (`warn`), and the page asks for no referrer to be sent onward.
+   */
+  const quietDoor = { logLevel: 'warn' } as const;
+  const setupLinkOf = async (raw: unknown): Promise<{ token: string; email: string } | null> => {
+    const token = typeof raw === 'string' ? raw.trim() : '';
+    if (!SETUP_TOKEN.test(token)) return null;
+    const email = await setupLinkEmail(deps.db, setupTokenHash(token)).catch(() => null);
+    return email ? { token, email } : null;
+  };
+  const setPwPage = (req: FastifyRequest, reply: FastifyReply, status: number,
+    link: { token: string; email: string } | null, problem: SetPasswordProblem | null = null) =>
+    reply.code(status).header('referrer-policy', 'no-referrer').header('cache-control', 'no-store')
+      .type('text/html; charset=utf-8')
+      .send(setPasswordPage({ locale: localeOf(req), path: '/login/set-password', passwordMin: PASSWORD_MIN,
+        passwordMax: PASSWORD_MAX, link, problem }));
+
+  app.get('/login/set-password', quietDoor, async (req, reply) => {
+    const raw = (req.query as { t?: unknown } | undefined)?.t;
+    // No link at all is somebody at the wrong door, not a spent link: the door.
+    if (raw === undefined || raw === '') return reply.redirect('/login');
+    const link = await setupLinkOf(raw);
+    return setPwPage(req, reply, link ? 200 : 404, link);
+  });
+
+  app.post('/login/set-password', quietDoor, async (req, reply) => {
+    const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
+    if (!loginThrottle.allow(callerOf(req), Date.now())) {
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed' }));
+    }
+    const link = await setupLinkOf(b.t);
+    if (!link) return setPwPage(req, reply, 404, null);
+    const password = typeof b.password === 'string' ? b.password : '';
+    const repeat = typeof b.repeat === 'string' ? b.repeat : '';
+    // The same rules sign-up holds a password to (core/owner/signup.ts).
+    const problem: SetPasswordProblem | null = password.length < PASSWORD_MIN ? 'short'
+      : password.length > PASSWORD_MAX ? 'long'
+      : password.trim().toLowerCase() === link.email ? 'is_email'
+      : password !== repeat ? 'mismatch' : null;
+    if (problem) return setPwPage(req, reply, 400, link, problem);
+    const email = await spendSetupLink(deps.db, setupTokenHash(link.token), await hashPassword(password)).catch(() => null);
+    if (!email) return setPwPage(req, reply, 404, null);
+    return html(reply, 200, loginPage({
+      locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
+      signupOpen: signupMode !== 'closed',
+    }));
   });
 
   /**

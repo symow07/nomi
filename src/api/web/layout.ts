@@ -1384,6 +1384,8 @@ export function loginPage(input: {
   /** Kept for the callers that only know "it failed": the access-code sentence. */
   readonly error?: boolean; readonly problem?: LoginProblem;
   readonly email?: string; readonly signupOpen?: boolean;
+  /** 0078 — said once, above the form: "your password is saved, sign in with it". */
+  readonly notice?: string | null;
 }): string {
   const { locale } = input;
   const problem: LoginProblem | null = input.problem ?? (input.error ? 'code' : null);
@@ -1392,6 +1394,7 @@ export function loginPage(input: {
     : problem === 'slow' ? t(locale, 'login.slow')
     : problem === 'code' ? t(locale, 'login.error') : null;
   const card = `
+    ${input.notice ? `<div class="hint" role="status">${esc(input.notice)}</div>` : ''}
     ${sentence && problem !== 'code' ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
     <form method="post" action="/login">
       <label for="login-email">${esc(t(locale, 'login.emailLabel'))}</label>
@@ -1510,6 +1513,53 @@ export function signupPage(input: SignupPageInput): string {
  * It shows the address only masked: whoever is looking at this screen should
  * recognise it as theirs, not read it off someone else's.
  */
+/**
+ * 0078 — CHOOSE YOUR PASSWORD, from the one-time link tools/add-login.mjs
+ * prints. The operator gives a workspace that exists a login; the owner picks
+ * the password here, so it never passes through a command line or a chat.
+ *
+ * Opening the page spends nothing — a messenger that fetches the link to draw
+ * a preview must not use it up; only saving does. A link that is not good says
+ * one thing whatever the reason (used, lapsed, never made), so the page does
+ * not tell a stranger which it was. The token rides in a hidden field, never
+ * in anything the page links to.
+ */
+export type SetPasswordProblem = 'short' | 'long' | 'mismatch' | 'is_email';
+
+export function setPasswordPage(input: {
+  readonly locale: Locale; readonly path: string; readonly passwordMin: number; readonly passwordMax: number;
+  /** Null: the link is not good (used, lapsed or unknown). */
+  readonly link: { readonly token: string; readonly email: string } | null;
+  readonly problem?: SetPasswordProblem | null;
+}): string {
+  const { locale } = input;
+  const other = `<p class="other"><a href="/login">${esc(t(locale, 'setpw.toLogin'))}</a></p>`;
+  if (!input.link) {
+    return doorFrame(locale, input.path, t(locale, 'setpw.title'),
+      `<h1>${esc(t(locale, 'setpw.title'))}</h1><p class="lead">${esc(t(locale, 'setpw.gone'))}</p>`, other);
+  }
+  const problem = input.problem
+    ? t(locale, `setpw.problem.${input.problem}` as MessageKey, { n: input.problem === 'long' ? input.passwordMax : input.passwordMin })
+    : null;
+  const card = `
+    <h1>${esc(t(locale, 'setpw.title'))}</h1>
+    <p class="lead"><bdi>${esc(t(locale, 'setpw.lead', { email: input.link.email }))}</bdi></p>
+    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
+    <form method="post" action="/login/set-password">
+      <input type="hidden" name="t" value="${esc(input.link.token)}" />
+      <input type="email" name="email" value="${esc(input.link.email)}" autocomplete="username" hidden readonly />
+      <label for="setpw-password">${esc(t(locale, 'setpw.password'))}</label>
+      <input id="setpw-password" type="password" name="password" required minlength="${input.passwordMin}"
+        maxlength="${input.passwordMax}" autocomplete="new-password" autofocus />
+      <div class="hint">${esc(t(locale, 'signup.passwordHint', { n: input.passwordMin }))}</div>
+      <label for="setpw-repeat">${esc(t(locale, 'setpw.repeat'))}</label>
+      <input id="setpw-repeat" type="password" name="repeat" required minlength="${input.passwordMin}"
+        maxlength="${input.passwordMax}" autocomplete="new-password" />
+      <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
+    </form>`;
+  return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
+}
+
 export function verifyPage(input: {
   readonly locale: Locale; readonly path: string; readonly maskedEmail: string;
   readonly purpose: 'signup' | 'device'; readonly error?: string | null; readonly notice?: string | null;
