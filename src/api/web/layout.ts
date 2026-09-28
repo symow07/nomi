@@ -860,6 +860,7 @@ const STYLE_PAGES = `
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
   .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-jade-deep); }
   .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
+  .cal-kind { color:var(--color-ink); font-weight:500; }
 
   /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
   /* The search: the field takes the room, its button and the way back beside it. */

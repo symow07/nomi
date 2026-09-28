@@ -143,6 +143,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 116 | **Decision 5 recorded in Symow's words, provisional**; the calendar's kind becomes the first word of its line (not a pill); `docs/UI-PASS-CANDIDATES.md`, the later pass's list |
 | 115 | **`tools/add-login.mjs`** — a login for a workspace that exists, and `/login/set-password` (0078) — see §5 rule 22; integration hooks outlast a graceful stop (`--hookTimeout`) |
 | 114 | CLAUDE.md handoff; ROADMAP §2b; the usability script after A |
 | 113 | **The audit's last items** — see §6 |
@@ -372,7 +373,7 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - **…written down when the hand-off fires, with its own alert** (#105). Claude's calls, reported: a repeat while one waits REUSES it (counted; the first time is when it was received); a waiting request shows on Today (second row); the alert names no date (none is stored before the owner records it).
 
 **Owner decisions and Claude's calls, 2026-09-28**
-- **Decision 5: the row stays as it is** (name, last message, time); revisit after real daily use.
+- **Decision 5: the row stays as it is for V1 — deliberately provisional** (Symow, 2026-09-28; recorded in his words, brief §8). A larger UI/UX pass comes later; what it should look at first is `docs/UI-PASS-CANDIDATES.md`. The calendar's kind is its own choice: the first word of the entry's line, never a pill (#116).
 - **"Wants a person" in two layers** (rule 19). Claude's calls, reported: the model's layer sits inside the analysis, before any reply; an unreadable answer or a failed turn is a SILENT hand-off (`not_answered`), like an unheard voice note; the analysis gives up after 30 s and one retry; latency measured live +39 ms median; identity questions are answered with the disclosure rather than handed off; the two live hand-offs among the 45 passing mentions are kept.
 - **A** (rule 20): "unread" is not recorded anywhere, so the row says who wrote last (a real per-person "seen" is a migration); search leaves message text out (a full-text index is a migration); Customers' VIP-first order is dropped (only the demo seed set VIP); the relationship pill stays on the buyer's page, not the row. Arabic `common.buyer` is مشترٍ now (was عميل), for the native read.
 - **CC-26** (rule 21): 20 s is one constant (`EVERY`); Buyers' line also fires on the assistant's own replies (the list does change — it may be noisy in auto mode); a "this conversation has changed" line when it is handed over, taken or a send is refused; the line is its own door.
