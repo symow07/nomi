@@ -1,18 +1,48 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after #120 — a shop's opener (客服在吗, "Is
-anyone there?", «فيه أحد؟») is answered, and asked again after the disclosure
-it hands off (§5 rule 19). Before it, #119 ("wants a person" in zh/ar), #117
-(the disclosure gate is open, rule 1), #115 (`tools/add-login.mjs`, 0078) and
-the "clear the queue" batch (#110–#113). Written so the next session needs nothing from the
+Last updated **2026-09-28**, after #121 — "told" is what REACHED the buyer
+(0079): a shop's opener asked again hands off only once a message carrying the
+disclosure was accepted by the provider, in draft and auto alike (§5 rules 3,
+19). The positioning is recorded in §0 — read it before writing any copy.
+Before it, #120 (shop openers), #119 ("wants a person" in zh/ar), #117 (the
+disclosure gate is open, rule 1), #115 (`tools/add-login.mjs`, 0078) and the
+"clear the queue" batch (#110–#113). Written so the next session needs nothing from the
 one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
 ("Lily" by default — but the name is the owner's, see below) that answers a
-business's buyers on WhatsApp / Instagram / Messenger / e-mail, drafting or
+business's customers on Instagram / Messenger / WhatsApp / e-mail, drafting or
 sending under rules the owner sets. Owner UI in en / zh / ar (RTL).
 
 ---
+
+## 0 · What Nomi is — the positioning (the owner's, 2026-09-28)
+
+**Nomi is for anyone who sells or talks to customers over social media:**
+clothing and cosmetics brands, online stores, startups, agencies — and
+exporters and factories too. **Global, not China-specific.** The common thread
+is social media as the sales channel, not manufacturing.
+
+- It is **not** a tool for Yiwu factories. The first pilot sells canvas bags,
+  and the code grew up around export trade — buyers, quotes, MOQ, lead times,
+  samples, factory closures, `/app/factory`, `BUSINESS_TZ = 'Asia/Shanghai'`.
+  That history is not the product; do not let it back into new work.
+- **Before writing any copy, prompt, help article, page or seed data**, read
+  it as a cosmetics brand and as an online clothing store would. A business's
+  customer is a *customer*, not a *buyer*; most never receive a *quote*, have
+  no *minimum order*, no *lead time*, no *factory*.
+- **Every place the product's words still assume export trade is listed in
+  `docs/POSITIONING-INVENTORY.md`** — customer-facing and owner-facing
+  separately, each with a suggested neutral wording, and the ones that cannot
+  go neutral and must vary by kind of business flagged. Nothing has been
+  rewritten yet (the owner's order: inventory first). When copy is rewritten,
+  work from that list and keep it current.
+- New work adds no export- or China-only assumption: no default currency,
+  timezone, country, channel or language that presumes one; quantity tiers and
+  minimum orders are optional features of some businesses, never the frame.
+- Code identifiers may keep their old names (renaming code is not copy);
+  anything a person reads — including URLs in the address bar and text the
+  model is told to write — may not.
 
 ## 1 · How to talk to the user
 
@@ -106,18 +136,18 @@ footer.
 
 ## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** the merge of #120 (shop openers; no migration). Before it
-  #119, #118, #117 (the gate), #116, the merge of #115 (`tools/add-login.mjs`,
-  0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
+- **Deployed:** the merge of #121 (0079, the disclosure delivered). Before it
+  #120 (shop openers), #119, #118, #117 (the gate), #116, the merge of #115
+  (`tools/add-login.mjs`, 0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
   close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
-  production `schema_version` = **78**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0078:
-  `nomi-backup-20260928T030213Z` (1.4 h, drill passed; PITR on).
+  production `schema_version` = **79**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0078 and 0079:
+  `nomi-backup-20260928T030213Z` (drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 78. Last three: `0076 deletion_asks`, `0077 not_answered`,
-  `0078 login_setups`.
+- **Schema:** 79. Last three: `0077 not_answered`, `0078 login_setups`,
+  `0079 disclosure_delivered`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -146,6 +176,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 121 | **"Told" is what reached the buyer** (0079) — see §5 rules 3 and 19; the positioning recorded (§0) and inventoried (`docs/POSITIONING-INVENTORY.md`) |
 | 120 | **A shop's opener is answered; asked again after the disclosure, it hands off** — see §5 rule 19; openers first message 35/35 handed off → 0/35, after the disclosure 35/35; and a deletion request that reads as an injection ("Forget everything you know about me") is the silent hand-off, not the injection's canned reply |
 | 119 | **"Wants a person" built out in Chinese and Arabic** — layer 1 misses 40/115 → 0/115, no new false fire; `tests/person/person-corpus.ts` (three groups × three languages) through the real turn; the identity rule no longer reads 真人秀 as "a real person?" |
 | 118 | **Buyer-facing Arabic:** the privacy page says «مساعد آلي»; the disclosure and one fixed reply no longer address the buyer in the masculine; all 103 buyer-facing Arabic strings held by `tests/parity/buyer-arabic.test.ts`; the two Chinese labels kept on purpose |
@@ -248,6 +279,7 @@ Recent PRs, newest first:
    first such message of a conversation; again whenever a buyer asks what they
    are talking to. A reply the disclosure replaced cannot be sent unchanged
    (`needs_edit`).
+   - **"First" is counted by what reached the buyer** (0079, #121): `conversations.ai_disclosure_delivered_at` is written by the send path (`driveConversationOutbound` → `markDisclosureDelivered`) the moment the provider accepts a message that carries the sentence (`carriesDisclosure`, any language, any name, the earlier Arabic wording) — whoever wrote it: a reply sent alone, the sentence sent when a buyer asked, an approved draft or an owner's reply that carries it. Never by queueing, never by `saveState` (a turn's stale copy must not erase it). A reply carrying it that was refused (Stop, hand-over, allowlist) or failed — including one the provider accepted and its status webhook later reported failed (`reconcileStatus` rebuilds the stamp from what still stands) — told nothing, so the next reply sent alone says it again. Until one is accepted EVERY reply sent alone carries it: a queued one may still fail and a reply can overtake it, so two replies queued before either leaves both say it (read twice, rarely — never zero; the review of #121 found the "on its way" shortcut could send a reply with none). `ai_disclosed_at` (0066) stays: when it was first QUEUED. Approved drafts still never get the sentence added (a person answered) — so a workspace that only drafts never tells anyone.
 4. **She never claims to be human** (`src/core/safety/identity.ts`). Self-denial
    only; handoff offers must pass. The context rule fires on a *question about
    the interlocutor*, never on a message that merely contains "real person".
@@ -308,11 +340,12 @@ Recent PRs, newest first:
    - Identity questions ("are you a bot?") no longer hand off by the word "human": they are answered, with the disclosure (rule 3), unless the buyer also asks for a person.
    - Tests: `tests/person/person-request.test.ts` (per layer), `tests/pipeline/{person-handoff,analyzer-wants-person,unanswered}.test.ts`, `tests/integration/person-request.test.ts`. Layer 1, layer 2 and `not_answered` each switched off fail their own tests.
    - **Built out in Chinese and Arabic (#119, 2026-09-28)**, so a plain ask hands off at layer 1 as reliably as in English: zh — talk with / find / call / "someone else" / "not a machine" frames around 人, 真人, 客服, 业务员, 销售, 你们的人, and calls (给我打电话, 打电话给我, 请回电); ar — calls («اتصل بي», «كلمني», «ممكن اتصال»), a real person or human outright, one of their staff, «هل يوجد أحد أتكلم معه», help from a person, "not a robot", the seller «البائع» / sales. Guards: 在找 is sourcing; a report of a call (他给我打电话了, «اتصل بي مديري») is not a request. 人工在吗 / 真人在不在 name the human agent: a plain ask (#120).
-   - **A shop's opener is answered; asked again AFTER the disclosure, it hands off** (the owner's decision, 2026-09-28; #120; `shopOpener` in `detect.ts`). 客服在吗, 老板在吗, 掌柜/店家在吗, 有人吗, 有没有人 · "Is anyone there?", "Anyone around?", "Is customer service available?" · «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «هل خدمة العملاء موجودة؟» — a greeting aimed at a shop, in its own clause. Keyed to `aiDisclosedAt`:
+   - **A shop's opener is answered; asked again AFTER the disclosure, it hands off** (the owner's decision, 2026-09-28; #120; `shopOpener` in `detect.ts`). 客服在吗, 老板在吗, 掌柜/店家在吗, 有人吗, 有没有人 · "Is anyone there?", "Anyone around?", "Is customer service available?" · «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «هل خدمة العملاء موجودة؟» — a greeting aimed at a shop, in its own clause. Keyed to `aiDisclosureDeliveredAt` — the disclosure DELIVERED (rule 3, 0079, #121), never merely queued, and never the mode:
      - not yet told: a message that is ONLY an opener (greetings, 请问, stops around it) is answered — the model's `wantsPerson` is set aside, true or unreadable — and the disclosure goes with the reply (rule 3). An opener with more ("客服在吗？这个包多少钱") goes to the model, whose prompt says the opener asks for nobody and to judge the rest.
      - told: the opener anywhere in the message hands off at layer 1, before any model. A second ask is not an opener.
      - Not openers, either state: 在吗, 亲在吗, "Are you there?", «موجود؟» (addressed to whoever answers); 客服在哪里; the words mid-sentence (有人说…, «في أحد المصانع»). A plain ask is layer 1's on the first message, opener or not (人工在吗, "Anyone there? Can I talk to someone?"); so is every deletion request.
-     - Drafting, the disclosure never goes out (the owner approves each reply), so a repeat is drafted again, never handed off — a person reads it either way.
+     - The same rule in draft and in auto-send (#121, the owner's correction): delivered → a repeat hands off; not delivered → still an opener, answered. In a workspace that only drafts, nothing carries the disclosure (rule 3), so a repeat keeps being answered — until a message carrying it goes out (an auto-sent reply, an identity answer, or an owner's message that includes it). A reply refused at send time (Stop) is NOT told.
+     - Four states in the corpus turn test, each opener: auto/delivered 35/35 hand off, auto/not delivered 35/35 answered (and the disclosure said again), draft/not delivered 35/35 answered, draft/delivered 35/35 hand off; with more (7 × 2 modes) → the model before delivery, 14/14 hand off after. Queued but never delivered: 0/42 hand off (#120 handed off 42/42 on the queued stamp).
      - Corpus: `OPENERS` (35: en 9, zh 16, ar 10), `OPENERS_WITH_MORE` (7), `NOT_OPENERS`, `PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS`; the turn test runs each opener as two turns of one conversation (answered with the disclosure, then handed off with no model call). Live (deepseek-flash, 2026-09-28): first message handed off 35/35 → 0/35, with more 7/7 → 0/7; after the disclosure 42/42. The prompt line moved groups 2/3 11/100 → 9/100 over two paired runs (noise).
    - **The corpus is `tests/person/person-corpus.ts`**, like the deletion one: 1 requests, 2 other meanings, 3 the buyer's own side — each in en/zh/ar — plus passing chat, declined, identity questions, and what is left to layer 2 on purpose; `tests/pipeline/person-corpus.test.ts` runs all of it through the real turn. Measured on it: requests missed at layer 1 — the old list 91/115, #110 40/115, #119 0/115, #120 0/117; non-requests fired on a first message — the old list 25/156, since #110 0/156, #120 0/170 (openers included); after the disclosure 0/128 besides the 42 openers; the deletion 45 never. Live (deepseek-flash, 2026-09-28) the model hands off 4 of the 50 group-2/3 sentences (one by the prompt's own rule: "I'll call you" needs a person) and every greeting left to it, 客服在吗 included.
 20. **Buyers is ONE list** (A, #111, 2026-09-28; `src/db/buyersList.ts`).
