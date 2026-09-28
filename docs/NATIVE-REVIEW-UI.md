@@ -8003,3 +8003,29 @@ the new password instead of 它. `tests/parity/add-login.test.ts` renders the pa
 - en: Your password is saved. Sign in with it.
 - **ar: تم حفظ كلمة المرور. يمكن تسجيل الدخول بها الآن.**
 
+## 2026-09-28 — buyer-facing Arabic: «مساعد آلي», and nobody addressed in a gender
+
+**Changed strings, at the owner's direction.** The assistant is «مساعد آلي» (an automated
+assistant) wherever a buyer reads what it is — never «ذكي» ("smart"), a compliment rather than a
+kind. And buyer-facing Arabic addresses the buyer in neither gender (rule 6). Every buyer-facing
+Arabic string was read (the catalogue's `legal.*`, `unsub.*` and `proof.*`, the disclosure, and
+the three fixed replies of the fast path — 103 in all); three changed. The two outside the catalogue
+are listed here too, because a buyer reads them. `tests/parity/buyer-arabic.test.ts` holds all of it.
+
+### العربية — 3 strings
+
+#### `legal.privacy.ai` (the privacy page)
+
+- en: Replies here are drafted by an AI assistant, …
+- **ar: الردود هنا يصوغها مساعد آلي، وبحسب إعدادات الشركة قد تصلك بعض الردود دون أن يراجعها شخص أولًا. ويمكنك طلب التحدث مع شخص في أي وقت أثناء المحادثة.**
+
+#### the disclosure (`src/core/conversation/disclosure.ts`)
+
+- en: Hi, I'm {name}, {business}'s AI assistant. If you'd like a person from our team, just say so and they'll reply as soon as they can.
+- **ar: مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.**
+
+#### the fast path's "product confirmed" reply (`src/core/conversation/fastpath.ts`)
+
+- en: Great — glad we're on the same page. Now, roughly how many pieces are you looking at?
+- **ar: ممتاز، نعم هذا هو المنتج. ما الكمية المطلوبة تقريبًا؟**
+

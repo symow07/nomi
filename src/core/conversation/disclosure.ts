@@ -38,11 +38,14 @@ const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   // Signed off by the owner, 2026-09-28, unchanged: 人工服务 is the term a
   // Chinese buyer expects, and the register is right.
   zh: '您好，我是{name}，{business}的AI助手。如需人工服务请告诉我，同事会尽快回复您。',
-  // Signed off by the owner, 2026-09-28, with one change: «مساعد آلي» (an
+  // Signed off by the owner, 2026-09-28, with two changes: «مساعد آلي» (an
   // automated assistant) for «المساعد الذكي» ("the smart assistant"), which
   // named a quality rather than a kind and is the ordinary marketing phrase
-  // for any chatbot. This sentence must leave no doubt that it is software.
-  ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت.',
+  // for any chatbot; and the buyer is no longer addressed in a gender — rule 6:
+  // «فأخبرني» (tell me) was a masculine imperative, so the clause now says
+  // "to speak with a person from our team, asking is enough, and the reply
+  // comes as soon as possible", addressing nobody.
+  ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.',
 };
 
 const isDisclosureLocale = (v: string): v is DisclosureLocale =>

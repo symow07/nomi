@@ -144,6 +144,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 118 | **Buyer-facing Arabic:** the privacy page says «مساعد آلي»; the disclosure and one fixed reply no longer address the buyer in the masculine; all 103 buyer-facing Arabic strings held by `tests/parity/buyer-arabic.test.ts`; the two Chinese labels kept on purpose |
 | 117 | **The disclosure gate is open** — Arabic «مساعد آلي» for «المساعد الذكي», zh/ar signed off by the owner, `DISCLOSURE_NATIVE_REVIEW` all true; see §5 rule 1 |
 | 116 | **Decision 5 recorded in Symow's words, provisional**; the calendar's kind becomes the first word of its line (not a pill); `docs/UI-PASS-CANDIDATES.md`, the later pass's list |
 | 115 | **`tools/add-login.mjs`** — a login for a workspace that exists, and `/login/set-password` (0078) — see §5 rule 22; integration hooks outlast a graceful stop (`--hookTimeout`) |
@@ -216,8 +217,10 @@ Recent PRs, newest first:
 
 1. **The disclosure gate is OPEN since 2026-09-28** (#117): the owner read the
    zh and ar sentences; the Arabic now says «مساعد آلي» (an automated
-   assistant) where it said «المساعد الذكي» ("the smart assistant"), the
-   Chinese is unchanged. `DISCLOSURE_NATIVE_REVIEW` in
+   assistant) where it said «المساعد الذكي» ("the smart assistant"), and (#118)
+   addresses the buyer in neither gender: «مرحبًا، أنا {name}، مساعد آلي لدى
+   {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت
+   ممكن.» The Chinese is unchanged. `DISCLOSURE_NATIVE_REVIEW` in
    `src/core/conversation/disclosure.ts` = `{ en: true, zh: true, ar: true }`.
    The mechanism stays, on both owner routes that turn autonomy on and at the
    send decision in `commitTurn` (`autonomy_withheld: disclosure_not_reviewed`):
@@ -257,6 +260,7 @@ Recent PRs, newest first:
      - no plural address.
    - `tests/parity/assistant-pronouns.test.ts` holds this. Its lists live in `assistant-pronouns.lists.ts`.
    - Reworded zh/ar lines wait in `docs/NATIVE-REVIEW-UI.md`. That list is **not** a gate.
+   - **Buyer-facing Arabic too** (swept 2026-09-28, #118): the catalogue's `legal.*`, `unsub.*` and `proof.*`, the disclosure and the fast path's fixed replies — 103 strings — address the buyer in no gender, and call the assistant «مساعد آلي», never «ذكي». `tests/parity/buyer-arabic.test.ts` holds it.
 7. **Names come from the `assistants` table**, via `withAssistantName` / `assistantName(locale)`, and **count only once chosen**.
    - The main assistant's row name is a default until Getting ready stamps `assistant_named_at` (`chosenName` in `src/db/assistants.ts`). Until then, owner copy says "your assistant" / 你的助手 / مساعدك (`ASSISTANT_FALLBACK`), and the model gets no name.
    - `DEFAULT_ASSISTANT_NAME` is only the row's value at birth. There is no `EMPLOYEE_NAME` any more.
@@ -393,14 +397,12 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - **CC-26** (rule 21): 20 s is one constant (`EVERY`); Buyers' line also fires on the assistant's own replies (the list does change — it may be noisy in auto mode); a "this conversation has changed" line when it is handed over, taken or a send is refused; the line is its own door.
 
 **Parked / owner's to unblock**
-- **Found 2026-09-28, not changed (the owner's to decide):** words that describe
-  the assistant as a person or with praise — Arabic `legal.privacy.ai` (the
-  buyer-facing privacy page) «مساعد ذكي» ("a smart assistant", the phrase just
-  removed from the disclosure); Chinese `login.brandTagline` 你的数字员工工作台
-  (员工, an employee — the English says "digital employee" too); Chinese
-  `assistants.role.support` 客服 (in Chinese usually a human agent). And the
-  Arabic disclosure itself addresses the buyer in the masculine («فأخبرني»,
-  "tell me"), which rule 6 asks buyer-facing Arabic not to do.
+- **Decided 2026-09-28 (the owner): the two Chinese labels stay** —
+  `login.brandTagline` 你的数字员工工作台 (员工, an employee) and
+  `assistants.role.support` 客服. Both are seen by the owner, never a buyer, and
+  "employee" is what the product is. Noted beside each in `messages.ts` as a
+  decision, not an oversight. (The Arabic privacy page's «مساعد ذكي» and the
+  disclosure's masculine «فأخبرني» were fixed in #118.)
 - The live workspace confirming its assistant's name (in progress 2026-09-23;
   check `onboarding_state.assistant_named_at` for Westlake).
 - Moving the checkout out of iCloud (steps given 2026-09-23; see §2).
