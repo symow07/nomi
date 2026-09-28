@@ -2381,6 +2381,8 @@ const ZH: Record<MessageKey, string> = {
   'switcher.aria': '语言',
   'shell.skip': '跳到正文',
   'login.title': '登录',
+  // Kept on purpose (the owner, 2026-09-28): 员工 is a person-word, but this is
+  // the owner's door, not a buyer's, and "employee" is what the product is.
   'login.brandTagline': '你的数字员工工作台',
   'login.passwordLabel': '进入密码',
   'login.submit': '进入工作台',
@@ -3308,6 +3310,8 @@ const ZH: Record<MessageKey, string> = {
   'assistants.field.note': '说话的风格（可不填）',
   'assistants.field.note.hint': '用你自己的话写一两句。只影响语气，价格、交期和事实还是以你设的为准。',
   'assistants.role.sales': '销售',
+  // Kept on purpose (the owner, 2026-09-28): 客服 can name a human agent, but
+  // this label is shown to the owner, never to a buyer.
   'assistants.role.support': '客服',
   'assistants.role.after_sales': '售后',
   'assistants.role.other': '其他',
@@ -6266,7 +6270,7 @@ const AR: Record<MessageKey, string> = {
   'legal.privacy.who.title': 'من يطّلع عليها',
   'legal.privacy.who.body': 'الشركة التي وصلتها رسالتك، والخدمات اللازمة لنقل رسالتك والرد عليها:',
   'legal.privacy.who.meta': 'Meta، التي تنقل رسائل إنستغرام وماسنجر وواتساب بينك وبين الشركة.',
-  'legal.privacy.ai': 'الردود هنا يصوغها مساعد ذكي، وبحسب إعدادات الشركة قد تصلك بعض الردود دون أن يراجعها شخص أولًا. ويمكنك طلب التحدث مع شخص في أي وقت أثناء المحادثة.',
+  'legal.privacy.ai': 'الردود هنا يصوغها مساعد آلي، وبحسب إعدادات الشركة قد تصلك بعض الردود دون أن يراجعها شخص أولًا. ويمكنك طلب التحدث مع شخص في أي وقت أثناء المحادثة.',
   'legal.privacy.who.ai': '{processor}، خدمتها اللغوية تصوغ الردود من نص المحادثة. رسالتك تُعالَج هناك.',
   'legal.privacy.who.hosting': '{hosting}، مزوّد الاستضافة الذي تعمل عليه الخدمة. السجلات محفوظة هناك.',
   'legal.privacy.who.mail': 'وإذا ربطت الشركة صندوق بريد، فمزوّد البريد الذي تستخدمه (Google أو Microsoft) ينقل الرسائل الإلكترونية.',

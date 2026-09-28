@@ -57,7 +57,8 @@ export type FastPathResult =
 const REPLIES: Record<FastPathType, Record<string, string>> = {
   product_confirmed_yes: {
     en: "Great — glad we're on the same page. Now, roughly how many pieces are you looking at?",
-    ar: 'ممتاز، نعم هذا هو المنتج. كم قطعة تقريباً تحتاج؟',
+    // Rule 6: «تحتاج» ("you [masc.] need") addressed the buyer in a gender; a noun phrase addresses nobody.
+    ar: 'ممتاز، نعم هذا هو المنتج. ما الكمية المطلوبة تقريبًا؟',
     zh: '好的，就是这个产品。您大概需要多少件？',
     es: 'Perfecto. ¿Aproximadamente cuántas piezas necesitas?',
   },
