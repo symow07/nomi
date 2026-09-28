@@ -85,7 +85,9 @@ const EN_TALK = String.raw`(?:speak|talk|chat)\s+(?:to|with)`;
 const EN_HUMAN = String.raw`human(?:\s+being)?(?=\s*(?:$|[.!?,;:)]|(?:please|pls|plz|now|asap|not|instead|who|that|to|and|or|for|here|there|agent|on|at|about|in|from|with|i|we|if|so|because|thanks|thank)\b))`;
 /** Who it is when it can only be the seller's: a human, an agent, customer service, "your …". */
 const EN_THEIRS = String.raw`(?:(?:a|an|the|some|any)\s+)?(?:(?:real|actual|live)\s+)?(?:person|${EN_HUMAN}|agent|representative|rep|operator|salesperson|sales\s+(?:person|rep|representative|agent)|customer\s+(?:service|support|care)(?:\s+(?:agent|representative|rep|person|team))?)`
-  + String.raw`|(?:one\s+of\s+)?your\s+(?:[a-z'-]+\s+){0,2}?(?:people|person|team|staff|colleagues?|boss|owner|supervisor|agents?|representatives?|reps?|salespeople|salesperson|support|customer\s+service)\b`;
+  + String.raw`|(?:one\s+of\s+)?your\s+(?:[a-z'-]+\s+){0,2}?(?:people|person|team|staff|colleagues?|boss|owner|supervisor|agents?|representatives?|reps?|salespeople|salesperson|support|customer\s+service)\b`
+  // "Can I speak to sales?" — the seller's sales side, asked for by name.
+  + String.raw`|(?:the\s+)?sales(?:\s+(?:team|department|dept|office))?\b`;
 /** "Someone" — the seller's only where the frame asks the seller for them. */
 const EN_SOMEONE = String.raw`(?:someone|somebody|anyone|anybody)(?:\s+(?:from|at|in|on)\s+your\s+[a-z'-]+)?`;
 /** Asked of the seller outright ("can I speak to the owner?"), their own boss is not meant. */
@@ -125,6 +127,13 @@ const EN: readonly Framed[] = [
   { re: new RegExp(String.raw`(?:${EN_START}|\b(?:please|pls|can\s+you|could\s+you)\s+)give\s+me\s+a\s+(?:call|ring)\b`, 'g'), own: null },
   { re: new RegExp(String.raw`(?:${EN_START}|\b(?:please|pls|kindly|can\s+you|could\s+you)\s+)(?:have|get|ask)\s+(?:someone|somebody|a\s+person)\s+(?:to\s+)?(?:call|phone|ring)\s+me${EN_CALL_TAIL}`, 'g'), own: null },
   { re: new RegExp(String.raw`\b(?:can|could|may)\s+(?:i|we)\s+(?:call|phone|ring)\s+you${EN_CALL_TAIL}`, 'g'), own: null },
+  // "I need help from a human", "support from a real person" — help only a person gives
+  { re: new RegExp(String.raw`${EN_NOT}\b(?:help|assistance|support)\s+from\s+(?:a\s+|an\s+)?(?:(?:real|actual|live)\s+)?(?:${EN_HUMAN}|person|agent|representative|rep)\b`, 'g'), own: EN_OWN },
+  // The whole message: "Transfer me", "connect me please", "real human needed"
+  { re: /^(?:(?:please|pls|plz)\s+)?(?:transfer|connect|escalate)\s+(?:me|this)(?:\s+(?:please|pls|plz|now|asap))?\s*[.!?]*$/g, own: null },
+  { re: /^(?:a\s+)?(?:real|live|actual)\s+(?:person|human|agent)\s+(?:needed|required|wanted|please)\s*[.!?]*$/g, own: null },
+  // "I don't want to talk to a bot" — asking for the one thing a bot is not
+  { re: /\b(?:don't|dont|do\s+not)\s+want\s+to\s+(?:talk|speak|chat)\s+(?:to|with)\s+(?:a\s+|the\s+|your\s+|an\s+)?(?:bot|robot|machine|ai|chatbot|computer|auto[-\s]?reply)\b/g, own: null },
 ];
 
 /**
@@ -180,6 +189,17 @@ const ZH_HEAD = String.raw`(?:经理|經理|老板|老闆|负责人|負責人|�
 const ZH_NOT = String.raw`(?<!不用|无需|無需|别|別|不|不需要|不要)`;
 const ZH_TALK = String.raw`(?:说|說|聊|谈|談|沟通|溝通|对话|對話|交流|讲|講|联系|聯繫|通话|通話)`;
 
+/** Somebody on the seller's side, in a buyer's Chinese: a real person, the human agent, their staff. */
+const ZH_PERSON = String.raw`(?:真人|人工|客服(?:人员|人員)?|工作人员|工作人員|业务员|業務員|销售(?:人员|人員)?|銷售(?:人員)?|人)`;
+/** "Your": 你们 / 您们 / 贵公司 …, with or without 的. */
+const ZH_THEIRS = String.raw`(?:你们|你們|您们|您們|贵公司|貴公司|贵司|貴司|贵厂|貴廠)的?`;
+/** A request's opening: 我要 / 我想 / 能不能 / 可以 / 请 … */
+const ZH_ASK = String.raw`(?:我要|我想要|我想|我希望|想|要|能不能|能否|可不可以|可以|可否|能|麻烦|麻煩|请|請)`;
+/** Where a request can begin: the start, a stop, or a word that asks. */
+const ZH_REQ_START = String.raw`(?:^|[\s，,。.!！?？、；;：:]|请|請|麻烦|麻煩|能不能|可不可以|可以|能否|可否|能|快|赶紧|趕緊|你们|你們|你|您)`;
+/** A call to the buyer that is not a report of one: never 了 / 过 after it. */
+const ZH_NOT_DONE = String.raw`(?!了|过|過)`;
+
 const ZH: readonly Framed[] = [
   // 人工客服 / 人工服务 — the human agent; never 人工 alone (人工成本 is labour cost, 人工智能 is AI)
   { re: new RegExp(String.raw`${ZH_NOT}人工(?:客服|服务|服務|坐席|座席|台)`, 'g'), own: null },
@@ -198,6 +218,31 @@ const ZH: readonly Framed[] = [
   { re: new RegExp(String.raw`(?:你们|你們|您们|您們|贵公司|貴公司|贵司|貴司|贵厂|貴廠|(?:你|您)的)(?:(?![我])[\u4e00-\u9fff]){0,4}?${ZH_HEAD}`, 'g'), own: null },
   // 请经理联系我 / 让负责人跟我谈 — asked to come to THEM ("我让经理联系你" is their own)
   { re: new RegExp(String.raw`(?:请|請|让|讓|叫|麻烦|麻煩)(?:你们|你們|贵司|貴司)?的?${ZH_HEAD}(?:直接|马上|馬上)?(?:(?:联系|聯繫|打电话给|打電話給|回复|回覆)(?:一下)?我|给我打|給我打|回电|回電|跟我|和我|找我)`, 'g'), own: null },
+  // 我要跟人说话 / 能不能和客服聊 / 我想跟你们的人谈 — to talk with a person the assistant is not
+  { re: new RegExp(String.raw`${ZH_NOT}${ZH_ASK}(?:跟|和|与|與|同)(?:一个|一個|个|個|一位|位)?(?:${ZH_THEIRS})?${ZH_PERSON}${ZH_TALK}`, 'g'), own: null },
+  // 我要找客服 / 可以找客服吗 / 找你们业务员 — find me one of theirs. Never 在找 (sourcing:
+  // "我们在找销售渠道"), and never a compound (客服人员 is a job being filled).
+  { re: new RegExp(String.raw`${ZH_NOT}(?<!在)(?:找|叫|换|換)(?:一个|一個|个|個|一位|位)?(?:${ZH_THEIRS})?(?:客服|业务员|業務員|销售|銷售|工作人员|工作人員)${ZH_STOP}`, 'g'), own: null },
+  // 让你们销售联系我 / 叫你们的人给我打电话 / 请客服回复我 — their people, to come to THEM
+  { re: new RegExp(String.raw`(?:请|請|让|讓|叫|麻烦|麻煩)(?:${ZH_THEIRS})?${ZH_PERSON}(?:直接|马上|馬上|尽快|盡快)?(?:(?:联系|聯繫|回复|回覆)(?:一下)?我|给我打|給我打|打电话给我|打電話給我|跟我|和我|找我)`, 'g'), own: null },
+  // 给我打个电话 / 打电话给我 / 请电话联系我 / 请回电 — a call, which only a person makes;
+  // never a report of one ("他给我打电话了", "我们经理给我打电话说…")
+  { re: new RegExp(String.raw`${ZH_REQ_START}(?:给|給)我(?:打|回)(?:个|個|一个|一個)?(?:电话|電話)${ZH_NOT_DONE}`, 'g'), own: null },
+  { re: new RegExp(String.raw`${ZH_REQ_START}打(?:个|個|一个|一個)?(?:电话|電話)(?:给|給)我${ZH_NOT_DONE}`, 'g'), own: null },
+  { re: new RegExp(String.raw`${ZH_REQ_START}(?:电话|電話)联系我${ZH_NOT_DONE}`, 'g'), own: null },
+  { re: new RegExp(String.raw`(?:^|[\s，,。.!！?？]|请|請|麻烦|麻煩)回(?:个|個)?(?:电|電)(?:话|話)?(?:给|給)?我?${ZH_STOP}`, 'g'), own: null },
+  // 我想找个人聊聊 — someone to talk with; never 我找人问一下 (they ask their own)
+  { re: new RegExp(String.raw`${ZH_NOT}(?<!在)找(?:一个|一個|个|個|一位|位)?人(?:来|來)?(?:(?:跟|和)我)?${ZH_TALK}`, 'g'), own: null },
+  // 能打给我吗 / 打我电话 — call me, however it is put
+  { re: new RegExp(String.raw`${ZH_REQ_START}打(?:给|給)我${ZH_NOT_DONE}`, 'g'), own: null },
+  { re: new RegExp(String.raw`${ZH_REQ_START}打我(?:的)?(?:电话|電話|手机|手機)${ZH_NOT_DONE}`, 'g'), own: null },
+  // 有没有真人 / 有真人吗 — is there a person to reach; never 真人秀, 真人模特 (a show, models)
+  { re: new RegExp(String.raw`有(?:没有|沒有)?真人(?=$|[^\u4e00-\u9fff]|吗|嗎|呢|在|可以|能|跟|和|帮|幫|回|说|說|聊)`, 'g'), own: null },
+  // 换个人跟我说 / 能换个人吗 — someone else, not this; never 换个人收货 (someone else receives)
+  { re: new RegExp(String.raw`(?:换|換)(?:一个|一個|个|個)(?:真人|人)(?:来|來)?(?:(?:跟|和)我)?(?:${ZH_TALK}|(?=$|[^\u4e00-\u9fff]|吗|嗎|吧|呢))`, 'g'), own: null },
+  // 我不想跟机器说话 / 不要机器人回复 — asking for the one thing a machine is not;
+  // never 不要机器做的 (not machine-made)
+  { re: new RegExp(String.raw`(?:不想|不要|不愿意|不願意)(?:(?:跟|和|与|與|同)(?:机器人|機器人|机器|機器|ai|自动回复|自動回覆)|(?:机器人|機器人|ai)(?:${ZH_TALK}|回复|回覆|聊天))`, 'g'), own: null },
 ];
 
 // ── Arabic (read in the folded form: «اريد», «الي», «علي») ───────────────────
@@ -215,13 +260,21 @@ const AR_TALK = String.raw`(?:التحدث|التكلم|الحديث|الكلا�
  * it is asked for. «احد» is "someone" only before a verb, «من», or the end:
  * before a noun it is "one of" («التواصل مع احد المصانع», one of the factories).
  */
-const AR_WHO = String.raw`(?:شخصا?(?:\s+حقيقيا?)?|انسانا?(?:\s+حقيقيا?)?|بشر|موظف[اهة]?|احد\s+(?:الموظفين|موظفيكم)|احدا|حدا|(?:احد|حد)(?=\s*(?:$|[.!?،,؟])|\s+(?:ي[${AR}]+|من\s))|مس[ؤئو]?ول[اهة]?|المس[ؤئو]?ول[هة]?|مدير[اهة]?|المدير[هة]?|مدير(?:ت)?(?:كم|ك)|خدم[هة]\s+العملاء|الدعم(?:\s+الفني)?|ممثلا?(?:\s+(?:عن|ل)?\s*(?:الشرك[هة]|خدم[هة]\s+العملاء))?|صاحب\s+(?:الشرك[هة]|المصنع|المحل))(?![${AR}])`;
+const AR_WHO = String.raw`(?:شخصا?(?:\s+حقيقيا?)?|انسانا?(?:\s+حقيقيا?)?|بشر|موظف[اهة]?|احد\s+(?:الموظفين|موظفيكم)|احدا|حدا|(?:احد|حد)(?=\s*(?:$|[.!?،,؟])|\s+(?:ي[${AR}]+|من\s))|مس[ؤئو]?ول[اهة]?|المس[ؤئو]?ول[هة]?|مدير[اهة]?|المدير[هة]?|مدير(?:ت)?(?:كم|ك)|خدم[هة]\s+العملاء|الدعم(?:\s+الفني)?|ممثلا?(?:\s+(?:عن|ل)?\s*(?:الشرك[هة]|خدم[هة]\s+العملاء))?|صاحب\s+(?:الشرك[هة]|المصنع|المحل)|البائع|بائعا?|(?:قسم\s+)?المبيعات)(?![${AR}])`;
 /**
  * The buyer's own side after the person: «في شركتي», «من فريقنا», «لدينا» — a
  * preposition and a word ending in «ي» (my) or «نا» (our). Wider than it needs
  * to be («في دبي» ends in «ي» too), which only ever sends a message to layer 2.
  */
 const AR_OWN = new RegExp(String.raw`^(?:\s+[${AR}]+){0,2}?\s+(?:في|من|لدي|عند|داخل|مع)\s+[${AR}]*(?:ي|نا)(?![${AR}])|^\s+(?:لدي|لدينا|عندي|عندنا|تبعي|تبعنا)(?![${AR}])`);
+
+/** Where an Arabic request can begin: the start or a stop, then perhaps "please". */
+const AR_START = String.raw`(?:^|[.!?،,؟؛:]\s*)(?:(?:من\s+فضلك|رجاء|رجاءا|لو\s+سمحت|لو\s+سمحتي|ارجو|نرجو|يرجي)\s+)?`;
+/**
+ * What may follow a call to the buyer when it is a request and not a report:
+ * «اتصل بي مديري أمس» (my manager called me yesterday) has a subject after it.
+ */
+const AR_CALL_TAIL = String.raw`(?=\s*(?:$|[.!?،,؟]|من\s+فضلك|رجاء|لو\s+سمحت|الان|الحين|حالا|غدا|بكره|بكرة|بعدين|علي\s+(?:الرقم|رقمي|الواتس|الواتساب|هذا|هاتفي|جوالي)|في\s+اقرب|[0-9٠-٩+]))`;
 
 const AR_FRAMES: readonly Framed[] = [
   // «أريد التحدث مع شخص حقيقي», «ابغى اكلم موظف», «ممكن اتواصل مع مسؤول», «أريد التحدث مع مديركم»
@@ -235,6 +288,21 @@ const AR_FRAMES: readonly Framed[] = [
   { re: new RegExp(String.raw`(?<![${AR}])(?:مدير|مس[ؤئو]?ول)(?:ت)?(?:كم|ك)(?![${AR}])|(?<![${AR}])(?:ال)?(?:مدير|مس[ؤئو]?ول)[هة]?(?:\s+(?:الشرك[هة]|المصنع|المبيعات))?\s+(?:عندكم|لديكم|لكم)(?![${AR}])`, 'g'), own: null },
   // «حولني على موظف», «وصلني بمسؤول»
   { re: new RegExp(String.raw`(?<![${AR}])(?:حولني|حولوني|وصلني|وصلوني|اوصلني)(?:\s+(?:علي|الي|مع)\s+|\s+[بل]|\s+)${AR_WHO}`, 'g'), own: AR_OWN },
+  // «اتصل بي», «كلمني على الواتساب», «رن علي الآن» — a call, which only a person makes
+  { re: new RegExp(String.raw`${AR_START}(?:اتصل|اتصلي|اتصلوا|اتصلو)\s+(?:بي|علي|عليا)${AR_CALL_TAIL}`, 'g'), own: null },
+  { re: new RegExp(String.raw`${AR_START}(?:كلمني|كلميني|كلموني|رني|رنوا\s+علي|رن\s+علي)${AR_CALL_TAIL}`, 'g'), own: null },
+  // «ممكن تتصل بي؟», «ممكن اتصال؟», «هل يمكن الاتصال بكم؟» — asking for a call, either way
+  { re: new RegExp(String.raw`${AR_NOT}(?:ممكن|هل\s+يمكن|هل\s+ممكن|يمكنكم|تقدر|تقدرون)\s+(?:تتصل|تتصلي|تتصلوا|تكلمني|تكلميني|تكلموني|الاتصال|اتصال|مكالم[هة])(?:\s+(?:بي|علي|بكم|عليكم|بك))?(?=\s*(?:$|[.!?،,؟]|من\s+فضلك|الان|غدا|علي|في))`, 'g'), own: null },
+  // «أريد شخصًا حقيقيًا», «أريد إنسانًا» — a real person, asked for outright
+  { re: new RegExp(String.raw`${AR_NOT}${AR_WANT_ONE}\s+(?:(?:شخصا|شخص|انسانا|انسان|بشرا|بشر)\s+حقيقيا?|انسانا|بشرا)(?![${AR}])`, 'g'), own: AR_OWN },
+  // «أريد موظف خدمة العملاء», «أريد موظفًا يرد علي» — one of their staff; never «أريد موظفين» (hiring)
+  { re: new RegExp(String.raw`${AR_NOT}${AR_WANT_ONE}\s+(?:موظفا?|موظف[هة])\s+(?:خدم[هة]\s+العملاء|المبيعات|من\s+(?:فريقكم|عندكم|الشرك[هة])|ي[${AR}]+)`, 'g'), own: AR_OWN },
+  // «هل يوجد أحد أتكلم معه؟» — is there someone to talk with
+  { re: new RegExp(String.raw`(?:هل\s+)?(?:يوجد|فيه|في|هل\s+من)\s+(?:احد|حد|شخص|موظف)\s+(?:اتكلم|اتحدث|اكلمه|اكلم|اتواصل|نتكلم|نتحدث|نكلم)`, 'g'), own: null },
+  // «أحتاج مساعدة من شخص حقيقي» — help only a person gives
+  { re: new RegExp(String.raw`(?<![${AR}])(?:ال)?مساعد[هة]\s+من\s+(?:شخص|انسان|موظف|بشر)(?:\s+حقيقي)?(?![${AR}])`, 'g'), own: AR_OWN },
+  // «لا أريد التحدث مع روبوت» — asking for the one thing a robot is not
+  { re: new RegExp(String.raw`(?:لا|مش|ما|مو)\s+(?:اريد|ابغي|ابغا|ابي|بدي|عايز|عاوز|احب)\s+(?:${AR_TALK}\s+(?:مع\s+)?|[بل])?(?:روبوت|الروبوت|بوت|البوت|الالة|اله|الة|مساعد\s+الي|الرد\s+الالي|رد\s+الي)(?![${AR}])`, 'g'), own: null },
 ];
 
 const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES];
