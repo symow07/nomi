@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { asksForPerson, detectSignals } from '../../src/core/scoring/detect.js';
+import { asksForPerson, detectSignals, shopOpener } from '../../src/core/scoring/detect.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import { computeScores, needsHandoff } from '../../src/core/scoring/signals.js';
 import { emptyState } from '../parity/fixtures.js';
 import {
   THE_FIVE_MISSES, REQUESTS, OTHER_MEANINGS, OWN_SIDE, PASSING, DECLINED, ABOUT_THE_ASSISTANT, LEFT_TO_LAYER_TWO,
+  OPENERS, OPENERS_WITH_MORE, NOT_OPENERS, PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS,
   type Lang,
 } from './person-corpus.js';
 
@@ -63,6 +64,10 @@ describe('the corpus holds every group in every language', () => {
       expect(OTHER_MEANINGS[l].length, `other meanings ${l}`).toBeGreaterThanOrEqual(5);
       expect(OWN_SIDE[l].length, `own side ${l}`).toBeGreaterThanOrEqual(5);
       expect(PASSING[l].length, `passing ${l}`).toBeGreaterThanOrEqual(10);
+      expect(OPENERS[l].length, `openers ${l}`).toBeGreaterThanOrEqual(8);
+      expect(OPENERS_WITH_MORE[l].length, `openers with more ${l}`).toBeGreaterThanOrEqual(2);
+      expect(NOT_OPENERS[l].length, `not openers ${l}`).toBeGreaterThanOrEqual(3);
+      expect(PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS[l].length, `plain asks ${l}`).toBeGreaterThanOrEqual(2);
     }
   });
 });
@@ -218,6 +223,81 @@ describe('layer 2 · what layer 1 leaves, the analyser decides', () => {
   it('a deletion request is still its own reason, beside either answer', () => {
     expect(kinds('Please delete my data', analysis(null))).toEqual(expect.arrayContaining(['deletion_requested', 'not_answered']));
     expect(kinds('Please delete my data', analysis(false))).toEqual(['deletion_requested']);
+  });
+});
+
+// ── A shop's opener, in both states (the owner's decision, 2026-09-28) ─────────
+
+/** Before the disclosure went out in the conversation, and after it. */
+const BEFORE = emptyState();
+const AFTER = emptyState({ aiDisclosedAt: new Date('2026-07-14T03:00:00Z') });
+const signalsIn = (text: string, state: typeof BEFORE, a: Analysis | null): string[] =>
+  detectSignals({ text, state, analysis: a, unitPrice: null }).map((s) => s.kind);
+
+describe("a shop's opener — answered as the opener, a request after the disclosure", () => {
+  for (const [lang, rows] of Object.entries(OPENERS)) {
+    for (const [text, why] of rows) {
+      it(`${lang} · ${why}: ${JSON.stringify(text)}`, () => {
+        expect(shopOpener(text), text).toBe('only');
+        // As the opener: not layer 1's, and a model that says "a person" is set aside — so is one
+        // whose answer could not be read.
+        expect(signalsIn(text, BEFORE, null), text).not.toContain('human_requested');
+        expect(signalsIn(text, BEFORE, analysis(true)), text).not.toContain('human_requested');
+        expect(signalsIn(text, BEFORE, analysis(null)), text).not.toContain('not_answered');
+        // After the disclosure: a request, at layer 1 — no analysis needed, and none undoes it.
+        expect(signalsIn(text, AFTER, null), text).toContain('human_requested');
+        expect(signalsIn(text, AFTER, analysis(false)), text).toContain('human_requested');
+      });
+    }
+  }
+
+  for (const [lang, texts] of Object.entries(OPENERS_WITH_MORE)) {
+    for (const text of texts) {
+      it(`${lang} · an opener and more — the model reads the rest first, a request after: ${JSON.stringify(text)}`, () => {
+        expect(shopOpener(text), text).toBe('within');
+        expect(signalsIn(text, BEFORE, null), text).not.toContain('human_requested');
+        expect(signalsIn(text, BEFORE, analysis(true)), text).toContain('human_requested');
+        expect(signalsIn(text, BEFORE, analysis(false)), text).not.toContain('human_requested');
+        expect(signalsIn(text, AFTER, null), text).toContain('human_requested');
+      });
+    }
+  }
+
+  for (const [lang, rows] of Object.entries(NOT_OPENERS)) {
+    for (const [text, why] of rows) {
+      it(`${lang} · not an opener (${why}), in either state: ${JSON.stringify(text)}`, () => {
+        expect(shopOpener(text), text).toBeNull();
+        for (const state of [BEFORE, AFTER]) {
+          expect(signalsIn(text, state, null), text).not.toContain('human_requested');
+          expect(signalsIn(text, state, analysis(false)), text).not.toContain('human_requested');
+        }
+      });
+    }
+  }
+
+  for (const [lang, texts] of Object.entries(PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS)) {
+    for (const text of texts) {
+      it(`${lang} · a plain ask hands off on the first message, before any disclosure: ${JSON.stringify(text)}`, () => {
+        expect(asksForPerson(text), text).toBe(true);
+        expect(signalsIn(text, BEFORE, analysis(false)), text).toContain('human_requested');
+      });
+    }
+  }
+
+  it('no request, and nothing else in the corpus, is taken for an opener', () => {
+    const rest = [
+      ...Object.values(REQUESTS).flat(),
+      ...[OTHER_MEANINGS, OWN_SIDE, LEFT_TO_LAYER_TWO].flatMap((g) => Object.values(g).flat().map(([t]) => t)),
+      ...Object.values(PASSING).flat(), ...Object.values(DECLINED).flat(), ...Object.values(ABOUT_THE_ASSISTANT).flat(),
+    ];
+    expect(rest.filter((t) => shopOpener(t) !== null)).toEqual([]);
+  });
+
+  it('a deletion request beside an opener is still one, in either state', () => {
+    for (const state of [BEFORE, AFTER]) {
+      expect(signalsIn('客服在吗？请删除我的数据', state, analysis(false))).toContain('deletion_requested');
+      expect(signalsIn('Is anyone there? Please delete my data', state, analysis(false))).toContain('deletion_requested');
+    }
   });
 });
 

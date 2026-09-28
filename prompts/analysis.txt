@@ -78,6 +78,7 @@ wants_person: is the client asking to reach a PERSON on the BUSINESS's side? Alw
   - a name, or how to address them: "you can call me Ahmed", "叫我小王就行", "اسمي أحمد"
   - a product, a material or another meaning of the word: "human hair wigs", "我们在找人工成本低的工厂" (low labour cost), "这道工序需要人工" (done by hand), "اريد احدث موديل" (the newest model), "أريد أحد هذه الموديلات" (one of these models)
   - a question about what they are talking to, on its own: "are you a bot?", "am I talking to a real person?", "你是机器人吗？", "هل أنت إنسان؟" — false, unless they also ask for a person ("are you a bot? I want a real person" is true)
+  - a greeting that opens a chat by asking whether the shop, its customer service or anyone is there: "客服在吗", "老板在吗", "有人吗", "Is anyone there?", "فيه أحد؟" — that part asks for nobody; judge the rest of the message ("客服在吗？这个包多少钱" is false, "客服在吗？我要跟真人说" is true)
 - When you cannot tell whether they want a person on the business's side, answer true: a missed request loses the client, an unneeded one costs the owner a minute.
 
 product_candidates: Rank by confidence descending. Include at most 3. If no match from catalog, return empty array. Do not invent products not in the catalog.

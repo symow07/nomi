@@ -13,8 +13,9 @@
  *   3. OWN_SIDE — people on the BUYER's side, or a name, or a report of a call.
  *      Layer 1 stays out; layer 2 reads them.
  * Around them: ordinary chat that shares the words, a person declined, a
- * question about what they are talking to, and the few asks left to layer 2
- * on purpose because they are as often a greeting.
+ * question about what they are talking to, the few asks left to layer 2 on
+ * purpose — and a shop's opener (客服在吗), held in both states: answered as
+ * the opener, handed off when asked again after the disclosure.
  */
 
 export type Lang = 'en' | 'zh' | 'ar';
@@ -81,6 +82,8 @@ export const REQUESTS: Record<Lang, readonly string[]> = {
     '我要人工！',
     '帮我找个人工',
     '帮我转接客服',
+    '人工在吗',        // the human agent, asked for — not 客服在吗, a shop's opener
+    '真人在不在',
     // A real person.
     '找真人',
     '能不能找个真人',
@@ -318,18 +321,118 @@ export const ABOUT_THE_ASSISTANT: Record<Lang, readonly string[]> = {
 };
 
 /**
- * Asks left to layer 2 ON PURPOSE: as often a greeting or a trade term as a
- * request, so the model reads them (and, unsure, answers true).
+ * Asks left to layer 2 ON PURPOSE: only the meaning says it, so the model
+ * reads them (and, unsure, answers true).
  */
 export const LEFT_TO_LAYER_TWO: Record<Lang, readonly [string, string][]> = {
-  en: [['Is anyone there?', 'a greeting as often as an ask'],
-       ['Hello?? Is anybody actually reading these messages?', 'only the meaning says it'],
+  en: [['Hello?? Is anybody actually reading these messages?', 'only the meaning says it'],
        ['Honestly I would prefer that Mr. Wang handles my order himself', 'a named person, no word on any list']],
-  zh: [['客服在吗', 'the everyday greeting to a shop'], ['有人吗', 'anyone there? — a greeting as often']],
-  ar: [['فيه أحد يرد؟', 'anyone there? — a greeting as often'], ['أريد مندوب مبيعات', 'a sales rep — or appointing one']],
+  zh: [['有没有人能帮我？', 'someone who can help — more than a greeting']],
+  ar: [['أريد مندوب مبيعات', 'a sales rep — or appointing one']],
 };
 
-/** Every non-request, flattened: what layer 1 must never fire on. */
+/**
+ * A SHOP'S OPENER (the owner's decision, 2026-09-28): a greeting aimed at a
+ * shop, not a request for a named human. Held in BOTH states:
+ *   · as the opener — the disclosure not yet sent in the conversation — it is
+ *     answered, whatever the model says, and the disclosure goes with the reply;
+ *   · as a repeat AFTER the disclosure went out, it is a real request and hands
+ *     off at layer 1, before any model. A second ask is not an opener.
+ * [text, why]
+ */
+export const OPENERS: Record<Lang, readonly [string, string][]> = {
+  en: [
+    ['Is anyone there?', 'anyone there — the greeting'],
+    ['Anyone there?', 'the same, shorter'],
+    ['Hello, is anybody there?', 'with a hello'],
+    ['Hi there! Anyone around?', 'around'],
+    ['Is someone there?', 'someone'],
+    ['Hello? Anyone?', 'a ping'],
+    ['Good morning, is anyone available?', 'available'],
+    ['Is there anyone?', 'is there anyone'],
+    ['Is customer service available?', 'the service, asked whether it is there — 客服在吗 in English'],
+  ],
+  zh: [
+    ['客服在吗', 'the everyday greeting to a shop'],
+    ['客服在吗？', 'the same, asked'],
+    ['你好，客服在吗？', 'with a hello'],
+    ['请问客服在吗', 'with 请问'],
+    ['亲，客服在不在', '在不在 — the same question'],
+    ['你们客服在吗', 'your customer service — the shop'],
+    ['客服在线吗', 'online?'],
+    ['客服在吗🙏', 'with an emoji'],
+    ['老板在吗', 'the shopkeeper — how a buyer addresses any shop'],
+    ['掌柜在吗？', 'the shopkeeper'],
+    ['店家在吗', 'the shop'],
+    ['有人吗', 'anyone there?'],
+    ['有人在吗？', 'anyone there?'],
+    ['有没有人', 'anyone?'],
+    ['在吗在吗，有人吗', 'pinging'],
+    ['您好，请问有人在吗', 'politely'],
+  ],
+  ar: [
+    ['فيه أحد؟', 'anyone there?'],
+    ['فيه أحد يرد؟', 'anyone to answer?'],
+    ['في حد؟', 'anyone? — the dialect'],
+    ['هل يوجد أحد؟', 'is there anyone?'],
+    ['مرحبا، هل يوجد أحد هنا؟', 'with a hello'],
+    ['السلام عليكم، فيه أحد؟', 'with a greeting'],
+    ['أحد موجود؟', 'anyone present?'],
+    ['حد موجود؟', 'the same, the dialect'],
+    ['هل من أحد؟', 'is there anyone?'],
+    ['هل خدمة العملاء موجودة؟', 'customer service there? — 客服在吗 in Arabic'],
+  ],
+};
+
+/**
+ * An opener and more: the opener asks for nobody, so before the disclosure the
+ * model reads the rest (and decides); after it, the opener is a request and
+ * hands off at layer 1 like the bare one.
+ */
+export const OPENERS_WITH_MORE: Record<Lang, readonly string[]> = {
+  en: ['Hi, is anyone there? I have a question about the price', 'Anyone there? Do you ship to Kenya?'],
+  zh: ['客服在吗？这个包多少钱', '老板在吗，还有现货吗', '有人吗？我想问一下起订量'],
+  ar: ['فيه أحد؟ أريد أعرف السعر', 'السلام عليكم، هل يوجد أحد؟ كم سعر هذا؟'],
+};
+
+/**
+ * Near an opener, and not one: addressed to whoever answers (the assistant),
+ * or the words in a sentence. Never handed off by the words, in either state.
+ * [text, why]
+ */
+export const NOT_OPENERS: Record<Lang, readonly [string, string][]> = {
+  en: [
+    ['Are you there?', 'addressed to whoever answers'],
+    ['Hello?', 'a hello'],
+    ['Is anyone there able to ship by Friday?', 'a question about shipping, in one clause'],
+    ['Someone there told me the price was lower', "'someone there' inside a sentence"],
+  ],
+  zh: [
+    ['在吗', 'addressed to whoever answers'],
+    ['亲，在吗？', 'the same'],
+    ['客服在哪里', 'where — a question'],
+    ['有人说你们的质量不好', 'someone said'],
+    ['我们公司没有人在', 'nobody at their own company'],
+    ['老板在开会', 'the boss is in a meeting'],
+  ],
+  ar: [
+    ['موجود؟', 'addressed to whoever answers'],
+    ['في أحد المصانع رأيت هذا المنتج', '«في أحد» — in one of the factories'],
+    ['هل يوجد أحد الألوان بالأزرق؟', '«يوجد أحد» — one of the colours'],
+  ],
+};
+
+/**
+ * A plain ask, however much it looks like an opener: layer 1's, handed off on
+ * the FIRST message, before any disclosure. The opener rule never reaches it.
+ */
+export const PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS: Record<Lang, readonly string[]> = {
+  en: ['Is anyone there? I want to speak to a real person', 'Anyone there? Can I talk to someone?'],
+  zh: ['人工在吗', '真人在不在', '客服在吗？转人工', '有人吗？我要找人工客服'],
+  ar: ['فيه أحد؟ أريد التحدث مع شخص حقيقي', 'هل يوجد أحد أتكلم معه؟'],
+};
+
+/** Every non-request, flattened: what layer 1 must never fire on (before any disclosure). */
 export const NEVER_LAYER_ONE = (): readonly string[] => [
   ...Object.values(OTHER_MEANINGS).flat().map(([t]) => t),
   ...Object.values(OWN_SIDE).flat().map(([t]) => t),
@@ -337,4 +440,7 @@ export const NEVER_LAYER_ONE = (): readonly string[] => [
   ...Object.values(DECLINED).flat(),
   ...Object.values(ABOUT_THE_ASSISTANT).flat(),
   ...Object.values(LEFT_TO_LAYER_TWO).flat().map(([t]) => t),
+  ...Object.values(OPENERS).flat().map(([t]) => t),
+  ...Object.values(OPENERS_WITH_MORE).flat(),
+  ...Object.values(NOT_OPENERS).flat().map(([t]) => t),
 ];
