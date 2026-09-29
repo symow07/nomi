@@ -1,3 +1,4 @@
+import type { PendingQuestion } from '../../core/types/conversation.js';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import { sql } from 'kysely';
@@ -24,7 +25,7 @@ import {
   defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, ordersWaitingCount, type LiveKind,
 } from './live.js';
 import {
   loadChannels, renderChannels, renderConnectGuide, channelFlash,
@@ -124,6 +125,7 @@ import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../
 import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
 import { applyOwnerCommand } from '../../pipeline/approve.js';
+import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposal.js';
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -264,8 +266,11 @@ export type WebDeps = {
    */
   readonly connectableNumber?: string | null;
   readonly secureCookie: boolean;      // Secure flag (prod = true)
-  /** The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
+  /**
+   * The EXISTING outbound path (main.ts: boss.send(QUEUES.outbound, …)).
+   * 0080 — `asks`: the question the reply asks, stamped when it leaves.
+   */
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void>;
   /** M16.1: the bare re-drive tick (boss.send(QUEUES.outbound, {businessId, conversationId}))
    *  so an owner takeover reply, once enqueued, is delivered by the same worker. */
   readonly kickDrive?: (businessId: string, conversationId: string) => Promise<void>;
@@ -1539,7 +1544,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
       }, renderInsights(insights, locale)),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
-      live: liveRegion(locale, todayWatch(todayMark(snapshot.attention))),
+      live: liveRegion(locale, { ...todayWatch(todayMark(snapshot.attention)), orders: snapshot.attention.ordersWaiting ?? 0 }),
     };
   }));
 
@@ -1572,7 +1577,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // M47 — so the list can name WHICH human holds each conversation.
       bodyHtml: renderInboxList(data, locale, new Date(), await loadPeople(deps.db, s.businessId)),
       // The door: the first page of the tab and the search she is on — where the newest lands.
-      ...(mark ? { live: liveRegion(locale, buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' }))) } : {}),
+      ...(mark && bid.ok ? { live: liveRegion(locale, {
+        ...buyersWatch(mark, buyersHref({ ...(chosen ? { filter: chosen } : {}), q: data.query ?? '' })),
+        orders: await ordersWaitingCount(deps.db, bid.value),
+      }) } : {}),
     }));
   });
 
@@ -1608,7 +1616,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       bodyHtml: withAssistantName(detail.assistantName, () =>
         renderConversationDetail(withProof, locale, now, flash, personOf(s))),
       // CC-26 — and its line names the same assistant.
-      ...(mark ? { live: withAssistantName(detail.assistantName, () => liveRegion(locale, conversationWatch(conversationId, mark))) } : {}),
+      ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
+        withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark), orders }))) } : {}),
     }));
   });
 
@@ -1637,7 +1646,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const q = (req.query ?? {}) as { since?: unknown };
     const id = String((req.params as { conversationId?: string } | undefined)?.conversationId ?? '');
     const answer = await liveAnswer(deps.db, bid.value, kind, q.since, id);
-    return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
+    return reply.code(answer.status).header('cache-control', 'no-store')
+      .send(answer.orders === undefined ? answer.said : { ...answer.said, orders: answer.orders });
   };
   // Asked three times a minute by every open tab: its request lines would bury
   // the log. A fault is still written (an error is above `warn`).
@@ -1711,6 +1721,52 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // M47 — whoever is signed in takes it, by name.
     const r = await takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     return takeoverFlash(reply, cid, r.outcome);
+  });
+
+  /**
+   * 0080 — THE OWNER'S TAP ON AN ORDER a customer said yes to.
+   *
+   * Confirm: the order is created and only then is the customer told, through
+   * the same outbound path as an approved draft — so the questions the draft
+   * route asks are asked here too. A customer who cannot be reached right now
+   * (their window is shut, or they are not on the pilot list) is not told a
+   * confirmation that would be refused: the order keeps waiting and the owner
+   * is told why. Not live at all: the order is recorded, and the owner is told
+   * that nothing was sent.
+   *
+   * Step in: the proposal is set aside and the conversation is the owner's.
+   * Neither is owner-only (core/conversation/people.ts: staff record orders).
+   */
+  app.post('/app/inbox/:conversationId/order/confirm', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    const proposalId = String((req.body as { proposalId?: string } | undefined)?.proposalId ?? '');
+    if (!bid.ok || !proposalId) return reply.redirect(conversationUrl(cid));
+    const verdict = await ownerSendVerdict(bid.value, cid);
+    if (verdict === 'window_closed' || verdict === 'not_allowlisted') {
+      return flashTo(reply, conversationUrl(cid), `inbox.blocked.${verdict}` as MessageKey);
+    }
+    const notLive = !messagingEnabled || verdict === 'not_activated' || verdict === 'not_connected';
+    const r = await confirmOrderProposal(
+      { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
+      { businessId: bid.value, conversationId: cid, proposalId, decidedBy: personOf(s).id },
+    );
+    const key: MessageKey = r.outcome === 'confirmed' && notLive
+      ? 'order.flash.confirmedNotLive'
+      : `order.flash.${r.outcome}` as MessageKey;
+    return flashTo(reply, conversationUrl(cid), key);
+  });
+
+  app.post('/app/inbox/:conversationId/order/step-in', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    const proposalId = String((req.body as { proposalId?: string } | undefined)?.proposalId ?? '');
+    if (!bid.ok || !proposalId) return reply.redirect(conversationUrl(cid));
+    const r = await stepIntoOrder({ db: deps.db, now: () => new Date() },
+      { businessId: bid.value, conversationId: cid, proposalId, decidedBy: personOf(s).id });
+    return flashTo(reply, conversationUrl(cid), `order.flash.${r.outcome}` as MessageKey);
   });
 
   /**

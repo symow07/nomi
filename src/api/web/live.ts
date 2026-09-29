@@ -79,7 +79,7 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const MARK: Record<LiveKind, RegExp> = {
   conversation: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   buyers: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
-  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){4}$`),
+  today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}$`),
 };
 
 /** Is this a mark of this kind, as a page would carry it? */
@@ -180,11 +180,25 @@ export async function buyersMark(db: Db, bid: BusinessId): Promise<string> {
  * Today's mark: the attention counts, in `readAttention`'s order. A snapshot
  * built before 0076 has no deletion count; it had none to show.
  */
-export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks'> & { readonly deletionAsks?: number }): string =>
-  [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0].join('.');
+export const todayMark = (a: Omit<AttentionCounts, 'deletionAsks' | 'ordersWaiting'> & {
+  readonly deletionAsks?: number; readonly ordersWaiting?: number;
+}): string =>
+  [a.pendingApprovals, a.handoffs, a.ownerHandling, a.blockedMessages, a.deletionAsks ?? 0, a.ordersWaiting ?? 0].join('.');
+
+/**
+ * 0080 — how many orders customers said yes to are waiting for the owner, in
+ * the whole business. Every live answer carries it, whichever page asked, so a
+ * page left open anywhere can tell the owner — in the browser, when they asked
+ * for that — that a new one arrived (liveScript.ts).
+ */
+export async function ordersWaitingCount(db: Db, bid: BusinessId): Promise<number> {
+  return withTenantTx(db, bid, async (tx) => (await sql<{ n: number }>`
+    select count(*)::int as n from order_proposals
+     where business_id = ${bid} and state = 'pending'`.execute(tx)).rows[0]?.n ?? 0);
+}
 
 /** What the address answers: the status, and what the page's script is told. */
-export type LiveAnswer = { readonly status: 200 | 400 | 404; readonly said: LiveSaid };
+export type LiveAnswer = { readonly status: 200 | 400 | 404; readonly said: LiveSaid; readonly orders?: number };
 
 /**
  * The address a watching page asks. The session has already said whose
@@ -201,7 +215,7 @@ export async function liveAnswer(
     : kind === 'buyers' ? await buyersMark(db, bid)
     : todayMark(await readAttention(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
-  return { status: 200, said: liveNews(kind, since, now) };
+  return { status: 200, said: liveNews(kind, since, now), orders: await ordersWaitingCount(db, bid) };
 }
 
 /** A conversation watches its own address; the door lands on its newest message (CC-25). */

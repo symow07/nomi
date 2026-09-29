@@ -152,24 +152,27 @@ $(qf "with t as (
              (select count(*) from pg_policy p where p.polrelid=c.oid) as pol,
              exists(select 1 from information_schema.columns col
                      where col.table_schema='public' and col.table_name=c.relname
-                       and col.column_name='business_id') as bid
+                       and col.column_name='business_id') as bid,
+             has_table_privilege('$RUNTIME_ROLE', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as reachable
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
        where n.nspname='public' and c.relkind='r')
     select count(*)||'|'||count(*) filter (where bid)||'|'||
            count(*) filter (where bid and not rls)||'|'||
-           count(*) filter (where bid and rls and pol=0) from t")
+           count(*) filter (where bid and rls and pol=0 and reachable) from t")
 EOF
-# A table WITHOUT a business_id that has RLS on and no policy is deny-all by
-# design (signup_invites, login_codes — reached only through security-definer
-# functions, since 0055). Reported, never counted against the restore: the
-# failure this check exists for is a TENANT table that came back open.
+# A table that has RLS on, no policy and NOTHING granted to the runtime role
+# is deny-all by design: reached only through security-definer functions
+# (signup_invites and login_codes since 0055; login_setups since 0078, which
+# carries a business_id so the erasure tools find its rows). Reported, never
+# counted against the restore: the failure this check exists for is a TENANT
+# table the runtime role can touch that came back with no policy. Counting by
+# "has a business_id" alone failed the drill on every backup once 0078 came.
 DENY_ALL="$(qf "select coalesce(string_agg(c.relname, ',' order by c.relname), '')
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='public' and c.relkind='r' and c.relrowsecurity
      and not exists (select 1 from pg_policy p where p.polrelid=c.oid)
-     and not exists (select 1 from information_schema.columns col
-                      where col.table_schema='public' and col.table_name=c.relname and col.column_name='business_id')")"
-[ -n "$DENY_ALL" ] && echo "      deny-all by design (no business_id, no policy): $DENY_ALL"
+     and not has_table_privilege('$RUNTIME_ROLE', c.oid, 'SELECT,INSERT,UPDATE,DELETE')")"
+[ -n "$DENY_ALL" ] && echo "      deny-all by design (RLS on, no policy, nothing granted to $RUNTIME_ROLE): $DENY_ALL"
 # The count was pinned at 40 when this was written (schema 25) and every
 # migration since has added tables; the invariant is not the number but that
 # EVERY business_id table came back with RLS on and at least one policy.

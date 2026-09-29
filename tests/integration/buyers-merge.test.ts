@@ -173,7 +173,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const one = listed(first.body);
     expect(door(first.body, 'back')).toBeNull();
     const next = door(first.body, 'deeper');
-    expect(next).toMatch(/^\/app\/inbox\?filter=all&after=[0-6]_(n|-?\d+)_[0-9a-f-]{36}$/);
+    expect(next).toMatch(/^\/app\/inbox\?filter=all&after=[0-7]_(n|-?\d+)_[0-9a-f-]{36}$/);
 
     const second = await get(next!);
     expect(second.statusCode).toBe(200);
@@ -226,7 +226,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
       }
     }
     // a cursor past the end of the list (the lowest possible place) comes back to the first page
-    const r = await get(`/app/inbox?filter=all&after=6_n_00000000-0000-4000-8000-000000000000`);
+    const r = await get(`/app/inbox?filter=all&after=7_n_00000000-0000-4000-8000-000000000000`);
     expect(listed(r.body)).toEqual(first);
   });
 

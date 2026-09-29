@@ -153,6 +153,24 @@ export class FakeTenant implements Tenant {
     latestForClient: async () => this.latestOrder,
   };
 
+  /**
+   * 0080 — what customers said yes to. One waiting per conversation, like the
+   * unique index it stands in for; `orderWaiting` lets a test set one directly.
+   */
+  orderProposals_: Array<{ proposalId: string; conversationId: string; messageId: string; order: Parameters<OrderRepo['create']>[1] }> = [];
+  orderWaiting = false;
+  orderProposals: import('../../src/db/ports.js').OrderProposalRepo = {
+    propose: async ({ conversationId, messageId, order }) => {
+      const waiting = this.orderProposals_.find((x) => x.conversationId === (conversationId as string));
+      if (waiting) return { proposalId: waiting.proposalId, fresh: false };
+      const proposalId = `proposal-${this.orderProposals_.length + 1}`;
+      this.orderProposals_.push({ proposalId, conversationId: conversationId as string, messageId, order });
+      return { proposalId, fresh: true };
+    },
+    waiting: async (conversationId) =>
+      this.orderWaiting || this.orderProposals_.some((x) => x.conversationId === (conversationId as string)),
+  };
+
   signals: SignalRepo = {
     unresolved: async (id) => this.signalRows.get(id) ?? [],
     record: async (id, signal) => {
@@ -218,6 +236,8 @@ export class FakeTenant implements Tenant {
     draftId: string; conversationId: string; capability: string; draftText: string;
     /** 0067 — a disclosure went to the buyer instead of this text. */
     replacedByDisclosure: boolean;
+    /** 0080 — the question it asks, set only if it is sent unchanged. */
+    asks: string | null;
   }> = [];
   private draftSeq = 0;
 
@@ -258,6 +278,7 @@ export class FakeTenant implements Tenant {
         draftId, conversationId: input.conversationId as string,
         capability: input.capability, draftText: input.draftText,
         replacedByDisclosure: input.replacedByDisclosure ?? false,
+        asks: input.asks ?? null,
       });
       return { draftId };
     },

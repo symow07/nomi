@@ -20,9 +20,11 @@ import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKin
 import { isHoldReason, type HoldReason } from '../../core/conversation/hold.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import { waitingAskOf } from '../../db/deletionAsks.js';
+import { pendingProposalOf, type PendingProposal } from '../../db/orderProposals.js';
+import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
-import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, type BuyersFilter } from '../../db/buyersList.js';
+import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,6 +105,8 @@ export type ConversationSummary = {
    * Optional so a summary built before 0076 still types.
    */
   readonly deletionWaiting?: boolean;
+  /** 0080 — a customer said yes to an order and it waits for the owner's tap. Absent = none. */
+  readonly orderWaiting?: boolean;
   readonly latestMessage: string | null;
   /** A — the last contact: when the newest message was written, either way. */
   readonly latestAt: Date | null;
@@ -193,7 +197,7 @@ export async function loadInboxList(
       assigned_to: string | null; closed_at: Date | null;
       last_text: string | null; last_dir: string | null; last_at: Date | null; last_origin: string | null;
       pending: number; unit_price: string | null; quote_currency: string | null; handoff_reason: string | null;
-      answered_by: string | null; assistants: number; deletion_waiting: boolean;
+      answered_by: string | null; assistants: number; deletion_waiting: boolean; order_waiting: boolean;
     }>`
       select c.id::text as id, cl.display_name as buyer, cl.country, c.channel,
              coalesce(
@@ -212,7 +216,8 @@ export async function loadInboxList(
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
              q.unit_price_usd as unit_price, q.currency as quote_currency,
              sig.kind as handoff_reason,
-             ${DELETION_WAITING} as deletion_waiting
+             ${DELETION_WAITING} as deletion_waiting,
+             ${ORDER_WAITING} as order_waiting
         from conversations c
         left join clients cl on cl.id = c.client_id
         left join conversation_state cs on cs.conversation_id = c.id
@@ -247,6 +252,7 @@ export async function loadInboxList(
         awaitingReview: r.pending > 0,
         handoffReason: r.handoff_reason,
         deletionWaiting: r.deletion_waiting,
+        orderWaiting: r.order_waiting,
         latestMessage: r.last_text, latestAt: r.last_at,
         product: { name: r.name, nameZh: r.name_zh }, quantity: r.qty ?? null,
         // G18 — in the currency the quote was made in. Rebuilding it as dollars
@@ -568,6 +574,11 @@ export type ConversationDetail = {
    */
   readonly deletionAsk?: { readonly askedAt: Date } | null;
   readonly deletionRecorded?: { readonly askedAt: Date } | null;
+  /**
+   * 0080 — the order this customer said yes to, waiting for the owner's tap.
+   * Optional so a detail built before 0080 (a fixture, the sandbox) still types.
+   */
+  readonly orderProposal?: PendingProposal | null;
   /** M34 — why a voice note could not be heard, when one could not. */
   readonly unheardReason: string | null;
   /**
@@ -825,6 +836,7 @@ export async function loadConversationDetail(
       deletionAsk: await waitingAskOf(tx, conversationId).then((a) => (a ? { askedAt: a.askedAt } : null)),
       deletionRecorded: await buyerDeletionOf(tx, conversationId)
         .then((r) => (r?.state === 'open' ? { askedAt: r.askedAt } : null)),
+      orderProposal: await pendingProposalOf(tx, conversationId),
       unheardReason,
       unreadable,
       rate: await loadCurrentRate(tx, bid.value),
@@ -999,13 +1011,19 @@ export function renderInboxList(
   // 0076 — a buyer who asked for their data to be deleted is not one more
   // hand-off in the pile: their own group, first and always headed, whoever
   // holds the conversation, until the owner decides on the buyer's page.
-  const deletion = data.conversations.filter((c) => c.deletionWaiting === true);
-  const rest     = data.conversations.filter((c) => !deletion.includes(c));
+  //
+  // 0080 — and before them, a customer who said yes to an order: nothing was
+  // confirmed or sent, and it waits for the owner's tap. First and always
+  // headed, like the deletion group, whoever holds the conversation.
+  const orders   = data.conversations.filter((c) => c.orderWaiting === true);
+  const deletion = data.conversations.filter((c) => !orders.includes(c) && c.deletionWaiting === true);
+  const rest     = data.conversations.filter((c) => !orders.includes(c) && !deletion.includes(c));
   const needsYou = rest.filter((c) => c.ownership === 'WAITING_HUMAN' || c.awaitingReview);
   const yours    = rest.filter((c) => c.ownership === 'OWNER_CONTROLLED' && !needsYou.includes(c));
   const hers     = rest.filter((c) => !needsYou.includes(c) && !yours.includes(c));
 
   const badge = (c: ConversationSummary): string => {
+    if (c.orderWaiting) return `<span class="tag now">${esc(t(locale, 'buyers.badge.order'))}</span>`;
     if (c.ownership === 'WAITING_HUMAN') {
       // Say the reason that was STORED. Asserting "asked for a person" for a
       // complaint or an unclear photo invents a fact about the buyer — on the
@@ -1074,6 +1092,7 @@ export function renderInboxList(
       </nav>` : '';
 
   return `${head}
+    ${group(t(locale, 'buyers.group.order'), orders, true)}
     ${group(t(locale, 'buyers.group.deletion'), deletion, true)}
     ${group(t(locale, 'buyers.group.needsYou'), needsYou)}
     ${group(t(locale, people.length > 1 ? 'buyers.group.team' : 'buyers.group.yours'), yours)}
@@ -1175,6 +1194,51 @@ function headerPill(d: ConversationDetail, locale: Locale, viewer: Viewer): stri
 }
 
 /** M16.1/M16.2c — the human control surface, driven purely by ownership. */
+/**
+ * 0080 — THE ORDER A CUSTOMER SAID YES TO, waiting for the owner's tap.
+ *
+ * First on the page's list of things to do, because nothing else is decided
+ * until it is: exactly what they said yes to, that nothing has been confirmed
+ * or sent, the sentence they will be sent when the owner confirms (the
+ * reference is only known then), and the owner's two answers — confirm it, or
+ * step into the conversation and answer them in their own words. Both are
+ * buttons in forms that post: each changes something.
+ */
+function orderCard(d: ConversationDetail, locale: Locale): string {
+  const p = d.orderProposal;
+  if (!p) return '';
+  const cid = encodeURIComponent(d.conversationId);
+  const fields: readonly (readonly [MessageKey, string])[] = [
+    ['order.field.product', p.productName],
+    ['order.field.quantity', formatQtyUnit(locale, p.quantity, p.unit)],
+    ['order.field.total', formatMoney(p.total)],
+    ['order.card.email', p.email],
+    ...(p.paymentTerms ? [['order.card.terms', p.paymentTerms] as const] : []),
+  ];
+  const willSend = orderConfirmedReply({
+    orderReference: t(locale, 'order.card.reference'),
+    productName: p.productName, quantity: p.quantity, unit: p.unit,
+  });
+  return `<div class="card draft order" role="region" id="order">
+      <h2>${esc(t(locale, 'order.card.title'))}</h2>
+      <p class="muted review-intro">${esc(t(locale, 'order.card.intro'))}</p>
+      <ul class="rows">${fields.map(([k, v]) => `<li class="row"><span class="muted">${esc(t(locale, k))}</span> <bdi>${esc(v)}</bdi></li>`).join('')}</ul>
+      <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
+      <div dir="auto" class="proposed"><bdi>${esc(willSend)}</bdi></div>
+      <div class="acts">
+        <form method="post" action="/app/inbox/${cid}/order/confirm" class="inline">
+          <input type="hidden" name="proposalId" value="${esc(p.id)}" />
+          <button class="btn send" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
+        </form>
+        <form method="post" action="/app/inbox/${cid}/order/step-in" class="inline">
+          <input type="hidden" name="proposalId" value="${esc(p.id)}" />
+          <button class="btn" type="submit">${esc(t(locale, 'order.action.stepIn'))}</button>
+        </form>
+      </div>
+      <p class="muted revoke-note">${esc(t(locale, 'order.action.stepIn.note'))}</p>
+    </div>`;
+}
+
 function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: Viewer): string {
   const cid = encodeURIComponent(d.conversationId);
   const reasons = d.handoffReasons.length
@@ -1587,6 +1651,7 @@ export function renderConversationDetail(
    * would sit directly under the wrong question.
    */
   const acts = older ? '' : `
+    ${orderCard(d, locale)}
     ${d.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${takeoverCard(d, locale, now, viewer)}
     ${d.ownership === 'OWNER_CONTROLLED' || d.pendingDraft ? '' : noDraft}

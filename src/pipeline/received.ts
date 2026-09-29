@@ -109,7 +109,7 @@ export async function handToPerson(
   await tenant.events.append(conversationId, 'handoff', { reason: signal.kind });
   return {
     outbound: null, draftCreated: null, hotLeadAlert: false,
-    handoffAlert: true, deletionAlert: asking !== null, orderCreated: null,
+    handoffAlert: true, deletionAlert: asking !== null, orderProposed: null,
   } satisfies TurnEffects;
 }
 

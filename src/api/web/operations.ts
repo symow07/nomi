@@ -51,6 +51,12 @@ export type OperationsSnapshot = {
      * Absent (a snapshot built before 0076) is none.
      */
     readonly deletionAsks?: number;
+    /**
+     * 0080 — orders customers said yes to, waiting for the owner's tap. Leads
+     * the list: nothing was confirmed or sent until the owner decides. Absent
+     * (a snapshot built before 0080) is none.
+     */
+    readonly ordersWaiting?: number;
   };
   /** What the employee did in the range. */
   readonly activity: {
@@ -101,12 +107,12 @@ export type OperationsSnapshot = {
  * than invented.
  */
 export const ATTENTION_PRIORITY =
-  ['blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
+  ['ordersWaiting', 'blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps'] as const;
 export type AttentionKind = (typeof ATTENTION_PRIORITY)[number];
 
 const EMPTY = (range: Range, provider: string, live = provider !== 'disabled'): OperationsSnapshot => ({
   range,
-  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0 },
+  attention: { pendingApprovals: 0, handoffs: 0, ownerHandling: 0, blockedMessages: 0, deletionAsks: 0, ordersWaiting: 0 },
   activity: { handled: 0, draftsCreated: 0, corrections: 0 },
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { status: 'not_connected', provider, live },
@@ -157,6 +163,8 @@ export type AttentionCounts = {
   readonly ownerHandling: number;
   readonly blockedMessages: number;
   readonly deletionAsks: number;
+  /** 0080 — orders customers said yes to, waiting for the owner's tap. */
+  readonly ordersWaiting: number;
 };
 
 export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCounts> {
@@ -174,12 +182,13 @@ export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCou
         if (o === 'WAITING_HUMAN') handoffs += r.n;
         else if (o === 'OWNER_CONTROLLED') ownerHandling += r.n;
       }
-      const q = (await sql<{ pending: number; deletion_asks: number }>`
+      const q = (await sql<{ pending: number; deletion_asks: number; orders: number }>`
         select
           (select count(*)::int from drafts where business_id = ${B} and status = 'pending') as pending,
-          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks
+          (select count(*)::int from deletion_asks where business_id = ${B} and state = 'waiting') as deletion_asks,
+          (select count(*)::int from order_proposals where business_id = ${B} and state = 'pending') as orders
       `.execute(tx)).rows[0]!;
-      return { handoffs, ownerHandling, pending: q.pending, deletionAsks: q.deletion_asks };
+      return { handoffs, ownerHandling, pending: q.pending, deletionAsks: q.deletion_asks, ordersWaiting: q.orders };
     }),
     // M22 — counted by the database over persisted canceled rows, through the
     // SAME predicate that lists them, so the number and the list agree.
@@ -187,7 +196,7 @@ export async function readAttention(db: Db, B: BusinessId): Promise<AttentionCou
   ]);
   return {
     pendingApprovals: counts.pending, handoffs: counts.handoffs, ownerHandling: counts.ownerHandling,
-    blockedMessages, deletionAsks: counts.deletionAsks,
+    blockedMessages, deletionAsks: counts.deletionAsks, ordersWaiting: counts.ordersWaiting,
   };
 }
 
@@ -252,7 +261,7 @@ export async function loadOperationsSnapshot(
     channel: { status: channels.whatsapp.status, provider, live },
     budget: budgetOf(budgetRow),
     hasAttention: attention.pendingApprovals + attention.handoffs
-                + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks > 0,   // see needsOwnerAttention
+                + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks + attention.ordersWaiting > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
     opsSilenced,
   };
@@ -269,6 +278,10 @@ export async function loadOperationsSnapshot(
 
 /** What the owner may still need to do, in the M16.2a priority order. */
 const ATTENTION_ROW: Record<AttentionKind, { readonly label: MessageKey; readonly href: string }> = {
+  // 0080 — an order a customer said yes to waits for the owner's tap. First:
+  // nothing was confirmed or sent, and nothing will be until they decide. To
+  // the Buyers tab that leads with them.
+  ordersWaiting:    { label: 'ops.card.orders', href: '/app/inbox?filter=pending' },
   // 0076 — a buyer asked for their data to be deleted and the owner has not
   // decided. Right under the message that never arrived (the one concern with
   // no other way to be found), above every ordinary hand-off; to the Buyers
@@ -470,10 +483,20 @@ export function renderOperationsHome(
   const notLive = !(s.channel.live ?? s.channel.provider !== 'disabled')
     ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
+  // 0080 — an order a customer said yes to waits for the owner's tap. The
+  // e-mail always says so; this browser can too, if the owner asks it. Hidden
+  // until the page's script finds a browser that can (liveScript.ts): with no
+  // script there is nothing to ask for.
+  const tellMe = `<div class="block" data-notify hidden>
+    <button type="button" class="btn ghost" data-notify-ask hidden>${esc(t(locale, 'live.notify.ask'))}</button>
+    <p class="caption muted" data-notify-on hidden>${esc(t(locale, 'live.notify.on'))}</p>
+  </div>`;
+
   return `<h1 class="page">${esc(t(locale, 'ops.title'))}</h1>${lead}
   ${silenced}
   ${stopped}
   ${attention}
+  ${tellMe}
   ${finishSetup}
   ${budget}
   ${stepIn}

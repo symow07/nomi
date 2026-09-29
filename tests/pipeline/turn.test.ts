@@ -139,7 +139,7 @@ describe('computeTurn — the numeral guard loop', () => {
   });
 });
 
-describe('the close, end to end, with idempotency', () => {
+describe('the close: a "yes" proposes, the owner confirms (0080), with idempotency', () => {
   const readyState = () => emptyState({
     phase: 'confirmation',
     pendingQuestion: 'order_confirmation',
@@ -148,7 +148,7 @@ describe('the close, end to end, with idempotency', () => {
     contact: { email: 'buyer@example.com' as Email },
   });
 
-  it('"yes" → order created, deterministic confirmation, conversation closed', async () => {
+  it('"yes" → a proposal for the owner: no order, nothing sent, nothing drafted, still open', async () => {
     const p = ports();
     p.tenant.seed(CONVERSATION, readyState());
 
@@ -156,23 +156,26 @@ describe('the close, end to end, with idempotency', () => {
     expect(r.decision.action.kind).toBe('confirm_order');
 
     const fx = await commitTurn(p, req('yes'), r, Date.now());
-    expect(fx.orderCreated).not.toBeNull();
-    expect(fx.outbound?.reply).toContain(fx.orderCreated!.orderReference);
-    // G4 — it used to name his address and promise a confirmation e-mail that
-    // nothing in this product can send. It promises nothing it cannot keep.
-    expect(fx.outbound?.reply).not.toMatch(/e-?mail/i);
-    expect(fx.outbound?.reply).not.toContain('buyer@example.com');
-    expect(p.tenant.closed).toContain(CONVERSATION);
-    expect(p.tenant.eventRows.map((e) => e.type)).toContain('order_created');
+    expect(fx.orderProposed).toEqual({ proposalId: 'proposal-1', fresh: true });
+    expect(p.tenant.ordersCreated).toHaveLength(0);
+    expect(fx.outbound).toBeNull();
+    expect(fx.draftCreated).toBeNull();
+    expect(p.tenant.closed).not.toContain(CONVERSATION);
+    const types = p.tenant.eventRows.map((e) => e.type);
+    expect(types).toContain('order_proposed');
+    expect(types).not.toContain('order_created');
+    // What they said yes to, exactly.
+    expect(p.tenant.orderProposals_[0]!.order.quantity.value).toBe(5000);
+    expect(p.tenant.orderProposals_[0]!.order.email).toBe('buyer@example.com');
   });
 
-  it('G6 · the order carries HER terms — and none when she has stated none', async () => {
+  it('G6 · the proposal carries HER terms — and none when she has stated none', async () => {
     const none = ports();
     none.tenant.seed(CONVERSATION, readyState());
     await commitTurn(none, req('yes'), await computeTurn(none, req('yes')), Date.now());
-    expect(none.tenant.ordersCreated).toHaveLength(1);
-    expect(none.tenant.ordersCreated[0]!.paymentTerms).toBeNull();
-    expect(none.tenant.ordersCreated[0]!.incoterm).toBeNull();
+    expect(none.tenant.orderProposals_).toHaveLength(1);
+    expect(none.tenant.orderProposals_[0]!.order.paymentTerms).toBeNull();
+    expect(none.tenant.orderProposals_[0]!.order.incoterm).toBeNull();
 
     const stated = ports();
     stated.tenant.terms = {
@@ -181,11 +184,11 @@ describe('the close, end to end, with idempotency', () => {
     };
     stated.tenant.seed(CONVERSATION, readyState());
     await commitTurn(stated, req('yes'), await computeTurn(stated, req('yes')), Date.now());
-    expect(stated.tenant.ordersCreated[0]!.paymentTerms).toBe('50% with order, balance against B/L copy');
-    expect(stated.tenant.ordersCreated[0]!.incoterm).toBe('CIF');
+    expect(stated.tenant.orderProposals_[0]!.order.paymentTerms).toBe('50% with order, balance against B/L copy');
+    expect(stated.tenant.orderProposals_[0]!.order.incoterm).toBe('CIF');
   });
 
-  it('a SECOND "yes" yields the SAME order — never a duplicate', async () => {
+  it('a SECOND "yes" yields the SAME proposal — never a duplicate, and no second alert', async () => {
     const p = ports();
     p.tenant.seed(CONVERSATION, readyState());
 
@@ -198,8 +201,11 @@ describe('the close, end to end, with idempotency', () => {
     const r2 = await computeTurn(p, req('yes'));
     const fx2 = await commitTurn(p, { ...req('yes'), messageId: 'm-yes-2' }, r2, Date.now());
 
-    expect(fx2.orderCreated?.orderId).toBe(fx1.orderCreated?.orderId);
-    expect(p.tenant.ordersByConversation.size).toBe(1);
+    expect(fx2.orderProposed?.proposalId).toBe(fx1.orderProposed?.proposalId);
+    expect(fx1.orderProposed?.fresh).toBe(true);
+    expect(fx2.orderProposed?.fresh).toBe(false);
+    expect(p.tenant.orderProposals_).toHaveLength(1);
+    expect(p.tenant.ordersCreated).toHaveLength(0);
   });
 
   it('missing email → deterministic blocking question, NO order', async () => {
@@ -207,7 +213,7 @@ describe('the close, end to end, with idempotency', () => {
     p.tenant.seed(CONVERSATION, { ...readyState(), contact: { email: null } });
     const r = await computeTurn(p, req('yes'));
     const fx = await commitTurn(p, req('yes'), r, Date.now());
-    expect(fx.orderCreated).toBeNull();
+    expect(fx.orderProposed).toBeNull();
     // confirm_order is always draft — the blocking question waits for the owner.
     expect(fx.outbound).toBeNull();
     expect(fx.draftCreated).not.toBeNull();

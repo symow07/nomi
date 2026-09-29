@@ -118,9 +118,9 @@ d('0079 · the disclosure is told when it reaches the buyer (requires DATABASE_U
   }, 60_000);
   afterAll(async () => { await db?.destroy(); await admin?.destroy(); });
 
-  it('the database is at 79 and has the column', async () => {
+  it('the database is at 79 or later and has the column', async () => {
     const { REQUIRED_SCHEMA_VERSION } = await import('../../src/db/schemaVersion.js');
-    expect(REQUIRED_SCHEMA_VERSION).toBe(79);
+    expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(79);
     const col = await sql<{ n: number }>`select count(*)::int as n from information_schema.columns
       where table_name = 'conversations' and column_name = 'ai_disclosure_delivered_at'`.execute(admin);
     expect(col.rows[0]!.n).toBe(1);

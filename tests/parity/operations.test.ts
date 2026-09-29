@@ -45,8 +45,10 @@ describe('M16.2a · operations snapshot (pure)', () => {
     // conversation back does not clear; above every ordinary hand-off.
     // Then a buyer waiting for a person, replies to review, the threads she
     // took over herself, and knowledge gaps.
+    // 0080: and before all of them, an order a customer said yes to: nothing
+    // is confirmed or sent until the owner decides it.
     expect(ATTENTION_PRIORITY).toEqual(
-      ['blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
+      ['ordersWaiting', 'blockedMessages', 'deletionAsks', 'handoffs', 'pendingApprovals', 'ownerHandling', 'openGaps']);
     expect(ATTENTION_PRIORITY).not.toContain('activity');
   });
 

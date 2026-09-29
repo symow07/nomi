@@ -581,7 +581,7 @@ const scenarios = [
     },
   },
   {
-    n: 10, title: 'a confirmed order answers "where is my order?" in a new conversation',
+    n: 10, title: 'his "yes" waits for her tap; the order she confirms answers "where is my order?" in a new conversation',
     async run({ sim }) {
       const wa = buyer(6);
       const conv = await convOf(wa);
@@ -592,6 +592,17 @@ const scenarios = [
       await q(`update conversation_state set product_confirmed_by_client=true, client_email_collected=true,
                  pending_question='order_confirmation' where conversation_id=$1`, [conv]);
       await hook(sim.inboundText({ from: wa, text: 'yes' }));
+      // 0080 — his "yes" is a proposal: nothing is confirmed or sent until she
+      // taps. It waits on her page; the order exists only after the tap.
+      const proposal = await until(() => one(
+        `select id::text as id from order_proposals where conversation_id=$1 and state='pending'`, [conv])
+        .then((r) => r ?? undefined), 'the proposal');
+      const early = await one(`select count(*)::int as n from orders where conversation_id=$1`, [conv]);
+      ok(early.n === 0, 'an order was made before her tap');
+      const told = await one(`select count(*)::int as n from outbound_messages
+        where conversation_id=$1 and body like 'Your order is confirmed%'`, [conv]);
+      ok(told.n === 0, 'he was told it is confirmed before her tap');
+      await form(`/app/inbox/${conv}/order/confirm`, { proposalId: proposal.id });
       const order = await until(() => one(
         `select o.id::text as id, o.order_reference from orders o
           where o.business_id=$1 and o.client_id = (select client_id from conversations where id=$2)

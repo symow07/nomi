@@ -59,7 +59,7 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
  * `notify.<kind>.subject` in every locale.
  */
 export const goesByMail = (kind: AlertKind): boolean =>
-  isOperatorAlert(kind) || kind === 'deletion_requested';
+  isOperatorAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed';
 
 /** One open deletion request the operator must carry out soon, as the alert names it. */
 export type DeletionDueLine = {
@@ -84,11 +84,18 @@ const DELETION_ALERT_LINES = 10;
 /**
  * Event → neutral alert code (business logic stays locale-free). A deletion
  * request is its own alert, never the generic hand-off's "wants a person".
+ *
+ * 0080 — so is an order a customer said yes to: it waits for the owner's tap,
+ * and nothing happens until they decide, so the owner is told by e-mail as
+ * well as WhatsApp (`goesByMail`). Once per proposal: a second "yes" while it
+ * waits is the same proposal, and says nothing new.
  */
 export function alertKindFor(effects: {
   readonly hotLeadAlert: boolean; readonly handoffAlert: boolean; readonly deletionAlert?: boolean;
+  readonly orderProposed?: { readonly fresh: boolean } | null;
 }): AlertKind | null {
   if (effects.deletionAlert) return 'deletion_requested';
+  if (effects.orderProposed?.fresh) return 'order_proposed';
   if (effects.handoffAlert) return 'handoff';
   if (effects.hotLeadAlert) return 'hot_lead';
   return null;

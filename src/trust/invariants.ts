@@ -230,19 +230,29 @@ const CHECKERS: Record<InvariantId, CheckFn> = {
    * The applied mode equals what the autonomy policy resolves to — no silent
    * escalation. A draft grant must not become an auto-send; an auto grant must
    * not silently downgrade beyond what a safety rule (confirm_order,
-   * time-window) already forced into `requestedMode`. Order confirmations that
-   * created an order are the owner's own prior tap and are exempt.
+   * time-window) already forced into `requestedMode`. 0080: there is no
+   * exemption any more — a turn never confirms an order, it only proposes one.
    */
   noSilentCapabilityEscalation(ctx) {
-    if (ctx.effects.orderCreated) {
-      return mk('noSilentCapabilityEscalation', true, 'order confirmation (owner-tapped send) — n/a');
-    }
     if (ctx.appliedMode === 'none') {
       return mk('noSilentCapabilityEscalation', true, 'no reply produced — n/a');
     }
     const ok = ctx.appliedMode === ctx.requestedMode;
     return mk('noSilentCapabilityEscalation', ok,
       `capability ${ctx.capability}: policy says ${ctx.requestedMode}, applied ${ctx.appliedMode}`);
+  },
+
+  /**
+   * 0080 — a customer's "yes" that passes every order rule is a PROPOSAL for
+   * the owner's tap: it was written down, and nothing reached the customer —
+   * no confirmation sent, none waiting as a draft either, in any mode.
+   */
+  orderWaitsForOwner(ctx) {
+    const fx = ctx.effects;
+    const ok = fx.orderProposed !== null && fx.outbound === null && fx.draftCreated === null && ctx.result.reply === null;
+    return mk('orderWaitsForOwner', ok,
+      `proposed=${fx.orderProposed !== null}, outbound=${fx.outbound === null ? 'none' : 'SENT'}, `
+      + `draft=${fx.draftCreated === null ? 'none' : 'drafted'}, reply=${ctx.result.reply === null ? 'none' : 'present'}`);
   },
 
   /**
