@@ -8,7 +8,8 @@ import { renderDataRights } from '../../src/api/web/dataRights.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { deletionDueBy } from '../../src/core/ops/deletions.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { esc } from '../../src/api/web/layout.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
@@ -177,20 +178,25 @@ const today: OperationsSnapshot = {
   hasAttention: true,
 };
 
-describe('0076 · Today shows it as its own row', () => {
+const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
+
+describe('0076 · Today shows it as its own line', () => {
   it('under the message that never arrived, above every ordinary hand-off, to its own list', () => {
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBe(ATTENTION_PRIORITY.indexOf('blockedMessages') + 1);
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBeLessThan(ATTENTION_PRIORITY.indexOf('handoffs'));
     for (const l of LOCALES) {
-      const html = renderOperationsHome(today, l);
-      const hrefs = [...html.matchAll(/class="stat need" href="([^"]+)"/g)].map((m) => m[1]);
-      expect(hrefs, l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion', '/app/inbox']);
-      expect(html, l).toContain(esc(t(l, k('ops.card.deletionAsks'))));
+      const html = renderOperationsHome(today, l, QUIET);
+      const first = html.slice(html.indexOf('class="block today-now"'), html.indexOf('</section>', html.indexOf('class="block today-now"')));
+      const hrefs = [...first.matchAll(/class="deeper" href="([^"]+)"/g)].map((m) => m[1]);
+      expect(hrefs, l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion']);
+      expect(first, l).toContain(esc(tn(l, 'today.deletion', 2)));
+      // one waiting is enough to say something is waiting
+      expect(first, l).not.toContain(esc(t(l, 'today.needs.none')));
     }
   });
 
-  it('none waiting: no row', () => {
-    const html = renderOperationsHome({ ...today, attention: { ...today.attention, deletionAsks: 0 } }, 'en');
+  it('none waiting: no line', () => {
+    const html = renderOperationsHome({ ...today, attention: { ...today.attention, deletionAsks: 0 } }, 'en', QUIET);
     expect(html).not.toContain('filter=deletion');
   });
 });

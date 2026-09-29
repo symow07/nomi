@@ -307,7 +307,9 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
     expect(signal).toContain('assistant_stopped');
     const today = await get('/app');
     expect(today.body).toContain('is stopped on every channel');
-    expect(today.body).toMatch(/<a class="stat need" href="\/app\/inbox">\s*<span class="v">1<\/span>/);
+    // The design pass: the one handed over is named on Today, a door to the newest message.
+    expect(today.body).toContain(`<h2 id="today-now">1 customer needs you</h2>`);
+    expect(today.body).toContain(`href="/app/inbox/${convA}#latest"`);
   });
 
   it('WAITING · silent: no model call, no draft, nothing queued to him — a photo is named, not opened', async () => {

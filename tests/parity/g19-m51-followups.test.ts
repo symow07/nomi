@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { renderOperationsHome, type OperationsSnapshot } from '../../src/api/web/operations.js';
+import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInsights, MAX_INSIGHTS, type InsightsData, type Insight } from '../../src/api/web/insights.js';
 import { checkBudget } from '../../src/core/budget.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -33,9 +34,12 @@ const insight = (key: Insight['key'], over: Partial<Insight> = {}): Insight => (
   key, params: { count: 2 }, action: { kind: 'review_drafts', href: '/app/inbox' }, ...over,
 } as Insight);
 
+/** A day with nothing in it — the budget line is the only thing these tests vary. */
+const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
+
 describe('G19 · the ceiling she set is said before it stops her', () => {
   it('the warning is on Today, with her percentage and what happens at 100%', () => {
-    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en');
+    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET);
     expect(html).toContain(esc(t('en', 'today.budget.near', { name: ASSISTANT_FALLBACK.en, pct: 84 })));
     expect(html).toContain(esc(t('en', 'today.budget.thenStops')));
     expect(html).not.toContain(esc(t('en', 'today.budget.thenKeeps')));
@@ -44,26 +48,26 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
   it('and says what HER setting does — not a general fact about limits', () => {
     // Two tenants, two settings, two different sentences. `stops` comes from
     // `on_exceeded`, so the page never promises a stop that was not configured.
-    const keeps = renderOperationsHome(snapshot({ budget: { pctUsed: 91, stops: false } }), 'en');
+    const keeps = renderOperationsHome(snapshot({ budget: { pctUsed: 91, stops: false } }), 'en', QUIET);
     expect(keeps).toContain(esc(t('en', 'today.budget.thenKeeps')));
     expect(keeps).not.toContain(esc(t('en', 'today.budget.thenStops')));
   });
 
   it('below her line, nothing is said — a warning shown every day is not read', () => {
-    expect(renderOperationsHome(snapshot(), 'en')).not.toContain(esc(t('en', 'today.budget.thenStops')));
-    expect(renderOperationsHome(snapshot(), 'en')).not.toContain('%');
+    expect(renderOperationsHome(snapshot(), 'en', QUIET)).not.toContain(esc(t('en', 'today.budget.thenStops')));
+    expect(renderOperationsHome(snapshot(), 'en', QUIET)).not.toContain('%');
   });
 
   it('it is a notice, never a demand: a quiet day with a warning is still quiet', () => {
-    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en');
-    // The calm state is what a day with nothing to do looks like; the budget
-    // line sits under it rather than turning the page into a work list.
-    expect(html).toContain('calm-page');
+    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET);
+    // Nobody waiting is what a day with nothing to do says; the budget line
+    // sits at the foot rather than turning the page into a work list.
+    expect(html).toContain(esc(t('en', 'today.needs.none')));
   });
 
   it('in every locale, and it is the same rule core/budget.ts states', () => {
     for (const locale of LOCALES) {
-      const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), locale);
+      const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), locale, QUIET);
       expect(html, locale).toContain(esc(t(locale, 'today.budget.near', { name: ASSISTANT_FALLBACK[locale], pct: 84 })));
     }
     // 84% of a 2,000-call day is a soft warning; the page shows what core decided.

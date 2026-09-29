@@ -29,6 +29,7 @@ import {
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
+import { loadToday } from './today.js';
 import { renderMetaHelp } from './help.js';
 import { checkMetaAccount } from '../../channels/meta/health.js';
 import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
@@ -1597,18 +1598,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // and the pilot feedback loop. No new query, no new storage.
     // M34.10 — plus the insights, which are the only part of this page that
     // tells the owner what to DO rather than what happened.
-    const [snapshot, feedback, insights] = await Promise.all([
+    // The design pass (§4) — plus the day by time: who needs you now (the
+    // Buyers list's own rows), the last 24 hours, what is coming up.
+    const [snapshot, insights, today] = await Promise.all([
       // A1 — HER business, from her session. This read the environment's one
       // business, which was the same thing until a second factory could sign in.
       loadOperationsSnapshot(deps.db, s.businessId, 'today', deps.provider, messagingEnabled),
-      loadPilotFeedback(deps.db, s.businessId, 'today'),
       loadInsights(deps.db, s.businessId),
+      loadToday(deps.db, s.businessId, personOf(s).id, new Date(), outreachShown()),
     ]);
     return {
-      bodyHtml: renderOperationsHome(snapshot, locale, {
-        conversationsNeedingYou: feedback.conversationsNeedingYou,
-        reasons: feedback.handoffReasons.map((r) => ({ kind: r.kind, count: r.count })),
-      }, renderInsights(insights, locale)),
+      bodyHtml: renderOperationsHome(snapshot, locale, today, renderInsights(insights, locale, { bare: true })),
       // CC-26 — Today watches the counts it shows: the mark IS those counts.
       live: liveRegion(locale, { ...todayWatch(todayMark(snapshot.attention)), orders: snapshot.attention.ordersWaiting ?? 0 }),
     };

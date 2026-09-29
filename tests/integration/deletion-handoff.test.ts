@@ -279,7 +279,8 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     const [noted] = await askOf(conv);
     expect(noted!.state).toBe('waiting');                   // …the request is not
 
-    expect((await get('/app')).body).toMatch(/<a class="stat need" href="\/app\/inbox\?filter=deletion">\s*<span class="v">3<\/span>/);
+    // Today: its own line, counted in a sentence, a door to its own tab.
+    expect((await get('/app')).body).toContain('href="/app/inbox?filter=deletion">3 customers asked for their data to be deleted');
     const tab = (await get('/app/inbox?filter=deletion')).body;
     for (const r of REQUESTS) expect(tab, r.lang).toContain(`/app/inbox/${convs[r.lang]}`);
     expect(tab).not.toContain(`/app/inbox/${await convOf(PASSING.from)}`);

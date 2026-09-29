@@ -258,7 +258,10 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
 
 /** ── Renderer (pure, localized) ───────────────────────────────────────────── */
 
-export function renderInsights(d: InsightsData, locale: Locale): string {
+export function renderInsights(d: InsightsData, locale: Locale, o: {
+  /** The design pass (§4): Today folds these lines into its first block — no box, no heading of their own. */
+  readonly bare?: boolean;
+} = {}): string {
   if (d.insights.length === 0 && !d.monthChange) return '';
   const name = assistantName(locale);
   const row = (i: Insight): string => {
@@ -270,9 +273,10 @@ export function renderInsights(d: InsightsData, locale: Locale): string {
       ${deeper(esc(i.action.href), label)}
     </div>`;
   };
+  const rows = `${d.insights.map(row).join('')}${d.monthChange ? row(d.monthChange) : ''}`;
+  if (o.bare) return `<div class="insights">${rows}</div>`;
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
-    ${d.insights.map(row).join('')}
-    ${d.monthChange ? row(d.monthChange) : ''}
+    ${rows}
   </div>`;
 }
 

@@ -9,6 +9,7 @@ import { parseOwnerReply } from '../../src/core/conversation/cards.js';
 import { renderInboxList, renderConversationDetail } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
+import type { TodayData } from '../../src/api/web/today.js';
 import { renderAnalytics } from '../../src/api/web/analytics.js';
 import { product, tiers, policy } from './fixtures.js';
 
@@ -91,7 +92,18 @@ const emptyOps = renderOperationsHome({
   activity: { handled: 9, draftsCreated: 3, corrections: 1 },
   knowledge: { openGaps: 2, recentCorrections: 1, recentlyTaught: 4 },
   channel: { provider: 'meta', status: 'connected' }, budget: null,
-}, 'zh');
+}, 'zh', {
+  now: new Date('2026-09-29T08:00:00Z'),
+  needs: { total: 2, rows: [{
+    conversationId: 'c1', buyer: 'Ahmed', country: 'AE', status: 'awaiting', needsAction: true,
+    ownership: 'WAITING_HUMAN', heldBy: null, awaitingReview: false, handoffReason: 'human_requested',
+    latestMessage: null, latestAt: new Date('2026-09-29T07:40:00Z'),
+    product: { name: 'Canvas tote', nameZh: '帆布袋' }, quantity: 20000, unitPrice: null,
+  }] },
+  last24: { answered: 9, sent: 3, handed: 1, yourself: 2 },
+  comingUp: [],
+  sending: ['whatsapp'],
+} satisfies TodayData);
 
 const inboxList = renderInboxList({
   filter: 'all', waitingCount: 2, blockedCount: 1,

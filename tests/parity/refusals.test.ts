@@ -6,7 +6,8 @@ import type { SendPlan } from '../../src/core/channel/window.js';
 import { renderConversationDetail, renderInboxList, type ConversationDetail, type InboxList } from '../../src/api/web/inbox.js';
 import { renderOperationsHome, ATTENTION_PRIORITY, type OperationsSnapshot } from '../../src/api/web/operations.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { withAssistantName } from '../../src/api/web/say.js';
 
 /**
@@ -55,6 +56,9 @@ const snapshot = (blockedMessages: number): OperationsSnapshot => ({
   channel: { status: 'connected', provider: 'meta' },
   hasAttention: blockedMessages > 0,
 });
+
+/** Nobody in the Buyers list's "Needs you": only the blocked count varies. */
+const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
 
 // ── coverage: every refusal the gate can produce is explainable ──────────────
 
@@ -177,26 +181,25 @@ describe('M22 · Today reports it, with a real count', () => {
   });
 
   it('shows the count and links to the conversations it happened in', () => {
-    const html = renderOperationsHome(snapshot(3), 'en');
-    expect(html).toContain('>3<');
-    expect(html).toContain('Did not reach the buyer');
-    expect(html).toContain('href="/app/inbox?filter=blocked"');
+    const html = renderOperationsHome(snapshot(3), 'en', QUIET);
+    // The count inside a sentence (the design pass), the sentence a door.
+    expect(html).toContain(`href="/app/inbox?filter=blocked">${tn('en', 'today.blocked', 3)}`);
   });
 
   it('zero refusals is silence, not a green tick about sending', () => {
-    const html = renderOperationsHome(snapshot(0), 'en');
-    expect(html).not.toContain('Did not reach the buyer');
+    const html = renderOperationsHome(snapshot(0), 'en', QUIET);
+    expect(html).not.toContain(tn('en', 'today.blocked', 0));
     expect(html).not.toContain('href="/app/inbox?filter=blocked"');
   });
 
   it('a blocked message alone is enough to break "all clear"', () => {
     // Today used to say "you are all caught up" while a buyer waited on a reply
     // that was never sent. One refusal must be enough to contradict that.
-    // M35.5 — the calm state is now one sentence rather than a heading plus a
-    // body, so the assertion moved from the heading to the sentence. The RULE is
-    // unchanged: one refusal must be enough to contradict "all is well".
-    const calm = t('en', 'today.calm.body', { name: 'Lily' });
-    const home = (n: number) => withAssistantName('Lily', () => renderOperationsHome(snapshot(n), 'en'));
+    // The design pass: the quiet sentence is Today's first heading, "No one is
+    // waiting for you". The RULE is unchanged: one refusal must be enough to
+    // contradict it.
+    const calm = t('en', 'today.needs.none');
+    const home = (n: number) => withAssistantName('Lily', () => renderOperationsHome(snapshot(n), 'en', QUIET));
     expect(home(1)).not.toContain(calm);
     expect(home(0)).toContain(calm);
   });

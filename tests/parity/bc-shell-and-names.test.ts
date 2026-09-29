@@ -88,16 +88,14 @@ describe('B · every page knows which hub it belongs to', () => {
 });
 
 describe('C · Results has a door', () => {
-  it('the link is OUTSIDE the quiet branch', () => {
+  it('the link is OUTSIDE any quiet branch', () => {
     const src = read('src/api/web/operations.ts');
-    // The quiet branch stays — three zeros are not worth a section.
-    expect(src).toContain("const activity = didNothing ? ''");
-    // The way in does not live inside it any more.
-    const branch = /const activity = didNothing[\s\S]*?\n  const toResults/.exec(src)?.[0] ?? '';
-    expect(branch, 'the only door to Results is inside the branch that hides it')
-      .not.toContain('/app/analytics');
-    expect(src).toMatch(/const toResults = .*\/app\/analytics/);
-    expect(src).toMatch(/\$\{toResults\}/);
+    // The design pass: the door sits in "the last 24 hours", a block drawn on
+    // every day, whatever it held — never inside a branch that can hide it.
+    const block = /const lastDay = `[\s\S]*?`;/.exec(src)?.[0] ?? '';
+    expect(block).toContain("deeper('/app/analytics'");
+    expect(block).not.toMatch(/\?\s*`|:\s*''/);   // no condition inside it
+    expect(src).toMatch(/\n  \$\{lastDay\}\n/);
   });
 });
 

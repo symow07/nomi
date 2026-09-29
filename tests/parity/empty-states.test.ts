@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
+import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderEmployee } from '../../src/api/web/employee.js';
 import { renderFactory } from '../../src/api/web/factory.js';
@@ -24,7 +25,7 @@ const emptyTodaySnapshot: OperationsSnapshot = {
   knowledge: { openGaps: 0, recentCorrections: 0, recentlyTaught: 0 },
   channel: { provider: 'disabled', status: 'not_connected' }, budget: null,
 };
-const emptyToday = renderOperationsHome(emptyTodaySnapshot, 'en');
+const emptyToday = renderOperationsHome(emptyTodaySnapshot, 'en', NOTHING_TODAY(NOW));
 
 const emptyProfile: EmployeeProfile = {
   stage: 'probation', hireDate: null, knows: 0, canDo: [], needConfirm: [], capabilities: [],
@@ -108,7 +109,8 @@ describe('Phase F · every empty surface says what happens next', () => {
   });
 
   it('the quiet branches still lead somewhere', () => {
-    expect(emptyToday).toContain('href="/app/knowledge"');   // nothing learned yet
+    expect(emptyToday).toContain('href="/app/factory"');     // nobody can reach the assistant yet: the way to go live
+    expect(emptyToday).toContain('href="/app/calendar"');    // nothing coming up: the calendar all the same
     expect(emptyBuyers('all')).toContain('href="/app/factory"');
     expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
     expect(emptyCalendar).toContain('href="/app/inbox"');

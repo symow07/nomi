@@ -104,6 +104,7 @@ describe('M34.10 · every insight carries somewhere to go', () => {
     // business until a second factory could sign in.
     expect(src).toContain('loadInsights(deps.db, s.businessId)');
     expect(src).not.toContain('loadInsights(deps.db, deps.businessId)');
-    expect(src).toContain('renderInsights(insights, locale)');
+    // The design pass: the lines, bare, inside Today's first block.
+    expect(src).toContain('renderInsights(insights, locale, { bare: true })');
   });
 });
