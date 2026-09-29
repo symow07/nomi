@@ -124,6 +124,16 @@ describe('the card, drawn', () => {
     expect(ar).toContain('<blockquote class="said" dir="auto">');
   });
 
+  it('the page\'s other cards are states of the one card: a dot, the state\'s own words, then why and what to do', () => {
+    const html = renderConversationDetail({
+      ...base, unheardReason: 'transcription_failed',
+      refusals: [{ outboundId: 'o-1', conversationId: 'c-1', buyer: 'Maya', reason: 'window_closed', at: NOW, origin: 'employee' }],
+    }, 'en', NOW, null);
+    expect(html).toContain(`<p class="stateline rf-h"><span class="dot warn" aria-hidden="true">●</span> <b>${t('en', 'unheard.title')}</b></p>`);
+    expect(html).toContain(`<p class="stateline rf-h"><span class="dot bad" aria-hidden="true">●</span> <b>${t('en', 'refused.title')}</b></p>`);
+    expect(html).not.toContain('<h3 class="rf-h">');
+  });
+
   it('no turn on record (a fixture, an old conversation): the card still works, and claims nothing it cannot show', () => {
     const c = card(renderConversationDetail({ ...base, reading: null, knowledgeUsed: [] }, 'en', NOW, null));
     // no reading of the message: no intent, no language, no second reading — only the product the conversation holds

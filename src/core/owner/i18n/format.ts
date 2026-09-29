@@ -130,6 +130,16 @@ export function formatRelative(locale: Locale, d: Date, now: Date): string {
 }
 
 /**
+ * A moment in a list's corner, as short as it can be said: the hour today,
+ * "Yesterday", then the day and month ("14:02" / "Yesterday" / "Sep 28").
+ */
+export function formatShortWhen(locale: Locale, d: Date, now: Date): string {
+  if (dayKey(d) === dayKey(now)) return formatTime(locale, d);
+  if (dayKey(d) === dayKey(new Date(now.getTime() - 86_400_000))) return YESTERDAY[locale];
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: BUSINESS_TZ, month: 'short', day: 'numeric' }).format(d);
+}
+
+/**
  * A time still to come, for "…until {time}": the hour alone today, the word
  * for tomorrow beside it, a date after that. "16:04" / "16:04 tomorrow" /
  * "明天 16:04" / "غدًا 16:04".

@@ -17,13 +17,15 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-29 | #125 | **The design foundation, part one**: buttons and doors (23 link-buttons made doors; the rule's test on every owner page); the palette (graphite, magenta for the assistant's hand only; jade, highlight, warm papers, dark mode retired; the mark graphite); Noto served by the product, one font order per language; **the approval card** (the reply once, one Send, "How … read this" with each figure's source; "No reply needed" decided below). Deployed about 09:24 UTC, `/health` ok, fonts served, schema 81 (no migration) | 81 |
 | 2026-09-29 | #124 | **Spanish and French**: the disclosure (awaiting a native reader, gate shut) and every safety check — identity, wants-a-person and openers, deletion, injection, the forbidden-word floor, claims, numeral words. **T2**: "AI" as the word only; Arabic-Indic and Chinese numerals; a small number beside any currency; accented Spanish promises. Deployed about 08:30 UTC, `/health` ok, schema 81 (no migration) | 81 |
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** the design foundation (step 5). In progress on branch
-`buttons-and-doors`: the buttons-and-doors rule and its test (done), the
-palette (done); then type (self-hosted Noto), the shell, the approval card.
+**Next:** the design foundation, part two (step 5): the shell — the rail in
+groups with the one number, the list pane and the customer panel beside a
+conversation, the live line out of the card's way — then the other cards
+on the conversation page folded into the approval card's state line.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -149,11 +151,19 @@ instruction did not answer. Collected here; asked once, at the end.
 - **Practice keeps the old card** (`sandbox.ts`, `/app/sandbox/act`): the
   practice sandbox is P1–P6's to rebuild (decisions 4 and 5), and a second
   copy of the new card there would have to be rebuilt again.
-- **The other cards on the conversation page** (voice not heard, file not
-  readable, number not listed, deletion request, closure, the owner's own
-  words, samples, what did not reach them, what may not have) are still drawn
-  as separate cards after the approval card. Folding them into the one card's
-  state line comes with the shell (step 5, next).
+- **The other cards on the conversation page** are drawn as states of the
+  one card since #126 (a dot, the state's words, then why and what to do),
+  but they are still separate cards under it, not lines inside it: moving
+  each one's actions into the card's own row changes where the owner's
+  controls are for nine situations, and is done page by page as each is
+  touched (the plan's rule: no page built twice).
+- **"Told a price" reads "Prices worked out"** in the customer panel (#126):
+  a quote row is not linked to the message that carried it, so the panel
+  cannot say it was told. Linking them needs a migration (a quote id on the
+  sent row); until then the panel says what the row proves.
+- **The rail's number is read fresh on every page** (#126): one count query
+  per page view, on purpose — a number that lags a minute behind is a number
+  that lies.
 
 ## Tool output that asked for something (ignored, as instructed)
 

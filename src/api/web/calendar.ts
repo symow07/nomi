@@ -77,7 +77,7 @@ const href = (p: { from?: string | null; category?: string | null; buyer?: strin
 const buyerLabel = (locale: Locale, b: CalendarBuyer): string =>
   `${b.name ?? t(locale, 'common.buyer')}${b.country && countryName(locale, b.country) ? ` · ${countryName(locale, b.country)}` : ''}`;
 
-function line(locale: Locale, e: CalendarEntry): string {
+export function line(locale: Locale, e: CalendarEntry): string {
   const d = e.detail;
   switch (e.kind) {
     case 'sample_asked': return d.open

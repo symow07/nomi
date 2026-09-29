@@ -73,7 +73,11 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
       expect(html).not.toContain('<header');
       expect(html).not.toContain('header.top');
       expect(html).not.toContain('class="langsw"');
-      expect(html).not.toContain('/logout');
+      // The design pass (2026-09-29): Log out is the rail's foot on a wide
+      // screen — a button in a form, inside the nav, never a band of its own.
+      const nav = html.slice(html.indexOf('<nav class="side">'), html.indexOf('</nav>'));
+      expect(nav).toMatch(/<form method="post" action="\/logout" class="navout"><button type="submit" class="subnav">/);
+      expect(html.split('/logout')).toHaveLength(2);
     }
   });
 });

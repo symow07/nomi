@@ -1,7 +1,7 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, setupState, businessName } from './say.js';
+import { type MessageKey, tn } from '../../core/owner/i18n/messages.js';
+import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { createHash } from 'node:crypto';
@@ -207,15 +207,34 @@ ${cssVariables()}
   a { color: inherit; text-decoration: none; }
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
   .voice { font-family: var(--font-voice); }
-  .layout { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .layout { display: grid; grid-template-columns: 208px 1fr; min-height: 100vh; }
   /* A grid child does not shrink below its own content unless told to: its
      default min-width is auto, so one unbreakable string — a long sku, a URL a
      buyer pasted — widens the content track and scrolls the whole page
      sideways. Nothing in the product does that today; this is the guard, not a
      repair. */
   .layout > * { min-width: 0; }
+  /* The rail (the design pass): its groups down the side, Setup and Log out
+     at its foot, and the whole of it in view while the page scrolls. */
   nav.side { background: var(--color-paper); border-inline-end: 1px solid var(--color-border);
-    padding: var(--space-16) var(--space-12); }
+    padding: var(--space-16) var(--space-12); display:flex; flex-direction:column;
+    position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .navgroup + .navgroup { margin-top: var(--space-16); }
+  .navfoot { margin-top:auto; padding-top: var(--space-16); }
+  nav.side a.navlink[href="/app/inbox"] { display:none; }
+  .navhub { display:flex; flex-direction:column; }
+  .navhead { padding: var(--space-8) var(--space-12) var(--space-4); font-size: var(--font-size-small);
+    color: var(--color-ink-secondary); }
+  nav.side .subnav { display:flex; align-items:center; width:100%; min-height:40px;
+    padding: var(--space-8) var(--space-12) var(--space-8) var(--space-24); border:0; border-radius: var(--radius-card);
+    background:transparent; color: var(--color-ink-secondary); font: inherit; font-size: var(--font-size-small);
+    text-align:start; cursor:pointer; margin-bottom: var(--space-4); }
+  .navout { margin:0; }
+  nav.side .navout .subnav { padding-inline-start: var(--space-12); }
+  nav.side .subnav:hover { background: var(--color-surface); color: var(--color-ink); }
+  nav.side .subnav.active { background: var(--color-surface); color: var(--color-ink); font-weight:600; }
+  /* Log out is the rail's foot on a wide screen; Setup's last row is the phone's. One on each. */
+  @media (min-width: 721px) { .block.signout { display:none; } }
   .brand { display:flex; align-items:center; gap:var(--space-8); font-weight: 700;
     font-size: var(--font-size-base); padding: 6px 12px 18px; letter-spacing: .3px; }
   .brand .mark { flex:none; }
@@ -244,12 +263,12 @@ ${cssVariables()}
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
-  nav.side a.navlink:hover { background: var(--color-paper); color: var(--color-ink); }
+  nav.side a.navlink:hover { background: var(--color-surface); color: var(--color-ink); }
   /* M49 — the active destination reads by WEIGHT and a recess, not by colour.
      Green was being spent five times on one screen: this slab, a panel, every
      link, the language pill and the button. Colour that appears everywhere
      marks nothing; jade now means only "this sends" and "this is a state". */
-  nav.side a.navlink.active { background: var(--color-paper); color: var(--color-ink); font-weight:600; }
+  nav.side a.navlink.active { background: var(--color-surface); color: var(--color-ink); font-weight:600; }
   /* D — the setup count on the Setup entry: a figure at the far end of the
      row, in the secondary ink. Not a state, so no state colour. */
   /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
@@ -562,8 +581,13 @@ ${LANGSW_CSS}
        a pure function of scroll position, so nothing can be stuck collapsed and
        nothing changes when scripting is off. Where scroll-driven animation is
        unsupported the nav is simply sticky at full size. */
-    nav.side { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:var(--space-4);
-      padding:10px 12px; border-inline-end:none; border-bottom:1px solid var(--color-border); }
+    nav.side { position:sticky; top:0; z-index:2; display:flex; flex-direction:row; align-items:center; gap:var(--space-4);
+      height:auto; overflow:visible; padding:10px 12px; border-inline-end:none; border-bottom:1px solid var(--color-border); }
+    /* The groups dissolve into the one row; "Customers" is its entry, and its
+       two pages and Log out are reached from the pages themselves. */
+    .navgroup, .navfoot { display:contents; }
+    .navhub, .navout { display:none; }
+    nav.side a.navlink[href="/app/inbox"] { display:flex; }
     /* The mark belongs to the product, so it sits with the product's nav — small,
        and without the word beside it. */
     nav.side .brand { display:flex; padding:0; margin-inline-end:var(--space-4); }
@@ -935,10 +959,63 @@ const STYLE_PAGES = `
   .stateline { margin:0; font-size:var(--font-size-small); }
   .stateline b { font-weight:600; }
   .stateline .dot.warn { color:var(--color-waiting); }
+  .stateline .dot.bad { color:var(--color-warn); }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   @media (min-width: 1100px) {
     #approve { position:sticky; bottom:var(--space-16); z-index:2; box-shadow:var(--shadow-lift2);
       max-height:calc(100vh - var(--space-32)); overflow-y:auto; }
+  }
+  /* The panes (the design pass): the list, the conversation, the customer.
+     Below 1100 px the conversation stands alone, as it always did; the list
+     and the customer are drawn and left out, so nothing waits on a script. */
+  .panes > .listpane, .panes > .panel, .panel-open, .panel-close { display:none; }
+  .panes > .conv { min-width:0; }
+  .lp-h { font-size:var(--font-size-small); font-weight:600; margin:0 var(--space-16) var(--space-8); }
+  .listpane .tabs { padding:0 var(--space-16); flex-wrap:wrap; }
+  .tab-n { margin-inline-start:var(--space-4); font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
+  .lp-rows { list-style:none; margin:var(--space-8) 0; padding:0; }
+  .lp-group { padding:var(--space-12) var(--space-16) var(--space-4); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .lp-row { display:flex; flex-direction:column; gap:var(--space-4); padding:var(--space-8) var(--space-16) var(--space-8) var(--space-12);
+    border-inline-start:3px solid transparent; color:var(--color-ink); }
+  .lp-row:hover, .lp-row:focus-visible { background:var(--color-surface); }
+  .lp-row.on { background:var(--color-surface); border-inline-start-color:var(--color-ink); }
+  .lp-top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-8); font-size:var(--font-size-small); min-width:0; }
+  .lp-top b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lp-when { flex:none; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .lp-last { font-size:var(--font-size-caption); color:var(--color-ink-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lp-empty { padding:var(--space-8) var(--space-16); }
+  .listpane .search, .listpane .deeper { margin:var(--space-16); }
+  .panel h2 { font-size:var(--font-size-title); margin:0; }
+  .pn-head { padding-bottom:var(--space-12); margin-bottom:var(--space-16); border-bottom:1px solid var(--color-border); }
+  .pn-facts { margin:var(--space-4) 0 0; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .pn-block { margin-bottom:var(--space-16); }
+  .pn-block h3 { font-size:var(--font-size-small); font-weight:600; margin:0 0 var(--space-4); }
+  .pn-rows { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
+  .pn-rows li { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-8); }
+  .pn-r { flex:none; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .pn-you { color:var(--color-ink); }
+  .pn-none { color:var(--color-ink-secondary); }
+  .pn-rows .dot.bad { color:var(--color-warn); }
+  @media (min-width: 1100px) {
+    main.wide { max-width:100%; padding:0; }
+    .panes { display:grid; grid-template-columns:300px minmax(0, 1fr); align-items:start; min-height:100vh; }
+    .panes > .listpane { display:block; position:sticky; top:0; height:100vh; overflow-y:auto; padding:var(--space-16) 0;
+      background:var(--color-paper); border-inline-end:1px solid var(--color-border); }
+    .panes > .conv { background:var(--color-surface); padding:var(--space-24); min-height:100vh; }
+    .panel-open { display:inline-flex; align-items:center; gap:var(--space-4); margin-inline-start:auto; font-size:var(--font-size-small); }
+    /* Folded away until its door is used; then over the page, with a way to close it. */
+    .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
+      overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
+    .panes > .panel:target .panel-close { display:inline-flex; margin-bottom:var(--space-12); font-size:var(--font-size-small); }
+    /* The line that says something new arrived sits over the conversation's
+       head, never over the card docked at its foot. */
+    main.wide > .live { position:fixed; top:var(--space-16); bottom:auto; inset-inline-start:calc(508px + var(--space-24)); z-index:4; }
+  }
+  @media (min-width: 1440px) {
+    .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
+    .panes > .panel, .panes > .panel:target { display:block; position:sticky; top:0; height:100vh; width:auto; overflow-y:auto; z-index:auto;
+      padding:var(--space-16); background:var(--color-paper); box-shadow:none; border-inline-start:1px solid var(--color-border); }
+    .panel-open, .panes > .panel:target .panel-close, .conv .file-door { display:none; }
   }
   /* The reply waiting for review. */
   .review-intro { margin:0 0 var(--space-12); }
@@ -957,7 +1034,9 @@ const STYLE_PAGES = `
   /* M22 — a refusal is information, not an alarm: amber, like a disconnected
      channel. Something needs the owner, and nothing is broken. 0052 — a send
      nobody can account for is the same amber, with the words and two answers. */
-  .card.refused, .card.unsure { background:var(--color-waiting-wash); }
+  /* The design pass — no longer a washed box: the state line says it. */
+  .card.refused, .card.unsure { background:var(--color-surface); }
+  .card.refused .rf-h, .card.unsure .rf-h { margin:0 0 var(--space-8); }
   .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
   .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
@@ -1316,12 +1395,14 @@ export function shell(input: {
    * after everything the page draws. Absent, the page watches nothing.
    */
   readonly live?: string;
+  /** The design pass — a page drawn as panes (a conversation) takes the whole width, not the reading column. */
+  readonly wide?: boolean;
 }): string {
   const { locale } = input;
   const name = assistantName(locale);
   const here = hubFor(input.path, input.active);
   const setup = setupState();
-  const nav = NAV.map((n) => {
+  const link = (n: typeof NAV[number]) => {
     const on = n.id === here;
     // A5 — the entry for the assistants is the assistant's NAME while there is
     // one, and "Team" once there are several. A menu item that reads as a
@@ -1343,7 +1424,35 @@ export function shell(input: {
     // identical links is the one you are on. The class is for everyone else.
     return `<a href="${n.href}" class="navlink ${on ? 'active' : ''}"${on ? ' aria-current="page"' : ''}${aria}
        >${esc(label)}${badge}</a>`;
-  }).join('');
+  };
+  const byId = (id: string) => NAV.find((n) => n.id === id)!;
+  /**
+   * THE RAIL HAS GROUPS (the design pass, 2026-09-29; the plan's §2). The work
+   * — Today, and the customers: their conversations and the calendar; then
+   * what is the owner's — the assistant and the business; Setup and Log out at
+   * the foot. Still five entries (D's rule): on a phone they are the one row,
+   * and "Customers" is its entry; on a wide screen "Customers" heads its two
+   * pages, and Conversations carries the one number in the rail — how many
+   * customers need the owner now. Log out is a button: it changes something.
+   */
+  const url = (input.path.split('?')[0] ?? input.path).replace(/\/+$/, '') || '/app';
+  const inConversations = url === '/app/inbox' || url.startsWith('/app/inbox/') || url.startsWith(`${MERGED_INTO_BUYERS}/`);
+  const inCalendar = url === '/app/calendar';
+  const needs = needsYouCount();
+  const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
+    `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${
+      count ? ` aria-label="${esc(t(locale, key))}, ${esc(tn(locale, 'nav.needsYou', count))}"` : ''}>${esc(t(locale, key))}${
+      count ? `<span class="navcount" aria-hidden="true">${count}</span>` : ''}</a>`;
+  const nav = `<div class="navgroup">${link(byId('home'))}${link(byId('inbox'))}
+      <div class="navhub" role="group" aria-labelledby="nav-customers">
+        <span class="navhead" id="nav-customers">${esc(t(locale, 'nav.customers'))}</span>
+        ${sub('/app/inbox', 'nav.conversations', inConversations, needs && needs > 0 ? needs : null)}
+        ${sub('/app/calendar', 'nav.calendar', inCalendar, null)}
+      </div></div>
+    <div class="navgroup">${link(byId('employee'))}${link(byId('factory'))}</div>
+    <div class="navfoot">${link(byId('settings'))}
+      <form method="post" action="/logout" class="navout"><button type="submit" class="subnav">${esc(t(locale, 'header.logout'))}</button></form>
+    </div>`;
   /**
    * CC-14 — whose workspace this is, in the owner's own words. It read
    * "Nomi · Lily's workspace" to everyone, and a new owner never saw the name
@@ -1367,7 +1476,7 @@ export function shell(input: {
   return `<!doctype html>
 <html lang="${locale}" dir="${dirOf(locale)}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(input.title)} · ${esc(name)}</title>
+<title>${esc(input.title)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(APP_SHEET)}
 ${typeLink(locale)}
@@ -1378,7 +1487,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main">${heading}${input.bodyHtml}${input.live ?? ''}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${input.bodyHtml}${input.live ?? ''}</main>
   </div>
 </div></body></html>`;
 }

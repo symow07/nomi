@@ -50,6 +50,7 @@ import {
 } from './assistants.js';
 import { assistantNameOfConversation } from '../../db/assistants.js';
 import { workspaceFacts, type WorkspaceFacts } from '../../db/workspace.js';
+import { readBuyerCounts } from '../../db/buyersList.js';
 import { handToAssistant } from '../../conversations/assistant.js';
 import { OUTREACH_CHANNELS } from '../../core/channel/registry.js';
 import { outreachSettings, setOutreach } from '../../db/outreach.js';
@@ -91,6 +92,8 @@ import { loadEmployee, renderEmployee } from './employee.js';
 import { loadCustomerFile, renderCustomerFile, renameBuyer } from './conversations.js';
 import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
+import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
+import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
@@ -149,7 +152,7 @@ import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletio
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+import { formatDate, dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword,
@@ -597,14 +600,27 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = s ? parseBusinessId(s.businessId) : null;
     if (!s || !bid || !bid.ok) return done();
     const now = Date.now();
+    /**
+     * The design pass — the rail's one number: how many customers need the
+     * owner now (Buyers' "Needs you"). Read FRESH for every page, never from
+     * the minute's cache: a count that lags is a count that lies. A page's own
+     * requests (the live line's question, a post) do not need it.
+     */
+    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
+      if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
+      withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx)).then(
+        (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
+        () => withWorkspace(f, done),
+      );
+    };
     const hit = facts.get(s.businessId, now);
-    if (hit !== undefined) return withWorkspace(hit, done);
+    if (hit !== undefined) return withNeeds(hit);
     withTenantTx(deps.db, bid.value, async (tx) => ({
       ...(await workspaceFacts(tx, bid.value)),
       business: (await sql<{ name: string | null }>`
         select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
     })).then(
-      (f) => { facts.set(s.businessId, f, now); withWorkspace(f, done); },
+      (f) => { facts.set(s.businessId, f, now); withNeeds(f); },
       () => done(),
     );
   });
@@ -630,7 +646,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * CC-26 — `live` is the page's live region (`liveRegion`), for the pages
    * that watch for something new while they are open.
    */
-  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string }): string =>
+  const page = (req: FastifyRequest, o: { title: string; active: string; bodyHtml: string; live?: string; wide?: boolean }): string =>
     shell({ ...o, locale: localeOf(req), path: req.url });
 
   /**
@@ -1610,11 +1626,29 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ...detail,
       proof: { ...detail.proof, url: detail.proof.token ? proofUrl(deps.publicBaseUrl, detail.proof.token) : null },
     };
+    /**
+     * The design pass — the panes: the list this conversation came from (Buyers'
+     * own, its default tab) and the customer it is with, with their dates from
+     * the calendar's own loader. The stylesheet decides which a screen shows.
+     */
+    const me = personOf(s).id;
+    const people = await loadPeople(deps.db, s.businessId);
+    const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
+    const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
+    const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
+    const today = dayKey(now);
+    const dated = customer
+      ? (await loadCalendar(deps.db, s.businessId, {
+          from: today, to: addDays(today, 15), category: null, buyer: customer.clientId, outreach: outreachShown(),
+        }, now)).entries.filter((e) => e.at >= now || e.allDay).slice(0, 4)
+      : [];
     return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox',
+      title: detail.buyer ?? t(locale, 'common.buyer'), active: 'inbox', wide: true,
       // A5.2 — this page is about ONE conversation, so it says its assistant's name.
-      bodyHtml: withAssistantName(detail.assistantName, () =>
-        renderConversationDetail(withProof, locale, now, flash, personOf(s))),
+      bodyHtml: withAssistantName(detail.assistantName, () => renderPanes(
+        renderListPane(list, locale, now, conversationId, people),
+        renderConversationDetail(withProof, locale, now, flash, personOf(s)),
+        customer ? renderCustomerPanel(customer, dated, locale, now, conversationId) : '')),
       // CC-26 — and its line names the same assistant.
       ...(mark && bid.ok ? { live: await ordersWaitingCount(deps.db, bid.value).then((orders) =>
         withAssistantName(detail.assistantName, () => liveRegion(locale, { ...conversationWatch(conversationId, mark), orders }))) } : {}),

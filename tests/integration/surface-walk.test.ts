@@ -261,7 +261,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
           problems.push(`${at}: "${text.slice(Math.max(0, m.index! - 40), m.index! + 20).replace(/\s+/g, ' ').trim()}"`);
         }
         if (!html.includes(`<span class="brandname"><bdi>${esc(business)}</bdi><small>Nomi</small></span>`)) problems.push(`${at}: the shell does not name the business`);
-        if (!/<body><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !html.includes('<main id="main">')) problems.push(`${at}: no skip link to main`);
+        if (!/<body><a class="skip" href="#main">[^<]+<\/a>/.test(html) || !/<main id="main"(?: class="wide")?>/.test(html)) problems.push(`${at}: no skip link to main`);
         const h1 = html.match(/<h1[\s>]/g)?.length ?? 0;
         if (h1 !== 1) problems.push(`${at}: ${h1} headings of the first rank`);
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {

@@ -1186,7 +1186,7 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: r
 function uncertainCard(us: readonly UncertainSend[], locale: Locale, now: Date): string {
   if (us.length === 0) return '';
   return `<div class="card unsure">
-    <h3 class="rf-h">${esc(t(locale, 'unsure.title'))}</h3>
+    ${stateHead('warn', t(locale, 'unsure.title'))}
     ${us.map((u) => `<div class="rf">
       <div class="rf-w">${esc(t(locale, 'unsure.what'))}</div>
       <blockquote class="unsure-q" dir="auto">${esc(u.body)}</blockquote>
@@ -1206,7 +1206,7 @@ function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string 
   if (rs.length === 0) return '';
   const name = assistantName(locale);
   return `<div class="card refused">
-    <h3 class="rf-h">${esc(t(locale, 'refused.title'))}</h3>
+    ${stateHead('bad', t(locale, 'refused.title'))}
     ${rs.map((r) => `<div class="rf">
       <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, { name }))}</div>
       <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, { name }))}</div>
@@ -1448,6 +1448,15 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
 }
 
 /**
+ * The design pass (2026-09-29) — every other card on this page is drawn as a
+ * state of the one card: a dot, the state's own words, then why and what to
+ * do. `warn` waits for the owner; `bad` did not happen. The word carries the
+ * state; the dot only marks it, so nothing rests on colour alone.
+ */
+const stateHead = (tone: 'warn' | 'bad', title: string): string =>
+  `<p class="stateline rf-h"><span class="dot ${tone}" aria-hidden="true">●</span> <b>${esc(title)}</b></p>`;
+
+/**
  * THE APPROVAL CARD (the design pass, 2026-09-29; the plan's §1). One card,
  * one decision: who asked what and when; what was understood; how the reply
  * was read, closed until asked for; the reply ONCE, in the only box on the
@@ -1672,7 +1681,7 @@ export function renderConversationDetail(
    */
   const unheardCard = d.unheardReason
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'unheard.title'))}</h3>
+        ${stateHead('warn', t(locale, 'unheard.title'))}
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unheard.what', { name: assistantName(locale) }))}</div>
           <div class="rf-y muted">${esc(t(locale, `unheard.why.${d.unheardReason}` as MessageKey))}</div>
@@ -1687,7 +1696,7 @@ export function renderConversationDetail(
    */
   const unreadableCard = d.unreadable
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'unreadable.title'))}</h3>
+        ${stateHead('warn', t(locale, 'unreadable.title'))}
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unreadable.what', {
             name: assistantName(locale),
@@ -1705,7 +1714,7 @@ export function renderConversationDetail(
    */
   const unlistedCard = d.handoffReasons.includes('unlisted_number')
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'unlisted.title'))}</h3>
+        ${stateHead('warn', t(locale, 'unlisted.title'))}
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: assistantName(locale) }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: assistantName(locale) }))}</div>
@@ -1729,7 +1738,7 @@ export function renderConversationDetail(
   const deletionAsked = d.handoffReasons.includes('deletion_requested');
   const deletionCard = deletionAsked || d.deletionAsk
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'deletionAsked.title'))}</h3>
+        ${stateHead('warn', t(locale, 'deletionAsked.title'))}
         <div class="rf">
           ${deletionAsked ? `<div class="rf-w">${esc(t(locale, 'deletionAsked.what', { name: assistantName(locale) }))}</div>` : ''}
           ${d.deletionAsk
@@ -1752,7 +1761,7 @@ export function renderConversationDetail(
    */
   const closedCard = d.leadTimeBlocked
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'closures.blocked.title'))}</h3>
+        ${stateHead('warn', t(locale, 'closures.blocked.title'))}
         <div class="rf">
           <div class="rf-y muted">${esc(t(locale, 'closures.blocked.body', {
             label: d.leadTimeBlocked.label,
@@ -1771,7 +1780,7 @@ export function renderConversationDetail(
    */
   const herWordsCard = d.herWords?.length
     ? `<div class="card refused">
-        <h3 class="rf-h">${esc(t(locale, 'herwords.title'))}</h3>
+        ${stateHead('bad', t(locale, 'herwords.title'))}
         ${d.herWords.map((w) => `<div class="rf">
           <div class="rf-y muted"><bdi>${esc(t(locale, `herwords.${w.path}` as MessageKey, { terms: quoted(locale, w.terms), name: assistantName(locale) }))}</bdi></div>
           <div class="rf-d"><a href="${w.path === 'taught_answer' ? '/app/knowledge' : '/app/settings/forbidden'}">${
@@ -1787,7 +1796,7 @@ export function renderConversationDetail(
    */
   const sampleCard = d.sampleAsked
     ? `<div class="card${d.sampleAsked.policyStated ? '' : ' refused'}">
-        <h3 class="rf-h">${esc(t(locale, 'samples.asked.title'))}</h3>
+        ${stateHead('warn', t(locale, 'samples.asked.title'))}
         ${d.sampleAsked.policyStated ? '' : `<div class="rf">
           <div class="rf-y muted">${esc(t(locale, 'samples.asked.unstated', { name: assistantName(locale) }))}</div>
           <div class="rf-d"><a href="/app/settings/samples">${esc(t(locale, 'samples.asked.action'))}</a></div>
@@ -1840,6 +1849,7 @@ export function renderConversationDetail(
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
       ${headerPill(d, locale, viewer)}
+      ${/* The design pass — where the customer panel is folded away, this opens it over the page. */ ''}<a class="panel-open" href="#customer">${esc(t(locale, 'panel.open'))}<span class="go" aria-hidden="true">›</span></a>
     </div>
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}
     ${older ? '' : assistantControl(d, locale, viewer)}
@@ -1848,7 +1858,7 @@ export function renderConversationDetail(
       d.quantity !== null ? `<bdi>${esc(formatQtyUnit(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
     ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
-      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'))}
+      deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}
     ${log}
     ${flashHtml}
     ${acts}`;

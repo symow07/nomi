@@ -664,7 +664,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('<h1 class="page">Buyers</h1>');   // English default, one word
-    expect(res.body).not.toContain('Customers');
+    // No second LIST called Customers: the page's words are Buyers'. (The rail's
+    // "Customers" heading over Conversations and Calendar is the design pass's.)
+    const main = res.body.slice(res.body.indexOf('<main'));
+    expect(main).not.toContain('Customers');
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
     expect(res.body).not.toContain('置信度');   // no invented score
