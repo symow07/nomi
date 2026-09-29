@@ -161,11 +161,14 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the real flag is up: the owner read zh and ar on 2026-09-28', async () => {
+  it('the real flag is down: es and fr await a native reader (2026-09-29); zh and ar were read 2026-09-28', async () => {
+    // Updated deliberately (CLAUDE.md rule 1): the owner's instruction added
+    // Spanish and French as awaiting review. A reviewer flips them, named, in
+    // the same commit that updates this assertion.
     const { disclosureAwaitingReview, autonomyReleased, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
-    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true });
-    expect(disclosureAwaitingReview()).toEqual([]);
-    expect(autonomyReleased()).toBe(true);
+    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false });
+    expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
+    expect(autonomyReleased()).toBe(false);
   });
 
   it('"talks" and "sells" are REFUSED by the route, and nothing is written', async () => {
@@ -191,11 +194,11 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page no longer says the sentence is being checked — it reads the real flag, which is up', async () => {
+  it('and the page says the sentence is being checked — it reads the real flag, which is down while es/fr wait', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(page.statusCode).toBe(200);
-    expect(page.body).not.toContain('has not been read by a native speaker');
+    expect(page.body).toContain('has not been read by a native speaker');
   });
 });

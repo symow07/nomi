@@ -433,9 +433,11 @@ describe('nothing is sent alone until the disclosure has had native review', () 
     expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
   });
 
-  it('the real flag is up since the owner read zh and ar (2026-09-28); the rung above still holds a closed one', async () => {
+  it('the real flag is DOWN again: Spanish and French await a native reader (2026-09-29); the rung above holds it', async () => {
     const { disclosureAwaitingReview, autonomyReleased } = await import('../../src/core/conversation/disclosure.js');
-    expect(disclosureAwaitingReview()).toEqual([]);
-    expect(autonomyReleased()).toBe(true);
+    // zh and ar were read by the owner on 2026-09-28; es and fr were added
+    // on 2026-09-29 and wait for a reviewer. Flipping them is a person's act.
+    expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
+    expect(autonomyReleased()).toBe(false);
   });
 });

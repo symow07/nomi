@@ -86,6 +86,11 @@ const ARZ_INTENS = '(?:wallah|walla|wallahi|w\\s*allah|bjd|bjad|bejad|fe3lan|fe3
 const ARZ_GAP = `(?:${ARZ_INTENS}\\s+){0,2}`;
 
 const EN_I = "\\bi(?:'m|’m|\\s+am)\\s+";
+// Spanish and French (2026-09-29): the same claims, in the customers' words.
+const ES_INTENS = '(?:realmente|de\\s+verdad|en\\s+serio|claro\\s+que|sin\\s+duda|totalmente|100\\s*%)';
+const ES_GAP = `(?:${ES_INTENS}\\s+){0,2}`;
+const FR_INTENS = '(?:vraiment|bien|r[ée]ellement|s[ûu]rement|certainement|[àa]\\s+100\\s*%)';
+const FR_GAP = `(?:${FR_INTENS}\\s+){0,2}`;
 
 /**
  * Written out rather than generated, because each one is a sentence somebody
@@ -118,6 +123,32 @@ const DENIALS: readonly RegExp[] = [
   // "you're speaking with one of our team members, not a bot" — the denial is
   // the tail, and it is a denial however the head is phrased.
   /\bnot\s+(?:a\s+)?(?:bot|robot|chatbot|machine)\b[^.!?]{0,24}\b(?:here|speaking|talking|promise|really)\b/i,
+
+  // ── Español ───────────────────────────────────────────────────────────────
+  // "soy una persona real", "soy humana", "no soy un bot". The subject is in the
+  // verb: «soy» is always the speaker, so "una persona de nuestro equipo te
+  // responderá" (a handoff offer) carries no «soy» and passes.
+  new RegExp(`\\bsoy\\s+${ES_GAP}(?:una?\\s+)?(?:persona|humano|humana|ser\\s+humano|mujer|hombre|chica|chico)(?:\\s+(?:real|de\\s+verdad))?\\b`, 'i'),
+  new RegExp(`\\bno\\s+soy\\s+${ES_GAP}(?:una?\\s+)?(?:bot|robot|ia|i\\.a\\.|chatbot|m[aá]quina|programa|computadora|ordenador|inteligencia\\s+artificial)\\b`, 'i'),
+  /\b(?:lo\s+)?(?:escribo|estoy\s+escribiendo)\s+(?:esto\s+|este\s+mensaje\s+)?yo\s+mism[oa]\b/i,
+  /\b(?:te|le)\s+(?:aseguro|prometo|juro)\s+que\s+soy\s+(?:una?\s+)?(?:persona|humano|humana)\b/i,
+  // Said about the conversation: "estás hablando con una persona real".
+  /\b(?:est[aá]s|est[aá]|usted\s+est[aá])\s+(?:hablando|chateando|escribiendo)\s+con\s+(?:una?\s+)?(?:persona|humano|ser\s+humano)(?:\s+(?:real|de\s+verdad))?\b/i,
+  // "no hay bots aquí" — never "no hay robots en stock": a robot vacuum is a product.
+  /\bno\s+hay\s+(?:ning[uú]na?\s+)?(?:bots?|robots?|ia|m[aá]quinas?)\s+(?:aqu[ií]|en\s+este\s+chat|de\s+por\s+medio)\b|\baqu[ií]\s+no\s+hay\s+(?:bots?|robots?|ia|m[aá]quinas?)\b/i,
+
+  // ── Français ──────────────────────────────────────────────────────────────
+  // "je suis une vraie personne", "je ne suis pas un robot", "j'suis pas un bot".
+  new RegExp(`\\bje\\s+suis\\s+${FR_GAP}(?:une?\\s+)?(?:vraie\\s+)?(?:personne|humaine?|[êe]tre\\s+humain|femme|homme)(?:\\s+(?:r[ée]elle?|en\\s+chair\\s+et\\s+en\\s+os))?\\b`, 'i'),
+  new RegExp(`\\bje\\s+ne\\s+suis\\s+${FR_GAP}pas\\s+(?:un\\s+|une\\s+)?(?:bot|robot|ia|i\\.a\\.|chatbot|machine|programme|ordinateur|intelligence\\s+artificielle)\\b`, 'i'),
+  /\bj(?:e\s+|['’]\s*)suis\s+pas\s+(?:un\s+|une\s+)?(?:bot|robot|ia|machine|programme)\b/i,
+  /\b(?:je\s+vous|je\s+te)\s+(?:assure|promets|jure)\s+que\s+je\s+suis\s+(?:une?\s+)?(?:vraie\s+)?(?:personne|humaine?)\b/i,
+  // Said about the conversation: "vous parlez à une vraie personne", "tu parles avec un humain".
+  /\b(?:vous\s+(?:parlez|discutez|[ée]changez|[ée]crivez)|tu\s+(?:parles|discutes|[ée]cris))\s+(?:bien\s+)?(?:avec|[àa])\s+(?:une?\s+)?(?:vraie\s+)?(?:personne|humain|[êe]tre\s+humain)(?:\s+r[ée]elle?)?\b/i,
+  // "c'est une vraie personne", "c'est un humain qui vous répond" — never
+  // "c'est une personne de l'équipe qui vous répondra" (an offer, in the future).
+  /\bc['’]est\s+(?:une\s+)?vraie\s+personne\b|\bc['’]est\s+un\s+(?:vrai\s+)?humain\s+qui\s+(?:vous\s+|te\s+)?(?:r[ée]pond|[ée]crit|parle)\b/i,
+  /\bil\s+n['’]y\s+a\s+(?:pas|aucun)\s+(?:de\s+)?(?:bots?|robots?|ia)\s+ici\b|\bpas\s+de\s+(?:bots?|robots?)\s+ici\b/i,
 
   // ── 中文 ──────────────────────────────────────────────────────────────────
   // No spaces, so these are exact phrases rather than anchored patterns. Each
@@ -193,6 +224,26 @@ const IDENTITY_QUESTIONS: readonly RegExp[] = [
   // "are you an actual employee", "is there a human there?"
   /\bis\s+there\s+(?:a\s+|an\s+)?(?:real\s+)?(?:human|person)\s+(?:there|here|on\s+the\s+other\s+(?:end|side))\b/i,
 
+  // ── Español ───────────────────────────────────────────────────────────────
+  // "¿eres un bot?", "¿es usted humano?", "¿eres real?", "¿estoy hablando con una persona?"
+  // Spanish asks without inverting, so "eres una persona muy amable" (a
+  // compliment) reads like the question: a question mark says which it is.
+  /(?:¿\s*|\b)(?:eres|es\s+usted|sois|son\s+ustedes)\s+(?:una?\s+)?(?:bot|robot|ia|chatbot|humano|humana|persona(?:\s+real)?|m[aá]quina|real|de\s+verdad)\b(?=[^.!\n]{0,24}\?)/i,
+  /¿\s*(?:eres|es\s+usted)\s+(?:una?\s+)?(?:bot|robot|ia|chatbot|humano|humana|persona|m[aá]quina|real)\b/i,
+  /\bestoy\s+(?:hablando|chateando|escribiendo)\s+con\s+(?:una?\s+)?(?:bot|robot|ia|chatbot|humano|humana|persona|m[aá]quina)\b/i,
+  /\b(?:esto|este\s+chat)\s+es\s+(?:una?\s+)?(?:bot|robot|ia|contestador)\b|\b(?:esto|este\s+chat)\s+es\s+autom[aá]tico\s*\?/i,
+  /\bcon\s+qui[eé]n\s+(?:hablo|estoy\s+hablando)\b/i,
+
+  // ── Français ──────────────────────────────────────────────────────────────
+  // "tu es un bot ?", "êtes-vous humain ?", "je parle à un robot ?", "à qui je parle ?"
+  // Inverted ("es-tu", "êtes-vous") is a question; plain ("tu es") only with its question mark.
+  // `\b` knows only ASCII letters, so a sentence that starts with «Ê» or «À» needs its own edge.
+  /(?<![A-Za-zÀ-ÿ])(?:es[-\s]tu|[êe]tes[-\s]vous)\s+(?:une?\s+)?(?:bot|robot|ia|chatbot|humaine?|vraie\s+personne|personne\s+r[ée]elle|machine|r[ée]el(?:le)?)\b/i,
+  /\b(?:tu\s+es|vous\s+[êe]tes)\s+(?:une?\s+)?(?:bot|robot|ia|chatbot|humaine?|vraie\s+personne|personne\s+r[ée]elle|machine|r[ée]el(?:le)?)\b(?=[^.!\n]{0,24}\?)/i,
+  /\b(?:je\s+parle|je\s+discute|je\s+suis\s+en\s+train\s+de\s+parler)\s+(?:[àa]|avec)\s+(?:une?\s+)?(?:bot|robot|ia|chatbot|humain|vraie\s+personne|machine)\b/i,
+  /\best[-\s]ce\s+(?:que\s+c['’]est\s+)?(?:un\s+)?(?:bot|robot|une\s+ia|un\s+humain|une\s+vraie\s+personne|automatique)\b/i,
+  /(?<![A-Za-zÀ-ÿ])[àa]\s+qui\s+(?:je\s+parle|est[-\s]ce\s+que\s+je\s+parle|ai[-\s]je\s+affaire)\b/i,
+
   // ── 中文 ──────────────────────────────────────────────────────────────────
   // "你是机器人吗？", "您是不是真人", "你是AI吗"
   /(?:你|您)(?:是|係)(?:不是)?(?:机器人|機器人|真人|人工智能|人工智慧|AI|机器|機器|真的人|人类|人類)/i,
@@ -227,13 +278,22 @@ const IDENTITY_QUESTIONS: readonly RegExp[] = [
  * to produce. Only 人工智能 / 人工智慧 — the full word for the machine — counts.
  */
 const ACKNOWLEDGMENTS: readonly RegExp[] = [
-  /\b(?:a\.?\s?i\.?|artificial\s+intelligence|chat\s?bot|bot|robot|automated|virtual\s+assistant|digital\s+assistant|computer\s+program|software|machine)\b/i,
+  // "a.i." with its dots only: bare "ai" is French «j'ai»; "AI" is its own line below.
+  /\b(?:a\.\s?i\.?|artificial\s+intelligence|chat\s?bot|bot|robot|automated|virtual\s+assistant|digital\s+assistant|computer\s+program|software|machine)\b/i,
   // "I am not a human" — an acknowledgment by the other door.
   /\bi(?:'m|’m|\s+am)\s+not\s+(?:a\s+)?(?:human(?:\s+being)?|person|real\s+person)\b/i,
-  /(?:AI|人工智能|人工智慧|智能助手|机器人|機器人|自动回复|自動回覆)/i,
+  // T2 — "AI" as the word, in capitals: it was matched case-blind anywhere,
+  // so "details", "email", "available" (and French "j'ai", "taille") read as
+  // an admission, and a reply that dodged "are you a bot?" went out.
+  /\bAI\b/,
+  /(?:人工智能|人工智慧|智能助手|机器人|機器人|自动回复|自動回覆)/,
   /我不是(?:真人|人类|人類)/,
   /(?:ذكاء\s+اصطناعي|مساعد\s+ذكي|مساعدة\s+ذكية|روبوت|بوت|آلي)/,
   /لست\s+(?:إنسان|انسان|بشر)/,
+  // Spanish and French: "asistente de IA", "l'IA de …", "no soy una persona".
+  /\bIA\b/,
+  /\b(?:inteligencia\s+artificial|intelligence\s+artificielle|asistente\s+virtual|assistant\s+virtuel|autom[aá]tic[oa]|automatique)\b/i,
+  /\bno\s+soy\s+(?:una?\s+)?(?:persona|humano|humana)\b|\bje\s+ne\s+suis\s+pas\s+(?:une?\s+)?(?:personne|humaine?)\b/i,
 ];
 
 /** The first denial in this reply, or null. */

@@ -17,19 +17,24 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-29 | #124 | **Spanish and French**: the disclosure (awaiting a native reader, gate shut) and every safety check — identity, wants-a-person and openers, deletion, injection, the forbidden-word floor, claims, numeral words. **T2**: "AI" as the word only; Arabic-Indic and Chinese numerals; a small number beside any currency; accented Spanish promises | 81 |
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** Spanish and French — the disclosure and every safety check (step 3).
+**Next:** the design foundation (step 5): the buttons-and-doors test first, then colour and type, the shell, the approval card.
+
+**Consequence the owner should know (since #124):** the disclosure gate is
+installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
+native reader, so **nothing sends alone anywhere — Westlake's auto included —
+until the two sentences are read and the flags flipped.** Replies wait as
+drafts; the owner's page says why (`autonomy.notReleased`). Flipping them is
+the one step I may not take.
 
 ## The order of work
 
 1. **Done — T6/T6b**, the live order defect (highest priority).
 2. **Done — MOQ nullable (0081) and T4**, with PRODUCT.md (step 4).
-3. **Spanish and French** — the disclosure and every safety check in es/fr
-   (identity, deletion, wants-a-person, forbidden-word floor, numerals).
-   `DISCLOSURE_NATIVE_REVIEW` gets `es: false, fr: false` — never set true by
-   me; a native reviewer flips them.
+3. **Done — Spanish and French (#124)**, with **T2** (the guard holes).
 4. **Done — PRODUCT.md** (in #123).
 5. **Design foundation** (about 70 h): colour tokens (graphite primary, magenta
    only for the assistant's marks; jade, highlight `#7F6400`, the warm papers
@@ -41,7 +46,8 @@ under "Decided" below.
    so the calendar's is the next free number), the week grid, then the promised
    follow-up read from conversations (then price end, agreed delivery).
 7. **Build items with no open decision**, each built in the new design where
-   it has a page: T1, T2, T3, T5, T7, Q1, CH5, CH7a, PWR, FAIR, CEIL, REKEY.
+   it has a page: T1, T3, T5, T7, Q1, CH5, CH7a, PWR, FAIR, CEIL, REKEY
+   (T2 done in #124).
    CH1/CH2 (connection health, help pages) are product pages about a channel,
    not Meta's review process; built unless they turn out to need App Review.
 8. **The rest of the design pass** folded into the pages those items touch
@@ -103,6 +109,16 @@ instruction did not answer. Collected here; asked once, at the end.
   (schema 79, drill 4/4 after the fix). **Check the next scheduled run
   (2026-09-30 03:00 UTC) wrote a `backup_runs` row**; the backup service
   rebuilds on changes to `tools/verify-restore.sh` (its watch path).
+
+- **A unit test flaked once** (2026-09-29, before #124):
+  `tests/parity/backup-retention.test.ts` › "manual pairs at the root older
+  than 180 days go WHOLE" failed in one full run and passed in the next eight
+  and alone; no message was captured. Not root-caused yet — if it recurs,
+  capture the output (`vitest run --reporter=dot > log`) before rerunning.
+- **The claims guard's words were English-only** for zh and ar too (only the
+  acronyms — CE, FDA, FOB… — work in any language). #124 added es/fr as
+  instructed; zh/ar words (保证, 退款, ضمان, استرداد…) are not added: a
+  broader guard makes more replies wait, which is the owner's call.
 
 ## Deferred, and why
 

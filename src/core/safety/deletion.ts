@@ -115,13 +115,28 @@ const AR: readonly RegExp[] = [
 // ── Other buyers' languages ──────────────────────────────────────────────────
 const OTHER: readonly RegExp[] = [
   // French
-  /\b(?:supprime[rz]?|effacer|effacez|efface|retirer|retirez)\s+(?:toutes\s+)?(?:mes|les)\s+(?:donn[ée]es|informations|coordonn[ée]es)(?:\s+personnelles)?\b/,
+  /\b(?:supprime[rz]?|effacer|effacez|efface|retirer|retirez)\s+(?:toutes\s+)?mes\s+(?:donn[ée]es|informations|coordonn[ée]es)(?:\s+personnelles)?\b/,
+  // "les données" only after an infinitive or a vous-imperative: "votre
+  // politique supprime les données ?" is a question about practice (2026-09-29).
+  /\b(?:supprimer|supprimez|effacer|effacez|retirer|retirez)\s+(?:toutes\s+)?les\s+(?:donn[ée]es|informations|coordonn[ée]es)(?:\s+personnelles)?\b/,
   /\bmes\s+(?:donn[ée]es|informations)(?:\s+personnelles)?\s+(?:soient\s+)?(?:supprim[ée]es|effac[ée]es)\b/,
   /\bdroit\s+[àa]\s+l'oubli\b/,
+  // 2026-09-29 — French and Spanish carried by the disclosure now: the same
+  // shapes as English. "Remove me from your base"; the buyer's own account,
+  // history or messages; their number or e-mail only where the clause ends
+  // there or names the list it leaves. Imperatives and infinitives only:
+  // "j'ai supprimé mon e-mail" is the buyer's own act, not a request.
+  /\b(?:supprimez|supprime|effacez|efface|retirez|retire)[-\s](?:moi|nous)\s+de\s+(?:votre|vos|ta|tes)\s+(?:base(?:\s+de\s+donn[ée]es)?|fichiers?|liste|syst[èe]me|contacts?)\b/,
+  /\b(?:supprimez|supprime|supprimer|effacez|efface|effacer|retirez|retirer)\s+(?:mon|mes)\s+(?:compte|historique|messages|conversations?|profil)\b/,
+  /\b(?:supprimez|supprime|supprimer|effacez|efface|effacer|retirez|retirer)\s+mon\s+(?:num[ée]ro(?:\s+de\s+t[ée]l[ée]phone)?|e-?mail|adresse\s+e-?mail)(?=\s*(?:$|[.!?,;]|de\s+(?:votre|vos)\s+(?:base|fichiers?|liste|syst[èe]me)|s'il\s+vous\s+pla[iî]t|svp))/,
+  /\b(?:supprimiez|effaciez)\s+(?:toutes\s+)?(?:mes|les)\s+(?:donn[ée]es|informations|coordonn[ée]es)\b/,
   // Spanish
   /\b(?:borrar|borren|borra|borre|eliminar|eliminen|elimina|elimine|suprimir|supriman)\s+(?:todos\s+)?mis\s+(?:datos|informaci[oó]n)(?:\s+personales)?\b/,
   /\bmis\s+(?:datos|informaci[oó]n)(?:\s+personales)?\s+(?:sean\s+)?(?:borrad[oa]s?|eliminad[oa]s?)\b/,
   /\bderecho\s+al\s+olvido\b/,
+  /\b(?:b[oó]rrame|b[oó]rrenme|elim[ií]name|elim[ií]nenme|s[aá]came|s[aá]quenme)\s+de\s+(?:tu|su|vuestra|vuestras|sus|tus)\s+(?:base(?:\s+de\s+datos)?|lista|sistema|registros?|contactos?|archivos?)\b/,
+  /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+(?:todos\s+)?(?:mi|mis)\s+(?:cuenta|historial|mensajes|conversaci[oó]n(?:es)?|perfil|registros?)\b/,
+  /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+mi\s+(?:n[uú]mero(?:\s+de\s+tel[ée]fono)?|correo(?:\s+electr[oó]nico)?|e-?mail|tel[ée]fono)(?=\s*(?:$|[.!?,;]|de\s+(?:tu|su|vuestra)\s+(?:base|lista|sistema)|por\s+favor))/,
   // Portuguese
   /\b(?:apagar|apaguem|apague|excluir|excluam|exclua|eliminar|deletar|delete|remover|removam|remova)\s+(?:todos\s+)?(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\b/,
   /\bdireito\s+ao\s+esquecimento\b/,
@@ -178,9 +193,13 @@ const PROMISE_PATTERNS: readonly RegExp[] = [
   /(?:سنحذف|ساحذف|سوف نحذف|سوف احذف|حذفنا|حذفت|تم حذف|سيتم حذف|قمنا بحذف|سنقوم بحذف|ساقوم بحذف|سنمسح|مسحنا|تم مسح|سيتم مسح|سنزيل|تمت ازاله|تمت ازالة|سيتم ازاله|سيتم ازالة)(?:\s+(?:كل|جميع))?\s+(?:بياناتك|معلوماتك|رقمك|رسائلك|حسابك|بياناتكم|معلوماتكم|رسائلكم|حسابكم|سجلك|سجلاتك)/,
   // French / Spanish / Portuguese / German / Russian / Turkish
   /\b(?:nous\s+(?:allons|avons|supprimerons|effacerons)|je\s+(?:vais|ai|supprimerai|effacerai))\s+(?:supprim|effac)\w*\s+(?:vos|tes|toutes\s+vos)\s+(?:donn[ée]es|informations)/,
-  /\bvos\s+(?:donn[ée]es|informations)\s+(?:ont\s+[ée]t[ée]|seront)\s+(?:supprim|effac)\w*/,
+  /\b(?:vos|tes)\s+(?:donn[ée]es|informations|messages|coordonn[ée]es)\s+(?:ont\s+[ée]t[ée]|seront|sont)\s+(?:supprim|effac)\w*/,
+  /\b(?:nous\s+allons|je\s+vais|on\s+va)\s+(?:supprimer|effacer)\s+(?:toutes\s+)?(?:vos|tes)\s+(?:donn[ée]es|informations|messages|coordonn[ée]es|num[ée]ro)/,
   /\b(?:borraremos|eliminaremos|hemos\s+borrado|hemos\s+eliminado|borrar[ée]|eliminar[ée]|he\s+borrado|he\s+eliminado)\s+(?:todos\s+)?(?:sus|tus)\s+(?:datos|informaci[oó]n)/,
-  /\bsus\s+datos\s+(?:han\s+sido|ser[aá]n|fueron)\s+(?:borrad|eliminad)\w*/,
+  /\b(?:sus|tus)\s+(?:datos|mensajes)\s+(?:han\s+sido|ser[aá]n|fueron|est[aá]n)\s+(?:borrad|eliminad|suprimid)\w*/,
+  /\b(?:vamos\s+a|voy\s+a|ya\s+hemos|hemos|he)\s+(?:borrar|eliminar|suprimir|borrado|eliminado|suprimido)\s+(?:todos\s+)?(?:tus|sus|tu|su)\s+(?:datos|informaci[oó]n|mensajes|cuenta|historial)\b/,
+  // Their number or e-mail only where the clause ends there, or names the list.
+  /\b(?:vamos\s+a|voy\s+a|ya\s+hemos|hemos|he)\s+(?:borrar|eliminar|suprimir|borrado|eliminado|suprimido)\s+(?:tu|su)\s+(?:n[uú]mero|correo|e-?mail)(?=\s*(?:$|[.!?,;]|de\s+(?:nuestra|la)\s+(?:lista|base|sistema)))/,
   /\b(?:vamos|vou|iremos|irei)\s+(?:apagar|excluir|remover|deletar)\s+(?:todos\s+)?(?:os\s+)?(?:seus|teus)\s+dados|\b(?:apagamos|exclu[íi]mos|removemos|deletamos)\s+(?:os\s+)?(?:seus\s+)?dados/,
   /\b(?:wir|ich)\s+(?:werden|haben|habe|werde)\s+(?:ihre|deine)\s+daten\s+(?:l[öo]schen|gel[öo]scht|entfernen|entfernt)/,
   /\b(?:ihre|deine)\s+daten\s+(?:wurden|werden|sind)\s+(?:gel[öo]scht|entfernt)/,

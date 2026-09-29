@@ -18,7 +18,8 @@
  * the opener, handed off when asked again after the disclosure.
  */
 
-export type Lang = 'en' | 'zh' | 'ar';
+// Spanish and French since 2026-09-29: the disclosure speaks them, so layer 1 hears them.
+export type Lang = 'en' | 'zh' | 'ar' | 'es' | 'fr';
 
 /** The five the old list missed — the owner's first priority, by cost. */
 export const THE_FIVE_MISSES: readonly [string, string][] = [
@@ -167,6 +168,38 @@ export const REQUESTS: Record<Lang, readonly string[]> = {
     'أُرِيدُ أَحَدًا يُسَاعِدُنِي',
     'اریدُ التحدث مع مدیرکم',
   ],
+  es: [
+    "¿Puedo hablar con una persona?",
+    "Quiero hablar con una persona real",
+    "Necesito hablar con alguien de tu equipo",
+    "Quisiera hablar con el encargado",
+    "Me gustaría hablar con un asesor",
+    "Pásame con un agente, por favor",
+    "Comunícame con atención al cliente",
+    "¿Me puedes llamar?",
+    "Llámame por favor",
+    "Llámame mañana",
+    "No quiero hablar con un bot",
+    "¿Hay alguien con quien pueda hablar?",
+    "Persona real por favor",
+    "Quiero hablar con el dueño",
+  ],
+  fr: [
+    "Je voudrais parler à une vraie personne",
+    "Puis-je parler à quelqu'un ?",
+    "J'aimerais parler avec un conseiller",
+    "Je veux parler au responsable",
+    "Est-ce que je peux parler à un humain ?",
+    "Passez-moi le service client",
+    "Mettez-moi en relation avec un conseiller",
+    "Appelez-moi svp",
+    "Pouvez-vous m'appeler ?",
+    "Rappelez-moi demain",
+    "Je ne veux pas parler à un robot",
+    "Il y a quelqu'un à qui je peux parler ?",
+    "Une vraie personne svp",
+    "J'ai besoin de parler à quelqu'un de votre équipe",
+  ],
 };
 
 /** 2 · The words, meaning something else. Not layer 1's. [text, what it means] */
@@ -197,6 +230,20 @@ export const OTHER_MEANINGS: Record<Lang, readonly [string, string][]> = {
     ['أريد مندوب مبيعات في السعودية', "'a sales agent' — appointing one, a trade relationship"],
     ['نبحث عن موظفين للمصنع', "'staff' — hiring"],
     ['أريد آلة خياطة صناعية', "'a machine' — a sewing machine, a product"],
+  ],
+  es: [
+    ["¿Venden pelucas de cabello humano?", "'humano' — a product"],
+    ["Queremos ser su agente en México", "'agente' — a trade relationship"],
+    ["Nuestro agente en Madrid recogerá la mercancía", "'agente' — theirs, a trade term"],
+    ["No quiero una bolsa hecha a máquina", "'máquina' — how the goods are made"],
+    ["¿Tienen robots de cocina?", "'robots' — a product"],
+  ],
+  fr: [
+    ["Vous vendez des perruques en cheveux humains ?", "'humains' — a product"],
+    ["Nous voulons être votre agent en France", "'agent' — a trade relationship"],
+    ["Notre agent à Lyon récupérera la marchandise", "'agent' — theirs, a trade term"],
+    ["Je ne veux pas d'un sac fait à la machine", "'machine' — how the goods are made"],
+    ["Vous avez des robots aspirateurs ?", "'robots' — a product"],
   ],
 };
 
@@ -236,6 +283,24 @@ export const OWN_SIDE: Record<Lang, readonly [string, string][]> = {
     ['سأتصل بك غدا', 'they will call the seller'],
     ['سأتحدث مع مديري وأعود إليك', 'their own manager'],
     ['اسمي أحمد', 'a name'],
+  ],
+  es: [
+    ["Voy a hablar con alguien de mi equipo y te digo", "someone in their own team"],
+    ["Necesito hablar con mi jefe primero", "their own boss"],
+    ["Quiero hablar con una persona de mi empresa antes", "a person at their own company"],
+    ["Llámame Ana", "a name, not a call"],
+    ["Me puedes llamar Ana", "a name, not a call"],
+    ["Mi compañero me llamará mañana", "their colleague calls them"],
+    ["Nuestro equipo de ventas te contactará", "their own sales team"],
+  ],
+  fr: [
+    ["Je vais parler à quelqu'un de mon équipe et je reviens vers vous", "someone in their own team"],
+    ["Je dois parler à mon responsable d'abord", "their own manager"],
+    ["Je voudrais parler à une personne de ma société d'abord", "a person at their own company"],
+    ["Appelez-moi Marie", "a name, not a call"],
+    ["Vous pouvez m'appeler Marie", "a name, not a call"],
+    ["Mon collègue me rappellera demain", "their colleague calls them"],
+    ["Notre équipe commerciale vous contactera", "their own sales team"],
   ],
 };
 
@@ -300,6 +365,31 @@ export const PASSING: Record<Lang, readonly string[]> = {
     'اتصل بي أحد موظفيكم أمس',
     'شكرا على المساعدة',
   ],
+  es: [
+    "Queremos hablar del precio",
+    "Quiero hablar contigo sobre un pedido grande",
+    "¿Podemos hablar del precio?",
+    "Hablamos pronto",
+    "Te llamo mañana",
+    "Puedes llamarme cuando quieras",
+    "Me puedes llamar cuando quieras",
+    "¿Podemos hacer una llamada la próxima semana?",
+    "¿Tienen muestra de cabello humano?",
+    "Uno de nuestros clientes pidió este producto",
+    "Gracias por la ayuda",
+  ],
+  fr: [
+    "Nous voulons parler du prix",
+    "Je voudrais vous parler d'une grosse commande",
+    "Peut-on parler du prix ?",
+    "À bientôt",
+    "Je vous appelle demain",
+    "Vous pouvez m'appeler quand vous voulez",
+    "Pouvons-nous faire un appel la semaine prochaine ?",
+    "Avez-vous un échantillon de cheveux humains ?",
+    "Un de nos clients a demandé ce produit",
+    "Merci pour votre aide",
+  ],
 };
 
 /** Declining a person is not asking for one. */
@@ -311,6 +401,14 @@ export const DECLINED: Record<Lang, readonly string[]> = {
   ],
   zh: ['不用转人工，你回答就行', '我不需要人工客服', '别找真人了'],
   ar: ['لا أريد التحدث مع شخص، أرسل السعر فقط', 'مش عايز اكلم حد'],
+  es: [
+    "No quiero hablar con una persona, solo mándame el precio",
+    "No hace falta pasarme con nadie",
+  ],
+  fr: [
+    "Je ne veux pas parler à une personne, envoyez juste le prix",
+    "Pas besoin de me passer quelqu'un",
+  ],
 };
 
 /** A question about WHAT they are talking to is not, by itself, a request: layer 2's. */
@@ -318,6 +416,14 @@ export const ABOUT_THE_ASSISTANT: Record<Lang, readonly string[]> = {
   en: ['Are you a human?', 'Hold on — am I talking to a bot or a real person?'],
   zh: ['你是真人吗？'],
   ar: ['هل أنت إنسان؟'],
+  es: [
+    "¿Eres humano?",
+    "¿Estoy hablando con un bot o con una persona?",
+  ],
+  fr: [
+    "Êtes-vous un humain ?",
+    "Je parle à un robot ou à une vraie personne ?",
+  ],
 };
 
 /**
@@ -329,6 +435,12 @@ export const LEFT_TO_LAYER_TWO: Record<Lang, readonly [string, string][]> = {
        ['Honestly I would prefer that Mr. Wang handles my order himself', 'a named person, no word on any list']],
   zh: [['有没有人能帮我？', 'someone who can help — more than a greeting']],
   ar: [['أريد مندوب مبيعات', 'a sales rep — or appointing one']],
+  es: [
+    ["Hola?? ¿Alguien está leyendo estos mensajes?", "only the meaning says it"],
+  ],
+  fr: [
+    ["Allô ?? Quelqu'un lit vraiment ces messages ?", "only the meaning says it"],
+  ],
 };
 
 /**
@@ -382,6 +494,20 @@ export const OPENERS: Record<Lang, readonly [string, string][]> = {
     ['هل من أحد؟', 'is there anyone?'],
     ['هل خدمة العملاء موجودة؟', 'customer service there? — 客服在吗 in Arabic'],
   ],
+  es: [
+    ["¿Hay alguien?", "anyone there — the greeting"],
+    ["Hola, ¿hay alguien ahí?", "with a hello"],
+    ["¿Alguien disponible?", "available"],
+    ["Buenas, ¿hay alguien?", "with a greeting"],
+    ["¿Hay alguien atendiendo?", "anyone attending"],
+  ],
+  fr: [
+    ["Il y a quelqu'un ?", "anyone there — the greeting"],
+    ["Bonjour, il y a quelqu'un ?", "with a hello"],
+    ["Quelqu'un est là ?", "anyone there"],
+    ["Y a-t-il quelqu'un ?", "is there anyone"],
+    ["Quelqu'un en ligne ?", "online?"],
+  ],
 };
 
 /**
@@ -393,6 +519,12 @@ export const OPENERS_WITH_MORE: Record<Lang, readonly string[]> = {
   en: ['Hi, is anyone there? I have a question about the price', 'Anyone there? Do you ship to Kenya?'],
   zh: ['客服在吗？这个包多少钱', '老板在吗，还有现货吗', '有人吗？我想问一下起订量'],
   ar: ['فيه أحد؟ أريد أعرف السعر', 'السلام عليكم، هل يوجد أحد؟ كم سعر هذا؟'],
+  es: [
+    "¿Hay alguien? Tengo una pregunta sobre el precio",
+  ],
+  fr: [
+    "Il y a quelqu'un ? J'ai une question sur le prix",
+  ],
 };
 
 /**
@@ -420,6 +552,16 @@ export const NOT_OPENERS: Record<Lang, readonly [string, string][]> = {
     ['في أحد المصانع رأيت هذا المنتج', '«في أحد» — in one of the factories'],
     ['هل يوجد أحد الألوان بالأزرق؟', '«يوجد أحد» — one of the colours'],
   ],
+  es: [
+    ["¿Estás ahí?", "addressed to whoever answers"],
+    ["¿Hola?", "a hello"],
+    ["Alguien me dijo que el precio era más bajo", "'alguien' inside a sentence"],
+  ],
+  fr: [
+    ["Vous êtes là ?", "addressed to whoever answers"],
+    ["Allô ?", "a hello"],
+    ["Quelqu'un m'a dit que le prix était plus bas", "'quelqu'un' inside a sentence"],
+  ],
 };
 
 /**
@@ -430,6 +572,12 @@ export const PLAIN_ASKS_THAT_LOOK_LIKE_OPENERS: Record<Lang, readonly string[]> 
   en: ['Is anyone there? I want to speak to a real person', 'Anyone there? Can I talk to someone?'],
   zh: ['人工在吗', '真人在不在', '客服在吗？转人工', '有人吗？我要找人工客服'],
   ar: ['فيه أحد؟ أريد التحدث مع شخص حقيقي', 'هل يوجد أحد أتكلم معه؟'],
+  es: [
+    "¿Hay alguien? Quiero hablar con una persona real",
+  ],
+  fr: [
+    "Il y a quelqu'un ? Je voudrais parler à une vraie personne",
+  ],
 };
 
 /** Every non-request, flattened: what layer 1 must never fire on (before any disclosure). */

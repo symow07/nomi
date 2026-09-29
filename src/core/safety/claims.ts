@@ -89,6 +89,21 @@ const PATTERNS: readonly Pattern[] = [
   { kind: 'delivery_promise', key: 'event_deadline',
     re: /\b(?:before|by|in time for)\s+(?:ramadan|eid|christmas|chinese new year|cny|black friday|easter)\b/i },
   { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bguaranteed delivery\b|\bdelivery (?:is )?guaranteed\b/i },
+
+  // Spanish and French (2026-09-29): the same claims, under the same keys, so
+  // what the owner allowed in English is allowed here and nothing else is.
+  { kind: 'certification', key: 'CE', re: /\b(?:certificado|certificaci[oó]n|marcado|marca)\s+CE\b|\bCE\s+(?:certificado|homologu[ée]|certifi[ée])\b|\b(?:certifi[ée]|homologu[ée]|marquage)\s+CE\b/i },
+  { kind: 'certification', key: 'FDA', re: /\b(?:aprobado|certificado|registrado)\s+por\s+la\s+FDA\b|\b(?:approuv[ée]|certifi[ée]|enregistr[ée])\s+(?:par\s+la\s+)?FDA\b/i },
+  { kind: 'certification', key: 'food_grade', re: /\b(?:grado|apto\s+para\s+uso)\s+aliment(?:icio|ario)\b|\bapto\s+para\s+alimentos\b|\b(?:qualit[ée]|contact)\s+alimentaire\b/i },
+  { kind: 'certification', key: 'BPA_free', re: /\b(?:sin|libre\s+de)\s+BPA\b|\bsans\s+BPA\b/i },
+  { kind: 'guarantee', key: 'refund', re: /\breembolso\b|\bdevoluci[oó]n\s+del\s+dinero\b|\brembours(?:ement|[ée])\b/i },
+  { kind: 'guarantee', key: 'warranty', re: /\bgarant[ií]as?\b|\bgarantizad[oa]s?\b|\bgarantie\b|\bgaranti(?:e|s|es)?\b/i },
+  { kind: 'guarantee', key: 'free_replacement', re: /\b(?:reemplazo|cambio|reposici[oó]n)\s+(?:gratis|gratuit[oa])\b|\bremplacement\s+gratuit\b/i },
+  { kind: 'shipping_method', key: 'air_freight', re: /\b(?:env[ií]o|flete|transporte)\s+a[ée]reo\b|\bfret\s+a[ée]rien\b|\benvoi\s+par\s+avion\b/i },
+  { kind: 'shipping_method', key: 'sea_freight', re: /\b(?:env[ií]o|flete|transporte)\s+mar[ií]timo\b|\bfret\s+maritime\b/i },
+  { kind: 'delivery_promise', key: 'event_deadline',
+    re: /\b(?:antes\s+de|para)\s+(?:navidad|ramad[aá]n|el\s+a[ñn]o\s+nuevo\s+chino|black\s+friday|semana\s+santa)\b|\b(?:avant|pour)\s+(?:no[ëe]l|le\s+ramadan|le\s+nouvel\s+an\s+chinois|le\s+black\s+friday|p[âa]ques)\b/i },
+  { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bentrega\s+garantizada\b|\blivraison\s+garantie\b/i },
 ];
 
 /**

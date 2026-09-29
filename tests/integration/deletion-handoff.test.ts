@@ -183,7 +183,13 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
       WEBHOOK_VERIFY_TOKEN: 'del-verify-token-xx',
       CREDENTIAL_KEY: 'b'.repeat(64),
       PORT: 0,
-    }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter } });
+    }, {
+      adapter: sim.adapter, logger: false, models: { analyzer, replyWriter },
+      // The comparison is about a workspace that sends alone. Since 2026-09-29
+      // the real gate is shut while es/fr wait for a reader (CLAUDE.md rule 1),
+      // so this file says, as a rehearsal, that it is open.
+      autonomyReleased: () => true,
+    });
     const login = await prod.app.inject({ method: 'POST', url: '/login', headers: FORM,
       payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';

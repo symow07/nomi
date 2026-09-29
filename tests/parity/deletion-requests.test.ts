@@ -48,8 +48,8 @@ describe('layer 2 — a reply that promises a deletion is caught', () => {
 });
 
 describe('the corpus covers what the owner asked for', () => {
-  it('each of the owner\'s three languages has requests and passing mentions', () => {
-    for (const lang of ['en', 'zh', 'ar']) {
+  it('each of the five languages the disclosure speaks has requests and passing mentions', () => {
+    for (const lang of ['en', 'zh', 'ar', 'es', 'fr']) {
       expect(REQUESTS[lang]!.length, lang).toBeGreaterThanOrEqual(8);
       expect(NOT_REQUESTS[lang]!.length, lang).toBeGreaterThanOrEqual(8);
     }
