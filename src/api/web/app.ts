@@ -99,7 +99,7 @@ import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
 import { channelSendPlan, sendPlan, windowState, type TemplateState } from '../../core/channel/window.js';
 import { activate, deactivate } from '../../channels/activation.js';
 import { stopAssistant, startAssistant } from '../../db/assistantStop.js';
-import { keepDraftEdit, keepUnsentReply, clearUnsentReply } from '../../db/ownerWords.js';
+import { keepDraftEdit, keepUnsentReply, clearUnsentReply, draftTextOf, sameWords } from '../../db/ownerWords.js';
 import { addToAllowlist, archiveFromAllowlist } from '../../channels/allowlist.js';
 import { ownerSendFacts } from '../../db/channels.js';
 import { precheckOwnerSend } from '../../core/channel/lifecycle.js';
@@ -1672,6 +1672,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok || !body.draftId) return reply.redirect(conversationUrl(conversationId));
     facts.evict(s.businessId);   // D — the first approved reply is the last setup step
+
+    // The design pass — the approval card's one Send posts what is in the box:
+    // the draft's own words go as the draft (发送), anything else as the
+    // owner's edit (改). The approval path below is the same either way. An
+    // empty box sends nothing, and says so.
+    if (body.command === 'send') {
+      const text = body.edit ?? '';
+      if (!text.trim()) return flashTo(reply, conversationUrl(conversationId), 'inbox.flash.empty');
+      const drafted = UUID.test(body.draftId)
+        ? await withTenantTx(deps.db, bid.value, (tx) => draftTextOf(tx, bid.value, body.draftId!)) : null;
+      body.command = drafted !== null && sameWords(drafted, text) ? '发送' : '改';
+      body.edit = text.trim();
+    }
 
     // G10 — the question the reply route asks, asked here too. Approving said
     // "sent" when the gate was about to refuse it. Live, and this buyer cannot

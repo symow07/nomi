@@ -308,7 +308,7 @@ export function renderDataRights(
   // and the second half is the one an owner leaving would not think to ask for.
   const links = (subjects: readonly ExportSubject[]) =>
     `<ul class="chips">${subjects.map((s) => `<li>
-      <a class="btn" href="/app/settings/data/${s}.csv" download>${esc(t(locale, `data.export.subject.${s}` as MessageKey))}</a>
+      ${deeper(`/app/settings/data/${s}.csv`, t(locale, `data.export.subject.${s}` as MessageKey), '', 'download')}
     </li>`).join('')}</ul>`;
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
   const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));

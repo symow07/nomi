@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ, RUN_NS } from './tenant.js';
+import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
 
 /**
  * M36.0 — EVERY SURFACE, AGAINST A TENANT THAT HAS ROWS IN IT.
@@ -216,10 +217,13 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
    *   CC-14 — the shell names the business, from its own row.
    *   CC-20 — the skip link first, `main` its target, one heading per page.
    *   CC-29 — every form that takes something away asks first.
+   *   Buttons and doors (2026-09-29) — a link is never drawn as a button, a
+   *     button outside a form is only a script's, a form that posts can be
+   *     posted. The components gallery draws specimens on purpose.
    * What a PERSON wrote (a bubble, a draft, a field's value) is theirs, and
    * is left out of the punctuation check.
    */
-  it('CC-13, CC-14, CC-20, CC-29 · every owner page, in English and Arabic, on real rows', async () => {
+  it('CC-13, CC-14, CC-20, CC-29, buttons and doors · every owner page, in English and Arabic, on real rows', async () => {
     const { withTenantTx } = await import('../../src/db/client.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const bid = parseBusinessId(RUN_BIZ); if (!bid.ok) throw new Error('fixture');
@@ -263,6 +267,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         for (const f of html.matchAll(/<form\b[^>]*\baction="([^"]+)"[\s\S]*?<\/form>/g)) {
           const action = f[1]!.replace(/&amp;/g, '&').split('?')[0]!;
           if (TAKES.test(action) && !f[0].includes(ASK)) problems.push(`${at}: ${action} does not ask first`);
+        }
+        if (target !== '/app/settings/components') {
+          for (const p of buttonsAndDoors(html)) problems.push(`${at}: ${p}`);
         }
       }
     }

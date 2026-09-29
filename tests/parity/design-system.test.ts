@@ -119,8 +119,8 @@ describe('M30 · the rendered shell IS the design system', () => {
     // V1 — a line-height per script: Latin in :root, the other two keyed on
     // the lang the shell writes on <html>.
     expect(page).toContain(`--line-height: ${DESIGN_TOKENS.font.lineHeight.en}`);
-    expect(page).toContain(`html[lang="zh"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.zh}; }`);
-    expect(page).toContain(`html[lang="ar"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.ar}; }`);
+    expect(page).toContain(`html[lang="zh"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.zh}; `);
+    expect(page).toContain(`html[lang="ar"] { --line-height: ${DESIGN_TOKENS.font.lineHeight.ar}; `);
     // …and body actually consumes it, rather than restating a number
     expect(page).toMatch(/body \{[^}]*font: var\(--font-size-base\)\/var\(--line-height\)/);
     // the value the product renders is the one 45+ eyes were promised
@@ -145,13 +145,14 @@ describe('M30 · the rendered shell IS the design system', () => {
     expect(handWritten).not.toMatch(/font:\s*\d+px/);
   });
 
-  it('emits a variable for every colour token, dark palette included', () => {
+  it('emits a variable for every colour token, and ONE palette (dark retired 2026-09-29)', () => {
     const css = cssVariables();
     for (const key of Object.keys(DESIGN_TOKENS.color)) {
       const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
       expect(css, key).toContain(`--color-${name}:`);
     }
-    expect(css).toContain('@media (prefers-color-scheme: dark)');
+    expect(css).not.toContain('prefers-color-scheme');
+    expect(css).toContain('color-scheme: light;');
   });
 });
 
@@ -215,8 +216,10 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
       ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
     };
     const html = renderConversationDetail(detail, 'en', new Date('2026-07-27T10:00:00Z'), null);
-    // her draft is inside .proposed (voiced); the buyer's words inside .bubble
-    expect(html).toMatch(/class="proposed"><bdi>HERDRAFT-092/);
+    // her draft is the reply box, set in the speech face (the design pass); the buyer's words inside .bubble
+    expect(html).toMatch(/<textarea id="reply" name="edit"[^>]*>HERDRAFT-092/);
+    expect(linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })))
+      .toMatch(/\.approve textarea \{[^}]*font-family:var\(--font-voice\)/);
     expect(html).toMatch(/class="msg inbound">\s*<div dir="auto" class="bubble"><bdi>BUYERWORDS-5000/);   // V1: a person's words keep their own direction
     // the actions around the speech are the product speaking: plain .btn, no voice class
     expect(html).toMatch(/class="btn send"[^>]*>Send/);

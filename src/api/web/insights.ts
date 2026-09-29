@@ -7,7 +7,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
-import { esc, conversationUrl } from './layout.js';
+import { esc, conversationUrl, deeper } from './layout.js';
 
 /**
  * M34.10 — insights, not counts.
@@ -267,7 +267,7 @@ export function renderInsights(d: InsightsData, locale: Locale): string {
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
     return `<div class="row">
       <div class="grow">${esc(line)}</div>
-      <a class="btn" href="${esc(i.action.href)}">${esc(label)}</a>
+      ${deeper(esc(i.action.href), label)}
     </div>`;
   };
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>

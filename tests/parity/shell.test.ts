@@ -75,11 +75,14 @@ describe('Phase F · five destinations, and nothing else competing', () => {
 });
 
 describe('V1 close-out · the stylesheet is a file', () => {
-  it('the shell links one sheet, by its content, and carries no rules of its own', () => {
+  it('the shell links one sheet and its language\'s type, by their content, and carries no rules of its own', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).not.toContain('<style');
-      expect(sheetLinks(html), l).toEqual([expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/)]);
+      expect(sheetLinks(html), l).toEqual([
+        expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/),
+        expect.stringMatching(l === 'zh' ? /^\/assets\/typezh\.[0-9a-f]{16}\.css$/ : /^\/assets\/type\.[0-9a-f]{16}\.css$/),
+      ]);
       expect(linkedCss(html).length, l).toBeGreaterThan(10_000);
     }
     // one sheet for every page and every language: the address does not vary
@@ -134,8 +137,8 @@ describe('Phase F · the shell is usable with a thumb', () => {
    * invisible label on `/app/factory` in both light and dark. Every test still
    * passed; only a screenshot showed it.
    *
-   * `--color-surface` is deliberately allowed: white-on-jade is how the primary
-   * button and the active language chip are drawn.
+   * `--color-surface` is deliberately allowed: white on graphite is how the
+   * primary button is drawn.
    */
   it('no ground colour is used as a foreground', async () => {
     const { readdir, readFile } = await import('node:fs/promises');
@@ -154,11 +157,10 @@ describe('Phase F · the shell is usable with a thumb', () => {
    * no-invented-numbers rule: a colour that marks nothing is a metric nobody
    * computed. Enforced by provenance, the way the percentage ban is — not by
    * whitelisting hex values but by naming the components that ARE states.
-   * The state palette (ok / warn / waiting / highlight, their washes and
-   * lines) may be referenced only from a selector containing one of these
-   * state-bearing fragments. Jade is exempt: it is the single ACTION accent,
-   * bounded by its own rules (ground-vs-foreground above, one primary per
-   * screen by composition).
+   * The state palette (ok / warn / waiting, their washes and lines) may be
+   * referenced only from a selector containing one of these state-bearing
+   * fragments. The assistant's magenta has rules of its own
+   * (`palette.test.ts`).
    *
    * Adding a name here is a reviewable act. Ask first whether the thing is a
    * STATE the owner must react to; if it is decoration, it does not get in.
@@ -180,7 +182,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
       const src = (await readFile(new URL(f, dir), 'utf8')).replace(cssVariables(), '');
       for (const m of src.matchAll(/([^{};]+)\{([^}]*)\}/g)) {
         const [, selector, body] = m as unknown as [string, string, string];
-        if (!/var\(--color-(ok|warn|waiting|highlight)[a-z-]*\)/.test(body)) continue;
+        if (!/var\(--color-(ok|warn|waiting)[a-z-]*\)/.test(body)) continue;
         if (!STATE_FRAGMENTS.some((frag) => selector.includes(frag))) {
           offences.push(`${f}: ${selector.trim().slice(0, 60)}`);
         }
@@ -227,7 +229,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
     expect(style).toContain('a:focus-visible');
     expect(style).toContain('button:focus-visible');
     // the colour comes from the token, not from a hex typed into this test
-    expect(style).toContain('outline:2px solid var(--color-jade)');
+    expect(style).toContain('outline:2px solid var(--color-ink)');
   });
 });
 

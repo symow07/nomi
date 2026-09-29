@@ -10,7 +10,7 @@ import { t, assistantName } from './say.js';
 import { formatQty, formatQtyUnit, formatMoney, withUnit, labelled } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import type { PageTranscriber } from '../../llm/ports.js';
-import { esc, back } from './layout.js';
+import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 
@@ -383,14 +383,14 @@ export function renderProductList(
   items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
-  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1>${viewer.isOwner ? `<a class="btn send" href="/app/products/add">${esc(t(locale, 'product.teach'))}</a>` : ''}</div>
+  const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1>${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ''}</div>
     ${flashBanner(flash)}
     ${waiting > 0 ? `<div class="block"><p class="fwarn">${esc(t(locale, 'product.list.needLimits', { n: waiting, name: assistantName(locale) }))}
       ${viewer.isOwner ? `<a class="blink" href="/app/factory/prices">${esc(t(locale, 'product.list.needLimits.link'))}</a>` : ''}</p></div>` : ''}`;
   if (items.length === 0) {
     return `${head}
       <div class="block"><div class="empty">${esc(t(locale, 'product.list.empty.title'))}<br><span class="muted">${esc(t(locale, 'product.list.empty.body', { name: assistantName(locale) }))}</span>
-      <div style="margin-top:var(--space-16)">${viewer.isOwner ? `<a class="btn send" href="/app/products/add">${esc(t(locale, 'product.list.empty.cta'))}</a>` : ownerDecides(locale)}</div></div></div>`;
+      <div style="margin-top:var(--space-16)">${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.list.empty.cta')) : ownerDecides(locale)}</div></div></div>`;
   }
   const cards = items.map((p) => {
     const u = unitLabel(locale, p.unit);
@@ -592,7 +592,7 @@ export function renderReview(
       <input type="hidden" name="text" value="${esc(rawText)}" />
       ${body}
       <button class="btn send" type="submit">${esc(t(locale, diff.added.length > 0 ? 'product.review.confirm' : 'product.review.confirmChanges'))}</button>
-      <a class="btn" href="/app/products/add">${esc(t(locale, 'product.review.repaste'))}</a>
+      ${back('/app/products/add', t(locale, 'product.review.repaste'))}
     </form>` : body}
     `;
 }
@@ -823,6 +823,6 @@ export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale): string
     <div class="block">
       <p>${esc(t(locale, `product.photo.refused.${reason}` as MessageKey))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-      <p><a class="btn" href="/app/products/add">${esc(t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}</a></p>
+      ${deeper('/app/products/add', t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;
 }

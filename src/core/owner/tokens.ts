@@ -76,13 +76,32 @@ export const DESIGN_TOKENS = {
    * (14) and `numeral` (22) retired, their uses remapped to a neighbour.
    */
   font: {
-    family: `-apple-system, "PingFang SC", "Noto Sans SC", sans-serif`,
     /**
-     * The serif voice. Anything a PERSON says is set in this — her drafts, a
-     * buyer's quoted words. Sans is what the PRODUCT says: labels, nav, counts,
-     * buttons. The distinction is the point; do not use it for emphasis.
+     * ONE ORDER PER LANGUAGE (the design pass, 2026-09-29). The order decides
+     * which font draws the characters scripts share — Latin letters, digits,
+     * punctuation, quotation marks. The old single stack began with
+     * `-apple-system`, which Chrome does not recognise, so it fell to
+     * "PingFang SC" and English was drawn by the Chinese font. Now each
+     * language leads with its own Noto face (served by the product itself,
+     * `src/api/web/type.ts`); a Chinese page leads with the Chinese face so
+     * "，。" are drawn full-width by it. `type.test.ts` checks the first family.
      */
-    voice: `ui-serif, Georgia, "Songti SC", "Noto Serif SC", "Noto Naskh Arabic", serif`,
+    family: {
+      en: `"Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif`,
+      zh: `"Noto Sans SC", "Noto Sans", system-ui, sans-serif`,
+      ar: `"Noto Sans Arabic", "Noto Sans", system-ui, sans-serif`,
+    },
+    /**
+     * The serif voice. Anything a PERSON says is set in this — the assistant's
+     * drafts, a customer's quoted words. Sans is what the PRODUCT says: labels,
+     * nav, counts, buttons. The distinction is the point; do not use it for
+     * emphasis. Arabic speech is Naskh, the hand running text is read in.
+     */
+    voice: {
+      en: `"Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif`,
+      zh: `"Noto Serif SC", "Noto Serif", serif`,
+      ar: `"Noto Naskh Arabic", "Noto Serif", serif`,
+    },
     sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
     /** Set from `html[lang]`; the shell writes the locale there on every page. */
     lineHeight: { en: 1.5, zh: 1.7, ar: 1.75 },
@@ -93,37 +112,53 @@ export const DESIGN_TOKENS = {
     weightFloor: { min: 400, cjkAtOrBelowPx: 15 },
   },
   /**
-   * Semantic colors — mirror the text markers one-to-one.
+   * THE PALETTE — six named values (the design pass, decided 2026-09-29;
+   * the plan's §6). The neutrals are graphite at two lighter steps plus one
+   * paper; there are no other greys.
+   *
+   *   ink          Graphite. Type, the primary action as a FILL, focus rings,
+   *                the border of the reply box.
+   *   inkSecondary Stone. Secondary text, times, past entries, the EDGE of an
+   *                outlined button or a field.
+   *   border       Rule. Lines between panes and around sheets only — never
+   *                the edge of a control (1.3:1 is not an edge you can find).
+   *   paper        The ground: the rail, the list, a recess. Leans toward
+   *                graphite's hue; not cream.
+   *   surface      White: where the owner reads and decides.
+   *   assistant    Magenta. The assistant's hand and nothing else: the ✦
+   *                beside what it wrote, sent, noted or handed over, and its
+   *                name where it is the author. Only ever a TEXT colour —
+   *                never a fill, a wash, a border, a link, a heading, the mark
+   *                or a button (2.6:1 on graphite, so never on it either).
+   *                Its hue stays above 325°, on the raspberry side of true
+   *                magenta: `palette.test.ts` holds both.
+   *
+   * And the three states, kept at their values: ok (Sent — it went, it is
+   * on), waiting (it waits for you), warn (Failed — it did not happen, it
+   * did not reach them). A state is a dot and a WORD; colour never carries
+   * it alone.
+   *
+   * Retired with this: jade (the accent that also meant "sent" — green now
+   * means one thing), highlight (a fourth state colour; its uses became
+   * weight), the three warm papers, and the dark palette (never reviewed;
+   * decision 3). `palette.test.ts` keeps their values out of the product.
    *
    * CC-20 (2026-09-28) — every state is read as TEXT on its own wash (a pill,
    * a tag), so each pair must reach the 4.5:1 WCAG asks of text that size.
-   * `waiting` (#B45309) and `highlight` (#8A6D00) sat at 4.15 and 4.12 on
-   * theirs; each moved the least that clears it — the same hue, a step
-   * darker — to 4.74 and 4.72. `audit-closeout.test.ts` computes every pair.
+   * `audit-closeout.test.ts` computes every pair.
    */
   color: {
-    ok: '#0F7B3E',        // MARK.ok
-    waiting: '#A64C08',   // 等你审批
-    warn: '#B42318',      // MARK.warn
-    highlight: '#7F6400', // MARK.star
-    ink: '#1A1A1A',
-    inkSecondary: '#5C5C5C',
+    ok: '#0F7B3E',
+    waiting: '#A64C08',
+    warn: '#B42318',
+    assistant: '#A82860',
+    ink: '#1C1B1F',
+    inkSecondary: '#5E5A66',
     surface: '#FFFFFF',
-    surfaceAlt: '#F6F5F2',
-    border: '#E4E2DD',
+    paper: '#F5F4F6',
+    border: '#E2E0E6',
     /**
-     * The single accent, derived from `ok` — the same green that means "this
-     * went through". One per screen: the primary action, or the active
-     * destination, never both competing.
-     */
-    jade: '#0F7B3E',
-    jadeDeep: '#0A5A2C',   // pressed / hover, one step down
-    jadeWash: '#EDF4EF',   // a tint to sit behind text, not a fill to shout with
-    jadeLine: '#C6DCCE',   // a border that agrees with the wash
-    paper: '#FBFAF7',      // a raised sheet: lighter than the page, warmer than white
-    paperSunk: '#F0EDE7',  // a recess: inputs, code, anything set INTO the page
-    /**
-     * A wash and a line for each semantic colour. These exist as TOKENS rather
+     * A wash and a line for each state. These exist as TOKENS rather
      * than `color-mix(… 12% …)` in the stylesheet for a product reason: the
      * owner surface bans the `%` character outright (no scores, no
      * percentages-as-performance), and that ban is enforced against rendered
@@ -135,34 +170,6 @@ export const DESIGN_TOKENS = {
     warnLine: '#E9BDBA',
     waitingWash: '#F5E7DD',
     waitingLine: '#E5C3A9',
-    highlightWash: '#EFEBDB',
-    highlightLine: '#EAE5D1',
-  },
-  /** M7 dark mode — same semantic keys as `color`, tuned for OLED nights. */
-  colorDark: {
-    ok: '#4ADE80',
-    waiting: '#FBBF24',
-    warn: '#F87171',
-    highlight: '#FACC15',
-    ink: '#F2F1EE',
-    inkSecondary: '#A3A29E',
-    surface: '#161514',
-    surfaceAlt: '#211F1D',
-    border: '#33312E',
-    jade: '#4ADE80',
-    jadeDeep: '#22C55E',
-    jadeWash: '#13251B',
-    jadeLine: '#1F3E2C',
-    paper: '#1C1B19',
-    paperSunk: '#100F0E',
-    okWash: '#12241A',
-    okLine: '#1F3E2C',
-    warnWash: '#2A1614',
-    warnLine: '#4A211C',
-    waitingWash: '#2A1F12',
-    waitingLine: '#4A3418',
-    highlightWash: '#262112',
-    highlightLine: '#43391C',
   },
   spacingPx: [4, 8, 12, 16, 24, 32, 48] as const,   // V1: 64 retired, it was used nowhere
   /**
@@ -204,7 +211,7 @@ export const DESIGN_TOKENS = {
     等你审批: 'waiting',
     学习中: 'inkSecondary',
     已晋升: 'ok',
-    夜班中: 'highlight',
+    夜班中: 'inkSecondary',   // highlight retired 2026-09-29: its uses became weight
   },
 } as const;
 

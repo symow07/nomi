@@ -116,8 +116,9 @@ describe('CC-25 · the conversation page', () => {
     expect(newest).toBeLessThan(draft);
     expect(draft).toBeLessThan(own);
     expect(own).toBeLessThan(unheard);                          // what went wrong follows what to do
-    expect(unheard).toBeLessThan(knew);
-    expect(knew).toBeLessThan(ctx);
+    // while a reply waits, what it leaned on is one of the card's reasons, not a section after
+    expect(knew).toBe(-1);
+    expect(unheard).toBeLessThan(ctx);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));    // already there
   });
 

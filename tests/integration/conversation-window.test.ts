@@ -69,7 +69,8 @@ d('CC-25 · the conversation page always shows the newest messages (requires DAT
     return r.body;
   };
   /** The transcript's words, in the order the page prints them. */
-  const said = (html: string) => [...html.matchAll(/<bdi>(m-\d{3})<\/bdi>/g)].map((m) => m[1]!);
+  // The transcript's bubbles only: the approval card quotes the newest question again (the design pass).
+  const said = (html: string) => [...html.matchAll(/class="bubble"><bdi>(m-\d{3})<\/bdi>/g)].map((m) => m[1]!);
   /** Where "Earlier messages" goes, without the fragment the browser keeps to itself. */
   const earlierOf = (html: string, conv: string) =>
     new RegExp(`href="(/app/inbox/${conv}\\?before=[^"#]+)#latest"`).exec(html)?.[1] ?? null;

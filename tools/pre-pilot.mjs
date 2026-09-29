@@ -137,9 +137,19 @@ const signalOf = (conv, kind) => until(() => one(
 const countOf = async (table, conv) =>
   Number((await one(`select count(*)::int as n from ${table} where conversation_id = $1`, [conv]))?.n ?? 0);
 
-/** Approve the pending draft as the owner would, and return her flash. */
-const approve = async (conv, draftId) =>
-  await flashOf(await form(`/app/inbox/${conv}/act`, { draftId, command: '发送' }));
+/**
+ * Approve the pending draft as the owner would — the approval card's one Send
+ * (the design pass, 2026-09-29), posting what the card's box holds — and
+ * return her flash. The box is read off the page, so a card that stopped
+ * drawing it, or drew it with other words, fails here.
+ */
+const approve = async (conv, draftId) => {
+  const page = await get(`/app/inbox/${conv}`);
+  const box = /<textarea id="reply" name="edit"[^>]*>([\s\S]*?)<\/textarea>/.exec(page.body)?.[1];
+  if (box === undefined) throw new Error(`no approval card with its reply box on /app/inbox/${conv}`);
+  const edit = box.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  return await flashOf(await form(`/app/inbox/${conv}/act`, { draftId, command: 'send', edit }));
+};
 
 const ok = (cond, msg) => { if (!cond) throw new Error(msg); };
 

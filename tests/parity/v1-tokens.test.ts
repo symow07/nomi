@@ -40,8 +40,8 @@ describe('V1 · type — decision 1', () => {
   it('the emitter keys the override on the lang the shell writes on <html>', () => {
     const css = cssVariables();
     expect(css).toContain('--line-height: 1.5;');
-    expect(css).toContain('html[lang="zh"] { --line-height: 1.7; }');
-    expect(css).toContain('html[lang="ar"] { --line-height: 1.75; }');
+    expect(css).toContain('html[lang="zh"] { --line-height: 1.7; ');
+    expect(css).toContain('html[lang="ar"] { --line-height: 1.75; ');
     for (const locale of LOCALES) {
       const page = withSheets(shell({ title: 'T', active: 'home', locale, path: '/app', avatar: '', bodyHtml: '<p>x</p>' }));
       expect(page, locale).toContain(`<html lang="${locale}"`);

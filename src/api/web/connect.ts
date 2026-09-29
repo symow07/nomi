@@ -10,7 +10,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, outreachShown } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
-import { esc } from './layout.js';
+import { deeper, esc } from './layout.js';
 import type { InboundLink } from './channels.js';
 
 /**
@@ -98,8 +98,9 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
         <label class="as-box"><input type="checkbox" name="read" value="1" /> <span>${esc(t(locale, 'connect.mail.read.tick'))}</span></label>
         <button class="btn ${mine ? '' : 'send'}" type="submit">${esc(t(locale, mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</button>
       </form>`
-    : `<a class="btn ${mine ? '' : 'send'}" href="/app/connect/${provider}/start">${esc(t(locale,
-        mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</a>`;
+    : `<form method="get" action="/app/connect/${provider}/start" class="inline">
+        <button class="btn ${mine ? '' : 'send'}" type="submit">${esc(t(locale, mine ? 'connect.action.reconnect' : 'connect.action.connect'))}</button>
+      </form>`;
 
   if (mine && mine.needsAttention) {
     return {
@@ -177,7 +178,7 @@ export function renderAccounts(
         : v.apollo.kind === 'stored' ? 'connect.state.attention'
         : v.apollo.kind === 'no_key_store' ? 'connect.state.notHere' : 'connect.state.notConnected'),
       body: `<p class="muted">${esc(t(locale, 'connect.apollo.what'))}</p>
-        <a class="btn" href="/app/prospects">${esc(t(locale, apolloStored ? 'connect.apollo.open' : 'connect.apollo.add'))}</a>`,
+        ${deeper('/app/prospects', t(locale, apolloStored ? 'connect.apollo.open' : 'connect.apollo.add'))}`,
     } satisfies Row] : []),
     // M39 — what the platform permits, said as the registry says it: these two
     // can only ever answer someone who wrote first. C9 made them connectable,

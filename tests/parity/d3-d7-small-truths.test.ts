@@ -51,12 +51,15 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
     const html = withAssistantName('Lily', () =>
       renderConversationDetail(base, 'en', new Date('2026-09-19T15:00:00Z'), null));
     // The three signature lines, in the order the three messages appear.
-    const signed = [...html.matchAll(/<div class="ts muted">([^<]*)<\/div>/g)].map((m) => m[1]!.trim());
+    // Tags stripped: the assistant's name is drawn with its ✦ in a span (2026-09-29).
+    const signed = [...html.matchAll(/<div class="ts muted">(.*?)<\/div>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
     expect(signed).toHaveLength(3);
     expect(signed[0], 'the buyer').toContain('Buyer');
     expect(signed[1], 'what the owner typed').toContain('You');
     expect(signed[1], 'what the owner typed').not.toContain('Lily');
     expect(signed[2], 'what the assistant wrote').toContain('Lily');
+    expect(signed[2], 'what the assistant wrote').toContain('✦');
+    expect(signed[1], 'what the owner typed').not.toContain('✦');
   });
 
   it('it is read from the sent row\'s own origin, not guessed from the words', () => {

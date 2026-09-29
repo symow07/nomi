@@ -19,7 +19,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
-import { deeper, esc } from './layout.js';
+import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { companyLineHtml } from './prospects.js';
 import { companyDomainOf } from '../../core/outreach/companyDomain.js';
@@ -252,16 +252,16 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
      * stranger is written, not dashed off between two other people's rows, and
      * the composer needs a subject as well as a body.
      */
-    const writeLink = !reach.ok ? '' : `<a class="btn send"
-      href="/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
-      >${esc(t(locale, 'contacts.write.button'))}</a>`;
+    const writeLink = !reach.ok ? '' : deeper(
+      `/app/contacts/write?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
+      t(locale, 'contacts.write.button'));
 
     const actions = stopped ? '' : `
       ${decision.ok ? '' : `<form method="post" action="/app/contacts/consent" class="inline">${hidden}
         <button class="btn" type="submit">${esc(t(locale, 'contacts.attest.button'))}</button></form>`}
       ${writeLink}
-      <a class="btn stop" href="/app/contacts/suppress?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}"
-        >${esc(t(locale, 'contacts.suppress.button'))}</a>
+      ${deeper(`/app/contacts/suppress?channel=${encodeURIComponent(c.channel)}&amp;identity=${encodeURIComponent(c.identity)}`,
+        t(locale, 'contacts.suppress.button'))}
       ${c.id ? `<form method="post" action="/app/contacts/${esc(c.id)}/archive" class="inline">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'contacts.archive.confirm', { who: c.displayName ?? shown(c) }))}">${esc(t(locale, 'contacts.archive'))}</button></form>` : ''}`;
@@ -351,7 +351,7 @@ export function renderSuppressConfirm(
       <form method="post" action="/app/contacts/suppress" class="confirm">
         <input type="hidden" name="channel" value="${esc(who.channel)}" />
         <input type="hidden" name="identity" value="${esc(who.identity)}" />
-        <a class="btn send" href="/app/contacts">${esc(t(locale, 'contacts.suppress.cancel'))}</a>
+        ${back('/app/contacts', t(locale, 'contacts.suppress.cancel'))}
         <button class="btn stop" type="submit">${esc(t(locale, 'contacts.suppress.confirm'))}</button>
       </form>
     </section>`;
@@ -397,7 +397,7 @@ export function renderWriteFirst(
           <textarea name="body" dir="auto" required maxlength="5000" rows="10">${esc(draft.body)}</textarea></label>
         <div class="wact">
           <button class="btn send" type="submit">${esc(t(locale, 'contacts.write.send'))}</button>
-          <a class="btn" href="/app/contacts">${esc(t(locale, 'contacts.write.cancel'))}</a>
+          ${back('/app/contacts', t(locale, 'contacts.write.cancel'))}
         </div>
       </form>
     </section>`;

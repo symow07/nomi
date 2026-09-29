@@ -426,7 +426,7 @@ function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Vi
     : '';
   return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, `pilot.blocker.${key}` as MessageKey))}</span>
-      ${key === 'priceRules' && !viewer.isOwner ? '' : `<a class="btn" href="${DETECTED_LINK[key]}">${esc(t(locale, 'pilot.open'))}</a>`}${extra}</div></div>`;
+      ${key === 'priceRules' && !viewer.isOwner ? '' : deeper(DETECTED_LINK[key], t(locale, 'pilot.open'))}${extra}</div></div>`;
 }
 
 function attestRow(
@@ -568,13 +568,13 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
     <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
     <ol class="rbsteps">${steps}</ol>
     ${progress}
-    <a class="btn" href="/app/sandbox">${esc(t(locale, 'runbook.practice.open'))}</a>
+    ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}
   </div>`;
 }
 
 function afterSection(locale: Locale): string {
   const link = (label: MessageKey, href: string) =>
-    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span><a class="btn ghost rblink" href="${href}">${esc(t(locale, 'pilot.open'))}</a></div>`;
+    `<div class="pr"><span class="lbl">${esc(t(locale, label))}</span>${deeper(href, t(locale, 'pilot.open'), 'rblink')}</div>`;
   return `<div class="block">
     <h2>${esc(t(locale, 'runbook.after.title'))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.after.intro'))}</p>

@@ -263,7 +263,7 @@ describe('C6 · the accounts page', () => {
     // E1 — Google's Connect is a form now (it carries the "let her read" box); Outlook's stays a link.
     expect(html).toContain('action="/app/connect/google/start"');
     expect(html).toContain('name="read"');
-    expect(html).not.toContain('href="/app/connect/microsoft/start"');
+    expect(html).not.toContain('action="/app/connect/microsoft/start"');
     expect(html).toContain(esc(t('en', 'connect.mail.notHere')));
   });
 

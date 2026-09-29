@@ -29,6 +29,9 @@ export type NumeralViolation = {
  */
 const SAFE_SMALL_INTEGERS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
+/** A figure the guard lets pass as an ordinary word (the owner's page lists no source for it). */
+export const isSafeSmall = (n: ExtractedNumeral): boolean => !n.commercial && SAFE_SMALL_INTEGERS.has(n.value);
+
 /**
  * A numeral in a commercial position — "12%", "$7", "7 dollars", "5% off",
  * "discount of 3" — is NEVER safe-small. A hallucinated single-digit discount
@@ -131,7 +134,8 @@ export function extractNumerals(raw: string): ExtractedNumeral[] {
   return out;
 }
 
-const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.005;
+/** Two figures the guard counts as the same one. */
+export const near = (a: number, b: number): boolean => Math.abs(a - b) < 0.005;
 
 /**
  * Every numeral in `reply` must trace to the quote, the conversation state, or
@@ -171,8 +175,7 @@ export function guardNumerals(input: {
     .filter((n) => {
       // Commercial position ("12%", "$7", "5% off"): the small-integer
       // allowlist does NOT apply. Every such figure must be sourced.
-      const safeSmall = !n.commercial && SAFE_SMALL_INTEGERS.has(n.value);
-      return !safeSmall && !sourced.some((s) => near(s, n.value));
+      return !isSafeSmall(n) && !sourced.some((s) => near(s, n.value));
     })
     .map((n) => n.value);
 

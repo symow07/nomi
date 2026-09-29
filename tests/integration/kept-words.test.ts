@@ -54,7 +54,7 @@ d('CC-24 · the owner’s words survive a refusal (requires DATABASE_URL)', () =
   const draftRow = (id: string) => tx((x) => sql<{ status: string; owner_edit: string | null; sent_text: string | null }>`
     select status, owner_edit, sent_text from drafts where id = ${id}::uuid`.execute(x).then((r) => r.rows[0]!));
   /** What the edit box holds — the textarea's own contents, not text elsewhere on the page. */
-  const editBox = (html: string) => /<textarea id="edit"[^>]*>([\s\S]*?)<\/textarea>/.exec(html)?.[1] ?? null;
+  const editBox = (html: string) => /<textarea id="reply"[^>]*>([\s\S]*?)<\/textarea>/.exec(html)?.[1] ?? null;
   const replyBox = (html: string) => /<textarea name="text"[^>]*>([\s\S]*?)<\/textarea>/.exec(html)?.[1] ?? null;
 
   beforeAll(async () => {

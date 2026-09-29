@@ -93,15 +93,20 @@ describe('M9.3 · conversation detail (localized)', () => {
     expect(withAssistantName('Lily', () => renderConversationDetail(detailWithDraft, 'en', NOW, null))).toContain('Lily');
   });
 
-  it('pending draft: four actions, wire-command VALUES preserved, labels localized', () => {
+  it('pending draft: one form, one Send, the reply once in its box, and the acts in a row (the design pass)', () => {
     const html = renderConversationDetail(detailWithDraft, 'en', NOW, null);
-    expect(html).toContain(shown('en', 'buyers.review.title'));
-    expect(html).toContain('For 5,000 pcs: $0.92/pc FOB Ningbo.');
+    expect(html).toContain(shown('en', 'buyers.review.title'));       // the card's heading, for a screen reader
+    // the reply ONCE — in the box, which is the reply
+    expect(html.split('For 5,000 pcs: $0.92/pc FOB Ningbo.')).toHaveLength(2);
+    expect(html).toMatch(/<textarea id="reply" name="edit"[^>]*>For 5,000 pcs: \$0\.92\/pc FOB Ningbo\.<\/textarea>/);
     expect(html).toContain('action="/app/inbox/conv-1/act"');
-    for (const v of ['发送', '不回', '收回', '改']) expect(html).toContain(`value="${v}"`);  // wire protocol
-    expect(html).toContain('Send'); expect(html).toContain('Skip');   // localized labels
     expect(html).toContain('name="draftId" value="d-1"');
-    expect(html).toContain('<textarea');
+    expect(html.match(/name="command" value="send"/g)).toHaveLength(1);        // one Send
+    expect(html).toContain('name="command" value="不回"');                    // No reply needed: the wire's skip
+    expect(html).toContain('formaction="/app/inbox/conv-1/takeover"');        // Hand to me
+    expect(html).toContain('<label class="btn" for="reply">');                // Edit puts the cursor in the box
+    expect(html).not.toContain('value="收回"');                               // on the assistant's page now
+    for (const k of ['inbox.action.send', 'card.edit', 'card.handToMe', 'card.noReply'] as const) expect(html).toContain(shown('en', k));
   });
 
   it('quote/order context localized, omitted cleanly when absent', () => {
@@ -154,13 +159,19 @@ describe('M16.2c · inbox human control surface (localized)', () => {
   const withLast = (o: ConversationDetail['ownership'], type: HumanActionType, actor = 'owner') =>
     detailIn(o, { lastHumanAction: { type, actor, at } });
 
-  it('AI state: employee-handling status + take-over control; no reply/return', () => {
+  it('AI state: employee-handling status + ONE take-over control; no reply/return', () => {
+    // A reply waits: the card's "Hand to me" is the take-over, and nothing else offers it.
     const html = renderConversationDetail(detailIn('AI'), 'en', NOW, null);
     expect(html).toContain(shown('en', 'takeover.status.ai'));
-    expect(html).toContain('action="/app/inbox/conv-1/takeover"');
-    expect(html).toContain('Take over');
+    expect(html).toContain('formaction="/app/inbox/conv-1/takeover"');
+    expect(html).not.toMatch(/ action="\/app\/inbox\/conv-1\/takeover"/);
+    expect(html).toContain(shown('en', 'card.handToMe'));
     expect(html).not.toContain('action="/app/inbox/conv-1/reply"');
     expect(html).not.toContain('action="/app/inbox/conv-1/resume"');
+    // Nothing waits: the take-over is the ownership card's own button.
+    const quiet = renderConversationDetail({ ...detailIn('AI'), pendingDraft: null }, 'en', NOW, null);
+    expect(quiet).toContain(' action="/app/inbox/conv-1/takeover"');
+    expect(quiet).toContain('Take over');
   });
 
   it('WAITING_HUMAN state: waiting status + stored handoff reasons + take-over', () => {
@@ -215,7 +226,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
     const zh = renderConversationDetail(withLast('OWNER_CONTROLLED', 'takeover'), 'zh', NOW, null);
     expect(zh).toContain('你正在处理'); expect(zh).toContain('由你接手'); expect(zh).toContain('最近操作');
     const ar = renderConversationDetail(detailIn('WAITING_HUMAN'), 'ar', NOW, null);
-    expect(ar).toContain('بانتظارك'); expect(ar).toContain(shown('ar', 'takeover.action.take'));
+    expect(ar).toContain('بانتظارك'); expect(ar).toContain(shown('ar', 'card.handToMe'));
   });
 
   it('invents no metric on the control surface — any locale', () => {
@@ -315,10 +326,12 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 });
 
 describe('Phase D · the reply is a colleague’s work, not a queue item', () => {
-  it('review card asks the owner to review the assistant’s reply, naming the buyer', () => {
+  it('review card names the customer who asked, and marks the reply as the assistant\'s', () => {
     const html = renderConversationDetail(detailWithDraft, 'en', NOW, null);
     expect(html).toContain(shown('en', 'buyers.review.title'));
-    expect(html).toContain(shown('en', 'buyers.review.intro', { buyer: 'Ahmed' }));
+    const top = html.slice(html.indexOf('<div class="top">'), html.indexOf('</div>', html.indexOf('<div class="top">')));
+    expect(top).toContain('<b><bdi>Ahmed</bdi></b>');
+    expect(top).toContain(`<span class="as"><span aria-hidden="true">✦</span> ${shown('en', 'card.drafted')}</span>`);
     expect(html).toContain('For 5,000 pcs: $0.92/pc FOB Ningbo.');
     expect(html).not.toContain('Pending draft');
     expect(html).not.toContain('⚠️');                       // reviewing a colleague is not an alarm
@@ -376,14 +389,19 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
     expect(renderConversationDetail(detailIn('AI'), 'en', NOW, null)).toContain('Awaiting you');
   });
 
-  it('what the assistant used to answer: shown while the assistant speaks, hidden once a human holds the pen', () => {
+  it('what the assistant used to answer: a reason on the card while a reply waits, its own section once one went, hidden once a human holds the pen', () => {
     const used = { knowledgeUsed: ['MOQ is 500 pcs', 'Lead time 20 days'] };
+    // a reply waits: each taught fact is one of the card's reasons, and there is no second list
     const ai = renderConversationDetail(detailIn('AI', used), 'en', NOW, null);
-    expect(ai).toContain(shown('en', 'buyers.knew.title'));
-    expect(ai).toContain('MOQ is 500 pcs'); expect(ai).toContain('Lead time 20 days');
-    for (const o of ['WAITING_HUMAN', 'OWNER_CONTROLLED'] as const)
-      expect(renderConversationDetail(detailIn(o, used), o === 'OWNER_CONTROLLED' ? 'en' : 'en', NOW, null))
-        .not.toContain(shown('en', 'buyers.knew.title'));
+    const reasons = ai.slice(ai.indexOf('<ul class="reasons">'), ai.indexOf('</ul>', ai.indexOf('<ul class="reasons">')));
+    expect(reasons).toContain('MOQ is 500 pcs'); expect(reasons).toContain('Lead time 20 days');
+    expect(reasons).toContain(shown('en', 'card.source.taught'));
+    expect(ai).not.toContain(shown('en', 'buyers.knew.title'));
+    // nothing waits (it answered alone): the section says what it leaned on
+    const sent = renderConversationDetail({ ...detailIn('AI', used), pendingDraft: null }, 'en', NOW, null);
+    expect(sent).toContain(shown('en', 'buyers.knew.title'));
+    expect(sent).toContain('MOQ is 500 pcs');
+    expect(renderConversationDetail(detailIn('OWNER_CONTROLLED', used), 'en', NOW, null)).not.toContain('MOQ is 500 pcs');
   });
 
   it('nothing used → the section is absent, never an empty box or a zero', () => {
@@ -401,9 +419,9 @@ describe('Phase D · the reply is a colleague’s work, not a queue item', () =>
 
   it('review + knowledge language localizes, and stays free of technical vocabulary', () => {
     const zh = renderConversationDetail(detailIn('AI', { knowledgeUsed: ['保温杯起订量500个'] }), 'zh', NOW, null);
-    expect(zh).toContain(shown('zh', 'buyers.review.title')); expect(zh).toContain(shown('zh', 'buyers.knew.title')); expect(zh).toContain('保温杯起订量500个');
+    expect(zh).toContain(shown('zh', 'buyers.review.title')); expect(zh).toContain(shown('zh', 'card.source.taught')); expect(zh).toContain('保温杯起订量500个');
     const ar = renderConversationDetail(detailIn('AI', { knowledgeUsed: ['أقل كمية 500'] }), 'ar', NOW, null);
-    expect(ar).toContain(shown('ar', 'buyers.review.title')); expect(ar).toContain(shown('ar', 'buyers.knew.title'));
+    expect(ar).toContain(shown('ar', 'buyers.review.title')); expect(ar).toContain(shown('ar', 'card.source.taught'));
     for (const l of LOCALES) {
       const all = renderConversationDetail(detailIn('AI', { knowledgeUsed: ['x'] }), l, NOW, null).toLowerCase();
       for (const banned of ['knowledge base', 'retrieval', 'context', 'prompt', 'embedding', '知识库'])
@@ -483,33 +501,24 @@ describe('Release hardening · the handoff badge states the stored reason', () =
 describe('Release hardening · a permanent change asks first', () => {
   const withDraft = renderConversationDetail(detailWithDraft, 'en', NOW, null);
 
-  it('“Revoke” said nothing about being permanent, sitting next to “Skip”', () => {
-    // It rejects the draft AND demotes the capability business-wide, forever.
-    expect(withDraft).toContain('Stop doing this alone');
-    expect(withDraft).not.toMatch(/>Revoke</);
-    expect(withDraft).toContain('Skip drops this one reply');
-    // the note must name a control the owner can actually see
-    expect(withDraft).not.toContain('Revoke changes what');
-    expect(withDraft).toContain(shown('en', 'inbox.action.revoke.note'));
-    expect(withDraft).toContain('The red button changes what');
-  });
-
-  it('asks for confirmation, naming the capability it will take away', () => {
-    expect(withDraft).toContain('onclick="return confirm(this.dataset.confirm)"');
-    expect(withDraft).toMatch(/data-confirm="[^"]*Quoting[^"]*"/);
-    expect(withDraft).toMatch(/data-confirm="[^"]*Every future one will wait for you[^"]*"/);
-  });
-
-  it('the two harmless actions carry no confirmation — only the permanent one does', () => {
-    expect(withDraft.match(/onclick="return confirm/g) ?? []).toHaveLength(1);
-  });
-
-  it('the warning and the question are localized', () => {
+  /**
+   * The design pass (2026-09-29): "Stop doing this alone" rejected the draft
+   * AND demoted the capability business-wide, forever — beside "Send". It moved
+   * to the assistant's page, where how much it sends alone is set (T1's levels);
+   * every act left on the card is about this one reply, and none needs asking.
+   */
+  it('the card carries no permanent change — stopping it sending alone is set on the assistant\'s page', () => {
+    expect(withDraft).not.toContain('value="收回"');
+    expect(withDraft).not.toContain(shown('en', 'inbox.action.revoke'));
     for (const l of ['zh', 'ar'] as const) {
-      const html = renderConversationDetail(detailWithDraft, l, NOW, null);
-      expect(html).toContain('data-confirm="');
-      expect(html).not.toContain('Every future one will wait');
+      expect(renderConversationDetail(detailWithDraft, l, NOW, null)).not.toContain('value="收回"');
     }
-    expect(renderConversationDetail(detailWithDraft, 'zh', NOW, null)).toContain('以后每一条都要等你');
+  });
+
+  it('none of the card\'s acts asks first: each is about this one reply', () => {
+    const start = withDraft.indexOf('id="approve"');
+    const card = withDraft.slice(start, withDraft.indexOf('</section>', start));
+    expect(card).toContain('value="send"');
+    expect(card).not.toContain('onclick="return confirm');
   });
 });

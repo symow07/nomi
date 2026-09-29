@@ -23,7 +23,7 @@ import {
   type Expectation, type Scenario,
 } from '../../trust/scenarios.js';
 import { runCheck, type CheckResult, type TurnOutcome } from '../../trust/invariants.js';
-import { esc, deeper, back } from './layout.js';
+import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 
@@ -552,7 +552,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
     ? `<div class="timeline">${view.messages.map((m, i) => `
         <div${i === last ? ' id="latest"' : ''} class="msg ${m.direction}">
           <div dir="auto" class="bubble">${m.isImage ? '🖼️ ' : ''}<bdi>${esc(m.text)}</bdi></div>
-          <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : esc(name)}</div>
+          <div class="ts muted">${m.direction === 'inbound' ? esc(t(locale, 'sandbox.composer.send')) : byAssistant(name)}</div>
         </div>`).join('')}</div>`
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;

@@ -425,20 +425,22 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     const C = DESIGN_TOKENS.color as Record<string, string>;
     const camel = (k: string) => k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
-    it('every state reads at 4.5:1 or better as text on its own wash (waiting and highlight sat at 4.15 and 4.12)', () => {
-      for (const s of ['ok', 'waiting', 'warn', 'highlight']) {
+    it('every state reads at 4.5:1 or better as text on its own wash (waiting sat at 4.15)', () => {
+      for (const s of ['ok', 'waiting', 'warn']) {
         expect(ratio(C[s]!, C[`${s}Wash`]!), s).toBeGreaterThanOrEqual(4.5);
       }
-      expect(ratio(C['jadeDeep']!, C['jadeWash']!)).toBeGreaterThanOrEqual(4.5);          // the notice
-      for (const bg of ['surface', 'surfaceAlt', 'paper', 'paperSunk']) {
+      // The assistant's magenta is text on either ground (6.7 and 6.1).
+      for (const bg of ['surface', 'paper']) expect(ratio(C['assistant']!, C[bg]!), `magenta on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      for (const bg of ['surface', 'paper']) {
         expect(ratio(C['inkSecondary']!, C[bg]!), `ink secondary on ${bg}`).toBeGreaterThanOrEqual(4.5);
       }
     });
 
     it('every rule that sets a text colour on its own background, in every sheet the pages link, clears 4.5:1', () => {
       // The owner's sheet, the door's (sign-in, sign-up), and the site's own rules.
+      // The type sheets (font faces, no colour) are linked too, and skipped here.
       const sheets = [shelled('en'), loginPage({ locale: 'en', path: '/login' })].flatMap((html) =>
-        [...html.matchAll(/<link rel="stylesheet" href="\/assets\/([^"]+)">/g)].map((m) => stylesheetAt(m[1]!)!.css));
+        [...html.matchAll(/<link rel="stylesheet" href="\/assets\/((?!type)[^"]+)">/g)].map((m) => stylesheetAt(m[1]!)!.css));
       expect(sheets).toHaveLength(2);
       const low: string[] = [];
       for (const css of [...sheets, SITE_CSS]) {

@@ -108,7 +108,7 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     expect(doc).not.toContain('<link rel="stylesheet"');
   });
 
-  it('the shell and every door page link exactly one sheet, and carry no rules', () => {
+  it('the shell and every door page link exactly one sheet (and their type), and carry no rules', () => {
     const pages = [
       ['shell', shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '<p>x</p>' }), 'app'],
       ['login', loginPage({ locale: 'ar', path: '/login' }), 'door'],
@@ -117,8 +117,9 @@ describe('V1 close-out · the shell and the door link their stylesheets', () => 
     for (const [name, html, sheet] of pages) {
       expect(html, name).not.toContain('<style');
       const links = sheetLinks(html);
-      expect(links, name).toHaveLength(1);
+      expect(links, name).toHaveLength(2);
       expect(links[0], name).toMatch(new RegExp(`^/assets/${sheet}\\.[0-9a-f]{16}\\.css$`));
+      expect(links[1], name).toMatch(/^\/assets\/type(zh)?\.[0-9a-f]{16}\.css$/);
       expect(linkedCss(html).length, name).toBeGreaterThan(5_000);
     }
     // the door never carries the pages' sections; the shell carries both

@@ -36,11 +36,12 @@ describe('M30 · the inline mark cannot drift from assets/brand/', () => {
     const small = markSmall(30);
     // same geometry…
     expect(figureOf(detail)).toBe(figureOf(small));
-    // …opposite ground: pale disc for the large cut, SOLID jade for the small
-    expect(detail).toContain('r="50" fill="var(--color-jade-wash)"');
-    expect(small).toContain('r="50" fill="var(--color-jade)"');
-    expect(detail).toContain('<g fill="var(--color-jade)">');
-    expect(small).toContain('<g fill="var(--color-paper)">');
+    // …opposite ground: a paper disc for the large cut, SOLID graphite for
+    // the small. Graphite, never magenta: that colour is the assistant's hand.
+    expect(detail).toContain('r="50" fill="var(--color-paper)"');
+    expect(small).toContain('r="50" fill="var(--color-ink)"');
+    expect(detail).toContain('<g fill="var(--color-ink)">');
+    expect(small).toContain('<g fill="var(--color-surface)">');
   });
 
   it('carries no literal colour — it inherits the tokens, night included', () => {
@@ -63,7 +64,7 @@ describe('M30 · the shell wears the mark', () => {
   it('uses the DETAIL cut in the brand block, at the size that cut is for', () => {
     const brand = page().split('class="brand"')[1]?.split('</div>')[0] ?? '';
     expect(brand).toContain('width="40"');
-    expect(brand).toContain('var(--color-jade-wash)');   // the pale disc = detail cut
+    expect(brand).toContain('r="50" fill="var(--color-paper)"');   // the paper disc = detail cut
   });
 
   it('does not mirror in RTL — only directional glyphs do', () => {
@@ -91,8 +92,8 @@ describe('M30 · the favicon', () => {
   it('carries the SMALL cut — reversed, because a favicon is 16px', () => {
     const svg = decoded();
     expect(figureOf(svg)).toBe(MARK_FIGURE);
-    expect(svg).toContain(`r="50" fill="${DESIGN_TOKENS.color.jade}"`);      // solid disc
-    expect(svg).toContain(`<g fill="${DESIGN_TOKENS.color.paper}">`);        // knocked out
+    expect(svg).toContain(`r="50" fill="${DESIGN_TOKENS.color.ink}"`);       // solid disc
+    expect(svg).toContain(`<g fill="${DESIGN_TOKENS.color.surface}">`);      // knocked out
   });
 
   it('takes its colours FROM the tokens — the one place the mark cannot use var()', () => {

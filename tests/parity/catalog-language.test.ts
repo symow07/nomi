@@ -76,10 +76,15 @@ describe('Phase F · the catalog speaks to an owner, not to an engineer', () => 
     // fills it in any string, passed or not, and since the assistant has no
     // pronouns (2026-09-23) one language names her where another drops the
     // subject. A misspelling of it is still caught — `{nmae}` is not `{name}`.
-    const of = (s: string) => [...new Set(s.match(/\{[a-zA-Z]+\}/g) ?? [])].filter((p) => p !== '{name}').sort().join(',');
+    // And `{n}` in a counted sentence's form (`tn`, 2026-09-29): a language may
+    // spell a small count as a word — Arabic «سبب واحد», «سببان» — so a form
+    // may leave the figure out. Any other placeholder there is still held.
+    const PLURAL_FORM = /\.(?:zero|one|two|few|many|other)$/;
+    const of = (s: string, key: string) => [...new Set(s.match(/\{[a-zA-Z]+\}/g) ?? [])]
+      .filter((p) => p !== '{name}' && !(p === '{n}' && PLURAL_FORM.test(key))).sort().join(',');
     for (const [key, en] of entries('en'))
       for (const l of LOCALES)
-        expect(of(messages[l][key]), `${l}/${key}`).toBe(of(en));
+        expect(of(messages[l][key], key), `${l}/${key}`).toBe(of(en, key));
   });
 
   it('the zh catalog speaks TO the owner, never about her in the third person', () => {
