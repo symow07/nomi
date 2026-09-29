@@ -370,15 +370,16 @@ ${LANGSW_CSS}
   .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
     border-color:var(--color-warn-line); }
   /* CC-26 · the line a page shows when something new arrives while it is
-     open: the notice's own shape and tone, and the whole line one door to
-     the newest. It sits at the foot of the column, at the reading measure,
-     and stays in view while she scrolls, over nothing she is reading until
-     she reaches it; empty, it takes no room. Nothing above it moves when it
-     appears. */
-  .live { position:sticky; bottom:var(--space-16); z-index:1; max-width:var(--measure-prose); }
-  .live-line { padding:0; margin:var(--space-16) 0 0; box-shadow:var(--shadow-lift2); }
-  .live-line .deeper { width:100%; justify-content:space-between; gap:var(--space-12);
-    padding:var(--space-8) var(--space-16); color:inherit; font-weight:600; }
+     open: the notice's own tone, and the whole line one door to the newest.
+     The design pass (UI-PASS 6): it sits in the page's header, in the flow —
+     the list's, the conversation's — never over a control; empty, it takes
+     no room. */
+  .live { max-width:var(--measure-prose); }
+  .dhead .live { margin-inline-start:auto; }
+  .dhead.listhead { margin-bottom:var(--space-16); }
+  .listhead h1.page { margin:0; }
+  .live-line { padding:0; margin:0; }
+  .live-line .deeper { gap:var(--space-8); padding:0 var(--space-12); color:inherit; font-weight:600; }
 
   /* One tab row. */
   .tabs { display:flex; gap:var(--space-8); margin-bottom:var(--space-16); }
@@ -1069,9 +1070,6 @@ const STYLE_PAGES = `
     .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
       overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
     .panes > .panel:target .panel-close { display:inline-flex; margin-bottom:var(--space-12); font-size:var(--font-size-small); }
-    /* The line that says something new arrived sits over the conversation's
-       head, never over the card docked at its foot. */
-    main.wide > .live { position:fixed; top:var(--space-16); bottom:auto; inset-inline-start:calc(508px + var(--space-24)); z-index:4; }
   }
   @media (min-width: 1440px) {
     .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
@@ -1549,7 +1547,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${input.bodyHtml}${input.live ?? ''}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div></body></html>`;
 }
@@ -1623,6 +1621,14 @@ ${typeLink(locale)}</head>
 </div></body></html>`;
 
 export type LoginProblem = 'code' | 'password' | 'locked' | 'slow';
+
+/**
+ * Where a page's header wants the live line (UI-PASS 6): the list's title row,
+ * the conversation's head. A page that marks no place gets it under its title.
+ */
+export const LIVE_SLOT = '<!--live-->';
+const placeLive = (body: string, live: string): string =>
+  body.includes(LIVE_SLOT) ? body.replace(LIVE_SLOT, live) : `${live}${body}`;
 
 export function loginPage(input: {
   readonly locale: Locale; readonly path: string;

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderPeople, namedLikeBusiness, type TeamMember } from '../../src/api/web/people.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t } from '../../src/core/owner/i18n/messages.js';
+import { t, messages, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { OWNER_ONLY } from '../../src/core/conversation/people.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -57,5 +58,14 @@ describe('a person called by the business\'s name is asked for their own', () =>
     expect(namedLikeBusiness('Ｗｅｓｔｌａｋｅ', 'Westlake')).toBe(true);   // full-width letters
     expect(namedLikeBusiness('Westlake Canvas', 'Westlake Canvas Co.')).toBe(false);
     expect(namedLikeBusiness('Owner', '')).toBe(false);
+  });
+});
+
+describe('"Only you can do these" names every one of them', () => {
+  it('each owner-only act has its line in every language — the page printed a raw key for data_rights (found 2026-09-30)', () => {
+    for (const l of LOCALES) {
+      for (const a of OWNER_ONLY) expect(messages[l][`people.ownerOnly.${a}` as MessageKey], `${l} ${a}`).toBeTruthy();
+      expect(renderPeople(view([{ ...owner, name: 'Mrs Wang' }]), l, null, NOW), l).not.toMatch(/people\.ownerOnly\./);
+    }
   });
 });

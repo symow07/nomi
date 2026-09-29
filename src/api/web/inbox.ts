@@ -16,7 +16,7 @@ import { formatList, labelled } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, byAssistant, conversationUrl } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl, LIVE_SLOT } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -1044,7 +1044,7 @@ export function renderInboxList(
   const showDeletion = (data.deletionCount ?? 0) > 0 || data.filter === 'deletion';
   const tabs = `<nav class="tabs" aria-label="${esc(t(locale, 'buyers.tabs'))}">${tab('pending')}${tab('all')}${
     showMine ? tab('mine') : ''}${showBlocked ? tab('blocked') : ''}${showDeletion ? tab('deletion') : ''}</nav>`;
-  const title = `<h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>`;
+  const title = `<div class="dhead listhead"><h1 class="page">${esc(t(locale, 'nav.inbox'))}</h1>${LIVE_SLOT}</div>`;
 
   // A — the search. A find, not a view: it looks across every buyer (the
   // route reads a search with no tab as All), and the tabs leave it behind.
@@ -1894,6 +1894,7 @@ export function renderConversationDetail(
       ${back('/app/inbox', t(locale, 'inbox.detail.back'))}
       ${/* CC-20 — the buyer is what this page is about: its one heading. */ ''}<h1 class="who">${buyerWho(locale, d.buyer, d.country)}</h1>
       ${headerPill(d, locale, viewer)}
+      ${LIVE_SLOT}
       ${/* The design pass — where the customer panel is folded away, this opens it over the page. */ ''}<a class="panel-open" href="#customer">${esc(t(locale, 'panel.open'))}<span class="go" aria-hidden="true">›</span></a>
     </div>
     ${d.answeredBy ? `<div class="muted subline"><bdi>${esc(t(locale, 'conv.answeredBy', { who: d.answeredBy }))}</bdi></div>` : ''}

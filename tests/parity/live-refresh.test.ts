@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import vm from 'node:vm';
 import Fastify from 'fastify';
 import { LIVE_SCRIPT } from '../../src/api/web/liveScript.js';
-import { shell, loginPage, signupPage, verifyPage, errorPage, publicDocument, conversationUrl, assetAt } from '../../src/api/web/layout.js';
+import { shell, loginPage, signupPage, verifyPage, errorPage, publicDocument, conversationUrl, assetAt, LIVE_SLOT } from '../../src/api/web/layout.js';
 import { liveRegion, flashBanner } from '../../src/api/web/flash.js';
 import { liveNews, isMark, todayMark, conversationWatch, buyersWatch, todayWatch } from '../../src/api/web/live.js';
 import { renderConversationDetail, buyersHref, type ConversationDetail } from '../../src/api/web/inbox.js';
@@ -177,23 +177,31 @@ describe('CC-26 · the live region: empty, polite, and the line waiting in a tem
     expect(t('en', 'live.reply')).toBe('A new reply from your assistant is waiting for you');
   });
 
-  it('the shell puts the region at the foot of the column, after everything the page draws', () => {
+  it('the shell puts the region where the page\'s header marks it — else under the title — never at the foot (UI-PASS 6)', () => {
+    const inHeader = shell({ title: 'T', active: 'inbox', locale: 'en', path: `/app/inbox/${CONV}`, live: liveRegion('en', W),
+      bodyHtml: `<div class="dhead"><h1 class="who">Maya</h1>${LIVE_SLOT}</div><p>body</p><form><button>Send</button></form>` });
+    const main = inHeader.slice(inHeader.indexOf('<main'), inHeader.indexOf('</main>'));
+    expect(main.indexOf('<div class="live"')).toBeGreaterThan(main.indexOf('<h1 class="who">'));
+    expect(main.indexOf('<div class="live"')).toBeLessThan(main.indexOf('<p>body</p>'));
+    expect(main).not.toContain(LIVE_SLOT);
+    expect(main.endsWith('</form>')).toBe(true);   // nothing after the controls
+    // a page that marks no place: under its title, before what it draws
     const html = page('en', liveRegion('en', W), `/app/inbox/${CONV}`);
-    // CC-20 — main carries the skip link's target now: <main id="main">.
-    const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
-    expect(main.indexOf('<p>body</p>')).toBeGreaterThan(0);
-    expect(main.indexOf('<div class="live"')).toBeGreaterThan(main.indexOf('<p>body</p>'));
-    expect(main.endsWith('</template>')).toBe(true);
+    const plain = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+    expect(plain.indexOf('<div class="live"')).toBeLessThan(plain.indexOf('<p>body</p>'));
+
     // a page that watches nothing draws no region, and the notice banner is still the one banner
     expect(page('en')).not.toContain('class="live"');
     expect(flashBanner({ text: 'Sent.', bad: false })).toBe('<div class="flash" role="status">Sent.</div>');
   });
 
-  it('the line is styled once, in the shell: sticky at the foot of the column, at the reading measure, one target', () => {
+  it('the line is styled once, in the shell: in the header\'s flow — never sticky, never fixed over a control', () => {
     const css = linkedCss(page('en'));
-    expect(css).toMatch(/\.live \{ position:sticky; bottom:var\(--space-16\); z-index:1; max-width:var\(--measure-prose\); \}/);
-    // the door fills the line: the whole of it is the target, the chevron at its far end
-    expect(css).toMatch(/\.live-line \.deeper \{ width:100%; justify-content:space-between;/);
+    const live = /\n\s*\.live \{([^}]*)\}/.exec(css)![1]!;
+    expect(live).not.toMatch(/position/);
+    expect(css).not.toMatch(/\.live \{[^}]*position:(sticky|fixed)/);
+    expect(css).not.toContain('main.wide > .live');
+    expect(css).toContain('.dhead .live { margin-inline-start:auto; }');
     // spacing from the scale, a shadow from the tokens, and no colour of its own: the notice's
     for (const sel of ['.live', '.live-line', '.live-line .deeper']) {
       const rule = new RegExp(`\\n\\s*${sel.replace(/\./g, '\\.')} \\{([^}]*)\\}`).exec(css)![1]!;
@@ -214,6 +222,13 @@ describe('CC-26 · the half-typed reply is marked for keeping — the two boxes,
     proof: { quoteId: null, token: null },
   };
   const NOW = new Date('2026-09-28T09:00:00Z');
+
+  it('UI-PASS 6 · the conversation marks the live line\'s place in its header row, above the card', () => {
+    const html = renderConversationDetail(base, 'en', NOW, null);
+    const head = /<div class="dhead">[\s\S]*?<\/div>/.exec(html)![0];
+    expect(head).toContain(LIVE_SLOT);
+    expect(html.indexOf(LIVE_SLOT)).toBeLessThan(html.indexOf('id="approve"') === -1 ? Infinity : html.indexOf('id="approve"'));
+  });
 
   it('the draft\'s edit box, keyed by its conversation', () => {
     const html = renderConversationDetail({ ...base, quote: { unitPrice: usd(0.92), total: usd(460), quantity: 500 } }, 'en', NOW, null);
