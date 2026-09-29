@@ -10,11 +10,12 @@ import { moneyFromRow, type Money } from '../../core/types/money.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatDate, formatQtyUnit, formatMoney, labelled } from '../../core/owner/i18n/format.js';
+import { labelled } from '../../core/owner/i18n/format.js';
 import { isGeneratedSku } from '../../core/owner/sku.js';
 import { unitLabel } from './products.js';
 import { esc, back, deeper, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import * as show from './values.js';
 
 /**
  * M46 — one order, everything she knows about it, and the one thing she can do.
@@ -206,15 +207,15 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
     [t(locale, 'order.field.buyer'), v.buyer ?? t(locale, 'common.buyer')],
     [t(locale, 'order.field.product'), v.productName ?? v.productSku],
     // CC-13 — the unit in the page's language, spaced the locale's way ("5,000 pcs", "5000个").
-    [t(locale, 'order.field.quantity'), formatQtyUnit(locale, v.quantity, unitLabel(locale, v.unit))],
-    ...(total ? [[t(locale, 'order.field.total'), formatMoney(total)]] : []),
-    ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), formatDate(locale, v.confirmedAt)]] : []),
+    [t(locale, 'order.field.quantity'), show.quantityOf(locale, v.quantity, unitLabel(locale, v.unit))],
+    ...(total ? [[t(locale, 'order.field.total'), show.money(locale, total)]] : []),
+    ...(v.confirmedAt ? [[t(locale, 'order.field.confirmed'), show.date(locale, v.confirmedAt)]] : []),
   ].map(([l, val]) => `<div class="frow"><span class="flabel">${esc(l!)}</span><span class="fval"><bdi>${esc(val!)}</bdi></span></div>`).join('');
 
   const history = v.history.length === 0
     ? `<p class="muted empty-p">${esc(t(locale, 'order.history.empty'))}</p>`
     : `<ul class="rows">${v.history.map((u) => `<li class="row lines">
-        <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(formatDate(locale, u.at))}</span></div>
+        <div><b>${esc(stateName(u.state))}</b> <span class="muted">${esc(show.date(locale, u.at))}</span></div>
         ${u.trackingReference ? `<div class="muted"><bdi>${esc(labelled(locale, t(locale, 'order.field.tracking'), u.trackingReference))}</bdi></div>` : ''}
         ${u.note ? `<div class="muted measure-prose"><bdi>${esc(u.note)}</bdi></div>` : ''}
       </li>`).join('')}</ul>`;
@@ -258,7 +259,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
         }), piNumber: v.reference })))}</pre>
         ${v.sampleCredit?.kind === 'mismatch'
           ? `<p class="muted">${esc(t(locale, 'order.invoice.sampleMismatch', {
-              amount: formatMoney(v.sampleCredit.amount) }))}</p>`
+              amount: show.money(locale, v.sampleCredit.amount) }))}</p>`
           : ''}</section>`
     : unitPrice && total && !hasTerms
       ? `<section class="block"><h2>${esc(t(locale, 'order.invoice.title'))}</h2>
@@ -271,7 +272,7 @@ export function renderOrder(v: OrderView, locale: Locale, flash: Flash | null): 
     ${flashBanner(flash)}
     <section class="block">
       ${latest ? `<p class="stated-now">${esc(stateName(latest.state))} <span class="muted">${
-        esc(t(locale, 'order.since', { date: formatDate(locale, latest.at) }))}</span></p>` : ''}
+        esc(t(locale, 'order.since', { date: show.date(locale, latest.at) }))}</span></p>` : ''}
       <div class="facts">${facts}</div>
     </section>
     <section class="block">

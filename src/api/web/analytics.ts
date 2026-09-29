@@ -3,11 +3,12 @@ import { summarizePaths, type AnswerPath } from '../../core/conversation/answerP
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
-import { formatMoneyCompact } from '../../core/owner/format.js';
+
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc } from './layout.js';
+import * as show from './values.js';
 
 /**
  * M9.8 + ADR-0008 — Business Performance. A business review page, not a software
@@ -131,7 +132,7 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
   const name = assistantName(locale);
   const rangeLabel = t(locale, `analytics.range.${d.range}` as MessageKey);
   const stat = (value: number, key: MessageKey): string =>
-    `<div class="stat"><div class="v">${value}</div><div class="l">${esc(t(locale, key))}</div></div>`;
+    `<div class="stat"><div class="v">${esc(show.count(locale, value))}</div><div class="l">${esc(t(locale, key))}</div></div>`;
 
   const tab = (r: Range) =>
     `<a class="tab ${d.range === r ? 'on' : ''}"${d.range === r ? ' aria-current="page"' : ''} href="/app/analytics?range=${r}">${esc(t(locale, `analytics.range.${r}` as MessageKey))}</a>`;
@@ -162,9 +163,9 @@ export function renderAnalytics(d: AnalyticsData, locale: Locale): string {
 
   const dealsHtml = d.commerce.orders > 0
     ? `<div class="chips">
-        ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${x.n}</span>`).join('')}
+        ${d.commerce.deals.map((x) => `<span class="pill ok">${esc(orderStatusName(locale, x.status))} ${esc(show.count(locale, x.n))}</span>`).join('')}
       </div>${d.commerce.totals.length ? `<p class="small muted">${esc(t(locale, 'analytics.commerce.totalValue', {
-          value: d.commerce.totals.map((m) => formatMoneyCompact(m)).join(' · '),
+          value: d.commerce.totals.map((m) => show.moneyWhole(locale, m)).join(' · '),
         }))}</p>` : ''}`
     : `<div class="muted">${esc(t(locale, 'analytics.commerce.noDeals'))}</div>`;
   const commerce = `<div class="block"><h2>${esc(t(locale, 'analytics.section.commerce'))}</h2>

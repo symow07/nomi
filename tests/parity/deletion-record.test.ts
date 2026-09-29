@@ -16,6 +16,7 @@ import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { REQUIRED_SCHEMA_VERSION } from '../../src/db/schemaVersion.js';
 // @ts-expect-error — the operator tool, plain JS on purpose (tools/ is not type-checked).
 import { RULES } from '../../tools/erase-buyer.mjs';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * 0076 — the deletion hand-off has its own alert, and the request is written
@@ -48,7 +49,7 @@ describe('0076 · its own alert', () => {
 
   it('says what happened and that it needs an answer, in all three languages — and no date', () => {
     for (const l of LOCALES) {
-      const text = renderOwnerAlert(l, 'deletion_requested');
+      const text = withoutIsolates(renderOwnerAlert(l, 'deletion_requested'));
       expect(text, l).toBe(t(l, k('notify.deletion_requested')));
       expect(text, l).not.toMatch(/\{|\}/);
       // The legal deadline depends on where the buyer is, and nothing stores
@@ -58,7 +59,7 @@ describe('0076 · its own alert', () => {
       expect(t(l, k('notify.deletion_requested.subject')), l).not.toBe('notify.deletion_requested.subject');
       expect(text, l).not.toBe(t(l, k('notify.handoff')));
     }
-    const en = renderOwnerAlert('en', 'deletion_requested');
+    const en = withoutIsolates(renderOwnerAlert('en', 'deletion_requested'));
     expect(en).toContain('asked for their data to be deleted');
     expect(en).toContain('needs an answer from you');
   });
@@ -82,7 +83,7 @@ const detail = (over: Partial<ConversationDetail> = {}): ConversationDetail => (
 describe('0076 · the conversation page keeps the request after the hand-off is gone', () => {
   it('handed back — no hand-off reason left — the card stays, saying when it was noted', () => {
     for (const l of LOCALES) {
-      const html = renderConversationDetail(detail({ deletionAsk: { askedAt: ASKED } }), l, NOW, null, OWNER_VIEW);
+      const html = withoutIsolates(renderConversationDetail(detail({ deletionAsk: { askedAt: ASKED } }), l, NOW, null, OWNER_VIEW));
       expect(html, l).toContain(esc(t(l, k('deletionAsked.title'))));
       expect(html, l).toContain(esc(t(l, k('deletionAsked.noted'), { date: formatDate(l, ASKED) })));
       expect(html, l).toContain('href="/app/conversations/conv-1#deletion"');
@@ -92,14 +93,14 @@ describe('0076 · the conversation page keeps the request after the hand-off is 
   });
 
   it('asked again after the owner recorded it: the card says it is recorded, and by when it is done', () => {
-    const html = renderConversationDetail(detail({
+    const html = withoutIsolates(renderConversationDetail(detail({
       handoffReasons: ['deletion_requested'], ownership: 'WAITING_HUMAN', deletionRecorded: { askedAt: ASKED },
-    }), 'en', NOW, null, OWNER_VIEW);
+    }), 'en', NOW, null, OWNER_VIEW));
     expect(html).toContain(esc(t('en', k('deletionAsked.recorded'), { due: formatDate('en', deletionDueBy(ASKED)) })));
   });
 
   it('nothing noted and nothing handed over: no card', () => {
-    expect(renderConversationDetail(detail(), 'en', NOW, null, OWNER_VIEW)).not.toContain(esc(t('en', k('deletionAsked.title'))));
+    expect(withoutIsolates(renderConversationDetail(detail(), 'en', NOW, null, OWNER_VIEW))).not.toContain(esc(t('en', k('deletionAsked.title'))));
   });
 });
 
@@ -116,7 +117,7 @@ const ask = { id: 'a1', askedAt: ASKED, asks: 1, conversationId: 'c1', words: 'P
 describe('0076 · the buyer’s page asks only for the decision', () => {
   it('a noted request: when, what they wrote, record it (no note) or not — never "create a request"', () => {
     for (const l of LOCALES) {
-      const html = renderCustomerFile(file({ deletionAsk: ask }), l, NOW, null, OWNER_VIEW);
+      const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), l, NOW, null, OWNER_VIEW));
       const section = html.slice(html.indexOf('id="deletion"'));
       expect(section, l).toContain(esc(t(l, k('conv.deletion.waiting'), { date: formatDate(l, ASKED) })));
       expect(section, l).toContain('<p class="voice"><bdi dir="auto">Please delete my data</bdi></p>');
@@ -133,7 +134,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
   });
 
   it('staff see that it waits, and whose decision it is — no form', () => {
-    const html = renderCustomerFile(file({ deletionAsk: ask }), 'en', NOW, null, STAFF);
+    const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), 'en', NOW, null, STAFF));
     const section = html.slice(html.indexOf('id="deletion"'));
     expect(section).toContain(esc(t('en', k('conv.deletion.waiting'), { date: formatDate('en', ASKED) })));
     expect(section).toContain(esc(t('en', 'staff.ownerDecides')));
@@ -141,15 +142,15 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
   });
 
   it('nothing noted: the form is as it was, the note still required', () => {
-    const html = renderCustomerFile(file(), 'en', NOW, null, OWNER_VIEW);
+    const html = withoutIsolates(renderCustomerFile(file(), 'en', NOW, null, OWNER_VIEW));
     expect(html).toMatch(/name="note" rows="2" required/);
     expect(html).not.toContain('/deletion/dismiss');
   });
 
   it('recorded already: the recorded state, not the decision', () => {
-    const html = renderCustomerFile(file({
+    const html = withoutIsolates(renderCustomerFile(file({
       deletionAsk: null, deletion: { state: 'open', askedAt: ASKED, closedAt: null, closedNote: null },
-    }), 'en', NOW, null, OWNER_VIEW);
+    }), 'en', NOW, null, OWNER_VIEW));
     expect(html).toContain(esc(t('en', 'conv.deletion.open', { asked: formatDate('en', ASKED), due: formatDate('en', deletionDueBy(ASKED)) })));
     expect(html).not.toContain('/deletion/dismiss');
   });
@@ -158,7 +159,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
 describe('0076 · Your data lists it the moment it is noted', () => {
   it('first, with the door to the buyer’s decision', () => {
     for (const l of LOCALES) {
-      const html = renderDataRights({ requests: [], buyers: [], asks: [ask], businessName: 'B' }, l, null, OWNER_VIEW, 'Setup');
+      const html = withoutIsolates(renderDataRights({ requests: [], buyers: [], asks: [ask], businessName: 'B' }, l, null, OWNER_VIEW, 'Setup'));
       expect(html, l).toContain('id="buyers"');
       expect(html, l).toContain('href="/app/conversations/c1#deletion"');
       expect(html, l).toContain(esc(t(l, k('data.buyers.waiting'), { asked: formatDate(l, ASKED) })));
@@ -185,7 +186,7 @@ describe('0076 · Today shows it as its own line', () => {
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBe(ATTENTION_PRIORITY.indexOf('blockedMessages') + 1);
     expect(ATTENTION_PRIORITY.indexOf('deletionAsks')).toBeLessThan(ATTENTION_PRIORITY.indexOf('handoffs'));
     for (const l of LOCALES) {
-      const html = renderOperationsHome(today, l, QUIET);
+      const html = withoutIsolates(renderOperationsHome(today, l, QUIET));
       const first = html.slice(html.indexOf('class="block today-now"'), html.indexOf('</section>', html.indexOf('class="block today-now"')));
       const hrefs = [...first.matchAll(/class="deeper" href="([^"]+)"/g)].map((m) => m[1]);
       expect(hrefs, l).toEqual(['/app/inbox?filter=blocked', '/app/inbox?filter=deletion']);
@@ -196,7 +197,7 @@ describe('0076 · Today shows it as its own line', () => {
   });
 
   it('none waiting: no line', () => {
-    const html = renderOperationsHome({ ...today, attention: { ...today.attention, deletionAsks: 0 } }, 'en', QUIET);
+    const html = withoutIsolates(renderOperationsHome({ ...today, attention: { ...today.attention, deletionAsks: 0 } }, 'en', QUIET));
     expect(html).not.toContain('filter=deletion');
   });
 });
@@ -209,13 +210,13 @@ const summary = (over: Partial<ConversationSummary>): ConversationSummary => ({
 });
 
 describe('0076 · the Buyers list: its own group and its own tab', () => {
-  const list = renderInboxList({
+  const list = withoutIsolates(renderInboxList({
     filter: 'pending', waitingCount: 2, blockedCount: 0, deletionCount: 1,
     conversations: [
       summary({ conversationId: 'asked', buyer: 'Asker', deletionWaiting: true }),
       summary({ conversationId: 'waiting', buyer: 'Waiter', ownership: 'WAITING_HUMAN', handoffReason: 'human_requested' }),
     ],
-  }, 'en', NOW);
+  }, 'en', NOW));
 
   it('first, and headed even on the tab that heads nothing else', () => {
     const head = list.indexOf(esc(t('en', k('buyers.group.deletion'))));
@@ -228,9 +229,9 @@ describe('0076 · the Buyers list: its own group and its own tab', () => {
 
   it('a tab of its own while one waits, with the count', () => {
     expect(list).toContain(`href="/app/inbox?filter=deletion">${esc(t('en', k('inbox.filter.deletion')))} (1)</a>`);
-    const none = renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW);
+    const none = withoutIsolates(renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW));
     expect(none).not.toContain('filter=deletion');
-    const empty = renderInboxList({ filter: 'deletion', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW);
+    const empty = withoutIsolates(renderInboxList({ filter: 'deletion', waitingCount: 0, blockedCount: 0, deletionCount: 0, conversations: [] }, 'en', NOW));
     expect(empty).toContain(esc(t('en', k('inbox.empty.deletion'))));
   });
 });

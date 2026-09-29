@@ -7,9 +7,10 @@ import { assistantNameOfConversation, mainAssistantName } from '../../db/assista
 import { LOCALES, type Locale, DEFAULT_LOCALE } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney } from '../../core/owner/i18n/format.js';
+
 import { publicDocument, esc } from './layout.js';
 import { ownSku } from '../../core/owner/sku.js';
+import * as show from './values.js';
 
 /**
  * M35 — the proof link. The FIRST buyer-facing surface this product has.
@@ -311,8 +312,8 @@ export function renderProof(v: ProofView): string {
   // owner's surfaces spent this month removing.
   const facts = [
     fact(t(l, 'proof.fact.quantity'), qty),
-    fact(t(l, 'proof.fact.unitPrice'), formatMoney(v.unitPrice)),
-    fact(t(l, 'proof.fact.total'), formatMoney(v.total)),
+    fact(t(l, 'proof.fact.unitPrice'), show.money(l, v.unitPrice)),
+    fact(t(l, 'proof.fact.total'), show.money(l, v.total)),
     ...(tierText ? [fact(t(l, 'proof.fact.tier'), tierText)] : []),
     fact(t(l, 'proof.fact.moq'), v.moq === null ? t(l, 'product.noMinimum') : `${v.moq.toLocaleString('en-US')} ${v.unit}`),
     ...(v.leadTimeDays !== null

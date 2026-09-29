@@ -224,22 +224,34 @@ if (process.argv.includes('--symbols')) {
   const importBindings = (file) => {
     const src = readFileSync(file, 'utf8');
     const pairs = [];
-    const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"`](?:\$\{root\})?([^'"`]+)['"`]/g;
-    for (const m of src.matchAll(re)) {
-      const raw = m[2];
-      if (!raw.startsWith('.') && !raw.includes('src/')) continue;
+    /** The file an import names, or null for a package. */
+    const resolve = (raw) => {
+      if (!raw.startsWith('.') && !raw.includes('src/')) return null;
       const spec = raw.replace(/\.js$/, '.ts');
       let target = raw.includes('src/')
         ? normalize(spec.slice(spec.indexOf('src/')))
         : normalize(join(dirname(file), spec));
       if (!existsSync(target)) {
-        const asIndex = normalize(join(dirname(file), m[2].replace(/\.js$/, ''), 'index.ts'));
+        const asIndex = normalize(join(dirname(file), raw.replace(/\.js$/, ''), 'index.ts'));
         target = existsSync(asIndex) ? asIndex : target;
       }
+      return relative('.', target);
+    };
+    const re = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"`](?:\$\{root\})?([^'"`]+)['"`]/g;
+    for (const m of src.matchAll(re)) {
+      const target = resolve(m[2]);
+      if (!target) continue;
       for (const part of m[1].split(',')) {
         const name = part.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]?.trim();
-        if (name) pairs.push([relative('.', target), name]);
+        if (name) pairs.push([target, name]);
       }
+    }
+    // `import * as show from './values.js'` — every `show.money` is a use of
+    // `money`. Read as named imports, the whole module looked dead (2026-09-30).
+    for (const m of src.matchAll(/import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*['"`]([^'"`]+)['"`]/g)) {
+      const target = resolve(m[2]);
+      if (!target) continue;
+      for (const u of src.matchAll(new RegExp(`\\b${m[1].replace(/\$/g, '\\$')}\\.([A-Za-z_$][\\w$]*)`, 'g'))) pairs.push([target, u[1]]);
     }
     return pairs;
   };

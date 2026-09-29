@@ -6,6 +6,7 @@ import { PUBLIC_ROUTES } from '../../src/api/web/app.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { isEmailShape } from '../../src/core/owner/signup.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * PWR (0084) — "e-mail me a link": the door's parts no database is needed
@@ -26,10 +27,10 @@ describe('PWR · the door', () => {
 
   it('asks for the address, says how long the link works, and says the same thing once asked', () => {
     for (const l of LOCALES) {
-      const page = forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60 });
+      const page = withoutIsolates(forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60 }));
       expect(page, l).toContain('<form method="post" action="/login/forgot">');
       expect(page, l).toContain(t(l, 'forgot.lead', { minutes: 60 }));
-      const sent = forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60, sent: 'sara@example.com' });
+      const sent = withoutIsolates(forgotPasswordPage({ locale: l, path: '/login/forgot', minutes: 60, sent: 'sara@example.com' }));
       expect(sent, l).toContain(t(l, 'forgot.sent', { email: 'sara@example.com', minutes: 60 }));
       expect(sent, l).not.toContain('<form');
     }

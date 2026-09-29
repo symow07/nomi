@@ -7,6 +7,7 @@ import { esc } from '../../src/api/web/layout.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import type { Quote } from '../../src/core/types/commerce.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * G15 — the sample credit reaches the proforma. Derived from rows that already
@@ -19,12 +20,12 @@ const quote: Quote = {
   unitPrice: usd(0.5), discountPct: 0, total: usd(500), moq: 500,
   leadTimeDays: 25, leadTimeBlocked: null, requiresHuman: false, contradicts: null, appliedRules: [],
 };
-const invoice = (sampleCredit: Money | null) => renderInvoiceEn(buildInvoice({
+const invoice = (sampleCredit: Money | null) => withoutIsolates(renderInvoiceEn(buildInvoice({
   quote, sellerName: 'Yiwu Sunrise', sellerPrefix: 'PI', buyerName: 'Karim',
   productName: 'Canvas tote bag', productSku: 'CT-1', incoterm: 'CIF',
   paymentTermsZh: '50%', paymentTermsEn: '50% with order',
   conversationRef: 'c1234', sampleCredit, now: new Date('2026-09-11T00:00:00Z'),
-}));
+})));
 
 describe('G15 · the deduction she promised, on the document she promised it on', () => {
   it('two lines, never one adjusted total', () => {
@@ -55,14 +56,15 @@ describe('G15 · the order page', () => {
   });
 
   it('shows the credit on the proforma', () => {
-    const html = renderOrder(view({ sampleCredit: { kind: 'credit', amount: usd(25) } }), 'en', null);
+    const html = withoutIsolates(renderOrder(view({ sampleCredit: { kind: 'credit', amount: usd(25) } }), 'en', null));
     expect(html).toContain('Less sample already paid: -$25.00');
   });
 
   it('ANOTHER CURRENCY IS NOT CONVERTED — she is told to take it off herself', () => {
     for (const l of LOCALES) {
-      const html = renderOrder(view({ sampleCredit: { kind: 'mismatch', amount: { amount: 180, currency: 'CNY' } } }), l, null);
-      expect(html, l).toContain(esc(t(l, 'order.invoice.sampleMismatch', { amount: '￥180.00' })));
+      const html = withoutIsolates(renderOrder(view({ sampleCredit: { kind: 'mismatch', amount: { amount: 180, currency: 'CNY' } } }), l, null));
+      // Arabic money is the locale's own form (the design pass §9).
+      expect(html, l).toContain(esc(t(l, 'order.invoice.sampleMismatch', { amount: l === 'ar' ? '\u200F180.00\u00A0CN¥' : '￥180.00' })));
       expect(html, l).not.toContain('Less sample already paid');
       expect(t(l, 'order.invoice.sampleMismatch' as MessageKey, { amount: 'x' }), l).not.toContain('{');
     }

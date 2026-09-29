@@ -18,7 +18,7 @@ import {
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, outreachShown } from './say.js';
-import { formatRelative } from '../../core/owner/i18n/format.js';
+
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
 import { back, deeper, esc } from './layout.js';
@@ -26,6 +26,7 @@ import { flashBanner, type Flash } from './flash.js';
 import { connectedChannels } from '../../db/connectedChannels.js';
 import { callingCode } from '../../core/channel/callingCodes.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import * as show from './values.js';
 
 /**
  * M9.4 + ADR-0008 — Channel Center. A VIEW + connection-STATE management over
@@ -419,7 +420,7 @@ export function renderDomain(
     ? t(locale, 'domain.ready')
     : verdict.error.kind === 'never_checked' ? t(locale, 'domain.neverChecked')
       : verdict.error.kind === 'stale' ? t(locale, 'domain.stale',
-        { date: formatRelative(locale, verdict.error.checkedAt, now) })
+        { date: show.when(locale, verdict.error.checkedAt, now) })
         : t(locale, 'domain.incomplete');
 
   return `<div class="dom">
@@ -663,7 +664,7 @@ export function renderChannels(
       <div class="muted ch-desc">${esc(t(locale, 'channel.whatsapp.desc'))}</div>
       ${w.connected ? `<div class="ch-info">
         ${w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
-        ${w.lastActivityAt ? `<div><span class="muted">${esc(t(locale, 'channel.field.lastMessage'))}</span> ${esc(formatRelative(locale, w.lastActivityAt, new Date()))}</div>` : ''}
+        ${w.lastActivityAt ? `<div><span class="muted">${esc(t(locale, 'channel.field.lastMessage'))}</span> ${esc(show.when(locale, w.lastActivityAt, new Date()))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'channel.field.health'))}</span> ${esc(w.healthOk ? t(locale, 'channel.health.ok') : t(locale, 'channel.health.attention'))}</div>
       </div>` : ''}
       ${w.problem ? problemBlock(locale, w.problem) : ''}

@@ -4,13 +4,14 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import type { Viewer } from '../../core/conversation/people.js';
 import { waitingAsks, type WaitingAsk } from '../../db/deletionAsks.js';
+import * as show from './values.js';
 
 /**
  * CC-12 + CC-02 — one page for the two things a business may ask of a product
@@ -332,7 +333,7 @@ export function renderDataRights(
       // CC-20 — a standing state, said the way the buyer's page says one (a pill
       // and a sentence): it was drawn as a refusal notice, announced as a passing status.
       ? `<p><span class="pill warn">${esc(t(locale, 'data.deletion.state.open'))}</span>${esc(t(locale, 'data.deletion.pending', {
-          date: formatDate(locale, open.askedAt),
+          date: show.date(locale, open.askedAt),
         }))}</p>
         <form method="post" action="/app/settings/data/withdraw" class="pform">
           <input type="hidden" name="id" value="${esc(open.id)}" />
@@ -353,7 +354,7 @@ export function renderDataRights(
     <h2>${esc(t(locale, 'data.deletion.history'))}</h2>
     <ul class="list">${workspace.map((r) => `<li class="row">
       <span class="person">${esc(t(locale, 'data.deletion.scope.workspace'))}</span>
-      <span class="muted">${esc(formatDate(locale, r.askedAt))}</span>
+      <span class="muted">${esc(show.date(locale, r.askedAt))}</span>
       <span class="pill ${r.state === 'open' ? 'warn' : 'ok'}">${esc(t(locale, STATE_KEY[r.state]))}</span>
       ${r.closedNote ? `<div class="muted"><bdi>${esc(r.closedNote)}</bdi></div>` : ''}
     </li>`).join('')}</ul>
@@ -396,7 +397,7 @@ function buyerRequests(
 ): string {
   const noted = asks.map((a) => `<li class="row">
       <div class="person"><a href="/app/conversations/${encodeURIComponent(a.conversationId)}#deletion"><b><bdi>${esc(a.buyer ?? t(locale, 'common.buyer'))}</bdi></b></a>
-        <span class="muted">${esc(t(locale, 'data.buyers.waiting', { asked: formatDate(locale, a.askedAt) }))}</span>
+        <span class="muted">${esc(t(locale, 'data.buyers.waiting', { asked: show.date(locale, a.askedAt) }))}</span>
       </div>
       <span class="pill warn">${esc(t(locale, 'data.ask.state.waiting'))}</span>
     </li>`).join('');
@@ -405,11 +406,11 @@ function buyerRequests(
     const name = r.conversationId && r.state !== 'done'
       ? `<a href="/app/conversations/${encodeURIComponent(r.conversationId)}"><b><bdi>${who}</bdi></b></a>`
       : `<b><bdi>${who}</bdi></b>`;
-    const asked = formatDate(locale, r.askedAt);
+    const asked = show.date(locale, r.askedAt);
     const when = r.state === 'open'
-      ? t(locale, 'data.buyers.due', { asked, due: formatDate(locale, deletionDueBy(r.askedAt)) })
+      ? t(locale, 'data.buyers.due', { asked, due: show.date(locale, deletionDueBy(r.askedAt)) })
       : r.state === 'done' && r.closedAt
-        ? t(locale, 'data.buyers.done', { asked, done: formatDate(locale, r.closedAt) })
+        ? t(locale, 'data.buyers.done', { asked, done: show.date(locale, r.closedAt) })
         : t(locale, 'data.buyers.asked', { asked });
     const withdraw = r.state === 'open' && viewer.isOwner
       ? `<form method="post" action="/app/settings/data/withdraw" class="inline">

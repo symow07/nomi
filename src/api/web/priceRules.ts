@@ -6,7 +6,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney, formatQty } from '../../core/owner/i18n/format.js';
+
 import { esc, back } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
@@ -15,6 +15,7 @@ import {
   validatePriceRules, priceRuleChanges,
   type PriceRules, type PriceRuleError, type PriceRuleField,
 } from '../../core/commerce/priceRules.js';
+import * as show from './values.js';
 
 /**
  * M29 — reading and writing the owner's price rules.
@@ -453,12 +454,12 @@ export function renderPriceRules(
     const open = draft.productId === p.productId;
     return `<li class="row lines">
       <div class="dhead muted"><bdi>${esc(label)}</bdi>${/* CC-31 — hers only */ ''}${ownSku(p.sku) ? ` <span class="muted"><bdi>${esc(ownSku(p.sku)!)}</bdi></span>` : ''}
-        ${p.listPrice !== null ? `<span class="muted">${esc(formatMoney(p.listPrice))}</span>` : ''}</div>
+        ${p.listPrice !== null ? `<span class="muted">${esc(show.money(locale, p.listPrice))}</span>` : ''}</div>
       ${p.own
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
-             floor: formatMoney(p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
+             floor: show.money(locale, p.own.floor), max: p.own.maxDiscountPct, ask: p.own.askAbovePct, name }))}</p>`
         : isCovered(p) && v.businessDefault
-          ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: formatMoney(v.businessDefault.floor) }))}</p>`
+          ? `<p class="fdesc">${esc(t(locale, 'prices.inherited.line', { floor: show.money(locale, v.businessDefault.floor) }))}</p>`
           : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
       ${open || (p.own === null && !isCovered(p))
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '')
@@ -514,7 +515,7 @@ function volumeSection(
 
   const rows = v.volume.map((d) => `<li class="row lines">
       <div class="dhead muted"><bdi>${esc(t(locale, 'prices.volume.row', {
-        qty: formatQty(locale, d.minQty), pct: d.discountPct,
+        qty: show.quantity(locale, d.minQty), pct: d.discountPct,
         product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
       }))}</bdi></div>
       ${d.asksFirst ? `<p class="fdesc">${esc(t(locale, 'prices.volume.asksFirst', { name }))}</p>` : ''}
@@ -535,7 +536,7 @@ function volumeSection(
         <select name="productId">
           <option value="">${esc(t(locale, 'prices.volume.everyProduct'))}</option>
           ${v.products.map((p) => `<option value="${esc(p.productId)}">${
-            esc(productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku)}</option>`).join('')}
+            esc(show.isolate(locale, productName(locale, { name: p.name, nameZh: p.nameZh }) ?? p.sku))}</option>`).join('')}
         </select></label>
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.minQty'))}</span>
         <input name="minQty" inputmode="numeric" required />${err('minQty')}</label>

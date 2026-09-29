@@ -4,6 +4,7 @@ import { tn, t } from '../../src/core/owner/i18n/messages.js';
 import { renderConversationDetail, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { moneyFromRow } from '../../src/core/types/money.js';
 import { buttonsAndDoors } from './buttons-and-doors.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * THE APPROVAL CARD (the design pass, 2026-09-29; the plan's §1): one card,
@@ -76,7 +77,7 @@ describe('the card, drawn', () => {
   const card = (html: string) => html.slice(html.indexOf('id="approve"'), html.indexOf('</section>', html.indexOf('id="approve"')));
 
   it('who asked, where and when; what was understood; how it was read, closed; the reply once; one Send', () => {
-    const html = renderConversationDetail(base, 'en', NOW, null);
+    const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);
     expect(c).toMatch(/<b><bdi>Maya Rahman<\/bdi><\/b> asked · Instagram · Today \d\d:\d\d/);
     expect(c).toContain('<span class="as"><span aria-hidden="true">✦</span> Your assistant drafted</span>');
@@ -94,18 +95,18 @@ describe('the card, drawn', () => {
   });
 
   it('what made it wait is the card\'s state line, drawn before the rest', () => {
-    const held = renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null);
+    const held = withoutIsolates(renderConversationDetail({ ...base, pendingDraft: { ...base.pendingDraft!, heldBecause: 'discount_needs_owner' } }, 'en', NOW, null));
     const c = card(held);
     expect(c).toMatch(/<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●<\/span> <b>Waiting for you<\/b> /);
     expect(c.indexOf('class="stateline"')).toBeLessThan(c.indexOf('class="said"'));
   });
 
   it('a figure nothing accounts for, and a second reading that differed, are said plainly', () => {
-    const html = renderConversationDetail({
+    const html = withoutIsolates(renderConversationDetail({
       ...base,
       pendingDraft: { ...base.pendingDraft!, draftText: 'Today only: $29.' },
       reading: { ...base.reading!, differsOn: ['product'] },
-    }, 'en', NOW, null);
+    }, 'en', NOW, null));
     const c = card(html);
     expect(c).toContain('<span class="mk warn" aria-hidden="true">○</span><bdi>29</bdi><span>no source found</span>');
     expect(c).toContain('Not every figure has a source');
@@ -113,11 +114,11 @@ describe('the card, drawn', () => {
   });
 
   it('in Chinese and Arabic: the same card, the customer\'s words kept in their own direction, nobody gendered', () => {
-    const zh = card(renderConversationDetail(base, 'zh', NOW, null));
+    const zh = card(withoutIsolates(renderConversationDetail(base, 'zh', NOW, null)));
     expect(zh).toContain('<b><bdi>Maya Rahman</bdi></b> 在 Instagram 上问');
     expect(zh).toContain('<bdi>问价</bdi> · <bdi>玫瑰精华</bdi>');
     expect(zh).toContain('5 条依据');
-    const ar = card(renderConversationDetail(base, 'ar', NOW, null));
+    const ar = card(withoutIsolates(renderConversationDetail(base, 'ar', NOW, null)));
     expect(ar).toContain('سؤال من <b><bdi>Maya Rahman</bdi></b>');
     expect(ar).toContain('5 أسباب');
     expect(ar).toContain(t('ar', 'card.handToMe'));
@@ -125,10 +126,10 @@ describe('the card, drawn', () => {
   });
 
   it('the page\'s other cards are states of the one card: a dot, the state\'s own words, then why and what to do', () => {
-    const html = renderConversationDetail({
+    const html = withoutIsolates(renderConversationDetail({
       ...base, unheardReason: 'transcription_failed',
       refusals: [{ outboundId: 'o-1', conversationId: 'c-1', buyer: 'Maya', reason: 'window_closed', at: NOW, origin: 'employee' }],
-    }, 'en', NOW, null);
+    }, 'en', NOW, null));
     expect(html).toContain(`<p class="stateline rf-h"><span class="dot warn" aria-hidden="true">●</span> <b>${t('en', 'unheard.title')}</b></p>`);
     expect(html).toContain(`<p class="stateline rf-h"><span class="dot bad" aria-hidden="true">●</span> <b>${t('en', 'refused.title')}</b></p>`);
     expect(html).not.toContain('<h3 class="rf-h">');
@@ -136,16 +137,16 @@ describe('the card, drawn', () => {
 
   it('CH5 · under two hours left in the window, the card says so first, with the time left in words', () => {
     const late = { ...base, messages: [{ ...base.messages[0]!, at: new Date(NOW.getTime() - (22 * 60 + 40) * 60_000) }] };
-    const en = card(renderConversationDetail(late, 'en', NOW, null));
+    const en = card(withoutIsolates(renderConversationDetail(late, 'en', NOW, null)));
     expect(en).toContain('<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>Closing soon</b> Instagram takes replies for 1 hour, 20 minutes more</p>');
     expect(en.indexOf('Closing soon')).toBeLessThan(en.indexOf('class="said"'));
-    expect(card(renderConversationDetail(late, 'zh', NOW, null))).toContain('Instagram 还能回复 1小时20分钟');
+    expect(card(withoutIsolates(renderConversationDetail(late, 'zh', NOW, null)))).toContain('Instagram 还能回复 1小时20分钟');
     // with the day still ahead, nothing to say about it but the time it closes
-    expect(card(renderConversationDetail(base, 'en', NOW, null))).not.toContain('Closing soon');
+    expect(card(withoutIsolates(renderConversationDetail(base, 'en', NOW, null)))).not.toContain('Closing soon');
   });
 
   it('no turn on record (a fixture, an old conversation): the card still works, and claims nothing it cannot show', () => {
-    const c = card(renderConversationDetail({ ...base, reading: null, knowledgeUsed: [] }, 'en', NOW, null));
+    const c = card(withoutIsolates(renderConversationDetail({ ...base, reading: null, knowledgeUsed: [] }, 'en', NOW, null)));
     // no reading of the message: no intent, no language, no second reading — only the product the conversation holds
     expect(c).toContain('<p class="und"><span class="k">Understood</span><span><bdi>Rose Face Serum</bdi></span></p>');
     expect(c).not.toContain('checked twice');

@@ -1,8 +1,9 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
-import { type MessageKey, tn } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount } from './say.js';
+import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
 import { cssVariables } from '../../core/owner/css.js';
+import { isolate } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
@@ -1477,7 +1478,7 @@ export function shell(input: {
     // not a colour — nothing here is wrong, it is simply not finished. It
     // disappears when the last step is done, and the entry stays.
     const count = n.id === 'settings' && setup && setup.next !== null ? setup : null;
-    const badge = count ? `<span class="navcount" aria-hidden="true">${count.done}/${count.total}</span>` : '';
+    const badge = count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, `${count.done}/${count.total}`))}</span>` : '';
     const aria = count
       ? ` aria-label="${esc(label)}, ${esc(t(locale, 'nav.setup.progress', { done: count.done, total: count.total }))}"`
       : '';
@@ -1503,7 +1504,7 @@ export function shell(input: {
   const sub = (href: string, key: MessageKey, on: boolean, count: number | null) =>
     `<a href="${href}" class="subnav${on ? ' active' : ''}"${on ? ' aria-current="page"' : ''}${
       count ? ` aria-label="${esc(t(locale, key))}, ${esc(tn(locale, 'nav.needsYou', count))}"` : ''}>${esc(t(locale, key))}${
-      count ? `<span class="navcount" aria-hidden="true">${count}</span>` : ''}</a>`;
+      count ? `<span class="navcount" aria-hidden="true">${esc(isolate(locale, String(count)))}</span>` : ''}</a>`;
   const nav = `<div class="navgroup">${link(byId('home'))}${link(byId('inbox'))}
       <div class="navhub" role="group" aria-labelledby="nav-customers">
         <span class="navhead" id="nav-customers">${esc(t(locale, 'nav.customers'))}</span>

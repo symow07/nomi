@@ -15,10 +15,11 @@ import {
 import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
-import { formatDate, formatMoney, formatRelative } from '../../core/owner/i18n/format.js';
+
 import { switcher, deeper, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import * as show from './values.js';
 
 /** Phase 4 — in place of a form only the owner may send: the values stay
  *  on the page to read, and this says whose decision they are. */
@@ -428,7 +429,7 @@ export async function setRate(
 export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
   const name = assistantName(locale);
   const stated = (r: OwnerRate): string =>
-    `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: formatDate(locale, r.statedAt) }))}</span>`;
+    `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
   return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
@@ -515,7 +516,7 @@ export async function removeClosure(
 export function renderClosures(v: ClosureView, locale: Locale, flash: Flash | null): string {
   const name = assistantName(locale);
   const range = (c: FactoryClosure) =>
-    t(locale, 'closures.range', { from: formatDate(locale, c.from), to: formatDate(locale, c.to) });
+    t(locale, 'closures.range', { from: show.date(locale, c.from), to: show.date(locale, c.to) });
   return `<h1 class="page">${esc(t(locale, 'closures.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
@@ -656,7 +657,7 @@ export function renderTerms(v: TermsView, locale: Locale, flash: Flash | null, v
   const name = assistantName(locale);
   const stated = v.terms
     ? `<p class="stated-now"><bdi>${esc(v.terms.incoterm)}</bdi> · <bdi>${esc(v.terms.paymentTerms)}</bdi></p>
-       <p class="muted">${esc(t(locale, 'terms.setOn', { date: formatDate(locale, v.terms.statedAt) }))}</p>`
+       <p class="muted">${esc(t(locale, 'terms.setOn', { date: show.date(locale, v.terms.statedAt) }))}</p>`
     : `<p class="muted empty-p">${esc(t(locale, 'terms.none', { name }))}</p>`;
   const options = INCOTERM_KEYS.map((k) =>
     `<option value="${esc(k)}"${v.terms?.incoterm === k ? ' selected' : ''}>${esc(k)}</option>`).join('');
@@ -719,17 +720,17 @@ export function renderSamples(
     ? `<p class="stated-now">${
         v.policy.price.amount === 0
           ? esc(t(locale, 'samples.current.free'))
-          : esc(t(locale, 'samples.current.paid', { price: formatMoney(v.policy.price) }))
+          : esc(t(locale, 'samples.current.paid', { price: show.money(locale, v.policy.price) }))
       } <span class="muted">${esc(t(locale, v.policy.creditedOnFirstOrder
         ? 'samples.current.credited' : 'samples.current.notCredited'))}</span></p>
-      <p class="muted">${esc(t(locale, 'samples.setOn', { date: formatDate(locale, v.policy.statedAt) }))}</p>`
+      <p class="muted">${esc(t(locale, 'samples.setOn', { date: show.date(locale, v.policy.statedAt) }))}</p>`
     : `<p class="muted empty-p">${esc(t(locale, 'samples.empty', { name }))}</p>`;
 
   const waiting = v.waiting.length === 0
     ? `<p class="muted empty-p">${esc(t(locale, 'samples.requests.empty'))}</p>`
     : `<ul class="sreqs">${v.waiting.map((r) => `<li>
         <div class="sreq-h"><b><bdi>${esc(r.buyer ?? t(locale, 'common.buyer'))}</bdi></b>
-          <span class="muted">${esc(t(locale, 'samples.requests.asked', { when: formatRelative(locale, r.requestedAt, now) }))}</span></div>
+          <span class="muted">${esc(t(locale, 'samples.requests.asked', { when: show.when(locale, r.requestedAt, now) }))}</span></div>
         <div class="muted sreq-q"><bdi>${esc(r.askedText.slice(0, 160))}</bdi></div>
         <form method="post" action="/app/settings/samples/${esc(r.id)}/address" class="sreq-a">
           <label class="fld"><span class="muted">${esc(t(locale, 'samples.requests.address.label'))}</span>

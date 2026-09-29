@@ -5,7 +5,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney, formatQtyUnit, formatRelative, formatDate, formatList } from '../../core/owner/i18n/format.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 import { buyerWho, channelName, productName } from './inbox.js';
 import { esc, deeper, back, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -14,6 +14,7 @@ import { waitingAskOf, type WaitingAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { ownSku } from '../../core/owner/sku.js';
+import * as show from './values.js';
 
 /**
  * M9.7 + ADR-0008 — the buyer's own page (`/app/conversations/:id`): what the
@@ -281,9 +282,9 @@ function milestoneHtml(locale: Locale, m: Milestone): string {
     case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
     case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
     case 'quote': return said('conv.tl.quote', { name }, 'detail',
-      [iso(formatQtyUnit(locale, m.qty ?? 0, pcs)), iso(`${m.unitPrice ? formatMoney(m.unitPrice) : '—'}/${pcs}`)].join(' · '));
+      [iso(show.quantityOf(locale, m.qty ?? 0, pcs)), iso(`${m.unitPrice ? show.money(locale, m.unitPrice) : '—'}/${pcs}`)].join(' · '));
     case 'order': return said('conv.tl.order', { status: orderStatusName(locale, m.orderStatus ?? '') }, 'qty',
-      iso(formatQtyUnit(locale, m.qty ?? 0, pcs)));
+      iso(show.quantityOf(locale, m.qty ?? 0, pcs)));
     default: return esc(t(locale, `conv.tl.${m.kind}` as MessageKey));
   }
 }
@@ -337,7 +338,7 @@ export async function renameBuyer(
  */
 function deletionSection(f: CustomerFile, locale: Locale, viewer: Viewer): string {
   const d = f.deletion ?? null;
-  const date = (x: Date) => formatDate(locale, x);
+  const date = (x: Date) => show.date(locale, x);
   const state = (tone: string, key: MessageKey) =>
     `<span class="pill ${tone}">${esc(t(locale, key))}</span>`;
   const head = `<h2>${esc(t(locale, 'conv.deletion.title'))}</h2>`;
@@ -414,10 +415,10 @@ export function renderCustomerFile(
   // CC-13 — each locale's own list, not the Chinese enumeration comma in every language.
   const productsLabel = formatList(locale, p.products.map((pr) => productName(locale, pr)).filter((x): x is string => Boolean(x)));
   const profileRows = [
-    p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(formatDate(locale, p.firstContact))}</b></div>` : '',
+    p.firstContact ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.firstContact'))}</span><b>${esc(show.date(locale, p.firstContact))}</b></div>` : '',
     productsLabel ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.products'))}</span><b><bdi>${esc(productsLabel)}</bdi></b></div>` : '',
-    p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${p.quoteCount}</b></div>` : '',
-    p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${p.orderCount}</b></div>` : '',
+    p.quoteCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.quoteCount'))}</span><b>${esc(show.count(locale, p.quoteCount))}</b></div>` : '',
+    p.orderCount > 0 ? `<div class="prow"><span class="muted">${esc(t(locale, 'conv.file.orderCount'))}</span><b>${esc(show.count(locale, p.orderCount))}</b></div>` : '',
   ].filter(Boolean).join('');
   const nameForm = `<form method="post" action="/app/conversations/${encodeURIComponent(f.conversationId)}/name" class="name-form">
       <label for="buyer-name">${esc(t(locale, 'conv.file.name'))}</label>
@@ -434,7 +435,7 @@ export function renderCustomerFile(
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
-          <div><div class="tx">${milestoneHtml(locale, m)}</div>${m.at ? `<div class="muted ts">${esc(formatRelative(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
+          <div><div class="tx">${milestoneHtml(locale, m)}</div>${m.at ? `<div class="muted ts">${esc(show.when(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
         ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 
@@ -442,18 +443,18 @@ export function renderCustomerFile(
   const ctxParts = [
     ctx.products.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.products'))}</div><div>${ctx.products.map((pr) =>
       // CC-31 — her own article number only; one the import made up is not hers to read.
-      `${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}${ownSku(pr.sku) ? `<span class="muted"> · <bdi>${esc(ownSku(pr.sku)!)}</bdi></span>` : ''}`).join('<br>')}</div></div>` : '',
+      `<bdi>${esc(productName(locale, pr) ?? t(locale, 'conv.unnamed'))}</bdi>${ownSku(pr.sku) ? `<span class="muted"> · <bdi>${esc(ownSku(pr.sku)!)}</bdi></span>` : ''}`).join('<br>')}</div></div>` : '',
     // Each figure isolated, so Arabic keeps quantity, price and total apart and in order.
     ctx.latestQuote ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.quote'))}</div><div>${[
-      formatQtyUnit(locale, ctx.latestQuote.qty, pcs),
-      `${formatMoney(ctx.latestQuote.unitPrice)}/${pcs}`,
-      `${t(locale, 'product.detail.total')} ${formatMoney(ctx.latestQuote.total)}`,
+      show.quantityOf(locale, ctx.latestQuote.qty, pcs),
+      `${show.money(locale, ctx.latestQuote.unitPrice)}/${pcs}`,
+      `${t(locale, 'product.detail.total')} ${show.money(locale, ctx.latestQuote.total)}`,
     ].map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</div></div>` : '',
     ctx.order ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.order'))}</div><div>${
       // G4 — the reference opens the order, so what she tells a buyer who asks
       // after it is one tap away.
-      ctx.order.id ? `<a href="/app/orders/${encodeURIComponent(ctx.order.id)}">${esc(ctx.order.reference)}</a>` : esc(ctx.order.reference)
-    } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(formatMoney(ctx.order.total))}` : ''}</div></div>` : '',
+      ctx.order.id ? `<a href="/app/orders/${encodeURIComponent(ctx.order.id)}">${esc(show.orderNumber(locale, ctx.order.reference))}</a>` : esc(show.orderNumber(locale, ctx.order.reference))
+    } · ${esc(orderStatusName(locale, ctx.order.status))}${ctx.order.total !== null ? ` · ${esc(show.money(locale, ctx.order.total))}` : ''}</div></div>` : '',
     ctx.corrections.length ? `<div class="cx"><div class="cx-l">${esc(t(locale, 'conv.ctx.corrections'))}</div><div>${esc(formatList(locale, ctx.corrections.map((c) => capabilityName(locale, c))))}</div></div>` : '',
   ].filter(Boolean).join('');
   const context = ctxParts ? `<div class="block"><h2>${esc(t(locale, 'conv.ctx.title'))}</h2>${ctxParts}</div>` : '';

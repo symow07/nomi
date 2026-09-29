@@ -4,10 +4,11 @@ import type { Enrichment } from '../../db/prospects.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import * as show from './values.js';
 
 /**
  * C5 · M41 — finding buyers, as a list she decides about.
@@ -84,14 +85,14 @@ export function companyLineHtml(locale: Locale, e: Enrichment | undefined): stri
     o.employees !== null ? esc(t(locale, 'contacts.company.employees', { n: String(o.employees) })) : null,
     vendor([o.city, o.country].filter(Boolean).join(', ') || null),
   ].filter((x): x is string => x !== null);
-  return `${parts.join(' · ')} — ${esc(t(locale, 'contacts.company.lookedUp', { date: formatDate(locale, e.lookedUpAt) }))}`;
+  return `${parts.join(' · ')} — ${esc(t(locale, 'contacts.company.lookedUp', { date: show.date(locale, e.lookedUpAt) }))}`;
 }
 
 function keyBlock(locale: Locale, status: KeyStatus, viewer: Viewer): string {
   const state = status.kind === 'no_key_store' ? t(locale, 'prospects.noSource.no_key_store')
     : status.kind === 'none' ? t(locale, 'prospects.key.none')
     : status.readable
-      ? t(locale, 'prospects.key.stored', { fp: status.fingerprint, who: status.createdBy, date: formatDate(locale, status.createdAt) })
+      ? t(locale, 'prospects.key.stored', { fp: status.fingerprint, who: status.createdBy, date: show.date(locale, status.createdAt) })
       : t(locale, 'prospects.noSource.unreadable_key');
   if (status.kind === 'no_key_store') return `<section class="block"><h2>${esc(t(locale, 'prospects.key.title'))}</h2>
     <p class="muted">${esc(state)}</p></section>`;

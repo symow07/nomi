@@ -9,10 +9,11 @@ import { autonomyReleased } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, practiceShown } from './say.js';
-import { formatDate, labelled } from '../../core/owner/i18n/format.js';
+import { labelled } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import * as show from './values.js';
 
 /**
  * M9.6 + ADR-0008 — Employee Profile. A VIEW over the existing trust data
@@ -236,7 +237,7 @@ export function renderEmployee(
     <div class="emp-h">
       <div><div class="emp-name">${esc(name)}</div>
         <div class="muted">${esc(stageLabel)} · ${esc(t(locale, 'employee.role.reception'))}</div></div></div>
-    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(labelled(locale, t(locale, 'employee.hired'), formatDate(locale, e.hireDate)))}</div>` : ''}
+    ${/* CC-13 — the locale's own colon (it was the Chinese one in every language). */ ''}${e.hireDate ? `<div class="muted" style="margin-top:var(--space-8)">${esc(labelled(locale, t(locale, 'employee.hired'), show.date(locale, e.hireDate)))}</div>` : ''}
   </div>`;
 
   // 2 · What can she handle? Permission and trust boundaries — never a measure
@@ -290,7 +291,7 @@ export function renderEmployee(
                 why: t(locale, `demote.why.${g.why ?? 'repeated_corrections'}` as MessageKey),
               })
             : t(locale, `employee.growth.${g.kind}` as MessageKey, g.capability ? { cap: capName(g.capability) } : {});
-          return `<li>${GROWTH_ICON[g.kind]} ${esc(text)}<span class="muted"> · ${esc(formatDate(locale, g.at))}</span></li>`;
+          return `<li>${GROWTH_ICON[g.kind]} ${esc(text)}<span class="muted"> · ${esc(show.date(locale, g.at))}</span></li>`;
         }).join('')}</ul>`
       : `<div class="muted empty">${esc(t(locale, 'employee.growth.empty'))}</div>`}
   </div>`;

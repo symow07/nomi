@@ -18,7 +18,7 @@ import { ownershipOf, type ConversationOwnership } from '../../core/conversation
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatMoney, labelled } from '../../core/owner/i18n/format.js';
+import { labelled } from '../../core/owner/i18n/format.js';
 import {
   SCENARIOS, analysis as buildAnalysis, candidate as toCandidate,
   type Expectation, type Scenario,
@@ -27,6 +27,7 @@ import { runCheck, type CheckResult, type TurnOutcome } from '../../trust/invari
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import * as show from './values.js';
 
 /**
  * M12.2 — Interactive pilot sandbox.
@@ -454,7 +455,7 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
   const chips = [
     `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(labelled(locale, t(locale, 'sandbox.xray.delivery'), t(locale, deliveryKey as MessageKey)))}</span>`,
-    trust.quote ? `<span class="chip"><bdi>${esc(formatMoney(quoteUnit(trust.quote)))}/${esc(t(locale, 'product.unit.pcs'))}</bdi></span>` : '',
+    trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(t(locale, 'product.unit.pcs'))}</bdi></span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
     trust.scenarioId
       ? `<span class="chip badge">${esc(labelled(locale, t(locale, 'sandbox.scenario.badge'), caseName(locale, trust.scenarioId)))}</span>`

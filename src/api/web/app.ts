@@ -160,7 +160,7 @@ import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletio
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
 import { deletionDueBy, DELETION_DAYS } from '../../core/ops/deletions.js';
-import { formatDate, dayKey, addDays } from '../../core/owner/i18n/format.js';
+import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword,
@@ -174,6 +174,7 @@ import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/own
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
+import * as show from './values.js';
 
 /**
  * M9 — Command Center web app. Server-rendered pages over the EXISTING
@@ -2765,7 +2766,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     if (r.outcome === 'asked' && r.fromChat) {
       return flashTo(reply, here, 'conv.deletion.flash.recordedAsk',
-        { due: formatDate(localeOf(req), deletionDueBy(r.askedAt)) });
+        { due: show.date(localeOf(req), deletionDueBy(r.askedAt)) });
     }
     return flashTo(reply, here, r.outcome === 'asked' ? 'conv.deletion.flash.asked'
       : r.outcome === 'already_open' ? 'conv.deletion.flash.already_open' : 'data.flash.failed');

@@ -13,6 +13,7 @@ import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages
 import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { esc } from '../../src/api/web/layout.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * CC-02a — /data-deletion SAYS WHAT HAPPENS, AND NOTHING THE CODE DOES NOT DO.
@@ -33,7 +34,7 @@ import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ');
-const page = (l: Locale, email: string | null = 'privacy@nomi.test') => renderDataDeletion(l, email);
+const page = (l: Locale, email: string | null = 'privacy@nomi.test') => withoutIsolates(renderDataDeletion(l, email));
 
 /** The page as it read before CC-02a, verbatim, for the negative controls. */
 const OLD: Record<Locale, string> = {
@@ -202,8 +203,8 @@ describe('CC-02a · /data-deletion states the contract, in every language', () =
     expect(messages.en['legal.privacy.howLong.body']).toMatch(/Until the business asks for its records to be deleted, or you ask for yours/);
     expect(messages.en['legal.privacy.choices.body']).toMatch(/as the deletion page describes/);
     for (const l of LOCALES) {
-      expect(renderPrivacy(l, null, facts)).toContain('href="/data-deletion"');
-      expect(renderPrivacy(l, null, facts)).toContain(esc(t(l, 'legal.privacy.howLong.body')));
+      expect(withoutIsolates(renderPrivacy(l, null, facts))).toContain('href="/data-deletion"');
+      expect(withoutIsolates(renderPrivacy(l, null, facts))).toContain(esc(t(l, 'legal.privacy.howLong.body')));
     }
   });
 });
@@ -249,7 +250,7 @@ describe('CC-02a · the operator is told, by e-mail, once a day', () => {
       business: `Shop ${i + 1}`, scope: i === 0 ? 'workspace' as const : 'buyer' as const, askedAt: asked, overdue: i === 1,
     }));
     for (const l of LOCALES) {
-      const s = renderOwnerAlert(l, 'deletion_due', null, { deletionsDue: lines });
+      const s = withoutIsolates(renderOwnerAlert(l, 'deletion_due', null, { deletionsDue: lines }));
       expect(s.split('\n')[0], l).toBe(t(l, 'notify.deletion_due', { n: 12 }));
       expect(s, l).toContain(t(l, 'notify.deletion_due.soon', {
         business: 'Shop 1', what: t(l, 'data.deletion.scope.workspace'),
@@ -303,13 +304,13 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
 
   it('never asked: the owner gets the form — what goes, what stays, a required note; staff get whose decision it is', () => {
     for (const l of LOCALES) {
-      const owner = renderCustomerFile(file, l, NOW, null, OWNER_VIEW);
+      const owner = withoutIsolates(renderCustomerFile(file, l, NOW, null, OWNER_VIEW));
       expect(owner, l).toContain('action="/app/conversations/c1/deletion"');
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.erased')));
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.kept')));
       expect(owner, l).toContain(esc(t(l, 'conv.deletion.tell')));
       expect(owner, l).toMatch(new RegExp(`name="note" rows="2" required maxlength="${BUYER_NOTE_MAX}"`));
-      const staff = renderCustomerFile(file, l, NOW, null, STAFF);
+      const staff = withoutIsolates(renderCustomerFile(file, l, NOW, null, STAFF));
       expect(staff, l).not.toContain('/deletion"');
       expect(staff, l).toContain(esc(t(l, 'staff.ownerDecides')));
       expect(staff, l).toContain(esc(t(l, 'conv.deletion.title')));
@@ -321,27 +322,27 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     for (const l of LOCALES) {
       const line = esc(t(l, 'conv.deletion.open', { asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)) }));
       for (const viewer of [OWNER_VIEW, STAFF]) {
-        const html = renderCustomerFile(open, l, NOW, null, viewer);
+        const html = withoutIsolates(renderCustomerFile(open, l, NOW, null, viewer));
         expect(html, l).toContain(line);
         expect(html, l).not.toContain('action="/app/conversations/c1/deletion"');
       }
       // The way back is the owner's, on Your data.
-      expect(renderCustomerFile(open, l, NOW, null, OWNER_VIEW)).toContain('href="/app/settings/data"');
-      expect(renderCustomerFile(open, l, NOW, null, STAFF)).not.toContain('href="/app/settings/data"');
+      expect(withoutIsolates(renderCustomerFile(open, l, NOW, null, OWNER_VIEW))).toContain('href="/app/settings/data"');
+      expect(withoutIsolates(renderCustomerFile(open, l, NOW, null, STAFF))).not.toContain('href="/app/settings/data"');
     }
   });
 
   it('done: the date it was done, and nothing to press', () => {
     const done = new Date('2026-09-25T09:00:00Z');
     const f = { ...file, deletion: { state: 'done' as const, askedAt: asked, closedAt: done, closedNote: null } };
-    const html = renderCustomerFile(f, 'en', NOW);
+    const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
     expect(html).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done) })));
     expect(html).not.toContain('<form method="post" action="/app/conversations/c1/deletion"');
   });
 
   it('not carried out: says so with the operator\'s reason, and may be asked again', () => {
     const f = { ...file, deletion: { state: 'refused' as const, askedAt: asked, closedAt: NOW, closedNote: 'Could not be matched to anyone who wrote' } };
-    const html = renderCustomerFile(f, 'en', NOW);
+    const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
     expect(html).toContain(esc(t('en', 'conv.deletion.refused', { date: formatDate('en', asked) })));
     expect(html).toContain('Could not be matched to anyone who wrote');
     expect(html).toContain('action="/app/conversations/c1/deletion"');
@@ -361,7 +362,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
       { ...base, id: 'r-done', buyer: null, subjectNote: 'By e-mail', state: 'done', closedAt: NOW },
     ];
     for (const l of LOCALES) {
-      const html = renderDataRights({ businessName: 'Atlas', requests: [], buyers }, l, null, OWNER_VIEW, 'x');
+      const html = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers }, l, null, OWNER_VIEW, 'x'));
       expect(html, l).toContain(esc(t(l, 'data.buyers.title')));
       expect(html, l).toContain(esc(t(l, 'data.buyers.due', { asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)) })));
       expect(html, l).toContain(esc(t(l, 'data.buyers.done', { asked: formatDate(l, asked), done: formatDate(l, NOW) })));
@@ -370,7 +371,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
       expect(html, l).toContain('Ahmed &lt;b&gt;');
       expect(html, l).toContain(esc(t(l, 'common.buyer')));
     }
-    const none = renderDataRights({ businessName: 'Atlas', requests: [], buyers: [] }, 'en', null, OWNER_VIEW, 'x');
+    const none = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers: [] }, 'en', null, OWNER_VIEW, 'x'));
     expect(none).toContain(t('en', 'data.buyers.none'));
   });
 

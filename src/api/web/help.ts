@@ -2,6 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { esc, back } from './layout.js';
+import * as show from './values.js';
 
 /**
  * CH2 (the one-month build order, 2026-09-30) — WHAT TO CHECK, AND WHY.
@@ -50,7 +51,7 @@ export function renderMetaHelp(locale: Locale): string {
   const name = assistantName(locale);
   const steps = META_HELP_STEPS.map((s, i) => `
     <section class="block" id="${s.id}" aria-labelledby="${s.id}-h">
-      <h2 id="${s.id}-h">${i + 1}. ${esc(t(locale, s.title))}</h2>
+      <h2 id="${s.id}-h">${esc(show.count(locale, i + 1))}. ${esc(t(locale, s.title))}</h2>
       <p><b>${esc(t(locale, 'help.meta.checkLabel'))}</b> ${esc(t(locale, s.check, { name }))}</p>
       <p class="muted">${esc(t(locale, 'help.meta.whyLabel'))} ${esc(t(locale, s.why, { name }))}</p>
       ${s.meta.length ? `<ul class="help-links">${s.meta.map((m) =>

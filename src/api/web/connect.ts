@@ -8,10 +8,11 @@ import type { BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, outreachShown } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { deeper, esc } from './layout.js';
 import type { InboundLink } from './channels.js';
+import * as show from './values.js';
 
 /**
  * C6 · M50 — every account she links, in one place, each honest about itself.
@@ -116,7 +117,7 @@ function mailRow(locale: Locale, v: AccountsView, provider: OAuthProvider, viewe
       body: `<p>${v.smtpFrom
         ? withAddress(locale, 'connect.mail.outranked', mine.address)
         : withAddress(locale, 'connect.mail.sendsAs', mine.address)}</p>
-        <p class="muted">${esc(t(locale, 'connect.mail.connectedBy', { who: mine.connectedBy, date: formatDate(locale, mine.connectedAt) }))}</p>
+        <p class="muted">${esc(t(locale, 'connect.mail.connectedBy', { who: mine.connectedBy, date: show.date(locale, mine.connectedAt) }))}</p>
         ${provider === 'google' ? `<p class="${mine.readsInbox ? '' : 'muted'}">${mine.readsInbox
           ? withAddress(locale, 'connect.mail.reads', mine.address)
           : esc(t(locale, 'connect.mail.sendsOnly'))}</p>` : ''}

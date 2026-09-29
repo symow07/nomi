@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { seedRunTenant, RUN_BIZ, RUN_NS } from './tenant.js';
 import { buttonsAndDoors } from '../parity/buttons-and-doors.js';
+import { unisolatedFigures } from '../parity/isolates.js';
 
 /**
  * M36.0 — EVERY SURFACE, AGAINST A TENANT THAT HAS ROWS IN IT.
@@ -276,6 +277,53 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     }
     expect(pages, 'the walk drew no owner page').toBeGreaterThan(40);
     expect(problems).toEqual([]);
+  }, 180_000);
+
+  /**
+   * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30): every owner
+   * page drawn in Arabic, over real rows with a value of each kind — money
+   * (quotes, prices), quantities and units, counts, dates, times, a phone
+   * number, an order number, a calendar entry of the owner's own — and not one
+   * digit run or currency sign outside an isolate. What a person wrote is in
+   * its own `dir="auto"` element, so it is its own isolate.
+   */
+  it('right to left · every owner page in Arabic: every figure and currency sign isolated', async () => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(RUN_BIZ); if (!bid.ok) throw new Error('fixture');
+    // A value of each kind the seed may not have: an order (its number), and
+    // a date the owner put on the calendar, this week.
+    await withTenantTx(db, bid.value, async (tx) => {
+      const orders = (await sql<{ n: number }>`select count(*)::int as n from orders where business_id = ${RUN_BIZ}`.execute(tx)).rows[0]!.n;
+      if (orders === 0) {
+        await sql`insert into orders (order_reference, business_id, client_id, conversation_id, product_id,
+                                      quantity, unit, agreed_unit_price_usd, total_value_usd, currency, status, confirmed_at)
+                  select ${`RTL-${RUN_NS}`}, c.business_id, c.client_id, c.id, ${real['productId']}::uuid,
+                         2500, 'pcs', 1.95, 4875, 'USD', 'confirmed', now() - interval '1 day'
+                    from conversations c where c.id = ${real['conversationId']}::uuid`.execute(tx);
+      }
+      await sql`insert into calendar_entries (business_id, title, starts_at, created_by)
+                values (${RUN_BIZ}, 'Visit 2', now() + interval '1 day', 'owner')`.execute(tx);
+    });
+    const problems: string[] = [];
+    let pages = 0;
+    for (const url of [...new Set(routes)]) {
+      if (!url.startsWith('/app') || url.startsWith('/app/live')) continue;
+      let target = url; let skip = false;
+      for (const m of url.matchAll(/:([A-Za-z]+)/g)) {
+        const v = real[m[1]!];
+        if (!v) { skip = true; break; }
+        target = target.replace(`:${m[1]}`, encodeURIComponent(v));
+      }
+      if (skip) continue;
+      const res = await app.inject({ method: 'GET', url: target, headers: { cookie: `${cookie}; yf_locale=ar` } });
+      if (res.statusCode !== 200 || !String(res.headers['content-type'] ?? '').includes('text/html')) continue;
+      if (!res.body.includes('<nav class="side">')) continue;
+      pages++;
+      for (const hit of unisolatedFigures(res.body)) problems.push(`${target}: «${hit}»`);
+    }
+    expect(pages, 'the walk drew too few owner pages').toBeGreaterThan(30);
+    expect(problems, `figures outside an isolate:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 180_000);
 
   it('and every surface returns 200, not merely "not 500"', async () => {

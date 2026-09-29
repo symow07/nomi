@@ -18,12 +18,13 @@ import type { TemplateState } from '../../core/channel/window.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { companyLineHtml } from './prospects.js';
 import { companyDomainOf } from '../../core/outreach/companyDomain.js';
 import type { Enrichment } from '../../db/prospects.js';
+import * as show from './values.js';
 
 /**
  * M38 — the page that answers "may I write to this person", for a human.
@@ -198,7 +199,7 @@ export function renderContacts(v: ContactsView, locale: Locale, flash: Flash | n
     const state = !decision.ok && decision.error.kind === 'suppressed'
       ? `<span class="st"><span class="pill stop">${esc(t(locale, `contacts.reason.${decision.error.reason}` as MessageKey))}</span>
          <span class="muted since">${esc(t(locale, 'contacts.suppressed.since',
-           { date: formatDate(locale, decision.error.at) }))}</span></span>`
+           { date: show.date(locale, decision.error.at) }))}</span></span>`
       : decision.ok
         ? `<span class="pill ok">${esc(t(locale, `contacts.evidence.${decision.value.evidence}` as MessageKey))}</span>`
         : `<span class="pill wait">${esc(t(locale, 'contacts.consent.none'))}</span>`;

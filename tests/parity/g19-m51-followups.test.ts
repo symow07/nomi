@@ -7,6 +7,7 @@ import { checkBudget } from '../../src/core/budget.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * G19 · M51 follow-ups — two things that were computed and then thrown away.
@@ -39,7 +40,7 @@ const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
 
 describe('G19 · the ceiling she set is said before it stops her', () => {
   it('the warning is on Today, with her percentage and what happens at 100%', () => {
-    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET);
+    const html = withoutIsolates(renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET));
     expect(html).toContain(esc(t('en', 'today.budget.near', { name: ASSISTANT_FALLBACK.en, pct: 84 })));
     expect(html).toContain(esc(t('en', 'today.budget.thenStops')));
     expect(html).not.toContain(esc(t('en', 'today.budget.thenKeeps')));
@@ -48,18 +49,18 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
   it('and says what HER setting does — not a general fact about limits', () => {
     // Two tenants, two settings, two different sentences. `stops` comes from
     // `on_exceeded`, so the page never promises a stop that was not configured.
-    const keeps = renderOperationsHome(snapshot({ budget: { pctUsed: 91, stops: false } }), 'en', QUIET);
+    const keeps = withoutIsolates(renderOperationsHome(snapshot({ budget: { pctUsed: 91, stops: false } }), 'en', QUIET));
     expect(keeps).toContain(esc(t('en', 'today.budget.thenKeeps')));
     expect(keeps).not.toContain(esc(t('en', 'today.budget.thenStops')));
   });
 
   it('below her line, nothing is said — a warning shown every day is not read', () => {
-    expect(renderOperationsHome(snapshot(), 'en', QUIET)).not.toContain(esc(t('en', 'today.budget.thenStops')));
-    expect(renderOperationsHome(snapshot(), 'en', QUIET)).not.toContain('%');
+    expect(withoutIsolates(renderOperationsHome(snapshot(), 'en', QUIET))).not.toContain(esc(t('en', 'today.budget.thenStops')));
+    expect(withoutIsolates(renderOperationsHome(snapshot(), 'en', QUIET))).not.toContain('%');
   });
 
   it('it is a notice, never a demand: a quiet day with a warning is still quiet', () => {
-    const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET);
+    const html = withoutIsolates(renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), 'en', QUIET));
     // Nobody waiting is what a day with nothing to do says; the budget line
     // sits at the foot rather than turning the page into a work list.
     expect(html).toContain(esc(t('en', 'today.needs.none')));
@@ -67,7 +68,7 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
 
   it('in every locale, and it is the same rule core/budget.ts states', () => {
     for (const locale of LOCALES) {
-      const html = renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), locale, QUIET);
+      const html = withoutIsolates(renderOperationsHome(snapshot({ budget: { pctUsed: 84, stops: true } }), locale, QUIET));
       expect(html, locale).toContain(esc(t(locale, 'today.budget.near', { name: ASSISTANT_FALLBACK[locale], pct: 84 })));
     }
     // 84% of a 2,000-call day is a soft warning; the page shows what core decided.
@@ -92,7 +93,7 @@ describe('G19 · the month never loses its place to a busy month', () => {
 
   it('three things to do AND the month change are all shown', () => {
     const data: InsightsData = { insights: three, monthChange: month };
-    const html = renderInsights(data, 'en');
+    const html = withoutIsolates(renderInsights(data, 'en'));
     expect(three.length).toBe(MAX_INSIGHTS);
     expect(html).toContain('/app/inbox?filter=all')   // A — every buyer, on the one list;
     expect(html).toContain(esc(t('en', 'insight.action.seeBuyers')));
@@ -109,8 +110,8 @@ describe('G19 · the month never loses its place to a busy month', () => {
   });
 
   it('and with nothing to do at all, the month change alone still renders', () => {
-    const html = renderInsights({ insights: [], monthChange: month }, 'en');
+    const html = withoutIsolates(renderInsights({ insights: [], monthChange: month }, 'en'));
     expect(html).toContain(esc(t('en', 'insight.action.seeBuyers')));
-    expect(renderInsights({ insights: [], monthChange: null }, 'en')).toBe('');
+    expect(withoutIsolates(renderInsights({ insights: [], monthChange: null }, 'en'))).toBe('');
   });
 });

@@ -13,6 +13,7 @@ import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
 import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { gateOutbound } from '../../src/core/channel/sendGate.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * C4.b — a first e-mail and its follow-ups.
@@ -293,26 +294,26 @@ describe('C4.b · the pages', () => {
 
   it('A DRAFT: editable, and only the owner is offered approval — with the fingerprint of what is on the page', () => {
     const d = detail();
-    const owner = renderSequenceDetail(d, 'en', null);
+    const owner = withoutIsolates(renderSequenceDetail(d, 'en', null));
     expect(owner).toContain(`action="/app/sequences/${d.id}/steps/1"`);
     expect(owner).toContain(`action="/app/sequences/${d.id}/approve"`);
     expect(owner).toContain(`value="${stepsFingerprint(d.steps)}"`);
     // Her words follow their own direction on every page, whatever the page's.
     expect(owner).toMatch(/<input name="subject" dir="auto"/);
     expect(owner).toMatch(/<textarea name="body" dir="auto"/);
-    const staff = renderSequenceDetail(d, 'en', null, { viewer: { isOwner: false } });
+    const staff = withoutIsolates(renderSequenceDetail(d, 'en', null, { viewer: { isOwner: false } }));
     expect(staff).not.toContain('/approve"');
     expect(staff).not.toContain('/archive"');
     expect(staff).toContain(esc(t('en', 'staff.seq.approveWaiting')));
   });
 
   it('nothing to approve until there is an e-mail to read', () => {
-    expect(renderSequenceDetail(detail({ steps: [] }), 'en', null)).not.toContain('/approve"');
+    expect(withoutIsolates(renderSequenceDetail(detail({ steps: [] }), 'en', null))).not.toContain('/approve"');
   });
 
   it('APPROVED: the words are shown and nothing can edit them; people can be added', () => {
     const d = detail({ state: 'approved', approvedBy: 'Lily', approvedAt: NOW });
-    const html = renderSequenceDetail(d, 'en', null, { eligible: [contact], messagingEnabled: true });
+    const html = withoutIsolates(renderSequenceDetail(d, 'en', null, { eligible: [contact], messagingEnabled: true }));
     expect(html).not.toContain('/steps');
     expect(html).not.toContain('/approve"');
     expect(html).toContain(`action="/app/sequences/${d.id}/enroll"`);
@@ -328,15 +329,15 @@ describe('C4.b · the pages', () => {
         confirmedPosition: null, awaitingConfirmationSince: null,
       }],
     });
-    expect(renderSequenceDetail(d, 'en', null, { eligible: [contact], messagingEnabled: true }))
+    expect(withoutIsolates(renderSequenceDetail(d, 'en', null, { eligible: [contact], messagingEnabled: true })))
       .not.toContain('<option value="ahmed@gulf.test"');
-    expect(renderSequenceDetail(detail({ state: 'approved', approvedBy: 'Lily', approvedAt: NOW }), 'en', null,
-      { eligible: [contact], messagingEnabled: false })).not.toContain('/enroll"');
+    expect(withoutIsolates(renderSequenceDetail(detail({ state: 'approved', approvedBy: 'Lily', approvedAt: NOW }), 'en', null,
+      { eligible: [contact], messagingEnabled: false }))).not.toContain('/enroll"');
   });
 
   it('a stopped enrolment says why, in every locale, and offers no stop button', () => {
     for (const locale of LOCALES) {
-      const html = renderSequenceDetail(detail({
+      const html = withoutIsolates(renderSequenceDetail(detail({
         state: 'approved', approvedBy: 'Lily', approvedAt: NOW,
         enrollments: [{
           id: 'e2', identity: contact.identity, displayName: null, conversationId: 'c1', enrolledBy: 'Lily',
@@ -344,7 +345,7 @@ describe('C4.b · the pages', () => {
           stoppedAt: NOW, stopReason: 'replied', completedAt: null,
           confirmedPosition: null, awaitingConfirmationSince: null,
         }],
-      }), locale, null, { messagingEnabled: true });
+      }), locale, null, { messagingEnabled: true }));
       expect(html, locale).toContain(esc(t(locale, 'seq.stop.replied')));
       expect(html, locale).not.toContain('/enrollments/e2/stop');
       // CC-25 — the thread opens on its newest message (their reply), like every door into a conversation.
@@ -355,7 +356,7 @@ describe('C4.b · the pages', () => {
   it('A FOLLOW-UP WAITING FOR HER: it says to look in her own inbox first, when it stops, and offers the release', () => {
     const since = new Date(NOW.getTime() - DAY);
     for (const locale of LOCALES) {
-      const html = renderSequenceDetail(detail({
+      const html = withoutIsolates(renderSequenceDetail(detail({
         state: 'approved', approvedBy: 'Lily', approvedAt: NOW,
         enrollments: [{
           id: 'e4', identity: contact.identity, displayName: 'Ahmed', conversationId: 'c1', enrolledBy: 'Lily',
@@ -363,7 +364,7 @@ describe('C4.b · the pages', () => {
           stoppedAt: null, stopReason: null, completedAt: null,
           confirmedPosition: null, awaitingConfirmationSince: since,
         }],
-      }), locale, null, { messagingEnabled: true });
+      }), locale, null, { messagingEnabled: true }));
       expect(html, locale).toContain('action="/app/sequences/11111111-1111-4111-8111-111111111111/enrollments/e4/confirm"');
       expect(html, locale).toContain('name="position" value="2"');
       expect(html, locale).toContain(esc(t(locale, 'seq.enrolment.confirm')));
@@ -374,7 +375,7 @@ describe('C4.b · the pages', () => {
       expect(html, locale).toContain('/enrollments/e4/stop');
     }
     // Not waiting: no release to press.
-    const plain = renderSequenceDetail(detail({
+    const plain = withoutIsolates(renderSequenceDetail(detail({
       state: 'approved', approvedBy: 'Lily', approvedAt: NOW,
       enrollments: [{
         id: 'e5', identity: contact.identity, displayName: null, conversationId: null, enrolledBy: 'Lily',
@@ -382,12 +383,12 @@ describe('C4.b · the pages', () => {
         stoppedAt: null, stopReason: null, completedAt: null,
         confirmedPosition: null, awaitingConfirmationSince: null,
       }],
-    }), 'en', null, { messagingEnabled: true });
+    }), 'en', null, { messagingEnabled: true }));
     expect(plain).not.toContain('/confirm"');
   });
 
   it('OUT OF USE: no archive button, and its history still reads', () => {
-    const html = renderSequenceDetail(detail({
+    const html = withoutIsolates(renderSequenceDetail(detail({
       state: 'archived', approvedBy: 'Lily', approvedAt: NOW, archivedAt: NOW,
       enrollments: [{
         id: 'e3', identity: contact.identity, displayName: null, conversationId: null, enrolledBy: 'Lily',
@@ -395,23 +396,23 @@ describe('C4.b · the pages', () => {
         stoppedAt: NOW, stopReason: 'sequence_archived', completedAt: null,
         confirmedPosition: null, awaitingConfirmationSince: null,
       }],
-    }), 'en', null);
+    }), 'en', null));
     expect(html).not.toContain('/archive"');
     expect(html).toContain(esc(t('en', 'seq.stop.sequence_archived')));
   });
 
   it('the list links each one, and says when there are none', () => {
-    expect(renderSequenceList([], 'en', null)).toContain(esc(t('en', 'seq.empty')));
-    const html = renderSequenceList([{
+    expect(withoutIsolates(renderSequenceList([], 'en', null))).toContain(esc(t('en', 'seq.empty')));
+    const html = withoutIsolates(renderSequenceList([{
       id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',
       steps: 3, live: 1, finished: 0, stopped: 2, awaiting: 0, createdAt: NOW,
-    }], 'ar', null);
+    }], 'ar', null));
     expect(html).toContain('href="/app/sequences/22222222-2222-4222-8222-222222222222"');
     expect(html).not.toContain(esc(t('ar', 'seq.list.awaiting', { count: '0' })));
-    const waiting = renderSequenceList([{
+    const waiting = withoutIsolates(renderSequenceList([{
       id: '22222222-2222-4222-8222-222222222222', name: 'Totes', state: 'approved',
       steps: 3, live: 1, finished: 0, stopped: 0, awaiting: 1, createdAt: NOW,
-    }], 'zh', null);
+    }], 'zh', null));
     expect(waiting).toContain(esc(t('zh', 'seq.list.awaiting', { count: '1' })));
   });
 });

@@ -9,11 +9,12 @@ import type { ContactRow } from '../../db/contacts.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { MAX_HOLD_DAYS } from '../../core/outreach/sequence.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { back, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
+import * as show from './values.js';
 
 /**
  * C4.b — a first e-mail and the follow-ups after it, as she reads and writes them.
@@ -198,14 +199,14 @@ function enrollmentLine(locale: Locale, e: Enrollment, seqId: string): string {
       : awaiting
         ? `<span class="pill wait">${esc(t(locale, 'seq.enrolment.waitingPill'))}</span>`
         : `<span class="muted">${esc(t(locale, 'seq.enrolment.next', {
-            n: String(e.nextPosition), date: formatDate(locale, e.nextDueAt),
+            n: String(e.nextPosition), date: show.date(locale, e.nextDueAt),
           }))}</span>`;
   // Replies reach her own mailbox, not this page: say so where the button is,
   // so nobody presses it without having looked there.
   const ask = awaiting
     ? `<p class="muted">${esc(t(locale, 'seq.enrolment.awaiting', {
         n: String(e.nextPosition),
-        date: formatDate(locale, new Date(e.awaitingConfirmationSince!.getTime() + MAX_HOLD_DAYS * 24 * 3600_000)),
+        date: show.date(locale, new Date(e.awaitingConfirmationSince!.getTime() + MAX_HOLD_DAYS * 24 * 3600_000)),
       }))}</p>` : '';
   const confirm = awaiting ? `<form method="post" action="/app/sequences/${esc(seqId)}/enrollments/${esc(e.id)}/confirm" class="inline">
       <input type="hidden" name="position" value="${esc(String(e.nextPosition))}" />
@@ -262,7 +263,7 @@ export function renderSequenceDetail(
     </section>` : `<section class="block"><p class="muted">${esc(t(locale, 'staff.seq.approveWaiting'))}</p></section>`;
 
   const approvedLine = d.approvedAt && d.approvedBy
-    ? `<p class="muted">${esc(t(locale, 'seq.approved.by', { who: d.approvedBy, date: formatDate(locale, d.approvedAt) }))}</p>` : '';
+    ? `<p class="muted">${esc(t(locale, 'seq.approved.by', { who: d.approvedBy, date: show.date(locale, d.approvedAt) }))}</p>` : '';
 
   const eligible = (opts.eligible ?? []).filter((c) =>
     !d.enrollments.some((e) => e.identity === c.identity && e.stoppedAt === null && e.completedAt === null));

@@ -4,8 +4,8 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { capabilityName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t, assistantName, tn } from './say.js';
 import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc, conversationUrl, deeper } from './layout.js';
 

@@ -6,7 +6,7 @@ import { defaultAssistantName, validateAssistant, NAME_MAX } from '../../core/ow
 import { renameMainAssistant } from '../../db/assistants.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, practiceShown } from './say.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import { type RehearsalReport } from '../../trust/factoryRehearsal.js';
@@ -20,6 +20,7 @@ import { anyConnected, connectedChannels } from '../../db/connectedChannels.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
+import * as show from './values.js';
 
 /**
  * M15.1 — Pilot Readiness Hub. Extends the M11.2 onboarding into a single
@@ -435,7 +436,7 @@ function attestRow(
   const label = esc(t(locale, `pilot.attest.${key}` as MessageKey));
   if (at) {
     return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label}</span>
-      <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(formatDate(locale, at))}</span></div>`;
+      <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(show.date(locale, at))}</span></div>`;
   }
   // Phase 4 — each answer here is a condition for going live: the owner's.
   if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
@@ -461,7 +462,7 @@ function assistantNameRow(d: PilotReadiness, locale: Locale, viewer: Viewer = OW
   const label = esc(t(locale, 'pilot.attest.assistant_named'));
   if (d.attest.assistantNamedAt) {
     return `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${label} · ${esc(d.assistantName)}</span>
-      <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(formatDate(locale, d.attest.assistantNamedAt))}</span></div>`;
+      <span class="badge owner">${esc(t(locale, 'pilot.confirmedByOwner'))} · ${esc(show.date(locale, d.attest.assistantNamedAt))}</span></div>`;
   }
   if (!viewer.isOwner) return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, 'staff.ownerDecides'))}</span></div></div>`;
@@ -483,7 +484,7 @@ export function renderPilotReadiness(
 
   const v = d.validation;
   const valLine = v.at && v.pass !== null && v.total !== null
-    ? `${esc(t(locale, 'pilot.validate.result', { pass: v.pass, total: v.total, date: formatDate(locale, v.at) }))}`
+    ? `${esc(t(locale, 'pilot.validate.result', { pass: v.pass, total: v.total, date: show.date(locale, v.at) }))}`
     : esc(t(locale, 'pilot.validate.never'));
   const validate = `<div class="pr ${d.detected.sandbox ? 'done' : 'todo'}">
       <span class="mk">${d.detected.sandbox ? '✓' : '○'}</span>
@@ -498,7 +499,7 @@ export function renderPilotReadiness(
     // the hand-made tick remains for an installation that predates the job.
     d.backupVerifiedAt
       ? `<div class="pr done"><span class="mk">✓</span> <span class="lbl">${esc(t(locale, 'pilot.attest.backup_tested'))}</span>
-          <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(formatDate(locale, d.backupVerifiedAt))}</span></div>`
+          <span class="badge sys">${esc(t(locale, 'pilot.verifiedBySystem'))} · ${esc(show.date(locale, d.backupVerifiedAt))}</span></div>`
       : attestRow('backup_tested', d.attest.backupTestedAt, locale, viewer),
     attestRow('secrets_rotated', d.attest.secretsRotatedAt, locale, viewer),
     attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer),
@@ -564,7 +565,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
     mark('validationPassed', 'runbook.rehearse.validation'),
   ].join('');
   return `<div class="block">
-    <h2>${esc(t(locale, 'runbook.practice.title'))} · ${r.completed}/${r.total}</h2>
+    <h2>${esc(t(locale, 'runbook.practice.title'))} · ${esc(show.isolate(locale, `${r.completed}/${r.total}`))}</h2>
     <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
     <ol class="rbsteps">${steps}</ol>
     ${progress}
@@ -597,7 +598,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
   }
   const row = (label: string, item: FeedbackItem) =>
     `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>
-      ${item.lastAt ? `<span class="muted rblink">${esc(formatDate(locale, item.lastAt))}</span>` : ''}</div>`;
+      ${item.lastAt ? `<span class="muted rblink">${esc(show.date(locale, item.lastAt))}</span>` : ''}</div>`;
   const reasons = f.handoffReasons.length
     ? `<h3 class="rbsub">${esc(t(locale, 'feedback.reasons'))}</h3>` +
       // reuse the M16.1 handoff wording — one vocabulary for one concept
@@ -628,7 +629,7 @@ function deploymentSection(d: DeploymentInfo, locale: Locale, unauthoredPriceRul
     ${row('runbook.deploy.version', version)}
     ${row('runbook.deploy.environment', d.environment)}
     ${row('runbook.deploy.channelMode', messaging)}
-    ${row('runbook.deploy.since', formatDate(locale, d.startedAt))}
+    ${row('runbook.deploy.since', show.date(locale, d.startedAt))}
     ${d.ownerCodeStable ? '' : `<div class="ev">
       <div class="ev-d">${esc(t(locale, 'runbook.deploy.codeUnstable'))}</div>
     </div>`}
@@ -702,7 +703,7 @@ function healthSection(r: Reliability, locale: Locale): string {
   return `<div class="block"><h2>${esc(t(locale, 'ops.health.title'))}</h2>
     <div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.stuck'))}</span><b class="n">${r.stuckOutbound}</b>
       <a class="rblink" href="/app/channels">${esc(t(locale, 'pilot.open'))}</a></div>
-    ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(formatDate(locale, r.oldestQueuedAt))}</b></div>` : ''}
+    ${r.oldestQueuedAt ? `<div class="rbrow"><span class="lbl">${esc(t(locale, 'ops.health.oldest'))}</span><b class="n">${esc(show.date(locale, r.oldestQueuedAt))}</b></div>` : ''}
     <p class="muted">${esc(t(locale, 'ops.health.whatToDo'))}</p>
   </div>`;
 }

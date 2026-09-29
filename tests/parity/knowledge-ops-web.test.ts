@@ -6,6 +6,7 @@ import {
 } from '../../src/api/web/knowledge-insights.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
+import { withoutIsolates } from './isolates.js';
 
 const NOW = new Date('2026-07-31T12:00:00Z');
 
@@ -24,7 +25,7 @@ const ops = (over: Partial<KnowledgeOps> = {}): KnowledgeOps => ({
 describe('M14 · knowledge operations (localized renderer)', () => {
   it('range tabs, report counts, common requests — in en/zh/ar', () => {
     for (const l of LOCALES) {
-      const html = renderKnowledgeOps(ops(), l, NOW);
+      const html = withoutIsolates(renderKnowledgeOps(ops(), l, NOW));
       expect(html).toContain('href="/app/knowledge?range=today"');
       expect(html).toMatch(/class="tab on"[^>]*href="\/app\/knowledge\?range=week"/); // week is current
       expect(html).toContain(t(l, 'knowledge.report.facts'));
@@ -35,7 +36,7 @@ describe('M14 · knowledge operations (localized renderer)', () => {
   });
 
   it('gaps carry a deterministic reason + Teach and Test-in-sandbox links', () => {
-    const html = renderKnowledgeOps(ops(), 'en', NOW);
+    const html = withoutIsolates(renderKnowledgeOps(ops(), 'en', NOW));
     expect(html).toContain('is it food safe?');
     expect(html).toContain(t('en', 'knowledge.gap.reason.claim_requires_authorization'));
     expect(html).toContain(t('en', 'knowledge.gap.reason.no_product_match'));
@@ -45,28 +46,28 @@ describe('M14 · knowledge operations (localized renderer)', () => {
     // replay loop — onto the practice box, which CC-25 moved under the practice transcript;
     // T1 — drawn for the pilot workspace only, the one the shared practice sandbox belongs to
     expect(html).not.toContain('/app/sandbox');
-    expect(withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => renderKnowledgeOps(ops(), 'en', NOW)))
+    expect(withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => withoutIsolates(renderKnowledgeOps(ops(), 'en', NOW))))
       .toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F#compose"');
     expect(html).toContain('×2');   // repeated count
   });
 
   it('recent changes show the change type; empty states are honest', () => {
-    expect(renderKnowledgeOps(ops(), 'en', NOW)).toContain(t('en', 'knowledge.activity.corrected'));
-    const quiet = renderKnowledgeOps(ops({ gaps: [], activity: [] }), 'en', NOW);
+    expect(withoutIsolates(renderKnowledgeOps(ops(), 'en', NOW))).toContain(t('en', 'knowledge.activity.corrected'));
+    const quiet = withoutIsolates(renderKnowledgeOps(ops({ gaps: [], activity: [] }), 'en', NOW));
     expect(quiet).toContain(t('en', 'knowledge.ops.noGaps'));
     expect(quiet).toContain(t('en', 'knowledge.ops.noActivity'));
   });
 
   it('usage facts are plain counts — used, last used, revised, source; never a score', () => {
     const used: UsageFact = { usedCount: 5, lastUsedAt: NOW, correctionCount: 2, source: 'owner_corrected' };
-    const h = renderUsageFact(used, 'en', NOW);
+    const h = withoutIsolates(renderUsageFact(used, 'en', NOW));
     expect(h).toContain(`${t('en', 'knowledge.usage.used')} 5`);
     expect(h).toContain(t('en', 'knowledge.usage.revised', { n: 2 }));
     expect(h).toContain(t('en', 'knowledge.source.owner_corrected'));
     expect(h).not.toMatch(/\d+\s*%/);   // no percentages
 
     const never: UsageFact = { usedCount: 0, lastUsedAt: null, correctionCount: 0, source: 'owner_confirmed' };
-    expect(renderUsageFact(never, 'en', NOW)).toContain(t('en', 'knowledge.usage.never'));
-    expect(renderUsageFact(undefined, 'en', NOW)).toBe('');   // no facts → nothing
+    expect(withoutIsolates(renderUsageFact(never, 'en', NOW))).toContain(t('en', 'knowledge.usage.never'));
+    expect(withoutIsolates(renderUsageFact(undefined, 'en', NOW))).toBe('');   // no facts → nothing
   });
 });
