@@ -13,7 +13,7 @@ import { t, assistantName, outreachShown } from './say.js';
 import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
-import { esc, deeper, back, conversationUrl } from './layout.js';
+import { esc, deeper, back, byAssistant, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { PROBLEM_SIGNAL_KINDS } from '../../core/scoring/signals.js';
 import { UNREADABLE_KINDS, RECEIVED_KINDS, type UnreadableKind, type ReceivedKind } from '../../core/conversation/inbound.js';
@@ -1440,7 +1440,7 @@ export function renderConversationDetail(
           <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${
             m.direction === 'inbound' ? esc(t(locale, 'common.buyer'))
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
-            : esc(assistantName(locale))}</div>
+            : byAssistant(assistantName(locale))}</div>
         </div>`).join('')}</div>`
     // "No messages yet" only where it is true: not on a window further back,
     // and not on one whose every message was a reaction left out (G2c).

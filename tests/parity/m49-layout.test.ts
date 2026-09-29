@@ -184,27 +184,29 @@ describe('M49 · the two voices are on the right axis', () => {
 });
 
 describe('M49 · colour once or twice per screen', () => {
-  it('jade is spent on SENDING and on STATE — not on chrome', async () => {
+  it('the graphite fill is spent on the primary act — not on chrome', async () => {
     const css = await shellCss();
     // The nav's active item reads by weight and a recess.
-    expect(css).toMatch(/nav\.side a\.navlink\.active \{[^}]*background: var\(--color-paper-sunk\)/);
-    expect(css).not.toMatch(/nav\.side a\.navlink\.active \{[^}]*var\(--color-jade[-)]/);
+    expect(css).toMatch(/nav\.side a\.navlink\.active \{[^}]*background: var\(--color-paper\)/);
+    expect(css).not.toMatch(/nav\.side a\.navlink\.active \{[^}]*background: ?var\(--color-ink\)/);
     // The language switcher is chrome, not a state worth a saturated fill.
-    expect(css).not.toMatch(/\.langsw a\.on \{[^}]*background:var\(--color-jade\)/);
+    expect(css).not.toMatch(/\.langsw a\.on \{[^}]*background:var\(--color-ink\)/);
     // Ordinary links are ink; the chevron carries the affordance.
     expect(css).toMatch(/\.deeper \{[^}]*color:var\(--color-ink\)/);
     expect(css).toMatch(/\.back \{[^}]*color:var\(--color-ink\)/);
   });
 
-  it('NO LINK in any renderer is jade — a link is ink, and only its hover may deepen', async () => {
-    // G17 — My factory's blocker links were jade: the one colour that means
-    // "this sends" spent on "this opens a page". Structural, not a list of
-    // selectors: any class a renderer puts on an <a> is checked where it is styled.
+  it('NO LINK in any renderer is magenta — a link is ink; magenta is the assistant\'s hand', async () => {
+    // G17 — My factory's blocker links were jade: the colour that meant
+    // "this sends" spent on "this opens a page". Jade is retired (2026-09-29);
+    // the one colour that means something by itself now is the assistant's.
+    // Structural, not a list of selectors: any class a renderer puts on an
+    // <a> is checked where it is styled.
     const rogue: string[] = [];
     for (const { f, src } of await renderers()) {
       const onLinks = new Set([...src.matchAll(/<a\b[^>]*?class="([^"$]+)"/g)].flatMap((m) => m[1]!.split(/\s+/)));
       for (const r of rules(src)) {
-        if (!/(?<![\w-])color\s*:\s*var\(--color-jade/.test(r.body)) continue;
+        if (!/(?<![\w-])color\s*:\s*var\(--color-assistant/.test(r.body)) continue;
         for (const sel of r.selectors) {
           if (/:hover|:focus/.test(sel)) continue;          // feedback on the pointer, not a resting colour
           const last = sel.split(/\s+/).pop() ?? '';
@@ -213,12 +215,13 @@ describe('M49 · colour once or twice per screen', () => {
         }
       }
     }
-    expect(rogue, `a link spends the send colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
+    expect(rogue, `a link spends the assistant's colour:\n  ${rogue.join('\n  ')}`).toEqual([]);
   });
 
-  it('the SEND button keeps it — that is the one thing jade means', async () => {
+  it('the SEND button is the graphite fill; every other button is outlined', async () => {
     const css = await shellCss();
-    expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-jade\)/);
+    expect(css).toMatch(/\.btn\.send \{[^}]*background:var\(--color-ink\)/);
+    expect(css).toMatch(/\.btn \{[^}]*border:1\.5px solid var\(--color-ink-secondary\)[^}]*background:var\(--color-surface\)/);
   });
 });
 

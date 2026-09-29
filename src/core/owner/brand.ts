@@ -13,17 +13,17 @@ import { DESIGN_TOKENS } from './tokens.js';
  * you change one, change both — the test will tell you if you forgot.
  *
  * TWO CUTS, NOT ONE SCALED.
- *   detail  ≥40px — jade figure on a pale jade-wash disc.
- *   small   <40px — REVERSED: the figure knocked out of a SOLID jade disc,
+ *   detail  ≥40px — graphite figure on a paper disc.
+ *   small   <40px — REVERSED: the figure knocked out of a SOLID graphite disc,
  *                   because a pale disc loses its edge against the page at
  *                   favicon size.
  * Same geometry, inverted ground. Below about 40px the pale disc stops reading
  * as a disc at all, which is the whole reason the second cut exists.
  *
- * There is no separate night cut here and none is needed: the fills are token
- * variables, so `colorDark` swaps them automatically under
- * `prefers-color-scheme: dark`. `assets/brand/mark-night.svg` is the reference
- * for what that should look like, not a third thing to wire.
+ * The mark is graphite (the design pass, 2026-09-29): jade retired, and the
+ * magenta is the assistant's hand, never the logo. There is no night cut:
+ * the dark palette was retired with it. `assets/brand/mark-night.svg` stays
+ * in the brand folder as a record, and nothing draws it.
  *
  * Pure per ADR-0002 — string in, string out.
  */
@@ -50,11 +50,11 @@ const svg = (size: number, disc: string, figure: string, label: string | null): 
  * names the thing, so a screen reader does not read "Nomi" twice.
  */
 export const markDetail = (size = 40, label: string | null = 'Nomi'): string =>
-  svg(size, 'var(--color-jade-wash)', 'var(--color-jade)', label);
+  svg(size, 'var(--color-paper)', 'var(--color-ink)', label);
 
 /** The small cut — below 40px. Reversed out of a solid disc. */
 export const markSmall = (size = 30, label: string | null = 'Nomi'): string =>
-  svg(size, 'var(--color-jade)', 'var(--color-paper)', label);
+  svg(size, 'var(--color-ink)', 'var(--color-surface)', label);
 
 /**
  * The favicon, as a `data:` URI so no static route is added.
@@ -75,10 +75,10 @@ export const markSmall = (size = 30, label: string | null = 'Nomi'): string =>
  * the whole document. Base64 has no `%` and the question never arises.
  */
 export function faviconDataUri(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { jade, paper } = tokens.color;
+  const { ink, surface } = tokens.color;
   const doc =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
-    `<circle cx="50" cy="50" r="50" fill="${jade}"/>` +
-    `<g fill="${paper}">${FIGURE}</g></svg>`;
+    `<circle cx="50" cy="50" r="50" fill="${ink}"/>` +
+    `<g fill="${surface}">${FIGURE}</g></svg>`;
   return `data:image/svg+xml;base64,${btoa(doc)}`;
 }

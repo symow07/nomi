@@ -145,13 +145,14 @@ describe('M30 · the rendered shell IS the design system', () => {
     expect(handWritten).not.toMatch(/font:\s*\d+px/);
   });
 
-  it('emits a variable for every colour token, dark palette included', () => {
+  it('emits a variable for every colour token, and ONE palette (dark retired 2026-09-29)', () => {
     const css = cssVariables();
     for (const key of Object.keys(DESIGN_TOKENS.color)) {
       const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
       expect(css, key).toContain(`--color-${name}:`);
     }
-    expect(css).toContain('@media (prefers-color-scheme: dark)');
+    expect(css).not.toContain('prefers-color-scheme');
+    expect(css).toContain('color-scheme: light;');
   });
 });
 

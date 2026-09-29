@@ -425,12 +425,13 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     const C = DESIGN_TOKENS.color as Record<string, string>;
     const camel = (k: string) => k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
-    it('every state reads at 4.5:1 or better as text on its own wash (waiting and highlight sat at 4.15 and 4.12)', () => {
-      for (const s of ['ok', 'waiting', 'warn', 'highlight']) {
+    it('every state reads at 4.5:1 or better as text on its own wash (waiting sat at 4.15)', () => {
+      for (const s of ['ok', 'waiting', 'warn']) {
         expect(ratio(C[s]!, C[`${s}Wash`]!), s).toBeGreaterThanOrEqual(4.5);
       }
-      expect(ratio(C['jadeDeep']!, C['jadeWash']!)).toBeGreaterThanOrEqual(4.5);          // the notice
-      for (const bg of ['surface', 'surfaceAlt', 'paper', 'paperSunk']) {
+      // The assistant's magenta is text on either ground (6.7 and 6.1).
+      for (const bg of ['surface', 'paper']) expect(ratio(C['assistant']!, C[bg]!), `magenta on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      for (const bg of ['surface', 'paper']) {
         expect(ratio(C['inkSecondary']!, C[bg]!), `ink secondary on ${bg}`).toBeGreaterThanOrEqual(4.5);
       }
     });

@@ -188,8 +188,8 @@ describe('Nomi Phase B · Today (render)', () => {
     // the mechanism. The body that said "Messaging is not on." was the second
     // sentence saying the same thing.
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
-    // The two quiet days remain visibly different: the live one gets the jade
-    // rule, this one does not, and only this one offers a way forward.
+    // The two quiet days remain visibly different: the live one gets the
+    // graphite rule, this one does not, and only this one offers a way forward.
     expect(html).toContain('class="calm-page off"');
     expect(html).toContain('href="/app/factory"');               // and a way forward
     // Asserted on the MARKUP: 'calm-mark' also appears in the stylesheet, which

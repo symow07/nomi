@@ -31,19 +31,20 @@ function colorVars(palette: Readonly<Record<string, string>>): readonly string[]
 }
 
 /**
- * The `:root` block the shell embeds, plus the dark-mode override built from
- * `colorDark` — which has the same semantic keys, so it is the same walk.
+ * The `:root` block the shell embeds. One palette: the dark one was retired
+ * with the design pass (2026-09-29, decision 3) — it had never been reviewed
+ * by eye, and graphite and magenta would have to be worked out again for it.
  *
  * Emitted as a single string that the shell drops into its <style>. Everything
  * downstream references `var(--…)`; nothing downstream writes a literal.
  */
 export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): string {
-  const { font, color, colorDark, spacingPx, radiusPx, shadow, motionMs, measure } = tokens;
+  const { font, color, spacingPx, radiusPx, shadow, motionMs, measure } = tokens;
 
   const lines: string[] = [
-    // `light dark` lets form controls, scrollbars and the caret follow the
-    // palette instead of staying in whatever the UA guessed.
-    '  color-scheme: light dark;',
+    // One scheme: form controls, scrollbars and the caret stay light even on
+    // a device set to dark, so nothing is drawn against a palette we never made.
+    '  color-scheme: light;',
     decl('font-family', font.family),
     decl('font-voice', font.voice),
     ...Object.entries(font.sizePx).map(([k, v]) => decl(`font-size-${kebab(k)}`, `${v}px`)),
@@ -68,11 +69,6 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     .join('\n');
   return `:root {
 ${lines.join('\n')}
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-${colorVars(colorDark).join('\n')}
-  }
 }
 ${perScript}`;
 }

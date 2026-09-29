@@ -120,6 +120,16 @@ export const isOutreachRoute = (url: string): boolean => {
 export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
   `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
 
+/**
+ * THE ASSISTANT'S HAND (the design pass, 2026-09-29): its name where it is
+ * the author, after a ✦, in magenta — the one colour that means something by
+ * itself. Only ever text; never on a link, a button, a heading or the mark
+ * (`palette.test.ts`). The ✦ is hidden from a screen reader, which hears the
+ * name. `name` arrives escaped or is escaped here.
+ */
+export const byAssistant = (name: string): string =>
+  `<span class="as"><span aria-hidden="true">✦</span> ${esc(name)}</span>`;
+
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>
   `<a class="back" href="${href}"><span class="go" aria-hidden="true">‹</span>${esc(label)}</a>`;
@@ -165,7 +175,7 @@ export function switcher(locale: Locale, path: string): string {
  * public document that shows the switch (the site, Phase 5) — it does not get
  * the shell's stylesheet, and a second copy of these rules would drift.
  */
-export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper-sunk);
+export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); background:var(--color-paper);
     border:1px solid var(--color-border); border-radius:var(--radius-chip); padding:3px; }
   .langsw a { display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
     border-radius:var(--radius-chip); font-size:var(--font-size-caption);
@@ -191,7 +201,7 @@ export const LANGSW_CSS = `  .langsw { display:inline-flex; gap:var(--space-4); 
 const STYLE = `
 ${cssVariables()}
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--color-surface-alt); color: var(--color-ink);
+  body { margin: 0; background: var(--color-paper); color: var(--color-ink);
     font: var(--font-size-base)/var(--line-height) var(--font-family); }
   a { color: inherit; text-decoration: none; }
   /* Anything a PERSON says — her draft, a buyer's quoted words. Never a label. */
@@ -233,12 +243,12 @@ ${cssVariables()}
   nav.side a.navlink { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-12);
     min-height: 44px; border-radius: var(--radius-card); color: var(--color-ink-secondary);
     font-size: var(--font-size-small); margin-bottom: var(--space-4); }
-  nav.side a.navlink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
+  nav.side a.navlink:hover { background: var(--color-paper); color: var(--color-ink); }
   /* M49 — the active destination reads by WEIGHT and a recess, not by colour.
      Green was being spent five times on one screen: this slab, a panel, every
      link, the language pill and the button. Colour that appears everywhere
      marks nothing; jade now means only "this sends" and "this is a state". */
-  nav.side a.navlink.active { background: var(--color-paper-sunk); color: var(--color-ink); font-weight:600; }
+  nav.side a.navlink.active { background: var(--color-paper); color: var(--color-ink); font-weight:600; }
   /* D — the setup count on the Setup entry: a figure at the far end of the
      row, in the secondary ink. Not a state, so no state colour. */
   /* V1 step three — the count sits BESIDE its word, not at the far end of the row. */
@@ -284,17 +294,22 @@ ${LANGSW_CSS}
   .pill.ok { background:var(--color-ok-wash); color:var(--color-ok); }
   .pill.bad { background:var(--color-warn-wash); color:var(--color-warn); }
   .pill.warn { background:var(--color-waiting-wash); color:var(--color-waiting); }
-  .pill.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .pill.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
 
-  /* One button. Quiet does nothing on its own; jade sends; red takes something away. */
+  /* One button (the design pass, 2026-09-29). The primary act is the one
+     graphite FILL on a screen; every other button is outlined in Stone on
+     white; a quiet one is words; red takes something away. No button is
+     ever magenta — that colour is the assistant's hand. */
   .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px;
-    padding:10px 18px; border-radius:var(--radius-card); border:0;
-    background:var(--color-paper-sunk); color:var(--color-ink);
-    font:inherit; font-size:var(--font-size-small); cursor:pointer; }
-  .btn.send { background:var(--color-jade); color:var(--color-surface); box-shadow:var(--shadow-lift1); }
-  .btn.send:hover { background:var(--color-jade-deep); }
-  .btn.danger { background:var(--color-warn-wash); color:var(--color-warn); }
-  .btn.ghost { background:transparent; border:1px solid var(--color-border); color:var(--color-ink-secondary); }
+    padding:10px 18px; border-radius:var(--radius-card);
+    border:1.5px solid var(--color-ink-secondary);
+    background:var(--color-surface); color:var(--color-ink);
+    font:inherit; font-size:var(--font-size-small); font-weight:600; cursor:pointer; }
+  .btn.send { background:var(--color-ink); border-color:var(--color-ink); color:var(--color-surface); }
+  .btn.send:hover { box-shadow:var(--shadow-lift2); }
+  .btn.danger { border-color:var(--color-warn); color:var(--color-warn); }
+  .btn.ghost { background:transparent; border-color:transparent; color:var(--color-ink-secondary); font-weight:400; }
+  .btn.ghost:hover { color:var(--color-ink); text-decoration:underline; }
   .inline { display:inline; }
   .doors { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   /* M49 — a button in a column form stretched to the width of the input above
@@ -312,7 +327,7 @@ ${LANGSW_CSS}
   .fld { display:flex; flex-direction:column; gap:var(--space-4);
          font-size:var(--font-size-small); color:var(--color-ink); }
   .pform input, .pform textarea, .pform select {
-    background:var(--color-paper-sunk); border:1px solid var(--color-border);
+    background:var(--color-surface); border:1px solid var(--color-ink-secondary);
     border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit;
     min-height:44px; resize:vertical; }
   .chkbox { display:inline-flex; align-items:center; gap:var(--space-8);
@@ -327,8 +342,8 @@ ${LANGSW_CSS}
      may do that" and "Sent" looked alike at a glance. The bad tone carries
      a line as well as a wash, since the two washes are close enough in
      value that colour alone would be the whole signal. */
-  .flash { background:var(--color-jade-wash); color:var(--color-jade-deep);
-    border:1px solid transparent;
+  .flash { background:var(--color-surface); color:var(--color-ink);
+    border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
     margin-bottom:var(--space-16); font-size:var(--font-size-small); }
   .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
@@ -350,12 +365,12 @@ ${LANGSW_CSS}
     border-radius:var(--radius-chip); background:var(--color-surface);
     border:1px solid var(--color-border); color:var(--color-ink-secondary);
     font-size:var(--font-size-small); }
-  .tab.on { background:var(--color-paper-sunk); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
+  .tab.on { background:var(--color-paper); border-color:var(--color-border); color:var(--color-ink); font-weight:600; }
 
   .list { display:flex; flex-direction:column; gap:var(--space-12); }
   .back { display:inline-flex; align-items:center; gap:var(--space-4); min-height:44px;
     color:var(--color-ink); font-size:var(--font-size-small); }
-  pre { background:var(--color-paper-sunk); border:1px solid var(--color-border);
+  pre { background:var(--color-paper); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:18px; overflow-x:auto;
     font:var(--font-size-small)/1.55 "SF Mono", ui-monospace, Menlo, monospace;
     color:var(--color-ink); white-space:pre; margin:0; }
@@ -366,7 +381,7 @@ ${LANGSW_CSS}
      target the width of its words, not the width of the column. */
   .deeper { display:flex; width:fit-content; align-items:center; gap:var(--space-4); min-height:44px;
     padding:var(--space-8) 0; font-size:var(--font-size-small); color:var(--color-ink); }
-  .deeper:hover, .deeper:focus-visible { color:var(--color-jade-deep); }
+  .deeper:hover, .deeper:focus-visible { text-decoration:underline; text-underline-offset:3px; }
   /* The chevron carries the affordance now that the label does not shout. */
   .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
@@ -376,7 +391,7 @@ ${LANGSW_CSS}
      and flipping it would make Nomi a different mark for Arabic readers. Only
      directional glyphs mirror. Do not add .mark to this rule. */
   a:focus-visible, button:focus-visible, input:focus-visible,
-  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-jade); outline-offset:2px; }
+  textarea:focus-visible, select:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }
   .muted { color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   /* M49 — one empty state, aligned like everything else. It was centred while
      the page around it was left-aligned, which is the single clearest way to
@@ -400,13 +415,14 @@ ${LANGSW_CSS}
   /* The buyer's words are FULL SIZE; every reply is one step down. The page
      belongs to the buyer's business — she works inside it. */
   .msg.inbound .bubble { font-size:var(--font-size-base);
-    background:var(--color-paper-sunk); border-start-start-radius:4px; }
+    background:var(--color-paper); border-start-start-radius:4px; }
   /* Her sent replies: neutral. These carried an amber fill — colour on every
      message she ever sent, marking no state at all. */
   .msg.outbound .bubble { font-size:var(--font-size-small);
     background:var(--color-surface); border:1px solid var(--color-border);
     border-start-end-radius:4px; }
   .ts { font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .as { color:var(--color-assistant); }
   /* CC-25 — a link into a transcript lands on its newest message: clear of the
      sticky phone nav, with the message before it still in view. After an
      action it lands on the notice the action left, drawn under that message.
@@ -417,7 +433,7 @@ ${LANGSW_CSS}
      "hers, awaiting your decision". border-inline-start keeps the hairline on
      the reading edge in RTL with no override. */
   .proposed { font-family:var(--font-voice); font-size:var(--font-size-small);
-    border-inline-start:2px solid var(--color-jade); padding:2px 14px;
+    border-inline-start:2px solid var(--color-ink); padding:2px 14px;
     margin-bottom:var(--space-12); white-space:pre-wrap; word-break:break-word; }
 
   /* ── A plain section: air and a hairline. The DEFAULT grouping. ──────────
@@ -444,12 +460,12 @@ ${LANGSW_CSS}
   .replyform { display:flex; flex-direction:column; gap:var(--space-8); }
   .takeover { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
   .acts { display:flex; gap:var(--space-8); flex-wrap:wrap; margin-bottom:var(--space-16); }
-  .perr { color:var(--color-highlight); font-size:var(--font-size-caption); margin:0; }
+  .perr { color:var(--color-warn); font-size:var(--font-size-caption); margin:0; }
   .pq { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); color:var(--color-ink); }
   .subline { font-size:var(--font-size-caption); margin-bottom:var(--space-12); }
   .dhead { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; margin-bottom:var(--space-8); }
   .chips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
+  .chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); }
   .as-box { display:inline-flex; align-items:center; gap:var(--space-4); font-size:var(--font-size-small); }
   .facts { margin-top:var(--space-16); display:flex; flex-direction:column; gap:var(--space-8); }
   .sub { margin:var(--space-16) 0 var(--space-12); font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
@@ -485,7 +501,7 @@ ${LANGSW_CSS}
   .caption { font-size:var(--font-size-caption); }
   .small { font-size:var(--font-size-small); }
   ul.chips { list-style:none; margin:var(--space-12) 0 0; padding:0; }
-  .pill.stop { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .pill.stop { background:var(--color-paper); color:var(--color-ink-secondary); }
   /* The one-time access code on the People page; tests read it by this class. */
   .issued .code { font-size:var(--font-size-display); font-weight:600; letter-spacing:.08em; margin:var(--space-8) 0; }
   .choices { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-8) var(--space-16); }
@@ -496,25 +512,25 @@ ${LANGSW_CSS}
      kinds among them, is the neutral tag. */
   .tag { display:inline-flex; align-items:center; padding:5px 11px; border-radius:var(--radius-chip);
     font-size:var(--font-size-caption); font-weight:600; white-space:nowrap;
-    background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+    background:var(--color-paper); color:var(--color-ink-secondary); }
   .tag.now { background:var(--color-waiting-wash); color:var(--color-waiting); }
-  .tag.you { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .tag.you { background:transparent; color:var(--color-ink); font-weight:600; }
   /* The doors either side of one page of a list, and where it sits in the whole. */
   .pager { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-24); margin-top:var(--space-24); }
   /* Today (step four). The calm state IS the page: a short rule and one
      sentence in the product's voice — quiet, not jade, while messaging is off.
      And a count you can tap: the stat row as a link, its figure one step up. */
   .calm-page { padding:var(--space-32) 0 var(--space-48); }
-  .calm-rule { height:2px; width:3.5rem; background:var(--color-jade); border-radius:2px; margin-bottom:var(--space-24); }
+  .calm-rule { height:2px; width:3.5rem; background:var(--color-ink); border-radius:2px; margin-bottom:var(--space-24); }
   .calm-page.off .calm-rule { background:var(--color-border); }
   .calm-say { font-size:var(--font-size-title); line-height:1.45; color:var(--color-ink); margin:0; max-width:var(--measure-prose); }
   a.stat { color:inherit; }
-  a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-jade-deep); }
+  a.stat:hover .go, a.stat:focus-visible .go { color:var(--color-ink); }
   .stat.need .v { font-size:var(--font-size-title); }
   /* The controls the browser used to draw — the hand-to select, a details
      disclosure, a textarea outside a form — get the same recess as an input. */
   main select, main textarea, main input:not([type=checkbox]):not([type=radio]) {
-    background:var(--color-paper-sunk); border:1px solid var(--color-border);
+    background:var(--color-surface); border:1px solid var(--color-ink-secondary);
     border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   main textarea { resize:vertical; }
   details > summary { display:flex; align-items:center; gap:var(--space-8); min-height:44px; cursor:pointer;
@@ -525,11 +541,11 @@ ${LANGSW_CSS}
   [dir="rtl"] details:not([open]) > summary::before { transform:scaleX(-1); }
   /* The twins of :hover and :focus-visible, so a page can SHOW a state without a
      pointer. Only the components page under Setup wears them. */
-  .btn:hover:not(.send), .btn.is-hover:not(.send) { background:var(--color-border); }
-  .btn.send.is-hover { background:var(--color-jade-deep); }
-  .is-focus { outline:2px solid var(--color-jade); outline-offset:2px; }
-  .btn:disabled, .btn.is-disabled { background:var(--color-paper-sunk); color:var(--color-ink-secondary);
-    box-shadow:none; cursor:default; }
+  .btn:hover:not(.send):not(.ghost), .btn.is-hover:not(.send):not(.ghost) { background:var(--color-paper); }
+  .btn.send.is-hover { box-shadow:var(--shadow-lift2); }
+  .is-focus { outline:2px solid var(--color-ink); outline-offset:2px; }
+  .btn:disabled, .btn.is-disabled { background:var(--color-paper); border-color:var(--color-border);
+    color:var(--color-ink-secondary); box-shadow:none; cursor:default; }
 
   @media (max-width: 720px) {
     /* Rows matter here. .layout carries min-height:100vh, and with one column
@@ -587,7 +603,7 @@ const STYLE_PAGES = `
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
   .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
   .cats { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .cat { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .cat { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:5px 12px; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fterms { list-style:none; margin:var(--space-12) 0 0; padding:0; }
   .fterms li { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
   .fterms li:last-child { border-bottom:0; }
@@ -603,12 +619,12 @@ const STYLE_PAGES = `
   .sreq-h { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; }
   .sreq-q { font-size:var(--font-size-small); margin-top:var(--space-4); max-width:var(--measure-prose); }
   .sreq-a { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-8); max-width:var(--measure-form); }
-  .sreq-a textarea { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .sreq-a textarea { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .sreq-do { display:flex; align-items:center; gap:var(--space-16); flex-wrap:wrap; }
 
   /* ── pilot.ts — moved here whole in step four: page-specific names, defined once. */
   .rbsub { font-size:var(--font-size-caption); letter-spacing:0; color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
-  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .rbrow { display:flex; align-items:center; gap:var(--space-8); padding:8px 0; border-bottom:1px solid var(--color-paper); }
   .rbrow:last-child { border-bottom:0; }
   .rbrow .lbl { font-size:var(--font-size-small); }
   .rbrow .n { margin-inline-start:auto; font-size:var(--font-size-small); font-weight:700; color:var(--color-ink); }
@@ -622,7 +638,7 @@ const STYLE_PAGES = `
   .ev-h .mono { font:var(--font-size-caption)/1.4 "SF Mono", ui-monospace, Menlo, monospace; font-weight:600; unicode-bidi:plaintext; }
   .ev-d { font-size:var(--font-size-caption); color:var(--color-warn); margin-top:var(--space-8); }
   .ev-p { font:var(--font-size-caption)/1.5 "SF Mono", ui-monospace, Menlo, monospace; color:var(--color-ink-secondary); margin:var(--space-8) 0 0; overflow-x:auto; unicode-bidi:plaintext; direction:ltr; text-align:start; }
-  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper-sunk); }
+  .pr { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-paper); }
   .pr:last-child { border-bottom:0; }
   .pr .mk { font-size:var(--font-size-base); font-weight:700; }
   .pr.done .mk { color:var(--color-ok); }
@@ -630,10 +646,10 @@ const STYLE_PAGES = `
   .pr .lbl { font-size:var(--font-size-small); }
   .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
   .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }
-  .badge.sys { background:var(--color-jade-wash); color:var(--color-ok); }
-  .badge.owner { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .badge.sys { background:var(--color-ok-wash); color:var(--color-ok); }
+  .badge.owner { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   .verdict { margin-top:var(--space-16); padding:14px; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); text-align:center; font-weight:600; }
-  .verdict.ok { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+  .verdict.ok { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
 
   /* ── employee.ts — moved here whole in step four: page-specific names, defined once. */
   .levels { display:flex; flex-direction:column; gap:var(--space-12); margin-top:var(--space-12); }
@@ -658,17 +674,17 @@ const STYLE_PAGES = `
   .hlabel { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
   .empty-p { margin:0 0 var(--space-12); }
   .gaps { display:flex; flex-direction:column; gap:var(--space-8); }
-  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
-  a.gap:hover, a.gap:focus-visible { border-color:var(--color-jade-line); }
+  a.gap { display:grid; grid-template-columns:1fr auto; gap:var(--space-4) var(--space-12); background:var(--color-paper); border:1px solid var(--color-border); border-radius:12px; padding:14px 16px; }
+  a.gap:hover, a.gap:focus-visible { border-color:var(--color-ink-secondary); }
   .gq { font-size:var(--font-size-small); color:var(--color-ink); }
   .gmeta { font-size:var(--font-size-caption); grid-column:1; }
-  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-jade); font-size:var(--font-size-small); white-space:nowrap; }
+  .gact { grid-row:1 / span 2; align-self:center; color:var(--color-ink); font-size:var(--font-size-small); white-space:nowrap; }
   @media (max-width:560px) { a.gap { grid-template-columns:1fr; } .gact { grid-row:auto; text-align:start; } }
   .emp-h { display:flex; align-items:center; gap:var(--space-12); }
   .emp-name { font-size:var(--font-size-title); font-weight:700; }
   .dgroup { margin-bottom:var(--space-16); }
   .dtitle { font-weight:600; margin-bottom:var(--space-8); }
-  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper-sunk); border:1px solid var(--color-border); }
+  .ditem { padding:8px 12px; border-radius:8px; margin-bottom:var(--space-8); font-size:var(--font-size-small); background:var(--color-paper); border:1px solid var(--color-border); }
   .ditem.ok { color:var(--color-ok); }
   .ditem.warn { color:var(--color-waiting); }
   .ditem.no { color:var(--color-ink-secondary); }
@@ -701,13 +717,13 @@ const STYLE_PAGES = `
   .fcount { font-size:var(--font-size-title); font-weight:600; color:var(--color-ink); display:flex; align-items:baseline; gap:var(--space-8); font-variant-numeric:tabular-nums; }
   .fcount-l { font-size:var(--font-size-small); font-weight:400; color:var(--color-ink-secondary); }
   .fnames { color:var(--color-ink-secondary); font-size:var(--font-size-small); line-height:1.6; margin:var(--space-8) 0 0; }
-  .fwarn { color:var(--color-highlight); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
-  .fok { color:var(--color-jade); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fwarn { color:var(--color-waiting); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
+  .fok { color:var(--color-ink); font-size:var(--font-size-small); margin:var(--space-12) 0 0; }
   .fchips { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px; background:var(--color-paper-sunk); color:var(--color-ink); border:1px solid var(--color-border); }
+  .fchip { font-size:var(--font-size-caption); padding:6px 13px; border-radius:999px; background:var(--color-paper); color:var(--color-ink); border:1px solid var(--color-border); }
   .frules { margin:var(--space-16) 0 0; padding-inline-start:18px; color:var(--color-ink); font-size:var(--font-size-small); line-height:1.6; }
   /* The promise the whole product rests on — read it before the fine print. */
-  .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-ink); max-width:var(--measure-prose); border-inline-start:2px solid var(--color-jade); padding-inline-start:14px; }
+  .fnever { margin:var(--space-16) 0 0; font-size:var(--font-size-small); line-height:1.6; color:var(--color-ink); max-width:var(--measure-prose); border-inline-start:2px solid var(--color-ink); padding-inline-start:14px; }
   .fsteps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .fsteps li { font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .fsteps li.done { color:var(--color-ink); }
@@ -717,7 +733,7 @@ const STYLE_PAGES = `
   .fgap .fnames { margin-top:var(--space-4); }
   .alform { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-16); max-width:var(--measure-form); }
   .alform .fld { display:flex; flex-direction:column; gap:var(--space-4); font-size:var(--font-size-small); }
-  .alform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .alform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .rm { margin-inline-start:var(--space-8); }
   /* M49 — a link is ink; jade is spent on sending and on state. */
   .blink { color:var(--color-ink); text-decoration:underline; text-underline-offset:3px; }
@@ -726,16 +742,16 @@ const STYLE_PAGES = `
   .fconn-s { font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
   .fconn-h { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .fconn-i { font-size:var(--font-size-title); }
-  .fconn.on .fconn-s { color:var(--color-jade); }
+  .fconn.on .fconn-s { color:var(--color-ok); }
   /* Not connected stops everything, so it looks like it and links to the fix. */
-  .fconn.off { background:var(--color-highlight-wash); border:1px solid var(--color-highlight); border-radius:14px; padding:14px 16px; }
-  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-highlight); }
-  .fconn.off .fconn-s { color:var(--color-highlight); }
+  .fconn.off { background:var(--color-waiting-wash); border:1px solid var(--color-waiting-line); border-radius:14px; padding:14px 16px; }
+  .fconn.off:hover, .fconn.off:focus-visible { border-color:var(--color-waiting); }
+  .fconn.off .fconn-s { color:var(--color-waiting); }
   .fconn.off .go { margin-inline-start:auto; }
   .fblock .deeper { margin-top:var(--space-8); }
 
   /* ── products.ts — moved here whole in step four: page-specific names, defined once. */
-  .pq input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
+  .pq input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:11px 14px; font:inherit; min-height:44px; }
   .pcheck { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink); min-height:44px; }
   .phead { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; }
   /* Products are a dense list (decision 2), not a card each. */
@@ -746,7 +762,7 @@ const STYLE_PAGES = `
   .p-tag { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .p-tag.big { color:var(--color-ok); font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .info, .tiers { display:flex; flex-direction:column; gap:var(--space-8); font-size:var(--font-size-small); }
-  .tier { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
+  .tier { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:8px; padding:10px 12px; }
   .imgs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
   .imgs img { width:96px; height:96px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border); }
   .qrow { font-size:var(--font-size-caption); padding:6px 0; border-bottom:1px solid var(--color-border); }
@@ -756,7 +772,7 @@ const STYLE_PAGES = `
   .rev-src { flex-basis:100%; font-size:var(--font-size-caption); }
   .rev-move { flex-basis:100%; }
   .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
-  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
+  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
 
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
@@ -784,13 +800,13 @@ const STYLE_PAGES = `
   .ch-h .pill { white-space:normal; }
   .ch-name { font-size:var(--font-size-small); font-weight:700; }
   .ch-desc { font-size:var(--font-size-caption); margin:var(--space-8) 0 var(--space-12); }
-  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
+  .ch-info { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); }
   .ch-acts { display:flex; gap:var(--space-8); flex-wrap:wrap; }
   .prob { background:var(--color-waiting-wash); color:var(--color-waiting); border-radius:10px; padding:12px; font-size:var(--font-size-small); margin-bottom:var(--space-12); line-height:1.6; }
   .ownerform { display:flex; flex-direction:column; gap:var(--space-4); margin-bottom:var(--space-8); }
-  .ownerform input { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
+  .ownerform input { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px 14px; font:inherit; }
   .soon { display:flex; flex-wrap:wrap; gap:var(--space-8); margin-bottom:var(--space-12); }
-  .soon-chip { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
+  .soon-chip { background:var(--color-paper); border:1px solid var(--color-border); border-radius:999px; padding:6px 14px; color:var(--color-ink-secondary); font-size:var(--font-size-caption); }
   .guide { padding-inline-start:20px; line-height:2; }
   .guide li { margin-bottom:var(--space-4); }
 
@@ -799,7 +815,7 @@ const STYLE_PAGES = `
   /* A scope caption explains; it is not a state, so it gets no colour. */
   .scope { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-4) 0 var(--space-12); }
   .klist { display:flex; flex-direction:column; gap:var(--space-8); }
-  .krow { display:flex; justify-content:space-between; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
+  .krow { display:flex; justify-content:space-between; background:var(--color-paper); border:1px solid var(--color-border); border-radius:10px; padding:12px 16px; }
   .krow:hover { border-color:var(--color-border); }
   .kitem { border:1px solid var(--color-border); border-radius:12px; padding:14px; margin-bottom:var(--space-12); }
   .kh { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
@@ -807,11 +823,11 @@ const STYLE_PAGES = `
   .kc { margin:var(--space-8) 0; white-space:pre-wrap; }
   .teach, .krow-actions { display:flex; flex-direction:column; gap:var(--space-8); margin-top:var(--space-12); }
   .teach h3 { margin:0; font-size:var(--font-size-small); }
-  input[type=text], textarea, select { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
+  input[type=text], textarea, select { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; }
   .kbtns { display:flex; gap:var(--space-8); }
   .certs { display:flex; flex-wrap:wrap; gap:var(--space-8); }
-  .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper-sunk); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
-  .cert.on { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+  .cert { padding:8px 14px; border-radius:999px; border:1px solid var(--color-border); background:var(--color-paper); color:var(--color-ink-secondary); cursor:pointer; font-size:var(--font-size-caption); }
+  .cert.on { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
 
   /* ── knowledge-insights.ts — moved here whole in step four: page-specific names, defined once. */
   h3.sub { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin:var(--space-16) 0 var(--space-8); }
@@ -822,8 +838,8 @@ const STYLE_PAGES = `
   .ki-meta { display:flex; gap:var(--space-8); align-items:center; margin-bottom:var(--space-12); }
   .gacts { display:flex; gap:var(--space-8); }
   .pill.reason { background:var(--color-waiting-wash); color:var(--color-waiting); }
-  .pill.taught { background:var(--color-jade-wash); color:var(--color-ok); }
-  .pill.corrected { background:var(--color-highlight-wash); color:var(--color-highlight); }
+  .pill.taught { background:var(--color-ok-wash); color:var(--color-ok); }
+  .pill.corrected { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   .pill.archived { background:var(--color-border); color:var(--color-ink-secondary); }
   .ki-acts { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .ki-acts li { display:flex; align-items:center; gap:var(--space-8); }
@@ -858,7 +874,7 @@ const STYLE_PAGES = `
   .cal-day { margin:var(--space-24) 0 0; }
   .cal-when { flex:none; min-width:4.5em; color:var(--color-ink-secondary); font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; }
   .cal-go { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); min-height:44px; color:inherit; }
-  .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-jade-deep); }
+  .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-ink); }
   .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .cal-kind { color:var(--color-ink); font-weight:500; }
 
@@ -873,7 +889,7 @@ const STYLE_PAGES = `
   /* The row, as decision 5 keeps it: a tile per buyer. */
   a.buyer { display:block; background:var(--color-surface); border:1px solid var(--color-border);
     border-radius:var(--radius-card); padding:var(--space-16); }
-  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-jade-line); }
+  a.buyer:hover, a.buyer:focus-visible { border-color:var(--color-ink-secondary); }
   .buyer-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
   .buyer-d { font-size:var(--font-size-caption); margin-top:var(--space-8); }
   .buyer-m { margin-top:var(--space-8); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
@@ -903,16 +919,16 @@ const STYLE_PAGES = `
   /* M22 — a refusal is information, not an alarm: amber, like a disconnected
      channel. Something needs the owner, and nothing is broken. 0052 — a send
      nobody can account for is the same amber, with the words and two answers. */
-  .card.refused, .card.unsure { background:var(--color-highlight-wash); }
+  .card.refused, .card.unsure { background:var(--color-waiting-wash); }
   .rf-h { font-size:var(--font-size-small); font-weight:600; color:var(--color-ink); margin:0 0 var(--space-12); }
   .rf { padding:var(--space-12) 0; border-top:1px solid var(--color-waiting-wash); }
   .rf:first-of-type { border-top:0; padding-top:0; }
-  .rf-w { font-size:var(--font-size-small); color:var(--color-highlight); }
+  .rf-w { font-size:var(--font-size-small); color:var(--color-waiting); }
   .rf-y { font-size:var(--font-size-caption); margin-top:var(--space-4); line-height:1.55; max-width:var(--measure-prose); }
   .rf-d { font-size:var(--font-size-small); color:var(--color-ink); margin-top:var(--space-8); }
   .rf-t { font-size:var(--font-size-caption); margin-top:var(--space-4); }
   .unsure-q { margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12);
-    border-inline-start:2px solid var(--color-highlight); background:var(--color-paper);
+    border-inline-start:2px solid var(--color-waiting); background:var(--color-surface);
     font-size:var(--font-size-small); color:var(--color-ink); max-width:var(--measure-prose); white-space:pre-wrap; }
   .unsure-a { display:flex; gap:var(--space-8); margin-top:var(--space-12); flex-wrap:wrap; }
   /* M34 — a heard message says so. The label and the superseded reading are
@@ -934,7 +950,7 @@ const STYLE_PAGES = `
   .knewlist { list-style:none; margin:0; padding:0; max-width:var(--measure-prose); }
   .knewlist li { padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); color:var(--color-ink-secondary); }
   .knewlist li:last-child { border-bottom:0; }
-  .ctx { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper-sunk);
+  .ctx { display:flex; flex-direction:column; gap:var(--space-4); background:var(--color-paper);
     border:1px solid var(--color-border); border-radius:var(--radius-card); padding:var(--space-12) var(--space-16);
     margin-bottom:var(--space-16); font-size:var(--font-size-small); }
   .proofrow { display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-8);
@@ -947,7 +963,7 @@ const STYLE_PAGES = `
   @media (max-width:560px) { .acts .btn { padding-inline:12px; } }
 
   /* ── conversations.ts — the buyer's own page; moved in at the V1 close-out. */
-  .pill.muted { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .pill.muted { background:var(--color-paper); color:var(--color-ink-secondary); }
   .need-card { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-12); font-size:var(--font-size-small); }
   .name-form { max-width:var(--measure-form); margin-bottom:var(--space-12); padding-bottom:var(--space-12); border-bottom:1px solid var(--color-border); }
   .name-form label { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-bottom:var(--space-4); }
@@ -964,7 +980,7 @@ const STYLE_PAGES = `
   .tl { list-style:none; padding:0; margin:0; max-width:var(--measure-prose); }
   .tl li { display:flex; gap:var(--space-12); position:relative; padding:10px 0; padding-inline-start:16px;
     margin-inline-start:var(--space-8); border-inline-start:2px solid var(--color-border); }
-  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-surface-alt);
+  .tl li .ic { position:absolute; inset-inline-start:-11px; top:9px; background:var(--color-paper);
     font-size:var(--font-size-small); line-height:1; }
   .tl .tx { font-size:var(--font-size-small); }
 
@@ -990,7 +1006,7 @@ const STYLE_PAGES = `
   .en-a { display:flex; gap:var(--space-12); align-items:center; flex-wrap:wrap; margin-top:var(--space-8); }
   .sqform { display:grid; gap:var(--space-12); margin-top:var(--space-12); }
   .sqform textarea { width:100%; font:inherit; }
-  .pill.wait { background:var(--color-paper-sunk); color:var(--color-ink-secondary); }
+  .pill.wait { background:var(--color-paper); color:var(--color-ink-secondary); }
 
   /* ── sandbox.ts — moved here whole in step four: page-specific names, defined once. */
   .pcount { font-size:var(--font-size-display); font-weight:600; color:var(--color-ink); font-variant-numeric:tabular-nums; margin:var(--space-4) 0 var(--space-12); }
@@ -1008,20 +1024,20 @@ const STYLE_PAGES = `
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }
   .scenariobar { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
-  select { background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
+  select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; max-width:100%; }
   .msgbar { display:flex; flex-direction:column; gap:var(--space-8); }
   .msgacts { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); flex-wrap:wrap; }
-  textarea { width:100%; background:var(--color-paper-sunk); border:1px solid var(--color-border); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
-  .sbx-trust { border-color:var(--color-highlight-line); }
-  .sbx-trust.pass { border-color:var(--color-jade-line); }
+  textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:10px; font:inherit; resize:vertical; }
+  .sbx-trust { border-color:var(--color-waiting-line); }
+  .sbx-trust.pass { border-color:var(--color-ok-line); }
   .sbx-trust.fail { border-color:var(--color-warn-line); }
   .sbx-trust .verdict { font-weight:700; text-transform:none; letter-spacing:0; }
   .sbx-trust.pass .verdict { color:var(--color-ok); }
   .sbx-trust.fail .verdict { color:var(--color-warn); }
-  .chip.auto { background:var(--color-jade-wash); color:var(--color-ok); border-color:var(--color-jade-line); }
+  .chip.auto { background:var(--color-ok-wash); color:var(--color-ok); border-color:var(--color-ok-line); }
   .chip.draft { background:var(--color-waiting-wash); color:var(--color-waiting); border-color:var(--color-waiting-line); }
   .chip.warn { background:var(--color-warn-wash); color:var(--color-warn); }
-  .chip.badge { background:var(--color-jade-wash); color:var(--color-highlight); }
+  .chip.badge { background:var(--color-paper); color:var(--color-ink); font-weight:600; }
   .checks { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--space-8); }
   .chk { display:grid; grid-template-columns:auto 1fr; gap:var(--space-4) var(--space-8); align-items:start; }
   .chk .mk { font-weight:700; }
@@ -1126,7 +1142,7 @@ ${cssVariables()}
   a { color:var(--color-ink); }
   .updated { margin-top:var(--space-48); }
   button { font:inherit; padding:var(--space-12) var(--space-24); border:0;
-           border-radius:var(--radius-card); background:var(--color-jade);
+           border-radius:var(--radius-card); background:var(--color-ink);
            color:var(--color-surface); cursor:pointer; }
 `;
 
@@ -1329,15 +1345,15 @@ const DOOR_STYLE = `
   .login h1 { font-size:var(--font-size-base); margin:0 0 var(--space-8); }
   .login .lead { color:var(--color-ink-secondary); font-size:var(--font-size-caption); margin:0 0 var(--space-16); }
   input { width:100%; padding:12px 14px; border-radius:var(--radius-card);
-    border:1px solid var(--color-border); background:var(--color-paper-sunk);
+    border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   /* M49 — as wide as its word, like every other button in the product. */
   button { min-height:44px; padding:12px var(--space-24); border:0; border-radius:var(--radius-card);
-    background:var(--color-jade); color:var(--color-surface); font-weight:600;
+    background:var(--color-ink); color:var(--color-surface); font-weight:600;
     font-size:var(--font-size-small); cursor:pointer; }
-  button:hover { background:var(--color-jade-deep); }
+  button:hover { box-shadow:var(--shadow-lift2); }
   select { width:100%; min-height:44px; padding:10px 14px; border-radius:var(--radius-card);
-    border:1px solid var(--color-border); background:var(--color-paper-sunk);
+    border:1px solid var(--color-ink-secondary); background:var(--color-surface);
     color:var(--color-ink); font-size:var(--font-size-base); margin:var(--space-8) 0 var(--space-16); }
   .login h2 { font-size:var(--font-size-small); color:var(--color-ink-secondary); margin:var(--space-24) 0 var(--space-8); font-weight:600; }
   .login form > h2:first-child { margin-top:0; }
