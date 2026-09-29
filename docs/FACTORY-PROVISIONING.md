@@ -268,10 +268,11 @@ off, when it is the practice sandbox, when the e-mail is another workspace's
 login, when the workspace already has a login (it says which, and wants
 `--replace`), and when run with a role that row security filters.
 
-**There is no self-service recovery yet.** Nothing in the product e-mails an
-owner a link to choose a new password: `login_codes` (0058) only confirm a
-sign-up or a new browser *after* the password was right, and
-`email_confirmations` belongs to orders. An owner who forgets the password must
-ask the operator for `--reset`. The pilot's workspace is the one exception: the
-deployment's `OWNER_ACCESS_CODE` ("I have an access code") still opens the
-business `PILOT_BUSINESS_ID` names.
+**An owner who forgets the password asks the door** (PWR, 0084, since
+2026-09-30): "Forgot your password?" on the sign-in page mails a one-time link
+to this same page (`/login/set-password`), good for an hour, if the address
+signs in here — three an hour per login, the newest the one that works. It
+needs the installation's system mail (the one that sends sign-in codes); where
+there is none, the door does not offer it and `--reset` is still the way. The
+pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE` ("I have
+an access code").

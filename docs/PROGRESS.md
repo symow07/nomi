@@ -30,8 +30,9 @@ under "Decided" below.
 name editing; "ready" only when findable; the backfill tool, NOT run on
 Westlake — see "Waiting on the owner"), then #132 — Q1, the analyser's
 history (live check before and after: 29/29 then 34/34 with five history
-cases). Then the rest of step 7, one PR each where a page is touched: PWR
-(password recovery), REKEY, FAIR and CEIL, CH1 and CH2.
+cases), then #133 — PWR, "Forgot your password?" (0084; backup before it).
+Then the rest of step 7, one PR each where a page is touched: REKEY, FAIR and
+CEIL, CH1 and CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a

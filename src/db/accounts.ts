@@ -103,6 +103,17 @@ export async function setupLinkEmail(db: Db, tokenHash: string): Promise<string 
   return r?.email ?? null;
 }
 
+/**
+ * PWR (0084) — a link to choose a new password, for the one live login this
+ * e-mail signs in with. The e-mail to send it to, or null: no such login, a
+ * switched-off workspace, or three links already this hour. The caller says
+ * the same words either way.
+ */
+export async function requestRecoveryLink(db: Db, email: string, tokenHash: string, minutes: number): Promise<string | null> {
+  const r = (await sql<{ email: string }>`select email from login_setup_request(${email}, ${tokenHash}, ${minutes})`.execute(db)).rows[0];
+  return r?.email ?? null;
+}
+
 export async function spendSetupLink(db: Db, tokenHash: string, passwordHash: string): Promise<string | null> {
   const r = (await sql<{ email: string }>`select email from login_setup_spend(${tokenHash}, ${passwordHash})`.execute(db)).rows[0];
   return r?.email ?? null;

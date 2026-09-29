@@ -60,6 +60,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export const normalizeEmail = (raw: string): string => raw.trim().toLowerCase();
+/** PWR — the same loose shape sign-up asks of an address, for the door's "e-mail me a link". */
+export const isEmailShape = (email: string): boolean => EMAIL.test(email);
 
 export function validateSignup(
   input: SignupInput, opts: { readonly mode: SignupMode; readonly passwordMin: number; readonly passwordMax: number },

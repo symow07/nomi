@@ -136,7 +136,7 @@ import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
 import {
-  shell, loginPage, signupPage, verifyPage, setPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
+  shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
@@ -158,11 +158,11 @@ import { formatDate, dayKey, addDays } from '../../core/owner/i18n/format.js';
 import { makeLivenessCache, readLiveness, livenessKey, sessionStands } from './liveness.js';
 import {
   lookupLogin, recordLoginAttempt, personForCodeHash, provisionAccount, inviteIsOpen, loginOfPerson, setPassword,
-  setupLinkEmail, spendSetupLink,
+  setupLinkEmail, spendSetupLink, requestRecoveryLink,
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
-import { validateSignup, normalizeEmail, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
+import { validateSignup, normalizeEmail, isEmailShape, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -364,6 +364,8 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'POST', url: '/login', why: 'submitting an e-mail and password, or an access code' },
   { method: 'GET', url: '/login/set-password', why: '0078 — the one-time link tools/add-login.mjs prints: shows which e-mail it sets a password for, spends nothing' },
   { method: 'POST', url: '/login/set-password', why: '0078 — saves the password the owner chose and spends the link, once; throttled like the door' },
+  { method: 'GET', url: '/login/forgot', why: 'PWR — asks which e-mail to send a link to; names no tenant; only where the installation sends system mail' },
+  { method: 'POST', url: '/login/forgot', why: 'PWR — mails a one-time link (0084) if the address signs in here; the same words and the same answer time either way; throttled per caller, three links an hour per login in the database' },
   { method: 'GET', url: '/signup', why: 'A1 — how a factory gets a workspace; names no tenant, and says nothing about which e-mails have one' },
   { method: 'POST', url: '/signup', why: 'A1 — creates a tenant through provision_account only; throttled, and gated by SIGNUP_MODE' },
   { method: 'GET', url: '/verify', why: 'A3 — where the e-mailed code is typed; renders only for a browser holding the signed pending cookie, and shows the address masked' },
@@ -1001,6 +1003,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const signupMode: SignupMode = deps.signupMode ?? 'invite';
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
+  /** PWR — the door can e-mail a link only where the installation sends system mail. */
+  const recoveryOn = Boolean(deps.systemMail);
   const signupThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
   const html = (reply: FastifyReply, code: number, body: string) =>
@@ -1025,7 +1029,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sessionOf(req)
       ? reply.redirect('/app')
       : reply.type('text/html; charset=utf-8').send(
-        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed' })));
+        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', recoveryOn })));
 
   /**
    * A1 — a factory makes its own workspace.
@@ -1121,7 +1125,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const email = normalizeEmail(body.email);
       const password = String(body.password ?? '');
       const refuse = (status: number, problem: 'password' | 'locked' | 'slow') =>
-        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed' }));
+        html(reply, status, loginPage({ locale, path: '/login', problem, email, signupOpen: signupMode !== 'closed', recoveryOn }));
       if (!loginThrottle.allow(callerOf(req), Date.now())) return refuse(429, 'slow');
       const login = await lookupLogin(deps.db, email).catch(() => null);
       if (!login) { await spendAVerification(password); return refuse(401, 'password'); }
@@ -1173,7 +1177,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // the environment's business first, exactly as before, so nothing about
       // the pilot's staff depends on the new lookup.
       if (!loginThrottle.allow(callerOf(req), Date.now())) {
-        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed' }));
+        return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
       }
       const mine = code.trim() === '' ? null
         : await personForCode(deps.db, deps.businessId, deps.sessionSecret, code).catch(() => null);
@@ -1181,7 +1185,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         : await personForCodeHash(deps.db, hashCode(deps.sessionSecret, code)).catch(() => null);
       if (!mine && !theirs) {
         return reply.code(401).type('text/html; charset=utf-8')
-          .send(loginPage({ locale: localeOf(req), path: '/login', error: true, signupOpen: signupMode !== 'closed' }));
+          .send(loginPage({ locale: localeOf(req), path: '/login', error: true, signupOpen: signupMode !== 'closed', recoveryOn }));
       }
       if (theirs) return signIn(reply, theirs.businessId, theirs.person);
       person = mine!;
@@ -1227,7 +1231,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/login/set-password', quietDoor, async (req, reply) => {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
-      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed' }));
+      return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
     }
     const link = await setupLinkOf(b.t);
     if (!link) return setPwPage(req, reply, 404, null);
@@ -1243,8 +1247,45 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!email) return setPwPage(req, reply, 404, null);
     return html(reply, 200, loginPage({
       locale: localeOf(req), path: '/login', email, notice: t(localeOf(req), 'login.passwordSet'),
-      signupOpen: signupMode !== 'closed',
+      signupOpen: signupMode !== 'closed', recoveryOn,
     }));
+  });
+
+  /**
+   * PWR (0084) — "E-MAIL ME A LINK". The owner who forgot the password asks
+   * for a one-time link to 0078's page. The answer is the same page, sent at
+   * once, whether or not the address signs in here: the token is made, stored
+   * (hashed) and mailed after the reply has gone. Three links an hour per
+   * login are counted in the database; five asks an hour per caller here.
+   */
+  const RECOVERY_MINUTES = 60;
+  const recoveryThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
+  const forgot = (req: FastifyRequest, extra: Omit<Parameters<typeof forgotPasswordPage>[0], 'locale' | 'path' | 'minutes'> = {}) =>
+    forgotPasswordPage({ locale: localeOf(req), path: '/login/forgot', minutes: RECOVERY_MINUTES, ...extra });
+  app.get('/login/forgot', async (req, reply) => {
+    if (!recoveryOn) return reply.redirect('/login');
+    return html(reply, 200, forgot(req));
+  });
+  app.post('/login/forgot', async (req, reply) => {
+    if (!recoveryOn) return reply.redirect('/login');
+    if (!recoveryThrottle.allow(callerOf(req), Date.now())) return html(reply, 429, forgot(req, { problem: 'slow' }));
+    const raw = (req.body as { email?: unknown } | undefined)?.email;
+    const email = normalizeEmail(typeof raw === 'string' ? raw : '');
+    if (!isEmailShape(email) || email.length > 254) return html(reply, 400, forgot(req, { problem: 'email', email }));
+    const locale = localeOf(req);
+    const log = req.log;
+    void (async () => {
+      const token = randomBytes(32).toString('base64url');
+      const to = await requestRecoveryLink(deps.db, email, setupTokenHash(token), RECOVERY_MINUTES).catch(() => null);
+      if (!to) return;
+      const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}`;
+      const mailed = await deps.systemMail!.send({
+        to, subject: t(locale, 'forgot.mail.subject'), text: t(locale, 'forgot.mail.body', { email: to, link, minutes: RECOVERY_MINUTES }),
+      }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+      // A fixed phrase per way tried — never the address, never the link.
+      if (!mailed.ok) log.warn({ reason: mailed.error }, 'recovery mail could not be sent');
+    })();
+    return html(reply, 200, forgot(req, { sent: email }));
   });
 
   /**
