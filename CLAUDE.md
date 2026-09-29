@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 137 | **CH1 + CH2 — "Your accounts" read live on Channels, and the help page** — see §5 rule 36 |
 | 136 | **CEIL — 50 a day for a new workspace (0085), and an hourly Meta-errors alarm** for the operator — see §5 rule 35 |
 | 135 | **FAIR — the inbound queue shared fairly between workspaces**: a group per workspace, three workers, one at a time per workspace — see §5 rule 34 |
 | 134 | **REKEY — `CREDENTIAL_KEY` rotation without a token lost**: the app reads with the previous key during a rotation, `tools/rekey.mjs` re-seals, the doc rewritten around it — see §5 rule 33 |
@@ -472,6 +473,12 @@ Recent PRs, newest first:
    - `businesses.daily_send_ceiling`: how many of the assistant's messages a workspace may send in a day (the gate's `dailyCeilingReached`, Shanghai day, the owner's own replies never counted). A workspace made from 0085 on starts at **50**; the 59 that existed kept 200 (`DAILY_OUTBOUND_CEILING`, also the gate's fallback). No owner switch: `tools/send-ceiling.mjs --business <uuid> [--set N]` (1–10000).
    - `meta_error_rates(since)` (definer): per workspace, messages to Meta's channels (WhatsApp, Instagram, Messenger) and how many Meta refused or lost (`failed`/`uncertain`), with the provider's own words — never our gate's `canceled: …`, never e-mail. Every hour (`ops.meta_errors`, :15) the operator is told of any workspace with ≥ 5 refused or lost AND ≥ one in five of the day (`src/core/ops/metaErrors.ts`) — the `meta_errors` operator alert, e-mail always, at most once in 6 h.
    - Tests: `tests/integration/send-ceiling.test.ts` (the gate at 50, the tool, the counting; the per-workspace read switched off, it fails), `tests/parity/send-ceiling.test.ts`.
+36. **"Your accounts" on Channels, read live; the help page says what to check** (CH1 + CH2, #137, 2026-09-30; `src/channels/meta/health.ts`, `src/api/web/yourAccounts.ts`, `src/api/web/help.ts`).
+   - Where the installation offers Meta's login, Channels shows the steps of connecting a Page, each marked from what is there: the Page; its Instagram (professional, linked); Meta's word on the token (`debug_token` with the app's token); the permissions the login asks for that Meta did NOT grant (named); the Page's subscription to THIS app for `messages` (`/{page}/subscribed_apps`); the newest message a customer sent on each channel (our own `client_channels`). Meta slow or down (5 s) is "could not check" — never a verdict, never a write.
+   - A token Meta says is no longer good is recorded (`markMetaAccountNeedsAttention`, `revoked`) — the same state a failed send would have left, so every page and every send agrees.
+   - The page watches its own mark (`channels` in `live.ts`: channels a customer wrote on, when, and the Page connection's state) and says when something changed.
+   - `/app/help/meta` (CH2): one section per step — what to check, why — in en/zh/ar, linking only to Meta help pages read and named on 2026-09-30 (create a Page; professional Instagram account; connect Instagram and a Page). "Allow access to messages" has no such page: the step says where the setting is, and the first message proves it. Plus what works on Instagram and Messenger (24 hours; the customer starts; shared posts and story mentions come to the owner).
+   - Tests: `tests/parity/your-accounts.test.ts`, `tests/integration/your-accounts.test.ts` (a Page connected through the real flow; Meta answering each way; the recorded dead token — switched off, it fails; the live mark; the help page in en and ar). The end-to-end check with a user who has no role on the app waits for App Review.
 
 ## 6 · What's next
 

@@ -57,10 +57,10 @@ import type { LiveWatch } from './flash.js';
  * shows, read by the same function (`readAttention`), so the two cannot differ.
  */
 
-export type LiveKind = 'conversation' | 'buyers' | 'today';
+export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels';
 
 /** What the line can say: one sentence each (`live.<what>` in the catalogue). */
-export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today';
+export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels';
 
 /** What the page's script is told. `what` only when there is news. */
 export type LiveSaid = { readonly news: false } | { readonly news: true; readonly what: LiveNews };
@@ -75,11 +75,13 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
  *   conversation  `<buyer messages>.<the reply waiting, or 0>.<eight hex of who holds it and what did not go>`
  *   buyers        `<conversations>.<sixteen hex of the list's fingerprint>`
  *   today         `<replies waiting>.<waiting for a person>.<held by a person>.<did not go>.<deletion asked>`
+ *   channels      `<channels a customer wrote on>.<sixteen hex of when, and of the Page connection>`
  */
 const MARK: Record<LiveKind, RegExp> = {
   conversation: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   buyers: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
   today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}$`),
+  channels: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
 };
 
 /** Is this a mark of this kind, as a page would carry it? */
@@ -108,7 +110,7 @@ export function liveNews(kind: LiveKind, since: string, now: string): LiveSaid {
     if (state1 !== state0) return { news: true, what: 'changed' };
     return { news: false };
   }
-  return since === now ? { news: false } : { news: true, what: kind === 'buyers' ? 'list' : 'today' };
+  return since === now ? { news: false } : { news: true, what: kind === 'buyers' ? 'list' : kind === 'channels' ? 'channels' : 'today' };
 }
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
@@ -213,6 +215,7 @@ export async function liveAnswer(
   if (!isMark(kind, since)) return { status: 400, said: { news: false } };
   const now = kind === 'conversation' ? await conversationMark(db, bid, conversationId)
     : kind === 'buyers' ? await buyersMark(db, bid)
+    : kind === 'channels' ? await channelsMark(db, bid)
     : todayMark(await readAttention(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
   return { status: 200, said: liveNews(kind, since, now), orders: await ordersWaitingCount(db, bid) };
@@ -237,4 +240,34 @@ export const todayWatch = (mark: string): LiveWatch => ({
   ask: `/app/live/today?since=${mark}`,
   door: '/app',
   says: [{ what: 'today', key: 'live.today' }],
+});
+
+/**
+ * CH1 — the Channels page's mark: on which channels a customer has written and
+ * when last, and the state of the Page connection. It moves when a first test
+ * message arrives on Instagram or Messenger, or the connection is made, lost
+ * or found dead — the things "Your accounts" shows.
+ */
+export async function channelsMark(db: Db, bid: BusinessId): Promise<string> {
+  return withTenantTx(db, bid, async (tx) => {
+    const row = (await sql<{ n: number; print: string }>`
+      with seen as (
+        select cc.channel, max(cc.last_inbound_at) as at
+          from client_channels cc join clients cl on cl.id = cc.client_id
+         where cl.business_id = ${bid} and cc.last_inbound_at is not null
+         group by cc.channel)
+      select (select count(*)::int from seen) as n,
+             md5(coalesce((select string_agg(channel || '@' || at::text, ',' order by channel) from seen), '')
+                 || '|' || coalesce((select string_agg(concat_ws('/', id::text, coalesce(needs_attention_at::text, '-')), ',')
+                                       from meta_accounts where business_id = ${bid} and archived_at is null), '')) as print`
+      .execute(tx)).rows[0];
+    return `${row?.n ?? 0}.${(row?.print ?? '').slice(0, 16)}`;
+  });
+}
+
+/** The Channels page watches its own mark; the door is the page again, at "Your accounts". */
+export const channelsWatch = (mark: string): LiveWatch => ({
+  ask: `/app/live/channels?since=${mark}`,
+  door: '/app/channels#your-accounts',
+  says: [{ what: 'channels', key: 'live.channels' }],
 });
