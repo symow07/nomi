@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 133 | **PWR — "Forgot your password?"** (0084): a one-time link by e-mail, the same words whether or not the address signs in here — see §5 rule 32 |
 | 132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the live check before and after, with history cases — see §5 rule 31 |
 | 131 | **T3 — imported products can be found** — names written at import and edit, name editing, "ready" only when findable, the backfill tool (not run on Westlake) — see §5 rule 30 |
 | 130 | **T7 — every paid call on the ledger** — its own transaction, photos, voice notes, catalogue pages and live Practice metered, one UTC clock, the deepseek price and the first per-turn figures — see §5 rule 29 |
@@ -392,7 +393,7 @@ Recent PRs, newest first:
    - `MIGRATE_DATABASE_URL=<admin url> PUBLIC_BASE_URL=https://app.nomidoes.com node tools/add-login.mjs <business-id> <e-mail>` gives the workspace's OWNER (`people.is_owner`; `--name` only when none is on record) a login — e-mail normalised and shape-checked like sign-up, scrypt with sign-up's parameters of random bytes thrown away — and prints a one-time link `/login/set-password?t=…` (72 h, `--hours`). No password on any command line.
    - `login_setups` keeps only the token's SHA-256; the app role reaches it through `login_setup_open` / `login_setup_spend` only. Opening the link spends nothing (a preview must not use it up); saving does, once, sets the password like a password change and closes every other open link; then the ordinary door (A3's device code included). Those routes log nothing at `info` (the token is in the address) and send `no-referrer`.
    - Refuses, changing nothing: no such business, switched off, the practice sandbox, an e-mail another workspace signs in with (named), a role row security filters. A workspace that already has a login is listed and needs `--replace` (archives the owner's login — one live login per person, one owner per business); the owner's own e-mail needs `--reset` (a fresh link; the old password works until the new one is saved).
-   - **The product has no self-service recovery.** Nothing e-mails an owner a link to choose a new password: `login_codes` (0058) only confirm a sign-up or a new browser after the password was right; `email_confirmations` is orders'. An owner who forgets the password asks the operator for `--reset`. The pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE`.
+   - **Self-service recovery since PWR (rule 32):** "Forgot your password?" on the door mails a link to the same page. Where the installation sends no system mail, `--reset` is still the way. The pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE`.
    - Tests: `tests/parity/add-login.test.ts`, `tests/integration/add-login.test.ts` (runs the tool for real and signs the login in).
 
 23. **An order waits for the owner's tap, in every mode** (0080, 2026-09-29, T6/T6b; `src/db/orderProposals.ts`, `src/pipeline/orderProposal.ts`).
@@ -449,6 +450,10 @@ Recent PRs, newest first:
    - `prompts/analysis.txt` always promised "Conversation history (last 6 turns)"; the turn handed it an empty list. Now: the conversation's last six messages, both sides, oldest first — duplicates left out, a voice note by its transcript, each at most 1,000 characters — and never the messages this turn answers (`TurnRequest.answering`: the batch's fragment ids; Practice records its message under the turn's id). Only the analyser; the reply writer's window is Q1W (conditional on P1).
    - Live check, before and after (deepseek-flash, 2026-09-29/30): before 29/29 named, 0 unreadable, median 1.9 s; after 34/34 — the five new history cases (`WITH_HISTORY` in `tools/check-person-model.mjs`: an earlier request already answered by a person does NOT hand the next turn over, in en/zh/ar; "Yes please" after "Would you like our manager to call you?" does) — 0 unreadable, median 1.86 s. Re-run it whenever the model or the prompt changes (§3).
    - Tests: `tests/pipeline/analyser-history.test.ts`, `tests/integration/analyser-history.test.ts` (the query; through the production worker, a batch of two is never its own history — switched off, it fails).
+32. **A forgotten password: "e-mail me a link"** (PWR, 0084, #133, 2026-09-30; `/login/forgot`, `login_setup_request`).
+   - "Forgot your password?" on the door (only where the installation sends system mail — `recoveryOn`) asks for the address. The reply is the SAME page, status and words (`forgot.sent`, "If {email} signs in to Nomi…") whether or not the address has a login, and it is sent before anything else happens: the token is made, stored as its SHA-256 by the definer function, and mailed after the reply. The link is 0078's `/login/set-password?t=…`, good for 60 minutes (`RECOVERY_MINUTES`).
+   - In the database (0084): only the one live login of a switched-on workspace, person not archived; three recovery links an hour per login, whoever asks; asking again closes the older open links (the newest works). At the door: five asks an hour per caller (`recoveryThrottle`). The mail never reaches the log; a failure logs a fixed phrase.
+   - Tests: `tests/integration/password-recovery.test.ts` (the whole flow, the same words for no login / archived / switched off with no mail, three an hour — switched off in the database, it fails — the newest link, the throttle), `tests/parity/password-recovery.test.ts`.
 
 ## 6 · What's next
 
@@ -545,7 +550,7 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
 - Buyer-facing fixed sentences in `src/core/conversation/fastpath.ts` address
   the buyer in the Arabic masculine («تحتاج»). They are on the send path and
   were left alone in the pronoun PR.
-- **Self-service password recovery ("e-mail me a link") is not built** (rule 22).
+- ~~Self-service password recovery~~ — built as PWR (#133, rule 32).
   The pieces exist — a system mail sender (A3) and `login_setups` (0078) — but
   no page asks for a link. Until then a lost password is the operator's
   `add-login.mjs --reset`.

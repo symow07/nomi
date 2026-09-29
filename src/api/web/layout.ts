@@ -1577,6 +1577,7 @@ const DOOR_STYLE = `
   details form { margin-top:var(--space-8); }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
   .login .foot { text-align:center; font-size:var(--font-size-caption); }
+  .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
 `;
 
 /** The door's sheet: the base rules and the door's own — never the pages' sections. */
@@ -1611,6 +1612,8 @@ export function loginPage(input: {
   readonly email?: string; readonly signupOpen?: boolean;
   /** 0078 — said once, above the form: "your password is saved, sign in with it". */
   readonly notice?: string | null;
+  /** PWR — the door can e-mail a link (the installation sends system mail). */
+  readonly recoveryOn?: boolean;
 }): string {
   const { locale } = input;
   const problem: LoginProblem | null = input.problem ?? (input.error ? 'code' : null);
@@ -1629,6 +1632,7 @@ export function loginPage(input: {
       <input id="login-password" type="password" name="password" required autocomplete="current-password" />
       <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>
+    ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}
     <details${problem === 'code' ? ' open' : ''}>
       <summary>${esc(t(locale, 'login.codeToggle'))}</summary>
       ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
@@ -1783,6 +1787,44 @@ export function setPasswordPage(input: {
       <button type="submit">${esc(t(locale, 'setpw.submit'))}</button>
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'setpw.title'), card, other);
+}
+
+/**
+ * PWR — "E-MAIL ME A LINK". The owner who forgot the password types the
+ * address; a one-time link to choose a new one (0078's page) goes there.
+ *
+ * The page says the same thing whether or not the address signs in here, and
+ * the route answers before any mail leaves — neither the words nor the time
+ * tell a stranger which addresses have a login.
+ */
+export type ForgotProblem = 'email' | 'slow';
+
+export function forgotPasswordPage(input: {
+  readonly locale: Locale; readonly path: string; readonly minutes: number;
+  readonly email?: string; readonly problem?: ForgotProblem | null;
+  /** The address it was asked for: the page now says a link is on its way — if it signs in here. */
+  readonly sent?: string | null;
+}): string {
+  const { locale } = input;
+  const other = `<p class="other"><a href="/login">${esc(t(locale, 'setpw.toLogin'))}</a></p>`;
+  if (input.sent) {
+    return doorFrame(locale, input.path, t(locale, 'forgot.title'),
+      `<h1>${esc(t(locale, 'forgot.title'))}</h1>
+      <p class="lead" role="status"><bdi>${esc(t(locale, 'forgot.sent', { email: input.sent, minutes: input.minutes }))}</bdi></p>`, other);
+  }
+  const problem = input.problem === 'email' ? t(locale, 'signup.problem.email_invalid')
+    : input.problem === 'slow' ? t(locale, 'login.slow') : null;
+  const card = `
+    <h1>${esc(t(locale, 'forgot.title'))}</h1>
+    <p class="lead">${esc(t(locale, 'forgot.lead', { minutes: input.minutes }))}</p>
+    ${problem ? `<div class="err" role="alert">${esc(problem)}</div>` : ''}
+    <form method="post" action="/login/forgot">
+      <label for="forgot-email">${esc(t(locale, 'login.emailLabel'))}</label>
+      <input id="forgot-email" type="email" name="email" value="${esc(input.email ?? '')}" required maxlength="254"
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
+      <button type="submit">${esc(t(locale, 'forgot.submit'))}</button>
+    </form>`;
+  return doorFrame(locale, input.path, t(locale, 'forgot.title'), card, other);
 }
 
 export function verifyPage(input: {

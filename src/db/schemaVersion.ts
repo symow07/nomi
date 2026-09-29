@@ -262,8 +262,11 @@ import type { Db } from './client.js';
  *      sent message writes its promises; against an 82 database the insert
  *      fails inside the 'sent' transition and the message is never recorded
  *      as sent.
+ * 84 = "e-mail me a link" (0084, `login_setup_request`). The door's "Forgot
+ *      your password?" calls it; against an 83 database the call fails, and
+ *      the owner is told a link is on its way that never is.
  */
-export const REQUIRED_SCHEMA_VERSION = 83;
+export const REQUIRED_SCHEMA_VERSION = 84;
 
 export type SchemaState = {
   readonly required: number;
