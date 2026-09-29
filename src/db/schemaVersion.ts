@@ -252,8 +252,11 @@ import type { Db } from './client.js';
  *      `order_proposals` row, and every draft and outbound message records the
  *      question it asks (`asks`); against a 79 database the turn's insert
  *      fails and no reply is written at all.
+ * 81 = a product may have no minimum order (0081): `products.moq` takes NULL.
+ *      Against an 80 database a product saved with no minimum fails the NOT
+ *      NULL constraint, and so does every import line that states none.
  */
-export const REQUIRED_SCHEMA_VERSION = 80;
+export const REQUIRED_SCHEMA_VERSION = 81;
 
 export type SchemaState = {
   readonly required: number;

@@ -41,6 +41,15 @@ const COMMERCIAL_CONTEXT = new RegExp(
     /\d[\d,]*(?:\.\d+)?\s*%/.source,                             // 12%, 5 %
     /\d[\d,]*(?:\.\d+)?\s*(?:percent|dollars?|usd|rmb|yuan|euros?)/.source,
     /(?:discount|off|deposit|surcharge|fee)\s+(?:of\s+)?\d[\d,]*(?:\.\d+)?/.source,
+    // 0081 — a MINIMUM ORDER is a commitment like a price: "minimum order is
+    // 1" for a product with no minimum is as invented as "$1". A figure after
+    // the word for it — en, zh, ar, es, fr — must be sourced (the product's
+    // stated minimum), never waved through as a small number.
+    /(?:minimum|moq|min\.)(?:\s+(?:order|quantity|purchase))*(?:\s+(?:is|of))?\s*[:：]?\s*\d[\d,]*/.source,
+    /起订量?\s*[:：]?\s*\d[\d,]*|\d[\d,]*\s*(?:个|件|套|箱|双)?\s*起订/.source,
+    /(?:ال)?حد\s*(?:ال)?أدنى[^\d\n]{0,16}\d[\d,]*/.source,
+    /(?:pedido|compra|cantidad)\s+m[ií]nim[oa][^\d\n]{0,12}\d[\d,]*|m[ií]nimo\s+(?:de\s+)?\d[\d,]*/.source,
+    /(?:commande|quantit[ée])\s+minim(?:um|ale)[^\d\n]{0,12}\d[\d,]*|minimum\s+de\s+(?:commande\s+)?\d[\d,]*/.source,
   ].join('|'),
   'gi',
 );
@@ -96,9 +105,10 @@ export function guardNumerals(input: {
       quote.unitPrice.amount,
       quote.total.amount,
       quote.discountPct,
-      quote.moq,
       quote.quantity.value,
     );
+    // 0081 — a stated minimum is a sourced figure; no minimum adds nothing.
+    if (quote.moq !== null) sourced.push(quote.moq);
     if (quote.leadTimeDays !== null) sourced.push(quote.leadTimeDays);
   }
   if (state.quantity) sourced.push(state.quantity.value);

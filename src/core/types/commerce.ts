@@ -19,7 +19,8 @@ export type Product = {
   readonly businessId: BusinessId;
   readonly sku: string;
   readonly name: string;
-  readonly moq: number;
+  /** 0081 — the minimum order she stated, in `unit`; null = no minimum. */
+  readonly moq: number | null;
   readonly unit: string;
   readonly leadTimeDays: number | null;
   readonly customizable: boolean;
@@ -101,7 +102,8 @@ export type Quote = {
   readonly unitPrice: Money;
   readonly discountPct: number;
   readonly total: Money;
-  readonly moq: number;
+  /** 0081 — the product's stated minimum; null = no minimum. */
+  readonly moq: number | null;
   /**
    * null when the product has none — and, since M44, null when a closure the
    * owner stated falls inside the window it would promise. That is the

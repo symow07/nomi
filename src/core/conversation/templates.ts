@@ -43,8 +43,10 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
     case 'quantity_missing':
       return 'How many pieces should I put on the order?';
     case 'quantity_below_moq':
-      return quote
-        ? `The minimum order for this product is ${quote.moq.toLocaleString('en-US')} pieces — would that quantity work for you?`
+      // 0081 — only a product with a stated minimum is ever below it; the
+      // minimum is said in the product's own unit, not in "pieces".
+      return quote && quote.moq !== null
+        ? `The minimum order for this product is ${quote.moq.toLocaleString('en-US')} ${quote.quantity.unit} — would that quantity work for you?`
         : 'The requested quantity is below the minimum order for this product — could you increase it?';
     case 'pending_question_unresolved':
       return 'Just to be sure we are aligned — could you answer my previous question first?';

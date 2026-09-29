@@ -44,7 +44,8 @@ export type CatalogueEntry = {
   readonly price: number | null;
   /** The product's currency; null when the row holds one this product does not know. */
   readonly currency: Currency | null;
-  readonly moq: number;
+  /** 0081 — null: the product has no minimum. */
+  readonly moq: number | null;
   /** Her lowest price for this product, in `currency`, when she has stated one. */
   readonly floor: number | null;
 };
@@ -53,7 +54,7 @@ export type LineChange = {
   readonly line: ExtractedProduct;
   readonly product: CatalogueEntry;
   readonly price: { readonly from: number | null; readonly to: number } | null;
-  readonly moq: { readonly from: number; readonly to: number } | null;
+  readonly moq: { readonly from: number | null; readonly to: number } | null;
 };
 
 /**

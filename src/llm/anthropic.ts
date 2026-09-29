@@ -104,7 +104,8 @@ export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extr
     async analyze({ text, state, candidates, recentMessages }) {
       // RETRIEVAL, NOT THE CATALOG: only the top-k candidates enter the prompt.
       const catalog = candidates
-        .map((c) => `${c.productId}|${c.sku}|${c.name}|${c.category ?? ''}|MOQ:${c.moq}`)
+        // 0081 — a product with no minimum says so; never "MOQ:null".
+        .map((c) => `${c.productId}|${c.sku}|${c.name}|${c.category ?? ''}|${c.moq === null ? 'no minimum' : `MOQ:${c.moq}`}`)
         .join('\n');
       const history = recentMessages
         .map((m) => `[${m.direction === 'inbound' ? 'CLIENT' : 'US'}] ${m.text || '[media]'}`)
@@ -249,7 +250,9 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
           unit_price: quote.unitPrice.amount,
           discount_pct: quote.discountPct,
           total: quote.total.amount,
-          moq: quote.moq,
+          // 0081 — a minimum only where she stated one. Absent is absent: no
+          // key, so nothing for the writer to put a "minimum" sentence around.
+          ...(quote.moq !== null ? { moq: quote.moq } : {}),
           lead_time_days: quote.leadTimeDays,
         },
         // M45 — her sample policy, when she has stated one. Absent is absent:

@@ -18,6 +18,16 @@ import type {
 /** Round to cents. Floating point must never leak into a quoted price. */
 const cents = (n: number): number => Math.round(n * 100) / 100;
 
+/**
+ * 0081 — the quantity to price when the customer named none (a photo with no
+ * caption, a rehearsal probe): the minimum she stated, or where her prices
+ * start when she stated none. Never an invented minimum.
+ */
+export function startingQuantity(product: Pick<Product, 'moq'>, tiers: readonly Pick<PriceTier, 'minQty'>[]): number {
+  if (product.moq !== null) return product.moq;
+  return tiers.length === 0 ? 1 : Math.max(1, Math.min(...tiers.map((t) => t.minQty)));
+}
+
 /** Select the volume tier for a quantity. Tiers are half-open: [minQty, maxQty]. */
 export function selectTier(tiers: readonly PriceTier[], qty: number): PriceTier | null {
   const matches = tiers.filter(
@@ -103,7 +113,8 @@ export function computeQuote(input: {
 }): Result<Quote, QuoteRefusal> {
   const { product, tiers, policy, rules, quantity } = input;
 
-  if (quantity < product.moq) {
+  // 0081 — no minimum stated is no minimum: nothing is below it.
+  if (product.moq !== null && quantity < product.moq) {
     return err({ kind: 'below_moq', moq: product.moq, requested: quantity });
   }
   if (tiers.length === 0) {

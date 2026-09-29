@@ -1396,7 +1396,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
       return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
     }
-    const sheet = await loadExport(deps.db, s.businessId, subject);
+    const sheet = await loadExport(deps.db, s.businessId, subject, localeOf(req));
     await recordExport(deps.db, s.businessId, subject, sheet.rows.length, personOf(s).id);
     const now = new Date();
     return reply

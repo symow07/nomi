@@ -93,7 +93,8 @@ export type CatalogEntry = {
   readonly id: ProductId;
   readonly sku: string;
   readonly name: string;
-  readonly moq: number;
+  /** 0081 — null: no minimum. */
+  readonly moq: number | null;
   readonly unit: string;
   readonly leadTimeDays?: number | null;
   readonly tiers: ReadonlyArray<{ minQty: number; maxQty: number | null; unitPrice: Money }>;
