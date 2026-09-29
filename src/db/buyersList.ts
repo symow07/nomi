@@ -49,6 +49,13 @@ export const DELETION_WAITING = sql<boolean>`exists (select 1 from deletion_asks
   where a.conversation_id = c.id and a.state = 'waiting')`;
 
 /**
+ * 0080 — a customer said yes to an order, and it waits for the owner's tap.
+ * Nothing was confirmed or sent until the owner decides; it leads the list.
+ */
+export const ORDER_WAITING = sql<boolean>`exists (select 1 from order_proposals op
+  where op.conversation_id = c.id and op.state = 'pending')`;
+
+/**
  * A9 — "needs a person", in SQL, so no window can hide one: a pending draft,
  * an `assigned_to` that is not null (the waiting sentinel, or a named person
  * a conversation was handed to under G12), or a deletion request waiting.
@@ -57,7 +64,7 @@ export const DELETION_WAITING = sql<boolean>`exists (select 1 from deletion_asks
  */
 export const NEEDS_OWNER = sql<boolean>`(c.assigned_to is not null
   or exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending')
-  or ${DELETION_WAITING})`;
+  or ${DELETION_WAITING} or ${ORDER_WAITING})`;
 
 /**
  * M22 — holding a message that never reached the buyer, in the last week.
@@ -78,18 +85,20 @@ export const eligibleFor = (filter: BuyersFilter, viewerId?: string): RawBuilder
 
 /**
  * The group, and the place in it. Read with `lm` = the conversation's newest
- * message. 0 asked for deletion · 1 waiting for a person · 2 a reply waiting
- * for review · 3–4 a person here holds it (the buyer wrote last, then the
- * rest) · 5–6 the assistant's (the same split, for a live conversation).
- * `renderInboxList` groups by the same four predicates.
+ * message. 0 an order waiting for the owner's tap (0080) · 1 asked for
+ * deletion · 2 waiting for a person · 3 a reply waiting for review · 4–5 a
+ * person here holds it (the customer wrote last, then the rest) · 6–7 the
+ * assistant's (the same split, for a live conversation). `renderInboxList`
+ * groups by the same predicates.
  */
 const LIST_RANK = sql<number>`(case
-  when ${DELETION_WAITING} then 0
-  when c.assigned_to = ${WAITING_HUMAN_AGENT} then 1
-  when exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending') then 2
-  when c.assigned_to is not null then (case when lm.direction = 'inbound' then 3 else 4 end)
-  when lm.direction = 'inbound' and c.is_active then 5
-  else 6 end)`;
+  when ${ORDER_WAITING} then 0
+  when ${DELETION_WAITING} then 1
+  when c.assigned_to = ${WAITING_HUMAN_AGENT} then 2
+  when exists (select 1 from drafts d where d.conversation_id = c.id and d.status = 'pending') then 3
+  when c.assigned_to is not null then (case when lm.direction = 'inbound' then 4 else 5 end)
+  when lm.direction = 'inbound' and c.is_active then 6
+  else 7 end)`;
 
 /**
  * WHAT A SEARCH READS, and nothing else:
@@ -149,7 +158,8 @@ type ListKey = { readonly rank: number; readonly at: string | null; readonly id:
  */
 const encodeKey = (k: ListKey): string => `${k.rank}_${k.at ?? 'n'}_${k.id}`;
 
-const KEY = /^([0-6])_(n|0|-?[1-9][0-9]{0,17})_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+// The ranks LIST_RANK can give: 0–7 (0080 added the waiting order as 0).
+const KEY = /^([0-7])_(n|0|-?[1-9][0-9]{0,17})_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 /** Exactly the shape `encodeKey` writes, or null — and null reads as the first page. */
 function parseKey(raw: unknown): ListKey | null {

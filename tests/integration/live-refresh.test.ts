@@ -61,7 +61,8 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
     app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload: new URLSearchParams(fields).toString() });
   /** The address a page's script asks, as the browser reads it out of the attribute. */
   const askOf = (html: string): string => {
-    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"><\/div>/.exec(html);
+    // 0080 — the region also carries the orders waiting when it was drawn (liveScript.ts).
+    const m = /<div class="live" role="status" aria-live="polite" data-live="([^"]+)"(?: data-live-orders="\d+" data-live-notify="[^"]+" data-live-notify-door="[^"]+")?><\/div>/.exec(html);
     expect(m, 'the page carries its live region').not.toBeNull();
     return m![1]!.replace(/&amp;/g, '&');
   };
@@ -72,7 +73,10 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   };
   const ask = async (url: string, cookie = owner) => {
     const r = await get(url, cookie, JSON_ACCEPT);
-    return { status: r.statusCode, said: r.json() as { news: boolean; what?: string }, headers: r.headers };
+    // 0080 — every answer also counts the orders waiting (a number, for the browser's notice).
+    const { orders, ...said } = r.json() as { news: boolean; what?: string; orders?: number };
+    if (r.statusCode === 200) expect(typeof orders, url).toBe('number');
+    return { status: r.statusCode, said, headers: r.headers };
   };
   /** A buyer writes: the worker's own recorder, in the business's own transaction. */
   const buyerWrites = async (biz: string, conversationId: string, text: string) => {
@@ -228,7 +232,7 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
 
   it('signed out: the script is told so and stops; a person is sent to sign in', async () => {
     const url = await pageAsk(`/app/inbox/${conv}`);
-    for (const u of [url, '/app/live/buyers?since=1.0123456789abcdef', '/app/live/today?since=0.0.0.0.0']) {
+    for (const u of [url, '/app/live/buyers?since=1.0123456789abcdef', '/app/live/today?since=0.0.0.0.0.0']) {
       const machine = await get(u, '', JSON_ACCEPT);
       expect(machine.statusCode, u).toBe(401);
       expect(machine.json(), u).toEqual({ news: false });
@@ -262,7 +266,8 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   it('Today: its address says nothing, then says the counts changed when a reply starts waiting', async () => {
     const r = await get('/app');
     const url = askOf(r.body);
-    expect(url).toMatch(/^\/app\/live\/today\?since=[0-9]+(\.[0-9]+){4}$/);
+    // Six counts: 0080 added the orders waiting for the owner's tap.
+    expect(url).toMatch(/^\/app\/live\/today\?since=[0-9]+(\.[0-9]+){5}$/);
     expect(r.body).toContain('<a class="deeper live-door" href="/app">');
     expect((await ask(url)).said).toEqual({ news: false });
     await replyWaits(BIZ, second, 'A reply for Omar.');

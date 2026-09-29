@@ -170,7 +170,10 @@ describe('M22 · a refusal can never render as a success', () => {
 
 describe('M22 · Today reports it, with a real count', () => {
   it('leads the attention list — the owner has no other way to find it', () => {
-    expect(ATTENTION_PRIORITY[0]).toBe('blockedMessages');
+    // 0080 — second only to an order a customer said yes to, which nothing
+    // confirms or sends until the owner decides.
+    expect(ATTENTION_PRIORITY[0]).toBe('ordersWaiting');
+    expect(ATTENTION_PRIORITY[1]).toBe('blockedMessages');
   });
 
   it('shows the count and links to the conversations it happened in', () => {

@@ -35,6 +35,7 @@ import type { KnowledgeSnippet } from '../core/types/knowledge.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { issueProofLinkTx } from './proofs.js';
 import { noteDeletionAsk } from './deletionAsks.js';
+import { proposeOrder, pendingProposalOf } from './orderProposals.js';
 
 const ENGINE_VERSION = process.env['ENGINE_VERSION'] ?? 'dev';
 
@@ -357,7 +358,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
 
   // ── orders ─────────────────────────────────────────────────────────────────
   const orders: OrderRepo = {
-    async create(conversationId, order: ConfirmableOrder) {
+    async create(conversationId, order: ConfirmableOrder, actor = 'employee') {
       const conv = await tx.selectFrom('conversations')
         .select(['client_id']).where('id', '=', conversationId)
         .executeTakeFirstOrThrow();
@@ -395,7 +396,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         // order?" fell through to the model the minute after he confirmed.
         await writeOrderState(tx, businessId, row.id, {
           state: 'confirmed', note: null, trackingReference: null,
-          actor: 'employee', at: new Date(),
+          actor, at: new Date(),
         });
 
         return {
@@ -668,10 +669,10 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async create(input) {
       const r = await sql<{ id: string }>`
         insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status,
-                            replaced_by_disclosure)
+                            replaced_by_disclosure, asks)
         values (${businessId}, ${input.conversationId}, ${input.capability},
                 ${input.draftText}, ${input.turnMessageId}, 'pending',
-                ${input.replacedByDisclosure ?? false})
+                ${input.replacedByDisclosure ?? false}, ${input.asks ?? null})
         returning id
       `.execute(tx);
       return { draftId: r.rows[0]!.id };
@@ -726,5 +727,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     issue: (quoteId) => issueProofLinkTx(tx, businessId, quoteId),
   };
 
-  return { businessId, conversations, clients, catalog, orders, samples, deletionAsks, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
+  // 0080 — the order a customer said yes to, waiting for the owner (db/orderProposals.ts).
+  const orderProposals: import('./ports.js').OrderProposalRepo = {
+    propose: (input) => proposeOrder(tx, businessId, input),
+    waiting: async (conversationId) => (await pendingProposalOf(tx, conversationId)) !== null,
+  };
+
+  return { businessId, conversations, clients, catalog, orders, samples, deletionAsks, orderProposals, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
 }

@@ -26,6 +26,10 @@ import type { MessageKey } from './i18n/messages.js';
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'account.flash.failed', 'account.flash.short', 'account.flash.wrong', 'allowlist.flash.invalid',
+  // 0080 — the order still waits, or was already decided; and like
+  // `inbox.flash.sentNotLive`, recorded but nothing sent.
+  'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
+  'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // CC-02a — a buyer's deletion request that was not recorded.
@@ -75,6 +79,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  'order.flash.confirmed', 'order.flash.set_aside',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',
   'assistants.flash.archived', 'assistants.flash.saved', 'autonomy.flash.saved', 'channel.flash.connected',

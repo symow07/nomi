@@ -181,6 +181,9 @@ export const RULES = Object.freeze({
   // message itself and when. It was the reminder; the request above is what
   // stays as the record that they asked.
   deletion_asks: { do: 'erase' },
+  // 0080 — what they said yes to, before the owner decided: their e-mail and
+  // the order they asked for. The order it became (if any) is what stays.
+  order_proposals: { do: 'erase' },
 
   // ── Records that can quote them with no key at all (see textLinks) ────────
   channel_events: {

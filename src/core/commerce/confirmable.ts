@@ -3,6 +3,8 @@ import { ownershipOf, aiMaySpeak } from '../conversation/ownership.js';
 import { scaleMoney, subMoney } from '../types/money.js';
 import type { BlockingReason, ConfirmableOrder, Product, Quote } from '../types/commerce.js';
 import type { ConversationState } from '../types/conversation.js';
+import { parseEmail, parseProductId } from '../types/ids.js';
+import type { Money } from '../types/money.js';
 import { PROBLEM_HANDOFF_THRESHOLD } from '../scoring/signals.js';
 
 const CENT = 0.01;
@@ -102,5 +104,53 @@ export function toConfirmableOrder(input: {
     email,
     paymentTerms,
     incoterm,
+  } as ConfirmableOrder);
+}
+
+/**
+ * 0080 — THE OWNER'S TAP ON A PROPOSAL.
+ *
+ * The customer's "yes" passed every rule above at the moment they said it, and
+ * what they said yes to was written down as a proposal. The owner's tap turns
+ * that proposal — exactly that one, not the conversation as it stands now —
+ * into an order. The rules about the conversation (who holds it, a question
+ * left hanging, the problem score) belonged to the moment of the "yes"; a
+ * person is deciding now, and a conversation the owner stepped into is still
+ * one they may confirm.
+ *
+ * What is checked again is what an order may never lack: a product, a
+ * quantity, a price, arithmetic that holds, and an e-mail. Here, in this file,
+ * because this module stays the only way to obtain a `ConfirmableOrder`.
+ */
+export function confirmableFromProposal(p: {
+  readonly productId: string;
+  readonly quantity: number;
+  readonly unit: string;
+  readonly unitPrice: Money;
+  readonly total: Money;
+  readonly email: string;
+  readonly paymentTerms: string | null;
+  readonly incoterm: string | null;
+}): Result<ConfirmableOrder, BlockingReason[]> {
+  const reasons: BlockingReason[] = [];
+  const productId = parseProductId(p.productId);
+  if (!productId.ok) reasons.push('missing_product');
+  if (!(p.quantity > 0)) reasons.push('quantity_missing');
+  if (!(p.unitPrice.amount > 0)) reasons.push('price_missing');
+  if (p.unitPrice.currency !== p.total.currency
+    || Math.abs(subMoney(p.total, scaleMoney(p.unitPrice, p.quantity)).amount) > CENT) {
+    reasons.push('total_mismatch');
+  }
+  const email = parseEmail(p.email);
+  if (!email.ok) reasons.push('email_missing');
+  if (reasons.length > 0 || !productId.ok || !email.ok) return err(reasons);
+  return ok({
+    productId: productId.value,
+    quantity: { value: p.quantity, unit: p.unit },
+    unitPrice: p.unitPrice,
+    total: p.total,
+    email: email.value,
+    paymentTerms: p.paymentTerms,
+    incoterm: p.incoterm,
   } as ConfirmableOrder);
 }

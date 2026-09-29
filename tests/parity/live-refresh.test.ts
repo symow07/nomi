@@ -264,8 +264,8 @@ describe('CC-26 · is there news? — the one comparison', () => {
     expect(liveNews('buyers', '5.0123456789abcdef', '4.0123456789abcdef')).toEqual({ news: true, what: 'list' });
     expect(liveNews('today', '1.0.0.0.0', '1.0.0.0.0')).toEqual({ news: false });
     expect(liveNews('today', '1.0.0.0.0', '0.0.0.0.0')).toEqual({ news: true, what: 'today' });
-    expect(todayMark({ pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 3, deletionAsks: 1 })).toBe('2.1.0.3.1');
-    expect(todayMark({ pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 3 })).toBe('2.1.0.3.0');
+    expect(todayMark({ pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 3, deletionAsks: 1, ordersWaiting: 2 })).toBe('2.1.0.3.1.2');
+    expect(todayMark({ pendingApprovals: 2, handoffs: 1, ownerHandling: 0, blockedMessages: 3 })).toBe('2.1.0.3.0.0');
   });
 
   it('a mark is only what a page could carry — anything else is refused, never guessed at', () => {
@@ -276,8 +276,9 @@ describe('CC-26 · is there news? — the one comparison', () => {
     }
     expect(isMark('buyers', '0.d41d8cd98f00b204')).toBe(true);
     for (const bad of ['0.d41d8cd98f00b20', '0.d41d8cd98f00b2045', '0.D41D8CD98F00B204', 'x.d41d8cd98f00b204']) expect(isMark('buyers', bad), bad).toBe(false);
-    expect(isMark('today', '0.0.0.0.0')).toBe(true);
-    for (const bad of ['0.0.0.0', '0.0.0.0.0.0', '0.0.0.0.a', '1e3.0.0.0.0']) expect(isMark('today', bad), bad).toBe(false);
+    // 0080 — six counts: the orders waiting for the owner's tap are the sixth.
+    expect(isMark('today', '0.0.0.0.0.0')).toBe(true);
+    for (const bad of ['0.0.0.0.0', '0.0.0.0.0.0.0', '0.0.0.0.0.a', '1e3.0.0.0.0.0']) expect(isMark('today', bad), bad).toBe(false);
   });
 });
 

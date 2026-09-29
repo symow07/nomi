@@ -5,6 +5,7 @@ import type { BusinessId } from '../core/types/ids.js';
 import { ensureSpotChecks } from './spotChecks.js';
 import { assistantHold } from '../db/assistantStop.js';
 import { keepDraftEdit } from '../db/ownerWords.js';
+import type { PendingQuestion } from '../core/types/conversation.js';
 
 /**
  * M9.3 (Option B) — the ONE draft-resolution service. Completes the trust
@@ -48,8 +49,12 @@ export type ApplyResult = {
 export type ApplyDeps = {
   readonly db: Db;
   readonly now: () => Date;
-  /** Existing outbound path (main.ts: boss.send(QUEUES.outbound, …)). */
-  readonly kickOutbound: (businessId: string, conversationId: string, reply: string) => Promise<void>;
+  /**
+   * Existing outbound path (main.ts: boss.send(QUEUES.outbound, …)).
+   * 0080 — `asks`: the question the draft asks, carried to the message so the
+   * conversation's pending question is set when it actually leaves.
+   */
+  readonly kickOutbound: (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void>;
 };
 
 export async function applyOwnerCommand(
@@ -67,15 +72,15 @@ export async function applyOwnerCommand(
   // `draft_resolved` event payload and `capability_events.actor`.
 
   const result = await withTenantTx(deps.db, input.businessId, async (tx): Promise<{
-    outcome: ApplyOutcome; conversationId: string | null; sendText: string | null;
+    outcome: ApplyOutcome; conversationId: string | null; sendText: string | null; asks?: PendingQuestion | null;
   }> => {
     // FOR UPDATE + status='pending' is the idempotency guard: a second submit
     // finds it no longer pending and does nothing.
     const dr = await sql<{
       id: string; conversation_id: string; status: string; capability: string; draft_text: string;
-      replaced_by_disclosure: boolean;
+      replaced_by_disclosure: boolean; asks: PendingQuestion | null;
     }>`
-      select id, conversation_id, status, capability, draft_text, replaced_by_disclosure
+      select id, conversation_id, status, capability, draft_text, replaced_by_disclosure, asks
         from drafts where id = ${input.draftId} for update
     `.execute(tx);
     const draft = dr.rows[0];
@@ -144,9 +149,12 @@ export async function applyOwnerCommand(
         // seed and no capability in a real tenant could ever be promoted.
         // Capped at three a week and silent — nothing is pushed to the owner.
         await ensureSpotChecks(tx, input.businessId);
-        return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text };
+        // 0080 — sent as written, it asks what the draft asked.
+        return { outcome: 'sent', conversationId: draft.conversation_id, sendText: draft.draft_text, asks: draft.asks };
       case 'edit':
         // sent_text ≠ draft_text is exactly what the training_examples view reads.
+        // 0080 — the owner's words ask whatever they ask, which Nomi cannot
+        // know: an edit carries no pending question.
         await resolve('edited', cmd.text);
         await ensureSpotChecks(tx, input.businessId);
         return { outcome: 'edited_sent', conversationId: draft.conversation_id, sendText: cmd.text };
@@ -175,7 +183,7 @@ export async function applyOwnerCommand(
 
   // Send AFTER commit, through the existing worker path. Only approve/edit send.
   if (result.sendText && result.conversationId) {
-    await deps.kickOutbound(input.businessId, result.conversationId, result.sendText);
+    await deps.kickOutbound(input.businessId, result.conversationId, result.sendText, result.asks ?? null);
   }
 
   return { outcome: result.outcome, conversationId: result.conversationId, messageZh: messageFor(result.outcome) };

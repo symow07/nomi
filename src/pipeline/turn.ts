@@ -7,7 +7,7 @@ import type { Retriever, RetrievedProduct } from '../retrieval/ports.js';
 import type { Analyzer, ReplyWriter } from '../llm/ports.js';
 import type { ConversationId, Email } from '../core/types/ids.js';
 import { extractEmail } from '../core/types/ids.js';
-import type { ConversationState } from '../core/types/conversation.js';
+import type { ConversationState, PendingQuestion } from '../core/types/conversation.js';
 import type { Product, Quote, QuoteRefusal } from '../core/types/commerce.js';
 import { decideTurn, type Analysis, type TurnDecision } from '../core/conversation/decide.js';
 import { capabilityOf, resolveMode } from '../core/conversation/autonomy.js';
@@ -37,7 +37,6 @@ import {
   SAFE_REPLY,
   HANDOFF_REPLY,
   orderBlockedReply,
-  orderConfirmedReply,
   quoteRefusalContext,
 } from '../core/conversation/templates.js';
 
@@ -184,6 +183,13 @@ export type TurnResult = {
    * all read THIS rather than re-deriving it (core/conversation/hold.ts).
    */
   hold: HoldReason | null;
+  /**
+   * 0080 — the question this turn's reply asks the customer ("shall I
+   * confirm?"), or null. It travels WITH the reply — on the draft, and on the
+   * outbound message — and becomes the conversation's pending question only
+   * when the message actually leaves. A reply nobody sent asked nothing.
+   */
+  asks: PendingQuestion | null;
   /**
    * 0075 — the words of a reply that promised the buyer a deletion, which was
    * therefore thrown away and never sent (layer 2, core/safety/deletion.ts).
@@ -352,6 +358,13 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   }
 
   // ── New state (what commitTurn will persist). ──────────────────────────────
+  //
+  // 0080 — THE PENDING QUESTION IS WHAT THE CUSTOMER WAS ACTUALLY ASKED. A
+  // question this turn's reply asks is not pending yet: the reply may be a
+  // draft the owner never sends. It travels with the reply (`asks`) and is set
+  // when the message leaves (the send path). What this turn keeps is only a
+  // question already asked that is still the one being asked; anything else
+  // it clears, because the customer has written since.
   const stateAfter = (d: TurnDecision): ConversationState => ({
     ...state,
     phase: d.nextPhase,
@@ -360,7 +373,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     product: d.product,
     quantity: d.quantity,
     contact: { email: d.email },
-    pendingQuestion: d.pendingQuestion,
+    pendingQuestion: d.pendingQuestion !== null && d.pendingQuestion === state.pendingQuestion
+      ? state.pendingQuestion : null,
     assignedTo:
       d.action.kind === 'handoff' && !d.action.notifyOnly
         ? (UNCLAIMED_AGENT as ConversationState['assignedTo'])
@@ -739,6 +753,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const hold = holdReasonOf({
     provenance: req.provenance ?? 'typed', quote, turnText: req.text, guardsFailedTwice,
     identity: identityViolation?.kind ?? null,
+    // 0080 — an order this customer said yes to waits for the owner.
+    orderWaiting: await tenant.orderProposals.waiting(req.conversationId),
   });
 
   timings.totalMs = Date.now() - t0;
@@ -759,6 +775,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     forbiddenInHerText,
     sampleRequested,
     hold,
+    asks: reply !== null ? decision.pendingQuestion : null,
     deletionPromiseWithheld,
     deletionAsked: textOnlySignals.some((s) => s.kind === 'deletion_requested') || deletionPromiseWithheld !== null,
     timings, usage,
@@ -768,8 +785,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
 
 /** Everything commitTurn causes beyond the database, for the caller to enqueue. */
 export type TurnEffects = {
-  /** Present only when the reply may auto-send (capability in auto mode). */
-  outbound: { conversationId: ConversationId; reply: string } | null;
+  /**
+   * Present only when the reply may auto-send (capability in auto mode).
+   * 0080 — `asks`: the question it asks, set as the conversation's pending
+   * question by the send path when the message leaves, not before.
+   */
+  outbound: { conversationId: ConversationId; reply: string; asks?: PendingQuestion | null } | null;
   /** Present when the reply needs owner approval (capability in draft mode):
    * a pending draft was persisted; the owner resolves it via applyOwnerCommand. */
   draftCreated: { conversationId: ConversationId; draftId: string } | null;
@@ -781,7 +802,12 @@ export type TurnEffects = {
    * alert. Absent on effects that predate it: false.
    */
   deletionAlert?: boolean;
-  orderCreated: { orderId: string; orderReference: string } | null;
+  /**
+   * 0080 — the customer said yes to an order, and it now waits for the owner's
+   * tap: nothing was confirmed and nothing was sent. The owner is told by
+   * e-mail as well as WhatsApp (notify.ts). A turn never creates an order.
+   */
+  orderProposed: { proposalId: string; fresh: boolean } | null;
 };
 
 /** The product's single timezone (M1). Night-shift windows resolve against it. */
@@ -794,11 +820,20 @@ export async function commitTurn(
   startedAt: number,
 ): Promise<TurnEffects> {
   const { tenant } = ports;
-  let orderCreated: TurnEffects['orderCreated'] = null;
+  let orderProposed: TurnEffects['orderProposed'] = null;
   let reply = r.reply;
 
-  // Order creation — only through the branded ConfirmableOrder, idempotent at
-  // the database (ADR-0004).
+  /*
+   * 0080 — THE CUSTOMER'S "YES" IS A PROPOSAL, NEVER AN ORDER.
+   *
+   * It was: a bare "yes" created the order, closed the conversation and sent
+   * "Your order is confirmed" in every mode, drafts included, with no owner
+   * step. Now what they said yes to is written down, and waits for the
+   * owner's tap (pipeline/orderProposal.ts). Nothing is confirmed, nothing is
+   * sent, the conversation stays open, and the owner is alerted. Every mode
+   * alike: the order is the owner's decision however much the assistant may
+   * say alone. Only through the branded ConfirmableOrder, as the order itself.
+   */
   if (r.decision.action.kind === 'confirm_order' && r.reply === null) {
     const product = r.decision.product
       ? await tenant.catalog.product(r.decision.product.productId)
@@ -810,20 +845,13 @@ export async function commitTurn(
       incoterm: terms?.incoterm ?? null,
     });
     if (confirmable.ok && product) {
-      const created = await tenant.orders.create(req.conversationId, confirmable.value);
-      orderCreated = created;
-      reply = orderConfirmedReply({
-        orderReference: created.orderReference,
-        productName: product.name,
-        quantity: confirmable.value.quantity.value,
-        unit: confirmable.value.quantity.unit,
+      const proposed = await tenant.orderProposals.propose({
+        conversationId: req.conversationId, messageId: req.messageId, order: confirmable.value,
       });
-      await tenant.events.append(req.conversationId, 'order_created', {
-        orderId: created.orderId, alreadyExisted: created.alreadyExisted,
+      orderProposed = proposed;
+      await tenant.events.append(req.conversationId, 'order_proposed', {
+        proposalId: proposed.proposalId, fresh: proposed.fresh,
       });
-      if (!created.alreadyExisted) {
-        await tenant.conversations.close(req.conversationId);
-      }
     }
   }
 
@@ -971,216 +999,212 @@ export async function commitTurn(
   // A reply auto-sends only when its capability is in auto mode right now
   // (resolveMode: confirm_order is always draft, night windows honoured). In
   // draft mode we persist a pending draft instead — the owner resolves it via
-  // applyOwnerCommand. Order confirmations always send (the owner already
-  // tapped confirm by creating the order).
+  // applyOwnerCommand. 0080: there is no exception any more. The order
+  // confirmation is sent by the owner's tap on a proposal, never by a turn.
   let outbound: TurnEffects['outbound'] = null;
   let draftCreated: TurnEffects['draftCreated'] = null;
   if (reply) {
-    const isOrderConfirmation = orderCreated !== null;
-    if (isOrderConfirmation) {
-      outbound = { conversationId: req.conversationId, reply };
-    } else {
-      const capability = capabilityOf(r.decision, r.quote !== null);
-      const grants = await tenant.autonomy.grants();
-      const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
-      // G7a — her hold rules (a quantity she HEARD, M34.5; a discount past her
-      // ask-first line) do not auto-send however her autonomy is set. This
-      // never widens permission: auto becomes draft, draft stays draft.
-      // M34.6 — ops kill switches, applied last because they must win. Only
-      // `forceDraft`/`silenceCapability` are resolved here; `globalSilence` is
-      // enforced at the SEND gate, where it also catches replies queued before
-      // the switch was thrown. `effectiveMode` is monotone by construction, so
-      // this rung, like the one above it, can only ever remove authority.
-      /*
-       * THE SENTENCE SHE WOULD SAY, IF SHE IS ABOUT TO SPEAK ALONE.
-       *
-       * Composed BEFORE the mode is settled, because whether it can be composed
-       * at all is one of the things that decides the mode. Null when there is
-       * no assistant name or no business name to put in it.
-       *
-       * One extra lookup per auto turn. Nothing at all on the turns that draft:
-       * a draft is read by a person, and a person needs no disclosure.
-       */
-      const disclosureText = async (): Promise<string | null> => {
-        const who = await tenant.conversations.speaker(req.conversationId);
-        return disclosureFor({
-          detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
-          name: who?.name ?? null,
-          business: who?.business.name ?? null,
-        });
-      };
+    const capability = capabilityOf(r.decision, r.quote !== null);
+    const grants = await tenant.autonomy.grants();
+    const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
+    // G7a — her hold rules (a quantity she HEARD, M34.5; a discount past her
+    // ask-first line) do not auto-send however her autonomy is set. This
+    // never widens permission: auto becomes draft, draft stays draft.
+    // M34.6 — ops kill switches, applied last because they must win. Only
+    // `forceDraft`/`silenceCapability` are resolved here; `globalSilence` is
+    // enforced at the SEND gate, where it also catches replies queued before
+    // the switch was thrown. `effectiveMode` is monotone by construction, so
+    // this rung, like the one above it, can only ever remove authority.
+    /*
+     * THE SENTENCE SHE WOULD SAY, IF SHE IS ABOUT TO SPEAK ALONE.
+     *
+     * Composed BEFORE the mode is settled, because whether it can be composed
+     * at all is one of the things that decides the mode. Null when there is
+     * no assistant name or no business name to put in it.
+     *
+     * One extra lookup per auto turn. Nothing at all on the turns that draft:
+     * a draft is read by a person, and a person needs no disclosure.
+     */
+    const disclosureText = async (): Promise<string | null> => {
+      const who = await tenant.conversations.speaker(req.conversationId);
+      return disclosureFor({
+        detected: r.analysis?.language.detected ?? r.newState.preferredLanguage,
+        name: who?.name ?? null,
+        business: who?.business.name ?? null,
+      });
+    };
 
-      /*
-       * SHE MAY NOT SPEAK ALONE UNTIL SHE CAN SAY WHAT SHE IS.
-       *
-       * The gap this closes is a real fleet's, not a hypothetical: every
-       * workspace activated BEFORE Getting ready asked for the name is live
-       * today with no confirmation on file. Without this rung, autonomy on such
-       * a workspace sends messages that skip the disclosure silently — the rule
-       * quietly not applying to exactly the accounts that predate it, which is
-       * the worst way for a safety rule to fail.
-       *
-       * Two conditions, and both are about the same sentence:
-       *   · the owner has CONFIRMED the name (0065), because it is a name a
-       *     buyer reads and she should not meet it in a transcript; and
-       *   · there is actually a name and a business name to say.
-       *
-       * The consequence is a fall back to draft, never a silence: she keeps
-       * working, the owner reads each reply, and the autonomy page says why.
-       * Monotone like the rungs around it — this can only ever remove
-       * authority, never grant it.
-       */
-      const speaksAlone = policyMode === 'auto';
-      // The native-review gate, at the one place that decides whether a
-      // message goes out alone — so it binds capabilities switched on BEFORE
-      // the rule existed, not only new choices made on the owner's page.
-      const released = !speaksAlone || tenant.autonomy.released();
-      const sentence = speaksAlone && released ? await disclosureText() : null;
-      const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-      const mayDisclose = !speaksAlone || (released && named && sentence !== null);
+    /*
+     * SHE MAY NOT SPEAK ALONE UNTIL SHE CAN SAY WHAT SHE IS.
+     *
+     * The gap this closes is a real fleet's, not a hypothetical: every
+     * workspace activated BEFORE Getting ready asked for the name is live
+     * today with no confirmation on file. Without this rung, autonomy on such
+     * a workspace sends messages that skip the disclosure silently — the rule
+     * quietly not applying to exactly the accounts that predate it, which is
+     * the worst way for a safety rule to fail.
+     *
+     * Two conditions, and both are about the same sentence:
+     *   · the owner has CONFIRMED the name (0065), because it is a name a
+     *     buyer reads and she should not meet it in a transcript; and
+     *   · there is actually a name and a business name to say.
+     *
+     * The consequence is a fall back to draft, never a silence: she keeps
+     * working, the owner reads each reply, and the autonomy page says why.
+     * Monotone like the rungs around it — this can only ever remove
+     * authority, never grant it.
+     */
+    const speaksAlone = policyMode === 'auto';
+    // The native-review gate, at the one place that decides whether a
+    // message goes out alone — so it binds capabilities switched on BEFORE
+    // the rule existed, not only new choices made on the owner's page.
+    const released = !speaksAlone || tenant.autonomy.released();
+    const sentence = speaksAlone && released ? await disclosureText() : null;
+    const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
+    const mayDisclose = !speaksAlone || (released && named && sentence !== null);
 
-      const mode = effectiveMode(
-        (r.hold || !mayDisclose) ? 'draft' : policyMode,
-        capability, await tenant.ops.switches(),
-      );
-      if (speaksAlone && !mayDisclose) {
-        // Recorded, because a capability that silently stopped acting as the
-        // owner set it is the kind of thing she should be able to find.
-        await tenant.events.append(req.conversationId, 'autonomy_withheld', {
+    const mode = effectiveMode(
+      (r.hold || !mayDisclose) ? 'draft' : policyMode,
+      capability, await tenant.ops.switches(),
+    );
+    if (speaksAlone && !mayDisclose) {
+      // Recorded, because a capability that silently stopped acting as the
+      // owner set it is the kind of thing she should be able to find.
+      await tenant.events.append(req.conversationId, 'autonomy_withheld', {
+        capability,
+        reason: !released ? 'disclosure_not_reviewed' : named ? 'no_assistant_name' : 'assistant_not_named',
+      });
+    }
+
+    const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
+      // In this turn's transaction, like the draft beside it. The send is
+      // queued after the commit, so a queue that never accepts it leaves this
+      // conversation marked as told — the same optimism the draft path has
+      // always had, and the same remedy: the owner can see it on the timeline.
+      //
+      // The COLUMN means "when this conversation was first told" and is not
+      // moved by a later telling; the EVENT records each one, with its reason.
+      if (r.newState.aiDisclosedAt === null) {
+        await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
+      }
+      await tenant.events.append(req.conversationId, 'ai_disclosed', { reason: why });
+    };
+
+    // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
+    //
+    // guardNumerals or guardClaims refused her draft, and the capability that
+    // produced it is in auto: nobody was going to see this. TRUST-PLAYBOOK
+    // describes exactly this case — the capability drops to draft and she says
+    // so — and until now nothing implemented it.
+    //
+    // The violation is recorded whatever the mode (it is evidence either way),
+    // but the demotion only fires from auto: `autoDemote` refuses to act on a
+    // capability already at the floor.
+    if (r.guardViolations > 0) {
+      await tenant.events.append(req.conversationId, 'guard_violation', {
+        capability, count: r.guardViolations,
+        // M37.5 — name the words. A refusal the owner cannot act on is a
+        // complaint; naming the term tells her whether it was her own rule or
+        // the floor, and lets her fix her list if it was hers.
+        ...(r.forbiddenHits.length
+          ? { forbidden: r.forbiddenHits.map((t) => ({ term: t.term, source: t.source })) }
+          : {}),
+      });
+      if (policyMode === 'auto') {
+        await tenant.autonomy.selfDemote({
           capability,
-          reason: !released ? 'disclosure_not_reviewed' : named ? 'no_assistant_name' : 'assistant_not_named',
+          conversationId: req.conversationId,
+          violations: r.guardViolations,
         });
       }
+    }
 
-      const recordDisclosure = async (why: 'first_auto_send' | 'identity_question') => {
-        // In this turn's transaction, like the draft beside it. The send is
-        // queued after the commit, so a queue that never accepts it leaves this
-        // conversation marked as told — the same optimism the draft path has
-        // always had, and the same remedy: the owner can see it on the timeline.
-        //
-        // The COLUMN means "when this conversation was first told" and is not
-        // moved by a later telling; the EVENT records each one, with its reason.
-        if (r.newState.aiDisclosedAt === null) {
-          await tenant.conversations.markAiDisclosed(req.conversationId, ports.now());
-        }
-        await tenant.events.append(req.conversationId, 'ai_disclosed', { reason: why });
-      };
+    if (mode === 'silent') {
+      // The capability is switched off. She writes nothing and drafts
+      // nothing — but the refusal is RECORDED, because a buyer who hears
+      // nothing beside an owner who is told nothing is the silent failure
+      // this product treats as a defect. The message itself is already
+      // persisted and the conversation is still there to be answered by hand.
+      await tenant.events.append(req.conversationId, 'send_suppressed', {
+        capability, reason: 'ops_kill_switch',
+      });
+    } else if (mode === 'auto') {
+      // Once per conversation: the first message nobody approved carries it,
+      // and the ones after it do not. "Once" is counted by what REACHED the
+      // buyer (0079): until a message carrying it has been accepted by the
+      // provider, every reply sent alone carries it. One that was refused
+      // (Stop, a hand-over, the allowlist) or failed told him nothing; one
+      // still queued may yet fail — and a reply that overtook it would have
+      // gone out alone. So two replies queued before either leaves both say
+      // it: read twice, rarely, rather than not at all.
+      const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
+      outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks };
+      if (say) await recordDisclosure('first_auto_send');
+    } else {
+      /*
+       * Decided BEFORE the draft is written, because the draft has to carry
+       * it: a reply the disclosure replaced may not be sent as it stands, and
+       * the approval path reads that from the row.
+       */
+      const disclosureInstead = policyMode === 'auto'
+        && r.identityViolation?.kind === 'identity_question_unanswered'
+        && sentence !== null;
 
-      // M34.9 — A GUARD FIRED WHILE SHE WAS UNSUPERVISED.
-      //
-      // guardNumerals or guardClaims refused her draft, and the capability that
-      // produced it is in auto: nobody was going to see this. TRUST-PLAYBOOK
-      // describes exactly this case — the capability drops to draft and she says
-      // so — and until now nothing implemented it.
-      //
-      // The violation is recorded whatever the mode (it is evidence either way),
-      // but the demotion only fires from auto: `autoDemote` refuses to act on a
-      // capability already at the floor.
-      if (r.guardViolations > 0) {
-        await tenant.events.append(req.conversationId, 'guard_violation', {
-          capability, count: r.guardViolations,
-          // M37.5 — name the words. A refusal the owner cannot act on is a
-          // complaint; naming the term tells her whether it was her own rule or
-          // the floor, and lets her fix her list if it was hers.
-          ...(r.forbiddenHits.length
-            ? { forbidden: r.forbiddenHits.map((t) => ({ term: t.term, source: t.source })) }
-            : {}),
-        });
-        if (policyMode === 'auto') {
-          await tenant.autonomy.selfDemote({
-            capability,
-            conversationId: req.conversationId,
-            violations: r.guardViolations,
-          });
-        }
-      }
+      const d = await tenant.drafts.create({
+        conversationId: req.conversationId, capability,
+        draftText: reply, turnMessageId: req.messageId,
+        ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
+        asks: r.asks,
+      });
+      draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
+      await tenant.events.append(req.conversationId, 'draft_pending', {
+        draftId: d.draftId, capability,
+        // The audit trail says WHY this one waited, so a draft the owner did
+        // not ask for is explicable rather than mysterious.
+        // G7a — and the inbox reads it back, so the card says why too.
+        ...(r.hold ? { heldBecause: r.hold } : {}),
+        // G7b — both prices and both dates, whichever reason is named: a
+        // price above what he was told is on her card beside the new one.
+        ...(r.quote?.contradicts ? { contradicts: r.quote.contradicts } : {}),
+        // G8 — and when she could not write it, WHICH of the owner's words
+        // kept stopping her. The card names them (M37.5's promise).
+        ...(r.hold === 'guards_failed_twice' && r.forbiddenHits.length
+          ? { forbidden: r.forbiddenHits.map((x) => x.term) } : {}),
+        // …and when what kept stopping her was the identity guard: a claim
+        // to be human, or a buyer's direct question she did not answer. The
+        // owner should know this happened; it is not an ordinary retry.
+        ...(r.identityViolation
+          ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
+        ...(disclosureInstead ? { disclosureSent: true } : {}),
+      });
 
-      if (mode === 'silent') {
-        // The capability is switched off. She writes nothing and drafts
-        // nothing — but the refusal is RECORDED, because a buyer who hears
-        // nothing beside an owner who is told nothing is the silent failure
-        // this product treats as a defect. The message itself is already
-        // persisted and the conversation is still there to be answered by hand.
-        await tenant.events.append(req.conversationId, 'send_suppressed', {
-          capability, reason: 'ops_kill_switch',
-        });
-      } else if (mode === 'auto') {
-        // Once per conversation: the first message nobody approved carries it,
-        // and the ones after it do not. "Once" is counted by what REACHED the
-        // buyer (0079): until a message carrying it has been accepted by the
-        // provider, every reply sent alone carries it. One that was refused
-        // (Stop, a hand-over, the allowlist) or failed told him nothing; one
-        // still queued may yet fail — and a reply that overtook it would have
-        // gone out alone. So two replies queued before either leaves both say
-        // it: read twice, rarely, rather than not at all.
-        const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
-        outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply };
-        if (say) await recordDisclosure('first_auto_send');
-      } else {
-        /*
-         * Decided BEFORE the draft is written, because the draft has to carry
-         * it: a reply the disclosure replaced may not be sent as it stands, and
-         * the approval path reads that from the row.
-         */
-        const disclosureInstead = policyMode === 'auto'
-          && r.identityViolation?.kind === 'identity_question_unanswered'
-          && sentence !== null;
-
-        const d = await tenant.drafts.create({
-          conversationId: req.conversationId, capability,
-          draftText: reply, turnMessageId: req.messageId,
-          ...(disclosureInstead ? { replacedByDisclosure: true } : {}),
-        });
-        draftCreated = { conversationId: req.conversationId, draftId: d.draftId };
-        await tenant.events.append(req.conversationId, 'draft_pending', {
-          draftId: d.draftId, capability,
-          // The audit trail says WHY this one waited, so a draft the owner did
-          // not ask for is explicable rather than mysterious.
-          // G7a — and the inbox reads it back, so the card says why too.
-          ...(r.hold ? { heldBecause: r.hold } : {}),
-          // G7b — both prices and both dates, whichever reason is named: a
-          // price above what he was told is on her card beside the new one.
-          ...(r.quote?.contradicts ? { contradicts: r.quote.contradicts } : {}),
-          // G8 — and when she could not write it, WHICH of the owner's words
-          // kept stopping her. The card names them (M37.5's promise).
-          ...(r.hold === 'guards_failed_twice' && r.forbiddenHits.length
-            ? { forbidden: r.forbiddenHits.map((x) => x.term) } : {}),
-          // …and when what kept stopping her was the identity guard: a claim
-          // to be human, or a buyer's direct question she did not answer. The
-          // owner should know this happened; it is not an ordinary retry.
-          ...(r.identityViolation
-            ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
-          ...(disclosureInstead ? { disclosureSent: true } : {}),
-        });
-
-        /*
-         * A BUYER WHO ASKED WHAT HE IS TALKING TO IS NOT LEFT IN SILENCE.
-         *
-         * He asked; she failed twice to say; the turn is held. In DRAFT that is
-         * the whole answer — nothing was ever going out without the owner, and
-         * she will reply herself. But in AUTO the buyer was going to get a
-         * message, and the guard turning that into nothing at all is the one
-         * outcome worse than a clumsy answer: a direct question met with
-         * silence, from something that had been answering all along.
-         *
-         * So the disclosure goes out instead — the sentence he was owed — and
-         * the draft above still holds the turn for her, with the reason on it.
-         * Both things are true: he has been told, and she has been told to look.
-         *
-         * ONLY the unanswered question. A reply that CLAIMED to be human sends
-         * nothing, ever, in any mode: there is no version of that turn a buyer
-         * should receive, and the disclosure would be answering a question he
-         * did not ask.
-         *
-         * NOT "once" HERE, and that is the point. The once-per-conversation
-         * rule is about not repeating an announcement nobody asked for. This
-         * buyer ASKED — now — and a sentence he was sent four messages ago is
-         * not an answer to a question he is asking today. He gets it again.
-         */
-        if (mode === 'draft' && disclosureInstead) {
-          outbound = { conversationId: req.conversationId, reply: sentence };
-          await recordDisclosure('identity_question');
-        }
+      /*
+       * A BUYER WHO ASKED WHAT HE IS TALKING TO IS NOT LEFT IN SILENCE.
+       *
+       * He asked; she failed twice to say; the turn is held. In DRAFT that is
+       * the whole answer — nothing was ever going out without the owner, and
+       * she will reply herself. But in AUTO the buyer was going to get a
+       * message, and the guard turning that into nothing at all is the one
+       * outcome worse than a clumsy answer: a direct question met with
+       * silence, from something that had been answering all along.
+       *
+       * So the disclosure goes out instead — the sentence he was owed — and
+       * the draft above still holds the turn for her, with the reason on it.
+       * Both things are true: he has been told, and she has been told to look.
+       *
+       * ONLY the unanswered question. A reply that CLAIMED to be human sends
+       * nothing, ever, in any mode: there is no version of that turn a buyer
+       * should receive, and the disclosure would be answering a question he
+       * did not ask.
+       *
+       * NOT "once" HERE, and that is the point. The once-per-conversation
+       * rule is about not repeating an announcement nobody asked for. This
+       * buyer ASKED — now — and a sentence he was sent four messages ago is
+       * not an answer to a question he is asking today. He gets it again.
+       */
+      if (mode === 'draft' && disclosureInstead) {
+        outbound = { conversationId: req.conversationId, reply: sentence };
+        await recordDisclosure('identity_question');
       }
     }
   }
@@ -1191,6 +1215,6 @@ export async function commitTurn(
     hotLeadAlert: r.decision.hotLead,
     handoffAlert: r.decision.action.kind === 'handoff',
     deletionAlert,
-    orderCreated,
+    orderProposed,
   };
 }

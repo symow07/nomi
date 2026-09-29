@@ -10,6 +10,7 @@ import type { Locale } from '../core/owner/i18n/locale.js';
 import type { ChannelAdapter } from '../channels/contract.js';
 import { redactSecrets } from '../security/credentials.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
+import type { PendingQuestion } from '../core/types/conversation.js';
 
 /**
  * M3 — The outbound drive loop for ONE conversation. Ports in, effects out;
@@ -44,6 +45,8 @@ export type OutboundWorkRow = OutboundRow & {
   /** M26 — where the picture is, for kind='image'. One of the owner's own
    *  product_images.url rows. Null for every text row. */
   readonly mediaUrl?: string | null;
+  /** 0080 — the question this message asks the customer, if any. */
+  readonly asks?: PendingQuestion | null;
 };
 
 export type ConversationSendContext = {
@@ -120,6 +123,12 @@ export type OutboundStore = {
    * implement it; the database store does (tests/integration/disclosure-delivered).
    */
   markDisclosureDelivered?(conversationId: string, at: Date): Promise<void>;
+  /**
+   * 0080 — a message left: the conversation's pending question becomes the
+   * one it asks, or none. Optional so in-memory test stores need not implement
+   * it; the database store does (db/pendingQuestion.ts).
+   */
+  markQuestionAsked?(conversationId: string, asks: PendingQuestion | null): Promise<void>;
 };
 
 /**
@@ -422,6 +431,10 @@ export async function driveConversationOutbound(
     // whoever wrote it and whichever mode sent it. Here and nowhere else — a
     // queued, refused or failed one told him nothing.
     if (carriesDisclosure(candidate.body)) await deps.store.markDisclosureDelivered?.(conversationId, now);
+    // 0080 — and what it ASKED is now what the customer was asked: a "yes"
+    // that follows answers this. The owner's own words ask nothing Nomi can
+    // read, so they clear it.
+    await deps.store.markQuestionAsked?.(conversationId, candidate.origin === 'employee' ? candidate.asks ?? null : null);
     return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: result.providerMessageId }];
   }
 

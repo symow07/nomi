@@ -198,6 +198,8 @@ export async function startWorker(
         businessId: input.businessId,
         conversationId: input.conversationId,
         reply: effects.outbound.reply,
+        // 0080 — the question it asks, stamped when it leaves.
+        asks: effects.outbound.asks ?? null,
         channel: 'auto',
       }, { singletonKey: input.messageId });
     }

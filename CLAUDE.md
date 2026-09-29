@@ -1,6 +1,12 @@
 # Nomi — handoff for the next session
 
-Last updated **2026-09-28**, after #121 — "told" is what REACHED the buyer
+**A roadmap run is in progress (from 2026-09-29): read `docs/PROGRESS.md`
+first.** It says what shipped, what is next, what waits on the owner, and how
+to resume — without asking the owner anything.
+
+Last updated **2026-09-29**, after #122 — **an order waits for the owner's
+tap** (0080, §5 rule 23): a customer's "yes" is a proposal; nothing is
+confirmed or sent until the owner confirms. Before it, #121 — "told" is what REACHED the buyer
 (0079): a shop's opener asked again hands off only once a message carrying the
 disclosure was accepted by the provider, in draft and auto alike (§5 rules 3,
 19). The positioning is recorded in §0 — read it before writing any copy.
@@ -108,7 +114,7 @@ that `schema_version` equals `REQUIRED_SCHEMA_VERSION`. See
 
 ```bash
 env -u DATABASE_URL -u MIGRATE_DATABASE_URL npm run check     # typecheck, boundaries, ~3040 unit
-npm run trust                                                 # 40/40 golden scenarios (43 tests)
+npm run trust                                                 # 41/41 golden scenarios (44 tests)
 npm run build
 MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55451/nomi \
 DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
@@ -176,6 +182,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 122 | **An order waits for the owner's tap** (0080, T6/T6b) — see §5 rule 23; `docs/PROGRESS.md` begins the roadmap run |
 | 121 | **"Told" is what reached the buyer** (0079) — see §5 rules 3 and 19; the positioning recorded (§0) and inventoried (`docs/POSITIONING-INVENTORY.md`) |
 | 120 | **A shop's opener is answered; asked again after the disclosure, it hands off** — see §5 rule 19; openers first message 35/35 handed off → 0/35, after the disclosure 35/35; and a deletion request that reads as an injection ("Forget everything you know about me") is the silent hand-off, not the injection's canned reply |
 | 119 | **"Wants a person" built out in Chinese and Arabic** — layer 1 misses 40/115 → 0/115, no new false fire; `tests/person/person-corpus.ts` (three groups × three languages) through the real turn; the identity rule no longer reads 真人秀 as "a real person?" |
@@ -363,6 +370,14 @@ Recent PRs, newest first:
    - Refuses, changing nothing: no such business, switched off, the practice sandbox, an e-mail another workspace signs in with (named), a role row security filters. A workspace that already has a login is listed and needs `--replace` (archives the owner's login — one live login per person, one owner per business); the owner's own e-mail needs `--reset` (a fresh link; the old password works until the new one is saved).
    - **The product has no self-service recovery.** Nothing e-mails an owner a link to choose a new password: `login_codes` (0058) only confirm a sign-up or a new browser after the password was right; `email_confirmations` is orders'. An owner who forgets the password asks the operator for `--reset`. The pilot's workspace also opens with the deployment's `OWNER_ACCESS_CODE`.
    - Tests: `tests/parity/add-login.test.ts`, `tests/integration/add-login.test.ts` (runs the tool for real and signs the login in).
+
+23. **An order waits for the owner's tap, in every mode** (0080, 2026-09-29, T6/T6b; `src/db/orderProposals.ts`, `src/pipeline/orderProposal.ts`).
+   - A customer's "yes" that passes every order rule (`toConfirmableOrder`) writes an `order_proposals` row — exactly what they said yes to — and nothing else: no order, nothing sent or drafted, the conversation stays open. Draft, auto, any grant: the same. A turn never creates an order (`commitTurn`; the golden scenario `order-yes-waits-for-the-owner-in-auto`, invariant `orderWaitsForOwner`).
+   - The owner (or staff — "a sales assistant can record an order", `people.ts`) decides on the conversation page's first card: **Confirm the order** (`POST /app/inbox/:id/order/confirm`: the order is created from the proposal through `confirmableFromProposal` → the one order writer, the conversation closes, and only then is the confirmation queued through the ordinary outbound path; window/allowlist refusals and Stop/silence refuse the tap and it keeps waiting) or **I'll answer them** (`/order/step-in`: set aside, the conversation taken over, nothing sent). Locked and decided once.
+   - While one waits, every reply in that conversation is held for the owner (`order_waits_for_owner`, first of the hold reasons).
+   - The owner is told: an `order_proposed` alert by e-mail always, WhatsApp where live (`goesByMail`), once per proposal; the conversation leads Buyers (rank 0, "Said yes to an order") and Today ("Orders waiting for you", first); every live answer carries `orders`, and a page the owner allowed to notify (Today's button) raises a browser notification when it rises — while a Nomi tab is open (push with no tab is G5b).
+   - **The pending question is what the customer was actually asked.** It travels with the reply (`asks` on `drafts` and `outbound_messages`) and is set by the send path when the provider accepts the message (`markQuestionAsked`, `src/db/pendingQuestion.ts`); the owner's own words and an edited draft ask nothing; a turn keeps a question only if it was already asked and is still the one being asked. A "yes" after a "shall I confirm?" draft nobody sent proposes nothing.
+   - Tests: `tests/pipeline/order-waits.test.ts` (T6: every capability in draft, seven kinds of message, nothing sent; T6b: every mode), `tests/parity/order-proposal.test.ts`, `tests/integration/order-proposal.test.ts` (production composition). The hold, the pending rule and the proposal each switched off fail their own tests. Pre-pilot scenario 10 goes through the tap.
 
 ## 6 · What's next
 

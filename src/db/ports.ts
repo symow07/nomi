@@ -5,7 +5,7 @@ import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { OrderUpdate, ReportedOrderState } from '../core/commerce/orderState.js';
 import type { WithheldLeadTime } from '../core/commerce/closures.js';
 import type { TradeTerms } from '../core/commerce/terms.js';
-import type { ConversationState } from '../core/types/conversation.js';
+import type { ConversationState, PendingQuestion } from '../core/types/conversation.js';
 import type { PriorQuote } from '../core/types/commerce.js';
 import type {
   BundleRule,
@@ -49,6 +49,7 @@ export interface Tenant {
   readonly orders: OrderRepo;
   readonly samples: SampleRepo;
   readonly deletionAsks: DeletionAskRepo;
+  readonly orderProposals: OrderProposalRepo;
   readonly signals: SignalRepo;
   readonly events: EventLog;
   readonly audit: AuditRepo;
@@ -142,6 +143,12 @@ export interface DraftRepo {
      */
     replacedByDisclosure?: boolean;
     turnMessageId: string;
+    /**
+     * 0080 — the question this reply asks the customer, if any. It becomes the
+     * conversation's pending question only when the reply actually leaves
+     * (sent unchanged by the owner); a draft nobody sent asks nothing.
+     */
+    asks?: PendingQuestion | null;
   }): Promise<{ draftId: string }>;
 }
 
@@ -292,6 +299,22 @@ export interface DeletionAskRepo {
   }): Promise<import('./deletionAsks.js').DeletionAskNoted>;
 }
 
+/**
+ * 0080 — what a customer said yes to, waiting for the owner's tap
+ * (db/orderProposals.ts). A turn only ever PROPOSES; the order is the owner's.
+ */
+export interface OrderProposalRepo {
+  /** Idempotent: while one waits, a second "yes" is the same proposal (`fresh: false`). */
+  propose(input: {
+    readonly conversationId: ConversationId;
+    /** The turn's message, as the channel named it. */
+    readonly messageId: string;
+    readonly order: ConfirmableOrder;
+  }): Promise<{ readonly proposalId: string; readonly fresh: boolean }>;
+  /** Whether a proposal waits on this conversation: every reply is held for the owner while one does. */
+  waiting(conversationId: ConversationId): Promise<boolean>;
+}
+
 export interface SampleRepo {
   /** Idempotent: a buyer who asks twice is one buyer waiting for one sample. */
   record(conversationId: ConversationId, askedText: string): Promise<void>;
@@ -306,8 +329,11 @@ export interface OrderRepo {
    * Idempotent: on the orders_one_open_per_conversation unique violation it
    * returns the existing order instead of throwing. Two "yes" messages, one
    * order. (ADR-0004)
+   *
+   * 0080 — called only by the owner's tap on a proposal (pipeline/orderProposal),
+   * never by a turn. `actor` is who tapped, written on the order's first entry.
    */
-  create(conversationId: ConversationId, order: ConfirmableOrder): Promise<{
+  create(conversationId: ConversationId, order: ConfirmableOrder, actor?: string): Promise<{
     orderId: OrderId;
     orderReference: string;
     alreadyExisted: boolean;

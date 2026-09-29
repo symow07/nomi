@@ -1,3 +1,5 @@
+import type { PendingQuestion } from '../core/types/conversation.js';
+import { markQuestionAsked } from './pendingQuestion.js';
 import { isAllowlisted } from '../channels/allowlist.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
@@ -56,10 +58,10 @@ export function channelStore(
         attempts: number; sent_at: Date | null; to_wa_id: string | null; body: string;
         origin: 'employee' | 'owner' | 'outreach'; sending_since: Date | null;
         kind: string; media_url: string | null; channel: string; subject: string | null;
-        automated: boolean;
+        automated: boolean; asks: PendingQuestion | null;
       }>`
         select id, seq, status, requires_order, attempts, sent_at, to_wa_id, body,
-               origin, sending_since, kind, media_url, channel, subject,
+               origin, sending_since, kind, media_url, channel, subject, asks,
                -- C4.b — released by a follow-up schedule rather than a person.
                exists (select 1 from sequence_sends ss where ss.outbound_id = outbound_messages.id) as automated
           from outbound_messages
@@ -138,6 +140,7 @@ export function channelStore(
         kind: r.kind, mediaUrl: r.media_url,
         channel: r.channel, subject: r.subject,
         ...(r.automated ? { automated: true } : {}),
+        ...(r.asks ? { asks: r.asks } : {}),
       }));
       /**
        * C4.a — WHICH CHANNEL THIS CONVERSATION IS ON, because the three facts
@@ -315,6 +318,10 @@ export function channelStore(
           on conflict do nothing
         `.execute(tx);
       }
+    },
+
+    async markQuestionAsked(conversationId, asks) {
+      await markQuestionAsked(tx, conversationId, asks);
     },
 
     async markDisclosureDelivered(conversationId) {
@@ -574,6 +581,12 @@ export async function enqueueOutboundRow(
    * column, and a subject has no meaning there.
    */
   mail: { readonly subject: string } | null = null,
+  /**
+   * 0080 — the question this message asks the customer, if any. Written on the
+   * row, and made the conversation's pending question by the send path when
+   * the provider accepts it (worker.ts), never before.
+   */
+  asks: PendingQuestion | null = null,
 ): Promise<string | null> {
   // C4.a — the identity to send to is the conversation's OWN channel, not
   // WhatsApp's. This join was `cc.channel = 'whatsapp'` and returned null for
@@ -618,10 +631,10 @@ export async function enqueueOutboundRow(
   // on body either: two contacts can honestly receive the same first line.
   const row = await sql<{ id: string }>`
     insert into outbound_messages
-      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject)
+      (business_id, conversation_id, seq, body, origin, to_wa_id, channel, subject, asks)
     select ${businessId}, ${conversationId},
            coalesce(max(seq), 0) + 1, ${body}, ${origin}, ${recipient},
-           ${channel}, ${subject}
+           ${channel}, ${subject}, ${asks}::text
       from outbound_messages where conversation_id = ${conversationId}
     having ${origin} <> 'employee' or not exists (
       select 1 from outbound_messages

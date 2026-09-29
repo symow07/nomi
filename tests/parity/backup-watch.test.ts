@@ -115,4 +115,14 @@ describe('backup/run.sh — the order of steps is the guarantee', () => {
     expect(v).not.toContain('"40"');
     expect(v).toContain('"$VIOL_OFF" = "0" ] && [ "$VIOL_NOPOL" = "0" ]');
   });
+
+  it('a table with row security and no policy fails the drill only if the runtime role can reach it', () => {
+    // 2026-09-29 — login_setups (0078) is deny-all by design and carries a
+    // business_id; counting every business_id table without a policy failed
+    // the drill on every backup taken after 0078. Reachability decides now.
+    const v = read('tools/verify-restore.sh');
+    expect(v).toContain(`has_table_privilege('$RUNTIME_ROLE', c.oid, 'SELECT,INSERT,UPDATE,DELETE') as reachable`);
+    expect(v).toContain('count(*) filter (where bid and rls and pol=0 and reachable)');
+    expect(v).toContain(`and not has_table_privilege('$RUNTIME_ROLE', c.oid, 'SELECT,INSERT,UPDATE,DELETE')")"`);
+  });
 });

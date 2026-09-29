@@ -1,3 +1,4 @@
+import type { PendingQuestion } from './core/types/conversation.js';
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -691,8 +692,8 @@ export async function buildProduction(
       secureCookie: process.env['NODE_ENV'] === 'production',
       // The EXISTING outbound path — the same QUEUES.outbound worker the turn
       // pipeline uses. applyOwnerCommand (inbox actions) sends through this.
-      kickOutbound: async (businessId, conversationId, reply) => {
-        await boss.send(QUEUES.outbound, { businessId, conversationId, reply },
+      kickOutbound: async (businessId, conversationId, reply, asks) => {
+        await boss.send(QUEUES.outbound, { businessId, conversationId, reply, asks: asks ?? null },
           { singletonKey: conversationId });
       },
       // M16.1: bare re-drive tick — delivers an owner takeover reply through the
@@ -778,7 +779,8 @@ export async function buildProduction(
 
   // Outbound drive: consumes both reply jobs (from turn effects) and bare
   // re-drive ticks (from status webhooks / wait-recheck).
-  type DriveJob = { businessId: string; conversationId: string; reply?: string };
+  // 0080 — `asks`: the question the reply asks, written on its outbound row.
+  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null };
   /**
    * C4.a / C6 — the adapters this installation has, by channel, FOR ONE BUSINESS.
    *
@@ -884,7 +886,8 @@ export async function buildProduction(
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, job.data.conversationId);
       if (job.data.reply) {
-        await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply);
+        await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
+          'employee', null, job.data.asks ?? null);
       }
       const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
       // C10 — read inside the same transaction as the send it authorises, so a

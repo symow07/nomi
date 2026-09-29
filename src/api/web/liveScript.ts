@@ -48,6 +48,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   var doc = document;
   var EVERY = 20000;
   var LONGEST = 300000;
+  var HIDDEN = 60000;
 
   /* The tab's own memory: it goes when the tab closes and is never sent. */
   var memory = (function () {
@@ -162,10 +163,45 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     if (door) door.addEventListener('click', function (e) { go(e, door); });
   }
 
+  /* An order waiting: the browser says so, where the owner asked it to. */
+  function mayTell() {
+    try { return 'Notification' in window && window.Notification.permission === 'granted'; } catch (e) { return false; }
+  }
+  function tellOrder(region) {
+    var door = region.getAttribute('data-live-notify-door');
+    try {
+      var n = new window.Notification(region.getAttribute('data-live-notify'), { tag: 'nomi-order' });
+      n.onclick = function () { window.focus(); if (door) location.href = door; };
+    } catch (e) { /* the e-mail still says it */ }
+  }
+  function askToTell() {
+    var box = doc.querySelector('[data-notify]');
+    var ask = doc.querySelector('[data-notify-ask]');
+    var on = doc.querySelector('[data-notify-on]');
+    if (!box || !ask || !('Notification' in window)) return;
+    box.hidden = false;
+    function settle() {
+      var p = window.Notification.permission;
+      ask.hidden = p !== 'default';
+      if (on) on.hidden = p !== 'granted';
+    }
+    settle();
+    ask.addEventListener('click', function () {
+      try {
+        var asked = window.Notification.requestPermission(settle);
+        if (asked && asked.then) asked.then(settle, settle);
+      } catch (e) { settle(); }
+    });
+  }
+
   function watch() {
     var region = doc.querySelector('[data-live]');
     if (!region || !window.fetch) return;
     var ask = region.getAttribute('data-live');
+    var raw = region.getAttribute('data-live-orders');
+    var known = Number(raw);
+    var counting = !!raw && known >= 0;
+    var lined = false;
     var wait = EVERY;
     var timer = 0;
     var over = false;
@@ -176,7 +212,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     }
     function stop() { over = true; clearTimeout(timer); }
     function look() {
-      if (over || asking || doc.visibilityState === 'hidden') return;
+      if (over || asking || (doc.visibilityState === 'hidden' && !(counting && mayTell()))) return;
       asking = true;
       var init = {
         credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
@@ -195,7 +231,14 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
         if (!r.ok) throw new Error('not now');
         return r.json().then(function (said) {
           wait = EVERY;
-          if (said && said.news === true) { show(region, said.what); stop(); } else later(EVERY);
+          if (counting && said && typeof said.orders === 'number') {
+            if (said.orders > known && mayTell()) tellOrder(region);
+            known = said.orders;
+          }
+          if (said && said.news === true && !lined) { show(region, said.what); lined = true; }
+          /* The line goes in once; then only a page that tells of orders asks on. */
+          if (lined && !(counting && mayTell())) stop();
+          else later(doc.visibilityState === 'hidden' ? HIDDEN : EVERY);
         });
       }).catch(function () {
         wait = Math.min(wait * 2, LONGEST);
@@ -203,7 +246,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
       }).then(function () { clearTimeout(cut); asking = false; });
     }
     doc.addEventListener('visibilitychange', function () {
-      if (doc.visibilityState === 'hidden') clearTimeout(timer);
+      if (doc.visibilityState === 'hidden') { if (counting && mayTell()) later(HIDDEN); else clearTimeout(timer); }
       else later(0);
     });
     window.addEventListener('pageshow', function (e) { if (e.persisted) later(0); });
@@ -211,6 +254,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
   }
 
   keepWords();
+  askToTell();
   watch();
   window.addEventListener('pagehide', keepNow);
   window.addEventListener('load', function () {

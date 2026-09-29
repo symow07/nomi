@@ -248,8 +248,12 @@ import type { Db } from './client.js';
  * 79 = when the disclosure REACHED the buyer (0079). Every turn loads
  *      `conversations.ai_disclosure_delivered_at`; against a 78 database the
  *      select fails and no turn runs at all.
+ * 80 = an order waits for the owner's tap (0080). A customer's "yes" writes an
+ *      `order_proposals` row, and every draft and outbound message records the
+ *      question it asks (`asks`); against a 79 database the turn's insert
+ *      fails and no reply is written at all.
  */
-export const REQUIRED_SCHEMA_VERSION = 79;
+export const REQUIRED_SCHEMA_VERSION = 80;
 
 export type SchemaState = {
   readonly required: number;

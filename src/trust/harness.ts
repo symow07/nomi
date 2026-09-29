@@ -152,6 +152,16 @@ class HarnessTenant implements Tenant {
     /** M46 — no order in the harness unless a test sets one. */
     latestForClient: async () => this.latestOrder,
   };
+  /** 0080 — what a customer said yes to, waiting for the owner; read by the invariants. */
+  orderProposalsMade: Array<{ conversationId: string; messageId: string }> = [];
+  orderProposals: import('../db/ports.js').OrderProposalRepo = {
+    propose: async ({ conversationId, messageId }) => {
+      const again = this.orderProposalsMade.some((x) => x.conversationId === (conversationId as string));
+      if (!again) this.orderProposalsMade.push({ conversationId: conversationId as string, messageId });
+      return { proposalId: `op-${this.orderProposalsMade.length}`, fresh: !again };
+    },
+    waiting: async (conversationId) => this.orderProposalsMade.some((x) => x.conversationId === (conversationId as string)),
+  };
   signals: SignalRepo = { unresolved: async () => [], record: async () => {}, resolve: async () => {} };
   events: EventLog = { append: async () => {} };
   /** M46 — the order behind this conversation, if a test set one. */

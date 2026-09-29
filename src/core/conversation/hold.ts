@@ -31,6 +31,10 @@ import { quantityWasHeardNotTyped, type TextProvenance } from '../safety/heardNu
  */
 
 export const HOLD_REASONS = [
+  // 0080 — the customer said yes to an order and the owner has not decided it.
+  // Whatever the assistant writes while the order waits could read as the
+  // answer to it ("great, it's confirmed"), so nothing it writes goes alone.
+  'order_waits_for_owner',
   'quantity_heard_not_typed', 'contradicts_history', 'discount_needs_owner',
   // The identity guard's two, kept apart from `guards_failed_twice` and from
   // each other. They are not the same event to the owner: one is her employee
@@ -60,7 +64,11 @@ export function holdReasonOf(input: {
    * succeeding is not a hold, it is the retry loop working.
    */
   readonly identity?: 'denied_being_ai' | 'identity_question_unanswered' | null;
+  /** 0080 — an order this customer said yes to waits for the owner's tap. */
+  readonly orderWaiting?: boolean;
 }): HoldReason | null {
+  // First: while the owner decides the order, every reply is theirs to see.
+  if (input.orderWaiting) return 'order_waits_for_owner';
   if (quantityWasHeardNotTyped(input)) return 'quantity_heard_not_typed';
   // G7b — above what he was already told. Before her discount line: a price
   // that contradicts a buyer's history is the one she most needs to see, and

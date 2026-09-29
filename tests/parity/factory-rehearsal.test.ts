@@ -301,7 +301,8 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'unknown-product-yields-no-quote', 'unknown-product-no-fabricated-price',
     'low-confidence-match-asks-to-confirm', 'image-match-requires-confirmation',
     'draft-by-default-holds-the-reply', 'auto-qualify-grant-sends',
-    'confirm-order-stays-draft-even-with-auto-grant', 'night-window-auto-outside-window-drafts',
+    'confirm-order-stays-draft-even-with-auto-grant', 'order-yes-waits-for-the-owner-in-auto',
+    'night-window-auto-outside-window-drafts',
     'night-window-auto-inside-window-sends', 'knowledge-spec-answered-with-sourced-numbers',
     'knowledge-untaught-number-is-blocked', 'knowledge-cert-in-answer-blocked-unless-authorised',
     'knowledge-authorised-cert-answer-passes',
@@ -313,7 +314,7 @@ describe('M20.5 · the universal trust gate is exactly what it was', () => {
     'identity-honest-answer-chinese-passes',
   ];
 
-  it('the golden set is the same forty scenarios, in the same order', () => {
+  it('the golden set is the same forty-one scenarios, in the same order', () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(GOLDEN);
   });
 

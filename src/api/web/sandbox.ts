@@ -1,3 +1,5 @@
+import type { PendingQuestion } from '../../core/types/conversation.js';
+import { markQuestionAsked } from '../../db/pendingQuestion.js';
 import { sql } from 'kysely';
 import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
@@ -166,7 +168,11 @@ export async function runSandboxTurn(deps: SandboxDeps, input: SandboxTurnInput)
     const req = { conversationId: cid.value, messageId: `sbx-${started}-${Math.random().toString(36).slice(2, 8)}`, text };
     const result = await computeTurn(ports, req);
     const effects = await commitTurn(ports, req, result, started);
-    if (effects.outbound) await recordMessage(tx, conversationId, 'outbound', 'text', effects.outbound.reply);
+    if (effects.outbound) {
+      await recordMessage(tx, conversationId, 'outbound', 'text', effects.outbound.reply);
+      // 0080 — Practice records it as sent, so what it asked is now asked.
+      await markQuestionAsked(tx, conversationId, effects.outbound.asks ?? null);
+    }
 
     // ── trust strip: the SAME M12.1 checkers, live ──────────────────────────
     const grants = await ports.tenant.autonomy.grants();
@@ -256,9 +262,12 @@ export function quoteUnit(q: NonNullable<SandboxTrust['quote']>): Money {
 }
 
 /** The outbound sink for applyOwnerCommand in the sandbox: record, never transmit. */
-export function sandboxOutboundSink(deps: SandboxDeps): (businessId: string, conversationId: string, reply: string) => Promise<void> {
-  return async (_businessId, conversationId, reply) => {
-    await withTenantTx(deps.db, bidOf(deps.businessId), (tx) => recordMessage(tx, conversationId, 'outbound', 'text', reply));
+export function sandboxOutboundSink(deps: SandboxDeps): (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void> {
+  return async (_businessId, conversationId, reply, asks) => {
+    await withTenantTx(deps.db, bidOf(deps.businessId), async (tx) => {
+      await recordMessage(tx, conversationId, 'outbound', 'text', reply);
+      await markQuestionAsked(tx, conversationId, asks ?? null);
+    });
   };
 }
 
