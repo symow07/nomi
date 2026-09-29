@@ -308,7 +308,67 @@ const AR_FRAMES: readonly Framed[] = [
   { re: new RegExp(String.raw`(?:لا|مش|ما|مو)\s+(?:اريد|ابغي|ابغا|ابي|بدي|عايز|عاوز|احب)\s+(?:${AR_TALK}\s+(?:مع\s+)?|[بل])?(?:روبوت|الروبوت|بوت|البوت|الالة|اله|الة|مساعد\s+الي|الرد\s+الالي|رد\s+الي)(?![${AR}])`, 'g'), own: null },
 ];
 
-const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES];
+
+// ── Español · Français (2026-09-29) ─────────────────────────────────────────
+// The same requests in the customers' words, with the same care: a person the
+// buyer asks the seller for, never their own ("alguien de mi equipo", "mon
+// responsable"); never a negation ("no quiero hablar con nadie", "je ne veux
+// pas parler à quelqu'un"); never a name after "call me" ("llámame Ana",
+// "appelez-moi Marie"); never "human" as a product ("cabello humano"). The text
+// is lower-cased and its apostrophes straightened (`readable`); accents stay.
+const ES_TALK = String.raw`(?:hablar|conversar|charlar|platicar|comunicarme|comunicarnos)\s+con`;
+const ES_THEIRS = String.raw`(?:(?:una?|el|la|alg[uú]na?)\s+)?(?:(?:persona|humano|humana|ser\s+humano)(?:\s+(?:real|de\s+verdad))?|agente|asesora?|representante|operadora?|vendedora?|comercial|encargad[oa]|responsable|gerente|due[ñn][oa]|jef[ea]|atenci[oó]n\s+al\s+cliente|servicio\s+al\s+cliente|soporte)(?![a-zñáéíóú])`
+  + String.raw`|alguien(?:\s+(?:real|de\s+verdad|de\s+(?:tu|su|vuestr[oa])\s+(?:equipo|empresa|tienda|negocio)))?(?![a-zñáéíóú])`;
+const ES_OWN = /^(?:\s+[a-zñáéíóú]+){0,3}?\s+(?:de|en)\s+(?:mi|mis|nuestr[oa]s?)\b/;
+const ES_WANT = String.raw`(?<!\bno\s)\b(?:quiero|quisiera|necesito|me\s+gustar[ií]a|prefiero|deseo|queremos|necesitamos|podr[ií]a|puedo|podemos|se\s+puede)`;
+const ES_CALL_TAIL = String.raw`(?=\s*(?:$|[.!?,;:)]|por\s+favor|porfa|\+?\d|ahora|ya|ma[ñn]ana|hoy|cuando|lo\s+antes|urgente))`;
+
+const ES: readonly Framed[] = [
+  // "quiero hablar con una persona", "¿puedo hablar con alguien de tu equipo?", "necesito hablar con el encargado"
+  { re: new RegExp(String.raw`${ES_WANT}\s+${ES_TALK}\s+(?:${ES_THEIRS})`, 'g'), own: ES_OWN },
+  // "pásame con un agente", "comunícame con el encargado", "¿me pasas con alguien?"
+  { re: new RegExp(String.raw`\b(?:p[aá]same|p[aá]seme|pasadme|comun[ií]came|comun[ií]queme|con[eé]ctame|transfi[eé]reme|me\s+(?:pasas|pasan|puedes\s+pasar|pueden\s+pasar))\s+(?:con|a)\s+(?:${ES_THEIRS})`, 'g'), own: ES_OWN },
+  // A call: "llámame", "¿me pueden llamar?" — never "llámame Ana"
+  { re: new RegExp(String.raw`\b(?:ll[aá]mame|ll[aá]menme|ll[aá]meme)${ES_CALL_TAIL}`, 'g'), own: null },
+  // Spanish asks "¿me puedes llamar?" and says "me puedes llamar cuando quieras"
+  // in the same words: the question mark (or «¿») says which it is.
+  { re: /(?:¿\s*|\b)me\s+(?:puedes|pueden|podr[ií]as|podr[ií]an|podr[ií]a)\s+llamar\b(?=[^.!\n]{0,24}\?)|¿\s*me\s+(?:puedes|pueden|podr[ií]as|podr[ií]an|podr[ií]a)\s+llamar\b/g, own: null },
+  { re: /\b(?:puedo|podemos)\s+(?:llamarte|llamarles|llamarle|llamaros)\b/g, own: null },
+  // "¿hay alguien con quien pueda hablar?"
+  { re: /\bhay\s+(?:alguien|una\s+persona)\s+con\s+qui[eé]n\s+(?:pueda|podamos|puedo)\s+hablar\b/g, own: null },
+  // The whole message: "persona real por favor", "un humano", "atención al cliente"
+  { re: /^(?:por\s+favor\s+)?(?:una?\s+)?(?:persona\s+real|humano|agente|asesor|atenci[oó]n\s+al\s+cliente)(?:\s+por\s+favor)?\s*[.!?]*$/g, own: null },
+  // "no quiero hablar con un bot" — asking for the one thing a bot is not
+  { re: /\bno\s+quiero\s+(?:hablar|chatear|conversar)\s+con\s+(?:un\s+|una\s+|el\s+|la\s+)?(?:bot|robot|m[aá]quina|contestador|ia)\b/g, own: null },
+];
+
+const FR_TALK = String.raw`(?:parler|discuter|[ée]changer)\s+(?:[àa]|avec)`;
+const FR_THEIRS = String.raw`(?:(?:une?|le|la|l')\s*)?(?:(?:vraie\s+)?personne(?:\s+r[ée]elle)?|humain|[êe]tre\s+humain|agent|conseill[eè]re?|repr[ée]sentante?|op[ée]rat(?:eur|rice)|vendeu(?:r|se)|commerciale?|responsable|g[ée]rante?|patronne?|service\s+client(?:[èe]le)?)(?![a-zàâçéèêëîïôûùüÿœ])`
+  + String.raw`|quelqu'un(?:\s+(?:de\s+r[ée]el|de\s+(?:votre|ton|ta)\s+(?:[ée]quipe|soci[ée]t[ée]|boutique|magasin)))?`;
+const FR_OWN = /^(?:\s+[a-zàâçéèêëîïôûùüÿœ']+){0,3}?\s+(?:de|dans|chez)\s+(?:mon|ma|mes|notre|nos)\b/;
+const FR_WANT = String.raw`\b(?:je\s+(?:veux|voudrais|souhaite|souhaiterais|dois|peux|pourrais)|j'(?:aimerais|ai\s+besoin\s+de)|puis[-\s]je|est[-\s]ce\s+que\s+je\s+(?:peux|pourrais)|nous\s+(?:voulons|voudrions|souhaitons)|on\s+(?:peut|pourrait|veut|voudrait))`;
+const FR_CALL_TAIL = String.raw`(?=\s*(?:$|[.!?,;:)]|s'il\s+vous\s+pla[iî]t|s'il\s+te\s+pla[iî]t|svp|stp|\+?\d|maintenant|demain|aujourd'hui|d[èe]s\s+que|au\s+plus\s+vite|quand|vite))`;
+
+const FR: readonly Framed[] = [
+  // "je voudrais parler à une vraie personne", "puis-je parler au responsable", "j'aimerais parler avec quelqu'un"
+  { re: new RegExp(String.raw`${FR_WANT}\s+${FR_TALK}\s+(?:${FR_THEIRS})`, 'g'), own: FR_OWN },
+  { re: new RegExp(String.raw`${FR_WANT}\s+parler\s+(?:au|aux)\s+(?:responsable|g[ée]rant|patron|service\s+client|conseiller|vendeur)`, 'g'), own: FR_OWN },
+  // "passez-moi un conseiller", "mettez-moi en relation avec le responsable"
+  { re: new RegExp(String.raw`\b(?:passez[-\s]moi|passe[-\s]moi|mettez[-\s]moi\s+en\s+(?:relation|contact)\s+avec|transf[ée]rez[-\s]moi\s+(?:[àa]|vers)|redirigez[-\s]moi\s+vers)\s+(?:${FR_THEIRS})`, 'g'), own: FR_OWN },
+  // A call: "appelez-moi", "pouvez-vous m'appeler ?" — never "appelez-moi Marie"
+  { re: new RegExp(String.raw`\b(?:appelez[-\s]moi|rappelez[-\s]moi|appelle[-\s]moi|rappelle[-\s]moi)${FR_CALL_TAIL}`, 'g'), own: null },
+  // Inverted, it is asked ("pouvez-vous m'appeler ?"); "vous pouvez m'appeler quand vous voulez" is not.
+  { re: new RegExp(String.raw`\b(?:pouvez[-\s]vous|pourriez[-\s]vous|peux[-\s]tu|pourrais[-\s]tu|est[-\s]ce\s+que\s+vous\s+pouvez)\s+m'(?:appeler|rappeler)${FR_CALL_TAIL}`, 'g'), own: null },
+  { re: /\b(?:puis[-\s]je|je\s+peux|est[-\s]ce\s+que\s+je\s+peux)\s+vous\s+appeler\b/g, own: null },
+  // "il y a quelqu'un à qui je peux parler ?"
+  { re: /\b(?:il\s+)?y\s+a(?:[-\s]t[-\s]il)?\s+quelqu'un\s+(?:[àa]\s+qui|avec\s+qui)\s+(?:je\s+)?(?:peux|pourrais|puisse)\s+parler\b/g, own: null },
+  // The whole message: "une vraie personne svp", "un conseiller", "service client"
+  { re: /^(?:svp\s+|s'il\s+vous\s+pla[iî]t\s+)?(?:une?\s+)?(?:vraie\s+personne|humain|conseiller|agent|service\s+client)(?:\s+(?:svp|stp|s'il\s+vous\s+pla[iî]t))?\s*[.!?]*$/g, own: null },
+  // "je ne veux pas parler à un robot"
+  { re: /\bje\s+(?:ne\s+)?veux\s+pas\s+(?:parler|discuter)\s+(?:[àa]|avec)\s+(?:un\s+|une\s+|le\s+|la\s+)?(?:bot|robot|machine|ia|r[ée]pondeur)\b/g, own: null },
+];
+
+const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES, ...ES, ...FR];
 
 /**
  * Layer 1: does the buyer's own text ask, unmistakably, for a person on the
@@ -349,12 +409,13 @@ export function asksForPerson(text: string): boolean {
  * OPENERS).
  */
 /** A greeting that may stand around an opener: 你好, 请问, "hello there", «السلام عليكم». */
-const OPENER_GREETING = String.raw`(?<![a-z${AR}])(?:你好|您好|哈喽|哈囉|嗨|亲亲|亲|親|请问|請問|在吗|在嗎|早上好|下午好|晚上好|(?:hi|hello|hey|hallo)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|excuse\s+me|السلام\s+عليكم(?:\s+ورحم[هة]\s+الله(?:\s+وبركاته)?)?|سلام|مرحبا|اهلا|هلا|مساء\s+الخير|صباح\s+الخير|لو\s+سمحت|من\s+فضلك)(?![a-z${AR}])`;
+const OPENER_GREETING = String.raw`(?<![a-z${AR}])(?:你好|您好|哈喽|哈囉|嗨|亲亲|亲|親|请问|請問|在吗|在嗎|早上好|下午好|晚上好|(?:hi|hello|hey|hallo)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|excuse\s+me|السلام\s+عليكم(?:\s+ورحم[هة]\s+الله(?:\s+وبركاته)?)?|سلام|مرحبا|اهلا|هلا|مساء\s+الخير|صباح\s+الخير|لو\s+سمحت|من\s+فضلك|hola|buenas(?:\s+(?:tardes|noches))?|buenos\s+d[ií]as|disculpe|perd[oó]n|bonjour|bonsoir|salut|coucou|excusez[-\s]moi|pardon)(?![a-z${AR}])`;
 /** A clause's end: the end, a stop, or a greeting after it. Never a word: "anyone there knows…". */
 const OPENER_PUNCT = String.raw`[,，、.。!！?？;；:：~～…)）،؟؛]`;
 const OPENER_END = String.raw`(?=\s*(?:$|${OPENER_PUNCT}|${OPENER_GREETING}))`;
 /** A clause's start: the start or a stop, then perhaps greetings — never mid-sentence (没有人在). */
-const OPENER_START = String.raw`(^|${OPENER_PUNCT})(?:[\s,，、!！.。،]*${OPENER_GREETING})*[\s,，、!！.。،]*`;
+// «¿» and «¡» open a Spanish question or exclamation: "Hola, ¿hay alguien?".
+const OPENER_START = String.raw`(^|${OPENER_PUNCT})(?:[\s,，、!！.。،¿¡]*${OPENER_GREETING})*[\s,，、!！.。،¿¡]*`;
 const ZH_Q = String.raw`(?:吗|嗎|么|麼|嘛|呢|呀|啊)`;
 
 const OPENER_CLAUSES: readonly string[] = [
@@ -369,6 +430,9 @@ const OPENER_CLAUSES: readonly string[] = [
   String.raw`(?:any\s?one|any\s?body)(?=\s*\?)`,
   // «فيه أحد؟», «هل يوجد أحد؟», «أحد موجود؟», «فيه أحد يرد؟», «خدمة العملاء موجودة؟» — never
   // «في أحد المصانع» (in one of the factories): the clause must end there
+  // Spanish and French: "¿hay alguien?", "¿alguien disponible?", "il y a quelqu'un ?", "vous êtes là ?"
+  String.raw`(?:hay\s+alguien(?:\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea))?|alguien\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea)|(?:est[aá]\s+)?(?:el\s+)?(?:encargado|vendedor|due[ñn]o)\s+(?:ah[ií]|disponible))${OPENER_END}`,
+  String.raw`(?:(?:il\s+)?y\s+a(?:[-\s]t[-\s]il)?\s+quelqu'un(?:\s+(?:l[àa]|de\s+disponible|en\s+ligne))?|quelqu'un\s+(?:est\s+)?(?:l[àa]|disponible|en\s+ligne))${OPENER_END}`,
   String.raw`(?:(?:(?:هل\s+)?(?:فيه|في|يوجد|هناك|من)\s+(?:احد|حد)(?:\s+(?:موجود|هنا|يرد(?:\s+(?:علي|عليا))?|يجاوب|فاضي))?|(?:احد|حد)\s+(?:موجود|هنا)|(?:هل\s+)?خدم[هة]\s+العملاء\s+موجود[هة]?))${OPENER_END}`,
 ];
 const OPENER_RES: readonly RegExp[] = OPENER_CLAUSES.map((c) => new RegExp(`${OPENER_START}(?:${c})`, 'g'));

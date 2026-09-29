@@ -30,7 +30,7 @@
  */
 
 /** The languages the disclosure is written in. Anything else falls back to en. */
-export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar'] as const;
+export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
 export type DisclosureLocale = (typeof DISCLOSURE_LOCALES)[number];
 
 const TEXT: Readonly<Record<DisclosureLocale, string>> = {
@@ -46,6 +46,14 @@ const TEXT: Readonly<Record<DisclosureLocale, string>> = {
   // "to speak with a person from our team, asking is enough, and the reply
   // comes as soon as possible", addressing nobody.
   ar: 'مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن.',
+  // 2026-09-29 — Spanish and French, for the customers the EU AI Act already
+  // covers, who were told in English. Translated to carry the English
+  // sentence's meaning; NOT yet read by a native speaker (the gate below).
+  // Neither genders the assistant: no article before «asistente de IA», and
+  // «l'IA» elides it. The customer is addressed as the English does — plainly,
+  // and in no gender.
+  es: 'Hola, soy {name}, asistente de IA de {business}. Si prefieres hablar con una persona de nuestro equipo, solo tienes que decirlo y te responderá en cuanto pueda.',
+  fr: "Bonjour, je suis {name}, l'IA de {business}. Pour parler à une personne de notre équipe, il suffit de le demander : on vous répondra dès que possible.",
 };
 
 const isDisclosureLocale = (v: string): v is DisclosureLocale =>
@@ -76,6 +84,11 @@ export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean
   en: true,
   zh: true,   // the owner, 2026-09-28
   ar: true,   // the owner, 2026-09-28
+  // Awaiting a native reader (the owner's instruction, 2026-09-29). Never set
+  // true by an assistant: a reviewer reads the sentence above, and the flag
+  // flips in the same commit that names them.
+  es: false,
+  fr: false,
 };
 
 /** The locales still waiting for a native reading, in order. */

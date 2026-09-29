@@ -46,6 +46,10 @@ export const FORBIDDEN_FLOOR: readonly string[] = [
   '傻逼', '白痴', '蠢货', '滚', '骗子',
   // العربية
   'غبي', 'كذاب', 'أحمق',
+  // Español (2026-09-29). 'idiota' is already caught by 'idiot'.
+  'mierda', 'estúpido', 'estúpida', 'imbécil', 'mentiroso', 'mentirosa', 'cabrón', 'gilipollas', 'pendejo',
+  // Français. 'imbécile' is caught by 'imbécil'; 'idiote' by 'idiot'.
+  'merde', 'putain', 'connard', 'connasse', 'menteur', 'menteuse', 'crétin', 'salaud',
 ];
 
 export type ForbiddenTerm = {

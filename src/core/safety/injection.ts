@@ -30,6 +30,16 @@ const PATTERNS: readonly RegExp[] = [
   /jailbreak/i,
   /system prompt/i,
   /reveal your (?:instructions|prompt|rules)/i,
+  // Spanish and French (2026-09-29) — the same attempts in the customers' words.
+  /\b(?:ignora|ignore|olvida|olvide|descarta)\s+(?:todas\s+)?(?:las\s+|tus\s+|sus\s+)?(?:instrucciones|reglas|indicaciones)(?:\s+(?:anteriores|previas))?\b/i,
+  /\bahora\s+eres\s+(?:un|una|otro|otra)\b/i,
+  /\b(?:finge|finja|haz\s+como\s+si)\s+(?:ser|que\s+eres|fueras)\b/i,
+  /\b(?:revela|muestra|mu[eé]strame|dime)\s+(?:tus|sus)\s+(?:instrucciones|reglas|prompt)\b/i,
+  /\b(?:ignore|ignorez|oublie|oubliez)\s+(?:toutes\s+)?(?:les\s+|tes\s+|vos\s+)?(?:instructions|r[èe]gles|consignes)(?:\s+(?:pr[ée]c[ée]dentes|ant[ée]rieures))?\b/i,
+  /\b(?:tu\s+es|vous\s+[êe]tes)\s+(?:maintenant|d[ée]sormais)\s+(?:un|une)\b/i,
+  /\b(?:fais|faites)\s+semblant\s+d['’][êe]tre\b/i,
+  /\b(?:r[ée]v[èe]le|r[ée]v[ée]lez|montre|montrez)[-\s](?:moi\s+)?(?:tes|vos)\s+(?:instructions|r[èe]gles|consignes|prompt)\b/i,
+  /prompt\s+(?:del\s+)?sistema|prompt\s+syst[èe]me/i,
 ];
 
 export type InjectionVerdict =

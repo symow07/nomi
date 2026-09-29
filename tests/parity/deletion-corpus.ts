@@ -52,8 +52,28 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'امسحوا جميع رسائلي',
     'أرجو حَذْف بياناتي',   // with diacritics
   ],
-  fr: ['Merci de supprimer mes données personnelles', "J'invoque mon droit à l'oubli"],
-  es: ['Por favor borren mis datos', 'Quiero que mis datos sean eliminados'],
+  // French and Spanish (2026-09-29): the disclosure speaks them now, so the
+  // request is heard in them as fully as in the owner's three.
+  fr: [
+    'Merci de supprimer mes données personnelles',
+    "J'invoque mon droit à l'oubli",
+    'Supprimez-moi de votre base de données',
+    'Je veux que vous supprimiez mes données',
+    'Effacez mon compte et mes messages',
+    'Retirez mon numéro de votre liste svp',
+    'Supprimez mon e-mail.',
+    'Mes informations personnelles soient effacées, merci',
+  ],
+  es: [
+    'Por favor borren mis datos',
+    'Quiero que mis datos sean eliminados',
+    'Bórrame de vuestra base de datos',
+    'Elimina mi cuenta y mis mensajes',
+    'Quiero ejercer mi derecho al olvido',
+    'Borren mi número de su lista, por favor',
+    'Eliminen todos mis datos personales',
+    'Borra mi historial',
+  ],
   pt: ['Por favor apaguem os meus dados'],
   de: ['Bitte löschen Sie meine Daten'],
   ru: ['Удалите мои данные, пожалуйста'],
@@ -62,6 +82,26 @@ export const REQUESTS: Record<string, readonly string[]> = {
 
 /** Passing mentions: a deletion word, and nothing about the buyer's own data. */
 export const NOT_REQUESTS: Record<string, readonly string[]> = {
+  fr: [
+    'Supprimez la ligne du devis',                               // a line of the quote
+    'Retirez le logo du sac',
+    "Supprimez l'article 3",
+    "J'ai supprimé mon e-mail par erreur, je vous le renvoie",  // the buyer's own act
+    'Effacez mon ancienne adresse et mettez la nouvelle',       // an address corrected
+    'Supprimez ma commande précédente et refaites-en une',      // an order, not their data
+    "N'oubliez pas de me prévenir quand les couleurs arrivent", // "don't forget"
+    'Votre politique de confidentialité supprime les données après 30 jours ?', // a question about practice
+  ],
+  es: [
+    'Borra la línea del presupuesto',                           // a line of the quote
+    'Elimina el logo de la bolsa',
+    'Borra el artículo 3',
+    'Borré mi correo por error, te lo mando otra vez',           // the buyer's own act
+    'Elimina mi pedido anterior y hazme uno nuevo',             // an order, not their data
+    'Quita las asas y pon una cremallera',
+    'No te olvides de avisarme cuando lleguen los colores',     // "don't forget"
+    '¿Borran los datos después del pedido?',                    // a question about practice
+  ],
   en: [
     'delete that line from the quote',                          // the owner's own example
     'Please remove the logo from the bag',
@@ -131,7 +171,11 @@ export const PROMISES: readonly string[] = [
   'سنحذف جميع معلوماتك',
   'سيتم حذف حسابك',
   'Nous allons supprimer vos données.',
+  'Vos données ont été supprimées.',
+  'Je vais effacer tes informations.',
   'Hemos eliminado sus datos.',
+  'Tus datos han sido eliminados.',
+  'Vamos a borrar tu número.',
   'Wir werden Ihre Daten löschen.',
   'Мы удалили ваши данные.',
   'Verilerinizi sildik.',
@@ -151,4 +195,8 @@ export const NOT_PROMISES: readonly string[] = [
   '我帮您把logo去掉了。',
   'تم حذف السطر من عرض السعر.',
   'سنزيل الشعار.',
+  "J'ai supprimé la ligne en double du devis.",
+  'Nous avons retiré le logo de la maquette.',
+  'He borrado la línea duplicada del presupuesto.',
+  'Hemos eliminado el logo del diseño.',
 ];

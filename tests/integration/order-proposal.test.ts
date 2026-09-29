@@ -181,7 +181,13 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
       WEBHOOK_VERIFY_TOKEN: 'ord-verify-token-xx',
       CREDENTIAL_KEY: 'b'.repeat(64),
       PORT: 0,
-    }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter } });
+    }, {
+      adapter: sim.adapter, logger: false, models: { analyzer, replyWriter },
+      // Every capability on auto is the point here: the "yes" must still wait
+      // with sending alone released. The real gate is shut while es/fr wait
+      // for a reader (CLAUDE.md rule 1), so this file opens it as a rehearsal.
+      autonomyReleased: () => true,
+    });
     const login = await prod.app.inject({ method: 'POST', url: '/login', headers: FORM,
       payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';

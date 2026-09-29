@@ -143,7 +143,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** the merge of #122 (`9581518`, 0080 — an order waits for the owner's tap), 2026-09-29 07:03 UTC; production `schema_version` = **80**. Backup before it: `~/nomi-backups/nomi-backup-20260929T064304Z` (manual, schema 79, drill 4/4 — see `docs/PROGRESS.md` "Found on the way": no scheduled backup could pass its drill since 0078 until #122 fixed the drill). Before it, the merge of #121 (0079, the disclosure delivered). Before it
+- **Deployed:** the merge of #123 (`528203b`, 0081 — no minimum), 2026-09-29 07:41 UTC; production `schema_version` = **81**; backup before it `~/nomi-backups/nomi-backup-20260929T072729Z` (schema 80, drill 4/4). Before it, the merge of #122 (`9581518`, 0080 — an order waits for the owner's tap), 2026-09-29 07:03 UTC. Backup before it: `~/nomi-backups/nomi-backup-20260929T064304Z` (manual, schema 79, drill 4/4 — see `docs/PROGRESS.md` "Found on the way": no scheduled backup could pass its drill since 0078 until #122 fixed the drill). Before it, the merge of #121 (0079, the disclosure delivered). Before it
   #120 (shop openers), #119, #118, #117 (the gate), #116, the merge of #115
   (`tools/add-login.mjs`, 0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
   close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
@@ -183,6 +183,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 124 | **Spanish and French — the disclosure and every safety check**; the gate shut until a reviewer reads es/fr (rule 1); **T2** (the guard holes) |
 | 123 | **A product may have no minimum** (0081) — see §5 rule 24; T4 (the price list read honestly); PRODUCT.md's description |
 | 122 | **An order waits for the owner's tap** (0080, T6/T6b) — see §5 rule 23; `docs/PROGRESS.md` begins the roadmap run |
 | 121 | **"Told" is what reached the buyer** (0079) — see §5 rules 3 and 19; the positioning recorded (§0) and inventoried (`docs/POSITIONING-INVENTORY.md`) |
@@ -259,19 +260,28 @@ Recent PRs, newest first:
 
 ## 5 · Open rules in force right now
 
-1. **The disclosure gate is OPEN since 2026-09-28** (#117): the owner read the
+1. **The disclosure gate is SHUT again since 2026-09-29 (#124): Spanish and
+   French await a native reader.** The owner's instruction added es and fr to
+   the disclosure and to every safety check, "awaiting native review — do not
+   set them true yourself". `DISCLOSURE_NATIVE_REVIEW` = `{ en: true, zh: true,
+   ar: true, es: false, fr: false }`, and the gate is installation-wide by
+   design, so **nothing sends alone anywhere** (Westlake's auto included) until
+   a reviewer reads the two sentences and the flags flip — in one commit that
+   names the reviewer and updates `tests/integration/autonomy-level.test.ts`
+   and `tests/pipeline/disclosure.test.ts`. Everything else for es/fr is built
+   and tested. Before that, the gate was **OPEN from 2026-09-28** (#117): the owner read the
    zh and ar sentences; the Arabic now says «مساعد آلي» (an automated
    assistant) where it said «المساعد الذكي» ("the smart assistant"), and (#118)
    addresses the buyer in neither gender: «مرحبًا، أنا {name}، مساعد آلي لدى
    {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت
    ممكن.» The Chinese is unchanged. `DISCLOSURE_NATIVE_REVIEW` in
-   `src/core/conversation/disclosure.ts` = `{ en: true, zh: true, ar: true }`.
+   `src/core/conversation/disclosure.ts` was `{ en: true, zh: true, ar: true }`.
    The mechanism stays, on both owner routes that turn autonomy on and at the
    send decision in `commitTurn` (`autonomy_withheld: disclosure_not_reviewed`):
    a disclosure locale added later starts `false` and closes it again for every
    workspace until it is read; `tests/integration/autonomy-level.test.ts` pins
    the real flag and proves the refusal with the gate held closed.
-   **What sends alone now** (production, 2026-09-28): only Westlake Canvas Co.
+   **What sent alone while it was open** (production, 2026-09-28): only Westlake Canvas Co.
    — the one workspace with capabilities on auto (greet, qualify, recommend,
    quote, negotiate, follow_up), its name confirmed, not stopped. Replies to a
    buyer's message go out without approval on Instagram and Messenger (anyone
@@ -330,7 +340,7 @@ Recent PRs, newest first:
 16. **The conversation page always shows the newest messages** (CC-25): newest 50 (`TRANSCRIPT_WINDOW`, `src/db/transcript.ts`), "Earlier messages" pages back by cursor (`<epoch_ms>_<uuid>`, tenant-checked); transcript first, then the draft and take-over cards; Buyers rows land on `#latest`. Practice and the buyer file use the same window.
 17. **Errors are reported and the app has a heartbeat** (CC-10; 0074; `docs/MONITORING.md`). Every 5xx, failed queue job, dead letter and process crash upserts `app_errors` (redacted, fingerprinted) and sends the operator an `app_error` e-mail — once per fingerprint per 6 h, at most 6 an hour. `tools/errors.mjs` lists them. Every 5 minutes the app checks its DB and its own `/health` and pings `HEALTH_PING_URL` (`/fail` when unhealthy) — the dead-man's switch; unset until the owner pastes it. `railway.json` has `healthcheckPath: /health`.
 18. **A buyer who asks in chat for their data to be deleted is answered by a person, and the assistant says NOTHING** (0075, the owner's decision 2026-09-27; `src/core/safety/deletion.ts`).
-   - Layer 1, before any model: `asksForDeletion` — a deletion verb with the buyer's OWN data as its object, or a fixed phrase (right to be forgotten / 被遗忘权 / الحق في النسيان); en/zh/ar + fr/es/pt/de/ru/tr. It is the `deletion_requested` signal (problem 100): the turn is gated, handed off, and the hand-off sends nothing — not `HANDOFF_REPLY`, not a receipt (`answerPath: 'silent'`). Any unresolved request keeps later hand-offs silent.
+   - Layer 1, before any model: `asksForDeletion` — a deletion verb with the buyer's OWN data as its object, or a fixed phrase (right to be forgotten / 被遗忘权 / الحق في النسيان); en/zh/ar/es/fr in full (#124: es/fr eight requests and eight passing mentions each) + pt/de/ru/tr. It is the `deletion_requested` signal (problem 100): the turn is gated, handed off, and the hand-off sends nothing — not `HANDOFF_REPLY`, not a receipt (`answerPath: 'silent'`). Any unresolved request keeps later hand-offs silent.
    - Layer 2, the reply: `promisesDeletion` on every writer attempt and the final reply (taught answers, stand-ins too). A promise is thrown away and the turn re-decided as the same silent hand-off, in auto AND draft; no quote is recorded; a `deletion_promise_withheld` event keeps the words.
    - Precision is the point: `tests/parity/deletion-requests.test.ts` holds 43 requests and 45 passing mentions, and 19 promises and 13 non-promises for the reply net ("delete that line from the quote", "remove my email from the cc", 我的邮箱写错了，删掉重发, احذف السطر من عرض السعر…). A new phrasing goes into that file with its reason, never into the patterns alone.
    - Owner side: reason `takeover.reason.deletion_requested`; the card on the conversation page (nothing was sent, why, a door to `/app/conversations/:id#deletion` — the CC-02 control; staff get `staff.deletionAsked`); the Buyers badge prefers this reason. The owner alert is its own since #105 (below).
@@ -342,7 +352,7 @@ Recent PRs, newest first:
    - **Its own thing wherever hand-offs are listed:** the conversation card stays while it waits (with the date); the Buyers list leads with a headed group and a `filter=deletion` tab; Today's second attention row (under "did not reach the buyer"); Your data lists it first. The erasure tools erase it with the buyer (`deletion_asks: erase`).
    - The "account manager" exception (one of the 45 passing mentions handed off by the "wants a person" list) is gone since #107: all 45 are answered as usual, and the turn test now demands it.
 19. **"Wants a person", in two layers** (the owner's direction, 2026-09-28; 0077; `src/core/scoring/detect.ts`, `prompts/analysis.txt`).
-   - **Layer 1, before any model — `asksForPerson`:** unambiguous requests only. A request's frame around a person who can only be the seller's: "can I talk to …", "I'd like to speak with …", "put me through to …", "please call me", 转人工 / 人工客服 / 你们经理, «أريد التحدث مع …» / «مديركم» / «حولني على موظف». Normalised like the deletion check (NFKC, case, Arabic hamza and diacritics, ی/ک). Never: bare "human" ("human hair"), 找人工 / 人工成本, «احدث», "call me Ahmed", a person followed by the buyer's own side ("in my team", «في شركتي»), a negation (不用转人工, «لا أريد»). #107's manager split stands: the buyer's own manager is not a hand-off; an ambiguous English "the manager …" still is.
+   - **Layer 1, before any model — `asksForPerson`:** unambiguous requests only. A request's frame around a person who can only be the seller's: "can I talk to …", "I'd like to speak with …", "put me through to …", "please call me", 转人工 / 人工客服 / 你们经理, «أريد التحدث مع …» / «مديركم» / «حولني على موظف», and since #124 "quiero hablar con una persona", "pásame con un agente", "¿me pueden llamar?", "je voudrais parler à une vraie personne", "passez-moi le service client", "pouvez-vous m'appeler ?" (shop openers «¿hay alguien?», «il y a quelqu'un ?» too). Normalised like the deletion check (NFKC, case, Arabic hamza and diacritics, ی/ک). Never: bare "human" ("human hair"), 找人工 / 人工成本, «احدث», "call me Ahmed", a person followed by the buyer's own side ("in my team", «في شركتي»), a negation (不用转人工, «لا أريد»). #107's manager split stands: the buyer's own manager is not a hand-off; an ambiguous English "the manager …" still is.
    - **Layer 2, the analysis the turn already makes:** `wants_person` → `Analysis.wantsPerson`, read after the analysis and BEFORE the writer. `true` → `human_requested` (the ordinary sentence); `false` → nothing; **`null` (unreadable, or JSON that does not parse) → `not_answered`, a SILENT hand-off**; absent (scripted analysers) → nothing. Ambiguous means hand off.
    - **Failure:** the analysis request is `{ timeout 30 s, maxRetries 1 }`; a turn that still fails is retried by the queue, and a dead-lettered inbound job hands its conversation to a person as `not_answered` with the ordinary alert (`handOverUnanswered`, `src/pipeline/received.ts`; the worker's dead-letter handler).
    - **Live, on the production provider (deepseek-flash, 2026-09-28):** the owner's sentences both ways in en/zh/ar all as intended, none unreadable; median +39 ms. Of the 45 deletion passing mentions, «أرسل رقمي إلى المندوب» (4/4 runs) and 把我的号码加到群里 (3/4) come back as wanting a person — the ordinary hand-off, kept. Re-run `tools/check-person-model.mjs` (§3) whenever the model or the prompt changes.
