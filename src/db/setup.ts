@@ -52,8 +52,10 @@ export async function setupProgress(tx: Tx, businessId: BusinessId): Promise<Set
       coalesce((select (description is not null and location is not null
                         and (contact_email is not null or contact_phone is not null))
                   from businesses where id = ${businessId}::uuid), false) as profile_done,
-      exists(select 1 from products
-              where business_id = ${businessId}::uuid and is_active and price_usd_per_unit is not null) as products_done,
+      -- T3 — a product counts once customers can reach it: offered, priced, found by a name.
+      exists(select 1 from products p
+              where p.business_id = ${businessId}::uuid and p.is_active and p.price_usd_per_unit is not null
+                and exists (select 1 from product_aliases a where a.product_id = p.id)) as products_done,
       exists(select 1 from onboarding_state
               where business_id = ${businessId}::uuid and assistant_named_at is not null) as name_done,
       exists(select 1 from drafts d

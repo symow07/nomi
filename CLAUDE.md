@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 131 | **T3 — imported products can be found** — names written at import and edit, name editing, "ready" only when findable, the backfill tool (not run on Westlake) — see §5 rule 30 |
 | 130 | **T7 — every paid call on the ledger** — its own transaction, photos, voice notes, catalogue pages and live Practice metered, one UTC clock, the deepseek price and the first per-turn figures — see §5 rule 29 |
 | 129 | **Small truths** — T1 (the sandbox is the pilot's alone), T5 (the reader refuses a cut-off page; two unkept promises gone), CH5 (the window's clock), CH7a (what arrived, by name) — see §5 rule 28 |
 | 128 | **What a reply promised, on the calendar** (0083) — follow-ups, prices that end, deliveries, read from the words that left — see §5 rule 27 |
@@ -437,6 +438,12 @@ Recent PRs, newest first:
    - `deepseek-flash` has its list price in `MODEL_PRICES_PER_MTOK` (input $0.30/M on a cache miss, output $1.20/M — PEAK; off-peak is half; read from DeepSeek's page 2026-09-29), so estimates are ceilings. `tools/answer-paths.mjs` prints per-turn tokens and cost (`PathSummary.perTurn`), the ledger's own totals beside the turns', and counts Practice's scripted turns (model `scripted`) apart.
    - First figures (production, 30 days to 2026-09-29): 9 measured turns — about 890 tokens in, 333 out, **$0.000667 per turn** (≈ $0.67 per 1,000 buyer messages); per model-worded turn about 1,001 in, 375 out, $0.00075.
    - Tests: `tests/integration/metering.test.ts` (production composition: text, voice, photo, a turn whose commit fails, catalogue photo, live and scripted Practice — each guard switched off fails its test), `tests/parity/metering.test.ts`.
+30. **A product is found by its names, and only a findable product is "ready"** (T3, #131, 2026-09-29; `src/core/onboard/aliases.ts`, `src/db/productAliases.ts`).
+   - Customers' words reach a product ONLY through `product_aliases` (`retrieve_products`, 0007), and a product retrieval did not return is dropped from the turn. The import wrote none before T3, so nothing imported could be found or quoted.
+   - The import's confirm writes the name and the Chinese name; the owner's edit (name editing is new, on the product's page, owner-only like the rest of it) REWRITES the old name's row to the new name (the app role has no DELETE — rewrite in place) and adds the names customers use (one per line or comma-separated; ≤ 20 at a time, ≤ 120 characters each, refused whole otherwise). Nothing here removes a name.
+   - "Ready" only when findable: status `not_findable` (offered, priced, found by no name) with its pill and a line on the product's page; the import's "ready to quote" count and Setup's products step require a name too.
+   - `tools/backfill-aliases.mjs --business <uuid> [--yes]` adds each product's own name and Chinese name where missing (dry run by default; refuses a row-security-filtered role; `tools/lib/aliases.mjs` is its copy of the cleaner, held equal by a test). **On Westlake only with the owner's yes, after a backup** — the dry run on 2026-09-29 found all 5 of its products findable by no name.
+   - Tests: `tests/parity/findability.test.ts`, `tests/integration/findability.test.ts` (an import found and quoted; the pre-T3 shape dropped from the same turn; the tool; rename; Setup).
 
 ## 6 · What's next
 

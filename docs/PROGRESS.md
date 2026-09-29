@@ -26,12 +26,12 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** #130 — T7, complete metering (every paid call on the ledger in its
-own transaction, one UTC clock, the deepseek price, the first per-turn
-figures: about $0.000667 a turn at peak list price). Then the rest of step 7,
-one PR each where a page is touched: T3 (findability), Q1 (the analyser's
-history — prompt change, live check before and after), PWR (password
-recovery), REKEY, FAIR and CEIL, CH1 and CH2.
+**Next:** #131 — T3, findability (imported products found by their names;
+name editing; "ready" only when findable; the backfill tool, NOT run on
+Westlake — see "Waiting on the owner"). Then the rest of step 7, one PR each
+where a page is touched: Q1 (the analyser's history — prompt change, live
+check before and after), PWR (password recovery), REKEY, FAIR and CEIL, CH1
+and CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -125,6 +125,7 @@ instruction did not answer. Collected here; asked once, at the end.
 | MAIL, BOT, BILL, SITE, UI-es, EXT, EU1 | 13, 15, 30, 32, 36, 39 (and accounts only the owner can create) |
 | T8 (price-list measurement) | needs the owner's 25–35 real catalogues |
 | RET (erase workspaces that never connected, after 90 days) | not a plan decision, but an automatic erasure: confirm before building |
+| **T3 backfill on Westlake** — the dry run (2026-09-29, read-only) found **all 5 of its products findable by no name**: no customer's words reach any of them, so none can be quoted. The fix is `tools/backfill-aliases.mjs --business 7dc89f42-852e-465a-920f-8af170dc83cd --yes` (adds each product's own name, nothing else), after a backup | the plan: "Westlake only with your yes, backup first" |
 
 ## Found on the way
 
@@ -207,6 +208,12 @@ instruction did not answer. Collected here; asked once, at the end.
   a quote row is not linked to the message that carried it, so the panel
   cannot say it was told. Linking them needs a migration (a quote id on the
   sent row); until then the panel says what the row proves.
+- **A name customers use cannot be removed yet** (T3): the app role has no
+  DELETE by design, so a rename rewrites the old name's row in place and the
+  names customers use are only added. Removing one needs a retired flag on
+  `product_aliases` (a migration); K1 (editable names in the import review)
+  is where it belongs. If the new name was already one of the product's names,
+  the old name's row stays, as a name customers may still use.
 - **The rail's number is read fresh on every page** (#126): one count query
   per page view, on purpose — a number that lags a minute behind is a number
   that lies.
