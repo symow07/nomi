@@ -24,44 +24,59 @@ planned, no-surprise procedure and, critically, the blast radius of each key.
 | `WEBHOOK_VERIFY_TOKEN` | Meta webhook GET handshake | Only matters at (re)subscription. | Set env → redeploy → re-verify the webhook in Meta. Generated if unset. |
 | `WEBHOOK_SECRET` | 360dialog HMAC (provider=360dialog) | Inbound HMAC fails until updated. | Rotate in 360dialog → set env → redeploy. |
 | `OWNER_ACCESS_CODE` | Command Center login | Old code stops working; existing cookies stay valid to TTL. | Set a new value → redeploy. Always set it explicitly (else it is generated and logged once at boot). |
-| **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of `channel_credentials` | **(a)** all owner sessions invalidated → re-login. **(b)** existing encrypted credentials become undecryptable unless re-encrypted. | See below — do NOT rotate blind. |
+| **`CREDENTIAL_KEY`** | **(a)** web-session HMAC **and (b)** AES-256-GCM of every stored token: Page tokens (`meta_accounts`), mailbox refresh tokens (`mail_accounts`), connector keys (`connector_credentials`), channel secrets (`channel_credentials`) | **(a)** all owner sessions invalidated → re-login. **(b)** every sealed token stops opening unless re-sealed. | See below: with `CREDENTIAL_KEY_PREVIOUS` and `tools/rekey.mjs` — never blind. |
 
-## Rotating `CREDENTIAL_KEY` (verified 2026-08-12)
+## Rotating `CREDENTIAL_KEY` (REKEY, 2026-09-30)
 
-**Today, rotation is a one-liner, because nothing is encrypted with this key.**
+`CREDENTIAL_KEY` does two jobs: **(a)** it signs owner sessions, and **(b)**
+it seals (AES-256-GCM) every token the app keeps: a connected Facebook Page's
+token (`meta_accounts`), a connected mailbox's refresh token (`mail_accounts`),
+a prospect-source API key (`connector_credentials`) and any channel secret
+(`channel_credentials`). Change it blind and every one of those stops opening:
+Instagram and Messenger stop sending, mail stops, and each owner has to
+reconnect.
 
-`src/security/credentials.ts` can encrypt and decrypt channel credentials, and
-`CREDENTIAL_KEY` is also the web-session HMAC. But **no application code calls
-`encryptSecret` or `decryptSecret`, and no application code writes
-`channel_credentials`** — the only INSERT anywhere is the demo seed, and the
-live channel routes only flip `is_active`. So the key currently protects exactly
-one thing: owner sessions.
+**Before rotating, check.** The same command without a previous key only
+counts: how many sealed tokens the current key opens, and which it does not
+(on 2026-09-30, production: 4 sealed tokens, all open with the current key).
+It writes nothing.
 
-```bash
-# Verify the premise rather than trusting this document.
-psql "$MIGRATE_DATABASE_URL" -tAc "select count(*) from channel_credentials;"
-```
+So a rotation has the app read with BOTH keys for as long as it takes to
+re-seal what the old one sealed. `CREDENTIAL_KEY_PREVIOUS` is the old key: the
+app opens tokens with it but never seals with it (`acceptRetiredKeys`,
+`src/security/credentials.ts`), and `tools/rekey.mjs` re-seals them.
 
-- **Count is 0** — set the new `CREDENTIAL_KEY` and redeploy. Owners re-login,
-  because the session HMAC changed. Nothing else happens. This is the current
-  pilot state.
-- **Count is non-zero** — STOP. Those rows were written by something outside the
-  application (a seed, or a hand-run script). Find out what wrote them and
-  whether the ciphertext matters before touching the key.
+1. **Backup first** (a backup younger than the day — `backup_runs`, or
+   `tools/backup.sh`).
+2. **The owner makes a new key and sets two variables** in Railway, on the
+   `nomi` service, in one change:
+   - `CREDENTIAL_KEY_PREVIOUS` = the value `CREDENTIAL_KEY` has now (copy it);
+   - `CREDENTIAL_KEY` = the new key, 64 hex characters (for example from
+     `openssl rand -hex 32` on the owner's own machine).
+   Railway redeploys. The app now seals with the new key and still opens
+   everything sealed with the old one; the boot log says
+   `CREDENTIAL_KEY_PREVIOUS is set`. Owners sign in again (the session key
+   changed); nothing else is felt.
+3. **Re-seal.** From the checkout Railway is linked to — a dry run first, then
+   `--yes`. The admin address comes from the Postgres service; the two keys
+   from `nomi`. No key or password appears on the command line:
+   ```bash
+   railway run --service Postgres -- sh -c 'export ADMIN_DATABASE_URL="$DATABASE_PUBLIC_URL"; railway run --service nomi -- node tools/rekey.mjs'
+   railway run --service Postgres -- sh -c 'export ADMIN_DATABASE_URL="$DATABASE_PUBLIC_URL"; railway run --service nomi -- node tools/rekey.mjs --yes'
+   ```
+   (`railway run` adds the service's variables to the environment it is given,
+   so the admin address the outer one exports reaches the tool —
+   `ADMIN_DATABASE_URL`, because the `nomi` service has a
+   `MIGRATE_DATABASE_URL` of its own on the private network.) It prints
+   counts, never a token: how many are already under the new key, how many it
+   re-sealed, and — by table and id — any that neither key opens (the app
+   cannot open those either; the owner reconnects that account).
+4. **Run it once more** without `--yes`: it must say "Nothing to re-seal".
+5. **Remove `CREDENTIAL_KEY_PREVIOUS`** in Railway; it redeploys without it.
 
-### What this section used to say, and why it was wrong
-
-It gave a four-step re-encryption procedure whose second step was
-`decryptSecret(packed, oldKey)` → `encryptSecret(plain, newKey, keyVersion+1)`.
-Both functions exist; neither has a caller. There is no re-encryption tool, no
-script, and no route that writes an encrypted credential — so an operator
-following those steps during an incident would have been searching for a program
-that was never written, at the worst possible moment.
-
-**When a credential-writing path lands (Embedded Signup / per-tenant outbound —
-the same milestone `security/credentials.ts` is exempted for), the re-encryption
-tool ships WITH it, and this section gets rewritten around a command that
-exists.** A procedure is not a plan until something runs it.
+The order matters: never remove the old key before step 4 says nothing is
+left, and never re-seal before the app holds the new key — a token re-sealed
+with a key the running app does not have cannot be opened until it does.
 
 ## Immediate rotation owed (from build history)
 The temporary `ANTHROPIC_API_KEY` and the Railway admin `DATABASE_URL` were pasted

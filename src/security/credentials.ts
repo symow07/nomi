@@ -23,7 +23,30 @@ export function encryptSecret(plain: string, key: Buffer, keyVersion = 1): strin
   return ['v1', String(keyVersion), iv.toString('base64'), tag.toString('base64'), data.toString('base64')].join('.');
 }
 
+/**
+ * REKEY — the key CREDENTIAL_KEY replaced, during a rotation: tokens it sealed
+ * are still OPENED (never sealed) until tools/rekey.mjs has re-sealed them with
+ * the current key (docs/SECRET-ROTATION.md). Set once at boot from
+ * CREDENTIAL_KEY_PREVIOUS; empty the rest of the time.
+ */
+let retiredKeys: readonly Buffer[] = [];
+export function acceptRetiredKeys(keys: readonly Buffer[]): void {
+  retiredKeys = [...keys];
+}
+
 export function decryptSecret(packed: string, key: Buffer): { plain: string; keyVersion: number } {
+  try {
+    return openWith(packed, key);
+  } catch (e) {
+    if ((e as Error).message === 'credential: unrecognized format') throw e;
+    for (const retired of retiredKeys) {
+      try { return openWith(packed, retired); } catch { /* the next, or the first failure */ }
+    }
+    throw e;
+  }
+}
+
+function openWith(packed: string, key: Buffer): { plain: string; keyVersion: number } {
   const [v, ver, ivB64, tagB64, dataB64] = packed.split('.');
   if (v !== 'v1' || !ver || !ivB64 || !tagB64 || !dataB64) {
     throw new Error('credential: unrecognized format');
