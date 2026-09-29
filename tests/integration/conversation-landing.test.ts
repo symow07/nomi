@@ -196,7 +196,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   it('Today, the calendar, an order, the samples list, Buyers and the buyer file open it on its newest message', async () => {
     const landing = `href="/app/inbox/${conv}#latest"`;
     const top = `href="/app/inbox/${conv}"`;
-    for (const url of ['/app', '/app/calendar', `/app/orders/${order}`, '/app/settings/samples',
+    // the calendar's three-week list: its window holds yesterday's sample and this week's order, whatever today is
+    for (const url of ['/app', '/app/calendar?view=list', `/app/orders/${order}`, '/app/settings/samples',
       '/app/inbox?filter=all', `/app/conversations/${conv}`]) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);
@@ -209,7 +210,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
       }
     }
     // The calendar's order row opens the order; the order opens the conversation.
-    expect((await get('/app/calendar')).body).toContain(`href="/app/orders/${order}"`);
+    expect((await get('/app/calendar?view=list')).body).toContain(`href="/app/orders/${order}"`);
     expect((await get(`/app/orders/${order}`)).body).toContain(`<a class="back" href="/app/inbox/${conv}#latest">`);
   });
 

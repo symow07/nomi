@@ -59,7 +59,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
   /** Every entry's provenance on a page: `table:id` → column. */
   const sources = (html: string): Map<string, string> =>
-    new Map([...html.matchAll(/<li class="row" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
+    new Map([...html.matchAll(/<li class="row (?:solid|dashed)" data-src="([^"]+)" data-col="([^"]+)"/g)].map((m) => [m[1]!, m[2]!]));
   const area = (on: boolean) => as(BIZ, (t) => sql`update businesses set outreach_area = ${on} where id = ${BIZ}::uuid`.execute(t));
 
   beforeAll(async () => {
@@ -204,7 +204,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
 
   it('shows one entry per dated row in the window, each naming the row it came from', async () => {
     await area(false);
-    const r = await get('/app/calendar');
+    const r = await get('/app/calendar?view=list');
     expect(r.statusCode).toBe(200);
     const src = sources(r.body);
     const expected: [string, string][] = [
@@ -233,7 +233,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
 
   it('every entry is a real row, and its date really is in the window', async () => {
-    const r = await get('/app/calendar');
+    const r = await get('/app/calendar?view=list');
     const today = dayKey(new Date());
     const start = dayStart(addDays(today, -7)).getTime();
     const end = dayStart(addDays(today, 14)).getTime();
@@ -242,7 +242,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       quotes: ['created_at'], handoffs: ['sla_deadline_at'], factory_closures: ['starts_on'], conversations: ['closed_at'],
       sequence_enrollments: ['next_due_at'],
     };
-    const rows = [...r.body.matchAll(/<li class="row" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
+    const rows = [...r.body.matchAll(/<li class="row (?:solid|dashed)" data-src="([a-z_]+):([0-9a-f-]+)" data-col="([a-z_]+)"/g)];
     expect(rows.length).toBeGreaterThan(0);
     for (const [, table, rowId, col] of rows) {
       expect(ALLOWED[table!], table).toContain(col);
@@ -263,7 +263,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
 
   it('what is out of the window, archived, released, stopped or superseded never appears', async () => {
     await area(true);
-    const r = await get('/app/calendar');
+    const r = await get('/app/calendar?view=list');
     for (const k of ['sampleOld', 'convOld', 'closureArchived', 'closureFar', 'handoffReleased', 'enrolStopped',
       'quoteEarly', 'updPending', 'orderB']) {
       expect(r.body, k).not.toContain(`:${id[k]}"`);
@@ -273,8 +273,8 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
   });
 
   it("another tenant's buyer, rows and closures never appear — not even asked for by id", async () => {
-    for (const url of ['/app/calendar', `/app/calendar?buyer=${id['zed']}`, '/app/calendar?category=samples',
-      '/app/calendar?category=closures']) {
+    for (const url of ['/app/calendar?view=list', `/app/calendar?view=list&buyer=${id['zed']}`, '/app/calendar?view=list&category=samples',
+      '/app/calendar?view=list&category=closures']) {
       const r = await get(url);
       expect(r.statusCode, url).toBe(200);
       expect(r.body).not.toContain(`Zed ${RUN}`);
@@ -284,19 +284,19 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       expect(r.body).not.toContain(id['convZ']!);
     }
     // Another tenant's buyer id is no filter at all here: the page is this tenant's whole window.
-    const all = sources((await get('/app/calendar')).body);
-    const asked = sources((await get(`/app/calendar?buyer=${id['zed']}`)).body);
+    const all = sources((await get('/app/calendar?view=list')).body);
+    const asked = sources((await get(`/app/calendar?view=list&buyer=${id['zed']}`)).body);
     expect([...asked.keys()].sort()).toEqual([...all.keys()].sort());
   });
 
   it('follow-ups appear only where the outreach area is on', async () => {
     await area(false);
-    const off = await get('/app/calendar');
+    const off = await get('/app/calendar?view=list');
     expect(off.body).not.toContain(`sequence_enrollments:`);
     expect(off.body).not.toContain(`buyer-${RUN}@example.com`);
     expect(off.body).not.toContain(`category=followups`);
     await area(true);
-    const on = await get('/app/calendar');
+    const on = await get('/app/calendar?view=list');
     expect(sources(on.body).get(`sequence_enrollments:${id['enrol']}`)).toBe('next_due_at');
     expect(on.body).toContain(`buyer-${RUN}@example.com`);
     expect(on.body).toContain('category=followups');
@@ -308,21 +308,21 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
 
   it('a category filter excludes exactly the other categories', async () => {
     await area(true);
-    const all = sources((await get('/app/calendar')).body);
+    const all = sources((await get('/app/calendar?view=list')).body);
     for (const cat of ['samples', 'orders', 'negotiation', 'followups', 'closures', 'conversations']) {
-      const r = await get(`/app/calendar?category=${cat}`);
+      const r = await get(`/app/calendar?view=list&category=${cat}`);
       expect(r.statusCode).toBe(200);
       const got = [...sources(r.body).keys()].sort();
       const want = [...all.keys()].filter((k) => CATEGORY_OF[k.split(':')[0]!] === cat).sort();
       expect(got, cat).toEqual(want);
       expect(got.length, `${cat} has something seeded`).toBeGreaterThan(0);
-      expect(r.body).toMatch(new RegExp(`<a class="tab on" aria-current="page" href="/app/calendar\\?category=${cat}">`));
+      expect(r.body).toMatch(new RegExp(`<a class="tab on" aria-current="page" href="/app/calendar\\?view=list&amp;category=${cat}">`));
     }
     await area(false);
   });
 
   it('the buyer filter narrows to one buyer; a closure belongs to nobody', async () => {
-    const r = await get(`/app/calendar?buyer=${id['olga']}`);
+    const r = await get(`/app/calendar?view=list&buyer=${id['olga']}`);
     expect(r.statusCode).toBe(200);
     const got = [...sources(r.body).keys()].sort();
     expect(got).toEqual([`order_updates:${id['updConfirmed']}`, `order_updates:${id['updShipped']}`].sort());
@@ -331,34 +331,34 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
     expect(r.body).toContain(`<option value="${id['ahmed']}"`);
     // The order's door is the order page.
     expect(r.body).toContain(`href="/app/orders/${id['orderB']}"`);
-    const a = [...sources((await get(`/app/calendar?buyer=${id['ahmed']}&category=negotiation`)).body).keys()].sort();
+    const a = [...sources((await get(`/app/calendar?view=list&buyer=${id['ahmed']}&category=negotiation`)).body).keys()].sort();
     expect(a).toEqual([`handoffs:${id['handoff']}`, `quotes:${id['quoteLate']}`, `quotes:${id['quoteOther']}`].sort());
   });
 
   it('bad query values fall back to the defaults, never an error', async () => {
-    const base = [...sources((await get('/app/calendar')).body).keys()].sort();
+    const base = [...sources((await get('/app/calendar?view=list')).body).keys()].sort();
     for (const q of ['from=2026-02-31', 'from=yesterday', "from=2026-01-01'--", 'category=everything',
       'buyer=ahmed', 'buyer=1%3Bdrop', 'from=2026-01-01&from=2026-01-02', 'category[]=samples']) {
-      const r = await get(`/app/calendar?${q}`);
+      const r = await get(`/app/calendar?view=list&${q}`);
       expect(r.statusCode, q).toBe(200);
       expect([...sources(r.body).keys()].sort(), q).toEqual(base);
     }
   });
 
   it('an empty window says so and leads somewhere; the doors page by three weeks', async () => {
-    const r = await get('/app/calendar?from=2031-01-06');
+    const r = await get('/app/calendar?view=list&from=2031-01-06');
     expect(r.statusCode).toBe(200);
     expect(r.body).toContain('<div class="empty">');
     expect(r.body).toContain(t('en', 'calendar.empty'));
     expect(r.body).toContain('href="/app/inbox"');
-    expect(r.body).toContain('href="/app/calendar?from=2030-12-16"');
-    expect(r.body).toContain('href="/app/calendar?from=2031-01-27"');
-    expect(r.body).toContain('href="/app/calendar"');     // back to this week
+    expect(r.body).toContain('href="/app/calendar?view=list&amp;from=2030-12-16"');
+    expect(r.body).toContain('href="/app/calendar?view=list&amp;from=2031-01-27"');
+    expect(r.body).toContain('href="/app/calendar?view=list"');     // back to this week
   });
 
   it('reads in all three locales, right to left in Arabic, with Buyers lit', async () => {
     for (const locale of LOCALES) {
-      const r = await get('/app/calendar', locale);
+      const r = await get('/app/calendar?view=list', locale);
       expect(r.statusCode).toBe(200);
       expect(r.body).toContain(`<html lang="${locale}" dir="${locale === 'ar' ? 'rtl' : 'ltr'}"`);
       expect(r.body).toContain(t(locale, 'nav.calendar'));

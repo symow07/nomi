@@ -129,6 +129,23 @@ export function formatRelative(locale: Locale, d: Date, now: Date): string {
   return `${formatDate(locale, d)} ${time}`;
 }
 
+/** The hour (0–23) an instant falls in, in the business timezone — the row it sits in on a calendar. */
+export function hourIn(d: Date): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', hourCycle: 'h23' }).format(d));
+}
+
+/** "September 2026", "2026年9月", "سبتمبر ٢٠٢٦" — the month a calendar page shows. */
+export function formatMonth(locale: Locale, ymd: string): string {
+  const first = `${ymd.slice(0, 7)}-01T00:00:00Z`;
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(first));
+}
+
+/** "Mon", "周一", "الاثنين" — a weekday's short name, for a day 'YYYY-MM-DD'. */
+export function formatWeekday(locale: Locale, ymd: string): string {
+  const midnight = `${ymd}T00:00:00Z`;
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: 'UTC', weekday: 'short' }).format(new Date(midnight));
+}
+
 /**
  * A moment in a list's corner, as short as it can be said: the hour today,
  * "Yesterday", then the day and month ("14:02" / "Yesterday" / "Sep 28").

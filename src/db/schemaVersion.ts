@@ -255,8 +255,11 @@ import type { Db } from './client.js';
  * 81 = a product may have no minimum order (0081): `products.moq` takes NULL.
  *      Against an 80 database a product saved with no minimum fails the NOT
  *      NULL constraint, and so does every import line that states none.
+ * 82 = the owner's own dates on the calendar (0082, `calendar_entries`). The
+ *      calendar reads them for every view; against an 81 database the select
+ *      fails and the calendar page answers 500 instead of the week.
  */
-export const REQUIRED_SCHEMA_VERSION = 81;
+export const REQUIRED_SCHEMA_VERSION = 82;
 
 export type SchemaState = {
   readonly required: number;

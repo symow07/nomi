@@ -40,6 +40,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
   'channel.flash.number_taken', 'channel.flash.test_not_connected', 'closures.flash.ends_before_starts',
+  'calendar.flash.title', 'calendar.flash.day', 'calendar.flash.time', 'calendar.flash.order', 'calendar.flash.notFound',
   'closures.flash.failed', 'closures.flash.from_missing', 'closures.flash.label_missing',
   'closures.flash.not_a_date', 'closures.flash.to_missing', 'connect.flash.app_refused',
   'connect.flash.denied', 'connect.flash.expired', 'connect.flash.missing_scope',
@@ -79,6 +80,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  // 0082 — a date of the owner's own, put on the calendar or taken off it.
+  'calendar.flash.added', 'calendar.flash.removed',
   'order.flash.confirmed', 'order.flash.set_aside',
   'account.flash.changed', 'activation.flash.activated', 'activation.flash.deactivated',
   'allowlist.flash.added', 'allowlist.flash.removed', 'assistants.flash.added',
