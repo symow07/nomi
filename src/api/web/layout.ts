@@ -902,6 +902,51 @@ const STYLE_PAGES = `
   .cal-go:hover .go, .cal-go:focus-visible .go { color:var(--color-ink); }
   .cal-head { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); }
   .cal-kind { color:var(--color-ink); font-weight:500; }
+  /* The design pass: the week. Days are columns and hours rows; where a date
+     came from is its EDGE — solid, from a conversation; dashed, put there by
+     the owner — and colour is left for state. Past dates in Stone. */
+  .cal-top { display:flex; align-items:center; justify-content:space-between; gap:var(--space-8) var(--space-16); flex-wrap:wrap; }
+  .cal-top h1.page { margin:0; }
+  .cal-views { margin:0; }
+  .cal-move { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin:var(--space-12) 0; }
+  .cal-move .back, .cal-move .deeper { min-width:44px; justify-content:center; }
+  .cal-today { display:inline-flex; align-items:center; min-height:44px; padding:0 var(--space-12); font-weight:600; font-size:var(--font-size-small); }
+  .cal-move .cal-span { margin:0 var(--space-8); }
+  .cal-legend { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; color:var(--color-ink-secondary); margin:var(--space-8) 0; }
+  .cal-legend .wk-e { display:inline-block; width:var(--space-24); min-height:var(--space-16); padding:0; margin:0; }
+  .wk-scroll { overflow-x:auto; margin:var(--space-12) 0; }
+  .wk, .mo { width:100%; min-width:680px; border-collapse:collapse; table-layout:fixed; background:var(--color-surface); }
+  .wk th, .wk td, .mo th, .mo td { border:1px solid var(--color-border); vertical-align:top; padding:var(--space-4); }
+  .wk thead th, .mo thead th { font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:start; padding:var(--space-8); }
+  .wk thead th b { color:var(--color-ink); font-weight:600; }
+  .wk thead th.today { box-shadow:inset 0 -2px 0 var(--color-ink); }
+  .wk tbody th { width:3.5em; font-size:var(--font-size-caption); font-weight:400; color:var(--color-ink-secondary); text-align:end; font-variant-numeric:tabular-nums; }
+  .wk .wk-corner { width:3.5em; }
+  .wk td { height:2.75em; }
+  .wk-e { display:flex; flex-direction:column; gap:0; margin-bottom:var(--space-4); padding:var(--space-4) var(--space-8);
+    border:1px solid var(--color-ink-secondary); border-inline-start-width:3px; border-radius:6px;
+    background:var(--color-surface); color:var(--color-ink); font-size:var(--font-size-caption); line-height:1.35; overflow:hidden; }
+  .wk-e.solid { border-style:solid; }
+  .wk-e.dashed { border-style:dashed; }
+  .wk-e.past { color:var(--color-ink-secondary); border-color:var(--color-border); }
+  .wk-e b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wk-k, .wk-t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wk-t { font-variant-numeric:tabular-nums; color:var(--color-ink-secondary); }
+  a.wk-e:hover, a.wk-e:focus-visible { background:var(--color-paper); }
+  .wk-e .dot.warn { color:var(--color-waiting); }
+  .wk-e .dot.bad { color:var(--color-warn); }
+  .cal-rm { margin:var(--space-4) 0 0; }
+  .cal-rm .btn { min-height:32px; padding:0; font-size:var(--font-size-caption); }
+  .row.dashed .grow { border-inline-start:2px dashed var(--color-ink-secondary); padding-inline-start:var(--space-8); }
+  .mo td { height:7em; }
+  .mo td.other { background:var(--color-paper); }
+  .mo td.today .mo-d { box-shadow:inset 0 -2px 0 var(--color-ink); font-weight:600; }
+  .mo-d { display:inline-flex; min-width:1.75em; min-height:1.75em; align-items:center; justify-content:center;
+    font-size:var(--font-size-caption); font-variant-numeric:tabular-nums; margin-bottom:var(--space-4); }
+  .mo-more { display:block; font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .cal-add { margin:var(--space-16) 0; }
+  .cal-add summary { cursor:pointer; font-weight:600; font-size:var(--font-size-small); min-height:44px; display:flex; align-items:center; gap:var(--space-8); }
+  .cal-times { display:flex; gap:var(--space-12); flex-wrap:wrap; }
 
   /* ── inbox.ts — Buyers (one list since A) and the conversation page; moved in at the V1 close-out. */
   /* The search: the field takes the room, its button and the way back beside it. */

@@ -95,6 +95,7 @@ import { renderCalendar, parseCalendarQuery } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { loadCalendar } from '../../db/calendar.js';
+import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
@@ -136,7 +137,7 @@ import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js'
 import {
   shell, loginPage, signupPage, verifyPage, setPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
-import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, type Flash, type FlashPart } from './flash.js';
+import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
@@ -2711,11 +2712,41 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── V2 · the calendar: a read-only list of dates already on record ─────────
   // Reached from Buyers. No writes, no job, no table: a view over the columns
   // that already hold a date. Follow-ups show only where the outreach area is on.
-  app.get('/app/calendar', authed('calendar', async (s, req, locale) => {
+  app.get('/app/calendar', authed('calendar', async (s, req, locale, reply) => {
     const now = new Date();
-    const q = parseCalendarQuery(req.query, now);
-    return renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale);
+    // The design pass — the week starts on the business's country's first day.
+    const bid = parseBusinessId(s.businessId);
+    const firstDay = bid.ok ? firstDayOfWeek(await withTenantTx(deps.db, bid.value, (tx) => businessCountry(tx, bid.value))) : 1;
+    const q = parseCalendarQuery(req.query, now, firstDay);
+    const flash = takeFlash(req, reply);
+    return `${flashBanner(flash)}${renderCalendar(await loadCalendar(deps.db, s.businessId, { ...q, outreach: outreachShown() }, now), locale,
+      { view: q.view, at: q.at, now })}`;
   }));
+
+  /**
+   * 0082 — the owner's own dates: put one on the calendar, or take it off
+   * (archived, never deleted). Staff may too, as they may set closures (rule
+   * 11): a date on the calendar is neither a price nor a go-live condition.
+   */
+  app.post('/app/calendar/entries', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app/calendar');
+    const r = readEntry((req.body ?? {}) as Record<string, unknown>);
+    if (!r.ok) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
+    const entry = r.entry;
+    await withTenantTx(deps.db, bid.value, (tx) => addEntry(tx, bid.value, entry, personOf(s).id));
+    return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt)}`, 'calendar.flash.added');
+  });
+
+  app.post('/app/calendar/entries/:id/remove', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    const id = (req.params as { id: string }).id;
+    if (!bid.ok || !UUID.test(id)) return flashTo(reply, '/app/calendar', 'calendar.flash.notFound');
+    const gone = await withTenantTx(deps.db, bid.value, (tx) => removeEntry(tx, bid.value, id, personOf(s).id));
+    return flashTo(reply, '/app/calendar', gone ? 'calendar.flash.removed' : 'calendar.flash.notFound');
+  });
 
   // ── M11.2/M15.1 Pilot Readiness Hub: detected readiness + owner attestations ─
   app.get('/app/onboarding', async (req, reply) => {

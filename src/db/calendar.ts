@@ -23,7 +23,8 @@ import { addDays, dayKey, dayStart } from '../core/owner/i18n/format.js';
  * business, so isolation does not rest on a single mechanism.
  */
 
-export const CALENDAR_CATEGORIES = ['samples', 'orders', 'negotiation', 'followups', 'closures', 'conversations'] as const;
+// 'yours' (0082): the dates the owner put there — a photo shoot, a trade fair.
+export const CALENDAR_CATEGORIES = ['samples', 'orders', 'negotiation', 'followups', 'yours', 'closures', 'conversations'] as const;
 export type CalendarCategory = typeof CALENDAR_CATEGORIES[number];
 
 /** What an entry says happened, or is due. Each names exactly one column. */
@@ -33,7 +34,17 @@ export type CalendarKind =
   | 'price_worked_out' | 'reply_due'
   | 'followup_due'
   | 'closure'
-  | 'conversation_closed';
+  | 'conversation_closed'
+  | 'own';
+
+/**
+ * WHERE A DATE CAME FROM, shown by its EDGE (the design pass, 2026-09-29):
+ * solid when it came from a conversation — it opens there; dashed when the
+ * owner put it there — their own dates, their closures, a follow-up they
+ * scheduled for someone who has not written. Colour is left for state.
+ */
+export const edgeOf = (e: Pick<CalendarEntry, 'conversationId' | 'orderId' | 'kind'>): 'solid' | 'dashed' =>
+  e.kind === 'own' || e.kind === 'closure' || (e.conversationId === null && e.orderId === null) ? 'dashed' : 'solid';
 
 /** The row and column an entry was read from. Provenance, not a summary. */
 export type CalendarSource = { readonly table: string; readonly id: string; readonly column: string };
@@ -69,6 +80,10 @@ export type CalendarEntry = {
     readonly open?: boolean;
     /** A reply owed whose time has already passed — said in words, not colour. */
     readonly overdue?: boolean;
+    /** 0082 — the owner's own entry: what it is, when it ends, and its row. */
+    readonly title?: string;
+    readonly endsAt?: Date;
+    readonly entryId?: string;
   };
   readonly source: CalendarSource;
 };
@@ -264,6 +279,21 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
       conversationId: null, orderId: null, buyer: null, identity: null,
       detail: { closureLabel: r.label, closureFrom: from, closureTo: to },
       source: { table: 'factory_closures', id: r.id, column: 'starts_on' } });
+  }
+
+  // ── Your own dates (0082): what the owner put on the calendar. Archived ones are gone from it.
+  const own = (await sql<{ id: string; title: string; starts_at: Date; ends_at: Date | null; all_day: boolean }>`
+    select e.id::text as id, e.title, e.starts_at, e.ends_at, e.all_day
+      from calendar_entries e
+     where e.business_id = ${bid} and e.removed_at is null
+       and e.starts_at >= ${start} and e.starts_at < ${end}
+     order by e.starts_at
+     limit ${PER_SOURCE}`.execute(tx)).rows;
+  for (const r of own) {
+    out.push({ category: 'yours', kind: 'own', day: dayKey(r.starts_at), at: r.starts_at, allDay: r.all_day,
+      conversationId: null, orderId: null, buyer: null, identity: null,
+      detail: { title: r.title, ...(r.ends_at ? { endsAt: r.ends_at } : {}), entryId: r.id },
+      source: { table: 'calendar_entries', id: r.id, column: 'starts_at' } });
   }
 
   // ── Conversations: when one was closed.
