@@ -4,6 +4,7 @@ import type { KnowledgeKind, KnowledgeSource } from '../core/types/knowledge.js'
 import { ANSWER_KINDS } from '../core/types/knowledge.js';
 import type { ProductId } from '../core/types/ids.js';
 import { unsafeBrand } from '../core/types/brand.js';
+import { startingQuantity } from '../core/commerce/quote.js';
 import type { CheckResult, TurnOutcome } from './invariants.js';
 import { evaluateScenario } from './harness.js';
 import {
@@ -56,7 +57,8 @@ export type FactoryProduct = {
   readonly id: string;
   readonly sku: string;
   readonly name: string;
-  readonly moq: number;
+  /** 0081 — null: no minimum. */
+  readonly moq: number | null;
   readonly unit: string;
   readonly leadTimeDays: number | null;
   readonly tiers: readonly { readonly minQty: number; readonly maxQty: number | null; readonly unitPrice: Money }[];
@@ -172,6 +174,8 @@ function answerRow(p: FactoryProduct): FactoryKnowledgeRow | null {
  */
 function quoteProbe(p: FactoryProduct, allowedClaims: readonly AllowedClaim[]): FactoryProbe {
   const e = entryOf(p);
+  // 0081 — her minimum, or where her prices start when she has none.
+  const qty = startingQuantity(p, p.tiers);
   return {
     id: `factory:quote:${p.sku}`,
     kind: 'quote',
@@ -179,15 +183,15 @@ function quoteProbe(p: FactoryProduct, allowedClaims: readonly AllowedClaim[]): 
     scenario: {
       schemaVersion: SCHEMA_VERSION,
       id: `factory:quote:${p.sku}`,
-      title: `Can she quote ${p.name} at ${p.moq} ${p.unit}?`,
+      title: `Can she quote ${p.name} at ${qty} ${p.unit}?`,
       category: 'price',
-      buyer: { text: `What is your price for ${p.moq} ${p.unit}?` },
+      buyer: { text: `What is your price for ${qty} ${p.unit}?` },
       state: { phase: 'commercial_discussion' },
       catalog: [e],
       candidates: [candidate(e)],
       analysis: analysis({
         productId: e.id, confidence: 0.95, confirmed: true,
-        quantity: p.moq, unit: p.unit, phase: 'commercial_discussion',
+        quantity: qty, unit: p.unit, phase: 'commercial_discussion',
       }),
       proposedReply: 'Let me put the pricing together for you.',
       allowedClaims,
@@ -321,7 +325,7 @@ function fixtureLine(probe: FactoryProbe): string {
   const cat = s.catalog?.[0];
   const parts = [`buyer=${JSON.stringify(s.buyer.text)}`];
   if (cat) {
-    parts.push(`sku=${cat.sku}`, `moq=${cat.moq}`, `tiers=${cat.tiers.length}`,
+    parts.push(`sku=${cat.sku}`, `moq=${cat.moq ?? 'none'}`, `tiers=${cat.tiers.length}`,
       `floor=${cat.policy ? `${cat.policy.floorPrice.currency} ${cat.policy.floorPrice.amount}` : 'none'}`);
   }
   if (s.knowledge?.length) parts.push(`taught=${s.knowledge.length}`);

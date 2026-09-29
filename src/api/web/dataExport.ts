@@ -2,6 +2,8 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import type { Cell } from '../../core/owner/csv.js';
+import type { Locale } from '../../core/owner/i18n/locale.js';
+import { t } from './say.js';
 
 /**
  * CC-12 — an owner can take their own data out.
@@ -66,7 +68,8 @@ export type ExportSheet = { readonly header: readonly string[]; readonly rows: r
  */
 export const EXPORT_MAX_ROWS = 20000;
 
-type Loader = (tx: Tx, businessId: string) => Promise<ExportSheet>;
+/** 0081 — the owner's language, for the few cells that are words rather than data ("no minimum"). */
+type Loader = (tx: Tx, businessId: string, locale: Locale) => Promise<ExportSheet>;
 
 /**
  * A buyer, and how to reach them. `client_channels` carries one row per
@@ -129,10 +132,10 @@ const messages: Loader = async (tx, businessId) => {
 };
 
 /** Her catalogue, with its first price tier — the number a buyer is quoted. */
-const products: Loader = async (tx, businessId) => {
+const products: Loader = async (tx, businessId, locale) => {
   const r = await sql<{
     sku: string; name: string; name_zh: string | null; description: string | null; category: string | null;
-    unit: string; moq: number; currency: string; price: string | null; lead_time_days: number | null;
+    unit: string; moq: number | null; currency: string; price: string | null; lead_time_days: number | null;
     customizable: boolean; is_active: boolean; tiers: string | null; created_at: Date;
   }>`
     select p.sku, p.name, p.name_zh, p.description, p.category, p.unit, p.moq, p.currency,
@@ -147,7 +150,8 @@ const products: Loader = async (tx, businessId) => {
     header: ['sku', 'name', 'name (zh)', 'description', 'category', 'unit', 'moq', 'currency',
       'price', 'price breaks', 'lead time (days)', 'customizable', 'offered', 'added'],
     rows: r.rows.map((x) => [
-      x.sku, x.name, x.name_zh, x.description, x.category, x.unit, x.moq, x.currency,
+      // 0081 — never a blank where a minimum would go: the owner's words for none.
+      x.sku, x.name, x.name_zh, x.description, x.category, x.unit, x.moq ?? t(locale, 'product.noMinimum'), x.currency,
       x.price, x.tiers, x.lead_time_days, x.customizable, x.is_active, x.created_at,
     ]),
   };
@@ -425,11 +429,11 @@ const LOADERS: Readonly<Record<ExportSubject, Loader>> = {
  * header, never a throw: a caller that cannot parse the session has nothing to
  * export, and an error page would say more about the id than a blank file does.
  */
-export async function loadExport(db: Db, businessIdRaw: string, subject: ExportSubject): Promise<ExportSheet> {
+export async function loadExport(db: Db, businessIdRaw: string, subject: ExportSubject, locale: Locale = 'en'): Promise<ExportSheet> {
   const bid = parseBusinessId(businessIdRaw);
   const loader = LOADERS[subject];
   if (!bid.ok) return { header: [], rows: [] };
-  return withTenantTx(db, bid.value, (tx) => loader(tx, bid.value));
+  return withTenantTx(db, bid.value, (tx) => loader(tx, bid.value, locale));
 }
 
 /**

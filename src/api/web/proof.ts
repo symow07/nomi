@@ -62,7 +62,8 @@ export type ProofView = {
   readonly total: Money;
   /** The band this quantity fell in. Quantities and prices only. */
   readonly tier: { readonly minQty: number; readonly maxQty: number | null } | null;
-  readonly moq: number;
+  /** 0081 — null: the product has no minimum, and the page says so. */
+  readonly moq: number | null;
   /** G5 — the lead time the QUOTE stated, never the product's. */
   readonly leadTimeDays: number | null;
   /**
@@ -151,7 +152,7 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
     const q = (await sql<{
       quantity: number; unit_price_usd: string; total_usd: string; currency: string; created_at: Date;
       product_id: string; name: string; name_zh: string | null; sku: string;
-      unit: string; moq: number; lead_time_days: number | null;
+      unit: string; moq: number | null; lead_time_days: number | null;
       lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null; seller: string;
     }>`
       select q.quantity, q.unit_price_usd, q.total_usd, q.currency, q.created_at,
@@ -313,7 +314,7 @@ export function renderProof(v: ProofView): string {
     fact(t(l, 'proof.fact.unitPrice'), formatMoney(v.unitPrice)),
     fact(t(l, 'proof.fact.total'), formatMoney(v.total)),
     ...(tierText ? [fact(t(l, 'proof.fact.tier'), tierText)] : []),
-    fact(t(l, 'proof.fact.moq'), `${v.moq.toLocaleString('en-US')} ${v.unit}`),
+    fact(t(l, 'proof.fact.moq'), v.moq === null ? t(l, 'product.noMinimum') : `${v.moq.toLocaleString('en-US')} ${v.unit}`),
     ...(v.leadTimeDays !== null
       ? [fact(t(l, 'proof.fact.leadTime'), t(l, 'proof.days', { n: v.leadTimeDays }))]
       // G5 — no date, and the page says WHY: her closure, in her words, with

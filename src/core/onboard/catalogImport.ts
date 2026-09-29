@@ -36,7 +36,18 @@ export type ExtractedProduct = {
    */
   readonly sourceLine?: string;
   readonly unit: string;               // default 'pcs'
+  /**
+   * T4 — the line has a price this parser will not guess at: written two ways
+   * at once (`1.250,00`), in a currency other than US dollars (only dollars
+   * for now, until a workspace can have its own currency), or a spreadsheet
+   * row with several numbers and nothing saying which is the price. The line
+   * is refused with that reason, never priced wrongly without a word.
+   */
+  readonly problem?: ReadingProblem;
 };
+
+/** T4 — why a line's price was not read. Each is a reject reason the review names. */
+export type ReadingProblem = 'ambiguous_price' | 'not_usd' | 'several_numbers';
 
 /** LLM port for messy input (photos of price lists, rambling messages). */
 export interface CatalogExtractor {
@@ -47,6 +58,31 @@ export interface CatalogExtractor {
 }
 
 const UNIT_WORDS = 'pcs|pieces?|sets?|pairs?|boxes|cartons?|个|件|套|双|箱';
+
+/** "Minimum order", as owners write it: MOQ, 起订, 最低, and Arabic «حد أدنى» / «الحد الأدنى». */
+const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدنى)`;
+
+/**
+ * T4 — a figure as written, read one way or refused. Thousands commas
+ * (`1,250.00`) are thousands: that line was read as $1.00. A comma used as the
+ * decimal point, or a dot before exactly three digits after a non-zero whole
+ * part (`1.250,00`, `12,50`, `1.250`), could be read two ways, and a wrong
+ * reading is a price a customer is quoted — so it is refused. Sentence
+ * punctuation after the figure is not part of it.
+ */
+function readAmount(raw: string): number | 'ambiguous' {
+  const s = raw.replace(/[.,]+$/, '');
+  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
+  if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
+  if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
+  return 'ambiguous';
+}
+
+/** Dollars that are not US dollars — HK$, A$, C$, NT$, S$ — written as a prefix. */
+const OTHER_DOLLAR = /(?<![A-Za-z])(?!US[$＄])[A-Z]{1,3}[$＄]/;
+/** Every other currency an owner is likely to write. Only US dollars are read for now (until CUR). */
+const OTHER_CURRENCY = /[€£¥￥₹₩₽]|(?<!美)元|人民币|\b(?:RMB|CNY|EUR|GBP|JPY|AED|SAR|HKD|AUD|CAD|SGD|TWD|INR)\b|د\.إ|ر\.س|درهم|ريال/i;
+const NUMBER_CELL = /^\d[\d.,]*$/;
 
 /**
  * An article number at the START of the line — where suppliers put it. Two
@@ -82,23 +118,50 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
 
     const article = line.match(ARTICLE_NO)?.[1] ?? null;
 
-    const price =
-      line.match(/[$＄]\s*(\d+(?:\.\d+)?)/)?.[1] ??
-      line.match(/(\d+(?:\.\d+)?)\s*(?:美元|美金|USD)/i)?.[1] ??
-      line.match(/\t(\d+(?:\.\d+)?)\t/)?.[1] ?? null;
+    // T4 — a price in any currency but US dollars is refused, not ignored:
+    // today "18元" came in as a product with no price, and "HK$25" as $25.
+    let problem: ReadingProblem | null =
+      OTHER_DOLLAR.test(line) || OTHER_CURRENCY.test(line) ? 'not_usd' : null;
+    let price: number | null = null;
+    const written =
+      line.match(/(?:US)?[$＄]\s*(\d[\d.,]*)/i)?.[1] ??
+      line.match(/(\d[\d.,]*)\s*(?:美元|美金|USD)/i)?.[1] ?? null;
+    if (!problem && written !== null) {
+      const a = readAmount(written);
+      if (a === 'ambiguous') problem = 'ambiguous_price';
+      else price = a;
+    }
+
+    // A spreadsheet row: the price is the one number after the name, or the
+    // first of two when the second is a whole minimum ("保温杯\t2.6\t1000").
+    // More numbers than that, and nothing marks the price: refused, not priced
+    // from whichever came first.
+    let rowMoq: string | null = null;
+    if (!problem && price === null && line.includes('\t')) {
+      const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
+      if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
+        const a = readAmount(nums[0]!);
+        if (a === 'ambiguous') problem = 'ambiguous_price';
+        else price = a;
+        rowMoq = nums[1] ?? null;
+      } else if (nums.length >= 2) {
+        problem = 'several_numbers';
+      }
+    }
 
     const moq =
-      line.match(/(?:MOQ|起订|最低)\s*[:：]?\s*(\d[\d,]*)/i)?.[1] ??
+      line.match(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*(\\d[\\d,]*)`, 'i'))?.[1] ??
       line.match(/(\d[\d,]*)\s*(?:个|件|套|pcs)?\s*起/)?.[1] ??
+      rowMoq ??
       line.match(/\t(\d{2,})\s*$/)?.[1] ?? null;
 
     // Name = the line minus the article number, price/moq/currency fragments.
     const name = (article ? line.slice(article.length) : line)
-      .replace(/[$＄]\s*\d+(?:\.\d+)?/g, ' ')
-      .replace(/\d+(?:\.\d+)?\s*(?:美元|美金|USD)/gi, ' ')
-      .replace(/(?:MOQ|起订|最低)\s*[:：]?\s*\d[\d,]*/gi, ' ')
+      .replace(/(?:US)?[$＄]\s*\d[\d.,]*/gi, ' ')
+      .replace(/\d[\d.,]*\s*(?:美元|美金|USD)/gi, ' ')
+      .replace(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*\\d[\\d,]*`, 'gi'), ' ')
       .replace(/\d[\d,]*\s*(?:个|件|套|pcs)?\s*起/g, ' ')
-      .replace(/\t\d+(?:\.\d+)?/g, ' ')
+      .replace(/\t\d[\d.,]*/g, ' ')
       .replace(new RegExp(`\\b(${UNIT_WORDS})\\b`, 'gi'), ' ')
       .replace(/\s+/g, ' ').trim();
     // A line that is ONLY an article number has no name to sell under; keep it
@@ -111,17 +174,24 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       sku: article,
       name: finalName,
       nameZh: zh ? finalName : null,
-      price: price ? usd(Number(price)) : null,
+      price: price !== null ? usd(price) : null,
       moq: moq ? Number(moq.replace(/,/g, '')) : null,
       unit: 'pcs',
       sourceLine: line,
+      ...(problem ? { problem } : {}),
     });
   }
   return out;
 }
 
 /** Neutral reject code (ADR-0008); reasonZh is kept for the P3 onboarding flow. */
-export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq' | 'no_price_on_page';
+export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq' | 'no_price_on_page' | ReadingProblem;
+
+const PROBLEM_ZH: Record<ReadingProblem, string> = {
+  ambiguous_price: '价格有两种读法',
+  not_usd: '目前只认美元',
+  several_numbers: '这行数字太多，不知道哪个是价格',
+};
 
 export type ValidatedImport = {
   readonly accepted: readonly ExtractedProduct[];
@@ -137,7 +207,10 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
     // M22 (F-02): the owner's article number identifies the product; the name
     // only does when she gave no number.
     const key = (p.sku ?? p.name).toLowerCase();
-    if (p.name.length < 2 || p.name.length > 120) {
+    if (p.problem) {
+      // T4 — a price the parser would not guess at: said, and not brought in.
+      rejected.push({ product: p, reason: p.problem, reasonZh: PROBLEM_ZH[p.problem] });
+    } else if (p.name.length < 2 || p.name.length > 120) {
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
       rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });

@@ -4,9 +4,10 @@
 first.** It says what shipped, what is next, what waits on the owner, and how
 to resume — without asking the owner anything.
 
-Last updated **2026-09-29**, after #122 — **an order waits for the owner's
-tap** (0080, §5 rule 23): a customer's "yes" is a proposal; nothing is
-confirmed or sent until the owner confirms. Before it, #121 — "told" is what REACHED the buyer
+Last updated **2026-09-29**, after #123 — **a product may have no minimum**
+(0081, §5 rule 24) with T4's honest price-list reading, and PRODUCT.md's
+description rewritten to the positioning. Before it, #122 — **an order waits
+for the owner's tap** (0080, rule 23). Before that, #121 — "told" is what REACHED the buyer
 (0079): a shop's opener asked again hands off only once a message carrying the
 disclosure was accepted by the provider, in draft and auto alike (§5 rules 3,
 19). The positioning is recorded in §0 — read it before writing any copy.
@@ -142,7 +143,7 @@ footer.
 
 ## 4 · What is live (production, 2026-09-28)
 
-- **Deployed:** the merge of #121 (0079, the disclosure delivered). Before it
+- **Deployed:** the merge of #122 (`9581518`, 0080 — an order waits for the owner's tap), 2026-09-29 07:03 UTC; production `schema_version` = **80**. Backup before it: `~/nomi-backups/nomi-backup-20260929T064304Z` (manual, schema 79, drill 4/4 — see `docs/PROGRESS.md` "Found on the way": no scheduled backup could pass its drill since 0078 until #122 fixed the drill). Before it, the merge of #121 (0079, the disclosure delivered). Before it
   #120 (shop openers), #119, #118, #117 (the gate), #116, the merge of #115
   (`tools/add-login.mjs`, 0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
   close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
@@ -182,6 +183,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 123 | **A product may have no minimum** (0081) — see §5 rule 24; T4 (the price list read honestly); PRODUCT.md's description |
 | 122 | **An order waits for the owner's tap** (0080, T6/T6b) — see §5 rule 23; `docs/PROGRESS.md` begins the roadmap run |
 | 121 | **"Told" is what reached the buyer** (0079) — see §5 rules 3 and 19; the positioning recorded (§0) and inventoried (`docs/POSITIONING-INVENTORY.md`) |
 | 120 | **A shop's opener is answered; asked again after the disclosure, it hands off** — see §5 rule 19; openers first message 35/35 handed off → 0/35, after the disclosure 35/35; and a deletion request that reads as an injection ("Forget everything you know about me") is the silent hand-off, not the injection's canned reply |
@@ -378,6 +380,13 @@ Recent PRs, newest first:
    - The owner is told: an `order_proposed` alert by e-mail always, WhatsApp where live (`goesByMail`), once per proposal; the conversation leads Buyers (rank 0, "Said yes to an order") and Today ("Orders waiting for you", first); every live answer carries `orders`, and a page the owner allowed to notify (Today's button) raises a browser notification when it rises — while a Nomi tab is open (push with no tab is G5b).
    - **The pending question is what the customer was actually asked.** It travels with the reply (`asks` on `drafts` and `outbound_messages`) and is set by the send path when the provider accepts the message (`markQuestionAsked`, `src/db/pendingQuestion.ts`); the owner's own words and an edited draft ask nothing; a turn keeps a question only if it was already asked and is still the one being asked. A "yes" after a "shall I confirm?" draft nobody sent proposes nothing.
    - Tests: `tests/pipeline/order-waits.test.ts` (T6: every capability in draft, seven kinds of message, nothing sent; T6b: every mode), `tests/parity/order-proposal.test.ts`, `tests/integration/order-proposal.test.ts` (production composition). The hold, the pending rule and the proposal each switched off fail their own tests. Pre-pilot scenario 10 goes through the tap.
+
+24. **A product may have no minimum order, and nothing pretends it has** (0081, 2026-09-29; the owner overrode the plan's sentinel of 1).
+   - `products.moq` is nullable; NULL means no minimum (never 0; existing values kept — nothing records whether a stored 100 was stated or the old default). An imported line that states none is written with none (it was 100). The product page's box, left empty, is "no minimum".
+   - No reply, page or export prints "minimum 1", "minimum order 1", a blank, or "null" where a minimum goes: the product list and page, the import review, the customer's proof page and the products export say "No minimum" / 无最低起订量 / بلا حد أدنى (`product.noMinimum`; the export in the owner's language). Quotes and orders are never refused as below a minimum that does not exist; a photo or rehearsal with no stated quantity is priced where her prices start (`startingQuantity`).
+   - The model is told "no minimum" in the candidate line and gets no `moq` key at all when there is none; a figure after "minimum"/MOQ/起订/«حد أدنى»/pedido mínimo/commande minimum is a commercial figure the numeral guard requires to be sourced, so an invented "minimum 1" is refused in five languages.
+   - **T4 — the price list is read honestly or refused with a reason**: thousands commas are thousands ($1,250.00 was $1.00); a figure that reads two ways (1.250,00, 12,50, 1.250) is refused; only US dollars for now (€, 元, HK$ … refused until a workspace has its own currency, CUR); a spreadsheet row with several numbers and none marked is refused; «حد أدنى» is read. The review shows the refused line as written, and why.
+   - Tests: `tests/parity/moq-no-minimum.test.ts`, `tests/parity/t4-parser-honesty.test.ts`, `tests/integration/moq-no-minimum.test.ts`. The live model check ran before and after (unchanged: 29 named, 0 flipped, 0 unreadable).
 
 ## 6 · What's next
 

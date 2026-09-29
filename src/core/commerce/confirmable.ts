@@ -59,7 +59,7 @@ export function toConfirmableOrder(input: {
   // Rules 3 & 4: quantity present, and at or above MOQ.
   if (!state.quantity || state.quantity.value <= 0) {
     reasons.push('quantity_missing');
-  } else if (product && state.quantity.value < product.moq) {
+  } else if (product && product.moq !== null && state.quantity.value < product.moq) {
     reasons.push('quantity_below_moq');
   }
 

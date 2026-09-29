@@ -1,7 +1,7 @@
 import type { VisionDescriber } from '../llm/ports.js';
 import type { RetrievedProduct, Retriever } from '../retrieval/ports.js';
 import type { MediaFetcher } from '../channels/whatsapp/media.js';
-import { computeQuote } from '../core/commerce/quote.js';
+import { computeQuote, startingQuantity } from '../core/commerce/quote.js';
 import type { NegotiationRule, PriceTier, PricingPolicy, Product, Quote } from '../core/types/commerce.js';
 import type { ProductId } from '../core/types/ids.js';
 
@@ -95,7 +95,7 @@ export async function computeImageInquiry(
   if (inputs) {
     const r = computeQuote({
       product: inputs.product, tiers: inputs.tiers, policy: inputs.policy,
-      rules: inputs.rules, quantity: captionQty ?? inputs.product.moq,
+      rules: inputs.rules, quantity: captionQty ?? startingQuantity(inputs.product, inputs.tiers),
     });
     quote = r.ok ? r.value : null;
   }

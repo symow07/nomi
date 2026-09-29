@@ -17,30 +17,28 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
+| 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
+| 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** MOQ as a nullable `products.moq` ("no minimum"), with T4's parser honesty.
+**Next:** Spanish and French — the disclosure and every safety check (step 3).
 
 ## The order of work
 
 1. **Done — T6/T6b**, the live order defect (highest priority).
-2. **MOQ, nullable** — `products.moq` null means no minimum; ~25 files in
-   `src/`; a test that no reply, page or export prints "minimum 1", "minimum
-   order 1", an empty value, "null" or a blank where a minimum goes. "No
-   minimum" in every language. With **T4** (parser honesty: separators,
-   struck prices, size-variant prices, non-$ prices).
+2. **Done — MOQ nullable (0081) and T4**, with PRODUCT.md (step 4).
 3. **Spanish and French** — the disclosure and every safety check in es/fr
    (identity, deletion, wants-a-person, forbidden-word floor, numerals).
    `DISCLOSURE_NATIVE_REVIEW` gets `es: false, fr: false` — never set true by
    me; a native reviewer flips them.
-4. **PRODUCT.md** — the description of what the product is, only.
+4. **Done — PRODUCT.md** (in #123).
 5. **Design foundation** (about 70 h): colour tokens (graphite primary, magenta
    only for the assistant's marks; jade, highlight `#7F6400`, the warm papers
    and the dark tokens retired), self-hosted Noto with one font order per
    language, the three-pane shell, the approval card, and the
    buttons-and-doors test (written first).
-6. **Calendar**: the owner's own entries (migration **0081** — 0080 went to
-   the order fix, which had to ship first), the week grid, then the promised
+6. **Calendar**: the owner's own entries (the instruction named migration
+   0080; the order fix and the minimum shipped first and took 0080 and 0081,
+   so the calendar's is the next free number), the week grid, then the promised
    follow-up read from conversations (then price end, agreed delivery).
 7. **Build items with no open decision**, each built in the new design where
    it has a page: T1, T2, T3, T5, T7, Q1, CH5, CH7a, PWR, FAIR, CEIL, REKEY.

@@ -268,7 +268,7 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
   if (!bid.ok) return null;
 
   type Row = {
-    id: string; sku: string; name: string; moq: number; unit: string; lead_time_days: number | null;
+    id: string; sku: string; name: string; moq: number | null; unit: string; lead_time_days: number | null;
     tiers: { minQty: number; maxQty: number | null; unitPrice: number; currency: string }[];
     policy: { floorPrice: number; currency: string; maxDiscountPct: number; humanRequiredAbovePct: number } | null;
     knowledge: { kind: string; label: string; content: string; source: string }[];
@@ -322,7 +322,7 @@ async function loadFactoryFixture(db: Db, businessIdRaw: string): Promise<Factor
       id: r.id,
       sku: r.sku,
       name: r.name,
-      moq: Number(r.moq),
+      moq: r.moq === null ? null : Number(r.moq),
       unit: r.unit,
       leadTimeDays: r.lead_time_days === null ? null : Number(r.lead_time_days),
       // M43a — a tier the build cannot price is dropped, exactly as in the

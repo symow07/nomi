@@ -8,22 +8,28 @@ web
 
 ## What it is
 
-Nomi is a trusted sales employee for factories. A Yiwu-area factory or export
-business hires a digital employee who answers buyer enquiries on WhatsApp —
-identifies the product, quotes within the owner's rules, and never states a
-price, specification, or certification the owner has not given her.
+Nomi answers a business's customers where they write — Instagram, Messenger,
+WhatsApp and e-mail — drafting or sending each reply under rules the owner
+sets: it finds the product, answers from what the owner taught, prices within
+the owner's rules, and never states a price, figure or claim the owner has not
+given.
+
+It is for anyone who sells or talks to customers over social media: clothing
+and cosmetics brands, online stores, startups, agencies, and exporters and
+factories too. Global, not tied to one country or one kind of trade.
 
 Product name is **Nomi** — inside and out, one name everywhere.
 
 ## Primary user
 
-**The factory owner or manager, operating it themselves.** Confirmed: no operator
-sits between them and the product. Design must be self-explanatory — anything that
-requires someone to explain it has failed.
+**The owner or manager of the business, operating it themselves.** Confirmed: no
+operator sits between them and the product. Design must be self-explanatory —
+anything that requires someone to explain it has failed.
 
-- Chinese factory owner/manager, sells to Arabic- and English-speaking buyers.
+- Sells over social media, anywhere in the world; often reads Chinese or Arabic as
+  well as English, and their customers write in their own languages.
 - Not a software user by trade. Judges the product the way they'd judge a new hire:
-  *can I trust her in front of a customer yet?*
+  *can I trust this in front of a customer yet?*
 - The founder is currently also an operator during the pilot, but the owner is the
   design target; operator-only surfaces are demoted, not first-class.
 
@@ -38,7 +44,7 @@ requires someone to explain it has failed.
 **Both phone and desktop, split by task.** Confirmed:
 
 - **Phone** — urgent, short: approving a reply, taking over a conversation, replying
-  as themselves. Happens between other work, on the factory floor, one-thumb.
+  as themselves. Happens between other work, on the shop floor or on the move, one-thumb.
 - **Desktop** — long, authoring: teaching knowledge, catalogue and prices, setup.
 
 Neither is a fallback for the other. Navigation must work in both without a rewrite.
@@ -83,7 +89,7 @@ implementation detail, not a design hierarchy.
 
 ## Accessibility
 
-Trilingual including RTL Arabic; readable in factory-floor daylight on a phone;
+Trilingual including RTL Arabic; readable in daylight on a phone;
 keyboard focus visible; motion respects `prefers-reduced-motion`.
 
 ## Open decisions

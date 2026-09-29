@@ -25,7 +25,7 @@ type Row = {
   sku: string;
   name: string;
   category: string | null;
-  moq: number;
+  moq: number | null;
   relevance: number;
   matched_via: string;
 };

@@ -94,7 +94,7 @@ export interface Database {
     name: string;
     category: string | null;
     unit: string;
-    moq: number;
+    moq: number | null;                 // 0081 — null: no minimum
     price_usd_per_unit: Numeric | null; // legacy scalar — n8n still reads it
     currency: Generated<string>;   // M43a — the amount's currency, beside the amount
     lead_time_days: number | null;

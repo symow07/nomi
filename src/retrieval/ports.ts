@@ -21,7 +21,8 @@ export type RetrievedProduct = {
   readonly sku: string;
   readonly name: string;
   readonly category: string | null;
-  readonly moq: number;
+  /** 0081 — null = no minimum. */
+  readonly moq: number | null;
   /** fused RRF score, 0..1 normalised — NOT a price. Prices come from CatalogRepo. */
   readonly relevance: number;
   readonly matchedVia: 'trigram' | 'semantic' | 'both';

@@ -49,7 +49,8 @@ export type ProductListItem = {
   readonly name: string;
   readonly nameZh: string | null;
   readonly sku: string;
-  readonly moq: number;
+  /** 0081 — null: no minimum. */
+  readonly moq: number | null;
   readonly unit: string;
   readonly entryQty: number | null;
   readonly entryPrice: Money | null;
@@ -78,7 +79,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
   return withTenantTx(db, bid.value, async (tx) => (await sql<{
-    id: string; name: string; name_zh: string | null; sku: string; moq: number; unit: string;
+    id: string; name: string; name_zh: string | null; sku: string; moq: number | null; unit: string;
     is_active: boolean; price: string | null; currency: string;
     entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean;
   }>`
@@ -97,7 +98,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
     const entryPrice = r.entry_price !== null ? Number(r.entry_price) : (r.price !== null ? Number(r.price) : null);
     return {
       id: r.id, name: r.name, nameZh: r.name_zh, sku: r.sku, moq: r.moq, unit: r.unit,
-      entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq : null),
+      entryQty: r.entry_qty ?? (entryPrice !== null ? r.moq ?? 1 : null),
       // G18 — her product's own currency, not an assumed dollar.
       entryPrice: entryPrice === null ? null : moneyFromRow(entryPrice, r.currency),
       learned: r.is_active && entryPrice !== null,
@@ -115,7 +116,8 @@ export type ProductDetail = {
   readonly sku: string;
   readonly category: string | null;
   readonly unit: string;
-  readonly moq: number;
+  /** 0081 — null: no minimum. */
+  readonly moq: number | null;
   readonly leadTimeDays: number | null;
   readonly customizable: boolean;
   readonly learned: boolean;
@@ -135,7 +137,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
   return withTenantTx(db, bid.value, async (tx) => {
     const p = (await sql<{
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
-      unit: string; moq: number; lead_time_days: number | null; customizable: boolean;
+      unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
               price_usd_per_unit as price, currency,
@@ -192,7 +194,7 @@ export function reviewImport(rawText: string): ValidatedImport {
 async function catalogueFor(tx: Tx, bid: BusinessId): Promise<readonly CatalogueEntry[]> {
   const rows = (await sql<{
     id: string; sku: string; name: string; name_zh: string | null;
-    price: string | null; currency: string; moq: number; floor: string | null;
+    price: string | null; currency: string; moq: number | null; floor: string | null;
   }>`
     select p.id, p.sku, p.name, p.name_zh, p.price_usd_per_unit as price, p.currency, p.moq,
            pp.floor_price_usd as floor
@@ -282,7 +284,9 @@ export async function confirmImport(
       // goods and every re-import silently duplicates her catalogue. One is
       // generated ONLY when the line carried no number at all.
       const sku = p.sku ?? generatedSku(Date.now(), i);
-      const moq = p.moq ?? 100;
+      // 0081 — the minimum the line stated, or none. It was 100 for every line
+      // that stated nothing: a serum shop's customers "below the minimum".
+      const moq = p.moq;
       // M29 — TRUST RULE, now applied to BOTH halves of a sellable product.
       // A price with no owner-stated floor is not a product she can quote: the
       // floor decides what she may never go below, and an import has no way to
@@ -396,7 +400,8 @@ export function renderProductList(
     const price = p.entryPrice !== null && p.entryQty !== null
       ? labelled(locale, iso(formatQtyUnit(locale, p.entryQty, u)), iso(formatMoney(p.entryPrice)))
       : esc(t(locale, 'product.list.priceTbd'));
-    const moq = labelled(locale, esc(t(locale, 'product.list.moq')), iso(formatQtyUnit(locale, p.moq, u)));
+    const moq = labelled(locale, esc(t(locale, 'product.list.moq')),
+      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(formatQtyUnit(locale, p.moq, u)));
     return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
       <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
@@ -436,7 +441,9 @@ export function renderProductDetail(
         <input name="price" inputmode="decimal"
                value="${val('price', d.tiers[0] ? String(d.tiers[0].unitPrice.amount) : '')}" />${ferr('price')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.moq'))}</span>
-        <input name="moq" inputmode="numeric" value="${val('moq', String(d.moq))}" />${ferr('moq')}</label>
+        <input name="moq" inputmode="numeric" placeholder="${esc(t(locale, 'product.noMinimum'))}"
+               value="${val('moq', d.moq === null ? '' : String(d.moq))}" />${ferr('moq')}
+        <span class="caption muted">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>
         <input name="unit" value="${val('unit', d.unit)}" />${ferr('unit')}</label>
       <label class="pcheck"><input type="checkbox" name="isActive" ${d.isActive ? 'checked' : ''} />
@@ -473,7 +480,7 @@ export function renderProductDetail(
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
-        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(formatQtyUnit(locale, d.moq, u))}</div>
+        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : formatQtyUnit(locale, d.moq, u))}</div>
         ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
@@ -490,7 +497,7 @@ export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW): stri
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="block">
       <p>${esc(t(locale, 'product.add.intro'))}</p>
-      <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${esc(t(locale, 'product.add.example1'))}<br>${esc(t(locale, 'product.add.example2'))}</p>
+      <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${esc(t(locale, 'product.add.example1'))}<br>${esc(t(locale, 'product.add.example2'))}<br>${esc(t(locale, 'product.add.example3'))}</p>
       <form method="post" action="/app/products/add/review">
         <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}" autofocus></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
@@ -533,7 +540,9 @@ export function renderReview(
       ? t(locale, 'product.list.priceTbd') : formatMoney({ amount: n, currency: c.product.currency });
     const moves = [
       c.price ? t(locale, 'product.review.change.price', { from: money(c.price.from), to: money(c.price.to) }) : null,
-      c.moq ? t(locale, 'product.review.change.moq', { from: formatQty(locale, c.moq.from), to: formatQty(locale, c.moq.to) }) : null,
+      c.moq ? t(locale, 'product.review.change.moq', {
+        from: c.moq.from === null ? t(locale, 'product.noMinimum') : formatQty(locale, c.moq.from),
+        to: formatQty(locale, c.moq.to) }) : null,
     ].filter((m): m is string => m !== null).map((m) => `<span class="rev-move">${esc(m)}</span>`).join('');
     return `
     <label class="rev chg"><input type="checkbox" name="apply:${esc(c.product.id)}" checked /> ${known(c.product)}
@@ -542,7 +551,7 @@ export function renderReview(
   }).join('');
   const added = diff.added.map((p) => `
     <div class="rev"><b>${esc(p.name)}</b>
-      <span class="muted">${p.price !== null ? esc(formatMoney(p.price)) : esc(t(locale, 'product.list.priceTbd'))}${p.moq !== null ? ` · ${esc(t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }))}` : ''}</span>
+      <span class="muted">${p.price !== null ? esc(formatMoney(p.price)) : esc(t(locale, 'product.list.priceTbd'))}${` · ${esc(p.moq !== null ? t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }) : t(locale, 'product.noMinimum'))}`}</span>
       ${p.price === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
       ${from(p)}
     </div>`).join('');
@@ -558,7 +567,7 @@ export function renderReview(
   // shown, or counted. A silent cut at eight was a page that seemed shorter.
   const rest = v.rejected.length - REJECTED_SHOWN;
   const rejected = v.rejected.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· ${esc(r.product.name || t(locale, 'product.review.emptyLine'))} —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· <bdi>${esc((r.product.problem ? r.product.sourceLine : null) ?? (r.product.name || t(locale, 'product.review.emptyLine')))}</bdi> —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
     : '';
 
   const everythingNew = diff.added.length === v.accepted.length;
@@ -641,7 +650,7 @@ async function updateProductTx(
   tx: Tx, bid: BusinessId, productId: string, actor: string, edit: ProductEdit, source?: EditSource,
 ): Promise<EditResult> {
   const cur = (await sql<{
-    price: string | null; moq: number; unit: string; is_active: boolean; floor: string | null;
+    price: string | null; moq: number | null; unit: string; is_active: boolean; floor: string | null;
   }>`
     select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active,
            pp.floor_price_usd as floor
@@ -654,7 +663,7 @@ async function updateProductTx(
 
   const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
   let price: number | null = cur.price === null ? null : Number(cur.price);
-  let moq = cur.moq;
+  let moq: number | null = cur.moq;
   let unit = cur.unit;
 
   if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
@@ -667,9 +676,12 @@ async function updateProductTx(
     else if (cur.floor !== null && n < Number(cur.floor)) errors.price = 'below_floor';
     else price = Number(n.toFixed(4));
   }
-  if (edit.moq !== undefined && edit.moq !== null && edit.moq.trim() !== '') {
-    const n = Number(edit.moq.trim());
-    if (!Number.isFinite(n)) errors.moq = 'not_a_number';
+  // 0081 — an empty box is "no minimum"; absent (null) leaves it as it is.
+  if (edit.moq !== undefined && edit.moq !== null) {
+    const raw = edit.moq.trim();
+    const n = Number(raw);
+    if (raw === '') moq = null;
+    else if (!Number.isFinite(n)) errors.moq = 'not_a_number';
     else if (!(n > 0) || !Number.isInteger(n)) errors.moq = 'not_positive';
     else moq = n;
   }

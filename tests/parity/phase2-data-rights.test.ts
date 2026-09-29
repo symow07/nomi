@@ -65,7 +65,7 @@ describe('CC-12 · she can take her own data out', () => {
   it('every query is scoped by the tenant transaction, never a bare connection', () => {
     const src = read('src/api/web/dataExport.ts');
     // One entry point, and it opens the tenant transaction that RLS reads.
-    expect(src).toMatch(/return withTenantTx\(db, bid\.value, \(tx\) => loader\(tx, bid\.value\)\)/);
+    expect(src).toMatch(/return withTenantTx\(db, bid\.value, \(tx\) => loader\(tx, bid\.value, locale\)\)/);
     // The definer functions used elsewhere for cross-tenant reads are not here.
     expect(src, 'a definer function would step around the policy this needs')
       .not.toMatch(/live_business_ids|resolve_tenant|inboxes_to_read/);
