@@ -133,11 +133,12 @@ export function formatRelative(locale: Locale, d: Date, now: Date): string {
 export function formatTimeLeft(locale: Locale, ms: number): string {
   const minutes = Math.max(1, Math.floor(ms / 60_000));
   const parts = { hours: Math.floor(minutes / 60), minutes: minutes % 60 };
-  type DurationFormatter = { format(d: { hours?: number; minutes?: number }): string };
-  const DF = (Intl as unknown as { DurationFormat: new (l: string, o: { style: string }) => DurationFormatter }).DurationFormat;
-  return new DF(INTL_TAG[locale], { style: 'long' }).format({
-    ...(parts.hours ? { hours: parts.hours } : {}), ...(parts.minutes ? { minutes: parts.minutes } : {}),
-  });
+  // Each unit said by the locale, then joined as the locale joins units.
+  // Not Intl.DurationFormat: Node 22 (production, CI) does not have it.
+  const unit = (n: number, u: 'hour' | 'minute') =>
+    new Intl.NumberFormat(INTL_TAG[locale], { style: 'unit', unit: u, unitDisplay: 'long' }).format(n);
+  const said = [...(parts.hours ? [unit(parts.hours, 'hour')] : []), ...(parts.minutes ? [unit(parts.minutes, 'minute')] : [])];
+  return new Intl.ListFormat(INTL_TAG[locale], { type: 'unit', style: locale === 'zh' ? 'narrow' : 'long' }).format(said);
 }
 
 /** The hour (0–23) an instant falls in, in the business timezone — the row it sits in on a calendar. */
