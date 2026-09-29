@@ -223,7 +223,11 @@ d('0080 · an order waits for the owner\'s tap (requires DATABASE_URL)', { timeo
     expect(head).toBeGreaterThan(-1);
     expect(list.body.indexOf(confirmConv)).toBeGreaterThan(head);
     const today = await get('/app');
-    expect(today.body).toContain('Orders waiting for you');
+    // The design pass: Today's first block is the Buyers list's own "Needs
+    // you", in its order — the order first, named, a door to its conversation.
+    const first = today.body.indexOf('<a class="tline" href="/app/inbox/');
+    expect(first).toBeGreaterThan(-1);
+    expect(today.body.slice(first)).toMatch(new RegExp(`^<a class="tline" href="/app/inbox/${confirmConv}#latest">[\\s\\S]*?Order waiting`));
     expect(today.body).toMatch(/data-live-orders="[1-9][0-9]*"/);
     const live = await get('/app/live/today?since=0.0.0.0.0.0');
     expect(live.statusCode).toBe(200);

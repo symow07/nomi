@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { renderInsights, MAX_INSIGHTS, type InsightsData, type Insight } from '../../src/api/web/insights.js';
+import { renderInsights, MAX_INSIGHTS, COUNTED_INSIGHTS, type InsightsData, type Insight } from '../../src/api/web/insights.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * M34.10 — AN INSIGHT THAT DOES NOT TELL THE OWNER WHAT TO TAP DOES NOT RENDER.
@@ -69,12 +69,12 @@ describe('M34.10 · every insight carries somewhere to go', () => {
 
   it('every line and every action label exists in all three locales', () => {
     const KEYS: MessageKey[] = [
-      'insight.title', 'insight.quotedNoReply', 'insight.draftsWaiting',
-      'insight.promotionReady', 'insight.productsNoPrice',
+      'insight.title', 'insight.quotedNoReply',
+      'insight.promotionReady',
       'insight.action.review_drafts', 'insight.action.follow_up',
       'insight.action.consider_promotion', 'insight.action.fix_catalog',
-      'insight.followUpsWaiting', 'insight.action.confirm_follow_ups',
-      'insight.uncertainSends', 'insight.action.settle_uncertain',
+      'insight.action.confirm_follow_ups',
+      'insight.action.settle_uncertain',
     ];
     for (const locale of LOCALES) {
       for (const k of KEYS) {
@@ -82,7 +82,16 @@ describe('M34.10 · every insight carries somewhere to go', () => {
         expect(s.length, `${locale} ${k}`).toBeGreaterThan(1);
         expect(s, `${locale} ${k} left a placeholder`).not.toContain('{');
       }
+      // The design pass: the counted ones, in every plural form the locale has.
+      for (const k of COUNTED_INSIGHTS) {
+        for (const n of [0, 1, 2, 3, 11, 100]) {
+          const s = tn(locale, k, n, { name: '小雅' });
+          expect(s, `${locale} ${k} ${n} left a placeholder`).not.toContain('{');
+        }
+      }
     }
+    // "1 replies" was the bug this fixed.
+    expect(tn('en', 'insight.draftsWaiting', 1)).toBe('1 reply is written and waiting for you.');
   });
 
   it('states findings, never rates or scores — the M7 module could not say this', () => {

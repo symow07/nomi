@@ -178,6 +178,11 @@ describe('Today, by time (render)', () => {
     const stopped = renderOperationsHome({ ...live(emptyFactory), assistantStoppedAt: NOW }, 'en', busy);
     expect(stopped).toContain(`<span class="dot warn" aria-hidden="true">●</span> ${t('en', 'today.sending.paused')}`);
     expect(renderOperationsHome(live(emptyFactory), 'en', { ...busy, sending: [] })).not.toContain(t('en', 'today.sending'));
+    // A channel connected to an installation that cannot send is not "on":
+    // the page says messaging is not active instead (found in the screenshots).
+    const off = renderOperationsHome(emptyFactory, 'en', busy);
+    expect(off).not.toContain(t('en', 'today.sending'));
+    expect(off).toContain('Messaging is not active yet');
   });
 
   it('the date is today\'s, in the business\'s timezone, beside the title', () => {

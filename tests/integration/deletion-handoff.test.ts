@@ -304,7 +304,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
       select state, asked_at, subject_note from deletion_requests where id = ${after!.request}::uuid`.execute(tx).then((x) => x.rows[0]!));
     expect(request).toMatchObject({ state: 'open', subject_note: null });
     expect(request.asked_at.getTime()).toBe(noted!.asked_at.getTime());
-    expect((await get('/app')).body).toMatch(/href="\/app\/inbox\?filter=deletion">\s*<span class="v">2<\/span>/);
+    expect((await get('/app')).body).toContain('href="/app/inbox?filter=deletion">2 customers asked for their data to be deleted');
   });
 
   it('0076 · not a deletion request: set aside — nothing deleted, nothing sent — and the trail says who', async () => {

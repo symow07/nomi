@@ -374,7 +374,9 @@ export function renderOperationsHome(
         esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p></section>`
     : '';
 
-  // Sending, and Setup while it is unfinished — one line each, at the foot.
+  // Sending (only where messaging is live: a channel connected to an
+  // installation that cannot send is not "on"), and Setup while it is
+  // unfinished — one line each, at the foot.
   const setup = setupState();
   const finishSetup = setup && setup.next !== null
     ? `<p class="today-foot setup"><span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span> ${
@@ -386,11 +388,11 @@ export function renderOperationsHome(
   ${silenced}
   ${stopped}
   ${now}
-  ${tellMe}
   ${lastDay}
   ${coming}
   ${budget}
-  ${renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced))}
+  ${live ? renderSending(today, locale, Boolean(s.assistantStoppedAt || s.opsSilenced)) : ''}
   ${finishSetup}
-  ${notLive}`;
+  ${notLive}
+  ${tellMe}`;
 }

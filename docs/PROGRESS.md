@@ -17,6 +17,11 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #137 | **CH1 + CH2 — "Your accounts" read live on Channels, and the help page**: each step marked from what is there (the Page, its Instagram, Meta's word on the token, the permissions granted, the subscription, the newest message per channel); a token Meta refuses is recorded as a send would find it; Meta not answering is "could not check"; `/app/help/meta` says what to check and why, linking only Meta's own help pages. Merged 19:25 UTC, deployed, `/health` ok (no migration) | 85 |
+| 2026-09-30 | #136 | **CEIL — 50 sends a day for a new workspace** (0085; existing ones 200; `tools/send-ceiling.mjs`), **and an hourly Meta-errors alarm** to the operator (5 failed and 1 in 5, over 24 h, at most every 6 h). Backup before it: `~/nomi-backups/nomi-backup-20260929T173225Z` (schema 83, drill 4/4). Merged 19:08 UTC, deployed, `/health` ok, schema 85 | 85 |
+| 2026-09-30 | #135 | **FAIR — the inbound queue shared fairly**: a group per workspace, three workers a third of a poll apart, one turn at a time per workspace; a batch waits for its own conversation's message still in the queue. Merged 18:58 UTC; its deploy also carried #133 and #134 (see "Found on the way"). `/health` ok, schema 84 | 84 |
+| 2026-09-30 | #134 | **REKEY — `CREDENTIAL_KEY` can be rotated without a token lost**: `CREDENTIAL_KEY_PREVIOUS` read as a fallback, `tools/rekey.mjs` (a check mode that changes nothing), `docs/SECRET-ROTATION.md`. Production check (read-only): 4 sealed tokens, all open with the current key. Merged 18:00 UTC | 83 |
+| 2026-09-30 | #133 | **PWR — "Forgot your password?"** (0084): a one-time link by e-mail, 60 minutes, at most 3 an hour per login, older links closed; the page says the same whether or not the address is known. Merged 18:00 UTC, deployed with #135 | 84 |
 | 2026-09-30 | #132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the batch's own messages never its history; live check before and after (29/29, then 34/34 with five history cases). Merged about 17:12 UTC (no migration) | 83 |
 | 2026-09-30 | #131 | **T3 — imported products can be found**: names written at import and edit, name editing, "ready" only when findable, `tools/backfill-aliases.mjs` (NOT run on Westlake: all 5 of its products are findable by no name — the owner's yes). Merged about 17:12 UTC (no migration) | 83 |
 | 2026-09-29 | #130 | **T7 — every paid call on the ledger**, in its own transaction, on one UTC clock; the deepseek price; first figures about $0.000667 a turn at peak list price. Plus the midnight "Today" test flake, root-caused. Deployed 17:08 UTC (Railway's builder queued it for 40 minutes), `/health` ok (no migration) | 83 |
@@ -29,17 +34,13 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** #131 — T3, findability (imported products found by their names;
-name editing; "ready" only when findable; the backfill tool, NOT run on
-Westlake — see "Waiting on the owner"), then #132 — Q1, the analyser's
-history (live check before and after: 29/29 then 34/34 with five history
-cases), then #133 — PWR, "Forgot your password?" (0084; backup before it),
-then #134 — REKEY (the key rotation, without a token lost), then #135 — FAIR
-(the inbound queue shared fairly), then #136 — CEIL (0085: 50 a day for a
-new workspace, the Meta-errors alarm; backup before it), then #137 — CH1 +
-CH2 ("Your accounts" read live on Channels; the help page). That closes step
-7; then step 8, the rest of the design pass, folded into the pages those
-items touch.
+**Next:** step 8, the rest of the design pass. #138 — Today by time (who
+needs you now, the last 24 hours, what is coming up; every line a door,
+figures in sentences). Then right-to-left values (one formatting layer, every
+value isolated, a test that renders every page in Arabic), then names, Setup,
+People and the sign-in door, then screenshots in three languages and one
+review pass. **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
+`backup_runs` row** (below).
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -150,6 +151,16 @@ instruction did not answer. Collected here; asked once, at the end.
   (schema 79, drill 4/4 after the fix). **Check the next scheduled run
   (2026-09-30 03:00 UTC) wrote a `backup_runs` row**; the backup service
   rebuilds on changes to `tools/verify-restore.sh` (its watch path).
+  Confirmed from the service's own log (read 2026-09-29 19:10 UTC): the run
+  of 2026-09-29 03:04 UTC dumped schema 79, failed exactly this check (b)
+  "RLS-without-policy=1", and uploaded nothing. The backup service rebuilt
+  with the fix at 07:00 UTC that day.
+- **Railway made no deployment for one merge** (2026-09-29): #133 and #134
+  merged at 18:00 UTC with CI green, and the `nomi` service got no deployment
+  for `e56da0b` at all (the `backup` service did — skipped by its watch
+  paths). Production stayed on #132 until #135's merge deployed main's head,
+  both included. After a merge, read the deployment list for the merge
+  commit itself, not only for a SUCCESS.
 
 - **A unit test flaked once** (2026-09-29, before #124):
   `tests/parity/backup-retention.test.ts` › "manual pairs at the root older
