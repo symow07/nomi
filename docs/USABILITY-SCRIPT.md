@@ -188,7 +188,7 @@ MIGRATE_DATABASE_URL=postgresql://postgres@127.0.0.1:55440/nomi node tools/seed-
 
 The second checks the list above line by line and says "Ready" only when
 every line holds. The participant opens http://127.0.0.1:8787/login in a
-390px window, taps "I have an access code", and enters `smoke-code`.
+390px window, taps "I have an access code" at the foot of the sign-in card, and enters `smoke-code`.
 
 Three things a local instance does differently, for the facilitator:
 
