@@ -166,7 +166,9 @@ describe('A · the read model Customers brought, in the row as it is (decision 5
       const rowOf = (id: string) => new RegExp(`<a class="buyer( unanswered)?" href="/app/inbox/${id}#latest">([\\s\\S]*?)</a>`).exec(h);
       const quiet = rowOf('c-quiet')!;
       expect(quiet[1], `${l}: the buyer spoke last`).toBe(' unanswered');
-      expect(quiet[2], l).toContain(`<bdi>${esc(t(l, 'common.buyer'))}</bdi>`);
+      // The design pass (UI-PASS 5): the row is already the customer's name;
+      // a role word standing alone is not said.
+      expect(quiet[2], l).not.toContain(`<bdi>${esc(t(l, 'common.buyer'))}</bdi>`);
       const hers = rowOf('c-hers')!;
       expect(hers[1], `${l}: answered`).toBeUndefined();
       expect(hers[2], l).toContain('<bdi>Noor</bdi>');

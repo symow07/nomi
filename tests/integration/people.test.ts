@@ -161,6 +161,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       ['/app/factory/prices', 'floor=0.30&maxDiscountPct=10&askAbovePct=7'],
       ['/app/settings/people', 'name=Someone%20Else'],
       [`/app/settings/people/${randomUUID()}/remove`, undefined],
+      [`/app/settings/people/${randomUUID()}/name`, 'name=Someone'],
       ['/app/channels/outreach', 'channel=whatsapp&enabled=true'],
       ['/app/channels/domain', 'domain=example.com&selector=s1'],
       ['/app/channels/domain/check', undefined],
@@ -382,6 +383,40 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
 
     // and their code no longer works
     expect((await login(staffCode)).status).toBe(401);
+  });
+
+  it('UI-PASS 5 · an owner called by the business\'s name is asked for their own — and it saves', async () => {
+    const ownerId = await tx((t) => sql<{ id: string }>`
+      select id::text as id from people where business_id = ${BIZ} and is_owner limit 1`.execute(t).then((r) => r.rows[0]!.id));
+    const nameOf = () => tx((t) => sql<{ name: string }>`select name from people where id = ${ownerId}::uuid`
+      .execute(t).then((r) => r.rows[0]!.name));
+    const before = await nameOf();
+    await tx((t) => sql`update people set name = (select name from businesses where id = ${BIZ}::uuid) where id = ${ownerId}::uuid`.execute(t));
+    const asked = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    expect(asked.body).toContain(`action="/app/settings/people/${ownerId}/name"`);
+    // an empty name changes nothing and says why
+    const empty = await post(ownerCookie, `/app/settings/people/${ownerId}/name`, 'name=%20');
+    expect(flashSaid(empty, SECRET)).toContain('Type their name first');
+    const saved = await post(ownerCookie, `/app/settings/people/${ownerId}/name`, 'name=Mrs%20Wang');
+    expect(saved.statusCode).toBe(302);
+    expect(flashSaid(saved, SECRET)).toContain('Mrs Wang');
+    expect(await nameOf()).toBe('Mrs Wang');
+    const after = await app.inject({ method: 'GET', url: '/app/settings/people', headers: { cookie: ownerCookie } });
+    expect(after.body).not.toContain('/name"');
+    // a person of another business is not reachable: nothing saves
+    const stranger = await post(ownerCookie, `/app/settings/people/${randomUUID()}/name`, 'name=Nobody');
+    expect(flashSaid(stranger, SECRET)).toContain('did not save');
+    await tx((t) => sql`update people set name = ${before} where id = ${ownerId}::uuid`.execute(t));
+  });
+
+  it('UI-PASS 10 · the door leads with the e-mail; the access code has a card of its own', async () => {
+    const door = await app.inject({ method: 'GET', url: '/login' });
+    expect(door.body).toContain('name="email"');
+    expect(door.body).not.toContain('name="code"');
+    expect(door.body).toContain('href="/login?with=code"');
+    const code = await app.inject({ method: 'GET', url: '/login?with=code' });
+    expect(code.body).toContain('name="code"');
+    expect(code.body).not.toContain('name="email"');
   });
 
   it('THE OWNER CANNOT BE REMOVED — a business with nobody who can grant is broken', async () => {

@@ -54,7 +54,9 @@ describe('D4 · a reply the owner typed is his, not his employee\'s', () => {
     // Tags stripped: the assistant's name is drawn with its ✦ in a span (2026-09-29).
     const signed = [...html.matchAll(/<div class="ts muted">(.*?)<\/div>/g)].map((m) => m[1]!.replace(/<[^>]+>/g, '').trim());
     expect(signed).toHaveLength(3);
-    expect(signed[0], 'the buyer').toContain('Buyer');
+    // The design pass (UI-PASS 5): the customer by their name, never a role word.
+    expect(signed[0], 'the buyer').toContain(base.buyer!);
+    expect(signed[0], 'the buyer').not.toContain('Buyer');
     expect(signed[1], 'what the owner typed').toContain('You');
     expect(signed[1], 'what the owner typed').not.toContain('Lily');
     expect(signed[2], 'what the assistant wrote').toContain('Lily');

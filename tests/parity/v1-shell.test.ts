@@ -98,8 +98,8 @@ describe('V1 step three · the mark is the product\'s, the badge sits with its w
     const src = readFileSync(new URL('../../src/api/web/settings.ts', import.meta.url), 'utf8');
     const ret = src.slice(src.indexOf('return `<h1 class="page">${esc(t(locale, \'nav.settings\'))}</h1>'));
     const lang = ret.indexOf("switcher(locale, '/app/settings')");
-    const firstDoor = ret.indexOf("deeper('/app/onboarding'");
-    const lastDoor = ret.indexOf("deeper('/app/settings/components'");
+    const firstDoor = ret.indexOf("door('/app/onboarding'");
+    const lastDoor = ret.indexOf("door('/app/settings/components'");
     const out = ret.indexOf('<form method="post" action="/logout">');
     expect(lang).toBeGreaterThan(0);
     expect(firstDoor).toBeGreaterThan(lang);

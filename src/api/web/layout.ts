@@ -1593,6 +1593,8 @@ const DOOR_STYLE = `
   summary { cursor:pointer; color:var(--color-ink-secondary); font-size:var(--font-size-caption); min-height:44px; display:flex; align-items:center; }
   details form { margin-top:var(--space-8); }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
+  .login .other.small { margin-top:var(--space-8); }
+  .login .other.small a { color:var(--color-ink-secondary); }
   .login .foot { text-align:center; font-size:var(--font-size-caption); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
 `;
@@ -1631,36 +1633,45 @@ export function loginPage(input: {
   readonly notice?: string | null;
   /** PWR — the door can e-mail a link (the installation sends system mail). */
   readonly recoveryOn?: boolean;
+  /** The design pass (UI-PASS 10) — the access-code form, reached by its small door. */
+  readonly withCode?: boolean;
 }): string {
   const { locale } = input;
   const problem: LoginProblem | null = input.problem ?? (input.error ? 'code' : null);
+  const codeMode = input.withCode === true || problem === 'code';
   const sentence = problem === 'password' ? t(locale, 'login.errorPassword')
     : problem === 'locked' ? t(locale, 'login.locked')
     : problem === 'slow' ? t(locale, 'login.slow')
     : problem === 'code' ? t(locale, 'login.error') : null;
-  const card = `
+  // THE DESIGN PASS (UI-PASS 10): the door leads with the e-mail. The access
+  // code is for the pilot's owner and staff codes; most owners never need it,
+  // so it is no longer a question on the page but a small door at its foot,
+  // to a card of its own — and a door back.
+  const codeCard = `
+    ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
+    <form method="post" action="/login">
+      <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
+      <input id="login-code" type="password" name="code" required autocomplete="off" autofocus />
+      <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
+    </form>`;
+  const card = codeMode ? codeCard : `
     ${input.notice ? `<div class="hint" role="status">${esc(input.notice)}</div>` : ''}
-    ${sentence && problem !== 'code' ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
+    ${sentence ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
     <form method="post" action="/login">
       <label for="login-email">${esc(t(locale, 'login.emailLabel'))}</label>
       <input id="login-email" type="email" name="email" value="${esc(input.email ?? '')}" required
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" ${problem === 'code' ? '' : 'autofocus'} />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
       <label for="login-password">${esc(t(locale, 'login.secretLabel'))}</label>
       <input id="login-password" type="password" name="password" required autocomplete="current-password" />
       <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>
-    ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}
-    <details${problem === 'code' ? ' open' : ''}>
-      <summary>${esc(t(locale, 'login.codeToggle'))}</summary>
-      ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
-      <form method="post" action="/login">
-        <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
-        <input id="login-code" type="password" name="code" required autocomplete="off" ${problem === 'code' ? 'autofocus' : ''} />
-        <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
-      </form>
-    </details>`;
-  const other = input.signupOpen === false ? ''
-    : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`;
+    ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}`;
+  const other = [
+    input.signupOpen === false || codeMode ? '' : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`,
+    codeMode
+      ? `<p class="other"><a href="/login">${esc(t(locale, 'login.withEmail'))}</a></p>`
+      : `<p class="other small"><a href="/login?with=code">${esc(t(locale, 'login.codeToggle'))}</a></p>`,
+  ].join('');
   return doorFrame(locale, input.path, t(locale, 'login.title'), card, other, true);
 }
 

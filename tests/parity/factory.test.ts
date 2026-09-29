@@ -184,7 +184,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('a finished factory shows no next step; a new one shows exactly one', () => {
     // V1 review fix: the next step is a door like the others, marked `next` so it can be counted.
     expect(withoutIsolates(renderFactory(complete, 'en'))).not.toContain('class="deeper next"');
-    for (const [step, href] of [['profile', '/app/settings'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
+    for (const [step, href] of [['profile', '/app/settings/profile'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
       const html = withoutIsolates(renderFactory({ ...fresh, nextStep: step }, 'en'));
       expect(html.split('class="deeper next"').length - 1, step).toBe(1);
       expect(html).toContain(`class="deeper next" href="${href}"`);

@@ -101,7 +101,7 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'inbox.flash.edited_sent', 'inbox.flash.revoked', 'inbox.flash.sent', 'inbox.flash.skipped',
   'knowledge.flash.archived', 'knowledge.flash.cert', 'knowledge.flash.corrected',
   'knowledge.flash.taught', 'order.flash.recorded', 'outreach.flash.cap', 'outreach.flash.off',
-  'outreach.flash.on', 'people.flash.added', 'people.flash.removed', 'pilot.flash.attested',
+  'outreach.flash.on', 'people.flash.added', 'people.flash.removed', 'people.flash.renamed', 'pilot.flash.attested',
   'pilot.flash.validated', 'prices.flash.saved', 'prices.flash.savedActivated',
   'prices.flash.savedAndLive', 'prices.flash.unchanged', 'prices.flash.volumeAdded',
   'prices.flash.volumeRemoved', 'product.edit.flash.saved', 'product.edit.flash.unchanged',

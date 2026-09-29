@@ -48,7 +48,7 @@ import {
 } from './priceRules.js';
 import { loadOrder, recordOrderUpdate, renderOrder } from './orders.js';
 import {
-  loadPeople, addPerson, removePerson, renderPeople, personForCode, ownerPerson, hashCode,
+  loadPeople, addPerson, removePerson, renamePerson, renderPeople, personForCode, ownerPerson, hashCode,
   mintIssuedCode, readIssuedCode, ISSUED_COOKIE, ISSUED_PATH, ISSUED_TTL_MS,
 } from './people.js';
 import {
@@ -103,7 +103,7 @@ import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -172,7 +172,7 @@ import { validateSignup, normalizeEmail, isEmailShape, type SignupMode, type Sig
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown } from './say.js';
+import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
 import * as show from './values.js';
 
@@ -1036,7 +1036,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sessionOf(req)
       ? reply.redirect('/app')
       : reply.type('text/html; charset=utf-8').send(
-        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', recoveryOn })));
+        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', recoveryOn,
+          withCode: (req.query as { with?: string }).with === 'code' })));
 
   /**
    * A1 — a factory makes its own workspace.
@@ -2940,12 +2941,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
-    const profile = await loadBusinessProfile(deps.db, s.businessId);
+    const [kind, people] = await Promise.all([loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.settings'), active: 'settings',
-      bodyHtml: renderSettings(profile, locale, flash),
+      bodyHtml: renderSetup({
+        kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
+      }, locale, flash),
     }));
   });
+  // The design pass (UI-PASS 7) — the business profile, on its own page.
+  app.get('/app/settings/profile', authed('settings', async (s, req, locale, reply) => ({
+    title: t(locale, 'settings.profile.title'),
+    bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply)),
+  })));
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.
@@ -3055,6 +3063,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return renderPeople({
       people: await loadPeople(deps.db, sess.businessId), justIssued,
       assistants: await loadAssistants(deps.db, sess.businessId),
+      business: businessName(),
     }, locale,
       takeFlash(req, reply));
   }));
@@ -3099,6 +3108,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const outcome = await archiveAssistantById(deps.db, s.businessId, (req.params as { id: string }).id, personOf(s).id);
     return teamFlash(reply, assistantFlash(outcome, 'archived'));
+  });
+
+  // The design pass (UI-PASS 5) — a person called by the business's name is
+  // asked for their own; the owner's act, like adding and removing people.
+  app.post('/app/settings/people/:id/name', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'people', '/app/settings/people');
+    if (!s) return reply;
+    const r = await renamePerson(deps.db, s.businessId, (req.params as { id: string }).id,
+      String((req.body as { name?: string } | undefined)?.name ?? ''));
+    return r.code === 'renamed'
+      ? flashTo(reply, '/app/settings/people', 'people.flash.renamed', { name: r.name })
+      : flashTo(reply, '/app/settings/people', `people.flash.${r.code}` as MessageKey);
   });
 
   app.post('/app/settings/people/:id/remove', async (req, reply) => {
@@ -3771,7 +3792,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     facts.evict(s.businessId);   // D — a complete profile is a setup step done
     if (r.code === 'saved') {
-      return flashTo(reply, '/app/settings', 'settings.flash.profileSaved');
+      return flashTo(reply, '/app/settings/profile', 'settings.flash.profileSaved');
     }
     // M20.4 (F-07) — a rejected save re-RENDERS the owner's own submission with
     // the bad field marked. Redirecting would reload from the database and throw
@@ -3779,7 +3800,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const profile = await loadBusinessProfile(deps.db, s.businessId);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'settings.profile.title'), active: 'settings',
-      bodyHtml: renderSettings(profile, locale, saidFlash(locale, 'settings.flash.profileFix'), {
+      bodyHtml: renderProfile(profile, locale, saidFlash(locale, 'settings.flash.profileFix'), {
         name: input.name, description: input.description, location: input.location,
         workingHours: input.workingHours, contactEmail: input.contactEmail,
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,

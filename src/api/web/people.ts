@@ -111,7 +111,36 @@ export type PeopleView = {
   readonly justIssued: { readonly name: string; readonly code: string } | null;
   /** A5 — who answers buyers. Absent on a caller that shows only people. */
   readonly assistants?: readonly Assistant[];
+  /** The business's own name — a person called by it is asked for a real one. */
+  readonly business?: string | null;
 };
+
+/**
+ * THE DESIGN PASS (UI-PASS 5) — a person called by the business's name. A
+ * workspace made before logins had its owner named after the business (0035),
+ * so "Hand to" offered "Westlake Canvas Co." as a person. Compared as words:
+ * case, width and spacing aside.
+ */
+const asWords = (s: string): string => s.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+export const namedLikeBusiness = (person: string, business: string | null | undefined): boolean =>
+  !!business && asWords(business) !== '' && asWords(person) === asWords(business);
+
+/** A person's name changed — the owner's act; archived people keep theirs. */
+export async function renamePerson(
+  db: Db, businessIdRaw: string, id: string, name: string | null,
+): Promise<{ code: 'renamed'; name: string } | { code: PersonError | 'failed' }> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { code: 'failed' };
+  const v = validatePerson(name);
+  if (!v.ok) return { code: v.error };
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = await sql<{ id: string }>`
+      update people set name = ${v.value}
+       where id = ${id}::uuid and business_id = ${bid.value}::uuid and archived_at is null
+      returning id`.execute(tx);
+    return r.rows[0] ? { code: 'renamed' as const, name: v.value } : { code: 'failed' as const };
+  });
+}
 
 export async function loadPeople(db: Db, businessIdRaw: string): Promise<readonly TeamMember[]> {
   const bid = parseBusinessId(businessIdRaw);
@@ -243,12 +272,17 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       <p class="muted">${esc(t(locale, 'people.intro'))}</p>
       <p class="note">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
       <ul class="rows">${v.people.map((p) => `<li class="row">
-        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
+        <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="muted">· ${esc(t(locale, 'people.owner'))}</span>` : ''}
           <span class="muted">${esc(show.date(locale, p.addedAt))}</span></span>
           <span class="caption"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
             data-confirm="${esc(t(locale, 'people.remove.confirm', { who: p.name }))}">${esc(t(locale, 'people.remove'))}</button></form>`}
+        ${namedLikeBusiness(p.name, v.business) ? `<form method="post" action="/app/settings/people/${esc(p.id)}/name" class="pform askname">
+          <label class="fld"><span>${esc(t(locale, p.isOwner ? 'people.name.askYou' : 'people.name.askThem'))}</span>
+            <input name="name" required maxlength="60" /></label>
+          <button class="btn send" type="submit">${esc(t(locale, 'people.name.save'))}</button>
+        </form>` : ''}
       </li>`).join('')}</ul>
       <form method="post" action="/app/settings/people" class="pform">
         <label class="fld"><span class="muted">${esc(t(locale, 'people.add.label'))}</span>
