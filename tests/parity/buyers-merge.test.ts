@@ -12,6 +12,7 @@ import type { Person } from '../../src/core/conversation/people.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { BANNED_OWNER_TERMS } from '../../src/core/owner/vocabulary.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * A — Buyers and Customers are one list (2026-09-28, `docs/IA-PROPOSAL.md` §A),
@@ -56,8 +57,8 @@ const PAGE: InboxList = {
 };
 
 const html = (l: Locale, over: Partial<InboxList> = {}, people: readonly Person[] = []) =>
-  renderInboxList({ ...PAGE, ...over }, l, NOW, people);
-const shown = (l: Locale, key: string, params?: Record<string, string | number>) => esc(say(l, key as MessageKey, params));
+  withoutIsolates(renderInboxList({ ...PAGE, ...over }, l, NOW, people));
+const shown = (l: Locale, key: string, params?: Record<string, string | number>) => withoutIsolates(esc(say(l, key as MessageKey, params)));
 
 describe('A · one list, with a search box', () => {
   it('the box is a GET form on Buyers, in every locale, and keeps what was typed', () => {
@@ -330,7 +331,7 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
       proof: { quoteId: null, token: null },
     };
     for (const l of LOCALES) {
-      const h = renderConversationDetail(detail, l, NOW, null);
+      const h = withoutIsolates(renderConversationDetail(detail, l, NOW, null));
       // `file-door`: where the customer panel stands beside the conversation, it carries this door instead (the design pass)
       expect(h, l).toContain(`<a class="deeper file-door" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}<span class="go" aria-hidden="true">›</span></a>`);
       expect(h, l).not.toContain('<style');

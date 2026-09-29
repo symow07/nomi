@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { t as sayPlain, ASSISTANT_FALLBACK, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { t as sayPlain, tn as countedPlain, ASSISTANT_FALLBACK, type MessageKey } from '../../core/owner/i18n/messages.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { SetupProgress } from '../../db/setup.js';
+import { rtl, isolate, hasFigure, isolateFigures } from './values.js';
 
 /**
  * A5.2 — her name, for THIS request. D — and the two other facts every page
@@ -101,9 +102,32 @@ export const assistantName = (locale: Locale): string => {
 /** Does this business have more than one assistant? Outside a scope: no. */
 export const assistantsAreSeveral = (): boolean => scope.getStore()?.several ?? false;
 
-/** `t`, with `{name}` filled from the request. An explicit `name` still wins. */
+/**
+ * The design pass §9 — a figure inside a sentence is a value like any other:
+ * on a right-to-left page each parameter that carries a digit or a currency
+ * sign goes in isolated (`values.ts`), so "{n} رسائل" and "{price}" keep their
+ * order whatever surrounds them. Words stay as they are.
+ */
+const isolated = (locale: Locale, params: Record<string, string | number> | undefined): Record<string, string | number> | undefined => {
+  if (!params || !rtl(locale)) return params;
+  const out: Record<string, string | number> = {};
+  // A text that carries a figure goes in whole ("Tote 38x40cm", "1.95 US$");
+  // a bare number is left to the sentence, so "{done}/{total}" reads as one.
+  for (const [k, v] of Object.entries(params)) out[k] = typeof v === 'string' && hasFigure(v) ? isolate(locale, v) : v;
+  return out;
+};
+
+/** `t`, with `{name}` filled from the request — and, right to left, every figure isolated. An explicit `name` still wins. */
 export const t = (locale: Locale, key: MessageKey, params?: Record<string, string | number>): string =>
-  sayPlain(locale, key, { name: assistantName(locale), ...params });
+  isolateFigures(locale, sayPlain(locale, key, { name: assistantName(locale), ...isolated(locale, params) }));
+
+/**
+ * A counted sentence (`tn` in the catalogue): the form the language gives the
+ * count, `{n}` the count as the language writes it — isolated on a
+ * right-to-left page, like every figure — and `{name}` from the request.
+ */
+export const tn = (locale: Locale, base: string, n: number, params?: Record<string, string | number>): string =>
+  isolateFigures(locale, countedPlain(locale, base, n, { name: assistantName(locale), ...isolated(locale, params) }));
 
 /**
  * The facts per business, remembered for a minute so a page costs no extra

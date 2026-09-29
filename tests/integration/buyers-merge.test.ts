@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { withoutIsolates, unisolatedFigures } from '../parity/isolates.js';
 
 /**
  * A — Buyers and Customers are one list (2026-09-28). Over Postgres and the
@@ -315,7 +316,9 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
   it('in Arabic the list is right to left, and says where the page sits in its own words', async () => {
     const r = await get('/app/inbox?filter=all', '; yf_locale=ar');
     expect(r.body).toContain('<html lang="ar" dir="rtl"');
-    expect(r.body).toContain('1 إلى 50 من 61');
+    // Each figure isolated (the design pass §9); the words, read without the marks.
+    expect(withoutIsolates(r.body)).toContain('1 إلى 50 من 61');
+    expect(unisolatedFigures(r.body.slice(r.body.indexOf('<main')))).toEqual([]);
     expect(listed(r.body).slice(0, 3).sort()).toEqual([needs.waiting, needs.review, needs.held].sort());
   });
 });

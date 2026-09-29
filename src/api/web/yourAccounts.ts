@@ -1,9 +1,10 @@
 import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+
 import type { MetaLiveCheck } from '../../channels/meta/health.js';
 import { t } from './say.js';
 import { esc } from './layout.js';
+import * as show from './values.js';
 
 /**
  * CH1 — "YOUR ACCOUNTS": the steps of connecting a Facebook Page and its
@@ -66,8 +67,8 @@ export function renderYourAccounts(v: YourAccounts, locale: Locale): string {
     : step(locale, 'bad', 'accounts.subscribed', t(locale, 'accounts.subscribed.bad'), 'subscription'));
 
   const first = [
-    v.firstMessage.instagram ? t(locale, 'accounts.test.on', { channel: 'Instagram', date: formatDate(locale, v.firstMessage.instagram) }) : null,
-    v.firstMessage.messenger ? t(locale, 'accounts.test.on', { channel: 'Messenger', date: formatDate(locale, v.firstMessage.messenger) }) : null,
+    v.firstMessage.instagram ? t(locale, 'accounts.test.on', { channel: 'Instagram', date: show.date(locale, v.firstMessage.instagram) }) : null,
+    v.firstMessage.messenger ? t(locale, 'accounts.test.on', { channel: 'Messenger', date: show.date(locale, v.firstMessage.messenger) }) : null,
   ].filter((s): s is string => s !== null);
   rows.push(first.length > 0
     ? step(locale, 'done', 'accounts.test', first.join(' · '), 'test-message')

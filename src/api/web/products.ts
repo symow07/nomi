@@ -7,7 +7,7 @@ import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '.
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
-import { formatQty, formatQtyUnit, formatMoney, withUnit, labelled } from '../../core/owner/i18n/format.js';
+import { labelled } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
 import { addAliases, renameAlias } from '../../db/productAliases.js';
@@ -15,6 +15,7 @@ import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
+import * as show from './values.js';
 
 /** Phase 4 — prices and products are the owner's (CC-07). A sales assistant
  *  reads them; in place of each form that would only refuse, this line. */
@@ -414,13 +415,13 @@ export function renderProductList(
     // "500个：$2.10　最低起订：500个". The full-width colon and space were in every language.
     // Each figure isolated: after an Arabic word a bare "$2.10" is drawn "2.10$".
     const price = p.entryPrice !== null && p.entryQty !== null
-      ? labelled(locale, iso(formatQtyUnit(locale, p.entryQty, u)), iso(formatMoney(p.entryPrice)))
+      ? labelled(locale, iso(show.quantityOf(locale, p.entryQty, u)), iso(show.money(locale, p.entryPrice)))
       : esc(t(locale, 'product.list.priceTbd'));
     const moq = labelled(locale, esc(t(locale, 'product.list.moq')),
-      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(formatQtyUnit(locale, p.moq, u)));
+      p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
     return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
-      <div class="prod-h"><b>${esc(displayName(locale, p.name, p.nameZh))}</b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
+      <div class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
       <div class="prod-b muted">${price}${locale === 'zh' ? '　' : ' · '}${moq}</div>
       ${p.imageMatchable ? '' : `<div class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</div>`}
     </a>`;
@@ -477,7 +478,7 @@ export function renderProductDetail(
 
   const tiers = d.tiers.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><div class="tiers">${d.tiers.map((tr) =>
-        `<div class="tier"><span>${esc(withUnit(locale, tr.maxQty ? `${formatQty(locale, tr.minQty)}–${formatQty(locale, tr.maxQty)}` : `${formatQty(locale, tr.minQty)}+`, u))}</span><b>${esc(formatMoney(tr.unitPrice))}</b></div>`).join('')}</div></div>`
+        `<div class="tier"><span>${esc(show.figureOf(locale, tr.maxQty ? `${show.quantity(locale, tr.minQty)}–${show.quantity(locale, tr.maxQty)}` : `${show.quantity(locale, tr.minQty)}+`, u))}</span><b>${esc(show.money(locale, tr.unitPrice))}</b></div>`).join('')}</div></div>`
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   const aliases = d.aliases.length
@@ -493,8 +494,8 @@ export function renderProductDetail(
 
   const quotes = d.recentQuotes.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.recentQuotesTitle'))}</h2>${d.recentQuotes.map((q) =>
-        `<div class="qrow muted">${[formatQtyUnit(locale, q.quantity, u), `${formatMoney(q.unitPrice)}/${u}`,
-          `${t(locale, 'product.detail.total')} ${formatMoney(q.total)}`].map(iso).join(' · ')}</div>`).join('')}</div>`
+        `<div class="qrow muted">${[show.quantityOf(locale, q.quantity, u), `${show.money(locale, q.unitPrice)}/${u}`,
+          `${t(locale, 'product.detail.total')} ${show.money(locale, q.total)}`].map(iso).join(' · ')}</div>`).join('')}</div>`
     : '';
 
   return `
@@ -505,7 +506,7 @@ export function renderProductDetail(
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
-        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : formatQtyUnit(locale, d.moq, u))}</div>
+        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>
         ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
       </div>
@@ -555,19 +556,19 @@ export function renderReview(
   const from = (p: ExtractedProduct): string => p.sourceLine
     ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : '';
   const known = (e: CatalogueEntry): string =>
-    `<b>${esc(displayName(locale, e.name, e.nameZh))}</b>${skuMark(e.sku)}`;
+    `<b><bdi>${esc(displayName(locale, e.name, e.nameZh))}</bdi></b>${skuMark(e.sku)}`;
 
   // G16 — what the page CHANGES, first: the one thing she must look at. Each
   // change is its own tick, on by default, so a price the page does not really
   // say can be left out without throwing away the rest of the sheet.
   const changed = diff.changed.map((c) => {
     const money = (n: number | null): string => n === null || c.product.currency === null
-      ? t(locale, 'product.list.priceTbd') : formatMoney({ amount: n, currency: c.product.currency });
+      ? t(locale, 'product.list.priceTbd') : show.money(locale, { amount: n, currency: c.product.currency });
     const moves = [
       c.price ? t(locale, 'product.review.change.price', { from: money(c.price.from), to: money(c.price.to) }) : null,
       c.moq ? t(locale, 'product.review.change.moq', {
-        from: c.moq.from === null ? t(locale, 'product.noMinimum') : formatQty(locale, c.moq.from),
-        to: formatQty(locale, c.moq.to) }) : null,
+        from: c.moq.from === null ? t(locale, 'product.noMinimum') : show.quantity(locale, c.moq.from),
+        to: show.quantity(locale, c.moq.to) }) : null,
     ].filter((m): m is string => m !== null).map((m) => `<span class="rev-move">${esc(m)}</span>`).join('');
     return `
     <label class="rev chg"><input type="checkbox" name="apply:${esc(c.product.id)}" checked /> ${known(c.product)}
@@ -575,14 +576,14 @@ export function renderReview(
     </label>`;
   }).join('');
   const added = diff.added.map((p) => `
-    <div class="rev"><b>${esc(p.name)}</b>
-      <span class="muted">${p.price !== null ? esc(formatMoney(p.price)) : esc(t(locale, 'product.list.priceTbd'))}${` · ${esc(p.moq !== null ? t(locale, 'product.review.moqSuffix', { qty: formatQty(locale, p.moq) }) : t(locale, 'product.noMinimum'))}`}</span>
+    <div class="rev"><b><bdi>${esc(p.name)}</bdi></b>
+      <span class="muted">${p.price !== null ? esc(show.money(locale, p.price)) : esc(t(locale, 'product.list.priceTbd'))}${` · ${esc(p.moq !== null ? t(locale, 'product.review.moqSuffix', { qty: show.quantity(locale, p.moq) }) : t(locale, 'product.noMinimum'))}`}</span>
       ${p.price === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
       ${from(p)}
     </div>`).join('');
   const unchanged = diff.unchanged.map((u) => `<div class="rev">${known(u.product)}</div>`).join('');
   const held = diff.held.map((h) => `
-    <div class="rev">${h.product ? known(h.product) : `<b>${esc(h.line.name)}</b>`}
+    <div class="rev">${h.product ? known(h.product) : `<b><bdi>${esc(h.line.name)}</bdi></b>`}
       <span class="rev-move">${esc(t(locale, `product.review.held.${h.reason}`))}</span>
       ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}
       ${from(h.line)}

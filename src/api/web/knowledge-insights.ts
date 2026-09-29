@@ -6,8 +6,9 @@ import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, practiceShown } from './say.js';
-import { formatRelative } from '../../core/owner/i18n/format.js';
+
 import { deeper, esc } from './layout.js';
+import * as show from './values.js';
 
 /**
  * M14 — Factory Intelligence Operations, READ MODELS ONLY.
@@ -173,7 +174,7 @@ export function renderUsageFact(f: UsageFact | undefined, locale: Locale, now: D
   if (!f) return '';
   const parts = [
     `${esc(t(locale, 'knowledge.usage.used'))} ${f.usedCount}`,
-    f.lastUsedAt ? `${esc(t(locale, 'knowledge.usage.lastUsed'))} ${esc(formatRelative(locale, f.lastUsedAt, now))}` : esc(t(locale, 'knowledge.usage.never')),
+    f.lastUsedAt ? `${esc(t(locale, 'knowledge.usage.lastUsed'))} ${esc(show.when(locale, f.lastUsedAt, now))}` : esc(t(locale, 'knowledge.usage.never')),
     f.correctionCount > 0 ? `${esc(t(locale, 'knowledge.usage.revised', { n: f.correctionCount }))}` : '',
     esc(t(locale, `knowledge.source.${f.source}` as MessageKey)),
   ].filter(Boolean);
@@ -190,7 +191,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
   const tabs = `<div class="tabs">${tab('today')}${tab('week')}${tab('month')}</div>`;
 
   const stat = (labelKey: MessageKey, n: number) =>
-    `<div class="stat"><div class="v">${n}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
+    `<div class="stat"><div class="v">${esc(show.count(locale, n))}</div><div class="l">${esc(t(locale, labelKey))}</div></div>`;
   const report = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.thisPeriod'))}</h2>
     <div class="stats">
       ${stat('knowledge.report.facts', ops.report.factsAdded)}
@@ -213,7 +214,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
     return `<div class="gap">
       <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
-        <span class="muted">${esc(formatRelative(locale, g.lastAt, now))}</span></div>
+        <span class="muted">${esc(show.when(locale, g.lastAt, now))}</span></div>
       <div class="gacts">${deeper(teachHref, t(locale, 'knowledge.gap.teach'))}
         ${practiceShown() ? deeper(testHref, t(locale, 'knowledge.gap.test')) : ''}</div>
     </div>`;
@@ -225,7 +226,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
   const activity = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.activity'))}</h2>
     ${ops.activity.length ? `<ul class="ki-acts">${ops.activity.map((a) =>
       `<li><span class="pill ${a.change}">${esc(t(locale, `knowledge.activity.${a.change}` as MessageKey))}</span>
-        <span>${esc(a.label)}</span> <span class="muted">${esc(formatRelative(locale, a.at, now))}</span></li>`).join('')}</ul>`
+        <span>${esc(a.label)}</span> <span class="muted">${esc(show.when(locale, a.at, now))}</span></li>`).join('')}</ul>`
       : `<div class="empty muted">${esc(t(locale, 'knowledge.ops.noActivity'))}</div>`}
   </div>`;
 

@@ -7,6 +7,7 @@ import { t } from './say.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { renderUsageFact, type UsageFact } from './knowledge-insights.js';
 import { esc, back } from './layout.js';
+import * as show from './values.js';
 import { flashBanner, type Flash } from './flash.js';
 
 /**
@@ -168,7 +169,7 @@ export function renderKnowledgeIndex(data: KnowledgeIndex, locale: Locale, prefi
   const products = data.products.length
     ? `<div class="klist">${data.products.map((p) => `
         <a class="krow" href="/app/knowledge/${encodeURIComponent(p.id)}">
-          <span>${esc(p.name ?? '—')}</span><span class="muted">${p.count}</span>
+          <span><bdi>${esc(p.name ?? '—')}</bdi></span><span class="muted">${esc(show.count(locale, p.count))}</span>
         </a>`).join('')}</div>`
     : `<div class="empty muted">${esc(t(locale, 'knowledge.empty'))}</div>`;
 

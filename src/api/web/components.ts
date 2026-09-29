@@ -3,6 +3,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { esc, deeper, back } from './layout.js';
 import { flashBanner } from './flash.js';
+import * as show from './values.js';
 
 /**
  * V1 step two — every component the shell defines, in every state it can be
@@ -70,10 +71,10 @@ export function renderComponents(locale: Locale): string {
 
   const counts = `
     <div class="stats">
-      <div class="stat"><span class="v">3</span><span class="l">${label}</span></div>
-      <div class="stat"><span class="v">12</span><span class="l">${label}</span></div>
+      <div class="stat"><span class="v">${esc(show.count(locale, 3))}</span><span class="l">${label}</span></div>
+      <div class="stat"><span class="v">${esc(show.count(locale, 12))}</span><span class="l">${label}</span></div>
     </div>
-    <div class="stated-now">$2.10</div>`;
+    <div class="stated-now">${esc(show.money(locale, { amount: 2.1, currency: 'USD' }))}</div>`;
 
   const sections = `
     <div class="card"><h2>${label}</h2><p class="muted">${s('sample.help')}</p>

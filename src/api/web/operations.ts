@@ -8,14 +8,14 @@ import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, setupState } from './say.js';
+import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
 import { checkBudget } from '../../core/budget.js';
 import { esc, deeper } from './layout.js';
 import { renderNeedsLines, renderLastDay, renderComingUp, renderSending, toCalendar, type TodayData } from './today.js';
-import { tn } from '../../core/owner/i18n/messages.js';
-import { formatDayLong } from '../../core/owner/i18n/format.js';
+import * as show from './values.js';
+
 
 /**
  * M16.2a — the Operations read model. A READ-ONLY composition layer that answers
@@ -384,7 +384,7 @@ export function renderOperationsHome(
     : '';
   const notLive = !live ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 
-  return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(formatDayLong(locale, today.now))}</span></h1>
+  return `<h1 class="page">${esc(t(locale, 'ops.title'))} <span class="muted today-date">· ${esc(show.dayLong(locale, today.now))}</span></h1>
   ${silenced}
   ${stopped}
   ${now}

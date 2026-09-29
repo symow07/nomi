@@ -3,13 +3,13 @@ import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { connectedChannels, BUYER_CHANNELS, type BuyerChannel } from '../../db/connectedChannels.js';
 import { loadCalendar, type CalendarEntry } from '../../db/calendar.js';
-import { dayKey, addDays, formatShortWhen, formatDate, formatTime } from '../../core/owner/i18n/format.js';
+import { dayKey, addDays } from '../../core/owner/i18n/format.js';
 import type { Locale } from '../../core/owner/i18n/locale.js';
-import { tn } from '../../core/owner/i18n/messages.js';
 import { loadInboxList, needsWhy, channelName, type ConversationSummary } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
-import { t, assistantName } from './say.js';
+import { t, tn, assistantName } from './say.js';
 import { esc, deeper, conversationUrl } from './layout.js';
+import * as show from './values.js';
 
 /**
  * TODAY, BY TIME (the design pass, 2026-09-29, §4): who needs you now, the last
@@ -99,7 +99,7 @@ const door = (href: string, inner: string): string =>
 export function renderNeedsLines(d: TodayData, locale: Locale): string {
   return d.needs.rows.map((c) => door(conversationUrl(c.conversationId),
     `<span class="tl-who"><bdi>${esc(c.buyer ?? t(locale, 'common.buyer'))}</bdi></span>
-     <span class="tl-why">${esc(needsWhy(locale, c))}${c.latestAt ? ` · ${esc(formatShortWhen(locale, c.latestAt, d.now))}` : ''}</span>`)).join('');
+     <span class="tl-why">${esc(needsWhy(locale, c))}${c.latestAt ? ` · ${esc(show.shortWhen(locale, c.latestAt, d.now))}` : ''}</span>`)).join('');
 }
 
 /** The last 24 hours: the assistant's lines marked with its ✦, the owner's plain. Zeros are not said. */
@@ -120,13 +120,13 @@ export function renderLastDay(d: TodayData, locale: Locale): string {
 export function renderComingUp(d: TodayData, locale: Locale): string {
   if (d.comingUp.length === 0) return `<p class="muted">${esc(t(locale, 'today.coming.none'))}</p>`;
   return `<ul class="tlines">${d.comingUp.map((e) => {
-    const when = e.allDay ? formatDate(locale, e.at)
-      : dayKey(e.at) === dayKey(d.now) ? formatTime(locale, e.at) : `${formatDate(locale, e.at)} ${formatTime(locale, e.at)}`;
+    const when = e.allDay ? show.date(locale, e.at)
+      : dayKey(e.at) === dayKey(d.now) ? show.time(locale, e.at) : `${show.date(locale, e.at)} ${show.time(locale, e.at)}`;
     const whose = e.buyer?.name ?? e.identity;
     const href = e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
       : e.conversationId ? conversationUrl(e.conversationId) : '/app/calendar';
     return door(href, `<span class="tl-when">${esc(when)}</span>
-      <span class="tl-what">${esc(calendarLine(locale, e))}${whose ? ` · <bdi>${esc(whose)}</bdi>` : ''}</span>`);
+      <span class="tl-what"><bdi>${esc(calendarLine(locale, e))}</bdi>${whose ? ` · <bdi>${esc(whose)}</bdi>` : ''}</span>`);
   }).join('')}</ul>`;
 }
 

@@ -22,7 +22,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, practiceShown } from './say.js';
-import { formatMoney, formatDate } from '../../core/owner/i18n/format.js';
+
 import { esc, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { productName } from './inbox.js';
@@ -44,6 +44,7 @@ import {
   rehearseFactory, PROBE_CAP,
   type FactoryFixture, type FactoryProduct, type FindingReason, type RehearsalReport,
 } from '../../trust/factoryRehearsal.js';
+import * as show from './values.js';
 
 /**
  * What the factory still needs. Phase F: there is now exactly ONE derivation of
@@ -555,7 +556,7 @@ export function renderFactory(
   // 2 · What you sell — a count the owner can verify, not a catalogue dump.
   const sellBody = f.products.total === 0
     ? `<p class="fempty">${esc(t(locale, 'factory.sell.empty', { name }))}</p>`
-    : `<div class="fcount">${f.products.total}<span class="fcount-l">${esc(t(locale, 'factory.sell.items'))}</span></div>
+    : `<div class="fcount">${esc(show.count(locale, f.products.total))}<span class="fcount-l">${esc(t(locale, 'factory.sell.items'))}</span></div>
        ${f.products.names.length
         ? `<p class="fnames">${f.products.names
             .map((n) => productName(locale, n)).filter((n): n is string => n !== null)
@@ -576,8 +577,8 @@ export function renderFactory(
   const priceRules = [
     lo !== null && hi !== null
       ? (lo.amount === hi.amount && lo.currency === hi.currency
-        ? t(locale, 'factory.promise.floor', { price: formatMoney(lo), name })
-        : t(locale, 'factory.promise.floorRange', { low: formatMoney(lo), high: formatMoney(hi), name }))
+        ? t(locale, 'factory.promise.floor', { price: show.money(locale, lo), name })
+        : t(locale, 'factory.promise.floorRange', { low: show.money(locale, lo), high: show.money(locale, hi), name }))
       : null,
     ceil !== null
       ? t(locale, f.promises.ceilingVaries ? 'factory.promise.ceilingVaries' : 'factory.promise.ceiling',
@@ -606,7 +607,7 @@ export function renderFactory(
     ? `<p class="fwarn">${esc(t(locale, 'factory.prices.none', { name }))}</p>`
     : `<div class="fprices">${pr.businessDefault
         ? `<p class="fdesc">${esc(t(locale, 'prices.stated', {
-            floor: formatMoney(pr.businessDefault.floor), max: pr.businessDefault.maxDiscountPct,
+            floor: show.money(locale, pr.businessDefault.floor), max: pr.businessDefault.maxDiscountPct,
             ask: pr.businessDefault.askAbovePct, name }))}</p>`
         : ''}
        ${pr.unanswered > 0
@@ -761,7 +762,7 @@ export function renderFactory(
   const whatsappBody = r.live
     ? `${held ? '' : `<p class="fdesc">${esc(t(locale, 'factory.ready.live', { name }))}</p>`}
        ${r.activatedAt ? `<p class="fdesc">${esc(t(locale, 'activation.live.since', {
-          when: formatDate(locale, r.activatedAt),
+          when: show.date(locale, r.activatedAt),
           // G9b — a name, or "you" for the reader; never the id in the column.
           who: actorName(r.activatedBy, f.people ?? [], viewer, {
             you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
@@ -798,7 +799,7 @@ export function renderFactory(
   });
   const everyBody = stoppedAt
     ? `<p class="fwarn">${esc(t(locale, 'assistant.stop.stopped', { name }))}</p>
-       <p class="fdesc">${esc(t(locale, 'assistant.stop.since', { when: formatDate(locale, stoppedAt), who: who(r.assistantStop?.stoppedBy ?? null) }))}</p>
+       <p class="fdesc">${esc(t(locale, 'assistant.stop.since', { when: show.date(locale, stoppedAt), who: who(r.assistantStop?.stoppedBy ?? null) }))}</p>
        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'assistant.stop.needsYou'))}</div>
        <div class="facts">${confirmBtn('start-assistant', 'send',
           t(locale, 'assistant.stop.action.start', { name }),

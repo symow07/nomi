@@ -6,11 +6,12 @@ import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../..
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
-import { formatDate, formatRelative } from '../../core/owner/i18n/format.js';
+
 import { esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { renderAssistantsSection } from './assistants.js';
 import type { Assistant } from '../../core/owner/assistants.js';
+import * as show from './values.js';
 
 /**
  * M47 — the people who can log in, and the codes that let them.
@@ -225,7 +226,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
   const presence = (p: TeamMember): string => isOnline(p, now)
     ? `<span class="pill ok">${esc(t(locale, 'people.online'))}</span>`
     : `<span class="muted">${esc(p.lastSeenAt
-        ? t(locale, 'people.lastSeen', { when: formatRelative(locale, p.lastSeenAt, now) })
+        ? t(locale, 'people.lastSeen', { when: show.when(locale, p.lastSeenAt, now) })
         : t(locale, 'people.notSeen'))}</span>`;
   const issued = v.justIssued
     ? `<div class="card issued">
@@ -243,7 +244,7 @@ export function renderPeople(v: PeopleView, locale: Locale, flash: Flash | null,
       <p class="note">${esc(t(locale, 'people.summary', { n: v.people.length, online }))}</p>
       <ul class="rows">${v.people.map((p) => `<li class="row">
         <span class="person"><span><bdi>${esc(p.name)}</bdi>${p.isOwner ? ` <span class="pill ok">${esc(t(locale, 'people.owner'))}</span>` : ''}
-          <span class="muted">${esc(formatDate(locale, p.addedAt))}</span></span>
+          <span class="muted">${esc(show.date(locale, p.addedAt))}</span></span>
           <span class="caption"><span class="muted">${esc(t(locale, p.signsInWithEmail ? 'people.via.email' : 'people.via.code'))}</span> · ${presence(p)}</span></span>
         ${p.isOwner ? '' : `<form method="post" action="/app/settings/people/${esc(p.id)}/remove" class="inline">
           <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"

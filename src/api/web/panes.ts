@@ -1,13 +1,14 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { countryName, orderStatusName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatDate, formatMoney, formatShortWhen, dayStart } from '../../core/owner/i18n/format.js';
-import { t, assistantName } from './say.js';
+import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { dayStart } from '../../core/owner/i18n/format.js';
+import { t, assistantName, tn } from './say.js';
 import { esc, deeper, conversationUrl } from './layout.js';
 import { buyersHref, channelName, productName, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
 import { line as calendarLine } from './calendar.js';
 import type { CalendarEntry } from '../../db/calendar.js';
 import type { CustomerPanel, PanelActivity } from '../../db/customerPanel.js';
 import type { Person } from '../../core/conversation/people.js';
+import * as show from './values.js';
 
 /**
  * THE THREE PANES (the design pass, 2026-09-29; the plan's §2 and §3): on a
@@ -45,7 +46,7 @@ export function renderListPane(
     const mine = c.lastFrom === 'assistant' ? '<span class="as" aria-hidden="true">✦</span> ' : '';
     return `<li><a class="lp-row${on ? ' on' : ''}" href="${conversationUrl(c.conversationId)}"${on ? ' aria-current="page"' : ''}>
         <span class="lp-top"><b><bdi>${esc(c.buyer ?? t(locale, 'common.buyer'))}</bdi></b>${
-          c.latestAt ? `<span class="lp-when">${esc(formatShortWhen(locale, c.latestAt, now))}</span>` : ''}</span>
+          c.latestAt ? `<span class="lp-when">${esc(show.shortWhen(locale, c.latestAt, now))}</span>` : ''}</span>
         ${c.latestMessage ? `<span class="lp-last">${mine}<bdi dir="auto">${esc(Array.from(c.latestMessage).slice(0, 60).join(''))}</bdi></span>` : ''}
       </a></li>`;
   };
@@ -98,25 +99,25 @@ export function renderCustomerPanel(
     p.country ? esc(countryName(locale, p.country) ?? p.country) : '',
   ].filter(Boolean).join(' · ');
   const since = [
-    p.firstWrote ? esc(t(locale, 'panel.firstWrote', { date: formatDate(locale, p.firstWrote) })) : '',
+    p.firstWrote ? esc(t(locale, 'panel.firstWrote', { date: show.date(locale, p.firstWrote) })) : '',
     p.conversations > 0 ? esc(tn(locale, 'panel.conversations', p.conversations)) : '',
   ].filter(Boolean).join(' · ');
 
   const asked = p.askedAbout.map((a) => li(`<bdi>${esc(productName(locale, a) ?? '')}</bdi>`,
-    esc(`${tn(locale, 'panel.times', a.count)} · ${formatShortWhen(locale, a.lastAt, now)}`)));
+    esc(`${tn(locale, 'panel.times', a.count)} · ${show.shortWhen(locale, a.lastAt, now)}`)));
   const prices = p.prices.map((q) => li(
-    `<bdi>${esc(formatMoney(q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''} · ${esc(formatShortWhen(locale, q.at, now))}`,
+    `<bdi>${esc(show.money(locale, q.unitPrice))}</bdi>${productName(locale, q) ? ` · <bdi>${esc(productName(locale, q)!)}</bdi>` : ''} · ${esc(show.shortWhen(locale, q.at, now))}`,
     `<a href="${conversationUrl(q.conversationId)}">${esc(t(locale, 'panel.priceDoor'))}<span class="go" aria-hidden="true">›</span></a>`));
   const record = [
-    ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: formatDate(locale, s.askedAt) }))}${
-      s.handledAt ? ` · ${esc(t(locale, 'panel.sampleHandled', { date: formatDate(locale, s.handledAt) }))}` : ''}`)),
+    ...p.samples.map((s) => li(`${esc(t(locale, 'panel.sample'))} · ${esc(t(locale, 'panel.sampleAsked', { date: show.date(locale, s.askedAt) }))}${
+      s.handledAt ? ` · ${esc(t(locale, 'panel.sampleHandled', { date: show.date(locale, s.handledAt) }))}` : ''}`)),
     ...p.orders.map((o) => li(`<bdi>${esc(t(locale, 'panel.order', { reference: o.reference }))}</bdi> · ${esc(orderStatusName(locale, o.status))}`,
       `<a href="/app/orders/${encodeURIComponent(o.id)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
   ];
   const promises = p.promised.map((x) => li(
     `${x.byAssistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
-    `${esc(formatDate(locale, dayStart(x.dueOn)))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
-  const dated = calendar.map((e) => li(`${esc(formatDate(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
+    `${esc(show.date(locale, dayStart(x.dueOn)))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
+  const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId ? `<a href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
     const mark = MARK[a.kind];
@@ -125,7 +126,7 @@ export function renderCustomerPanel(
     const said = a.kind === 'not_reached'
       ? `${esc(t(locale, a.by === 'person' ? 'panel.act.not_reached.person' : 'panel.act.not_reached.assistant', { name }))} <span class="dot bad" aria-hidden="true">●</span>`
       : esc(t(locale, `panel.act.${a.kind}` as MessageKey, { name }));
-    return li(`${glyph} ${said}`, esc(a.kind === 'waiting' ? t(locale, 'panel.now') : formatShortWhen(locale, a.at, now)));
+    return li(`${glyph} ${said}`, esc(a.kind === 'waiting' ? t(locale, 'panel.now') : show.shortWhen(locale, a.at, now)));
   });
 
   return `<aside class="panel" id="customer" aria-label="${esc(t(locale, 'panel.label'))}">

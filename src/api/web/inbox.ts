@@ -8,11 +8,11 @@ import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { countryName, orderStatusName, capabilityName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
-import { t, assistantName, outreachShown } from './say.js';
-import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatUntil, formatTimeLeft, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { t, assistantName, outreachShown, tn } from './say.js';
+import { formatList, labelled } from '../../core/owner/i18n/format.js';
 import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
@@ -28,6 +28,7 @@ import { orderConfirmedReply } from '../../core/conversation/templates.js';
 import { buyerDeletionOf } from './dataRights.js';
 import { deletionDueBy } from '../../core/ops/deletions.js';
 import { readBuyersPage, readBuyerCounts, searchOf, DELETION_WAITING, ORDER_WAITING, type BuyersFilter } from '../../db/buyersList.js';
+import * as show from './values.js';
 
 /** A conversation id as Postgres stores one; anything else names no conversation. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -388,10 +389,10 @@ const quoted = (locale: Locale, terms: readonly string[]): string =>
 
 function contradictionBlock(c: DraftContradiction, locale: Locale): string {
   const line = (label: string, price: Money, quantity: number) =>
-    `<div><span class="muted">${esc(label)}</span> <b><bdi>${esc(formatMoney(price))}</bdi></b> <span class="muted">${
-      esc(t(locale, 'inbox.draft.contradicts.for', { qty: formatQty(locale, quantity) }))}</span></div>`;
+    `<div><span class="muted">${esc(label)}</span> <b><bdi>${esc(show.money(locale, price))}</bdi></b> <span class="muted">${
+      esc(t(locale, 'inbox.draft.contradicts.for', { qty: show.quantity(locale, quantity) }))}</span></div>`;
   return `<div class="held-then">
-      ${line(t(locale, 'inbox.draft.contradicts.before', { date: formatDate(locale, c.before.at) }), c.before.price, c.before.quantity)}
+      ${line(t(locale, 'inbox.draft.contradicts.before', { date: show.date(locale, c.before.at) }), c.before.price, c.before.quantity)}
       ${line(t(locale, 'inbox.draft.contradicts.now'), c.now.price, c.now.quantity)}
       ${c.largerQuantity ? `<div class="muted">${esc(t(locale, 'inbox.draft.contradicts.larger'))}</div>` : ''}
     </div>`;
@@ -1021,7 +1022,7 @@ export function renderInboxList(
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   const q = data.query ?? '';
-  const count = (n: number | undefined) => (n ?? 0) > 0 ? ` (${formatQty(locale, n ?? 0)})` : '';
+  const count = (n: number | undefined) => (n ?? 0) > 0 ? ` (${show.quantity(locale, n ?? 0)})` : '';
   const tab = (f: InboxFilter) => {
     const on = data.filter === f;
     const n = f === 'pending' ? count(data.waitingCount) : f === 'mine' ? count(data.mineCount)
@@ -1055,9 +1056,9 @@ export function renderInboxList(
   const page = data.page;
   const total = page?.total ?? data.conversations.length;
   const found = q && data.conversations.length > 0
-    ? `<p class="caption muted" role="status">${esc(t(locale, 'buyers.search.found', { q, n: formatQty(locale, total) }))}</p>` : '';
+    ? `<p class="caption muted" role="status">${esc(t(locale, 'buyers.search.found', { q, n: show.quantity(locale, total) }))}</p>` : '';
   const position = page ? t(locale, 'buyers.page.position', {
-    from: formatQty(locale, page.from), to: formatQty(locale, page.to), total: formatQty(locale, page.total),
+    from: show.quantity(locale, page.from), to: show.quantity(locale, page.to), total: show.quantity(locale, page.total),
   }) : '';
   // Not the first page: say where this is before the rows start.
   const where = page && page.prev ? `<p class="caption muted">${esc(position)}</p>` : '';
@@ -1141,15 +1142,15 @@ export function renderInboxList(
     // run ("5,0001.45$"). The separators sit between them, in the page's direction.
     const detail = [
       prod ?? '',
-      c.quantity !== null ? formatQtyUnit(locale, c.quantity, pcs) : '',
-      c.unitPrice !== null ? formatMoney(c.unitPrice) : '',
+      c.quantity !== null ? show.quantityOf(locale, c.quantity, pcs) : '',
+      c.unitPrice !== null ? show.money(locale, c.unitPrice) : '',
     ].filter(Boolean).map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ');
     // Who wrote the newest message — the transcript's words for each speaker.
     const speaker = c.lastFrom === 'buyer' ? t(locale, 'common.buyer')
       : c.lastFrom === 'person' ? t(locale, 'conv.by.you')
       : c.lastFrom === 'assistant' ? (c.answeredBy ?? name) : null;
     const meta = [
-      c.latestAt ? esc(formatRelative(locale, c.latestAt, now)) : '',
+      c.latestAt ? esc(show.when(locale, c.latestAt, now)) : '',
       speaker ? `<bdi>${esc(speaker)}</bdi>` : '',
       showChannel && c.channel ? esc(channelName(locale, c.channel)) : '',
       c.answeredBy && speaker !== c.answeredBy ? `<bdi>${esc(t(locale, 'conv.answeredBy', { who: c.answeredBy }))}</bdi>` : '',
@@ -1195,7 +1196,7 @@ function lastActionLine(a: LastHumanAction, locale: Locale, now: Date, people: r
     you: t(locale, 'takeover.actor.you'), owner: t(locale, 'people.held.owner'), gone: t(locale, 'people.held.gone'),
   });
   const phrase = t(locale, `takeover.last.${a.type}` as MessageKey, { who, name: assistantName(locale) });
-  const when = a.at ? ` · ${formatRelative(locale, a.at, now)}` : '';
+  const when = a.at ? ` · ${show.when(locale, a.at, now)}` : '';
   return `<div class="lastact muted">${esc(labelled(locale, t(locale, 'takeover.lastLabel'), phrase + when))}</div>`;
 }
 
@@ -1223,7 +1224,7 @@ function uncertainCard(us: readonly UncertainSend[], locale: Locale, now: Date):
       <div class="rf-w">${esc(t(locale, 'unsure.what'))}</div>
       <blockquote class="unsure-q" dir="auto">${esc(u.body)}</blockquote>
       <div class="rf-y muted">${esc(t(locale, 'unsure.why'))}</div>
-      <div class="rf-t muted">${esc(formatRelative(locale, u.at, now))}</div>
+      <div class="rf-t muted">${esc(show.when(locale, u.at, now))}</div>
       <div class="unsure-a">
         <form method="post" action="/app/outbound/${esc(u.outboundId)}/send-again" class="inline">
           <button class="btn send" type="submit">${esc(t(locale, 'unsure.again'))}</button></form>
@@ -1243,7 +1244,7 @@ function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string 
       <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, { name }))}</div>
       <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, { name }))}</div>
       <div class="rf-d">${esc(t(locale, `refused.do.${r.reason}` as MessageKey, { name }))}</div>
-      <div class="rf-t muted">${esc(formatRelative(locale, r.at, now))}</div>
+      <div class="rf-t muted">${esc(show.when(locale, r.at, now))}</div>
     </div>`).join('')}
   </div>`;
 }
@@ -1296,8 +1297,8 @@ function orderCard(d: ConversationDetail, locale: Locale): string {
   const cid = encodeURIComponent(d.conversationId);
   const fields: readonly (readonly [MessageKey, string])[] = [
     ['order.field.product', p.productName],
-    ['order.field.quantity', formatQtyUnit(locale, p.quantity, p.unit)],
-    ['order.field.total', formatMoney(p.total)],
+    ['order.field.quantity', show.quantityOf(locale, p.quantity, p.unit)],
+    ['order.field.total', show.money(locale, p.total)],
     ['order.card.email', p.email],
     ...(p.paymentTerms ? [['order.card.terms', p.paymentTerms] as const] : []),
   ];
@@ -1459,8 +1460,8 @@ function inHerMoney(total: Money, rate: OwnerRate | null, locale: Locale): strin
   if (!rate) return '';
   const c = convertMoney(total, rate.to, [rate]);
   if (!c.ok) return '';
-  return ` · <span class="her-money">${esc(formatMoney(c.value.money))} <span class="muted">${
-    esc(t(locale, 'rate.at', { date: formatDate(locale, rate.statedAt) }))}</span></span>`;
+  return ` · <span class="her-money">${esc(show.money(locale, c.value.money))} <span class="muted">${
+    esc(t(locale, 'rate.at', { date: show.date(locale, rate.statedAt) }))}</span></span>`;
 }
 
 /**
@@ -1525,7 +1526,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
   // Who asked, where, when — the customer's name set apart from the words round it.
   const who = `<b><bdi>${esc(d.buyer ?? t(locale, 'card.customer'))}</bdi></b>`;
   const asked = lastIn?.at && channel
-    ? esc(t(locale, 'card.asked', { customer: '\u0000', channel, time: formatRelative(locale, lastIn.at, now) })).replace('\u0000', who)
+    ? esc(t(locale, 'card.asked', { customer: '\u0000', channel, time: show.when(locale, lastIn.at, now) })).replace('\u0000', who)
     : who;
   const top = `<div class="top"><span>${asked}</span><span class="as"><span aria-hidden="true">✦</span> ${
     esc(t(locale, 'card.drafted', { name }))}</span></div>`;
@@ -1549,7 +1550,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
   const understood = [
     intentKey && t(locale, intentKey) !== intentKey ? t(locale, intentKey) : null,
     prod,
-    r?.quantity ? formatQtyUnit(locale, r.quantity.value, r.quantity.unit || t(locale, 'product.unit.pcs')) : null,
+    r?.quantity ? show.quantityOf(locale, r.quantity.value, r.quantity.unit || t(locale, 'product.unit.pcs')) : null,
     r?.language ? languageName(locale, r.language) : null,
   ].filter((x): x is string => !!x);
   const und = understood.length
@@ -1570,8 +1571,8 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
     heldQuantity: d.quantity,
   });
   const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
-    l.source === 'price' && d.quote ? formatMoney(d.quote.unitPrice)
-    : l.source === 'total' && d.quote ? formatMoney(d.quote.total)
+    l.source === 'price' && d.quote ? show.money(locale, d.quote.unitPrice)
+    : l.source === 'total' && d.quote ? show.money(locale, d.quote.total)
     : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
   const line = (ok: boolean, said: string, source: string) =>
     `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}</span></li>`;
@@ -1597,11 +1598,11 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
   const hours = d.channel ? CHANNEL_REGISTRY[d.channel as OutreachChannel]?.replyWindowHours ?? null : null;
   const until = hours !== null && lastIn?.at ? new Date(lastIn.at.getTime() + hours * 3_600_000) : null;
   const window = channel && until && until > now
-    ? `<span>${esc(t(locale, 'card.window', { channel, time: formatUntil(locale, until, now) }))}</span>` : '';
+    ? `<span>${esc(t(locale, 'card.window', { channel, time: show.until(locale, until, now) }))}</span>` : '';
   // CH5 — the window's clock: under two hours left, the card says so first, in words.
   const closing = channel && until && until > now && until.getTime() - now.getTime() <= CLOSING_SOON_MS
     ? `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${esc(t(locale, 'card.closingSoon'))}</b> ${
-        esc(t(locale, 'card.closingIn', { channel, left: formatTimeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
+        esc(t(locale, 'card.closingIn', { channel, left: show.timeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
     : '';
   const figures = read.lines.some((l) => l.kind === 'figure')
     ? `<span>${esc(t(locale, read.everyFigureSourced ? 'card.sourced' : 'card.unsourced'))}</span>` : '';
@@ -1651,13 +1652,13 @@ export function renderConversationDetail(
   const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
   const context = (d.quote || d.order) ? `<div class="ctx">
       ${d.quote ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.quote'))}</span> ${[
-        iso(formatQtyUnit(locale, d.quote.quantity, pcs)),
-        iso(`${formatMoney(d.quote.unitPrice)}/${pcs}`),
-        iso(`${t(locale, 'product.detail.total')} ${formatMoney(d.quote.total)}`),
+        iso(show.quantityOf(locale, d.quote.quantity, pcs)),
+        iso(`${show.money(locale, d.quote.unitPrice)}/${pcs}`),
+        iso(`${t(locale, 'product.detail.total')} ${show.money(locale, d.quote.total)}`),
       ].join(' · ')}${inHerMoney(d.quote.total, d.rate, locale)}</div>` : ''}
       ${d.order ? `<div><span class="muted">${esc(t(locale, 'inbox.ctx.order'))}</span> ${[
         iso(d.order.reference), iso(orderStatusName(locale, d.order.status)),
-        ...(d.order.total !== null ? [iso(formatMoney(d.order.total))] : []),
+        ...(d.order.total !== null ? [iso(show.money(locale, d.order.total))] : []),
       ].join(' · ')}${d.order.total !== null ? inHerMoney(d.order.total, d.rate, locale) : ''}
         <a class="deeper" href="/app/orders/${esc(d.order.id)}">${esc(t(locale, 'order.open'))}<span class="go" aria-hidden="true">›</span></a></div>` : ''}
       ${proofRow(d, locale)}
@@ -1687,7 +1688,7 @@ export function renderConversationDetail(
           ${m.heard ? voiceBubble(locale, m, d.conversationId)
             : m.received ? receivedBubble(locale, m)
             : `<div dir="auto" class="bubble"><bdi>${esc(m.text)}</bdi></div>`}
-          <div class="ts muted">${m.at ? esc(formatRelative(locale, m.at, now)) : ''} · ${
+          <div class="ts muted">${m.at ? esc(show.when(locale, m.at, now)) : ''} · ${
             m.direction === 'inbound' ? esc(t(locale, 'common.buyer'))
             : m.by === 'owner' ? esc(t(locale, 'conv.by.you'))
             : byAssistant(assistantName(locale))}</div>
@@ -1781,9 +1782,9 @@ export function renderConversationDetail(
         <div class="rf">
           ${deletionAsked ? `<div class="rf-w">${esc(t(locale, 'deletionAsked.what', { name: assistantName(locale) }))}</div>` : ''}
           ${d.deletionAsk
-            ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.noted', { date: formatDate(locale, d.deletionAsk.askedAt) }))}</div>`
+            ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.noted', { date: show.date(locale, d.deletionAsk.askedAt) }))}</div>`
             : d.deletionRecorded
-              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { due: formatDate(locale, deletionDueBy(d.deletionRecorded.askedAt)) }))}</div>`
+              ? `<div class="rf-t">${esc(t(locale, 'deletionAsked.recorded', { due: show.date(locale, deletionDueBy(d.deletionRecorded.askedAt)) }))}</div>`
               : ''}
           <div class="rf-y muted">${esc(t(locale, 'deletionAsked.why'))}</div>
           <div class="rf-d">${viewer.isOwner
@@ -1804,8 +1805,8 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-y muted">${esc(t(locale, 'closures.blocked.body', {
             label: d.leadTimeBlocked.label,
-            from: formatDate(locale, d.leadTimeBlocked.from),
-            to: formatDate(locale, d.leadTimeBlocked.to),
+            from: show.date(locale, d.leadTimeBlocked.from),
+            to: show.date(locale, d.leadTimeBlocked.to),
           }))}</div>
           <div class="rf-d"><a href="/app/settings/closures">${
             esc(t(locale, 'closures.blocked.action'))}</a></div>
@@ -1894,7 +1895,7 @@ export function renderConversationDetail(
     ${older ? '' : assistantControl(d, locale, viewer)}
     ${prod || d.quantity !== null ? `<div class="muted subline">${[
       prod ? `<bdi>${esc(prod)}</bdi>` : '',
-      d.quantity !== null ? `<bdi>${esc(formatQtyUnit(locale, d.quantity, pcs))}</bdi>` : '',
+      d.quantity !== null ? `<bdi>${esc(show.quantityOf(locale, d.quantity, pcs))}</bdi>` : '',
     ].filter(Boolean).join(' · ')}</div>` : ''}
     ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
       deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}

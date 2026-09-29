@@ -28,6 +28,7 @@ import { renderSite, SITE_CSS } from '../../src/api/web/site.js';
 import { signupModeFrom } from '../../src/core/owner/signup.js';
 import { OWNER_VIEW } from '../../src/core/conversation/people.js';
 import { linkedCss } from './linked-css.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * The audit of 2026-09-20 (`docs/AUDIT-2026-09-20.md`), its last open rows,
@@ -185,7 +186,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it("the assistant's page: \"Hired: …\" in each language's own colon", () => {
     for (const l of LOCALES) {
-      const html = renderEmployee(employee, l, null);
+      const html = withoutIsolates(renderEmployee(employee, l, null));
       const hired = `${esc(t(l, 'employee.hired'))}${l === 'zh' ? '：' : ': '}`;
       expect(html, l).toContain(hired);
       if (l !== 'zh') { expect(html, l).not.toContain('：'); expect(html, l).not.toContain('　'); }
@@ -193,47 +194,48 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
   });
 
   it('products: the colon and the gap per language, every figure spaced from its unit', () => {
-    const en = renderProductList([item()], 'en');
+    const en = withoutIsolates(renderProductList([item()], 'en'));
     expect(en).toContain(`<bdi>5,000${NBSP}pcs</bdi>: <bdi>$0.92</bdi> · Min. order: <bdi>1,000${NBSP}pcs</bdi>`);
-    const ar = renderProductList([item()], 'ar');
-    expect(ar).toContain(`<bdi>5,000${NBSP}قطعة</bdi>: <bdi>$0.92</bdi> · `);
-    const zh = renderProductList([item()], 'zh');
+    const ar = withoutIsolates(renderProductList([item()], 'ar'));
+    // The design pass §9: Arabic money is the locale's own form, read as one unit.
+    expect(ar).toContain(`<bdi>5,000${NBSP}قطعة</bdi>: <bdi>\u200F0.92${NBSP}US$</bdi> · `);
+    const zh = withoutIsolates(renderProductList([item()], 'zh'));
     expect(zh).toContain('<bdi>5000个</bdi>：<bdi>$0.92</bdi>　最低起订：<bdi>1000个</bdi>');
     for (const [l, html] of [['en', en], ['ar', ar]] as const) {
       expect(html, l).not.toMatch(/[：　]/);
     }
-    const page = renderProductDetail(detail(), 'ar');
+    const page = withoutIsolates(renderProductDetail(detail(), 'ar'));
     expect(page).toContain(`500–2,000${NBSP}قطعة`);
     expect(page).toContain(`2,000+${NBSP}قطعة`);
-    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>$0.92/قطعة</bdi>`);   // recent quotes, each figure isolated
-    expect(renderProductDetail(detail(), 'zh')).toContain('2000+个');
+    expect(page).toContain(`<bdi>5,000${NBSP}قطعة</bdi> · <bdi>\u200F0.92${NBSP}US$/قطعة</bdi>`);   // recent quotes, each figure isolated
+    expect(withoutIsolates(renderProductDetail(detail(), 'zh'))).toContain('2000+个');
   });
 
   it('contacts: the gap between the facts is " · " in English and Arabic; Chinese keeps its own', () => {
     const row = contact({ title: 'Buyer' });
     for (const l of ['en', 'ar'] as const) {
-      const html = renderContacts(contacts([row]), l, null);
+      const html = withoutIsolates(renderContacts(contacts([row]), l, null));
       expect(html, l).not.toMatch(/[：　]/);
       expect(html, l).toContain(`${esc(t(l, 'contacts.channel.email'))} · ${esc(t(l, 'contacts.source.manual'))}`);
     }
-    expect(renderContacts(contacts([row]), 'zh', null)).toContain(`${t('zh', 'contacts.channel.email')}　·　${t('zh', 'contacts.source.manual')}`);
+    expect(withoutIsolates(renderContacts(contacts([row]), 'zh', null))).toContain(`${t('zh', 'contacts.channel.email')}　·　${t('zh', 'contacts.source.manual')}`);
   });
 
   it('an order: the quantity in the page\'s own unit word, and the tracking line\'s colon', () => {
-    const en = renderOrder(order(), 'en', null);
+    const en = withoutIsolates(renderOrder(order(), 'en', null));
     expect(en).toContain(`5,000${NBSP}pcs`);
     expect(en).toContain(`${esc(t('en', 'order.field.tracking'))}: MAEU123`);
-    const zh = renderOrder(order(), 'zh', null);
+    const zh = withoutIsolates(renderOrder(order(), 'zh', null));
     expect(zh).toContain('5000个');
     expect(zh).toContain(`${t('zh', 'order.field.tracking')}：MAEU123`);
-    expect(renderOrder(order(), 'ar', null)).toContain(`5,000${NBSP}قطعة`);
+    expect(withoutIsolates(renderOrder(order(), 'ar', null))).toContain(`5,000${NBSP}قطعة`);
   });
 
   it('practice: each chip\'s colon, and the price per unit in the page\'s language (it said "/pc" everywhere)', () => {
     for (const l of LOCALES) {
-      const html = renderSandbox(practice(), l, { mode: 'scripted', liveAvailable: false, flash: null });
+      const html = withoutIsolates(renderSandbox(practice(), l, { mode: 'scripted', liveAvailable: false, flash: null }));
       expect(html, l).toContain(esc(labelled(l, t(l, 'sandbox.xray.skill'), t(l, 'capability.quote' as MessageKey))));
-      expect(html, l).toContain(`$0.85/${esc(t(l, 'product.unit.pcs'))}`);
+      expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pcs'))}`);
       expect(html, l).not.toContain('/pc<');
     }
   });
@@ -242,14 +244,14 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
     const glued = /\d(?:pcs|قطعة)/;
     for (const l of ['en', 'ar'] as const) {
       const pages = [
-        renderInboxList(list, l, NOW), renderConversationDetail(conversation, l, NOW, null),
-        renderCustomerFile(buyerFile(), l, NOW), renderProductList([item()], l), renderProductDetail(detail(), l),
-        renderOrder(order(), l, null),
+        withoutIsolates(renderInboxList(list, l, NOW)), withoutIsolates(renderConversationDetail(conversation, l, NOW, null)),
+        withoutIsolates(renderCustomerFile(buyerFile(), l, NOW)), withoutIsolates(renderProductList([item()], l)), withoutIsolates(renderProductDetail(detail(), l)),
+        withoutIsolates(renderOrder(order(), l, null)),
       ];
       for (const html of pages) expect(said(html), l).not.toMatch(glued);
     }
     // Chinese sets them together, as it always did.
-    expect(renderInboxList(list, 'zh', NOW)).toContain('<bdi>5000个</bdi>');
+    expect(withoutIsolates(renderInboxList(list, 'zh', NOW))).toContain('<bdi>5000个</bdi>');
   });
 });
 
@@ -335,7 +337,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
       expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/factory" class="navlink active" aria-current="page"/);
-      expect(renderKnowledgeOps(ops(), l, NOW), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
+      expect(withoutIsolates(renderKnowledgeOps(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
     }
     const results: AnalyticsData = {
       range: 'month', hasActivity: false,
@@ -344,7 +346,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
       commerce: { quotes: 0, orders: 0, deals: [], totals: [] },
       employee: { handled: 0, waiting: 0, edits: 0 },
     };
-    const analytics = renderAnalytics(results, 'en');
+    const analytics = withoutIsolates(renderAnalytics(results, 'en'));
     expect(analytics).toContain('class="tab on" aria-current="page" href="/app/analytics?range=month"');
     expect(analytics.match(/aria-current=/g)).toHaveLength(1);
   });
@@ -352,9 +354,9 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
   it('the conversation, the buyer and the product each have one heading of their own: the name in the header', () => {
     for (const l of LOCALES) {
       const pages = {
-        conversation: renderConversationDetail(conversation, l, NOW, null),
-        buyer: renderCustomerFile(buyerFile(), l, NOW),
-        product: renderProductDetail(detail(), l),
+        conversation: withoutIsolates(renderConversationDetail(conversation, l, NOW, null)),
+        buyer: withoutIsolates(renderCustomerFile(buyerFile(), l, NOW)),
+        product: withoutIsolates(renderProductDetail(detail(), l)),
       };
       for (const [what, html] of Object.entries(pages)) {
         expect(html.match(/<h1[\s>]/g), `${l} ${what}`).toHaveLength(1);
@@ -388,7 +390,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
 
   it('the knowledge page says its title once (it printed it twice), with its lede under it', () => {
     for (const l of LOCALES) {
-      const composed = renderKnowledgeOps(ops(), l, NOW) + renderKnowledgeIndex({ products: [], business: [] }, l);
+      const composed = withoutIsolates(renderKnowledgeOps(ops(), l, NOW)) + withoutIsolates(renderKnowledgeIndex({ products: [], business: [] }, l));
       expect(composed.match(/<h1[\s>]/g), l).toHaveLength(1);
       expect(composed, l).toContain(`<p class="lede">${esc(t(l, 'knowledge.intro'))}</p>`);
     }
@@ -398,7 +400,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
     expect(flashBanner({ text: 'No.', bad: true })).toBe('<div class="flash bad" role="alert">No.</div>');
     expect(flashBanner({ text: 'Sent.', bad: false })).toBe('<div class="flash" role="status">Sent.</div>');
     const errors: Partial<Record<ProductEditField, ProductEditError>> = { price: 'below_floor' };
-    const refused = renderProductDetail(detail(), 'en', null, errors, {});
+    const refused = withoutIsolates(renderProductDetail(detail(), 'en', null, errors, {}));
     expect(refused).toMatch(/<p class="perr" role="alert">/);
     for (const f of webFiles) {
       const src = read(f);
@@ -407,10 +409,10 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
         f.endsWith('components.ts') ? ['class="perr"'] : []);   // the components page shows the style, not an error
     }
     // The workspace's pending deletion is a standing state: a pill and a sentence, not a notice.
-    const pending = renderDataRights({
+    const pending = withoutIsolates(renderDataRights({
       businessName: 'Atlas Trading',
       requests: [{ id: 'r1', scope: 'workspace', subjectNote: null, askedBy: 'owner', askedAt: NOW, state: 'open', closedAt: null, closedNote: null }],
-    }, 'en', null, OWNER_VIEW, 'x');
+    }, 'en', null, OWNER_VIEW, 'x'));
     expect(pending).toContain(`<p><span class="pill warn">${esc(t('en', 'data.deletion.state.open'))}</span>`);
     expect(pending).not.toContain('class="flash');
   });
@@ -546,14 +548,14 @@ describe('CC-29 · everything that takes something away asks first, the one way 
 
   it('rendered, in each language: the question names what goes', () => {
     for (const l of LOCALES) {
-      const emp = renderEmployee(employee, l, null);
+      const emp = withoutIsolates(renderEmployee(employee, l, null));
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.grantConfirm', { cap: t(l, 'capability.quote' as MessageKey) }))}"`);
       expect(emp, l).toContain(`data-confirm="${esc(t(l, 'employee.actions.revokeConfirm', { cap: t(l, 'capability.greet' as MessageKey) }))}"`);
-      const k = renderProductKnowledge(knowledge, l, null);
+      const k = withoutIsolates(renderProductKnowledge(knowledge, l, null));
       expect(k, l).toContain(`data-confirm="${esc(t(l, 'knowledge.archive.confirm', { label: 'Dimensions' }))}"`);
-      const c = renderContacts(contacts([contact()]), l, null);
+      const c = withoutIsolates(renderContacts(contacts([contact()]), l, null));
       expect(c, l).toContain(`data-confirm="${esc(t(l, 'contacts.archive.confirm', { who: 'Ahmed' }))}"`);
-      const data = renderDataRights({ businessName: 'Atlas Trading', requests: [] }, l, null, OWNER_VIEW, 'x');
+      const data = withoutIsolates(renderDataRights({ businessName: 'Atlas Trading', requests: [] }, l, null, OWNER_VIEW, 'x'));
       expect(asks(data, t(l, 'data.deletion.confirm')), l).toBe(true);
       for (const key of ['employee.actions.grantConfirm', 'employee.actions.revokeConfirm', 'knowledge.archive.confirm', 'reach.inbound.disconnectConfirm',
         'outreach.turnOnConfirm', 'outreach.turnOffConfirm', 'seq.enrolment.stopConfirm', 'seq.archive.confirm',
@@ -599,20 +601,20 @@ describe('CC-31 · an article number the owner never typed is not shown as their
   it('products, a product, the buyer\'s page and the proforma: hers is shown, a made-up one is not', () => {
     const made = generatedSku(Date.UTC(2026, 8, 28), 0);
     for (const l of LOCALES) {
-      const listed = renderProductList([item({ sku: made }), item({ id: 'p2', sku: 'ZX-200' })], l);
+      const listed = withoutIsolates(renderProductList([item({ sku: made }), item({ id: 'p2', sku: 'ZX-200' })], l));
       expect(listed, l).not.toContain(made);
       expect(listed, l).toContain('<span class="muted"><bdi>ZX-200</bdi></span>');
-      const one = renderProductDetail(detail({ sku: made }), l);
+      const one = withoutIsolates(renderProductDetail(detail({ sku: made }), l));
       expect(one, l).not.toContain(made);
-      expect(renderProductDetail(detail(), l), l).toContain('<bdi>ZX-100</bdi>');
-      const buyer = renderCustomerFile(buyerFile([{ sku: made, name: 'Canvas bag', nameZh: '帆布袋' }]), l, NOW);
+      expect(withoutIsolates(renderProductDetail(detail(), l)), l).toContain('<bdi>ZX-100</bdi>');
+      const buyer = withoutIsolates(renderCustomerFile(buyerFile([{ sku: made, name: 'Canvas bag', nameZh: '帆布袋' }]), l, NOW));
       expect(buyer, l).not.toContain(made);
     }
-    const proforma = renderOrder(order({ productSku: made }), 'en', null);
+    const proforma = withoutIsolates(renderOrder(order({ productSku: made }), 'en', null));
     expect(proforma).toContain('PROFORMA INVOICE');
     expect(proforma).not.toContain(made);
     expect(proforma).toMatch(/\nVacuum cup\nQty:/);
-    expect(renderOrder(order(), 'en', null)).toContain('Vacuum cup (ZX-200)');
+    expect(withoutIsolates(renderOrder(order(), 'en', null))).toContain('Vacuum cup (ZX-200)');
   });
 });
 
@@ -622,7 +624,7 @@ describe('CC-09 · the public site exists (#80); what is left is the owner\'s', 
   it('the page a stranger reads, in every language, asks for an invitation — the sign-up default is still invite-only (CC-28)', () => {
     expect(signupModeFrom(undefined)).toBe('invite');
     for (const l of LOCALES) {
-      const html = renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false });
+      const html = withoutIsolates(renderSite({ locale: l, path: '/', contact: 'hello@example.test', signIn: 'https://app.example.test/login', noindex: false }));
       expect(html, l).toContain('data-surface="site"');
       expect(html, l).toContain('href="mailto:hello@example.test"');
       expect(html, l).not.toContain('/signup');

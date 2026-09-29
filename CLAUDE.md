@@ -485,6 +485,12 @@ Recent PRs, newest first:
    - Every figure inside a sentence through `tn` (six plural forms per key); no tiles. "The last 24 hours", not "since you last looked" — nothing records a visit. A blocked message or a waiting deletion request is enough to lift "No one is waiting for you".
    - Tests: `tests/parity/operations.test.ts`, the Today assertions in `boot`, `assistant-stop`, `ops-silence-handoff`, `deletion-handoff` (integration).
 
+38. **Right to left, by design: every value on an owner page is isolated** (the design pass §9, #139, 2026-09-30; `src/api/web/values.ts`).
+   - One function per kind of value — `show.money`, `quantityOf`, `count`, `date`, `time`, `when`, `phone`, `orderNumber`… (`import * as show from './values.js'`). Pages never import the display formatters from `core/owner/i18n/format.ts` (a test holds it); e-mail and WhatsApp to the owner keep the plain ones.
+   - Right to left, each comes back inside U+2068 … U+2069 (what `<bdi>` does, as characters: it works inside a catalogue sentence, an `<option>`, an attribute). Arabic money is the locale's own form, "1.95 US$", its sign a left-to-right word of its own (without it the browser drew "$US 1.95"); Western digits stay. English and Chinese pages are unchanged.
+   - The web `t`/`tn` isolate every figure run in a finished sentence (a text parameter carrying a figure goes in whole; the catalogue's own "30 days", "{done}/{total}" as one run each). Customer-typed text (product names, calendar titles) goes in `<bdi>`.
+   - The test: the surface walk draws every owner page in Arabic over real rows and fails any digit run or currency sign outside an isolate (`tests/parity/isolates.ts` reads it). Tests that check a page's WORDS read it through `withoutIsolates`. No literal direction character may be written into the source — escape it (`\u2068`); the Write tool turns escapes into the characters, so check new files.
+
 ## 6 · What's next
 
 **The 2026-09-28 batch — "clear the queue"** (the owner's order): Task 1

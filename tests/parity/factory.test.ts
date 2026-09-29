@@ -10,6 +10,7 @@ import { t as say } from '../../src/api/web/say.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { esc } from '../../src/api/web/layout.js';
 import { readFileSync } from 'node:fs';
+import { withoutIsolates } from './isolates.js';
 
 /** V1 step four — My business's rules, as they sit in the shell's stylesheet. */
 const factorySectionOfShell = (): string => {
@@ -72,7 +73,7 @@ const fresh: FactoryView = {
 
 describe('Phase E · My factory answers the owner’s four questions', () => {
   it('every section is present, in the order an owner thinks about them', () => {
-    const html = renderFactory(complete, 'en');
+    const html = withoutIsolates(renderFactory(complete, 'en'));
     const at = (s: string) => html.indexOf(s);
     expect(at('About your business')).toBeGreaterThan(-1);
     expect(at('What you sell')).toBeGreaterThan(at('About your business'));
@@ -85,31 +86,31 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('shows the real business facts it was given, and omits the ones it was not', () => {
-    const html = renderFactory(complete, 'en');
+    const html = withoutIsolates(renderFactory(complete, 'en'));
     expect(html).toContain('Yiwu Sunrise Housewares');
     expect(html).toContain('Vacuum cups and kitchen goods since 2011.');
     expect(html).toContain('Yiwu, Zhejiang');
     expect(html).toContain('sales@sunrise.example');
     expect(html).toContain('English · 中文');
-    const noHours = renderFactory({ ...complete, profile: { ...complete.profile, workingHours: null } }, 'en');
+    const noHours = withoutIsolates(renderFactory({ ...complete, profile: { ...complete.profile, workingHours: null } }, 'en'));
     expect(noHours).not.toContain('Working hours');   // absent facts leave no empty row
 
     // a phone is labelled a phone, even when there is no email beside it
-    const phoneOnly = renderFactory({ ...complete, profile: { ...complete.profile, contactEmail: null, contactPhone: '+86 579 8888 1234' } }, 'en');
+    const phoneOnly = withoutIsolates(renderFactory({ ...complete, profile: { ...complete.profile, contactEmail: null, contactPhone: '+86 579 8888 1234' } }, 'en'));
     expect(phoneOnly).toContain('+86 579 8888 1234');
     expect(phoneOnly).not.toContain('Contact email');
     expect(phoneOnly).toContain('Contact phone');
   });
 
   it('products are a real count with the honest pricing state', () => {
-    expect(renderFactory(complete, 'en')).toContain('>12<span');
-    expect(renderFactory(complete, 'en')).toContain(shown('en', 'factory.sell.allPriced'));
-    const some = renderFactory({ ...complete, products: { ...complete.products, needPrice: 3 } }, 'en');
+    expect(withoutIsolates(renderFactory(complete, 'en'))).toContain('>12<span');
+    expect(withoutIsolates(renderFactory(complete, 'en'))).toContain(shown('en', 'factory.sell.allPriced'));
+    const some = withoutIsolates(renderFactory({ ...complete, products: { ...complete.products, needPrice: 3 } }, 'en'));
     expect(some).toContain('3 still need a price');
   });
 
   it('promises are the guard’s allowlist, named in the owner’s words not the guard’s keys', () => {
-    const html = renderFactory(complete, 'en');
+    const html = withoutIsolates(renderFactory(complete, 'en'));
     expect(html).toContain('Food-safe materials'); expect(html).toContain('BPA free');
     expect(html).not.toContain('food_grade');        // never an internal key
     expect(html).toContain(shown('en', 'factory.promise.certsOn'));
@@ -123,17 +124,17 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // and since G7a a discount past her ask-first line holds the reply for her
     // (core/conversation/hold.ts). Before G7a that line decided nothing, so the
     // page did not state it; now it is a gate, so it is a promise.
-    const rules = renderFactory(complete, 'en').match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
+    const rules = withoutIsolates(renderFactory(complete, 'en')).match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
     expect(rules).toContain('never quotes below $0.75');
     expect(rules).toContain('never discounts more than 8%');
     expect(rules).toContain(shown('en', 'factory.promise.ask', { ask: 5 }));
   });
 
   it('G9a · a sales assistant sees whether messaging is live — not the switch, and not a link to the floor', () => {
-    const owner = renderFactory(complete, 'en');
+    const owner = withoutIsolates(renderFactory(complete, 'en'));
     expect(owner).toContain('action="/app/factory/activate"');
     expect(owner).toContain('href="/app/factory/prices"');
-    const staff = renderFactory(complete, 'en', null, { isOwner: false });
+    const staff = withoutIsolates(renderFactory(complete, 'en', null, { isOwner: false }));
     expect(staff).not.toMatch(/action="\/app\/factory\/(activate|deactivate)"/);
     expect(staff).not.toContain('href="/app/factory/prices"');
     expect(staff).toContain('The owner decides this.');
@@ -144,7 +145,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const askTail = esc(say('en', 'factory.promise.ask', { ask: '§' }).split('§')[1]!);
     const askVariesTail = esc(say('en', 'factory.promise.askVaries', { ask: '§' }).split('§')[1]!);
     for (const askPct of [8, 9, null]) {
-      const rules = renderFactory({ ...complete, promises: { ...complete.promises, askPct } }, 'en')
+      const rules = withoutIsolates(renderFactory({ ...complete, promises: { ...complete.promises, askPct } }, 'en'))
         .match(/<ul class="frules">[\s\S]*?<\/ul>/)![0];
       expect(rules, String(askPct)).not.toContain(askTail);
       expect(rules, String(askPct)).not.toContain(askVariesTail);
@@ -154,8 +155,8 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   it('a catalogue with different floors reports the range, never one product’s number', () => {
     // The guard reads the PER-PRODUCT policy; quoting a single business-wide
     // floor described numbers no quote had ever used.
-    const html = renderFactory({ ...complete, promises: {
-      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } }, 'en');
+    const html = withoutIsolates(renderFactory({ ...complete, promises: {
+      ...complete.promises, floorLow: usd(0.30), floorHigh: usd(2.40), ceilingVaries: true } }, 'en'));
     expect(html).toContain('$0.30');
     expect(html).toContain('$2.40');
     expect(html).toContain('less on some products');
@@ -163,7 +164,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('price rules appear only when the owner actually has them', () => {
-    const none = renderFactory({ ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } }, 'en');
+    const none = withoutIsolates(renderFactory({ ...complete, promises: { certs: [], floorLow: null, floorHigh: null, ceilingPct: null, ceilingVaries: false } }, 'en'));
     expect(none).not.toContain('never quotes below');
     expect(none).not.toContain('never discounts more than');
     expect(none).toContain('You have not confirmed anything');
@@ -171,27 +172,27 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('connection says which of the four states it is in, and what that means', () => {
-    const on = renderFactory(complete, 'en');
+    const on = withoutIsolates(renderFactory(complete, 'en'));
     expect(on).toContain('Connected');
     expect(on).toContain(shown('en', 'channel.state.ready.hint'));
     expect(on).toContain('+971 50 ••• 4444');
-    const off = renderFactory(fresh, 'en');
+    const off = withoutIsolates(renderFactory(fresh, 'en'));
     expect(off).toContain('Not connected');
     expect(off).toContain('cannot receive or answer a buyer');
   });
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
     // V1 review fix: the next step is a door like the others, marked `next` so it can be counted.
-    expect(renderFactory(complete, 'en')).not.toContain('class="deeper next"');
+    expect(withoutIsolates(renderFactory(complete, 'en'))).not.toContain('class="deeper next"');
     for (const [step, href] of [['profile', '/app/settings'], ['products', '/app/products'], ['channels', '/app/channels'], ['first_success', '/app/inbox']] as const) {
-      const html = renderFactory({ ...fresh, nextStep: step }, 'en');
+      const html = withoutIsolates(renderFactory({ ...fresh, nextStep: step }, 'en'));
       expect(html.split('class="deeper next"').length - 1, step).toBe(1);
       expect(html).toContain(`class="deeper next" href="${href}"`);
     }
   });
 
   it('an empty factory is honest about being empty, never a wall of zeros', () => {
-    const html = renderFactory(fresh, 'en');
+    const html = withoutIsolates(renderFactory(fresh, 'en'));
     expect(html).toContain('nothing to tell buyers about you yet');
     expect(html).toContain('nothing to quote yet');
     expect(html).not.toContain('>0<');
@@ -200,14 +201,14 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('every section offers a way through to the surface that owns it', () => {
     // T1 — the shared practice sandbox is the pilot workspace's alone: its door is drawn there only.
-    const html = withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => renderFactory(complete, 'en'));
+    const html = withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => withoutIsolates(renderFactory(complete, 'en')));
     for (const href of ['/app/settings', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
       expect(html, href).toContain(`href="${href}"`);
-    expect(renderFactory(complete, 'en')).not.toContain('href="/app/sandbox"');
+    expect(withoutIsolates(renderFactory(complete, 'en'))).not.toContain('href="/app/sandbox"');
   });
 
   it('is a page, not a settings panel — it collects only go-live decisions', () => {
-    const html = renderFactory(complete, 'en');
+    const html = withoutIsolates(renderFactory(complete, 'en'));
     // M20.3 added activate/deactivate; M20.4 added the allowlist, because the
     // blocker pointed here and had nowhere to send her. Nothing else on this
     // page collects input — every other edit happens on the surface that owns it.
@@ -221,18 +222,18 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
 describe('Phase E · language (all locales, RTL-safe)', () => {
   it('renders fully in every locale and each keeps its own words', () => {
-    for (const l of LOCALES) expect(renderFactory(complete, l).length).toBeGreaterThan(800);
-    const zh = renderFactory(complete, 'zh');
+    for (const l of LOCALES) expect(withoutIsolates(renderFactory(complete, l)).length).toBeGreaterThan(800);
+    const zh = withoutIsolates(renderFactory(complete, 'zh'));
     expect(zh).toContain('我的公司'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对买家的承诺');
     expect(zh).not.toContain('About your business');
-    const ar = renderFactory(complete, 'ar');
+    const ar = withoutIsolates(renderFactory(complete, 'ar'));
     expect(ar).toContain('شركتي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain(shown('ar', 'factory.promise.title'));
     expect(ar).not.toContain('About your business');
   });
 
   it('the empty and next-step states are localized too — no English leaks', () => {
     for (const l of ['zh', 'ar'] as const) {
-      const html = renderFactory(fresh, l).replace(/<style>[\s\S]*?<\/style>/g, '');
+      const html = withoutIsolates(renderFactory(fresh, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
       expect(html).not.toMatch(/nothing to (tell|quote)/);
       expect(html).not.toContain('Not connected');
       expect(html).not.toContain(shown('en', 'factory.next.profile'));
@@ -240,14 +241,14 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   });
 
   it('uses the shell’s one “go deeper” link rather than a page-local variant', () => {
-    const html = renderFactory(complete, 'en');
+    const html = withoutIsolates(renderFactory(complete, 'en'));
     expect(html).toContain('<a class="deeper" href="/app/settings">');
     expect(html).toContain('<span class="go" aria-hidden="true">›</span>');
     expect(html).not.toContain('class="fmore"');
   });
 
   it('Latin runs are isolated so an Arabic reader gets them in source order', () => {
-    const ar = renderFactory(complete, 'ar');
+    const ar = withoutIsolates(renderFactory(complete, 'ar'));
     // product names and field values are Latin inside an Arabic paragraph
     expect(ar).toContain('<bdi>Vacuum cup</bdi>');
     expect(ar).toContain('<bdi class="fval">');
@@ -255,11 +256,11 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('a channel that cannot carry a message is its own remedy — the block links to the fix', () => {
     for (const lc of ['not_connected', 'paused'] as const) {
-      const html = renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar');
+      const html = withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'ar'));
       expect(html, lc).toContain('<a class="fconn off" href="/app/channels"');
     }
     for (const lc of ['ready', 'active'] as const) {
-      const html = renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'en');
+      const html = withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, lifecycle: lc } } as FactoryView, 'en'));
       expect(html, lc).toContain('<div class="fconn on"');
       expect(html, lc).not.toContain('fconn off');
     }
@@ -268,7 +269,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('RTL-safe layout: no physical left/right in the page’s styles, which live in the shell now', () => {
     // V1 step four: My business carries no stylesheet; its rules are the shell's
     // "factory.ts" section. The page must be bare, and that section logical.
-    expect(renderFactory(complete, 'ar')).not.toContain('<style');
+    expect(withoutIsolates(renderFactory(complete, 'ar'))).not.toContain('<style');
     const style = factorySectionOfShell();
     expect(style.length).toBeGreaterThan(200);
     expect(style).not.toMatch(/\bmargin-left\b|\bmargin-right\b|\bpadding-left\b|\bpadding-right\b/);
@@ -278,18 +279,18 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('no message is left half-written: every placeholder is filled, every locale', () => {
     for (const l of LOCALES) {
       for (const view of [complete, fresh]) {
-        const html = renderFactory(view, l).replace(/<style>[\s\S]*?<\/style>/g, '');
+        const html = withoutIsolates(renderFactory(view, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
         expect(html.match(/\{[a-zA-Z]+\}/g) ?? [], `${l}: unsubstituted placeholder`).toEqual([]);
       }
     }
   });
 
   it('escapes everything the owner typed', () => {
-    const evil = renderFactory({
+    const evil = withoutIsolates(renderFactory({
       ...complete,
       profile: { ...complete.profile, name: '<script>alert(1)</script>', description: '<img src=x onerror=alert(1)>' },
       products: { ...complete.products, names: [{ name: '</p><script>bad()</script>', nameZh: null }] },
-    }, 'en');
+    }, 'en'));
     expect(evil).not.toContain('<script>alert(1)</script>');
     expect(evil).not.toContain('<img src=x onerror');
     expect(evil).not.toContain('<script>bad()</script>');
@@ -298,7 +299,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('speaks about a business, never about software — any locale', () => {
     for (const l of LOCALES) {
-      const all = (renderFactory(complete, l) + renderFactory(fresh, l)).toLowerCase();
+      const all = (withoutIsolates(renderFactory(complete, l)) + withoutIsolates(renderFactory(fresh, l))).toLowerCase();
       for (const banned of [
         'ai', 'llm', 'model', 'token', 'api', 'webhook', 'database', 'confidence', 'automation', 'prompt',
         'configure', 'configuration', 'settings panel', 'policy engine', 'validation', 'constraint',
@@ -313,7 +314,7 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
 
   it('invents no metric: no score, no rating, no performance percentage', () => {
     for (const l of LOCALES) {
-      const html = renderFactory(complete, l).replace(/<style>[\s\S]*?<\/style>/g, '')
+      const html = withoutIsolates(renderFactory(complete, l)).replace(/<style>[\s\S]*?<\/style>/g, '')
           .replace(/<ul class="frules">[\s\S]*?<\/ul>/, '')
           // Excised BY PROVENANCE, not by value. `.frules` and `.fprices` are the
           // only regions carrying numbers the OWNER wrote; everything left must
@@ -360,7 +361,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
         askPct: Math.max(...policies.map((p) => p.humanRequiredAbovePct)), askVaries: false,
       },
     };
-    const html = renderFactory(view, 'en');
+    const html = withoutIsolates(renderFactory(view, 'en'));
 
     // 1. Every floor the page states must bound every real quote.
     // (Typing this fixture surfaced the assumption: floorLow is nullable,
@@ -417,7 +418,7 @@ describe('Release hardening · My factory quotes the guard, not a second reading
     const { t } = await import('../../src/core/owner/i18n/messages.js');
     const { esc } = await import('../../src/api/web/layout.js');
     for (const l of LOCALES) {
-      const rules = renderFactory(complete, l).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
+      const rules = withoutIsolates(renderFactory(complete, l)).match(/<ul class="frules">[\s\S]*?<\/ul>/)?.[0] ?? '';
       expect(rules, l).toContain(esc(t(l, 'factory.promise.ask', { ask: 5, name: '' })));
     }
   });
@@ -427,7 +428,7 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
   it('a Chinese owner sees the Chinese product names her catalogue already holds', () => {
     // Scope to the names line: the business DESCRIPTION is owner-entered text
     // and stays exactly as she typed it, in whatever language that was.
-    const names = (l: 'en' | 'zh') => renderFactory(complete, l).match(/<p class="fnames">.*?<\/p>/s)![0];
+    const names = (l: 'en' | 'zh') => withoutIsolates(renderFactory(complete, l)).match(/<p class="fnames">.*?<\/p>/s)![0];
     expect(names('zh')).toContain('保温杯');
     expect(names('zh')).not.toContain('Vacuum cup');
     expect(names('en')).toContain('Vacuum cup');
@@ -435,8 +436,8 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
   });
 
   it('falls back to whichever name exists, never to a blank', () => {
-    const html = renderFactory({ ...complete, products: { ...complete.products,
-      names: [{ name: 'Only English', nameZh: null }, { name: null, nameZh: '只有中文' }] } }, 'zh');
+    const html = withoutIsolates(renderFactory({ ...complete, products: { ...complete.products,
+      names: [{ name: 'Only English', nameZh: null }, { name: null, nameZh: '只有中文' }] } }, 'zh'));
     expect(html).toContain('Only English');
     expect(html).toContain('只有中文');
   });
@@ -448,7 +449,7 @@ describe('Release hardening · the catalogue speaks the owner’s language', () 
  */
 describe('M20.2 · the activation readiness surface', () => {
   const withReadiness = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' = 'en') =>
-    renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
+    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
 
   it('ready: says so, and names exactly who can receive a message', () => {
     const html = withReadiness({ canActivate: true, blockers: [], live: false });
@@ -528,7 +529,7 @@ describe('M20.2 · the activation readiness surface', () => {
 /** M20.3 — going live is an owner decision, made here, and reversible here. */
 describe('M20.3 · activate and deactivate as owner actions', () => {
   const view = (r: Partial<FactoryView['readiness']>, l: 'en' | 'zh' | 'ar' = 'en') =>
-    renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l);
+    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, ...r } } as FactoryView, l));
 
   it('ready: offers the decision, and says what it does before it is taken', () => {
     const html = view({ canActivate: true, blockers: [], live: false });
@@ -565,10 +566,10 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
     // printed a uuid.
     const html = view({ live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'owner' });
     expect(html).toMatch(/Started .* by you\./);
-    const byChen = renderFactory({
+    const byChen = withoutIsolates(renderFactory({
       ...complete, readiness: { ...complete.readiness, live: true, activatedAt: new Date('2026-08-03T09:00:00Z'), activatedBy: 'p-chen' },
       people: [{ id: 'p-chen', name: 'Xiao Chen', isOwner: false }],
-    }, 'en');
+    }, 'en'));
     expect(byChen).toMatch(/Started .* by Xiao Chen\./);
     expect(byChen).not.toContain('p-chen');
   });
@@ -601,11 +602,11 @@ describe('M20.3.1 · activation truth, localized', () => {
   const at = (lifecycle: FactoryView['readiness']['lifecycle'], l: 'en' | 'zh' | 'ar',
               over: Partial<FactoryView['readiness']> = {}) =>
     // the stylesheet carries English comments; the owner reads the markup
-    renderFactory({ ...complete, readiness: {
+    withoutIsolates(renderFactory({ ...complete, readiness: {
       ...complete.readiness, lifecycle, live: lifecycle === 'active',
       canActivate: lifecycle === 'ready',
       blockers: lifecycle === 'ready' || lifecycle === 'active' ? [] : ['no_channel'],
-      ...over } } as FactoryView, l).replace(/<style>[\s\S]*?<\/style>/g, '');
+      ...over } } as FactoryView, l)).replace(/<style>[\s\S]*?<\/style>/g, '');
 
   it('each state reads as itself, and says what it means for the owner’s day', () => {
     expect(at('not_connected', 'en')).toContain('Not connected');
@@ -652,9 +653,9 @@ describe('M20.3.1 · activation truth, localized', () => {
   });
 
   it('RTL: the Arabic page still mirrors, and the state block stays logical', () => {
-    const ar = renderFactory({ ...complete, readiness: {
+    const ar = withoutIsolates(renderFactory({ ...complete, readiness: {
       ...complete.readiness, lifecycle: 'paused', live: false, canActivate: false,
-      blockers: ['no_channel'] } } as FactoryView, 'ar');
+      blockers: ['no_channel'] } } as FactoryView, 'ar'));
     expect(ar).toContain('class="go"');                       // mirrored by the shell
     const style = factorySectionOfShell();                     // V1 step four: the page's rules live there
     for (const physical of ['margin-left', 'margin-right', 'padding-left', 'padding-right',
@@ -670,7 +671,7 @@ describe('M20.3.1 · activation truth, localized', () => {
  */
 describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
   const view = (recipients: FactoryView['readiness']['recipients'], l: 'en' | 'zh' | 'ar' = 'en') =>
-    renderFactory({ ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l);
+    withoutIsolates(renderFactory({ ...complete, readiness: { ...complete.readiness, recipients } } as FactoryView, l));
 
   it('THE M21 REPRODUCTION: there is now a way to add a number', () => {
     const html = view([]);

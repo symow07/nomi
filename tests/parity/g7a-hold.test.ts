@@ -11,6 +11,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { formatDate } from '../../src/core/owner/i18n/format.js';
 import { product, tiers, policy, BUSINESS } from './fixtures.js';
+import { withoutIsolates } from './isolates.js';
 
 /**
  * G7a — her "ask me above this discount" line is a gate.
@@ -134,29 +135,30 @@ describe('G7a · the draft card says why it is waiting', () => {
       now: { price: usd(0.45), quantity: 8000 }, largerQuantity: true,
     };
     for (const l of LOCALES) {
-      const html = renderConversationDetail({
+      const html = withoutIsolates(renderConversationDetail({
         ...detail('contradicts_history'),
         pendingDraft: { ...detail('contradicts_history').pendingDraft!, contradicts },
-      }, l, NOW, null);
+      }, l, NOW, null));
       const at = html.indexOf('<div class="held-then">');
       expect(at, l).toBeGreaterThan(-1);
       const then = html.slice(at, html.indexOf('</form>', at));
-      expect(then, l).toContain('$0.40');
-      expect(then, l).toContain('$0.45');
+      // Arabic money is the locale's own form (the design pass §9).
+      expect(then, l).toContain(l === 'ar' ? '\u200F0.40\u00A0US$' : '$0.40');
+      expect(then, l).toContain(l === 'ar' ? '\u200F0.45\u00A0US$' : '$0.45');
       expect(then, l).toContain(esc(t(l, 'inbox.draft.contradicts.before', { date: formatDate(l, contradicts.before.at) })));
       expect(then, l).toContain(esc(t(l, 'inbox.draft.contradicts.larger')));
     }
-    const same = renderConversationDetail({
+    const same = withoutIsolates(renderConversationDetail({
       ...detail('contradicts_history'),
       pendingDraft: { ...detail('contradicts_history').pendingDraft!, contradicts: { ...contradicts, largerQuantity: false } },
-    }, 'en', NOW, null);
+    }, 'en', NOW, null));
     expect(same).not.toContain(esc(t('en', 'inbox.draft.contradicts.larger')));
   });
 
   it('each reason, in every locale', () => {
     for (const reason of HOLD_REASONS) {
       for (const l of LOCALES) {
-        const html = renderConversationDetail(detail(reason), l, NOW, null);
+        const html = withoutIsolates(renderConversationDetail(detail(reason), l, NOW, null));
         const said = t(l, `inbox.draft.held.${reason}` as MessageKey, { name: ASSISTANT_FALLBACK[l] });
         expect(said, `${l} ${reason}`).not.toContain('{');
         expect(html, `${l} ${reason}`).toContain(esc(said));
@@ -165,7 +167,7 @@ describe('G7a · the draft card says why it is waiting', () => {
   });
 
   it('a draft that waited only because of her autonomy setting says nothing extra', () => {
-    const html = renderConversationDetail(detail(null), 'en', NOW, null);
+    const html = withoutIsolates(renderConversationDetail(detail(null), 'en', NOW, null));
     expect(html).not.toContain('class="held-why"');
   });
 });
