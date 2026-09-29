@@ -56,7 +56,9 @@ import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import type { PgBoss } from 'pg-boss';
-import type { ErrorSweepJob } from './queue/boss.js';
+import type { ErrorSweepJob, MetaErrorWatchJob } from './queue/boss.js';
+import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
+import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
 import { startHeartbeat } from './worker/heartbeat.js';
@@ -1081,6 +1083,21 @@ export async function buildProduction(
     console.warn(`[deletions] ${alert.deletionsDue?.length ?? 0} request(s) due within 7 days or late`);
     await boss.send(QUEUES.notify, alert satisfies NotifyJob,
       { singletonKey: 'deletion_due', singletonSeconds: 24 * 3600 });
+  });
+
+  /**
+   * CEIL — every hour, Meta's error rate per workspace (0085): the operator is
+   * told of any workspace over the line (src/core/ops/metaErrors.ts), by e-mail
+   * always, at most once in six hours — the next hour's check would repeat it.
+   */
+  await boss.schedule(QUEUES.metaErrors, '15 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies MetaErrorWatchJob);
+  await boss.work<MetaErrorWatchJob>(QUEUES.metaErrors, async ([job]: { data: MetaErrorWatchJob }[]) => {
+    if (!job) return;
+    const alert = await metaErrorAlert(db, job.data.businessId, new Date());
+    if (!alert) return;
+    console.warn(`[meta-errors] ${alert.metaErrors?.length ?? 0} workspace(s) over the line`);
+    await boss.send(QUEUES.notify, alert satisfies NotifyJob,
+      { singletonKey: 'meta_errors', singletonSeconds: META_ERROR_ALERT_EVERY_HOURS * 3600 });
   });
 
   /**
