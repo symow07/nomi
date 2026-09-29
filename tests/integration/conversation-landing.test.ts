@@ -230,7 +230,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(html).toContain('We can do 500 pcs at 2.40 each.');   // the newer reply, still waiting
     expect(html.slice(newest, notice)).not.toMatch(/class="card|<form/);
     // nothing of it above the transcript, where it used to be drawn
-    expect(html.slice(at(html, '<main'), at(html, '<div class="block">'))).not.toContain('class="flash');
+    // The live line's template waits in the header (UI-PASS 6); a template is never drawn.
+    expect(html.slice(at(html, '<main'), at(html, '<div class="block">')).replace(/<template[\s\S]*?<\/template>/g, '')).not.toContain('class="flash');
   });
 
   it('Arabic: the same landing, right to left', async () => {
