@@ -11,7 +11,7 @@ import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
 import { renderMetaPagePicker } from './metaConnect.js';
 import {
-  metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount,
+  metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount, metaAccountToken,
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
 } from '../../channels/meta/connect.js';
 import type { InboundLink } from './channels.js';
@@ -26,7 +26,12 @@ import {
 } from './inbox.js';
 import {
   liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, ordersWaitingCount, type LiveKind,
+  channelsMark, channelsWatch,
 } from './live.js';
+import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
+import { renderMetaHelp } from './help.js';
+import { checkMetaAccount } from '../../channels/meta/health.js';
+import { liveMetaAccount, markMetaAccountNeedsAttention, newestInboundOnMeta } from '../../db/metaAccounts.js';
 import {
   loadChannels, renderChannels, renderConnectGuide, channelFlash,
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
@@ -757,7 +762,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * Wrap an authed page: verify session or redirect to /login. A render hands
    * back its body — or its body and, CC-26, the live region it watches with.
    */
-  type Drawn = string | { readonly bodyHtml: string; readonly live?: string };
+  type Drawn = string | { readonly bodyHtml: string; readonly live?: string; readonly title?: string };
   const authed = (active: string, render: (s: OwnerSession, req: FastifyRequest, locale: Locale, reply: FastifyReply) => Promise<Drawn> | Drawn) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       const s = sessionOf(req);
@@ -1734,6 +1739,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/live/today', quiet, liveAsk('today'));
   app.get('/app/live/buyers', quiet, liveAsk('buyers'));
   app.get('/app/live/conversation/:conversationId', quiet, liveAsk('conversation'));
+  app.get('/app/live/channels', quiet, liveAsk('channels'));
+
+  // CH2 — what to check at each step of connecting a Page, and why.
+  app.get('/app/help/meta', authed('channels', async (_s, _req, locale) => ({
+    title: t(locale, 'help.meta.title'), bodyHtml: renderMetaHelp(locale),
+  })));
 
   // The ONLY mutation: resolve a pending draft through applyOwnerCommand.
   // POST only; Post/Redirect/Get so a refresh never re-submits.
@@ -2193,6 +2204,37 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     ]);
   };
 
+  /**
+   * CH1 — "Your accounts": each step of connecting a Page, read now — Meta's
+   * word on the token, the permissions and the subscription
+   * (channels/meta/health.ts), our own record of the newest message on each
+   * channel. Null where this installation offers no Page to connect. A token
+   * Meta says is no longer good is recorded as a send would have found it, so
+   * every other page and every send agrees with this one.
+   */
+  const yourAccountsFor = async (businessId: string): Promise<YourAccounts | null> => {
+    const mc = deps.metaConnect;
+    if (!mc || !mc.login || !mc.credentialKey) return null;
+    const bid = parseBusinessId(businessId);
+    if (!bid.ok) return null;
+    const { account, newest } = await withTenantTx(deps.db, bid.value, async (tx) => ({
+      account: await liveMetaAccount(tx, bid.value), newest: await newestInboundOnMeta(tx, bid.value),
+    }));
+    const token = account ? metaAccountToken(account, mc.credentialKey) : null;
+    const check = account && token
+      ? await checkMetaAccount({ pageId: account.pageId, token, login: mc.login, graphVersion: mc.graphVersion, fetchImpl: mc.fetchImpl })
+      : null;
+    if (account && check?.token === 'invalid' && !account.needsAttention) {
+      await withTenantTx(deps.db, bid.value, (tx) => markMetaAccountNeedsAttention(tx, account.id, 'revoked'));
+    }
+    return {
+      page: account?.pageName ?? null,
+      instagram: account?.igAccountId ? (account.igUsername ? `@${account.igUsername}` : account.igAccountId) : null,
+      check, needsAttention: account?.needsAttention != null || check?.token === 'invalid',
+      firstMessage: newest,
+    };
+  };
+
   // Re-render the channels page with a flash after a redirect (?flash=).
   app.get('/app/channels', async (req, reply) => {
     const s = sessionOf(req);
@@ -2209,10 +2251,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }) : null;
     // C9 — which inbound channels this host can offer, and which she connected.
     const inbound = await inboundLinks(s.businessId);
+    const yours = await yourAccountsFor(s.businessId);
+    const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash, personOf(s),
-        accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound),
+        accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound,
+        yours ? renderYourAccounts(yours, locale) : ''),
+      // CH1 — the page says when a first message arrives, or a connection changes.
+      ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
     }));
   });
 

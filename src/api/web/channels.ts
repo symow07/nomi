@@ -632,6 +632,8 @@ export function renderChannels(
   accountsHtml = '',
   /** C9 — the channels a buyer starts: configured by the host, connected by her. */
   inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
+  /** CH1 — "Your accounts", already rendered: each step of connecting a Page. */
+  yourAccountsHtml = '',
 ): string {
   const w = data.whatsapp;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
@@ -694,6 +696,7 @@ export function renderChannels(
     ${whatsappCard}
     ${accountsHtml}
     ${reach}
+    ${yourAccountsHtml}
     ${alertsCard}
     ${soon}
     <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'channel.footer'))}</p>

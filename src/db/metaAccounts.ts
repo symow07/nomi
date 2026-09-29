@@ -150,3 +150,19 @@ export async function markMetaAccountNeedsAttention(
   await sql`update meta_accounts set needs_attention_at = coalesce(needs_attention_at, now()), last_error = ${reason}
              where id = ${accountId}::uuid and archived_at is null`.execute(tx);
 }
+
+/**
+ * CH1 — the newest message a customer sent on Instagram and on Messenger, as
+ * recorded (`client_channels.last_inbound_at`): the proof, on "Your accounts",
+ * that a first message from another account arrived — and with it the one
+ * Instagram setting nobody can read from outside.
+ */
+export async function newestInboundOnMeta(tx: Tx, businessId: BusinessId): Promise<{ instagram: Date | null; messenger: Date | null }> {
+  const r = (await sql<{ channel: string; at: Date | null }>`
+    select cc.channel, max(cc.last_inbound_at) as at
+      from client_channels cc join clients cl on cl.id = cc.client_id
+     where cl.business_id = ${businessId}::uuid and cc.channel in ('instagram', 'messenger')
+     group by cc.channel`.execute(tx)).rows;
+  const at = (c: string) => r.find((x) => x.channel === c)?.at ?? null;
+  return { instagram: at('instagram'), messenger: at('messenger') };
+}

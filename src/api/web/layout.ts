@@ -668,6 +668,10 @@ const STYLE_PAGES = `
   .pr .mk { font-size:var(--font-size-base); font-weight:700; }
   .pr.done .mk { color:var(--color-ok); }
   .pr.todo .mk { color:var(--color-ink-secondary); }
+  .pr.bad .mk { color:var(--color-warn); }
+  .pr.unknown .mk { color:var(--color-ink-secondary); }
+  .pr-note { flex-basis:100%; font-size:var(--font-size-caption); color:var(--color-ink-secondary); padding-inline-start:var(--space-24); }
+  .help-links { margin:var(--space-8) 0 0; padding-inline-start:18px; font-size:var(--font-size-small); }
   .pr .lbl { font-size:var(--font-size-small); }
   .pr-b { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; margin-inline-start:auto; }
   .badge { font-size:var(--font-size-caption); padding:3px 10px; border-radius:999px; }

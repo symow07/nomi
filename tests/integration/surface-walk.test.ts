@@ -53,6 +53,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
   const STALE_MARK: Record<string, string> = {
     '/app/live/today': '0.0.0.0.0.0',
     '/app/live/buyers': '0.0000000000000000',
+    '/app/live/channels': '0.0000000000000000',
     '/app/live/conversation/:conversationId': '0.0.00000000',
   };
   const asked = (url: string, target: string): string =>
