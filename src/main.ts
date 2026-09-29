@@ -1187,6 +1187,8 @@ export async function buildProduction(
           messageType: e.messageType, mediaId: e.mediaId,
           // G2c — what it WAS, so an unreadable message reaches a person by name.
           received: e.received,
+          // CH7a — and what it points at, so the owner can open it.
+          ...(e.ref ? { ref: e.ref } : {}),
         });
       } else {
         const r = await withTenantTx(db, bid, (tx) =>

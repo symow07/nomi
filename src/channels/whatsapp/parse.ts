@@ -29,6 +29,11 @@ export type InboundMessageEvent = {
   readonly received: string;
   readonly text: string | null;          // body, or a photo / document / video caption
   readonly mediaId: string | null;
+  /**
+   * CH7a — what it points at, when the provider says: the shared post's or
+   * the story's own link. Kept so the owner can open it; nothing fetches it.
+   */
+  readonly ref?: string | null;
 };
 
 export type StatusEvent = {

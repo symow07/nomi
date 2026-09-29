@@ -121,6 +121,8 @@ export type InboundJob = {
    * empty text. Optional for the same reason as `messageType`.
    */
   received?: string;
+  /** CH7a — the shared post's or story's link, when the provider gave one. */
+  ref?: string;
   /** Provider media id for audio/image — short-lived, fetch promptly. */
   mediaId?: string | null;
   /**

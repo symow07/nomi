@@ -40,6 +40,13 @@ export type RequestScope = {
    * a count that lags is a count that lies. Absent: the rail shows none.
    */
   readonly needsYou?: number | null;
+  /**
+   * T1 — the practice sandbox is ONE shared tenant, so only the pilot
+   * workspace may use it: any other workspace would read, write and reset what
+   * the pilot put there, and see real customer text if any was ever typed in.
+   * Absent: not shown. Per-workspace Practice (P1–P6) waits on decisions 4 and 5.
+   */
+  readonly practice?: boolean;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -59,7 +66,7 @@ export const withAssistantName = <T>(
   const outer = scope.getStore();
   return scope.run({
     name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
-    needsYou: outer?.needsYou ?? null,
+    needsYou: outer?.needsYou ?? null, practice: outer?.practice ?? false,
   }, fn);
 };
 
@@ -71,6 +78,9 @@ export const businessName = (): string | null => {
   const n = scope.getStore()?.business?.trim();
   return n ? n : null;
 };
+
+/** T1 — may this workspace use the practice sandbox? Only the pilot's may. Outside a scope: no. */
+export const practiceShown = (): boolean => scope.getStore()?.practice ?? false;
 
 /** How many customers need the owner now, for the rail; null outside a workspace or when it could not be read. */
 export const needsYouCount = (): number | null => scope.getStore()?.needsYou ?? null;

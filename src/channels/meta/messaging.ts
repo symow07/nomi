@@ -59,14 +59,22 @@ const at = (v: unknown): Date => {
  * What kind of thing the buyer sent. Only text can be answered by the employee;
  * everything else is recorded and handed over, which is what `received` carries.
  */
-function describe(message: J): { readonly received: string; readonly text: string | null } {
+function describe(message: J): { readonly received: string; readonly text: string | null; readonly ref: string | null } {
+  // CH7a — a reply to the shop's story carries the story's link; a shared
+  // post, its own. Kept as the provider gave them, so the owner can open what
+  // the customer meant — nothing here fetches or reads them.
+  const storyRef = str(obj(obj(message['reply_to'])['story'])['url']);
   const text = str(message['text']);
-  if (text !== null && text !== '') return { received: 'text', text };
+  if (text !== null && text !== '') return { received: 'text', text, ref: storyRef };
   const attachments = arr(message['attachments']);
-  const kind = str(obj(attachments[0] ?? {})['type']);
-  if (attachments.length > 0) return { received: (kind ?? 'attachment').toLowerCase(), text: null };
+  const first = obj(attachments[0] ?? {});
+  const kind = str(first['type']);
+  if (attachments.length > 0) {
+    return { received: (kind ?? 'attachment').toLowerCase(), text: null, ref: str(obj(first['payload'])['url']) ?? storyRef };
+  }
+  if (storyRef) return { received: 'story_reply', text: null, ref: storyRef };
   // A reaction, an edit, a read receipt in the same envelope: nothing to answer.
-  return { received: 'unsupported', text: null };
+  return { received: 'unsupported', text: null, ref: null };
 }
 
 /**
@@ -89,7 +97,7 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
       // An echo is our own message coming back; answering it would be a loop.
       if (!mid || !sender || !recipient || message['is_echo'] === true) continue;
 
-      const { received, text } = describe(message);
+      const { received, text, ref } = describe(message);
       const event: InboundMessageEvent = {
         kind: 'message',
         eventId: mid,
@@ -102,6 +110,7 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
         received,
         text,
         mediaId: null,
+        ...(ref ? { ref } : {}),
       };
       events.push(event);
     }

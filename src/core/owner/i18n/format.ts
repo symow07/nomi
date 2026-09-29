@@ -129,6 +129,17 @@ export function formatRelative(locale: Locale, d: Date, now: Date): string {
   return `${formatDate(locale, d)} ${time}`;
 }
 
+/** CH5 — time left, in words: "1 hour, 20 minutes", "1小时20分钟", "ساعة واحدة و20 دقيقة". Whole minutes, never below one. */
+export function formatTimeLeft(locale: Locale, ms: number): string {
+  const minutes = Math.max(1, Math.floor(ms / 60_000));
+  const parts = { hours: Math.floor(minutes / 60), minutes: minutes % 60 };
+  type DurationFormatter = { format(d: { hours?: number; minutes?: number }): string };
+  const DF = (Intl as unknown as { DurationFormat: new (l: string, o: { style: string }) => DurationFormatter }).DurationFormat;
+  return new DF(INTL_TAG[locale], { style: 'long' }).format({
+    ...(parts.hours ? { hours: parts.hours } : {}), ...(parts.minutes ? { minutes: parts.minutes } : {}),
+  });
+}
+
 /** The hour (0–23) an instant falls in, in the business timezone — the row it sits in on a calendar. */
 export function hourIn(d: Date): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', hourCycle: 'h23' }).format(d));

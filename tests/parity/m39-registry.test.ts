@@ -104,7 +104,8 @@ describe('M39 · the registry states what the APIs permit', () => {
       .toBeGreaterThan(0);
     for (const c of OUTREACH_CHANNELS) {
       if (CHANNEL_REGISTRY[c].coldInitiate !== 'never') continue;
-      expect(CHANNEL_REGISTRY[c].instead, c).toContain('comment_to_dm');
+      // T5 (2026-09-29) — only what the product does: nothing answers a comment privately
+      expect(CHANNEL_REGISTRY[c].instead, c).not.toContain('comment_to_dm');
       expect(CHANNEL_REGISTRY[c].instead, c).toContain('click_to_whatsapp');
     }
   });

@@ -12,7 +12,8 @@ import { countryName, orderStatusName, capabilityName, tn, type MessageKey } fro
 import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
 import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { t, assistantName, outreachShown } from './say.js';
-import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatUntil, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatUntil, formatTimeLeft, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { CLOSING_SOON_MS } from '../../core/channel/window.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, byAssistant, conversationUrl } from './layout.js';
@@ -39,6 +40,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PROBLEM_KINDS: ReadonlySet<string> = new Set(PROBLEM_SIGNAL_KINDS);
 
 /** G2c — a stored `received` value, as one of the kinds the owner surface names. */
+/** CH7a — a link a customer's message pointed at, made a door only on Meta's own hosts, over https. */
+export const refOf = (v: unknown): string | null => {
+  if (typeof v !== 'string' || v.length > 2000) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && /(^|\.)(instagram\.com|facebook\.com|fbcdn\.net|fbsbx\.com|cdninstagram\.com|fb\.com)$/.test(u.hostname) ? u.toString() : null;
+  } catch { return null; }
+};
+
 const unreadableOf = (v: string | null | undefined): UnreadableKind | null =>
   typeof v === 'string' && (UNREADABLE_KINDS as readonly string[]).includes(v) ? v as UnreadableKind : null;
 
@@ -588,6 +598,8 @@ export type ConversationDetail = {
    * so a detail built before G2c (a test fixture, the sandbox) still types.
    */
   readonly unreadable?: UnreadableKind | null;
+  /** CH7a — the link of what arrived (a shared post, a story), when the provider gave one. */
+  readonly unreadableRef?: string | null;
   readonly lastHumanAction: LastHumanAction | null;
   /**
    * G9b — who works here, so an actor id is read as a NAME. Actor columns
@@ -814,6 +826,9 @@ export async function loadConversationDetail(
     const unreadable = unreadableRow
       ? (unreadableOf(String((unreadableRow.payload ?? {})['received'] ?? 'other')) ?? 'other')
       : null;
+    // CH7a — the post's or story's own link, when the provider gave one: only
+    // an https address on Meta's own hosts is ever made a door.
+    const unreadableRef = refOf((unreadableRow?.payload ?? {})['ref']);
 
     // M16.2c "what happened last?": the latest human action — kind + actor + time
     // only. payload->>'actor' is a human/agent id, never buyer data; no body read.
@@ -890,6 +905,7 @@ export async function loadConversationDetail(
       orderProposal: await pendingProposalOf(tx, conversationId),
       unheardReason,
       unreadable,
+      unreadableRef,
       rate: await loadCurrentRate(tx, bid.value),
       leadTimeBlocked: withheldFrom(q?.lead_time_withheld ?? null),
       herWords: await herWordsOf(tx, conversationId),
@@ -1566,12 +1582,18 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
   const until = hours !== null && lastIn?.at ? new Date(lastIn.at.getTime() + hours * 3_600_000) : null;
   const window = channel && until && until > now
     ? `<span>${esc(t(locale, 'card.window', { channel, time: formatUntil(locale, until, now) }))}</span>` : '';
+  // CH5 — the window's clock: under two hours left, the card says so first, in words.
+  const closing = channel && until && until > now && until.getTime() - now.getTime() <= CLOSING_SOON_MS
+    ? `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${esc(t(locale, 'card.closingSoon'))}</b> ${
+        esc(t(locale, 'card.closingIn', { channel, left: formatTimeLeft(locale, until.getTime() - now.getTime()) }))}</p>`
+    : '';
   const figures = read.lines.some((l) => l.kind === 'figure')
     ? `<span>${esc(t(locale, read.everyFigureSourced ? 'card.sourced' : 'card.unsourced'))}</span>` : '';
 
   return `<section class="card draft" id="approve" aria-labelledby="approve-h">
       <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
       ${top}
+      ${closing}
       ${state}
       ${said}
       ${und}
@@ -1704,6 +1726,7 @@ export function renderConversationDetail(
           }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unreadable.why'))}</div>
           <div class="rf-d">${esc(t(locale, 'unreadable.do'))}</div>
+          ${d.unreadableRef ? deeper(esc(d.unreadableRef), t(locale, 'unreadable.open'), '', 'rel="noopener noreferrer" target="_blank"') : ''}
         </div>
       </div>`
     : '';

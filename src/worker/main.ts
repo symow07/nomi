@@ -419,6 +419,8 @@ export async function startWorker(
         if (disposition.kind === 'ignore') return null;
         return handToPerson(tenantRepos(tx, businessId.value), conversationId.value, {
           kind: 'media_unreadable', received: disposition.received,
+          // CH7a — what it points at, when the provider said.
+          ...(job.data.ref ? { ref: job.data.ref } : {}),
         }, [{ messageId: job.data.messageId, text: job.data.text || null }]);
       });
       await alertHandoff(businessId.value, conversationId.value, effects);

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { withWorkspace } from '../../src/api/web/say.js';
 import {
   renderKnowledgeOps, renderUsageFact,
   type KnowledgeOps, type UsageFact,
@@ -41,8 +42,11 @@ describe('M14 · knowledge operations (localized renderer)', () => {
     // product-scoped gap → teach on the product page; business-level → the index
     expect(html).toContain('href="/app/knowledge/p1?teach=is%20it%20food%20safe%3F"');
     expect(html).toContain('href="/app/knowledge?teach=what%20about%20a%20general%20item%3F"');
-    // replay loop — onto the practice box, which CC-25 moved under the practice transcript
-    expect(html).toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F#compose"');
+    // replay loop — onto the practice box, which CC-25 moved under the practice transcript;
+    // T1 — drawn for the pilot workspace only, the one the shared practice sandbox belongs to
+    expect(html).not.toContain('/app/sandbox');
+    expect(withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => renderKnowledgeOps(ops(), 'en', NOW)))
+      .toContain('href="/app/sandbox?ask=is%20it%20food%20safe%3F#compose"');
     expect(html).toContain('×2');   // repeated count
   });
 
