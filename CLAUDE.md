@@ -183,6 +183,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 129 | **Small truths** — T1 (the sandbox is the pilot's alone), T5 (the reader refuses a cut-off page; two unkept promises gone), CH5 (the window's clock), CH7a (what arrived, by name) — see §5 rule 28 |
 | 128 | **What a reply promised, on the calendar** (0083) — follow-ups, prices that end, deliveries, read from the words that left — see §5 rule 27 |
 | 127 | **The calendar week, and the owner's own dates** (0082) — see §5 rule 26 |
 | 126 | **The design foundation, part two: the shell** — the rail in groups with its one number and Log out at the foot, the list and the customer panel beside a conversation, the other cards drawn as states — see §5 rule 25 |
@@ -419,6 +420,12 @@ Recent PRs, newest first:
    - READ BY RULES, NOT A MODEL (Claude's call, recorded in `docs/PROGRESS.md`): the sentence is the promise; no model call to drift, no live check. `tests/parity/promised-dates.test.ts` holds 31 found and 22 left alone — a new phrasing goes there with its reason, never into the patterns alone.
    - `promised_dates`: the sentence as sent (≤ 300), its day, its kind, `said_by` assistant | person; once per sent row and promise; no delete; erase-buyer erases it with the customer. The calendar shows them under "Promised" (solid edge — from a conversation; ✦ when the assistant said it; ● once its day has come and it is not kept); the customer panel lists what is open, soonest first. Nothing marks one kept yet (`kept_at` exists for it).
    - Tests: `tests/parity/promised-dates.test.ts`, `tests/integration/promised-dates.test.ts` (the real store and drive loop).
+
+28. **Small truths from the build order** (#129, 2026-09-29).
+   - **T1 — the practice sandbox is the pilot workspace's alone.** It is ONE shared tenant: every `/app/sandbox*` route answers any other workspace with the same not-found as a wrong address, and changes nothing; no page of theirs draws a door to it (`practiceShown()`, the request scope's `practice`). Per-workspace Practice (P1–P6) waits on decisions 4 and 5. `tests/integration/practice-closed.test.ts`.
+   - **T5 — the page reader** asks at temperature 0 and reports a read that stopped at its limit (`cutOff`, from `stop_reason: max_tokens`); the photo import refuses it ("send it as two photos", `product.photo.refused.cut_off`) — half a price sheet is worse than none. Two promises the product did not keep are gone: "a buyer comments and {name} answers privately" (`comment_to_dm` left `INSTEAD`) and "follow-ups go out by themselves" under "talks". `tests/parity/t5-reader.test.ts`.
+   - **CH5 — the window's clock:** under two hours left (`CLOSING_SOON_MS`), the approval card says "Closing soon — {channel} takes replies for 1 hour, 20 minutes more" first (`formatTimeLeft`, `Intl.DurationFormat`). Expiry and its words belong to G5b.
+   - **CH7a — what arrived, by name:** a shared post (`share`, reels), a story mention, a reply to the shop's story with no words are named on the card and the timeline, and the link Meta gave is kept on the hand-off's signal; the card opens it only when it is https on Meta's own hosts (`refOf`). A story reply with words is answered as before. Matching it to a product is CH7 (later, its own review). `tests/parity/ch7a-what-arrived.test.ts`.
 
 ## 6 · What's next
 

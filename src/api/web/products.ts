@@ -755,7 +755,7 @@ export type PhotoImport =
       readonly text: string;
       readonly review: ValidatedImport;
     }
-  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' };
+  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' };
 
 /**
  * Every reason a photograph comes to nothing, each named for what it is — the
@@ -788,6 +788,9 @@ export async function importFromPhoto(
   if (!deps.transcriber) return { kind: 'refused', reason: 'not_configured' };
 
   const page = await deps.transcriber.transcribe(input);
+  // T5 — a read that stopped before the page did is half a price sheet, and the
+  // owner could not tell which half: refused, with the way to send it whole.
+  if (page.cutOff) return { kind: 'refused', reason: 'cut_off' };
   if (page.unreadable || !page.text.trim()) return { kind: 'refused', reason: 'unreadable' };
 
   // The PAGE rule, not the paste rule: a photograph carries the letterhead and

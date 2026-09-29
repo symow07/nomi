@@ -21,7 +21,7 @@ import { tenantRepos } from '../../db/repos.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { LOCALE_LABEL, type Locale } from '../../core/owner/i18n/locale.js';
 import { claimName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, assistantName, practiceShown } from './say.js';
 import { formatMoney, formatDate } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -781,11 +781,11 @@ export function renderFactory(
             t(locale, 'activation.action.activate', { name }),
             t(locale, 'activation.action.confirm', { name }))}</div>
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
-         ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`
+         ${practiceShown() ? deeper('/app/sandbox', t(locale, 'factory.ready.practice')) : ''}`
       : `<p class="fdesc">${esc(t(locale, 'activation.cannot', { name }))}</p>
          ${blockerList}
          <p class="fdesc">${esc(t(locale, 'factory.ready.note', { name }))}</p>
-         ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`;
+         ${practiceShown() ? deeper('/app/sandbox', t(locale, 'factory.ready.practice')) : ''}`;
   const elsewhereBody = liveElsewhere.length === 0 || held ? '' : `
        <p class="fok">${esc(t(locale, 'golive.other.live', { channels: elsewhereNames, name }))}</p>
        <p class="fdesc fdesc-lead">${esc(t(locale, 'golive.other.stopHow'))}</p>
@@ -820,7 +820,7 @@ export function renderFactory(
     : `${elsewhereBody
         ? `<div data-golive="elsewhere">${elsewhereBody}</div>`
         : `<p class="fdesc" data-golive="none">${esc(t(locale, 'golive.none', { name }))}</p>${deeper('/app/channels', t(locale, 'nav.channels'))}`}
-       ${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}`);
+       ${practiceShown() ? deeper('/app/sandbox', t(locale, 'factory.ready.practice')) : ''}`);
 
   // M20.5 — appended AFTER the activation decision, never folded into it. These
   // are things the assistant cannot answer yet; none is a reason to stay off.

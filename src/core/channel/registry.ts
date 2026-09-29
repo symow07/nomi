@@ -71,7 +71,8 @@ export type Requirement = (typeof REQUIREMENTS)[number];
  * Both are inbound-triggered, which is what this product is already built for:
  * the buyer comments or taps, and the conversation starts inside the window.
  */
-export const INSTEAD = ['comment_to_dm', 'click_to_whatsapp', 'buyer_writes_first'] as const;
+// T5 (2026-09-29) — 'comment_to_dm' left the list: nothing answers a comment privately, so no page may say it does.
+export const INSTEAD = ['click_to_whatsapp', 'buyer_writes_first'] as const;
 export type Instead = (typeof INSTEAD)[number];
 
 export type ChannelCapability = {
@@ -149,14 +150,14 @@ export const CHANNEL_REGISTRY: Readonly<Record<OutreachChannel, ChannelCapabilit
     // The API replies only within 24h of a user-initiated message. Message tags
     // are non-promotional only, and one-time notifications do not exist here.
     replyWindowHours: 24,
-    instead: ['comment_to_dm', 'click_to_whatsapp', 'buyer_writes_first'],
+    instead: ['click_to_whatsapp', 'buyer_writes_first'],
   },
   messenger: {
     availableHere: true, channel: 'messenger', coldInitiate: 'never', requires: [],
     // The human-agent tag extends replies to 7 days. Still not cold: it extends
     // a conversation the buyer started, which is a different thing entirely.
     replyWindowHours: 24,
-    instead: ['comment_to_dm', 'click_to_whatsapp', 'buyer_writes_first'],
+    instead: ['click_to_whatsapp', 'buyer_writes_first'],
   },
 };
 

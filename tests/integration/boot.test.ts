@@ -461,7 +461,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.body).toContain(t('en', 'reach.title'));
     // Instagram and Messenger, stated as impossible rather than discouraged.
     expect(res.body).toContain(t('en', 'reach.cold.never'));
-    expect(res.body).toContain(t('en', 'reach.instead.comment_to_dm'));
+    // T5 — what does work instead, and nothing it cannot do (no comment is answered privately)
+    expect(res.body).toContain(t('en', 'reach.instead.click_to_whatsapp'));
     // Email, the one channel that can genuinely be written to first.
     expect(res.body).toContain(t('en', 'reach.cold.open'));
     // and WhatsApp's outstanding conditions, named

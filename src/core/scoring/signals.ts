@@ -33,7 +33,7 @@ export type Signal =
    * reply to a PDF nobody opened. `received` says what arrived, so the owner
    * knows what to go and look at.
    */
-  | { readonly kind: 'media_unreadable'; readonly received: string }
+  | { readonly kind: 'media_unreadable'; readonly received: string; readonly ref?: string }
   /**
    * G10c — she is live in pilot and this number is not on the owner's list.
    * The gate could never let a reply out, so she does not write one: the

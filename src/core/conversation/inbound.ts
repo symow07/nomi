@@ -25,7 +25,9 @@
  */
 
 /** What arrived, in words the owner surface can name. */
-export const UNREADABLE_KINDS = ['document', 'video', 'location', 'contacts', 'other'] as const;
+// CH7a — and on Instagram and Messenger: a post shared into the chat, a mention
+// in the customer's story, a reply to the shop's own story with no words.
+export const UNREADABLE_KINDS = ['document', 'video', 'location', 'contacts', 'shared_post', 'story_mention', 'story_reply', 'other'] as const;
 export type UnreadableKind = (typeof UNREADABLE_KINDS)[number];
 
 /**
@@ -65,5 +67,9 @@ export function inboundDisposition(
   if (r === 'document' || r === 'video' || r === 'location' || r === 'contacts') {
     return { kind: 'owner', received: r };
   }
+  // CH7a — Meta's names for a post shared in (share, reel), a story mention, a story reply.
+  if (r === 'share' || r === 'ig_reel' || r === 'reel' || r === 'ig_post' || r === 'shared_post') return { kind: 'owner', received: 'shared_post' };
+  if (r === 'story_mention') return { kind: 'owner', received: 'story_mention' };
+  if (r === 'story_reply') return { kind: 'owner', received: 'story_reply' };
   return { kind: 'owner', received: 'other' };
 }

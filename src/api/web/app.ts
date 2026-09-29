@@ -594,7 +594,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * the same transaction, and forgotten with the rest when the profile is
    * saved (`/app/settings` evicts).
    */
-  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
+  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null; readonly practice: boolean }>(deps.factsTtlMs);
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
@@ -607,7 +607,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * the minute's cache: a count that lags is a count that lies. A page's own
      * requests (the live line's question, a post) do not need it.
      */
-    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
+    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null; readonly practice: boolean }) => {
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx)).then(
         (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
@@ -620,6 +620,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ...(await workspaceFacts(tx, bid.value)),
       business: (await sql<{ name: string | null }>`
         select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
+      // T1 — the shared practice sandbox is the pilot workspace's alone.
+      practice: s.businessId === deps.businessId,
     })).then(
       (f) => { facts.set(s.businessId, f, now); withNeeds(f); },
       () => done(),
@@ -3756,6 +3758,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // A dedicated tenant, session-gated but NEVER the pilot business. No inbox
   // changes: these routes bind to deps.sandboxBusinessId exclusively.
   if (deps.sandboxBusinessId) {
+    /**
+     * T1 — ONE shared practice tenant, so only the pilot workspace may use it.
+     * Any other session gets the same not-found as a wrong address: it could
+     * otherwise read, write and reset what the pilot put there.
+     */
+    const practiceFor = (s: OwnerSession): boolean => s.businessId === deps.businessId;
     const sbxDeps: SandboxDeps = {
       db: deps.db, businessId: deps.sandboxBusinessId, now: () => new Date(),
       analyzer: deps.analyzer, replyWriter: deps.replyWriter,
@@ -3766,6 +3774,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.get('/app/sandbox', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
+      if (!practiceFor(s)) return reply.callNotFound();
       const locale = localeOf(req);
       const q = req.query as { mode?: string; ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
@@ -3791,7 +3800,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // it — the conversation page's landing, not the top of a page whose first
     // screen is the safety-check card.
     app.post('/app/sandbox/message', async (req, reply) => {
-      if (!sessionOf(req)) return reply.redirect('/login');
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      if (!practiceFor(s0)) return reply.callNotFound();
       const b = (req.body ?? {}) as { text?: string; image?: string; mode?: string };
       const mode = modeOf(b.mode);
       await runSandboxTurn(sbxDeps, { mode, text: String(b.text ?? ''), kind: b.image === '1' ? 'image' : 'text' });
@@ -3799,7 +3810,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
 
     app.post('/app/sandbox/scenario', async (req, reply) => {
-      if (!sessionOf(req)) return reply.redirect('/login');
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      if (!practiceFor(s0)) return reply.callNotFound();
       const b = (req.body ?? {}) as { scenarioId?: string; mode?: string };
       const mode = modeOf(b.mode);
       if (b.scenarioId) await runSandboxTurn(sbxDeps, { mode, scenarioId: String(b.scenarioId) });
@@ -3810,6 +3823,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post('/app/sandbox/act', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
+      if (!practiceFor(s)) return reply.callNotFound();
       const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string; mode?: string };
       const mode = modeOf(b.mode);
       const bid = parseBusinessId(deps.sandboxBusinessId!);
@@ -3825,7 +3839,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // An emptied practice lands on its notice, under the empty transcript.
     app.post('/app/sandbox/reset', async (req, reply) => {
-      if (!sessionOf(req)) return reply.redirect('/login');
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      if (!practiceFor(s0)) return reply.callNotFound();
       await resetSandbox(sbxDeps);
       return flashTo(reply, practiceUrl(modeOf((req.body as { mode?: unknown } | undefined)?.mode)), 'sandbox.reset.done');
     });
@@ -3843,6 +3859,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       app.post(path, async (req, reply) => {
         const s = sessionOf(req);
         if (!s) return reply.redirect('/login');
+      if (!practiceFor(s)) return reply.callNotFound();
         const mode = modeOf((req.body as { mode?: unknown } | undefined)?.mode);
         const bid = parseBusinessId(deps.sandboxBusinessId!);
         const cid = await activeSandboxConversationId(sbxDeps);

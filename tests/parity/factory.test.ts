@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { withWorkspace } from '../../src/api/web/say.js';
 import { usd } from '../../src/core/types/money.js';
 import { renderFactory, type FactoryView } from '../../src/api/web/factory.js';
 import type { ChannelView } from '../../src/api/web/channels.js';
@@ -198,9 +199,11 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
   });
 
   it('every section offers a way through to the surface that owns it', () => {
-    const html = renderFactory(complete, 'en');
+    // T1 — the shared practice sandbox is the pilot workspace's alone: its door is drawn there only.
+    const html = withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => renderFactory(complete, 'en'));
     for (const href of ['/app/settings', '/app/products', '/app/knowledge', '/app/channels', '/app/onboarding', '/app/sandbox'])
       expect(html, href).toContain(`href="${href}"`);
+    expect(renderFactory(complete, 'en')).not.toContain('href="/app/sandbox"');
   });
 
   it('is a page, not a settings panel — it collects only go-live decisions', () => {

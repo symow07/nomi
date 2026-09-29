@@ -134,6 +134,16 @@ describe('the card, drawn', () => {
     expect(html).not.toContain('<h3 class="rf-h">');
   });
 
+  it('CH5 · under two hours left in the window, the card says so first, with the time left in words', () => {
+    const late = { ...base, messages: [{ ...base.messages[0]!, at: new Date(NOW.getTime() - (22 * 60 + 40) * 60_000) }] };
+    const en = card(renderConversationDetail(late, 'en', NOW, null));
+    expect(en).toContain('<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>Closing soon</b> Instagram takes replies for 1 hour, 20 minutes more</p>');
+    expect(en.indexOf('Closing soon')).toBeLessThan(en.indexOf('class="said"'));
+    expect(card(renderConversationDetail(late, 'zh', NOW, null))).toContain('Instagram 还能回复 1小时20分钟');
+    // with the day still ahead, nothing to say about it but the time it closes
+    expect(card(renderConversationDetail(base, 'en', NOW, null))).not.toContain('Closing soon');
+  });
+
   it('no turn on record (a fixture, an old conversation): the card still works, and claims nothing it cannot show', () => {
     const c = card(renderConversationDetail({ ...base, reading: null, knowledgeUsed: [] }, 'en', NOW, null));
     // no reading of the message: no intent, no language, no second reading — only the product the conversation holds

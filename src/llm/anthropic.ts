@@ -365,6 +365,8 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
         model,
         ...extra,
         max_tokens: 2000,
+        // T5 — a transcription has one right answer: no sampling.
+        temperature: 0,
         system:
           'You transcribe printed pages. Output ONLY the text that is visibly ' +
           'printed on the page, one line per printed line, in reading order. ' +
@@ -385,6 +387,8 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
       return {
         text: text === 'UNREADABLE' ? '' : text,
         unreadable: text === 'UNREADABLE' || text.length === 0,
+        // T5 — the read stopped at its limit, mid-page: never passed on as the page.
+        cutOff: res.stop_reason === 'max_tokens',
         promptVersion: PROMPT_VERSION,
         modelId: model,
         usage: { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens },

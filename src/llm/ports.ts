@@ -122,6 +122,12 @@ export interface PageTranscriber {
     text: string;
     /** The model's own statement that it could not read the page. */
     unreadable: boolean;
+    /**
+     * T5 — the read stopped before the page did (the model ran out of room).
+     * Half a price sheet is worse than none: the caller refuses it and asks
+     * for the page in two photos. Optional so a stub reader need not say.
+     */
+    cutOff?: boolean;
     promptVersion: string;
     modelId: string;
     usage: { inputTokens: number; outputTokens: number };
