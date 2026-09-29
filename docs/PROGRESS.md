@@ -17,6 +17,9 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the batch's own messages never its history; live check before and after (29/29, then 34/34 with five history cases). Merged about 17:12 UTC (no migration) | 83 |
+| 2026-09-30 | #131 | **T3 — imported products can be found**: names written at import and edit, name editing, "ready" only when findable, `tools/backfill-aliases.mjs` (NOT run on Westlake: all 5 of its products are findable by no name — the owner's yes). Merged about 17:12 UTC (no migration) | 83 |
+| 2026-09-29 | #130 | **T7 — every paid call on the ledger**, in its own transaction, on one UTC clock; the deepseek price; first figures about $0.000667 a turn at peak list price. Plus the midnight "Today" test flake, root-caused. Deployed 17:08 UTC (Railway's builder queued it for 40 minutes), `/health` ok (no migration) | 83 |
 | 2026-09-29 | #129 | **Small truths**: T1 the practice sandbox is the pilot's alone (every other workspace gets not-found, nothing changes); T5 the page reader at temperature 0 refuses a cut-off read, and two promises the product did not keep are gone; CH5 the window's clock on the card; CH7a a shared post, story mention or story reply named, with Meta's link opened only on Meta's hosts. Merged about 15:16 UTC, deployed about 15:34 UTC (no migration) | 83 |
 | 2026-09-29 | #128 | **What a reply promised, on the calendar** (0083): follow-ups, prices that end and deliveries, read by rules from the words that LEFT (five languages; corpus 31 found / 22 left); the calendar's Promised category and the panel's block. Backup before it `~/nomi-backups/nomi-backup-20260929T103609Z` (schema 82, drill 4/4). Merged about 10:40 UTC | 83 |
 | 2026-09-29 | #127 | **The calendar week, and the owner's own dates** (0082): Week by default (days × hours, ‹ Today ›, the country's first weekday), Month, Day, List; provenance by edge; `calendar_entries` (archived, never deleted). Backup before it `~/nomi-backups/nomi-backup-20260929T095733Z` (schema 81, drill 4/4). Deployed about 10:15 UTC, `/health` ok, schema 82 | 82 |
@@ -31,8 +34,9 @@ name editing; "ready" only when findable; the backfill tool, NOT run on
 Westlake — see "Waiting on the owner"), then #132 — Q1, the analyser's
 history (live check before and after: 29/29 then 34/34 with five history
 cases), then #133 — PWR, "Forgot your password?" (0084; backup before it),
-then #134 — REKEY (the key rotation, without a token lost). Then the rest of
-step 7: FAIR and CEIL, CH1 and CH2.
+then #134 — REKEY (the key rotation, without a token lost), then #135 — FAIR
+(the inbound queue shared fairly). Then the rest of step 7: CEIL, CH1 and
+CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -163,9 +167,9 @@ instruction did not answer. Collected here; asked once, at the end.
   2026-09-29 in the integration run for #130): `boss.work` runs with
   pg-boss's defaults, one job per poll, so about 30 messages a minute, and one
   workspace's backlog delays every other one's (a test's message waited 24 s
-  behind another tenant's dozen). That is FAIR's problem (fair scheduling on
-  the inbound queue); FAIR will look at the throughput too. The metering test
-  now waits for its own turn long enough for such a backlog.
+  behind another tenant's dozen). FAIR (#135) fixed it: a group per
+  workspace, three workers, one at a time per workspace. The metering test
+  still waits long enough for a backlog.
 - **A test assumed "minutes ago" is today** (found 2026-09-30 on #130's CI,
   which ran at 00:01 in Shanghai): `buyers-merge` expected "Today HH:MM" for
   a message written 3 minutes earlier, which the business clock calls

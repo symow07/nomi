@@ -22,7 +22,7 @@ import {
   handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
 } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
-import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
+import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
 import {
@@ -273,7 +273,8 @@ export async function startWorker(
   // data — the message, never the reason — and the first real Messenger
   // message in production dead-lettered on an invalid model key that took a
   // query of the job table to find.
-  await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
+  // FAIR — several at once, never more than one per workspace (queue/boss.ts).
+  await boss.work<InboundJob>(QUEUES.inbound, { ...INBOUND_WORK }, async ([job]: { data: InboundJob }[]) => {
     try {
       await onInbound(job);
     } catch (e) {
@@ -482,6 +483,7 @@ export async function startWorker(
           singletonKey: conversationId.value,
           startAfter: batch.checkAgainAt,
           retryLimit: 3,
+          group: inboundGroup(businessId.value),
         });
         return;
       }

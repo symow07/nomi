@@ -49,7 +49,7 @@ import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type MailEnvelope } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
+import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
@@ -650,7 +650,7 @@ export async function buildProduction(
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
-        } satisfies InboundJob, { retryLimit: 1 }).then(() => undefined),
+        } satisfies InboundJob, { retryLimit: 1, group: inboundGroup(businessId) }).then(() => undefined),
     // M40.1 — the real resolver. `SENDING_SPF_INCLUDE` names a sending
     // provider's SPF mechanism explicitly; unset, the check requires the one
     // belonging to the mailbox she connected (C6), and with neither it cannot
