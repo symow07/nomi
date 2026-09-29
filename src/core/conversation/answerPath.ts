@@ -57,6 +57,10 @@ export function analyserWasAvoidable(f: {
  */
 export const MODEL_PRICES_PER_MTOK: Readonly<Record<string, { readonly input: Money; readonly output: Money; readonly asOf: string }>> = {
   'claude-haiku-4-5': { input: usd(1), output: usd(5), asOf: '2026-09' },
+  // T7 — DeepSeek's own page (api-docs.deepseek.com, Models & Pricing), read
+  // 2026-09-29: input on a cache miss and output, at PEAK — off-peak is half —
+  // so the estimate is a ceiling. Production's LLM_MODEL is this id.
+  'deepseek-flash': { input: usd(0.3), output: usd(1.2), asOf: '2026-09-29' },
 };
 
 /** The currency travels with the amount (M43a): an estimate is money, not a bare number. */
@@ -85,6 +89,12 @@ export type PathSummary = {
   readonly inputTokens: number; readonly outputTokens: number;
   /** Null when any turn used a model with no listed price: a partial sum would read as a total. */
   readonly estimatedCost: Money | null;
+  /**
+   * T7 — what one turn costs, on average over every measured turn (a silent
+   * one included: it is a message the business received). Null with nothing
+   * measured; its cost is null when `estimatedCost` is.
+   */
+  readonly perTurn: { readonly inputTokens: number; readonly outputTokens: number; readonly cost: Money | null } | null;
   readonly byPath: Readonly<Partial<Record<AnswerPath, { readonly turns: number; readonly llmCalls: number }>>>;
 };
 
@@ -106,9 +116,17 @@ export function summarizePaths(turns: readonly MeasuredTurn[]): PathSummary {
         : { amount: (cost?.amount ?? 0) + c.amount, currency: c.currency };
     }
   }
+  const estimatedCost = cost === undefined ? usd(0) : cost;
+  const n = turns.length;
   return {
-    turns: turns.length, replies, repliesWordedByHer: hers, llmCalls: calls,
+    turns: n, replies, repliesWordedByHer: hers, llmCalls: calls,
     avoidableAnalyserCalls: avoidable, inputTokens: tin, outputTokens: tout,
-    estimatedCost: cost === undefined ? usd(0) : cost, byPath,
+    estimatedCost,
+    perTurn: n === 0 ? null : {
+      inputTokens: Math.round(tin / n), outputTokens: Math.round(tout / n),
+      cost: estimatedCost === null ? null : { amount: estimatedCost.amount / n, currency: estimatedCost.currency },
+    },
+    byPath,
   };
 }
+

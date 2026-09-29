@@ -111,7 +111,7 @@ export function channelStore(
               from tenant_budgets b
               left join usage_ledger u
                 on u.business_id = b.business_id
-               and u.day = (now() at time zone 'Asia/Shanghai')::date
+               and u.day = (now() at time zone 'UTC')::date   -- T7: the ledger's day is UTC for writer and readers
              where b.business_id = c.business_id limit 1
           ) tb on true
           left join clients cl on cl.id = c.client_id

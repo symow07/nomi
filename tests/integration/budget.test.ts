@@ -45,7 +45,7 @@ d('M51.2 · the budget gate (requires DATABASE_URL)', () => {
 
   const setUsage = (calls: number, tokens: number) => tx((t) => sql`
     insert into usage_ledger (business_id, day, llm_calls, input_tokens, output_tokens)
-    values (${BIZ}, (now() at time zone 'Asia/Shanghai')::date, ${calls}, ${tokens}, 0)
+    values (${BIZ}, (now() at time zone 'UTC')::date, ${calls}, ${tokens}, 0)
     on conflict (business_id, day) do update
       set llm_calls = excluded.llm_calls, input_tokens = excluded.input_tokens,
           output_tokens = excluded.output_tokens

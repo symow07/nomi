@@ -12,6 +12,7 @@ import { llmClient, llmProviderFrom, requestExtrasFor } from '../llm/provider.js
 import type { Analyzer, ReplyWriter, VisionDescriber } from '../llm/ports.js';
 import { computeTurn, commitTurn } from '../pipeline/turn.js';
 import { hearVoiceNote, recordVoiceMessage } from '../pipeline/voiceTurn.js';
+import { recordSpendAlone } from '../db/usage.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
@@ -127,6 +128,10 @@ export async function startWorker(
     const businessId = { value: input.businessId };
     const conversationId = { value: input.conversationId };
     const started = input.started;
+    // T7 — what the turn's model calls cost, written in a transaction of their
+    // own (below), so a turn that fails after paying is still on the ledger.
+    let spent: { llmCalls: number; inputTokens: number; outputTokens: number } | null = null;
+    let committed = false;
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
       const base = tenantRepos(tx, businessId.value);
@@ -180,15 +185,17 @@ export async function startWorker(
         provenance: input.provenance,
       };
       const result = await computeTurn(ports, req);
+      spent = result.usage;
       const fx = await commitTurn(ports, req, result, started);
       // M51.1 — the fragments this turn answered stop being pending, in the
       // SAME transaction as the answer. A rollback leaves them pending and the
       // next wake retries: the whole reason they are rows and not a variable.
       await markFragmentsProcessed(tx, input.fragmentIds, input.messageId);
-      // Budget dataset (P5) — atomic per-turn usage increment, same tx.
-      await sql`select record_usage(${businessId.value}::uuid,
-        ${result.usage.llmCalls}, ${result.usage.inputTokens}, ${result.usage.outputTokens})`.execute(tx);
       return fx;
+    }).then((fx) => { committed = true; return fx; }).finally(async () => {
+      // T7 — the budget dataset: what every attempt's calls cost, kept or not;
+      // a turn is counted once, when it is kept (a retry is the same turn).
+      if (spent) await recordSpendAlone(db, businessId.value, spent, { turn: committed });
     });
 
     // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers
@@ -385,9 +392,15 @@ export async function startWorker(
     // transaction: a download and a transcription are seconds of network, and
     // holding a conversation lock across them would serialise every other
     // buyer behind one slow provider.
+    // T7 — each transcription is a paid call: counted, whether it heard anything or not.
+    let transcriptions = 0;
     const heard = job.data.messageType === 'audio'
-      ? await hearVoiceNote({ transcriber, audio }, job.data.mediaId)
+      ? await hearVoiceNote({
+          transcriber: transcriber && ((a: Parameters<typeof transcriber>[0]) => { transcriptions++; return transcriber(a); }),
+          audio,
+        }, job.data.mediaId)
       : null;
+    if (transcriptions > 0) await recordSpendAlone(db, businessId.value, { llmCalls: transcriptions, inputTokens: 0, outputTokens: 0 }, { turn: false });
 
     // M4.5 — the same treatment for a photo, and for the same reason.
     const seen = job.data.messageType === 'image'
@@ -399,6 +412,8 @@ export async function startWorker(
           mediaId: job.data.mediaId, caption: job.data.text || null,
         })
       : null;
+    // T7 — and so is looking at a photo.
+    if (seen?.usage) await recordSpendAlone(db, businessId.value, seen.usage, { turn: false });
 
     /**
      * ── G2c · SOMETHING SHE CANNOT ANSWER FROM TEXT ─────────────────────
