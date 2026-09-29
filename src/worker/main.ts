@@ -183,6 +183,8 @@ export async function startWorker(
         // number that moves a price. If it drove the quote, the reply waits for
         // the owner however her autonomy is set.
         provenance: input.provenance,
+        // Q1 — the batch's own messages are the question, not its history.
+        answering: input.fragmentIds,
       };
       const result = await computeTurn(ports, req);
       spent = result.usage;

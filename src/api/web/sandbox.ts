@@ -109,10 +109,13 @@ const bidOf = (raw: string): BusinessId => {
 };
 
 /** Record a transcript row. clock_timestamp() guarantees inbound < outbound order. */
-async function recordMessage(tx: Tx, conversationId: string, direction: 'inbound' | 'outbound', inputType: 'text' | 'image', text: string): Promise<void> {
+async function recordMessage(
+  tx: Tx, conversationId: string, direction: 'inbound' | 'outbound', inputType: 'text' | 'image', text: string,
+  externalId: string | null = null,
+): Promise<void> {
   await sql`
-    insert into messages (conversation_id, direction, input_type, text_content, sent_at)
-    values (${conversationId}, ${direction}, ${inputType}, ${text}, clock_timestamp())
+    insert into messages (conversation_id, direction, input_type, text_content, sent_at, external_id)
+    values (${conversationId}, ${direction}, ${inputType}, ${text}, clock_timestamp(), ${externalId})
   `.execute(tx);
 }
 
@@ -166,10 +169,13 @@ export async function runSandboxTurn(deps: SandboxDeps, input: SandboxTurnInput)
     const cid = parseConversationId(conversationId);
     if (!cid.ok) return;
     await lockConversation(tx, conversationId);
-    await recordMessage(tx, conversationId, 'inbound', kind, text);
+    // Q1 — recorded under the turn's own id, so the turn does not see it twice
+    // (once as the message, once as its history).
+    const messageId = `sbx-${started}-${Math.random().toString(36).slice(2, 8)}`;
+    await recordMessage(tx, conversationId, 'inbound', kind, text, messageId);
 
     const ports = buildPorts(input.mode, scenario, tx, businessId, deps);
-    const req = { conversationId: cid.value, messageId: `sbx-${started}-${Math.random().toString(36).slice(2, 8)}`, text };
+    const req = { conversationId: cid.value, messageId, text };
     const result = await computeTurn(ports, req);
     // T7 — a live practice turn is paid for too: on the practice tenant's own
     // ledger, where it ran. (P5 charges it to the owner's.) A scripted one asked

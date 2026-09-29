@@ -28,10 +28,10 @@ under "Decided" below.
 
 **Next:** #131 — T3, findability (imported products found by their names;
 name editing; "ready" only when findable; the backfill tool, NOT run on
-Westlake — see "Waiting on the owner"). Then the rest of step 7, one PR each
-where a page is touched: Q1 (the analyser's history — prompt change, live
-check before and after), PWR (password recovery), REKEY, FAIR and CEIL, CH1
-and CH2.
+Westlake — see "Waiting on the owner"), then #132 — Q1, the analyser's
+history (live check before and after: 29/29 then 34/34 with five history
+cases). Then the rest of step 7, one PR each where a page is touched: PWR
+(password recovery), REKEY, FAIR and CEIL, CH1 and CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
