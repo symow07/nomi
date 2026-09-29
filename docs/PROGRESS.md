@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-29 | #129 | **Small truths**: T1 the practice sandbox is the pilot's alone (every other workspace gets not-found, nothing changes); T5 the page reader at temperature 0 refuses a cut-off read, and two promises the product did not keep are gone; CH5 the window's clock on the card; CH7a a shared post, story mention or story reply named, with Meta's link opened only on Meta's hosts. Merged about 15:16 UTC, deployed about 15:34 UTC (no migration) | 83 |
 | 2026-09-29 | #128 | **What a reply promised, on the calendar** (0083): follow-ups, prices that end and deliveries, read by rules from the words that LEFT (five languages; corpus 31 found / 22 left); the calendar's Promised category and the panel's block. Backup before it `~/nomi-backups/nomi-backup-20260929T103609Z` (schema 82, drill 4/4). Merged about 10:40 UTC | 83 |
 | 2026-09-29 | #127 | **The calendar week, and the owner's own dates** (0082): Week by default (days × hours, ‹ Today ›, the country's first weekday), Month, Day, List; provenance by edge; `calendar_entries` (archived, never deleted). Backup before it `~/nomi-backups/nomi-backup-20260929T095733Z` (schema 81, drill 4/4). Deployed about 10:15 UTC, `/health` ok, schema 82 | 82 |
 | 2026-09-29 | #126 | **The design foundation, part two — the shell**: the rail in groups (Customers heading Conversations and Calendar; Setup and Log out at its foot) with its one number read fresh per page; a conversation between its list (from 1100 px) and the customer panel (from 1440 px: asked about, prices worked out, samples, orders, the calendar's own dates, who acted ✦ ● ○); the tab "page · business"; the page's other cards drawn as states. Deployed about 09:50 UTC, `/health` ok, schema 81 (no migration) | 81 |
@@ -25,12 +26,12 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** #129 — small truths from the build order (T1 the sandbox is the
-pilot's alone; T5 the reader refuses a cut-off page, two unkept promises
-gone; CH5 the window's clock; CH7a what arrived, by name). Then the rest of
-step 7, one PR each where a page is touched: T3 (findability), T7 (complete
-metering), Q1 (the analyser's history — prompt change, live check before and
-after), PWR (password recovery), REKEY, FAIR and CEIL, CH1 and CH2.
+**Next:** #130 — T7, complete metering (every paid call on the ledger in its
+own transaction, one UTC clock, the deepseek price, the first per-turn
+figures: about $0.000667 a turn at peak list price). Then the rest of step 7,
+one PR each where a page is touched: T3 (findability), Q1 (the analyser's
+history — prompt change, live check before and after), PWR (password
+recovery), REKEY, FAIR and CEIL, CH1 and CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -146,6 +147,33 @@ instruction did not answer. Collected here; asked once, at the end.
   than 180 days go WHOLE" failed in one full run and passed in the next eight
   and alone; no message was captured. Not root-caused yet — if it recurs,
   capture the output (`vitest run --reporter=dot > log`) before rerunning.
+- **CI and production run Node 22; this Mac's default `node` is 26** (found
+  2026-09-29 on #129): `Intl.DurationFormat` passed every local run and threw
+  on CI. Fixed before the merge (units joined by `Intl.ListFormat`); every
+  check since runs on Node 22 (CLAUDE.md §3). Nothing had shipped with it.
+- **The usage ledger had three holes** (T7, #130): written inside the turn's
+  transaction (a failed or retried turn's calls were lost), only by the text
+  turn (photos, voice notes, catalogue pages and live Practice never
+  counted), and on two clocks (written UTC, read Shanghai — eight hours a day
+  the budget saw an empty day). All three closed. The history before
+  2026-09-29 keeps the holes; it cannot be backfilled.
+- **The inbound queue takes one message per 2 seconds per process** (found
+  2026-09-29 in the integration run for #130): `boss.work` runs with
+  pg-boss's defaults, one job per poll, so about 30 messages a minute, and one
+  workspace's backlog delays every other one's (a test's message waited 24 s
+  behind another tenant's dozen). That is FAIR's problem (fair scheduling on
+  the inbound queue); FAIR will look at the throughput too. The metering test
+  now waits for its own turn long enough for such a backlog.
+- **A test assumed "minutes ago" is today** (found 2026-09-30 on #130's CI,
+  which ran at 00:01 in Shanghai): `buyers-merge` expected "Today HH:MM" for
+  a message written 3 minutes earlier, which the business clock calls
+  "Yesterday" for the first minutes after its midnight. Now the test expects
+  what `formatRelative` says for the row's own instant; reproduced both ways
+  (message moved a day back: the old assertion fails, the new one passes).
+- **Practice's scripted turns record two "model calls"** in `turns` (the
+  stand-ins count like models, model id `scripted`, no tokens). One in
+  production (2026-09-19). The report counts them apart; the ledger never
+  had them.
 - **The claims guard's words were English-only** for zh and ar too (only the
   acronyms — CE, FDA, FOB… — work in any language). #124 added es/fr as
   instructed; zh/ar words (保证, 退款, ضمان, استرداد…) are not added: a

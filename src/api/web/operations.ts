@@ -239,7 +239,7 @@ export async function loadOperationsSnapshot(
         from tenant_budgets b
         left join usage_ledger u
           on u.business_id = b.business_id
-         and u.day = (now() at time zone 'Asia/Shanghai')::date
+         and u.day = (now() at time zone 'UTC')::date   -- T7: the ledger's day is UTC for writer and readers
        where b.business_id = ${B}
        limit 1
     `.execute(tx)).rows[0] ?? null),

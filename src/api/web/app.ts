@@ -94,6 +94,7 @@ import { loadAnalytics, renderAnalytics, parseRange } from './analytics.js';
 import { renderCalendar, parseCalendarQuery } from './calendar.js';
 import { renderListPane, renderCustomerPanel, renderPanes } from './panes.js';
 import { loadCustomerPanel } from '../../db/customerPanel.js';
+import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
 import { loadBusinessProfile, renderSettings, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
@@ -2338,7 +2339,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     if (!imageBase64) return refuse('upload_failed');
 
-    const out = await importFromPhoto({ transcriber: deps.pageTranscriber }, { imageBase64, mediaType });
+    const out = await importFromPhoto({
+      transcriber: deps.pageTranscriber,
+      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
+    }, { imageBase64, mediaType });
     if (out.kind === 'refused') return refuse(out.reason);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.review.title'), active: 'products',

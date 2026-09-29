@@ -1,3 +1,4 @@
+import { recordSpendAlone } from '../../db/usage.js';
 import type { PendingQuestion } from '../../core/types/conversation.js';
 import { markQuestionAsked } from '../../db/pendingQuestion.js';
 import { sql } from 'kysely';
@@ -125,9 +126,12 @@ async function findActiveConversation(tx: Tx, businessId: BusinessId): Promise<s
   return r.rows[0]?.id ?? null;
 }
 
+/** The live lane runs only when asked for AND the real models are there; otherwise it is scripted. */
+const live = (mode: SandboxMode, deps: SandboxDeps): boolean => mode === 'live' && !!deps.analyzer && !!deps.replyWriter;
+
 function buildPorts(mode: SandboxMode, scenario: Scenario | undefined, tx: Tx, businessId: BusinessId, deps: SandboxDeps): TurnPorts {
   const tenant = tenantRepos(tx, businessId);
-  if (mode === 'live' && deps.analyzer && deps.replyWriter) {
+  if (live(mode, deps) && deps.analyzer && deps.replyWriter) {
     return { tenant, retriever: hybridRetriever(tx, businessId), analyzer: deps.analyzer, replyWriter: deps.replyWriter, now: deps.now };
   }
   // Scripted: deterministic stub ports, seeded from the scenario when present.
@@ -167,6 +171,10 @@ export async function runSandboxTurn(deps: SandboxDeps, input: SandboxTurnInput)
     const ports = buildPorts(input.mode, scenario, tx, businessId, deps);
     const req = { conversationId: cid.value, messageId: `sbx-${started}-${Math.random().toString(36).slice(2, 8)}`, text };
     const result = await computeTurn(ports, req);
+    // T7 — a live practice turn is paid for too: on the practice tenant's own
+    // ledger, where it ran. (P5 charges it to the owner's.) A scripted one asked
+    // no model, whatever its stand-ins count.
+    if (live(input.mode, deps)) await recordSpendAlone(deps.db, businessId, result.usage, { turn: true });
     const effects = await commitTurn(ports, req, result, started);
     if (effects.outbound) {
       await recordMessage(tx, conversationId, 'outbound', 'text', effects.outbound.reply);

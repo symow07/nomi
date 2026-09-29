@@ -122,6 +122,10 @@ DATABASE_URL=postgresql://nomi_app:nomi_app@127.0.0.1:55451/nomi \
   node tools/run-integration.mjs                              # ~862, none skipped, ~5 min
 ```
 
+Run all of it on **Node 22** — production and CI use it (`.nvmrc`); this
+Mac's default `node` is newer (`PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"`).
+#129 passed locally on Node 26 with `Intl.DurationFormat` and failed on CI.
+
 For anything touching sending, also `node tools/pre-pilot.mjs --scripted`
 (12/12) with the same two DB vars, **before and after**. For anything touching
 the analysis prompt or the model (`LLM_MODEL` / `LLM_BASE_URL`), also the live
@@ -183,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 130 | **T7 — every paid call on the ledger** — its own transaction, photos, voice notes, catalogue pages and live Practice metered, one UTC clock, the deepseek price and the first per-turn figures — see §5 rule 29 |
 | 129 | **Small truths** — T1 (the sandbox is the pilot's alone), T5 (the reader refuses a cut-off page; two unkept promises gone), CH5 (the window's clock), CH7a (what arrived, by name) — see §5 rule 28 |
 | 128 | **What a reply promised, on the calendar** (0083) — follow-ups, prices that end, deliveries, read from the words that left — see §5 rule 27 |
 | 127 | **The calendar week, and the owner's own dates** (0082) — see §5 rule 26 |
@@ -424,8 +429,14 @@ Recent PRs, newest first:
 28. **Small truths from the build order** (#129, 2026-09-29).
    - **T1 — the practice sandbox is the pilot workspace's alone.** It is ONE shared tenant: every `/app/sandbox*` route answers any other workspace with the same not-found as a wrong address, and changes nothing; no page of theirs draws a door to it (`practiceShown()`, the request scope's `practice`). Per-workspace Practice (P1–P6) waits on decisions 4 and 5. `tests/integration/practice-closed.test.ts`.
    - **T5 — the page reader** asks at temperature 0 and reports a read that stopped at its limit (`cutOff`, from `stop_reason: max_tokens`); the photo import refuses it ("send it as two photos", `product.photo.refused.cut_off`) — half a price sheet is worse than none. Two promises the product did not keep are gone: "a buyer comments and {name} answers privately" (`comment_to_dm` left `INSTEAD`) and "follow-ups go out by themselves" under "talks". `tests/parity/t5-reader.test.ts`.
-   - **CH5 — the window's clock:** under two hours left (`CLOSING_SOON_MS`), the approval card says "Closing soon — {channel} takes replies for 1 hour, 20 minutes more" first (`formatTimeLeft`, `Intl.DurationFormat`). Expiry and its words belong to G5b.
+   - **CH5 — the window's clock:** under two hours left (`CLOSING_SOON_MS`), the approval card says "Closing soon — {channel} takes replies for 1 hour, 20 minutes more" first (`formatTimeLeft`: `Intl.NumberFormat` units joined by `Intl.ListFormat` — never `Intl.DurationFormat`, which Node 22 lacks). Expiry and its words belong to G5b.
    - **CH7a — what arrived, by name:** a shared post (`share`, reels), a story mention, a reply to the shop's story with no words are named on the card and the timeline, and the link Meta gave is kept on the hand-off's signal; the card opens it only when it is https on Meta's own hosts (`refOf`). A story reply with words is answered as before. Matching it to a product is CH7 (later, its own review). `tests/parity/ch7a-what-arrived.test.ts`.
+29. **Every paid call is on the ledger, on the UTC day** (T7, #130, 2026-09-29; `src/db/usage.ts`).
+   - `recordSpendAlone` writes `usage_ledger` in a transaction of its own and never throws: a turn's calls are recorded after its transaction, kept or rolled back (a turn is counted in `turns` only when kept — a retry is the same turn); a customer's photo (the vision call), a voice note (each transcription), a catalogue page (the page read, a refused cut-off read too) and a LIVE Practice turn (on the practice tenant's ledger; scripted stand-ins ask no model and are not recorded) add calls and tokens, never a turn. `record_usage()` (0008) is no longer called.
+   - One clock: the ledger's day is `(now() at time zone 'UTC')::date` for the writer and every reader (`LEDGER_DAY`; the budget readers in `db/channels.ts` and `api/web/operations.ts` read Shanghai's before). A parity scan holds it.
+   - `deepseek-flash` has its list price in `MODEL_PRICES_PER_MTOK` (input $0.30/M on a cache miss, output $1.20/M — PEAK; off-peak is half; read from DeepSeek's page 2026-09-29), so estimates are ceilings. `tools/answer-paths.mjs` prints per-turn tokens and cost (`PathSummary.perTurn`), the ledger's own totals beside the turns', and counts Practice's scripted turns (model `scripted`) apart.
+   - First figures (production, 30 days to 2026-09-29): 9 measured turns — about 890 tokens in, 333 out, **$0.000667 per turn** (≈ $0.67 per 1,000 buyer messages); per model-worded turn about 1,001 in, 375 out, $0.00075.
+   - Tests: `tests/integration/metering.test.ts` (production composition: text, voice, photo, a turn whose commit fails, catalogue photo, live and scripted Practice — each guard switched off fails its test), `tests/parity/metering.test.ts`.
 
 ## 6 · What's next
 

@@ -43,10 +43,14 @@ import { computeImageInquiry, type ImageTurnDeps, type ImageInquiryResult } from
  * description as a description — marked as a photo, never as something he said.
  */
 
-export type ImageIntakeOutcome =
+export type ImageIntakeOutcome = (
   | { readonly kind: 'words'; readonly text: string; readonly description: string }
   /** She could not tell what it was. The owner is told; no reply is drafted. */
-  | { readonly kind: 'refused'; readonly reason: 'media_failed' | 'ambiguous'; readonly retryable: boolean };
+  | { readonly kind: 'refused'; readonly reason: 'media_failed' | 'ambiguous'; readonly retryable: boolean }
+) & {
+  /** T7 — what looking cost (the vision call), for the ledger. Absent when nothing was called. */
+  readonly usage?: { readonly llmCalls: number; readonly inputTokens: number; readonly outputTokens: number };
+};
 
 /** How a photo is spoken about in the turn text. Not owner-facing copy. */
 const photoLine = (description: string): string => `[photo: ${description}]`;
@@ -137,7 +141,7 @@ export async function seeImage(
     return { kind: 'refused', reason: 'media_failed', retryable: false };
   }
   const result = await computeImageInquiry(deps.image, { mediaId: input.mediaId, caption: input.caption });
-  return decideImageIntake(result, input.caption);
+  return { ...decideImageIntake(result, input.caption), usage: result.usage };
 }
 
 /**

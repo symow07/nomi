@@ -2,8 +2,10 @@
  * Tenant budgets. (Priority 5)
  *
  * A noisy tenant degrades only itself. The check is pure so the policy is
- * testable, and usage rows come from record_usage() (migration 0008), which is
- * also the pricing dataset that cannot be backfilled.
+ * testable, and usage rows come from `src/db/usage.ts` (T7: every paid call, in
+ * its own transaction, on the UTC day — migration 0008's record_usage function
+ * wrote inside the turn, and only for a turn), which is also the pricing
+ * dataset that cannot be backfilled.
  *
  * ── M51.2 · WHY THIS WAS IN LIMBO, AND HOW IT WAS RESOLVED ───────────────
  *

@@ -41,7 +41,7 @@ catch { die('Build first: npm run build (this tool uses the tested sums in dist/
 const { summarizePaths, ANSWER_PATHS, wordedByHer } = core;
 
 const pct = (n, of) => (of === 0 ? '—' : `${Math.round((n / of) * 100)}%`);
-const money = (m) => (m === null ? 'unknown (a model with no listed price was used)' : `${m.amount.toFixed(m.amount < 1 ? 4 : 2)} ${m.currency}`);
+const money = (m) => (m === null ? 'unknown (a model with no listed price was used)' : `${m.amount.toFixed(m.amount < 0.01 ? 6 : m.amount < 1 ? 4 : 2)} ${m.currency}`);
 
 const client = new pg.Client({ connectionString: url });
 await client.connect();
@@ -55,16 +55,20 @@ try {
         and ($2::uuid is null or business_id = $2::uuid)`,
     [String(days), business],
   );
-  const measured = r.rows.filter((x) => x.path !== null).map((x) => ({
+  // Practice's scripted stand-ins (src/api/web/sandbox.ts) record themselves as
+  // model 'scripted': no model was asked and no buyer wrote. Counted apart —
+  // left in, their unlisted "price" would make every estimate unknown.
+  const scripted = r.rows.filter((x) => x.model_id === 'scripted').length;
+  const measured = r.rows.filter((x) => x.path !== null && x.model_id !== 'scripted').map((x) => ({
     path: x.path, modelId: x.model_id, llmCalls: Number(x.llm_calls),
     inputTokens: Number(x.input_tokens), outputTokens: Number(x.output_tokens),
     analyserAvoidable: x.analyser_avoidable === true,
   }));
-  const unmeasured = r.rows.length - measured.length;
+  const unmeasured = r.rows.length - measured.length - scripted;
   const s = summarizePaths(measured);
 
   console.log(`\n  Who answered, last ${days} day${days === 1 ? '' : 's'}${business ? ` · business ${business}` : ' · every business'}`);
-  console.log(`  ${s.turns} measured turn${s.turns === 1 ? '' : 's'}${unmeasured ? ` · ${unmeasured} from before the measurement began (not counted)` : ''}\n`);
+  console.log(`  ${s.turns} measured turn${s.turns === 1 ? '' : 's'}${unmeasured ? ` · ${unmeasured} from before the measurement began (not counted)` : ''}${scripted ? ` · ${scripted} scripted Practice turn${scripted === 1 ? '' : 's'} (no model asked; not counted)` : ''}\n`);
   if (s.turns === 0) {
     console.log('  Nothing measured yet. Turns are measured from migration 0060 on.\n');
   } else {
@@ -77,8 +81,24 @@ try {
     console.log(`\n  ✓ Replies she worded herself: ${s.repliesWordedByHer} of ${s.replies} (${pct(s.repliesWordedByHer, s.replies)})`);
     console.log(`    Model calls: ${s.llmCalls} · tokens in ${s.inputTokens} · out ${s.outputTokens}`);
     console.log(`    Estimated cost at list prices: ${money(s.estimatedCost)}${s.estimatedCost !== null && s.turns ? ` · about ${money({ amount: (s.estimatedCost.amount / s.turns) * 1000, currency: s.estimatedCost.currency })} per 1,000 buyer messages` : ''}`);
-    console.log(`    Analyser calls that bought nothing: ${s.avoidableAnalyserCalls} (${pct(s.avoidableAnalyserCalls, s.llmCalls)} of all model calls)\n`);
+    console.log(`    Analyser calls that bought nothing: ${s.avoidableAnalyserCalls} (${pct(s.avoidableAnalyserCalls, s.llmCalls)} of all model calls)`);
+    // T7 — the first per-turn figures: every measured turn, a silent one included.
+    const one = s.perTurn;
+    console.log(`  ✓ Per turn: about ${one.inputTokens} tokens in · ${one.outputTokens} out · ${money(one.cost)} at list prices\n`);
   }
+  // T7 — the ledger counts every paid call, not only a turn's: a customer's
+  // photo, a voice note, a catalogue page, live Practice, and a turn that
+  // failed after paying. Complete from 2026-09-29 on; before that it missed them.
+  const g = (await client.query(
+    `select coalesce(sum(turns), 0)::int as turns, coalesce(sum(llm_calls), 0)::int as calls,
+            coalesce(sum(input_tokens), 0)::bigint as input, coalesce(sum(output_tokens), 0)::bigint as output
+       from usage_ledger
+      where day > (now() at time zone 'UTC')::date - $1::int
+        and ($2::uuid is null or business_id = $2::uuid)`,
+    [days, business],
+  )).rows[0];
+  console.log(`  The ledger, same days (UTC): ${g.turns} turn${g.turns === 1 ? '' : 's'} · ${g.calls} model call${g.calls === 1 ? '' : 's'} · tokens in ${g.input} · out ${g.output}`);
+  console.log(`    ${Math.max(0, g.calls - s.llmCalls)} of those calls were outside a measured turn (photos, voice notes, catalogue pages, Practice, turns that failed)\n`);
   // N2a — her own reading of each message beside the model's. A shadow: this
   // only says how often her rules would have been right, per field.
   const a = (await client.query(

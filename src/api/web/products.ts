@@ -780,7 +780,11 @@ export type PhotoRefusal = Extract<PhotoImport, { kind: 'refused' }>['reason'] |
  * beside the product it produced.
  */
 export async function importFromPhoto(
-  deps: { transcriber?: PageTranscriber | undefined },
+  deps: {
+    transcriber?: PageTranscriber | undefined;
+    /** T7 — what reading the page cost, for the ledger. */
+    spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
+  },
   input: { imageBase64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp' },
 ): Promise<PhotoImport> {
   // Absent is a legitimate state, like M34's transcriber: she is told the truth
@@ -788,6 +792,7 @@ export async function importFromPhoto(
   if (!deps.transcriber) return { kind: 'refused', reason: 'not_configured' };
 
   const page = await deps.transcriber.transcribe(input);
+  await deps.spent?.({ llmCalls: 1, inputTokens: page.usage?.inputTokens ?? 0, outputTokens: page.usage?.outputTokens ?? 0 });
   // T5 — a read that stopped before the page did is half a price sheet, and the
   // owner could not tell which half: refused, with the way to send it whole.
   if (page.cutOff) return { kind: 'refused', reason: 'cut_off' };

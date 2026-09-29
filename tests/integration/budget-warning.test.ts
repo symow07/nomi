@@ -12,7 +12,7 @@ import { seedRunTenant } from './tenant.js';
  *
  * The verdict comes from `core/budget.ts`, the numbers from `usage_ledger` and
  * `tenant_budgets`, and the send gate reads exactly the same pair. Only Postgres
- * can show that the loader reads her row, in her timezone, and that a tenant who
+ * can show that the loader reads her row, on the ledger's day (UTC, T7), and that a tenant who
  * set no ceiling is told nothing rather than warned about a default.
  */
 
@@ -49,9 +49,9 @@ d('G19 · the budget warning reaches Today (requires DATABASE_URL)', () => {
       await sql`insert into tenant_budgets (business_id, daily_llm_calls, daily_tokens, soft_warn_pct, on_exceeded)
                 values (${BIZ}, 100, 1000000, 80, 'pause')
                 on conflict (business_id) do update set daily_llm_calls = 100, on_exceeded = 'pause'`.execute(t);
-      // 84 of her 100 calls, dated in HER day, not the server's.
+      // 84 of her 100 calls, on the ledger's day — UTC for the writer and every reader (T7).
       await sql`insert into usage_ledger (business_id, day, llm_calls, input_tokens, output_tokens, turns)
-                values (${BIZ}, (now() at time zone 'Asia/Shanghai')::date, 84, 1000, 500, 84)
+                values (${BIZ}, (now() at time zone 'UTC')::date, 84, 1000, 500, 84)
                 on conflict (business_id, day) do update set llm_calls = 84`.execute(t);
     });
   }, 60_000);
@@ -70,13 +70,13 @@ d('G19 · the budget warning reaches Today (requires DATABASE_URL)', () => {
 
   it('below the line she set, nothing is said', async () => {
     await tx(BIZ, (t) => sql`update usage_ledger set llm_calls = 12
-                              where business_id = ${BIZ} and day = (now() at time zone 'Asia/Shanghai')::date`.execute(t));
+                              where business_id = ${BIZ} and day = (now() at time zone 'UTC')::date`.execute(t));
     expect((await snapshot(BIZ)).budget).toBeNull();
   });
 
   it('and past 100% it still speaks — the day she most needs to know', async () => {
     await tx(BIZ, (t) => sql`update usage_ledger set llm_calls = 140
-                              where business_id = ${BIZ} and day = (now() at time zone 'Asia/Shanghai')::date`.execute(t));
+                              where business_id = ${BIZ} and day = (now() at time zone 'UTC')::date`.execute(t));
     expect((await snapshot(BIZ)).budget).toEqual({ pctUsed: 100, stops: true });
   });
 
