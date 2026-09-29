@@ -258,8 +258,12 @@ import type { Db } from './client.js';
  * 82 = the owner's own dates on the calendar (0082, `calendar_entries`). The
  *      calendar reads them for every view; against an 81 database the select
  *      fails and the calendar page answers 500 instead of the week.
+ * 83 = what a reply promised, and for when (0083, `promised_dates`). Every
+ *      sent message writes its promises; against an 82 database the insert
+ *      fails inside the 'sent' transition and the message is never recorded
+ *      as sent.
  */
-export const REQUIRED_SCHEMA_VERSION = 82;
+export const REQUIRED_SCHEMA_VERSION = 83;
 
 export type SchemaState = {
   readonly required: number;

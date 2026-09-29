@@ -184,6 +184,8 @@ export const RULES = Object.freeze({
   // 0080 — what they said yes to, before the owner decided: their e-mail and
   // the order they asked for. The order it became (if any) is what stays.
   order_proposals: { do: 'erase' },
+  // 0083 — what a reply promised them, in the words it was said in.
+  promised_dates: { do: 'erase' },
 
   // ── Records that can quote them with no key at all (see textLinks) ────────
   channel_events: {

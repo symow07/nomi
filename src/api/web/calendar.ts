@@ -146,6 +146,8 @@ export function line(locale: Locale, e: CalendarEntry): string {
       });
     case 'conversation_closed': return t(locale, 'calendar.line.closed');
     case 'own': return d.title ?? '';
+    case 'promise_follow_up': case 'promise_price_end': case 'promise_delivery':
+      return t(locale, 'calendar.line.promise', { said: d.said ?? '' });
   }
 }
 
@@ -201,9 +203,13 @@ function chip(locale: Locale, e: CalendarEntry, now: Date, compact = false): str
   const name = e.kind === 'own' ? e.detail.title ?? ''
     : e.kind === 'closure' ? e.detail.closureLabel ?? ''
     : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
-  const state = e.kind === 'reply_due'
-    ? `<span class="dot ${e.detail.overdue ? 'bad' : 'warn'}" aria-hidden="true">●</span> ` : '';
-  const mark = e.kind === 'price_worked_out' ? '<span class="as" aria-hidden="true">✦</span> ' : '';
+  // A state: a reply owed; a promise not yet kept whose day has come.
+  const promise = e.kind.startsWith('promise_');
+  const due = e.kind === 'reply_due' || (promise && !e.detail.kept && e.day <= dayKey(now));
+  const state = due ? `<span class="dot ${e.detail.overdue ? 'bad' : 'warn'}" aria-hidden="true">●</span> ` : '';
+  // The assistant's hand: a price it worked out, a promise it made.
+  const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant)
+    ? '<span class="as" aria-hidden="true">✦</span> ' : '';
   const kind = e.kind === 'own' ? '' : `<span class="wk-k">${state}${mark}${esc(t(locale, `calendar.kind.${e.kind}` as MessageKey))}</span>`;
   const time = e.allDay || compact ? ''
     : `<span class="wk-t">${esc(formatTime(locale, e.at))}${e.detail.endsAt ? `–${esc(formatTime(locale, e.detail.endsAt))}` : ''}</span>`;

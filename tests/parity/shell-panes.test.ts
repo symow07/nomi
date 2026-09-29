@@ -108,6 +108,7 @@ describe('the customer panel', () => {
     askedAbout: [{ name: 'Rose Face Serum', nameZh: null, count: 3, lastAt: NOW }],
     prices: [{ unitPrice: usd(34.9), name: 'Rose Face Serum', nameZh: null, at: new Date('2026-09-02T10:00:00Z'), conversationId: 'c-9' }],
     samples: [{ askedAt: new Date('2026-09-12T10:00:00Z'), handledAt: new Date('2026-09-13T10:00:00Z') }],
+    promised: [{ said: 'I\'ll check the 100 ml and write by Friday.', dueOn: '2026-10-02', byAssistant: true, conversationId: 'c-1' }],
     orders: [{ id: 'o-1', reference: 'W-1042', status: 'confirmed', at: new Date('2026-09-20T10:00:00Z') }],
     activity: [
       { kind: 'waiting', at: NOW },
@@ -127,6 +128,9 @@ describe('the customer panel', () => {
     expect(html).toContain('<h3>Prices worked out</h3>');
     expect(html).toContain('href="/app/inbox/c-9#latest"');
     expect(html).toContain('Sample · asked ');
+    // 0083 — what was promised them, in the words that reached them, with the assistant's mark
+    expect(html).toContain('<h3>Promised</h3>');
+    expect(html).toContain('<span class="as" aria-hidden="true">✦</span> <bdi dir="auto">“I\'ll check the 100 ml and write by Friday.”</bdi>');
     expect(html).toContain('<bdi>Order W-1042</bdi>');
     expect(html).toContain('<span class="pn-none" aria-hidden="true">○</span> Waiting for you');
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> Lily replied');
@@ -136,8 +140,8 @@ describe('the customer panel', () => {
   });
 
   it('a block with nothing in it is not drawn — no zero, no empty heading', () => {
-    const html = renderCustomerPanel({ ...panel, askedAbout: [], prices: [], samples: [], orders: [], activity: [] }, [], 'en', NOW, 'c-1');
-    for (const h of ['Asked about', 'Prices worked out', 'On record', 'On the calendar', 'Activity']) expect(html).not.toContain(`<h3>${h}</h3>`);
+    const html = renderCustomerPanel({ ...panel, askedAbout: [], prices: [], samples: [], promised: [], orders: [], activity: [] }, [], 'en', NOW, 'c-1');
+    for (const h of ['Asked about', 'Prices worked out', 'Promised', 'On record', 'On the calendar', 'Activity']) expect(html).not.toContain(`<h3>${h}</h3>`);
   });
 
   it('the panes: drawn always, laid out by width — below 1100 px the conversation stands alone', () => {

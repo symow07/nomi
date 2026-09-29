@@ -1,6 +1,6 @@
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { formatDate, formatMoney, formatShortWhen } from '../../core/owner/i18n/format.js';
+import { formatDate, formatMoney, formatShortWhen, dayStart } from '../../core/owner/i18n/format.js';
 import { t, assistantName } from './say.js';
 import { esc, deeper, conversationUrl } from './layout.js';
 import { buyersHref, channelName, productName, type InboxList, type ConversationSummary, type InboxFilter } from './inbox.js';
@@ -113,6 +113,9 @@ export function renderCustomerPanel(
     ...p.orders.map((o) => li(`<bdi>${esc(t(locale, 'panel.order', { reference: o.reference }))}</bdi> · ${esc(orderStatusName(locale, o.status))}`,
       `<a href="/app/orders/${encodeURIComponent(o.id)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.order', { reference: o.reference }))}</span></a>`)),
   ];
+  const promises = p.promised.map((x) => li(
+    `${x.byAssistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
+    `${esc(formatDate(locale, dayStart(x.dueOn)))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
   const dated = calendar.map((e) => li(`${esc(formatDate(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId ? `<a href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {
@@ -134,6 +137,7 @@ export function renderCustomerPanel(
       </header>
       ${block('panel.askedAbout', asked)}
       ${block('panel.prices', prices)}
+      ${block('panel.promised', promises)}
       ${block('panel.onRecord', record)}
       ${block('panel.onCalendar', dated)}
       ${block('panel.activity', act)}

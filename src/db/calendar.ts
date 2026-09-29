@@ -24,7 +24,8 @@ import { addDays, dayKey, dayStart } from '../core/owner/i18n/format.js';
  */
 
 // 'yours' (0082): the dates the owner put there — a photo shoot, a trade fair.
-export const CALENDAR_CATEGORIES = ['samples', 'orders', 'negotiation', 'followups', 'yours', 'closures', 'conversations'] as const;
+// 'promised' (0083): what a reply that reached them promised, for the day it named.
+export const CALENDAR_CATEGORIES = ['promised', 'samples', 'orders', 'negotiation', 'followups', 'yours', 'closures', 'conversations'] as const;
 export type CalendarCategory = typeof CALENDAR_CATEGORIES[number];
 
 /** What an entry says happened, or is due. Each names exactly one column. */
@@ -35,7 +36,8 @@ export type CalendarKind =
   | 'followup_due'
   | 'closure'
   | 'conversation_closed'
-  | 'own';
+  | 'own'
+  | 'promise_follow_up' | 'promise_price_end' | 'promise_delivery';
 
 /**
  * WHERE A DATE CAME FROM, shown by its EDGE (the design pass, 2026-09-29):
@@ -84,6 +86,10 @@ export type CalendarEntry = {
     readonly title?: string;
     readonly endsAt?: Date;
     readonly entryId?: string;
+    /** 0083 — a promise: the sentence as sent, who said it, and whether it is kept. */
+    readonly said?: string;
+    readonly byAssistant?: boolean;
+    readonly kept?: boolean;
   };
   readonly source: CalendarSource;
 };
@@ -279,6 +285,25 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
       conversationId: null, orderId: null, buyer: null, identity: null,
       detail: { closureLabel: r.label, closureFrom: from, closureTo: to },
       source: { table: 'factory_closures', id: r.id, column: 'starts_on' } });
+  }
+
+  // ── Promised (0083): what a reply that reached them promised, on the day it named.
+  const promised = (await sql<BuyerCols & {
+    id: string; conv: string; kind: string; due_on: unknown; said: string; said_by: string; kept_at: Date | null;
+  }>`
+    select p.id::text as id, p.conversation_id::text as conv, p.kind, p.due_on, p.said, p.said_by, p.kept_at,
+           cl.id::text as client_id, cl.display_name as buyer, cl.country
+      from promised_dates p
+      join conversations c on c.id = p.conversation_id and c.business_id = p.business_id
+      left join clients cl on cl.id = c.client_id
+     where p.business_id = ${bid} and p.due_on >= ${q.from}::date and p.due_on < ${q.to}::date
+     limit ${PER_SOURCE}`.execute(tx)).rows;
+  for (const r of promised) {
+    const day = ymdOf(r.due_on);
+    out.push({ category: 'promised', kind: `promise_${r.kind}` as CalendarKind, day, at: dayStart(day), allDay: true,
+      conversationId: r.conv, orderId: null, buyer: buyerOf(r), identity: null,
+      detail: { said: r.said, byAssistant: r.said_by === 'assistant', kept: r.kept_at !== null, overdue: r.kept_at === null && day < dayKey(now) },
+      source: { table: 'promised_dates', id: r.id, column: 'due_on' } });
   }
 
   // ── Your own dates (0082): what the owner put on the calendar. Archived ones are gone from it.

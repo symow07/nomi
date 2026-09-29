@@ -1,5 +1,7 @@
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
+import { notePromises } from './promisedDates.js';
+import { dayKey } from '../core/owner/i18n/format.js';
 import { isAllowlisted } from '../channels/allowlist.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
@@ -317,6 +319,8 @@ export function channelStore(
             from outbound_messages where id = ${id}
           on conflict do nothing
         `.execute(tx);
+        // 0083 — and what it promised, for when: read from the words that left.
+        await notePromises(tx, id, dayKey(new Date()));
       }
     },
 
