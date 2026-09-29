@@ -47,8 +47,11 @@ describe('the reader: a figure outside an isolate is found, one inside is not', 
 
 describe('the value functions', () => {
   it('Arabic: the locale\'s own form, Western digits, isolated', () => {
-    expect(show.money('ar', usd(1.95))).toBe(`${FSI}\u200F1.95\u00A0US$${PDI}`);
-    expect(show.money('ar', { amount: 2.4, currency: 'CNY' })).toMatch(/^\u2068\u200F2\.40\u00A0CN¥\u2069$/);
+    // The sign is a left-to-right word of its own inside the value: without
+    // it the browser drew "$US 1.95".
+    expect(show.money('ar', usd(1.95))).toBe(`${FSI}\u200F1.95\u00A0\u2066US$${PDI}${PDI}`);
+    expect(show.money('ar', { amount: 2.4, currency: 'CNY' })).toBe(`${FSI}\u200F2.40\u00A0\u2066CN¥${PDI}${PDI}`);
+    expect(show.moneyWhole('ar', usd(1234.6))).toBe(`${FSI}\u200F1,235\u00A0\u2066US$${PDI}${PDI}`);
     expect(show.quantityOf('ar', 5000, 'قطعة')).toBe(`${FSI}5,000\u00A0قطعة${PDI}`);
     expect(show.phone('ar', '+971501234567')).toBe(`${FSI}+971501234567${PDI}`);
     expect(show.date('ar', new Date('2026-09-29T08:00:00Z'))).toBe(`${FSI}الثلاثاء، 29 سبتمبر${PDI}`);

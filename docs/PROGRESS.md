@@ -17,6 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #139 | **Right to left, by design** (design pass §9): one value layer (`src/api/web/values.ts`) — money, quantities, counts, dates, times, phone numbers, order numbers — isolated on Arabic pages; Arabic money in the locale's own form; every figure in a sentence isolated; the surface walk draws all 33 owner pages in Arabic and fails any figure outside an isolate. The symbol check reads namespace imports (no migration) | 85 |
+| 2026-09-30 | #138 | **Today by time** (design pass §4): who needs you now, the last 24 hours, what is coming up; every line a door; figures in sentences through the plural rules (the counted insights too); the sending line only where messaging is live. Merged 20:01 UTC, deployed 20:09 UTC, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #137 | **CH1 + CH2 — "Your accounts" read live on Channels, and the help page**: each step marked from what is there (the Page, its Instagram, Meta's word on the token, the permissions granted, the subscription, the newest message per channel); a token Meta refuses is recorded as a send would find it; Meta not answering is "could not check"; `/app/help/meta` says what to check and why, linking only Meta's own help pages. Merged 19:25 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #136 | **CEIL — 50 sends a day for a new workspace** (0085; existing ones 200; `tools/send-ceiling.mjs`), **and an hourly Meta-errors alarm** to the operator (5 failed and 1 in 5, over 24 h, at most every 6 h). Backup before it: `~/nomi-backups/nomi-backup-20260929T173225Z` (schema 83, drill 4/4). Merged 19:08 UTC, deployed, `/health` ok, schema 85 | 85 |
 | 2026-09-30 | #135 | **FAIR — the inbound queue shared fairly**: a group per workspace, three workers a third of a poll apart, one turn at a time per workspace; a batch waits for its own conversation's message still in the queue. Merged 18:58 UTC; its deploy also carried #133 and #134 (see "Found on the way"). `/health` ok, schema 84 | 84 |
@@ -34,12 +36,11 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** step 8, the rest of the design pass. #138 — Today by time (who
-needs you now, the last 24 hours, what is coming up; every line a door,
-figures in sentences). Then right-to-left values (one formatting layer, every
-value isolated, a test that renders every page in Arabic), then names, Setup,
-People and the sign-in door, then screenshots in three languages and one
-review pass. **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
+**Next:** step 8, the rest of the design pass: names, Setup, People and the
+sign-in door (§8 items 5, 7, 8, 10), then screenshots in three languages and
+one review pass — with it, the zh/ar lines this run added go into
+`docs/NATIVE-REVIEW-UI.md` for the native readers (none were added by
+#122–#139; the design plan counted about 40 for the pass alone). **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
 `backup_runs` row** (below).
 
 **Consequence the owner should know (since #124):** the disclosure gate is
@@ -155,6 +156,13 @@ instruction did not answer. Collected here; asked once, at the end.
   of 2026-09-29 03:04 UTC dumped schema 79, failed exactly this check (b)
   "RLS-without-policy=1", and uploaded nothing. The backup service rebuilt
   with the fix at 07:00 UTC that day.
+- **Production did not answer from here for about 12 minutes** (2026-09-29,
+  20:03–20:15 UTC, while #138 deployed): connections to app.nomidoes.com
+  timed out; GitHub and Railway answered; Railway marked the deployment
+  SUCCESS at 20:09; no row in `app_errors`. Not reproduced and not
+  root-caused — it may be the network path from this machine. With
+  `HEALTH_PING_URL` unset, nothing outside Railway would have noticed a real
+  outage (the owner's item, CLAUDE.md §4).
 - **Railway made no deployment for one merge** (2026-09-29): #133 and #134
   merged at 18:00 UTC with CI green, and the `nomi` service got no deployment
   for `e56da0b` at all (the `backup` service did — skipped by its watch

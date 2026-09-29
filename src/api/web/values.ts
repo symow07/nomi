@@ -70,15 +70,24 @@ export const hasFigure = (s: string): boolean => /[0-9\u0660-\u0669\u06F0-\u06F9
 
 const AR = 'ar-u-nu-latn';
 
+/**
+ * The locale's own form of an amount, right to left: "1.95 US$". The sign is
+ * a left-to-right word of its own (U+2066 … U+2069): left to the page's
+ * direction, the "$" of "US$" came loose and the browser drew "$US 1.95"
+ * (seen in the screenshots, 2026-09-30).
+ */
+const arabicMoney = (m: Money, fraction: number): string =>
+  new Intl.NumberFormat(AR, { style: 'currency', currency: m.currency, minimumFractionDigits: fraction, maximumFractionDigits: fraction })
+    .formatToParts(fraction === 0 ? Math.round(m.amount) : m.amount)
+    .map((p) => (p.type === 'currency' ? `\u2066${p.value}${PDI}` : p.value)).join('');
+
 /** Money: "$1.95" in English and Chinese, "1.95 US$" (the locale's own form) in Arabic. */
-export const money = (locale: Locale, m: Money): string => isolate(locale, rtl(locale)
-  ? new Intl.NumberFormat(AR, { style: 'currency', currency: m.currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(m.amount)
-  : f.formatMoney(m));
+export const money = (locale: Locale, m: Money): string =>
+  isolate(locale, rtl(locale) ? arabicMoney(m, 2) : f.formatMoney(m));
 
 /** Money in whole units, for a summary line. */
-export const moneyWhole = (locale: Locale, m: Money): string => isolate(locale, rtl(locale)
-  ? new Intl.NumberFormat(AR, { style: 'currency', currency: m.currency, maximumFractionDigits: 0 }).format(Math.round(m.amount))
-  : formatMoneyCompact(m));
+export const moneyWhole = (locale: Locale, m: Money): string =>
+  isolate(locale, rtl(locale) ? arabicMoney(m, 0) : formatMoneyCompact(m));
 
 /** A quantity alone: "5,000", "1.2万", "5,000". */
 export const quantity = (locale: Locale, n: number): string => isolate(locale, f.formatQty(locale, n));
