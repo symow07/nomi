@@ -265,8 +265,11 @@ import type { Db } from './client.js';
  * 84 = "e-mail me a link" (0084, `login_setup_request`). The door's "Forgot
  *      your password?" calls it; against an 83 database the call fails, and
  *      the owner is told a link is on its way that never is.
+ * 85 = a send ceiling per workspace, and Meta's error rate (0085). The send
+ *      gate reads `businesses.daily_send_ceiling`; against an 84 database the
+ *      read fails and nothing the assistant writes is sent.
  */
-export const REQUIRED_SCHEMA_VERSION = 84;
+export const REQUIRED_SCHEMA_VERSION = 85;
 
 export type SchemaState = {
   readonly required: number;

@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 136 | **CEIL — 50 a day for a new workspace (0085), and an hourly Meta-errors alarm** for the operator — see §5 rule 35 |
 | 135 | **FAIR — the inbound queue shared fairly between workspaces**: a group per workspace, three workers, one at a time per workspace — see §5 rule 34 |
 | 134 | **REKEY — `CREDENTIAL_KEY` rotation without a token lost**: the app reads with the previous key during a rotation, `tools/rekey.mjs` re-seals, the doc rewritten around it — see §5 rule 33 |
 | 133 | **PWR — "Forgot your password?"** (0084): a one-time link by e-mail, the same words whether or not the address signs in here — see §5 rule 32 |
@@ -467,6 +468,10 @@ Recent PRs, newest first:
    - The in-process limit, not pg-boss's database one: that one races (three workers polling in the same millisecond each took one of the same workspace's jobs), and pg-boss accepts only one of the two. Production runs ONE replica; with more, the limit becomes one per workspace per replica.
    - **Batching kept whole under concurrency:** two of one workspace's jobs can be fetched in the same poll, and the one pg-boss keeps is not always the older — a batch's wake could run before the message sent right after the first was even recorded, and answer them apart (Q1's batched test caught it on CI, ~1 run in 4). The wake now waits (a second at a time, within the batch's hard window) while an inbound job of the SAME conversation is still queued or in flight with its message not yet a fragment (`src/worker/main.ts`). Proven 20/20 with the wait, 9/12 without.
    - Before: one worker, one job per 2-second poll for everybody — a dozen of one tenant's messages held another's for 24 s. Tests: `tests/integration/fair-queue.test.ts` (8 busy + 1 quiet with a slow model: the quiet one is read before the backlog clears, the busy one never runs two at once; switched off, the quiet one is read ninth).
+35. **A send ceiling per workspace, and Meta's error rate for the operator** (CEIL, 0085, #136, 2026-09-30).
+   - `businesses.daily_send_ceiling`: how many of the assistant's messages a workspace may send in a day (the gate's `dailyCeilingReached`, Shanghai day, the owner's own replies never counted). A workspace made from 0085 on starts at **50**; the 59 that existed kept 200 (`DAILY_OUTBOUND_CEILING`, also the gate's fallback). No owner switch: `tools/send-ceiling.mjs --business <uuid> [--set N]` (1–10000).
+   - `meta_error_rates(since)` (definer): per workspace, messages to Meta's channels (WhatsApp, Instagram, Messenger) and how many Meta refused or lost (`failed`/`uncertain`), with the provider's own words — never our gate's `canceled: …`, never e-mail. Every hour (`ops.meta_errors`, :15) the operator is told of any workspace with ≥ 5 refused or lost AND ≥ one in five of the day (`src/core/ops/metaErrors.ts`) — the `meta_errors` operator alert, e-mail always, at most once in 6 h.
+   - Tests: `tests/integration/send-ceiling.test.ts` (the gate at 50, the tool, the counting; the per-workspace read switched off, it fails), `tests/parity/send-ceiling.test.ts`.
 
 ## 6 · What's next
 

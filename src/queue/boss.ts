@@ -48,6 +48,12 @@ export const QUEUES = {
    */
   errors: 'ops.errors',
   /**
+   * CEIL — every hour: has any workspace's error rate on Meta's channels
+   * crossed the line (src/core/ops/metaErrors.ts)? Only the question and the
+   * operator alert; what to do about it is the operator's.
+   */
+  metaErrors: 'ops.meta_errors',
+  /**
    * CC-10 — the uptime heartbeat: every five minutes the app checks itself and
    * pings HEALTH_PING_URL (src/worker/heartbeat.ts). Scheduled only when that
    * is set, and only once the server listens.
@@ -60,6 +66,7 @@ export type BackupWatchJob = { businessId: string };
 /** The business whose owner runs this installation — the alert goes to them. */
 export type DeletionWatchJob = { businessId: string };
 export type ErrorSweepJob = { businessId: string };
+export type MetaErrorWatchJob = { businessId: string };
 export type HeartbeatJob = Record<string, never>;
 
 /** `app_error` only: the error the alert is about, as recorded — redacted, cut. Dates as ISO strings. */
@@ -144,7 +151,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error';
+  kind: 'hot_lead' | 'handoff' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -156,6 +163,11 @@ export type NotifyJob = {
   deletionsDue?: { business: string; scope: 'workspace' | 'buyer'; askedAt: string; overdue: boolean }[];
   /** `app_error` only (CC-10): what went wrong, as `app_errors` holds it. */
   appError?: AppErrorAlertJob;
+  /**
+   * `meta_errors` only (CEIL): the workspaces over the line, the worst first —
+   * the name, the day's counts and the provider's own words. Never a customer.
+   */
+  metaErrors?: { business: string; attempted: number; failed: number; errors: string[] }[];
 };
 
 /**

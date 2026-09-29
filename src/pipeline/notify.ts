@@ -45,7 +45,7 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'failed_permanent
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -76,6 +76,8 @@ export type OperatorAlertDetail = {
   readonly deletionsDue?: readonly DeletionDueLine[];
   /** `app_error` (CC-10): the error as recorded — already redacted and cut. */
   readonly appError?: AppErrorAlertJob | null;
+  /** `meta_errors` (CEIL): the workspaces over the line, the worst first. */
+  readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
@@ -130,6 +132,17 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // CEIL — which workspaces, how many of the day's messages Meta refused or
+  // lost, in the provider's own words; then what the operator can do.
+  if (kind === 'meta_errors') {
+    const over = detail.metaErrors ?? [];
+    const shown = over.slice(0, DELETION_ALERT_LINES);
+    const lines = shown.map((m) => t(locale, 'notify.meta_errors.line', {
+      business: m.business, failed: m.failed, attempted: m.attempted, errors: m.errors.join('; ') || '—',
+    }));
+    const more = over.length > shown.length ? [t(locale, 'notify.meta_errors.more', { n: over.length - shown.length })] : [];
+    return [t(locale, 'notify.meta_errors', { n: over.length }), ...lines, ...more, t(locale, 'notify.meta_errors.how')].join('\n');
+  }
   const key = (kind === 'delivery_failed' ? 'dead_letter' : kind);
   // A5.2 — the assistant this alert is about, when the owner has named one;
   // otherwise the catalogue says "your assistant".
@@ -240,6 +253,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
       business: d.business, scope: d.scope, askedAt: new Date(d.askedAt), overdue: d.overdue,
     })),
     appError: job.appError ?? null,
+    metaErrors: job.metaErrors ?? [],
   };
 }
 

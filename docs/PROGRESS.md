@@ -35,8 +35,9 @@ Westlake — see "Waiting on the owner"), then #132 — Q1, the analyser's
 history (live check before and after: 29/29 then 34/34 with five history
 cases), then #133 — PWR, "Forgot your password?" (0084; backup before it),
 then #134 — REKEY (the key rotation, without a token lost), then #135 — FAIR
-(the inbound queue shared fairly). Then the rest of step 7: CEIL, CH1 and
-CH2.
+(the inbound queue shared fairly), then #136 — CEIL (0085: 50 a day for a
+new workspace, the Meta-errors alarm; backup before it). Then the rest of step
+7: CH1 and CH2.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a

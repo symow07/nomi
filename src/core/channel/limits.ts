@@ -11,7 +11,14 @@
  * day and obvious during a runaway.
  */
 
-/** Employee-authored messages a tenant may actually send in one day (Shanghai). */
+/**
+ * Employee-authored messages a tenant may actually send in one day (Shanghai).
+ * CEIL (0085) — now each workspace's own number (`businesses.daily_send_ceiling`):
+ * this is the one the workspaces that existed kept, and the gate's fallback. A
+ * workspace made from 0085 on starts at 50 (the column's default): one
+ * stranger's spam can get the Meta app every workspace shares restricted, so a
+ * new workspace earns a higher number from the operator (tools/send-ceiling.mjs).
+ */
 export const DAILY_OUTBOUND_CEILING = 200;
 
 /**

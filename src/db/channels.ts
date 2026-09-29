@@ -78,7 +78,7 @@ export function channelStore(
         soft_warn_pct: number | null; on_exceeded: string | null;
         used_calls: number | null; used_tokens: string | null;
         pilot_mode: boolean | null; activated_at: Date | null;
-        buyer_wa_id: string | null; sent_today: number;
+        buyer_wa_id: string | null; sent_today: number; send_ceiling: number | null;
         channel: string | null; buyer_locale: string | null;
       }>`
         select c.assigned_to, c.channel, cl.preferred_language as buyer_locale,
@@ -92,7 +92,10 @@ export function channelStore(
                  where om.business_id = c.business_id and om.origin = 'employee'
                    and om.status in ('sent','delivered','read')
                    and om.sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai')
-                                       at time zone 'Asia/Shanghai')) as sent_today
+                                       at time zone 'Asia/Shanghai')) as sent_today,
+               -- CEIL (0085) — this workspace's own ceiling: 50 for one made
+               -- since, 200 for those that existed.
+               (select bz.daily_send_ceiling from businesses bz where bz.id = c.business_id) as send_ceiling
           from conversations c
           -- BUGFIX (found in M18.2): this compared a column named status,
           -- which tenant_budgets does not have, so the query threw on EVERY
@@ -263,7 +266,7 @@ export function channelStore(
         stopped,
         // M18.5 — counts EMPLOYEE messages actually sent today, so an owner
         // reply is never blocked by the ceiling.
-        dailyCeilingReached: (c?.sent_today ?? 0) >= DAILY_OUTBOUND_CEILING,
+        dailyCeilingReached: (c?.sent_today ?? 0) >= (c?.send_ceiling ?? DAILY_OUTBOUND_CEILING),
         ...(buyerLocale ? { buyerLocale } : {}),
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
