@@ -216,8 +216,10 @@ describe('M30 · two voices — a person is serif, the product is sans', () => {
       ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null, lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null, proof: { quoteId: null, token: null },
     };
     const html = renderConversationDetail(detail, 'en', new Date('2026-07-27T10:00:00Z'), null);
-    // her draft is inside .proposed (voiced); the buyer's words inside .bubble
-    expect(html).toMatch(/class="proposed"><bdi>HERDRAFT-092/);
+    // her draft is the reply box, set in the speech face (the design pass); the buyer's words inside .bubble
+    expect(html).toMatch(/<textarea id="reply" name="edit"[^>]*>HERDRAFT-092/);
+    expect(linkedCss(shell({ title: 'T', active: 'home', locale: 'en', path: '/app', bodyHtml: '' })))
+      .toMatch(/\.approve textarea \{[^}]*font-family:var\(--font-voice\)/);
     expect(html).toMatch(/class="msg inbound">\s*<div dir="auto" class="bubble"><bdi>BUYERWORDS-5000/);   // V1: a person's words keep their own direction
     // the actions around the speech are the product speaking: plain .btn, no voice class
     expect(html).toMatch(/class="btn send"[^>]*>Send/);

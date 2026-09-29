@@ -8,9 +8,11 @@ import { type Person, type Viewer, OWNER_VIEW, heldByName, actorName } from '../
 import { tenantRepos } from '../../db/repos.js';
 import { type OwnerRate, convertMoney } from '../../core/commerce/exchange.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { countryName, orderStatusName, capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { countryName, orderStatusName, capabilityName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { readReply, differsOn, type ReadingField, type ReadingLine, type ReadingQuote } from '../../core/owner/reading.js';
+import { CHANNEL_REGISTRY, type OutreachChannel } from '../../core/channel/registry.js';
 import { t, assistantName, outreachShown } from './say.js';
-import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
+import { formatMoney, formatQty, formatQtyUnit, formatRelative, formatUntil, formatDate, formatList, labelled } from '../../core/owner/i18n/format.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { loadRefusals, loadUncertainSends, type Refusal, type UncertainSend } from './refusals.js';
 import { esc, deeper, back, byAssistant, conversationUrl } from './layout.js';
@@ -631,7 +633,47 @@ export type ConversationDetail = {
    * waiting. The card names the next thing to tap.
    */
   readonly sampleAsked: { readonly policyStated: boolean } | null;
+  /** The design pass — the conversation's channel, for the card's "goes on …". Optional so fixtures still type. */
+  readonly channel?: string;
+  /**
+   * The design pass — what the newest turn read, for the approval card's
+   * "Understood" and "How … read this". Read from the turn's own replay row
+   * (`turns.analysis`, `turns.own_understanding`) and the quote it priced.
+   * Optional so a detail built before it (a fixture, the sandbox) still types.
+   */
+  readonly reading?: CardReading | null;
 };
+
+export type CardReading = {
+  /** The analysis's `primary_intent`; null on a turn no model read (fast path). */
+  readonly intent: string | null;
+  readonly quantity: { readonly value: number; readonly unit: string } | null;
+  /** The language the customer wrote in, as the analysis detected it. */
+  readonly language: string | null;
+  /** The fields a second, separate reading differed on; null when there was none to compare. */
+  readonly differsOn: readonly ReadingField[] | null;
+  readonly quote: ReadingQuote | null;
+};
+
+/** The analysis fields the card reads, from a stored turn; nothing else is trusted. */
+function cardReadingOf(
+  analysis: Record<string, unknown> | null, own: unknown,
+  q: { unit_price_usd: string; total_usd: string; quantity: number; discount_pct: string; lead_time_days: number | null; moq: number | null } | undefined,
+): CardReading {
+  const intent = analysis?.['intent'] as Record<string, unknown> | undefined;
+  const language = analysis?.['language'] as Record<string, unknown> | undefined;
+  const qty = intent?.['quantityMentioned'] as { value?: unknown; unit?: unknown } | null | undefined;
+  return {
+    intent: typeof intent?.['primary'] === 'string' ? intent['primary'] : null,
+    quantity: qty && typeof qty.value === 'number' ? { value: qty.value, unit: typeof qty.unit === 'string' ? qty.unit : '' } : null,
+    language: typeof language?.['detected'] === 'string' ? language['detected'] : null,
+    differsOn: differsOn(own),
+    quote: q ? {
+      unitPrice: Number(q.unit_price_usd), total: Number(q.total_usd), quantity: q.quantity,
+      discountPct: Number(q.discount_pct), leadTimeDays: q.lead_time_days, moq: q.moq,
+    } : null,
+  };
+}
 
 export async function loadConversationDetail(
   db: Db, businessIdRaw: string, conversationId: string,
@@ -658,9 +700,9 @@ export async function loadConversationDetail(
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
-      answered_by: string | null; assistants: number; owner_unsent_reply: string | null;
+      answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string;
     }>`
-      select c.id, cl.display_name as buyer, cl.country, p.name_zh, p.name,
+      select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name,
              cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
@@ -712,8 +754,17 @@ export async function loadConversationDetail(
     const q = (await sql<{
       unit_price_usd: string; total_usd: string; quantity: number; product_id: string; currency: string;
       lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null;
+      discount_pct: string; lead_time_days: number | null; moq: number | null;
     }>`
-      select unit_price_usd, total_usd, quantity, product_id, currency, lead_time_withheld from quotes
+      select q.unit_price_usd, q.total_usd, q.quantity, q.product_id, q.currency, q.lead_time_withheld,
+             q.discount_pct, q.lead_time_days, p.moq
+        from quotes q left join products p on p.id = q.product_id
+       where q.conversation_id = ${conversationId} order by q.created_at desc limit 1
+    `.execute(tx)).rows[0];
+
+    // The design pass — what the newest turn read, from its own replay row.
+    const turn = (await sql<{ analysis: Record<string, unknown> | null; own_understanding: unknown }>`
+      select analysis, own_understanding from turns
        where conversation_id = ${conversationId} order by created_at desc limit 1
     `.execute(tx)).rows[0];
 
@@ -849,6 +900,9 @@ export async function loadConversationDetail(
          where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx))
         .rows.map((p) => ({ id: p.id, name: p.name, isOwner: p.is_owner })),
       knowledgeUsed,
+      channel: head.channel,
+      // The quote's figures are read with or without a turn on record.
+      reading: cardReadingOf(turn?.analysis ?? null, turn?.own_understanding ?? null, q),
     };
   });
 }
@@ -1246,7 +1300,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
         formatList(locale, d.handoffReasons.map((k) => t(locale, `takeover.reason.${k}` as MessageKey)))))}</div>`
     : '';
   const last = d.lastHumanAction ? lastActionLine(d.lastHumanAction, locale, now, d.people ?? [], viewer) : '';
-  const takeBtn = `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  // One control per act: while the approval card is up, its "Hand to me" is the take-over.
+  const takeBtn = d.pendingDraft ? '' : `<form method="post" action="/app/inbox/${cid}/takeover" class="inline"><button class="btn ${d.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
 
   /**
    * G12 — pass it to the colleague who can answer it. Offered once there is
@@ -1254,7 +1309,8 @@ function takeoverCard(d: ConversationDetail, locale: Locale, now: Date, viewer: 
    * A staff member has no phone number, so this list is how they learn a
    * conversation is theirs.
    */
-  const others = (d.people ?? []).filter((p) => p.id !== d.heldBy);
+  // …and only where there are colleagues: a business of one has nobody to hand it to.
+  const others = (d.people ?? []).length > 1 ? (d.people ?? []).filter((p) => p.id !== d.heldBy) : [];
   const handToForm = others.length === 0 ? '' : `
     <form method="post" action="/app/inbox/${cid}/handto" class="handto">
       <label class="muted" for="handto">${esc(t(locale, 'handto.label'))}</label>
@@ -1391,6 +1447,153 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
     </form>`;
 }
 
+/**
+ * THE APPROVAL CARD (the design pass, 2026-09-29; the plan's §1). One card,
+ * one decision: who asked what and when; what was understood; how the reply
+ * was read, closed until asked for; the reply ONCE, in the only box on the
+ * page; and the acts in one row — Send (the one fill), Edit (a label that
+ * puts the cursor in the box), Hand to me, and "No reply needed" quietly at
+ * the far end.
+ *
+ * ONE FORM, ONE SEND. The box is the reply: Send posts what is in it, and the
+ * route sends it as it was drafted or as the owner's edit, through the same
+ * approval path as before (`command=send`). Hand to me posts the same form to
+ * the take-over route. Nothing here needs the script.
+ *
+ * "No reply needed" is its own act, not a fourth button: the customer wrote
+ * "thanks 👍", a reply was drafted, and the right answer is silence without
+ * taking the conversation over (it was Skip). It changes something, so it is
+ * a button; it is the quiet one, words at the far end, so the row still reads
+ * as three choices about the reply.
+ *
+ * Moved off the card: "Stop doing this alone" lives on the assistant's page,
+ * where how much it sends alone is set; the paragraphs that explained the
+ * buttons are gone — the labels say what the buttons do. What made the draft
+ * wait (its hold, the disclosure, a contradicted price, a forbidden word) is
+ * the card's state line, drawn before anything else on it.
+ */
+function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string {
+  const p = d.pendingDraft;
+  if (!p) return '';
+  const cid = encodeURIComponent(d.conversationId);
+  const name = assistantName(locale);
+  const channel = d.channel ? channelName(locale, d.channel) : null;
+  const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
+  const r = d.reading ?? null;
+
+  // Who asked, where, when — the customer's name set apart from the words round it.
+  const who = `<b><bdi>${esc(d.buyer ?? t(locale, 'card.customer'))}</bdi></b>`;
+  const asked = lastIn?.at && channel
+    ? esc(t(locale, 'card.asked', { customer: '\u0000', channel, time: formatRelative(locale, lastIn.at, now) })).replace('\u0000', who)
+    : who;
+  const top = `<div class="top"><span>${asked}</span><span class="as"><span aria-hidden="true">✦</span> ${
+    esc(t(locale, 'card.drafted', { name }))}</span></div>`;
+
+  // What made it wait: a dot, the state's word, then today's sentence for it.
+  const waits = (sentence: string) => `<p class="stateline" role="note"><span class="dot warn" aria-hidden="true">●</span> <b>${
+    esc(t(locale, 'card.waiting'))}</b> ${esc(sentence)}</p>`;
+  const state = [
+    p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
+    p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
+    p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
+    p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
+  ].join('');
+
+  const said = lastIn && !lastIn.received && lastIn.text.trim()
+    ? `<blockquote class="said" dir="auto"><bdi>${esc(lastIn.text)}</bdi></blockquote>` : '';
+
+  // Understood: what they want, the product, the quantity (only if they gave one), the language.
+  const prod = productName(locale, d.product);
+  const intentKey = r?.intent ? `card.intent.${r.intent}` as MessageKey : null;
+  const understood = [
+    intentKey && t(locale, intentKey) !== intentKey ? t(locale, intentKey) : null,
+    prod,
+    r?.quantity ? formatQtyUnit(locale, r.quantity.value, r.quantity.unit || t(locale, 'product.unit.pcs')) : null,
+    r?.language ? languageName(locale, r.language) : null,
+  ].filter((x): x is string => !!x);
+  const und = understood.length
+    ? `<p class="und"><span class="k">${esc(t(locale, 'card.understood'))}</span><span>${understood.map((x) => `<bdi>${esc(x)}</bdi>`).join(' · ')}</span></p>`
+    : '';
+
+  // How it was read: one line per product name and figure in the reply, each with its source.
+  const read = readReply({
+    reply: p.draftText,
+    productNames: [d.product.name, d.product.nameZh].filter((x): x is string => !!x),
+    // The quote's figures always count: from the loader with the extras it read,
+    // else the three the page already holds.
+    quote: r?.quote ?? (d.quote ? {
+      unitPrice: d.quote.unitPrice.amount, total: d.quote.total.amount, quantity: d.quote.quantity,
+      discountPct: 0, leadTimeDays: null, moq: null,
+    } : null),
+    theirTexts: d.messages.filter((m) => m.direction === 'inbound').map((m) => m.text),
+    heldQuantity: d.quantity,
+  });
+  const figure = (l: Extract<ReadingLine, { kind: 'figure' }>): string =>
+    l.source === 'price' && d.quote ? formatMoney(d.quote.unitPrice)
+    : l.source === 'total' && d.quote ? formatMoney(d.quote.total)
+    : l.value.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  const line = (ok: boolean, said: string, source: string) =>
+    `<li><span class="${ok ? 'mk' : 'mk warn'}" aria-hidden="true">${ok ? '✓' : '○'}</span><bdi>${esc(said)}</bdi><span>${esc(source)}</span></li>`;
+  const reasons = [
+    ...read.lines.map((l) => l.kind === 'product'
+      ? line(true, `“${l.name}”`, t(locale, 'card.source.product'))
+      : line(l.source !== 'unsourced', figure(l), l.source === 'price'
+        ? (prod ? t(locale, 'card.source.price', { product: prod }) : t(locale, 'card.source.priceAny'))
+        : t(locale, `card.source.${l.source}` as MessageKey))),
+    ...d.knowledgeUsed.map((k) => line(true, k, t(locale, 'card.source.taught'))),
+    ...(r?.differsOn === null || r?.differsOn === undefined ? []
+      : r.differsOn.length === 0 ? [line(true, t(locale, 'card.checked'), t(locale, 'card.checked.same'))]
+      : [line(false, t(locale, 'card.checked.differs'), t(locale, 'card.checked.differsOn', {
+          fields: formatList(locale, r.differsOn.map((f) => t(locale, `card.field.${f}` as MessageKey))),
+        }))]),
+  ];
+  const how = reasons.length
+    ? `<details><summary><span class="t">${esc(t(locale, 'card.reasons', { name }))}</span><span class="c">${
+        esc(tn(locale, 'card.reasons.count', reasons.length))}</span></summary><ul class="reasons">${reasons.join('')}</ul></details>`
+    : '';
+
+  // The reply's window, where the channel has one: until when it can still go.
+  const hours = d.channel ? CHANNEL_REGISTRY[d.channel as OutreachChannel]?.replyWindowHours ?? null : null;
+  const until = hours !== null && lastIn?.at ? new Date(lastIn.at.getTime() + hours * 3_600_000) : null;
+  const window = channel && until && until > now
+    ? `<span>${esc(t(locale, 'card.window', { channel, time: formatUntil(locale, until, now) }))}</span>` : '';
+  const figures = read.lines.some((l) => l.kind === 'figure')
+    ? `<span>${esc(t(locale, read.everyFigureSourced ? 'card.sourced' : 'card.unsourced'))}</span>` : '';
+
+  return `<section class="card draft" id="approve" aria-labelledby="approve-h">
+      <h2 id="approve-h" class="sr">${esc(t(locale, 'buyers.review.title', { name }))}</h2>
+      ${top}
+      ${state}
+      ${said}
+      ${und}
+      ${how}
+      <form method="post" action="/app/inbox/${cid}/act" class="approve">
+        <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
+        <div class="lab"><label for="reply" class="k">${esc(t(locale, 'card.reply'))}</label>${
+          channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>
+        ${p.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
+        ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
+             CC-26 — and what is typed in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="reply" name="edit" rows="4" dir="auto" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(p.ownerEdit ?? p.draftText)}</textarea>
+        ${figures || window ? `<div class="src">${figures}${window}</div>` : ''}
+        <div class="acts">
+          <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
+          <label class="btn" for="reply">${esc(t(locale, 'card.edit'))}</label>
+          <button class="btn" type="submit" formaction="/app/inbox/${cid}/takeover">${esc(t(locale, 'card.handToMe'))}</button>
+          <button class="btn ghost quiet" type="submit" name="command" value="不回">${esc(t(locale, 'card.noReply'))}</button>
+        </div>
+      </form>
+    </section>`;
+}
+
+/** A language's name in the owner's language ("English", "英语", "الإنجليزية"); the code if unknown. */
+function languageName(locale: Locale, code: string): string {
+  try {
+    return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function renderConversationDetail(
   d: ConversationDetail, locale: Locale, now: Date, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
 ): string {
@@ -1452,47 +1655,12 @@ export function renderConversationDetail(
       ${older ? deeper(conversationUrl(d.conversationId), t(locale, 'inbox.log.latest')) : ''}
     </div>`;
 
-  const draftCard = d.pendingDraft
-    ? `<div class="card draft" role="region">
-        <h2>${esc(t(locale, 'buyers.review.title'))}</h2>
-        <p class="muted review-intro">${esc(t(locale, 'buyers.review.intro', { buyer: d.buyer ?? t(locale, 'common.buyer') }))}</p>
-        ${d.pendingDraft.heldBecause
-          ? `<p class="held-why" role="note">${esc(t(locale, `inbox.draft.held.${d.pendingDraft.heldBecause}` as MessageKey, { name: assistantName(locale) }))}</p>`
-          : ''}
-        ${d.pendingDraft.disclosureSent
-          ? `<p class="held-why rf" role="note">${esc(t(locale, 'inbox.draft.held.disclosure_sent', { name: assistantName(locale) }))}</p>`
-          : ''}
-        ${d.pendingDraft.contradicts ? contradictionBlock(d.pendingDraft.contradicts, locale) : ''}
-        ${d.pendingDraft.forbidden?.length
-          ? `<p class="held-why muted"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, d.pendingDraft.forbidden) }))}</bdi></p>`
-          : ''}
-        <div dir="auto" class="proposed"><bdi>${esc(d.pendingDraft.draftText)}</bdi></div>
-        <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="acts">
-          <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
-          <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
-          <button class="btn" name="command" value="不回">${esc(t(locale, 'inbox.action.skip'))}</button>
-          <button class="btn danger" name="command" value="收回"
-                  onclick="return confirm(this.dataset.confirm)"
-                  data-confirm="${esc(t(locale, 'inbox.action.revoke.confirm', { cap: capabilityName(locale, d.pendingDraft.capability) }))}"
-          >${esc(t(locale, 'inbox.action.revoke'))}</button>
-        </form>
-        <p class="muted revoke-note">${esc(t(locale, 'inbox.action.revoke.note'))}</p>
-        ${viewer.isOwner ? `<p class="muted revoke-note"><a href="/app/employee#on-her-own">${esc(t(locale, 'autonomy.hint'))}</a></p>` : ''}
-        <form method="post" action="/app/inbox/${encodeURIComponent(d.conversationId)}/act" class="editform">
-          <input type="hidden" name="draftId" value="${esc(d.pendingDraft.draftId)}" />
-          <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
-          ${d.pendingDraft.ownerEdit ? `<p class="muted" role="note">${esc(t(locale, 'inbox.edit.kept'))}</p>` : ''}
-          ${/* CC-24 — the box opens with the owner's kept edit, else with the draft itself: an edit, not a retyping.
-               CC-26 — and what she types in it is kept by the page's script, by conversation and box, until it is sent. */ ''}<textarea id="edit" name="edit" rows="4" dir="auto" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}" data-keep="${esc(`${d.conversationId}:edit`)}">${esc(d.pendingDraft.ownerEdit ?? d.pendingDraft.draftText)}</textarea>
-          <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
-        </form>
-      </div>`
-    : '';
+  const draftCard = approvalCard(d, locale, now);
   const noDraft = `<div class="block"><div class="empty muted">${esc(t(locale, 'inbox.draft.none'))}</div></div>`;
 
   // Phase D — "why did she say that?", from the stored usage audit. Shown only
   // while SHE is speaking: once a human takes over it is no longer the question.
-  const knew = d.ownership === 'AI' && d.knowledgeUsed.length > 0
+  const knew = d.ownership === 'AI' && d.knowledgeUsed.length > 0 && !d.pendingDraft
     ? `<div class="block knew"><h2>${esc(t(locale, 'buyers.knew.title'))}</h2>
         <ul class="knewlist">${d.knowledgeUsed.map((k) => `<li>${esc(k)}</li>`).join('')}</ul></div>`
     : '';

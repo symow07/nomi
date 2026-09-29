@@ -903,6 +903,43 @@ const STYLE_PAGES = `
   .dhead h1.who { margin:0; font-weight:400; }
   .as-hand { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8);
     margin:var(--space-8) 0 var(--space-12); font-size:var(--font-size-small); }
+  /* The approval card (the design pass): who asked, what was understood, how
+     it was read, the reply once in the only box drawn in graphite, and the
+     acts in one row with the quiet one at the far end. On a wide screen it
+     stays in view at the foot of the conversation while the messages above
+     it scroll; on a narrow one it sits in the page's own order. */
+  #approve { display:flex; flex-direction:column; gap:var(--space-12); }
+  #approve .top { display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-4) var(--space-16);
+    flex-wrap:wrap; font-size:var(--font-size-small); }
+  #approve .top b { font-weight:600; }
+  #approve .said { font-family:var(--font-voice); margin:0; white-space:pre-wrap; word-break:break-word; }
+  #approve .und { display:flex; gap:var(--space-4) var(--space-12); flex-wrap:wrap; margin:0; font-size:var(--font-size-small); }
+  #approve .k { color:var(--color-ink-secondary); }
+  #approve details { font-size:var(--font-size-small); }
+  #approve summary { display:flex; gap:var(--space-8); cursor:pointer; min-height:32px; align-items:center; }
+  #approve summary .c { margin-inline-start:auto; color:var(--color-ink-secondary); }
+  .reasons { list-style:none; margin:var(--space-8) 0 0; padding:var(--space-8) var(--space-12); display:grid; gap:var(--space-4);
+    background:var(--color-paper); border-radius:6px; }
+  .reasons li { display:grid; grid-template-columns:1.2em minmax(6em, max-content) 1fr; gap:var(--space-8); align-items:baseline; }
+  .reasons .mk.warn { color:var(--color-waiting); }
+  .approve { display:flex; flex-direction:column; gap:var(--space-8); }
+  .approve .lab { display:flex; justify-content:space-between; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
+  .approve textarea { font-family:var(--font-voice); font-size:var(--font-size-base); color:var(--color-ink);
+    background:var(--color-surface); border:1.5px solid var(--color-ink); border-radius:6px; padding:10px 14px;
+    width:100%; min-height:6.5em; max-height:40vh; resize:vertical; margin:0; }
+  .approve .src { display:flex; justify-content:space-between; gap:var(--space-4) var(--space-12); flex-wrap:wrap;
+    font-size:var(--font-size-caption); color:var(--color-ink-secondary); }
+  .approve .acts { align-items:center; margin:var(--space-4) 0 0; }
+  .approve .acts .quiet { margin-inline-start:auto; }
+  .approve label.btn { cursor:text; }
+  .stateline { margin:0; font-size:var(--font-size-small); }
+  .stateline b { font-weight:600; }
+  .stateline .dot.warn { color:var(--color-waiting); }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  @media (min-width: 1100px) {
+    #approve { position:sticky; bottom:var(--space-16); z-index:2; box-shadow:var(--shadow-lift2);
+      max-height:calc(100vh - var(--space-32)); overflow-y:auto; }
+  }
   /* The reply waiting for review. */
   .review-intro { margin:0 0 var(--space-12); }
   .draft .held-why { margin:0 0 var(--space-12); font-size:var(--font-size-small); color:var(--color-waiting); }

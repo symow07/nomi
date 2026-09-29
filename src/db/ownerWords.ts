@@ -28,6 +28,23 @@ export async function keepDraftEdit(tx: Tx, businessId: BusinessId, draftId: str
   `.execute(tx);
 }
 
+/**
+ * The design pass (2026-09-29) — the approval card has ONE Send, and it carries
+ * what is in the box. The words go as the draft itself when they are the
+ * draft's (line endings and the space at either end aside), and as the owner's
+ * edit otherwise. `null`: no draft of this business's by that id.
+ */
+export async function draftTextOf(tx: Tx, businessId: BusinessId, draftId: string): Promise<string | null> {
+  const row = (await sql<{ draft_text: string }>`
+    select draft_text from drafts where id = ${draftId}::uuid and business_id = ${businessId}::uuid
+  `.execute(tx)).rows[0];
+  return row ? row.draft_text : null;
+}
+
+/** The same words, as the card compares them. */
+export const sameWords = (a: string, b: string): boolean =>
+  a.replace(/\r\n/g, '\n').trim() === b.replace(/\r\n/g, '\n').trim();
+
 /** Keep the owner's own reply that was refused before it could be queued. */
 export async function keepUnsentReply(tx: Tx, businessId: BusinessId, conversationId: string, text: string): Promise<void> {
   if (!text.trim()) return;

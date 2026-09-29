@@ -217,7 +217,7 @@ describe('CC-26 · the half-typed reply is marked for keeping — the two boxes,
 
   it('the draft\'s edit box, keyed by its conversation', () => {
     const html = renderConversationDetail({ ...base, quote: { unitPrice: usd(0.92), total: usd(460), quantity: 500 } }, 'en', NOW, null);
-    expect(html).toMatch(new RegExp(`<textarea id="edit" name="edit"[^>]*data-keep="${CONV}:edit">For 500 pcs: \\$0\\.92/pc\\.</textarea>`));
+    expect(html).toMatch(new RegExp(`<textarea id="reply" name="edit"[^>]*data-keep="${CONV}:edit">For 500 pcs: \\$0\\.92/pc\\.</textarea>`));
     expect(html.match(/data-keep=/g)).toHaveLength(1);
   });
 

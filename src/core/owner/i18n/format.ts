@@ -49,6 +49,7 @@ export function formatTime(locale: Locale, d: Date): string {
 
 const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم' };
 const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس' };
+const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا' };
 /** The calendar day an instant falls on in the business timezone, as 'YYYY-MM-DD'. */
 export const dayKey = (d: Date): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -125,5 +126,19 @@ export function formatRelative(locale: Locale, d: Date, now: Date): string {
   const time = formatTime(locale, d);
   if (dayKey(d) === dayKey(now)) return `${TODAY[locale]} ${time}`;
   if (dayKey(d) === dayKey(new Date(now.getTime() - 86_400_000))) return `${YESTERDAY[locale]} ${time}`;
+  return `${formatDate(locale, d)} ${time}`;
+}
+
+/**
+ * A time still to come, for "…until {time}": the hour alone today, the word
+ * for tomorrow beside it, a date after that. "16:04" / "16:04 tomorrow" /
+ * "明天 16:04" / "غدًا 16:04".
+ */
+export function formatUntil(locale: Locale, d: Date, now: Date): string {
+  const time = formatTime(locale, d);
+  if (dayKey(d) === dayKey(now)) return time;
+  if (dayKey(d) === dayKey(new Date(now.getTime() + 86_400_000))) {
+    return locale === 'en' ? `${time} tomorrow` : `${TOMORROW[locale]} ${time}`;
+  }
   return `${formatDate(locale, d)} ${time}`;
 }

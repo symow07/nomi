@@ -306,7 +306,8 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(replied.headers['location']).toBe('/app/sandbox?mode=live#latest');
     const after = await land(replied);
     // her reply is the newest line now, and the notice — the landing — is under it
-    expect(after).toMatch(/<div class="msg outbound">\s*<div dir="auto" class="bubble"><bdi>Let me check the floor for you\.<\/bdi><\/div>\s*<div class="ts muted">[^<]*<\/div>\s*<\/div><\/div>/);
+    // the signature line may carry the assistant's ✦ and name in spans (the design pass)
+    expect(after).toMatch(/<div class="msg outbound">\s*<div dir="auto" class="bubble"><bdi>Let me check the floor for you\.<\/bdi><\/div>\s*<div class="ts muted">(?:[^<]|<\/?span[^>]*>)*<\/div>\s*<\/div><\/div>/);
     expect(landing(after)).toBeGreaterThan(at(after, 'Let me check the floor for you.'));
 
     const resumed = await post('/app/sandbox/resume', { mode: 'live' });
