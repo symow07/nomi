@@ -159,6 +159,39 @@ export type NotifyJob = {
 };
 
 /**
+ * FAIR (the one-month build order, 2026-09-30) — one inbound queue, shared
+ * fairly between workspaces.
+ *
+ * Every inbound job carries its workspace as its pg-boss GROUP, and the worker
+ * runs `INBOUND_WORK.localConcurrency` jobs at once, at most
+ * `localGroupConcurrency` of them for any one workspace. One workspace's
+ * backlog then holds one worker and
+ * every other workspace is answered by the rest — before, one worker took one
+ * job per poll for everybody, and a dozen of one tenant's messages held
+ * another's for 24 seconds (found in the integration run for #130).
+ *
+ * One at a time per workspace also means one at a time per conversation: the
+ * advisory lock in the worker stays the belt to this brace.
+ */
+//
+// The IN-PROCESS count, not pg-boss's database one: the database count races —
+// three workers that poll in the same millisecond each see nobody running and
+// each take one of the same workspace's jobs (tests/integration/fair-queue.test.ts
+// caught it). The in-process count is settled synchronously after each fetch
+// and puts any excess job back. pg-boss takes one or the other; production runs
+// ONE replica, so this is the installation's limit. With more replicas it
+// becomes one per workspace per replica.
+//
+// And THREE WORKERS WHOSE POLLS ARE A THIRD OF AN INTERVAL APART, not one
+// registration of three: three workers that poll in the same instant are each
+// handed one of the three OLDEST jobs, and when those are all one workspace's,
+// two are put back — one job per poll for everybody, the backlog first, which
+// is the unfairness this exists to end (the fairness test caught it). Apart,
+// each fetch sees the workspace already running and passes over it.
+export const INBOUND_WORK = { workers: 3, pollSeconds: 2, localGroupConcurrency: 1 } as const;
+export const inboundGroup = (businessId: string): { readonly id: string } => ({ id: businessId });
+
+/**
  * Enqueue an inbound message. singletonKey = conversationId ensures two
  * messages from the same client never process concurrently (the advisory lock
  * in the worker is the belt to this brace).
@@ -167,5 +200,6 @@ export async function enqueueInbound(boss: PgBoss, job: InboundJob): Promise<voi
   await boss.send(QUEUES.inbound, job, {
     singletonKey: job.conversationId,
     retryLimit: 3,
+    group: inboundGroup(job.businessId),
   });
 }

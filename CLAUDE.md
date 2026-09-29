@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 135 | **FAIR — the inbound queue shared fairly between workspaces**: a group per workspace, three workers, one at a time per workspace — see §5 rule 34 |
 | 134 | **REKEY — `CREDENTIAL_KEY` rotation without a token lost**: the app reads with the previous key during a rotation, `tools/rekey.mjs` re-seals, the doc rewritten around it — see §5 rule 33 |
 | 133 | **PWR — "Forgot your password?"** (0084): a one-time link by e-mail, the same words whether or not the address signs in here — see §5 rule 32 |
 | 132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the live check before and after, with history cases — see §5 rule 31 |
@@ -460,6 +461,12 @@ Recent PRs, newest first:
    - Order: backup → the owner sets `CREDENTIAL_KEY_PREVIOUS` = old and `CREDENTIAL_KEY` = new in one change → `tools/rekey.mjs` (dry run, then `--yes`; keys and the admin address from the environment only — the doc's nested `railway run` supplies `ADMIN_DATABASE_URL` from Postgres and the keys from `nomi`) → run again: "Nothing to re-seal" → remove `CREDENTIAL_KEY_PREVIOUS`.
    - Without a previous key the tool only counts (production 2026-09-30: 4 sealed tokens, all open). `tools/lib/sealed.mjs` is its copy of the format and `SEALED` its list of columns; tests hold both to the app and to every `*_ciphertext` column in the migrations and the schema.
    - Tests: `tests/parity/rekey.test.ts`, `tests/integration/rekey.test.ts`.
+34. **The inbound queue is shared fairly between workspaces** (FAIR, #135, 2026-09-30; `INBOUND_WORK` and `inboundGroup` in `src/queue/boss.ts`).
+   - Every inbound job (the webhook's, the batch's wake, answer-now) carries its workspace as its pg-boss `group`. THREE workers whose polls are a third of an interval apart (`INBOUND_WORK`), at most ONE job per workspace (`localGroupConcurrency: 1`) — so one workspace's backlog holds one worker and the others keep answering, and a workspace never has two turns at once (so neither does a conversation; the advisory lock stays the belt).
+   - **Apart, not together:** three workers polling in the same instant are each handed one of the three oldest jobs; all one workspace's, two are put back — one job per poll for everybody, the backlog first. The fairness test read the quiet customer 6th–7th with aligned polls (3 runs of 3) and within the first few with staggered ones (5 of 5).
+   - The in-process limit, not pg-boss's database one: that one races (three workers polling in the same millisecond each took one of the same workspace's jobs), and pg-boss accepts only one of the two. Production runs ONE replica; with more, the limit becomes one per workspace per replica.
+   - **Batching kept whole under concurrency:** two of one workspace's jobs can be fetched in the same poll, and the one pg-boss keeps is not always the older — a batch's wake could run before the message sent right after the first was even recorded, and answer them apart (Q1's batched test caught it on CI, ~1 run in 4). The wake now waits (a second at a time, within the batch's hard window) while an inbound job of the SAME conversation is still queued or in flight with its message not yet a fragment (`src/worker/main.ts`). Proven 20/20 with the wait, 9/12 without.
+   - Before: one worker, one job per 2-second poll for everybody — a dozen of one tenant's messages held another's for 24 s. Tests: `tests/integration/fair-queue.test.ts` (8 busy + 1 quiet with a slow model: the quiet one is read before the backlog clears, the busy one never runs two at once; switched off, the quiet one is read ninth).
 
 ## 6 · What's next
 

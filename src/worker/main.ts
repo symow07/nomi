@@ -22,7 +22,7 @@ import {
   handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
 } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
-import { QUEUES, startBoss, type InboundJob, type NotifyJob } from '../queue/boss.js';
+import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
 import { alertKindFor } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
 import {
@@ -273,18 +273,26 @@ export async function startWorker(
   // data — the message, never the reason — and the first real Messenger
   // message in production dead-lettered on an invalid model key that took a
   // query of the job table to find.
-  await boss.work<InboundJob>(QUEUES.inbound, async ([job]: { data: InboundJob }[]) => {
+  // FAIR — several at once, never more than one per workspace, their polls
+  // spread across the interval (queue/boss.ts says why).
+  const onInboundJob = async ([job]: { data: InboundJob; id?: string }[]) => {
     try {
       await onInbound(job);
     } catch (e) {
       console.error('[inbound failed]', redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 300));
       throw e;
     }
-  });
+  };
+  for (let i = 0; i < INBOUND_WORK.workers; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, (INBOUND_WORK.pollSeconds * 1000) / INBOUND_WORK.workers));
+    await boss.work<InboundJob>(QUEUES.inbound, {
+      localGroupConcurrency: INBOUND_WORK.localGroupConcurrency, pollingIntervalSeconds: INBOUND_WORK.pollSeconds,
+    }, onInboundJob);
+  }
 
   // A declaration, hoisted on purpose: a job can arrive the moment the queue
   // is worked, before the lines below this call have run.
-  async function onInbound(job: { data: InboundJob } | undefined): Promise<void> {
+  async function onInbound(job: { data: InboundJob; id?: string } | undefined): Promise<void> {
     if (!job) return;
     const businessId = parseBusinessId(job.data.businessId);
     const conversationId = parseConversationId(job.data.conversationId);
@@ -469,11 +477,32 @@ export async function startWorker(
         // NOT a reason to schedule another wake, which is how a debounce turns
         // into a loop that never empties.
         if (pending.length === 0) return null;
-        return { pending, config: await batchConfigFor(tx, businessId.value) };
+        // FAIR — several workers take the queue, and when two of one
+        // workspace's jobs are fetched at once the one kept is not always the
+        // older: this wake can run before the message sent right after the
+        // first has even been recorded. A message of THIS conversation still
+        // waiting in the queue, not yet a fragment, belongs in this batch.
+        const unrecorded = (await sql<{ n: number }>`
+          select count(*)::int as n from pgboss.job j
+           -- 'active' too: fetched in the same poll by another worker, and
+           -- about to be put back because this job holds the workspace's slot.
+           where j.name = ${QUEUES.inbound} and j.state in ('created', 'retry', 'active')
+             and j.singleton_key = ${conversationId.value}
+             and (${job.id ?? null}::uuid is null or j.id <> ${job.id ?? null}::uuid)
+             and not exists (select 1 from message_fragments f where f.id = j.data->>'messageId')`
+          .execute(tx)).rows[0]?.n ?? 0;
+        return { pending, unrecorded, config: await batchConfigFor(tx, businessId.value) };
       });
       if (!decision) return;
 
-      const batch = decideBatch(decision.pending, new Date(), decision.config);
+      const now = new Date();
+      let batch = decideBatch(decision.pending, now, decision.config);
+      // …so the batch waits for it — a second at a time, and never past the
+      // batch's own hard window, after which it is answered as it stands.
+      const firstAt = Math.min(...decision.pending.map((f) => f.receivedAt.getTime()));
+      if (batch.action === 'process' && decision.unrecorded > 0 && now.getTime() - firstAt < decision.config.maxWindowMs) {
+        batch = { action: 'wait', checkAgainAt: new Date(Math.min(now.getTime() + 1_000, firstAt + decision.config.maxWindowMs)) };
+      }
       if (batch.action === 'wait') {
         // He is still typing. Come back when the quiet would have elapsed, or
         // when the hard window closes — `decideBatch` decides which, and this
@@ -482,6 +511,7 @@ export async function startWorker(
           singletonKey: conversationId.value,
           startAfter: batch.checkAgainAt,
           retryLimit: 3,
+          group: inboundGroup(businessId.value),
         });
         return;
       }
