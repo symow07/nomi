@@ -129,7 +129,11 @@ d('Q1 · through the production worker (requires DATABASE_URL)', () => {
     const setup = createDb(DATABASE_URL!);
     await inTenant(setup, SHOP, async (t) => {
       await sql`insert into businesses (id, name, engine) values (${SHOP}, 'History Worker Shop', 'service') on conflict (id) do nothing`.execute(t);
-      await sql`update businesses set batch_debounce_ms = 300, batch_max_window_ms = 1000 where id = ${SHOP}`.execute(t);
+      // A short quiet time, for speed — but a hard window longer than a poll
+      // (2 s): several workers share the queue (FAIR), and a batch waits for a
+      // message of its conversation still in the queue only within its window.
+      // Production's is 20 s.
+      await sql`update businesses set batch_debounce_ms = 300, batch_max_window_ms = 10000 where id = ${SHOP}`.execute(t);
       await sql`insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
                 values (${SHOP}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')`.execute(t);
     });

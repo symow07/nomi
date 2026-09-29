@@ -176,6 +176,14 @@ instruction did not answer. Collected here; asked once, at the end.
   "Yesterday" for the first minutes after its midnight. Now the test expects
   what `formatRelative` says for the row's own instant; reproduced both ways
   (message moved a day back: the old assertion fails, the new one passes).
+- **FAIR's concurrency could split a batch** (found 2026-09-30 on #135's
+  CI): with three workers, two of one workspace's jobs can be fetched in one
+  poll and pg-boss keeps whichever registers first, so a batch's wake could
+  run before the second message was recorded and answer the two apart
+  (reproduced about one run in four). The wake now waits for a message of the
+  same conversation still in the queue, within the batch's hard window;
+  20 of 20 with it, 9 of 12 without. Q1's batched test now uses a 10-second
+  window (production's is 20; the old 1 second was shorter than a poll).
 - **Practice's scripted turns record two "model calls"** in `turns` (the
   stand-ins count like models, model id `scripted`, no tokens). One in
   production (2026-09-19). The report counts them apart; the ledger never
