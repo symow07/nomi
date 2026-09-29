@@ -132,13 +132,16 @@ describe('M9.5 · owner language + mobile (every locale)', () => {
  * which of three different things is missing.
  */
 describe('D1 · the badge says WHAT is missing', () => {
-  it('four states from three facts, and a priced product never reads "needs a price"', async () => {
+  it('five states from four facts, and a priced product never reads "needs a price"', async () => {
     const { productStatus } = await import('../../src/api/web/products.js');
-    expect(productStatus({ isActive: false, hasPrice: false, hasLimits: false })).toBe('needs_price');
-    expect(productStatus({ isActive: true, hasPrice: false, hasLimits: true }), 'no price is never learned').toBe('needs_price');
-    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: false })).toBe('needs_limits');
-    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: true })).toBe('not_offered');
-    expect(productStatus({ isActive: true, hasPrice: true, hasLimits: true })).toBe('learned');
+    const f = { findable: true };
+    expect(productStatus({ isActive: false, hasPrice: false, hasLimits: false, ...f })).toBe('needs_price');
+    expect(productStatus({ isActive: true, hasPrice: false, hasLimits: true, ...f }), 'no price is never learned').toBe('needs_price');
+    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: false, ...f })).toBe('needs_limits');
+    expect(productStatus({ isActive: false, hasPrice: true, hasLimits: true, ...f })).toBe('not_offered');
+    expect(productStatus({ isActive: true, hasPrice: true, hasLimits: true, ...f })).toBe('learned');
+    // T3 — offered and priced, but found by no name: never "ready".
+    expect(productStatus({ isActive: true, hasPrice: true, hasLimits: true, findable: false })).toBe('not_findable');
   });
 
   it('the list names the next step once, with a way there, and shows what the import said', () => {

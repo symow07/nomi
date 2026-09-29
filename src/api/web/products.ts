@@ -9,6 +9,8 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { formatQty, formatQtyUnit, formatMoney, withUnit, labelled } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
+import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
+import { addAliases, renameAlias } from '../../db/productAliases.js';
 import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
@@ -70,10 +72,19 @@ export type ProductListItem = {
  *   not_offered    priced and covered, and switched off (by her, or a floor above its price)
  *   learned        she sells it
  */
-export type ProductStatus = 'learned' | 'needs_price' | 'needs_limits' | 'not_offered';
+export type ProductStatus = 'learned' | 'needs_price' | 'needs_limits' | 'not_offered' | 'not_findable';
 
-export const productStatus = (p: { readonly isActive: boolean; readonly hasPrice: boolean; readonly hasLimits: boolean }): ProductStatus =>
-  !p.hasPrice ? 'needs_price' : p.isActive ? 'learned' : p.hasLimits ? 'not_offered' : 'needs_limits';
+/**
+ * T3 — "Ready" (no mark) only for a product customers can reach: offered, priced,
+ * AND found by some name (`src/core/onboard/aliases.ts`). Offered and priced but
+ * found by no name is its own state, said on the page.
+ */
+export const productStatus = (p: {
+  readonly isActive: boolean; readonly hasPrice: boolean; readonly hasLimits: boolean; readonly findable: boolean;
+}): ProductStatus =>
+  !p.hasPrice ? 'needs_price'
+  : p.isActive ? (p.findable ? 'learned' : 'not_findable')
+  : p.hasLimits ? 'not_offered' : 'needs_limits';
 
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
   const bid = parseBusinessId(businessIdRaw);
@@ -81,14 +92,15 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
   return withTenantTx(db, bid.value, async (tx) => (await sql<{
     id: string; name: string; name_zh: string | null; sku: string; moq: number | null; unit: string;
     is_active: boolean; price: string | null; currency: string;
-    entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean;
+    entry_qty: number | null; entry_price: string | null; extras: number; has_limits: boolean; has_alias: boolean;
   }>`
     select p.id, p.name, p.name_zh, p.sku, p.moq, p.unit, p.is_active, p.price_usd_per_unit as price,
            p.currency, t.min_qty as entry_qty, t.unit_price_usd as entry_price,
            exists (select 1 from pricing_policy pp where pp.business_id = p.business_id
                     and (pp.product_id = p.id or pp.product_id is null)) as has_limits,
            (select count(*) from product_aliases a where a.product_id = p.id)
-             + (select count(*) from product_images i where i.product_id = p.id) as extras
+             + (select count(*) from product_images i where i.product_id = p.id) as extras,
+           exists (select 1 from product_aliases a where a.product_id = p.id) as has_alias
       from products p
       left join lateral (select min_qty, unit_price_usd from price_tiers pt
                           where pt.product_id = p.id order by min_qty asc limit 1) t on true
@@ -102,7 +114,7 @@ export async function loadProductList(db: Db, businessIdRaw: string): Promise<re
       // G18 — her product's own currency, not an assumed dollar.
       entryPrice: entryPrice === null ? null : moneyFromRow(entryPrice, r.currency),
       learned: r.is_active && entryPrice !== null,
-      status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits }),
+      status: productStatus({ isActive: r.is_active, hasPrice: entryPrice !== null, hasLimits: r.has_limits, findable: r.has_alias }),
       imageMatchable: r.is_active && Number(r.extras) > 0,
       isActive: r.is_active,
     };
@@ -172,7 +184,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       id: p.id, name: p.name, nameZh: p.name_zh, sku: p.sku,
       category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
       customizable: p.customizable, learned, isActive: p.is_active,
-      status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits }),
+      status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
     };
@@ -300,7 +312,10 @@ export async function confirmImport(
       const id = ins.rows[0]?.id;
       if (!id) { alreadyHere++; continue; }        // written by someone else since the review
       added++;
-      if (coveredByGeneral(p.price)) ready++;
+      // T3 — the names it is found by. Without them no customer's words ever
+      // reach it, however it is priced: "ready" only when it can be found.
+      const findable = (await addAliases(tx, id, [p.name, p.nameZh])) > 0;
+      if (coveredByGeneral(p.price) && findable) ready++;
       if (p.price !== null) {
         withPrice++;
         await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
@@ -374,6 +389,7 @@ export const importFlash = (
 
 const STATUS_KEY = {
   needs_price: 'product.status.needsConfirm', needs_limits: 'product.status.needsLimits', not_offered: 'product.status.notOffered',
+  not_findable: 'product.status.notFindable',
 } as const;
 const statusPill = (locale: Locale, status: ProductStatus): string =>
   // An absent mark means fine: only what is NOT in order gets a pill.
@@ -437,6 +453,13 @@ export function renderProductDetail(
   </div>` : `<div class="block">
     <h2>${esc(t(locale, 'product.edit.title'))}</h2>
     <form method="post" action="/app/products/${encodeURIComponent(d.id)}/edit" class="pform">
+      <label class="pq"><span>${esc(t(locale, 'product.edit.name'))}</span>
+        <input name="name" dir="auto" value="${val('name', d.name)}" />${ferr('name')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
+        <input name="nameZh" lang="zh" value="${val('nameZh', d.nameZh ?? '')}" />${ferr('nameZh')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.customerNames'))}</span>
+        <textarea name="customerNames" rows="3" dir="auto">${val('customerNames', '')}</textarea>${ferr('customerNames')}
+        <span class="caption muted">${esc(t(locale, 'product.edit.customerNames.hint'))}</span></label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
         <input name="price" inputmode="decimal"
                value="${val('price', d.tiers[0] ? String(d.tiers[0].unitPrice.amount) : '')}" />${ferr('price')}</label>
@@ -458,9 +481,11 @@ export function renderProductDetail(
     : `<div class="block"><h2>${esc(t(locale, 'product.detail.priceTitle'))}</h2><p class="muted">${esc(t(locale, 'product.detail.noPrice'))}${viewer.isOwner ? ` <a href="/app/products/add">${esc(t(locale, 'product.detail.addPrice'))}</a>` : ''}</p></div>`;
 
   const aliases = d.aliases.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>
+    ? `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2><div class="chips">${d.aliases.map((a) => `<span class="chip" dir="auto">${esc(a)}</span>`).join('')}</div>
         <p class="muted">${esc(t(locale, 'product.detail.aliasesNote', { name: assistantName(locale) }))}</p></div>`
-    : '';
+    // T3 — found by no name: said, with what makes it findable.
+    : `<div class="block"><h2>${esc(t(locale, 'product.detail.aliasesTitle'))}</h2>
+        <p class="fwarn">${esc(t(locale, 'product.detail.notFindable'))}</p></div>`;
 
   const images = d.images.length
     ? `<div class="block"><h2>${esc(t(locale, 'product.detail.imagesTitle'))}</h2><div class="imgs">${d.images.map((url) => `<img src="${esc(url)}" alt="${esc(title)}" loading="lazy" />`).join('')}</div></div>`
@@ -621,10 +646,14 @@ export type ProductEdit = {
   readonly moq?: string | null;
   readonly unit?: string | null;
   readonly isActive?: boolean;
+  /** T3 — the name, the Chinese name, and names customers use to ADD (one per line). Null leaves each as it is. */
+  readonly name?: string | null;
+  readonly nameZh?: string | null;
+  readonly customerNames?: string | null;
 };
 
-export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive';
-export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor';
+export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames';
+export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many';
 
 export type EditResult =
   | { readonly ok: true; readonly changed: readonly ProductEditField[] }
@@ -651,8 +680,9 @@ async function updateProductTx(
 ): Promise<EditResult> {
   const cur = (await sql<{
     price: string | null; moq: number | null; unit: string; is_active: boolean; floor: string | null;
+    name: string; name_zh: string | null;
   }>`
-    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active,
+    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active, p.name, p.name_zh,
            pp.floor_price_usd as floor
       from products p
       left join pricing_policy pp
@@ -690,6 +720,27 @@ async function updateProductTx(
     if (u === '') errors.unit = 'empty';
     else unit = u;
   }
+  // T3 — a name is what customers' words are matched against: one space
+  // between words, and short enough to be matched (a longer one could never be).
+  let name = cur.name;
+  let nameZh = cur.name_zh;
+  if (edit.name !== undefined && edit.name !== null) {
+    const n = cleanName(edit.name);
+    if (n === null) errors.name = 'empty';
+    else if (n !== cur.name && n.length > MAX_ALIAS_LENGTH) errors.name = 'too_long';
+    else name = n;
+  }
+  if (edit.nameZh !== undefined && edit.nameZh !== null) {
+    const n = cleanName(edit.nameZh);
+    if (n !== null && n !== cur.name_zh && n.length > MAX_ALIAS_LENGTH) errors.nameZh = 'too_long';
+    else nameZh = n;
+  }
+  let customerNames: readonly string[] = [];
+  if (edit.customerNames !== undefined && edit.customerNames !== null) {
+    const c = parseCustomerNames(edit.customerNames);
+    if (!c.ok) errors.customerNames = c.error;
+    else customerNames = c.names;
+  }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const isActive = edit.isActive ?? cur.is_active;
@@ -702,14 +753,30 @@ async function updateProductTx(
   note('moq', cur.moq, moq);
   note('unit', cur.unit, unit);
   note('isActive', cur.is_active, isActive);
+  note('name', cur.name, name);
+  note('nameZh', cur.name_zh, nameZh);
 
+  if (changed.length === 0 && customerNames.length === 0) return { ok: true, changed: [] };
+
+  if (changed.length > 0) {
+    await sql`
+      update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
+                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, updated_at = now()
+       where business_id = ${bid} and id = ${productId}
+    `.execute(tx);
+  }
+
+  // T3 — the names it is found by follow the names it has: the old name's row
+  // is rewritten to the new one, a product found by no name (imported before
+  // T3) gains its own, and the names customers use are added.
+  if (detail['name']) await renameAlias(tx, productId, cur.name, name);
+  if (detail['nameZh']) await renameAlias(tx, productId, cur.name_zh, nameZh);
+  await addAliases(tx, productId, [name, nameZh]);
+  if (customerNames.length > 0 && (await addAliases(tx, productId, customerNames)) > 0) {
+    changed.push('customerNames');
+    detail['customerNames'] = { from: null, to: customerNames };
+  }
   if (changed.length === 0) return { ok: true, changed: [] };
-
-  await sql`
-    update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
-                        is_active = ${isActive}, updated_at = now()
-     where business_id = ${bid} and id = ${productId}
-  `.execute(tx);
 
   // The entry tier is the same fact as the list price. Letting them drift is
   // how a quote comes out at a number the owner never set.

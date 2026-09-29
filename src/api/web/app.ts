@@ -2364,6 +2364,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       moq: b['moq'] ?? null,
       unit: b['unit'] ?? null,
       isActive: b['isActive'] === 'on',
+      name: b['name'] ?? null,
+      nameZh: b['nameZh'] ?? null,
+      customerNames: b['customerNames'] ?? null,
     });
     const locale = localeOf(req);
     if (!r.ok) {
