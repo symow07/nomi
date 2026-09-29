@@ -136,7 +136,7 @@ d('C6 · her mailbox (requires DATABASE_URL)', () => {
     const owner = await get(ownerCookie, '/app/channels');
     expect(owner.body).toContain(esc(t('en', 'connect.title')));
     expect(owner.body).toContain('action="/app/connect/google/start"');
-    expect(owner.body).toContain('href="/app/connect/microsoft/start"');
+    expect(owner.body).toContain('action="/app/connect/microsoft/start"');
     const staff = await get(staffCookie, '/app/channels');
     expect(staff.body).not.toContain('/start"');
     const tried = await get(staffCookie, '/app/connect/google/start');

@@ -180,7 +180,7 @@ function knowsSection(e: EmployeeProfile, c: HerContext | undefined, locale: Loc
   if (e.knows === 0 && (!c || (c.taughtRecently === 0 && c.corrected === 0))) {
     return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
       <p class="muted empty-p">${esc(t(locale, 'her.knows.none'))}</p>
-      <a class="btn" href="/app/knowledge">${esc(t(locale, 'knowledge.teach'))}</a></div>`;
+      ${deeper('/app/knowledge', t(locale, 'knowledge.teach'))}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.knows.title'))}</h2>
     <div class="hrows">
@@ -214,7 +214,7 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
     const pristine = c.handled === 0;
     return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
       <p class="muted empty-p">${pristine ? '' : '✓ '}${esc(t(locale, pristine ? 'her.teach.unasked' : 'her.teach.none'))}</p>
-      ${pristine ? `<a class="btn send" href="/app/knowledge">${esc(t(locale, 'her.teach.go'))}</a>` : ''}</div>`;
+      ${pristine ? deeper('/app/knowledge', t(locale, 'her.teach.go')) : ''}</div>`;
   }
   return `<div class="block"><h2>${esc(t(locale, 'her.teach.title'))}</h2>
     <div class="gaps">${c.gaps.map((g) => `

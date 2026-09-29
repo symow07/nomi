@@ -6,7 +6,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatDate } from '../../core/owner/i18n/format.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
-import { back, esc } from './layout.js';
+import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 
 /**
@@ -138,7 +138,7 @@ export function renderProspects(
           </form>
         </li>`).join('')}</ul>
         ${f && v.outcome.totalPages > v.outcome.page
-          ? `<p><a class="btn" href="/app/prospects${esc(queryOf(f, v.outcome.page + 1))}">${esc(t(locale, 'prospects.results.next'))}</a></p>` : ''}`)
+          ? deeper(`/app/prospects${esc(queryOf(f, v.outcome.page + 1))}`, t(locale, 'prospects.results.next')) : ''}`)
     // D5 — a search that failed is a refusal, and now looks like one.
     : flashBanner({ text: failureSentence(locale, v.outcome.kind === 'failed' ? v.outcome.reason : v.outcome.kind), bad: true });
 

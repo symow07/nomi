@@ -135,7 +135,7 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
 
   it('connected through the host\'s account, with a login offered: the login button is still there', () => {
     const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start' });
-    expect(html).toContain('href="/app/connect/meta/start"');
+    expect(html).toContain('action="/app/connect/meta/start"');
     expect(html).not.toContain('action="/app/connect/meta/disconnect"');
   });
 
@@ -143,18 +143,18 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
     const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start', connectedAs: 'Nomi does · @nomidoes_' });
     expect(html).toContain('Nomi does · @nomidoes_');
     expect(html).toContain('action="/app/connect/meta/disconnect"');
-    expect(html).not.toContain('href="/app/connect/meta/start"');
+    expect(html).not.toContain('action="/app/connect/meta/start"');
   });
 
   it('a token Meta refused says so and offers the login, not Disconnect', () => {
     const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start', connectedAs: 'Nomi does', needsAttention: true });
-    expect(html).toContain('href="/app/connect/meta/start"');
+    expect(html).toContain('action="/app/connect/meta/start"');
     expect(html).not.toContain('action="/app/connect/meta/disconnect"');
   });
 
   it('not connected: the login when offered, the host\'s account form only when it is not', () => {
     const login = render({ configured: true, connected: false, connectHref: '/app/connect/meta/start' });
-    expect(login).toContain('href="/app/connect/meta/start"');
+    expect(login).toContain('action="/app/connect/meta/start"');
     expect(login).not.toContain('action="/app/channels/messenger/connect"');
     const host = render({ configured: true, connected: false });
     expect(host).toContain('action="/app/channels/messenger/connect"');
@@ -163,7 +163,7 @@ describe('C10 · connect your own Page and Instagram, as the cards show it', () 
 
   it('staff see the state and no button either way', () => {
     const html = render({ configured: true, connected: true, connectHref: '/app/connect/meta/start' }, { id: 'p2', isOwner: false });
-    expect(html).not.toContain('href="/app/connect/meta/start"');
+    expect(html).not.toContain('action="/app/connect/meta/start"');
     expect(html).not.toContain('action="/app/connect/meta/disconnect"');
   });
 });

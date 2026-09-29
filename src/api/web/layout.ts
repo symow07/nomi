@@ -117,8 +117,8 @@ export const isOutreachRoute = (url: string): boolean => {
  * .fmore, .link, a bare <a> — so the same affordance looked different on every
  * page. One shape, one style, mirrored in RTL by `.go`.
  */
-export const deeper = (href: string, label: string, extra = ''): string =>
-  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}">${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
+export const deeper = (href: string, label: string, extra = '', attrs = ''): string =>
+  `<a class="deeper${extra ? ` ${extra}` : ''}" href="${href}"${attrs ? ` ${attrs}` : ''}>${esc(label)}<span class="go" aria-hidden="true">›</span></a>`;
 
 /** Its opposite. The arrow is a mirrored span, never a character in the copy. */
 export const back = (href: string, label: string): string =>

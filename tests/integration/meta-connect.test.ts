@@ -162,7 +162,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     expect([hs.statusCode, hs.body]).toEqual([200, 'c1']);
     // And her page offers the login, not the host's account.
     const page = await get('/app/channels');
-    expect(page.body).toContain('href="/app/connect/meta/start"');
+    expect(page.body).toContain('action="/app/connect/meta/start"');
     expect(page.body).not.toContain('action="/app/channels/messenger/connect"');
   }, 60_000);
 
@@ -241,7 +241,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     await until(async () => ((await account())?.last_error === 'revoked') || undefined);
     const page = await get('/app/channels');
     expect(page.body).toContain(esc(t('en', 'reach.inbound.attention')));
-    expect(page.body).toContain('href="/app/connect/meta/start"');
+    expect(page.body).toContain('action="/app/connect/meta/start"');
     dead.delete('page-token-A');
   }, 90_000);
 
@@ -306,7 +306,7 @@ d('C10 · connect your own Page and Instagram (requires DATABASE_URL)', () => {
     const r = await inbound('/webhook/messenger', 'page', { sender: buyer('karim'), recipient: PAGE_B2, text: 'anyone?' });
     expect(JSON.parse(r.body)).toMatchObject({ received: 0 });
     const page = await get('/app/channels');
-    expect(page.body).toContain('href="/app/connect/meta/start"');
+    expect(page.body).toContain('action="/app/connect/meta/start"');
     expect(page.body).not.toContain('action="/app/connect/meta/disconnect"');
   }, 60_000);
 });

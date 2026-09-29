@@ -21,7 +21,7 @@ import { t, assistantName, outreachShown } from './say.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { META_SHAPE } from '../../core/channel/metaReadiness.js';
-import { esc } from './layout.js';
+import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { connectedChannels } from '../../db/connectedChannels.js';
 import { callingCode } from '../../core/channel/callingCodes.js';
@@ -528,7 +528,8 @@ export function renderReach(
      */
     const loginButton = (key: 'reach.inbound.connectMeta' | 'reach.inbound.connect') => viewer.isOwner
       ? (link?.connectHref
-        ? `<a class="btn send" href="${esc(link.connectHref)}">${esc(t(locale, key))}</a>`
+        ? `<form method="get" action="${esc(link.connectHref)}" class="inline">
+            <button class="btn send" type="submit">${esc(t(locale, key))}</button></form>`
         : `<form method="post" action="/app/channels/${esc(channel)}/connect" class="inline">
             <button class="btn send" type="submit">${esc(t(locale, 'reach.inbound.connect'))}</button></form>`)
       : `<div class="muted win">${esc(t(locale, 'staff.ownerDecides'))}</div>`;
@@ -649,7 +650,7 @@ export function renderChannels(
       : data.canConnect
         ? `<form method="post" action="/app/channels/whatsapp/connect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.connectNumber'))}</button></form>
            <div class="muted ch-desc">${esc(t(locale, 'channel.connect.configured', { name: assistantName(locale) }))}</div>`
-        : `<a class="btn send" href="/app/channels/whatsapp/connect">${esc(t(locale, 'channel.action.connect'))}</a>`;
+        : deeper('/app/channels/whatsapp/connect', t(locale, 'channel.action.connect'));
 
   const pill = w.connected ? `${esc(t(locale, 'channel.status.connected'))} ✓` : esc(t(locale, `channel.status.${w.status}` as MessageKey));
 
@@ -710,7 +711,7 @@ export function renderConnectGuide(locale: Locale): string {
         <li>${esc(t(locale, 'channel.connect.step3'))}</li>
       </ol>
       <p class="muted">${esc(t(locale, 'channel.connect.note'))}</p>
-      <a class="btn send" href="/app/channels">${esc(t(locale, 'channel.connect.back'))}</a>
+      ${back('/app/channels', t(locale, 'channel.connect.back'))}
     </div>`;
 }
 

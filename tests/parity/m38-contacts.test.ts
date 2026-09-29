@@ -252,7 +252,7 @@ describe('M38 · her page', () => {
     expect(confirm).toContain(t('en', 'contacts.suppress.cancel'));
     // Going back is the PRIMARY button: the reflex that carries her through
     // every other page must not land on the one action she cannot take back.
-    expect(confirm).toMatch(/class="btn send" href="\/app\/contacts"/);
+    expect(confirm).toMatch(/class="back" href="\/app\/contacts"/);
     expect(confirm).toMatch(/class="btn stop" type="submit"/);
   });
 

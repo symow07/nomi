@@ -7,7 +7,7 @@ import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { formatRelative } from '../../core/owner/i18n/format.js';
-import { esc } from './layout.js';
+import { deeper, esc } from './layout.js';
 
 /**
  * M14 — Factory Intelligence Operations, READ MODELS ONLY.
@@ -214,8 +214,8 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
       <div class="ki-q">${esc(g.question)}${g.count > 1 ? ` <span class="muted">×${g.count}</span>` : ''}</div>
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
         <span class="muted">${esc(formatRelative(locale, g.lastAt, now))}</span></div>
-      <div class="gacts"><a class="btn" href="${teachHref}">${esc(t(locale, 'knowledge.gap.teach'))}</a>
-        <a class="btn ghost" href="${testHref}">${esc(t(locale, 'knowledge.gap.test'))}</a></div>
+      <div class="gacts">${deeper(teachHref, t(locale, 'knowledge.gap.teach'))}
+        ${deeper(testHref, t(locale, 'knowledge.gap.test'))}</div>
     </div>`;
   };
   const gaps = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>
