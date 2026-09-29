@@ -181,7 +181,14 @@ export type NotifyJob = {
 // and puts any excess job back. pg-boss takes one or the other; production runs
 // ONE replica, so this is the installation's limit. With more replicas it
 // becomes one per workspace per replica.
-export const INBOUND_WORK = { localConcurrency: 3, localGroupConcurrency: 1 } as const;
+//
+// And THREE WORKERS WHOSE POLLS ARE A THIRD OF AN INTERVAL APART, not one
+// registration of three: three workers that poll in the same instant are each
+// handed one of the three OLDEST jobs, and when those are all one workspace's,
+// two are put back — one job per poll for everybody, the backlog first, which
+// is the unfairness this exists to end (the fairness test caught it). Apart,
+// each fetch sees the workspace already running and passes over it.
+export const INBOUND_WORK = { workers: 3, pollSeconds: 2, localGroupConcurrency: 1 } as const;
 export const inboundGroup = (businessId: string): { readonly id: string } => ({ id: businessId });
 
 /**

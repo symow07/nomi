@@ -273,15 +273,22 @@ export async function startWorker(
   // data — the message, never the reason — and the first real Messenger
   // message in production dead-lettered on an invalid model key that took a
   // query of the job table to find.
-  // FAIR — several at once, never more than one per workspace (queue/boss.ts).
-  await boss.work<InboundJob>(QUEUES.inbound, { ...INBOUND_WORK }, async ([job]: { data: InboundJob }[]) => {
+  // FAIR — several at once, never more than one per workspace, their polls
+  // spread across the interval (queue/boss.ts says why).
+  const onInboundJob = async ([job]: { data: InboundJob; id?: string }[]) => {
     try {
       await onInbound(job);
     } catch (e) {
       console.error('[inbound failed]', redactSecrets(e instanceof Error ? e.message : String(e)).slice(0, 300));
       throw e;
     }
-  });
+  };
+  for (let i = 0; i < INBOUND_WORK.workers; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, (INBOUND_WORK.pollSeconds * 1000) / INBOUND_WORK.workers));
+    await boss.work<InboundJob>(QUEUES.inbound, {
+      localGroupConcurrency: INBOUND_WORK.localGroupConcurrency, pollingIntervalSeconds: INBOUND_WORK.pollSeconds,
+    }, onInboundJob);
+  }
 
   // A declaration, hoisted on purpose: a job can arrive the moment the queue
   // is worked, before the lines below this call have run.

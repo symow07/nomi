@@ -176,6 +176,11 @@ instruction did not answer. Collected here; asked once, at the end.
   "Yesterday" for the first minutes after its midnight. Now the test expects
   what `formatRelative` says for the row's own instant; reproduced both ways
   (message moved a day back: the old assertion fails, the new one passes).
+- **FAIR's first shape was not fair** (found 2026-09-30 before #135 merged):
+  three workers registered together poll in the same instant, are handed the
+  three oldest jobs, and when those are one workspace's two are put back —
+  one job per poll for everybody. Now three workers a third of an interval
+  apart; the fairness test proves it both ways.
 - **FAIR's concurrency could split a batch** (found 2026-09-30 on #135's
   CI): with three workers, two of one workspace's jobs can be fetched in one
   poll and pg-boss keeps whichever registers first, so a batch's wake could
