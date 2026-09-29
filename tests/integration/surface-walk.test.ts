@@ -240,6 +240,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
       .replace(/<p class="voice">[\s\S]*?<\/p>/g, ' ')
       .replace(/\svalue="[^"]*"/g, ' ')
       .replace(/<[^>]+>/g, ' ');
+    const { messages } = await import('../../src/core/owner/i18n/messages.js');
+    const spaces = [...new Set(Object.keys(messages.en).map((k) => k.split('.')[0]!))].join('|');
+    const KEYISH = new RegExp(`\\b(?:${spaces})\\.[a-z][A-Za-z0-9_]*(?:\\.[A-Za-z0-9_]+)*\\b`, 'g');
     const problems: string[] = [];
     let pages = 0;
     for (const locale of ['en', 'ar'] as const) {
@@ -259,6 +262,9 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         pages++;
         const at = `${locale} ${target}`;
         const text = words(html);
+        // A line the catalogue does not have prints its own key
+        // ("people.ownerOnly.data_rights", 2026-09-30): no page shows one.
+        for (const m of text.matchAll(KEYISH)) problems.push(`${at}: a raw catalogue key "${m[0]}"`);
         for (const m of text.matchAll(/[：　]|\d(?:pcs|قطعة)/g)) {
           problems.push(`${at}: "${text.slice(Math.max(0, m.index! - 40), m.index! + 20).replace(/\s+/g, ' ').trim()}"`);
         }

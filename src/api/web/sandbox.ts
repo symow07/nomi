@@ -28,6 +28,7 @@ import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
 import * as show from './values.js';
+import type { InvariantId } from '../../trust/scenarios.js';
 
 /**
  * M12.2 — Interactive pilot sandbox.
@@ -437,7 +438,12 @@ export async function sandboxFlushOutbound(deps: SandboxDeps, conversationId: st
 
 // ── renderer (pure, localized, escaped) ───────────────────────────────────────
 
-const invLabel = (locale: Locale, id: string): string => t(locale, `sandbox.inv.${id}` as MessageKey);
+/**
+ * Each check by its words. Typed against the checks themselves: a check with
+ * no line in the catalogue fails the typecheck — seven were shown as raw keys
+ * ("sandbox.inv.noDeletionPromise") until 2026-09-30.
+ */
+const invLabel = (locale: Locale, id: InvariantId): string => t(locale, `sandbox.inv.${id}` as const satisfies MessageKey);
 
 /** M16.4b — the owner-facing name of a practice case, by scenario id. */
 export const caseName = (locale: Locale, id: string): string => t(locale, `sandbox.case.${id}` as MessageKey);
