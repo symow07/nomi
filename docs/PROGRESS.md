@@ -157,13 +157,13 @@ instruction did not answer. Collected here; asked once, at the end.
   of 2026-09-29 03:04 UTC dumped schema 79, failed exactly this check (b)
   "RLS-without-policy=1", and uploaded nothing. The backup service rebuilt
   with the fix at 07:00 UTC that day.
-- **Production did not answer from here for about 12 minutes** (2026-09-29,
-  20:03–20:15 UTC, while #138 deployed): connections to app.nomidoes.com
-  timed out; GitHub and Railway answered; Railway marked the deployment
-  SUCCESS at 20:09; no row in `app_errors`. Not reproduced and not
-  root-caused — it may be the network path from this machine. With
-  `HEALTH_PING_URL` unset, nothing outside Railway would have noticed a real
-  outage (the owner's item, CLAUDE.md §4).
+- **"Production did not answer" was this machine's network** (2026-09-29,
+  from 20:03 UTC): curl reached app.nomidoes.com over IPv6, at an address
+  this machine's resolver invents (2406:cb42:…); public DNS publishes no
+  IPv6 address for the domain (a CNAME to Railway, which has none). Over
+  IPv4 `/health` answered throughout; no row in `app_errors`. Health checks
+  from here use `curl -4`. Still true: with `HEALTH_PING_URL` unset, nothing
+  outside Railway would notice a real outage (the owner's item, CLAUDE.md §4).
 - **Railway made no deployment for one merge** (2026-09-29): #133 and #134
   merged at 18:00 UTC with CI green, and the `nomi` service got no deployment
   for `e56da0b` at all (the `backup` service did — skipped by its watch
