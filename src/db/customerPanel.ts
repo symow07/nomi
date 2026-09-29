@@ -42,6 +42,8 @@ export type CustomerPanel = {
   readonly askedAbout: readonly { readonly name: string | null; readonly nameZh: string | null; readonly count: number; readonly lastAt: Date }[];
   readonly prices: readonly { readonly unitPrice: Money; readonly name: string | null; readonly nameZh: string | null; readonly at: Date; readonly conversationId: string }[];
   readonly samples: readonly { readonly askedAt: Date; readonly handledAt: Date | null }[];
+  /** 0083 — what was promised them and not yet kept, soonest first: the sentence as sent, its day, who said it. */
+  readonly promised: readonly { readonly said: string; readonly dueOn: string; readonly byAssistant: boolean; readonly conversationId: string }[];
   readonly orders: readonly { readonly id: string; readonly reference: string; readonly status: string; readonly at: Date }[];
   readonly activity: readonly PanelActivity[];
 };
@@ -100,6 +102,13 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
      order by s.requested_at desc limit 3`.execute(tx)).rows
     .map((r) => ({ askedAt: r.asked_at, handledAt: r.handled_at }));
 
+  const promised = (await sql<{ said: string; due_on: string; said_by: string; conversation_id: string }>`
+    select p.said, to_char(p.due_on, 'YYYY-MM-DD') as due_on, p.said_by, p.conversation_id::text as conversation_id
+      from promised_dates p join conversations c on c.id = p.conversation_id
+     where c.client_id = ${client}::uuid and p.kept_at is null
+     order by p.due_on limit 4`.execute(tx)).rows
+    .map((r) => ({ said: r.said, dueOn: r.due_on, byAssistant: r.said_by === 'assistant', conversationId: r.conversation_id }));
+
   const orders = (await sql<{ id: string; reference: string; status: string; at: Date }>`
     select o.id::text as id, o.order_reference as reference, o.status, o.created_at as at
       from orders o where o.client_id = ${client}::uuid
@@ -133,6 +142,6 @@ export async function loadCustomerPanel(tx: Tx, conversationId: string): Promise
   return {
     clientId: client, name: who.name, country: who.country, channel: who.channel, address: who.address,
     language, firstWrote: span?.first ?? null, conversations: span?.n ?? 0,
-    askedAbout, prices, samples, orders, activity,
+    askedAbout, prices, samples, promised, orders, activity,
   };
 }

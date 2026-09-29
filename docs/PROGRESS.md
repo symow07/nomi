@@ -87,6 +87,19 @@ the one step I may not take.
   review, G8's production run), growth analytics, post suggestions, the
   627-place positioning rewrite.
 
+- **The calendar's dates from conversations are read by RULES, not a model**
+  (Claude's call, 2026-09-29, #128). The plan said "the analysis reads the
+  date out of the words (a prompt change and the live check)". Built instead:
+  a promise is read from the words of the reply that LEFT — the sentence is
+  the promise, and what reached the customer is what counts — by rules in
+  five languages, held both ways by a corpus (31 found, 22 left alone). No
+  model call, so nothing to drift and no live check; it also follows the
+  recorded own-power direction (answer from Nomi's own understanding, models
+  only where rules cannot). Only a DAY the words name is taken; a span
+  ("next week") is not guessed into one. The owner decided the kinds and
+  their order (follow-up first, then price end, then delivery); all three
+  ship together because one reader serves them.
+
 ## Waiting on the owner (the plan's open decisions)
 
 These items cannot be built without a decision the plan left open and the

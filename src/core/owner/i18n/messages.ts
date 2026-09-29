@@ -1892,6 +1892,13 @@ const EN = {
   'calendar.cat.conversations': 'Conversations',
   // The calendar's views, and the owner's own dates (0082; the design pass, 2026-09-29). Drafts for the native readers.
   'calendar.cat.yours': 'Your dates',
+  // 0083 — what a reply promised, and for when.
+  'calendar.cat.promised': 'Promised',
+  'calendar.kind.promise_follow_up': 'Follow-up promised',
+  'calendar.kind.promise_price_end': 'Price ends',
+  'calendar.kind.promise_delivery': 'Delivery promised',
+  'calendar.line.promise': '“{said}”',
+  'panel.promised': 'Promised',
   'calendar.views': 'Month, week, day or list',
   'calendar.view.month': 'Month',
   'calendar.view.week': 'Week',
@@ -4184,6 +4191,13 @@ const ZH: Record<MessageKey, string> = {
   'calendar.cat.conversations': '对话',
   // The calendar's views, and the owner's own dates (0082; the design pass, 2026-09-29). Drafts for the native readers.
   'calendar.cat.yours': '你的日程',
+  // 0083 — what a reply promised, and for when.
+  'calendar.cat.promised': '答应过的',
+  'calendar.kind.promise_follow_up': '答应跟进',
+  'calendar.kind.promise_price_end': '报价到期',
+  'calendar.kind.promise_delivery': '答应交货',
+  'calendar.line.promise': '「{said}」',
+  'panel.promised': '答应过的事',
   'calendar.views': '按月、周、日或列表看',
   'calendar.view.month': '月',
   'calendar.view.week': '周',
@@ -6462,6 +6476,13 @@ const AR: Record<MessageKey, string> = {
   'calendar.cat.conversations': 'المحادثات',
   // The calendar's views, and the owner's own dates (0082; the design pass, 2026-09-29). Drafts for the native readers.
   'calendar.cat.yours': 'المواعيد المضافة',
+  // 0083 — what a reply promised, and for when.
+  'calendar.cat.promised': 'الوعود',
+  'calendar.kind.promise_follow_up': 'متابعة موعودة',
+  'calendar.kind.promise_price_end': 'ينتهي السعر',
+  'calendar.kind.promise_delivery': 'تسليم موعود',
+  'calendar.line.promise': '«{said}»',
+  'panel.promised': 'ما وُعد به',
   'calendar.views': 'عرض بالشهر أو الأسبوع أو اليوم أو قائمة',
   'calendar.view.month': 'شهر',
   'calendar.view.week': 'أسبوع',

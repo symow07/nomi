@@ -75,7 +75,7 @@ export type ExtractedNumeral = { readonly value: number; readonly commercial: bo
  * read as the figures they are: "٥٠٠ قطعة" is 500, and it was invisible to
  * this guard. One character for one, so positions are kept.
  */
-function asciiDigits(text: string): string {
+export function asciiDigits(text: string): string {
   return text.replace(/[٠-٩۰-۹٫٬]/g, (c) => {
     const code = c.charCodeAt(0);
     if (code === 0x066b) return '.';

@@ -183,6 +183,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 128 | **What a reply promised, on the calendar** (0083) — follow-ups, prices that end, deliveries, read from the words that left — see §5 rule 27 |
 | 127 | **The calendar week, and the owner's own dates** (0082) — see §5 rule 26 |
 | 126 | **The design foundation, part two: the shell** — the rail in groups with its one number and Log out at the foot, the list and the customer panel beside a conversation, the other cards drawn as states — see §5 rule 25 |
 | 125 | **The design foundation, part one** — buttons and doors (the rule and its test), the palette (graphite, magenta for the assistant's hand; jade, highlight, warm papers and dark mode retired), Noto served by the product with one font order per language, the approval card — see §5 rule 25 |
@@ -412,6 +413,12 @@ Recent PRs, newest first:
    - WHERE A DATE CAME FROM IS ITS EDGE (`edgeOf` in `src/db/calendar.ts`): solid — from a conversation, and it opens there; dashed — the owner's (their own dates, closures, a follow-up scheduled for someone who has not written). Colour is left for state (● on a reply due) and ✦ marks a price the assistant worked out. Past dates in Stone.
    - `calendar_entries` (0082): a title (≤ 80), a start, an optional end, all-day when no time. Put there by the owner or staff (like closures, rule 11); taken off = ARCHIVED (`removed_at`); the app role cannot delete. Belongs to the business, never a customer, so erase-buyer never reaches it; erase-workspace finds it by `business_id`. Times are read in the business's day (`dayStart`).
    - Tests: `tests/parity/calendar-week.test.ts`, `tests/integration/calendar-entries.test.ts` (RLS, archive, no delete); the list's own tests moved to `?view=list`.
+
+27. **What a reply promised is on the calendar, from the words that left** (0083, the design pass 2026-09-29; `src/core/conversation/promises.ts`, `src/db/promisedDates.ts`).
+   - When a message becomes SENT (the store's 'sent' transition, beside the line that copies it onto the timeline), each sentence is read for a promise and the one DAY it names: `follow_up` (the seller will get back: reply, confirm, check, send word), `price_end` (a price holds until a day), `delivery` (goods ship or arrive by a day). Today, tomorrow, a weekday (strictly after today), a date, "in 3 days", "within 2 working days" — never a span ("next week", "soon"). A question is no promise; neither is a sentence that says it cannot. Five languages. A draft, a refused or failed reply promised nothing. A fault in the reader is read as no promise; it can never cost a message its 'sent'.
+   - READ BY RULES, NOT A MODEL (Claude's call, recorded in `docs/PROGRESS.md`): the sentence is the promise; no model call to drift, no live check. `tests/parity/promised-dates.test.ts` holds 31 found and 22 left alone — a new phrasing goes there with its reason, never into the patterns alone.
+   - `promised_dates`: the sentence as sent (≤ 300), its day, its kind, `said_by` assistant | person; once per sent row and promise; no delete; erase-buyer erases it with the customer. The calendar shows them under "Promised" (solid edge — from a conversation; ✦ when the assistant said it; ● once its day has come and it is not kept); the customer panel lists what is open, soonest first. Nothing marks one kept yet (`kept_at` exists for it).
+   - Tests: `tests/parity/promised-dates.test.ts`, `tests/integration/promised-dates.test.ts` (the real store and drive loop).
 
 ## 6 · What's next
 
