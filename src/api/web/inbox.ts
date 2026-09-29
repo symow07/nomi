@@ -953,6 +953,22 @@ export const buyerWho = (locale: Locale, buyer: string | null, country: string |
 export const channelName = (locale: Locale, c: string): string => t(locale, `conv.channel.${c}` as MessageKey);
 
 /**
+ * Why a customer needs the owner, in the Buyers row's own words (its badge):
+ * an order waiting, a deletion asked, the stored reason they were handed over
+ * (never inferred), a reply to review, or a conversation the owner holds.
+ * Today's first block says the same words (`today.ts`).
+ */
+export function needsWhy(locale: Locale, c: ConversationSummary): string {
+  if (c.orderWaiting) return t(locale, 'buyers.badge.order');
+  if (c.deletionWaiting) return t(locale, 'buyers.group.deletion');
+  if (c.ownership === 'WAITING_HUMAN') {
+    return c.handoffReason ? t(locale, `takeover.reason.${c.handoffReason}` as MessageKey) : t(locale, 'buyers.badge.waitingUnknown');
+  }
+  if (c.awaitingReview) return t(locale, 'buyers.badge.review', { name: c.answeredBy ?? assistantName(locale) });
+  return t(locale, 'buyers.badge.yours');
+}
+
+/**
  * The row's glimpse of the last message: its first ninety characters, counted
  * as characters — cutting by UTF-16 units split an emoji into a broken glyph.
  */

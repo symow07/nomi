@@ -30,6 +30,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let transport: ReturnType<typeof import('../../src/channels/email/transport.js')['fakeMailTransport']>;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
+  let tn: typeof import('../../src/core/owner/i18n/messages.js')['tn'];
   let esc: typeof import('../../src/api/web/layout.js')['esc'];
   let cookie = '';
   let seqId = '';
@@ -102,7 +103,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     const { buildProduction } = await import('../../src/main.js');
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
     const { fakeMailTransport } = await import('../../src/channels/email/transport.js');
-    ({ t } = await import('../../src/core/owner/i18n/messages.js'));
+    ({ t, tn } = await import('../../src/core/owner/i18n/messages.js'));
     ({ esc } = await import('../../src/api/web/layout.js'));
     // One address the provider rejects outright: the follow-up to it must not go.
     transport = fakeMailTransport((m) => m.to === addr('rejected')
@@ -344,7 +345,7 @@ d('C4.b · first e-mails and follow-ups (requires DATABASE_URL)', () => {
     const page = await get(`/app/sequences/${seqId}`);
     expect(page.body).toContain(`/enrollments/${blind.id}/confirm"`);
     expect(page.body).toContain(esc(t('en', 'seq.enrolment.confirm')));
-    expect((await get('/app')).body).toContain(esc(t('en', 'insight.followUpsWaiting', { count: 2 })));
+    expect((await get('/app')).body).toContain(esc(tn('en', 'insight.followUpsWaiting', 2)));
     expect((await get('/app/sequences')).body).toContain(esc(t('en', 'seq.list.awaiting', { count: '2' })));
 
     // Looking again the next minute does not restart the week.

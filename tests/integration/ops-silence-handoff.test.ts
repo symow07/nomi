@@ -161,8 +161,9 @@ d('Silence · WAITING — the emergency switch hides nobody (requires DATABASE_U
     expect(kinds).not.toContain('assistant_stopped');   // the owner pressed nothing
     const today = (await get('/app')).body;
     expect(today).toContain('is paused');
-    expect(today).not.toContain('class="calm-say"');
-    expect(today).toMatch(/<a class="stat need" href="\/app\/inbox">\s*<span class="v">1<\/span>/);
+    // The design pass: the one handed over is named on Today, a door to the newest message.
+    expect(today).toContain(`<h2 id="today-now">1 customer needs you</h2>`);
+    expect(today).toContain(`href="/app/inbox/${convA}#latest"`);
   });
 
   it('WAITING · silent: no turn, no model call, no draft, nothing queued — a photo is named, not opened', async () => {

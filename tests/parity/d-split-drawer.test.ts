@@ -3,6 +3,7 @@ import { shell, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutr
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
 import { renderSettings } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
+import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
 import { renderAccounts } from '../../src/api/web/connect.js';
 import { renderReach } from '../../src/api/web/channels.js';
@@ -116,18 +117,20 @@ describe('D · the Today card', () => {
     hasAttention: false,
   };
 
+  const QUIET = NOTHING_TODAY(new Date('2026-09-29T08:00:00Z'));
+
   it('names the next step and opens its door while setup is unfinished', () => {
-    const html = withWorkspace(facts(), () => renderOperationsHome(snapshot, 'en'));
-    expect(html).toContain(t('en', 'today.setup.title'));
-    expect(html).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    const html = withWorkspace(facts(), () => renderOperationsHome(snapshot, 'en', QUIET));
+    // The design pass: one line at the foot, the count in its sentence.
+    expect(html).toContain(t('en', 'today.setup.line', { done: 3, total: 5 }));
     // the next step here is the name — confirmed on Getting ready
     expect(html).toContain(`href="${STEP_LINK.name}"`);
     expect(html).toContain(t('en', 'factory.next.name'));
   });
 
   it('is gone when setup is complete, and absent outside a workspace', () => {
-    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderOperationsHome(snapshot, 'en'))).not.toContain(t('en', 'today.setup.title'));
-    expect(renderOperationsHome(snapshot, 'en')).not.toContain(t('en', 'today.setup.title'));
+    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderOperationsHome(snapshot, 'en', QUIET))).not.toContain('today-foot setup');
+    expect(renderOperationsHome(snapshot, 'en', QUIET)).not.toContain('today-foot setup');
   });
 
   it('the five steps are the ones the badge counts, the name among them, and each has a door', () => {

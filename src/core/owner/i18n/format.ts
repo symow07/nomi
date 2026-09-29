@@ -40,6 +40,13 @@ export function formatDate(locale: Locale, d: Date): string {
   }).format(d);
 }
 
+/** "Tuesday, September 29" / "9月29日星期二" / "الثلاثاء، 29 سبتمبر" — Today's own date, in the business timezone. */
+export function formatDayLong(locale: Locale, d: Date): string {
+  return new Intl.DateTimeFormat(INTL_TAG[locale], {
+    timeZone: BUSINESS_TZ, weekday: 'long', month: 'long', day: 'numeric',
+  }).format(d);
+}
+
 /** HH:MM in the business timezone (24h). */
 export function formatTime(locale: Locale, d: Date): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {

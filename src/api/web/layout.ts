@@ -405,6 +405,18 @@ ${LANGSW_CSS}
   /* The chevron carries the affordance now that the label does not shout. */
   .go { font-size:var(--font-size-base); color:var(--color-ink-secondary); }
   [dir="rtl"] .go { transform:scaleX(-1); display:inline-block; }
+  .tlines { list-style:none; margin:var(--space-8) 0 0; padding:0; display:flex; flex-direction:column; }
+  .tline { display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--space-4) var(--space-8); min-height:44px; padding:var(--space-8) 0;
+    border-bottom:1px solid var(--color-paper); color:var(--color-ink); text-decoration:none; }
+  .tline:hover, .tline:focus-visible { text-decoration:underline; text-underline-offset:3px; }
+  .tline .go { margin-inline-start:auto; }
+  .tl-who { font-weight:600; }
+  .tl-why, .tl-when { color:var(--color-ink-secondary); font-size:var(--font-size-small); }
+  .today-date { font-weight:400; }
+  .today-worth { margin-top:var(--space-12); }
+  .today-foot { font-size:var(--font-size-small); margin:var(--space-16) 0 0; }
+  .today-foot .dot.ok { color:var(--color-ok); }
+  .today-foot .dot.warn { color:var(--color-waiting); }
   /* The chevron above mirrors because it POINTS — "onward" is to the left in
      Arabic. The mark does NOT, and its absence here is deliberate rather than an
      oversight: a brand mark is a constant, the same object in every language,

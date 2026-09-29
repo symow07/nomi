@@ -3,7 +3,7 @@ import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tena
 import { sql } from 'kysely';
 import { createHmac } from 'node:crypto';
 import { offlineModels } from '../pipeline/fakes.js';
-import { t, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
+import { t, tn, ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
 import { assistantName } from '../../src/api/web/say.js';
 import { esc } from '../../src/api/web/layout.js';
 
@@ -318,7 +318,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // can reach her — and this run's tenant is freshly seeded and not live, so
     // that is the one it lands on. Before the per-run tenant, this assertion
     // passed because leftover state from earlier runs kept work on the page.
-    expect(home.body).toMatch(/Needs your attention|Nothing needs you|No buyer can reach/);
+    // The design pass: Today's first heading is who needs you — or that nobody does.
+    expect(home.body).toMatch(/<h2 id="today-now">(No one is waiting for you\.|\d+ customers? needs? you|Needs your attention)<\/h2>/);
     // M35.5 — on a tenant where NOTHING has happened, the activity section no
     // longer renders. Three zeros and a link into a grid of more zeros was the
     // page inventing a reason to exist; `stepIn` and `learning` had always known
@@ -1596,9 +1597,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const cookie = await login();
       const res = await prod.app.inject({ method: 'GET', url: '/app', headers: { cookie } });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('Needs your attention');
-      expect(res.body).toContain(esc(t('en', 'ops.activity.title')));    // Phase B activity
-      expect(res.body).toContain(esc(t('en', 'ops.activity.handled')));
+      // The design pass: three blocks by time — who needs you now, the last 24
+      // hours, what is coming up — each under its own heading.
+      expect(res.body).toContain('<h2 id="today-now">');
+      expect(res.body).toContain(`<h2 id="today-last">${esc(t('en', 'today.last.title'))}</h2>`);
+      expect(res.body).toContain(`<h2 id="today-coming">${esc(t('en', 'today.coming.title'))}</h2>`);
+      expect(res.body).toContain('href="/app/calendar"');
       // Phase B: messaging state is ONE quiet line, not a status card
       expect(res.body).toContain('Messaging is not active yet');
       expect(res.body).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);   // V1 step four: block + muted, same name
@@ -1610,6 +1614,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { ensureConversation } = await import('../../src/db/channels.js');
       const { tenantRepos } = await import('../../src/db/repos.js');
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
+      const { loadToday } = await import('../../src/api/web/today.js');
       const SECRET = 'ZZsecretdraftbodyDoNotLeak';
       const BUYERTAG = `${ph('971500009999')}zzpii`;
       await withTenantTx(prod.db, bid, async (tx) => {
@@ -1619,11 +1624,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                   values (${DEMO_BIZ}, ${c.conversationId}, 'quote', ${SECRET}, null, 'pending')`.execute(tx as never);
       });
       const snap = await loadOperationsSnapshot(prod.db, DEMO_BIZ, 'today', 'disabled');
-      const html = renderOperationsHome(snap, 'en');
+      const today = await loadToday(prod.db, DEMO_BIZ, undefined, new Date(), false);
+      const html = renderOperationsHome(snap, 'en', today);
       expect(snap.attention.handoffs).toBeGreaterThanOrEqual(1);
       expect(snap.attention.pendingApprovals).toBeGreaterThanOrEqual(1);
-      expect(html).toContain('Waiting for you');    // handoff card
-      expect(html).toContain('Approvals needed');   // approvals card
+      // The design pass: the people themselves, the Buyers list's own "Needs you".
+      expect(today.needs.total).toBeGreaterThanOrEqual(1);
+      expect(html).toContain(`<h2 id="today-now">${esc(tn('en', 'nav.needsYou', today.needs.total))}</h2>`);
+      expect(html).toContain('class="tl-who"');          // each one named…
       expect(html).not.toContain(SECRET);           // draft body is never rendered
       expect(html).not.toContain(BUYERTAG);         // buyer identifier is never rendered
     });
@@ -1636,31 +1644,29 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         loadKnowledgeOps(prod.db, DEMO_BIZ, 'today'),
       ]);
       expect(snap.knowledge.openGaps).toBe(ops.gaps.length);      // honest, reused from M14
-      const html = renderOperationsHome(snap, 'en');
-      const quiet = snap.knowledge.openGaps === 0 && snap.knowledge.recentlyTaught === 0
-                 && snap.knowledge.recentCorrections === 0;
-      // Phase B: on a quiet day the card is one honest line, not a row of zeros.
-      if (quiet) expect(html).not.toContain('Questions to answer');
-      else {
-        expect(html).toContain('Questions to answer');           // the gaps card/label
-        expect(html).toContain('href="/app/knowledge"');         // and a way through to it
-      }
+      const { NOTHING_TODAY } = await import('../../src/api/web/today.js');
+      const html = renderOperationsHome(snap, 'en', NOTHING_TODAY(new Date()));
+      // The design pass: the count in a sentence, the sentence a door — or,
+      // with nothing open, nothing said.
+      const gaps = tn('en', 'today.gaps', snap.knowledge.openGaps, { name: ASSISTANT_FALLBACK.en });
+      if (snap.knowledge.openGaps === 0) expect(html).not.toContain('href="/app/knowledge"');
+      else expect(html).toContain(`href="/app/knowledge">${esc(gaps)}`);
     });
 
     it('empty factory renders the honest quiet state', async () => {
       const { loadOperationsSnapshot, renderOperationsHome } = await import('../../src/api/web/operations.js');
+      const { loadToday } = await import('../../src/api/web/today.js');
       const snap = await loadOperationsSnapshot(prod.db, '00000000-0000-0000-0000-000000000000', 'today', 'disabled');
-      const html = renderOperationsHome(snap, 'en');
+      const html = renderOperationsHome(snap, 'en', await loadToday(prod.db, '00000000-0000-0000-0000-000000000000', undefined, new Date(), false));
       // M22 (F-01): with messaging off she is looking after nobody, so this
       // says why it is quiet instead of congratulating the owner. It used to
       // read "You're all caught up · Lily is looking after your buyers" on a
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).not.toContain(esc(t('en', 'today.calm.body')));
       expect(html).toContain('href="/app/factory"');
-      expect(html).not.toContain('Waiting for you');
-      expect(html).not.toContain('Approvals needed');
+      expect(html).toContain(`<h2 id="today-now">${esc(t('en', 'today.needs.none'))}</h2>`);
+      expect(html).not.toContain('class="tl-who"');
     });
 
     it('SECURITY: the Operations Home is owner-gated — unauthenticated /app redirects', async () => {

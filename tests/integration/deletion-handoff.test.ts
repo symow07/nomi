@@ -279,7 +279,8 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     const [noted] = await askOf(conv);
     expect(noted!.state).toBe('waiting');                   // …the request is not
 
-    expect((await get('/app')).body).toMatch(/<a class="stat need" href="\/app\/inbox\?filter=deletion">\s*<span class="v">3<\/span>/);
+    // Today: its own line, counted in a sentence, a door to its own tab.
+    expect((await get('/app')).body).toContain('href="/app/inbox?filter=deletion">3 customers asked for their data to be deleted');
     const tab = (await get('/app/inbox?filter=deletion')).body;
     for (const r of REQUESTS) expect(tab, r.lang).toContain(`/app/inbox/${convs[r.lang]}`);
     expect(tab).not.toContain(`/app/inbox/${await convOf(PASSING.from)}`);
@@ -303,7 +304,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
       select state, asked_at, subject_note from deletion_requests where id = ${after!.request}::uuid`.execute(tx).then((x) => x.rows[0]!));
     expect(request).toMatchObject({ state: 'open', subject_note: null });
     expect(request.asked_at.getTime()).toBe(noted!.asked_at.getTime());
-    expect((await get('/app')).body).toMatch(/href="\/app\/inbox\?filter=deletion">\s*<span class="v">2<\/span>/);
+    expect((await get('/app')).body).toContain('href="/app/inbox?filter=deletion">2 customers asked for their data to be deleted');
   });
 
   it('0076 · not a deletion request: set aside — nothing deleted, nothing sent — and the trail says who', async () => {

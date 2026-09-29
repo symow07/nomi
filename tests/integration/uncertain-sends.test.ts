@@ -30,6 +30,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let transport: ReturnType<typeof import('../../src/channels/email/transport.js')['fakeMailTransport']>;
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
+  let tn: typeof import('../../src/core/owner/i18n/messages.js')['tn'];
   let esc: typeof import('../../src/api/web/layout.js')['esc'];
   let cookie = '';
   let conversationId = '';
@@ -85,7 +86,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
     const { buildProduction } = await import('../../src/main.js');
     const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
     const { fakeMailTransport } = await import('../../src/channels/email/transport.js');
-    ({ t } = await import('../../src/core/owner/i18n/messages.js'));
+    ({ t, tn } = await import('../../src/core/owner/i18n/messages.js'));
     ({ esc } = await import('../../src/api/web/layout.js'));
     transport = fakeMailTransport();
     prod = await buildProduction({
@@ -155,7 +156,7 @@ d('0052 · a send nobody can account for (requires DATABASE_URL)', () => {
     expect(page.body).toContain(`/app/outbound/${id}/send-again`);
     expect(page.body).toContain(`/app/outbound/${id}/leave`);
     // Today names it too, so it is not only found by opening the thread.
-    expect((await get('/app')).body).toContain(esc(t('en', 'insight.uncertainSends', { count: 1 })));
+    expect((await get('/app')).body).toContain(esc(tn('en', 'insight.uncertainSends', 1)));
   }, 60_000);
 
   it('"LEAVE IT" closes it as never seen to leave, and sends nothing', async () => {

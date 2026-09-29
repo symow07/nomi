@@ -4,7 +4,7 @@ import { parseBusinessId } from '../../core/types/ids.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, tn, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { biggestChange, MONTH_DRIVERS, type MonthDriver } from '../../core/insights/changed.js';
 import { esc, conversationUrl, deeper } from './layout.js';
@@ -52,9 +52,18 @@ export type InsightAction =
    *  it is visible one conversation at a time, so that is where it points. */
   | { readonly kind: 'seeBuyers'; readonly href: '/app/inbox?filter=all' };
 
+/**
+ * The design pass (§4) — the insights that count something are said through
+ * the plural rules: one catalogue key per form (`.one`, `.other`…), `{n}` the
+ * count, taken from `params.count`. "1 replies are written" was the old way.
+ */
+export const COUNTED_INSIGHTS = ['insight.draftsWaiting', 'insight.productsNoPrice', 'insight.uncertainSends', 'insight.followUpsWaiting'] as const;
+type CountedInsight = (typeof COUNTED_INSIGHTS)[number];
+const isCounted = (k: string): k is CountedInsight => (COUNTED_INSIGHTS as readonly string[]).includes(k);
+
 export type Insight = {
   /** Language-NEUTRAL: the renderer localizes. Params are counts and names. */
-  readonly key: MessageKey;
+  readonly key: MessageKey | CountedInsight;
   readonly params: Record<string, string | number>;
   /** Structurally mandatory. There is no Insight without somewhere to go. */
   readonly action: InsightAction;
@@ -258,21 +267,29 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
 
 /** ── Renderer (pure, localized) ───────────────────────────────────────────── */
 
-export function renderInsights(d: InsightsData, locale: Locale): string {
+export function renderInsights(d: InsightsData, locale: Locale, o: {
+  /** The design pass (§4): Today folds these lines into its first block — no box, no heading of their own. */
+  readonly bare?: boolean;
+} = {}): string {
   if (d.insights.length === 0 && !d.monthChange) return '';
   const name = assistantName(locale);
   const row = (i: Insight): string => {
-    const line = t(locale, i.key, { ...i.params, name, ...(i.params['cap'] !== undefined
-      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) });
+    const params = { ...i.params, name, ...(i.params['cap'] !== undefined
+      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) };
+    const line = isCounted(i.key) ? tn(locale, i.key, Number(i.params['count']), params) : t(locale, i.key, params);
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
     return `<div class="row">
       <div class="grow">${esc(line)}</div>
       ${deeper(esc(i.action.href), label)}
     </div>`;
   };
+  // On Today the first block already names everyone whose reply waits for a
+  // review, so the line that counts them would say it twice.
+  const shown = o.bare ? d.insights.filter((i) => i.key !== 'insight.draftsWaiting') : d.insights;
+  const rows = `${shown.map(row).join('')}${d.monthChange ? row(d.monthChange) : ''}`;
+  if (o.bare) return `<div class="insights">${rows}</div>`;
   return `<div class="block insights"><h2>${esc(t(locale, 'insight.title'))}</h2>
-    ${d.insights.map(row).join('')}
-    ${d.monthChange ? row(d.monthChange) : ''}
+    ${rows}
   </div>`;
 }
 
