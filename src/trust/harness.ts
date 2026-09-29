@@ -121,6 +121,8 @@ class HarnessTenant implements Tenant {
     // The harness runs one scenario at a time against a fresh state, so
     // there is no second turn for the mark to be read back by.
     markAiDisclosed: async () => {},
+    // One scenario, one message: nothing was said before it.
+    recentMessages: async () => [],
   };
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
   /** G11 — the harness proves decisions, not links: no host, so no link. */

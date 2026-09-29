@@ -77,16 +77,34 @@ const NAMED = [
   [false, 'كم سعر ٥٠٠ حقيبة؟'],
 ];
 
+/**
+ * Q1 (2026-09-29) — the analyser now sees the last six messages. The ones
+ * that matter: a request for a person EARLIER in the history, already
+ * answered by a person and handed back, must not hand every later turn over
+ * again; and a short answer is read with the question it answers.
+ * [what the prompt asks for, the history (oldest first), the buyer's words]
+ */
+const C = (text) => ({ direction: 'inbound', text });
+const U = (text) => ({ direction: 'outbound', text });
+const WITH_HISTORY = [
+  [false, [C('Can I talk to someone?'), U('Of course — a colleague will reply here shortly.'), U('Hi, this is Sara from the team. The 12oz totes are $2.40 each.')],
+    'Great, and how much for 1000?'],
+  [false, [C('转人工'), U('好的，同事马上回复您。'), U('您好，我是销售小李。12盎司帆布袋每个2.40美元。')], '好的，1000个多少钱？'],
+  [false, [C('أريد التحدث مع موظف'), U('سيتواصل معك أحد الزملاء قريبًا.'), U('مرحبًا، أنا سارة من الفريق. سعر الحقيبة 2.40 دولار.')], 'شكرًا، كم سعر ١٠٠٠ حقيبة؟'],
+  [false, [C('Do you make canvas totes?'), U('Yes — 12oz, natural or black.')], 'natural, 500 of those please'],
+  [true, [C('Is the price negotiable for 5000?'), U('Would you like our sales manager to call you about it?')], 'Yes please'],
+];
+
 const state = { phase: 'clarification', preferredLanguage: null };
 const candidates = [
   { productId: 'p1', sku: 'TOTE-01', name: 'Canvas tote bag', category: 'bags', moq: 100 },
   { productId: 'p2', sku: 'WIG-02', name: 'Human hair wig', category: 'hair', moq: 10 },
 ];
 const times = [];
-const ask = async (text) => {
+const ask = async (text, recentMessages = []) => {
   const t0 = Date.now();
   try {
-    const r = await analyzer.analyze({ text, state, candidates, recentMessages: [] });
+    const r = await analyzer.analyze({ text, state, candidates, recentMessages });
     times.push(Date.now() - t0);
     return r.analysis.wantsPerson;
   } catch (e) {
@@ -102,6 +120,15 @@ for (const [expected, text] of NAMED) {
   else if (got !== expected) wrong++;
   const mark = got === expected ? 'ok ' : 'XX ';
   console.log(`  ${mark} layer 1 ${asksForPerson(text) ? 'hands off' : '—        '} · layer 2 ${String(got).padEnd(5)} (asked for ${expected})  ${JSON.stringify(text)}`);
+}
+
+console.log('\nWith what was said before (Q1) — the latest message decides:');
+for (const [expected, history, text] of WITH_HISTORY) {
+  const got = await ask(text, history);
+  if (got !== true && got !== false) unreadable++;
+  else if (got !== expected) wrong++;
+  const mark = got === expected ? 'ok ' : 'XX ';
+  console.log(`  ${mark} layer 2 ${String(got).padEnd(5)} (asked for ${expected})  after ${history.length} · ${JSON.stringify(text)}`);
 }
 
 console.log('\nThe 45 passing mentions of deletion — none is a deletion request; these would hand off as asking for a person:');
@@ -122,7 +149,7 @@ if (handed === 0) console.log('  (none)');
 
 const sorted = [...times].sort((a, b) => a - b);
 const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
-console.log(`\nNamed: ${NAMED.length} asked, ${wrong} answered the other way.`
+console.log(`\nNamed and with history: ${NAMED.length + WITH_HISTORY.length} asked, ${wrong} answered the other way.`
   + ` Passing mentions: ${mentions} asked, ${handed} would hand off.`
   + ` Unreadable or failed: ${unreadable}. Median answer: ${median} ms.`);
 process.exit(unreadable === 0 && wrong === 0 ? 0 : 1);

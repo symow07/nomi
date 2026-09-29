@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the live check before and after, with history cases — see §5 rule 31 |
 | 131 | **T3 — imported products can be found** — names written at import and edit, name editing, "ready" only when findable, the backfill tool (not run on Westlake) — see §5 rule 30 |
 | 130 | **T7 — every paid call on the ledger** — its own transaction, photos, voice notes, catalogue pages and live Practice metered, one UTC clock, the deepseek price and the first per-turn figures — see §5 rule 29 |
 | 129 | **Small truths** — T1 (the sandbox is the pilot's alone), T5 (the reader refuses a cut-off page; two unkept promises gone), CH5 (the window's clock), CH7a (what arrived, by name) — see §5 rule 28 |
@@ -444,6 +445,10 @@ Recent PRs, newest first:
    - "Ready" only when findable: status `not_findable` (offered, priced, found by no name) with its pill and a line on the product's page; the import's "ready to quote" count and Setup's products step require a name too.
    - `tools/backfill-aliases.mjs --business <uuid> [--yes]` adds each product's own name and Chinese name where missing (dry run by default; refuses a row-security-filtered role; `tools/lib/aliases.mjs` is its copy of the cleaner, held equal by a test). **On Westlake only with the owner's yes, after a backup** — the dry run on 2026-09-29 found all 5 of its products findable by no name.
    - Tests: `tests/parity/findability.test.ts`, `tests/integration/findability.test.ts` (an import found and quoted; the pre-T3 shape dropped from the same turn; the tool; rename; Setup).
+31. **The analyser sees the last six messages** (Q1, #132, 2026-09-29; `HISTORY_TURNS` in `src/pipeline/turn.ts`, `recentMessages` in `src/db/repos.ts`).
+   - `prompts/analysis.txt` always promised "Conversation history (last 6 turns)"; the turn handed it an empty list. Now: the conversation's last six messages, both sides, oldest first — duplicates left out, a voice note by its transcript, each at most 1,000 characters — and never the messages this turn answers (`TurnRequest.answering`: the batch's fragment ids; Practice records its message under the turn's id). Only the analyser; the reply writer's window is Q1W (conditional on P1).
+   - Live check, before and after (deepseek-flash, 2026-09-29/30): before 29/29 named, 0 unreadable, median 1.9 s; after 34/34 — the five new history cases (`WITH_HISTORY` in `tools/check-person-model.mjs`: an earlier request already answered by a person does NOT hand the next turn over, in en/zh/ar; "Yes please" after "Would you like our manager to call you?" does) — 0 unreadable, median 1.86 s. Re-run it whenever the model or the prompt changes (§3).
+   - Tests: `tests/pipeline/analyser-history.test.ts`, `tests/integration/analyser-history.test.ts` (the query; through the production worker, a batch of two is never its own history — switched off, it fails).
 
 ## 6 · What's next
 

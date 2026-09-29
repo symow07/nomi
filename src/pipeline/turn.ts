@@ -87,7 +87,16 @@ export type TurnRequest = {
    * moves a price — see core/safety/heardNumbers.ts.
    */
   provenance?: TextProvenance;
+  /**
+   * Q1 — the external ids of the messages this turn answers (a batch's
+   * fragments). They are the message itself, so they are left out of the
+   * history the analyser is shown.
+   */
+  answering?: readonly string[];
 };
+
+/** Q1 — how many earlier messages the analyser sees, as prompts/analysis.txt promises ("last 6 turns"). */
+export const HISTORY_TURNS = 6;
 
 /**
  * The decision this turn reduced to — phase, product, quantity, scores and the
@@ -265,7 +274,10 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       text: req.text,
       state,
       candidates: retrieved,
-      recentMessages: [], // history injection lands with the worker's message loader
+      // Q1 — what was said before, both sides, as the prompt promises.
+      recentMessages: await tenant.conversations.recentMessages(req.conversationId, {
+        limit: HISTORY_TURNS, excluding: [req.messageId, ...(req.answering ?? [])],
+      }),
     });
     timings.analyzerMs = Date.now() - ta;
     usage.llmCalls++;

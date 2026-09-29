@@ -239,6 +239,13 @@ export interface ConversationRepo {
    * the message before the buyer does.
    */
   markAiDisclosed(id: ConversationId, at: Date): Promise<void>;
+  /**
+   * Q1 — what was said before this turn, oldest first: the conversation's last
+   * `limit` messages, either side, leaving out the ones this turn answers
+   * (`excluding`, by external id) and duplicates.
+   */
+  recentMessages(id: ConversationId, opts: { readonly limit: number; readonly excluding: readonly string[] }):
+    Promise<readonly { readonly direction: 'inbound' | 'outbound'; readonly text: string }[]>;
 }
 
 export interface CatalogRepo {

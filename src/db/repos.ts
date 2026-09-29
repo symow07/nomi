@@ -1,4 +1,9 @@
 import { sql } from 'kysely';
+/**
+ * Q1 — one earlier message, at most this long, in the analyser's history: a
+ * pasted catalogue in the history would otherwise cost more than the turn.
+ */
+const HISTORY_MESSAGE_CHARS = 1000;
 import { autonomyReleased } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel, chosenName } from './assistants.js';
 import type { AssistantRole } from '../core/owner/assistants.js';
@@ -131,6 +136,21 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     async markAiDisclosed(id, at) {
       await tx.updateTable('conversations').set({ ai_disclosed_at: at })
         .where('id', '=', id).execute();
+    },
+
+    async recentMessages(id, { limit, excluding }) {
+      const rows = (await sql<{ direction: string; text: string | null }>`
+        select direction, coalesce(nullif(text_content, ''), transcription, '') as text
+          from messages
+         where conversation_id = ${id}::uuid
+           and not coalesce(is_duplicate, false)
+           and (external_id is null or not (external_id = any(${[...excluding]}::text[])))
+         order by sent_at desc, id desc
+         limit ${limit}`.execute(tx)).rows;
+      return rows.reverse().map((r) => ({
+        direction: r.direction === 'outbound' ? 'outbound' as const : 'inbound' as const,
+        text: (r.text ?? '').slice(0, HISTORY_MESSAGE_CHARS),
+      }));
     },
 
     async findActiveByClient(clientId) {

@@ -84,7 +84,11 @@ export class FakeTenant implements Tenant {
       const s = this.states.get(id);
       if (s) this.states.set(id, { ...s, aiDisclosedAt: at });
     },
+    // Q1 — what the conversation said before, as a test lays it down.
+    recentMessages: async (_id, { limit }) => this.history.slice(-limit),
   };
+  /** Q1 — the earlier messages a test gives the conversation, oldest first. */
+  history: { direction: 'inbound' | 'outbound'; text: string }[] = [];
 
   /**
    * 0079 — the send path's half, as the outbound worker does it: the provider
@@ -345,9 +349,11 @@ export class FakeAnalyzer implements Analyzer {
   byText = new Map<string, Analysis>();
   /** The texts it was asked about, in order — so a test can say no model was asked. */
   texts: string[] = [];
+  /** Q1 — the history it was shown with each text, in the same order. */
+  histories: (readonly { direction: string; text: string }[])[] = [];
   async analyze(input?: Parameters<Analyzer['analyze']>[0]): Promise<{ analysis: Analysis; promptVersion: string; modelId: string; usage: { inputTokens: number; outputTokens: number } }> {
     this.calls++;
-    if (input) this.texts.push(input.text);
+    if (input) { this.texts.push(input.text); this.histories.push(input.recentMessages); }
     const analysis = (input && this.byText.get(input.text)) ?? this.next;
     if (!analysis) throw new Error('FakeAnalyzer.next not set');
     return { analysis, promptVersion: 'test@1', modelId: 'fake-model', usage: { inputTokens: 500, outputTokens: 120 } };
