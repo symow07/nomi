@@ -164,6 +164,12 @@ instruction did not answer. Collected here; asked once, at the end.
   behind another tenant's dozen). That is FAIR's problem (fair scheduling on
   the inbound queue); FAIR will look at the throughput too. The metering test
   now waits for its own turn long enough for such a backlog.
+- **A test assumed "minutes ago" is today** (found 2026-09-30 on #130's CI,
+  which ran at 00:01 in Shanghai): `buyers-merge` expected "Today HH:MM" for
+  a message written 3 minutes earlier, which the business clock calls
+  "Yesterday" for the first minutes after its midnight. Now the test expects
+  what `formatRelative` says for the row's own instant; reproduced both ways
+  (message moved a day back: the old assertion fails, the new one passes).
 - **Practice's scripted turns record two "model calls"** in `turns` (the
   stand-ins count like models, model id `scripted`, no tokens). One in
   production (2026-09-19). The report counts them apart; the ledger never
