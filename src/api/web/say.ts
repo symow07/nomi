@@ -34,6 +34,12 @@ export type RequestScope = {
    * look-up that failed), the shell says what it always said.
    */
   readonly business?: string | null;
+  /**
+   * The design pass — how many customers need the owner now (Buyers' "Needs
+   * you"), for the rail's one number. Read fresh on every page, never cached:
+   * a count that lags is a count that lies. Absent: the rail shows none.
+   */
+  readonly needsYou?: number | null;
 };
 
 const scope = new AsyncLocalStorage<RequestScope>();
@@ -53,6 +59,7 @@ export const withAssistantName = <T>(
   const outer = scope.getStore();
   return scope.run({
     name, several, outreach: outer?.outreach ?? false, setup: outer?.setup ?? null, business: outer?.business ?? null,
+    needsYou: outer?.needsYou ?? null,
   }, fn);
 };
 
@@ -64,6 +71,9 @@ export const businessName = (): string | null => {
   const n = scope.getStore()?.business?.trim();
   return n ? n : null;
 };
+
+/** How many customers need the owner now, for the rail; null outside a workspace or when it could not be read. */
+export const needsYouCount = (): number | null => scope.getStore()?.needsYou ?? null;
 
 /** How far setup has come, for the badge and the Today card. Outside a scope: nothing to say. */
 export const setupState = (): SetupProgress | null => scope.getStore()?.setup ?? null;

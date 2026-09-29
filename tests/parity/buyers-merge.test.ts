@@ -331,7 +331,8 @@ describe('A · Customers is Buyers now — the doors, the map, the redirect', ()
     };
     for (const l of LOCALES) {
       const h = renderConversationDetail(detail, l, NOW, null);
-      expect(h, l).toContain(`<a class="deeper" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}<span class="go" aria-hidden="true">›</span></a>`);
+      // `file-door`: where the customer panel stands beside the conversation, it carries this door instead (the design pass)
+      expect(h, l).toContain(`<a class="deeper file-door" href="/app/conversations/c-1">${shown(l, 'conv.file.title')}<span class="go" aria-hidden="true">›</span></a>`);
       expect(h, l).not.toContain('<style');
     }
   });

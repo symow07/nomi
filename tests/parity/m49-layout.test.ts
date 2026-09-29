@@ -186,8 +186,8 @@ describe('M49 · the two voices are on the right axis', () => {
 describe('M49 · colour once or twice per screen', () => {
   it('the graphite fill is spent on the primary act — not on chrome', async () => {
     const css = await shellCss();
-    // The nav's active item reads by weight and a recess.
-    expect(css).toMatch(/nav\.side a\.navlink\.active \{[^}]*background: var\(--color-paper\)/);
+    // The nav's active item reads by weight and a white sheet on the paper rail.
+    expect(css).toMatch(/nav\.side a\.navlink\.active \{[^}]*background: var\(--color-surface\)/);
     expect(css).not.toMatch(/nav\.side a\.navlink\.active \{[^}]*background: ?var\(--color-ink\)/);
     // The language switcher is chrome, not a state worth a saturated fill.
     expect(css).not.toMatch(/\.langsw a\.on \{[^}]*background:var\(--color-ink\)/);
