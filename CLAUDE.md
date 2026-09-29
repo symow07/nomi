@@ -187,6 +187,7 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 134 | **REKEY — `CREDENTIAL_KEY` rotation without a token lost**: the app reads with the previous key during a rotation, `tools/rekey.mjs` re-seals, the doc rewritten around it — see §5 rule 33 |
 | 133 | **PWR — "Forgot your password?"** (0084): a one-time link by e-mail, the same words whether or not the address signs in here — see §5 rule 32 |
 | 132 | **Q1 — the analyser sees the last six messages**, as its prompt promised; the live check before and after, with history cases — see §5 rule 31 |
 | 131 | **T3 — imported products can be found** — names written at import and edit, name editing, "ready" only when findable, the backfill tool (not run on Westlake) — see §5 rule 30 |
@@ -454,6 +455,11 @@ Recent PRs, newest first:
    - "Forgot your password?" on the door (only where the installation sends system mail — `recoveryOn`) asks for the address. The reply is the SAME page, status and words (`forgot.sent`, "If {email} signs in to Nomi…") whether or not the address has a login, and it is sent before anything else happens: the token is made, stored as its SHA-256 by the definer function, and mailed after the reply. The link is 0078's `/login/set-password?t=…`, good for 60 minutes (`RECOVERY_MINUTES`).
    - In the database (0084): only the one live login of a switched-on workspace, person not archived; three recovery links an hour per login, whoever asks; asking again closes the older open links (the newest works). At the door: five asks an hour per caller (`recoveryThrottle`). The mail never reaches the log; a failure logs a fixed phrase.
    - Tests: `tests/integration/password-recovery.test.ts` (the whole flow, the same words for no login / archived / switched off with no mail, three an hour — switched off in the database, it fails — the newest link, the throttle), `tests/parity/password-recovery.test.ts`.
+33. **`CREDENTIAL_KEY` can be rotated without a token lost** (REKEY, #134, 2026-09-30; `docs/SECRET-ROTATION.md`, `tools/rekey.mjs`).
+   - The key seals every stored token (Page, mailbox, connector, channel). During a rotation `CREDENTIAL_KEY_PREVIOUS` holds the old key: the app OPENS with it, never seals with it (`acceptRetiredKeys`, set at boot; checked at boot as 64 hex).
+   - Order: backup → the owner sets `CREDENTIAL_KEY_PREVIOUS` = old and `CREDENTIAL_KEY` = new in one change → `tools/rekey.mjs` (dry run, then `--yes`; keys and the admin address from the environment only — the doc's nested `railway run` supplies `ADMIN_DATABASE_URL` from Postgres and the keys from `nomi`) → run again: "Nothing to re-seal" → remove `CREDENTIAL_KEY_PREVIOUS`.
+   - Without a previous key the tool only counts (production 2026-09-30: 4 sealed tokens, all open). `tools/lib/sealed.mjs` is its copy of the format and `SEALED` its list of columns; tests hold both to the app and to every `*_ciphertext` column in the migrations and the schema.
+   - Tests: `tests/parity/rekey.test.ts`, `tests/integration/rekey.test.ts`.
 
 ## 6 · What's next
 

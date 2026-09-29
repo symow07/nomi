@@ -43,7 +43,7 @@ import { messengerAdapter } from './channels/messenger/adapter.js';
 import { gmailSender, graphSender } from './channels/email/senders.js';
 import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
-import { deriveKey } from './security/credentials.js';
+import { deriveKey, acceptRetiredKeys } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db } from './db/client.js';
@@ -185,6 +185,8 @@ const OPTIONAL_SHAPES: Record<string, Shape> = {
   // CC-10 — https, a host AND a path: the path is the check's key, so a bare
   // host would ping nothing, and `/fail` is appended to it on a bad tick.
   HEALTH_PING_URL: (v) => /^https:\/\/[^\s/?#]+\/[^\s]+$/.test(v),
+  // REKEY — the key CREDENTIAL_KEY replaced, only during a rotation: read with, never sealed with.
+  CREDENTIAL_KEY_PREVIOUS: (v) => /^[0-9a-f]{64}$/i.test(v),
 };
 
 export function validateEnv(env: Record<string, string | undefined>):
@@ -435,6 +437,11 @@ export async function buildProduction(
   // and the Command Center plays back through the same fetcher. Built once, so
   // a test that injects its own cannot end up with the web app using another.
   const mediaPorts = overrides?.media ?? mediaPortsFor(cfg);
+  // REKEY — a rotation in progress: tokens sealed with the key this one
+  // replaced are still opened (never sealed) until tools/rekey.mjs re-seals them.
+  const retired = process.env['CREDENTIAL_KEY_PREVIOUS'];
+  acceptRetiredKeys(retired ? [deriveKey(retired)] : []);
+  if (retired) console.log('CREDENTIAL_KEY_PREVIOUS is set: tokens sealed with the old key are still opened until tools/rekey.mjs re-seals them. Remove it afterwards (docs/SECRET-ROTATION.md).');
   const { db, boss, errors } = await startWorker({
     DATABASE_URL: cfg.DATABASE_URL, ANTHROPIC_API_KEY: cfg.ANTHROPIC_API_KEY,
     // G11 — the worker mints the proof link a quote carries, so it needs the
