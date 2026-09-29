@@ -438,8 +438,9 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
 
     it('every rule that sets a text colour on its own background, in every sheet the pages link, clears 4.5:1', () => {
       // The owner's sheet, the door's (sign-in, sign-up), and the site's own rules.
+      // The type sheets (font faces, no colour) are linked too, and skipped here.
       const sheets = [shelled('en'), loginPage({ locale: 'en', path: '/login' })].flatMap((html) =>
-        [...html.matchAll(/<link rel="stylesheet" href="\/assets\/([^"]+)">/g)].map((m) => stylesheetAt(m[1]!)!.css));
+        [...html.matchAll(/<link rel="stylesheet" href="\/assets\/((?!type)[^"]+)">/g)].map((m) => stylesheetAt(m[1]!)!.css));
       expect(sheets).toHaveLength(2);
       const low: string[] = [];
       for (const css of [...sheets, SITE_CSS]) {

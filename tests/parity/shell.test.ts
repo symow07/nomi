@@ -75,11 +75,14 @@ describe('Phase F · five destinations, and nothing else competing', () => {
 });
 
 describe('V1 close-out · the stylesheet is a file', () => {
-  it('the shell links one sheet, by its content, and carries no rules of its own', () => {
+  it('the shell links one sheet and its language\'s type, by their content, and carries no rules of its own', () => {
     for (const l of LOCALES) {
       const html = page(l);
       expect(html, l).not.toContain('<style');
-      expect(sheetLinks(html), l).toEqual([expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/)]);
+      expect(sheetLinks(html), l).toEqual([
+        expect.stringMatching(/^\/assets\/app\.[0-9a-f]{16}\.css$/),
+        expect.stringMatching(l === 'zh' ? /^\/assets\/typezh\.[0-9a-f]{16}\.css$/ : /^\/assets\/type\.[0-9a-f]{16}\.css$/),
+      ]);
       expect(linkedCss(html).length, l).toBeGreaterThan(10_000);
     }
     // one sheet for every page and every language: the address does not vary

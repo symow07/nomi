@@ -6,6 +6,7 @@ import { cssVariables } from '../../core/owner/css.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
+import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
 
 /**
  * M9.1 + ADR-0008 — The command-center shell (pure HTML), now locale-aware
@@ -1080,6 +1081,7 @@ export type Stylesheet = { readonly name: string; readonly href: string };
  * its kind; the kinds are the two a browser is sent.
  */
 const ASSET_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8' } as const;
+const FONT_TYPE = 'font/woff2';
 type AssetKind = keyof typeof ASSET_TYPES;
 
 const ASSETS = new Map<string, { readonly body: string; readonly hash: string }>();
@@ -1118,11 +1120,15 @@ export function stylesheetAt(file: string): { readonly css: string; readonly cur
  * stylesheet or the script, with its type. An address from an earlier build
  * gets this build's text, not kept; anything else is nothing.
  */
-export function assetAt(file: string): { readonly body: string; readonly type: string; readonly current: boolean } | null {
+export function assetAt(file: string): { readonly body: string | Buffer; readonly type: string; readonly current: boolean } | null {
   const css = stylesheetAt(file);
   if (css) return { body: css.css, type: ASSET_TYPES.css, current: css.current };
   const js = lookup(file, 'js');
-  return js ? { body: js.body, type: ASSET_TYPES.js, current: js.current } : null;
+  if (js) return { body: js.body, type: ASSET_TYPES.js, current: js.current };
+  // A font: named by its content when it was vendored, so its address is
+  // always its own and it may always be kept (`type.ts`).
+  const font = fontAt(file);
+  return font ? { body: font, type: FONT_TYPE, current: true } : null;
 }
 
 const linkTo = (s: Stylesheet): string => `<link rel="stylesheet" href="${s.href}">`;
@@ -1177,6 +1183,15 @@ ${input.description ? `<meta name="description" content="${esc(input.description
 
 /** The shell's sheet: the base rules and every page's section. */
 const APP_SHEET = sheet('app', STYLE + STYLE_PAGES);
+
+/**
+ * The type (the design pass, 2026-09-29): the faces a page's language needs,
+ * linked by the shell and the door after their own sheet. The public
+ * documents do not link it — they arrive complete — and their stacks name the
+ * device's own fonts after Noto.
+ */
+const TYPE_SHEETS = { base: sheet('type', TYPE_CSS), zh: sheet('typezh', TYPE_ZH_CSS) } as const;
+const typeLink = (locale: Locale): string => linkTo(TYPE_SHEETS[typeSetFor(locale)]);
 
 /**
  * CC-26 — the one script, linked by the shell on every owner page and by
@@ -1318,6 +1333,7 @@ export function shell(input: {
 <title>${esc(input.title)} · ${esc(name)}</title>
 <link rel="icon" href="${faviconDataUri()}">
 ${linkTo(APP_SHEET)}
+${typeLink(locale)}
 ${scriptTo(LIVE_JS)}</head>
 <body><a class="skip" href="#main">${esc(t(locale, 'shell.skip'))}</a><div class="layout">
   <nav class="side">
@@ -1385,7 +1401,8 @@ const doorFrame = (locale: Locale, path: string, title: string, card: string, ot
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · ${esc(title)}</title>
 <link rel="icon" href="${faviconDataUri()}">
-${linkTo(DOOR_SHEET)}</head>
+${linkTo(DOOR_SHEET)}
+${typeLink(locale)}</head>
 <body><div class="login">
   <div class="top-sw">${switcher(locale, path)}</div>
   <${brandIsTitle ? 'h1' : 'div'} class="brand">Nomi<small class="muted">${esc(t(locale, 'login.brandTagline'))}</small></${brandIsTitle ? 'h1' : 'div'}>

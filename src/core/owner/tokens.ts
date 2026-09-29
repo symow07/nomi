@@ -76,13 +76,32 @@ export const DESIGN_TOKENS = {
    * (14) and `numeral` (22) retired, their uses remapped to a neighbour.
    */
   font: {
-    family: `-apple-system, "PingFang SC", "Noto Sans SC", sans-serif`,
     /**
-     * The serif voice. Anything a PERSON says is set in this — her drafts, a
-     * buyer's quoted words. Sans is what the PRODUCT says: labels, nav, counts,
-     * buttons. The distinction is the point; do not use it for emphasis.
+     * ONE ORDER PER LANGUAGE (the design pass, 2026-09-29). The order decides
+     * which font draws the characters scripts share — Latin letters, digits,
+     * punctuation, quotation marks. The old single stack began with
+     * `-apple-system`, which Chrome does not recognise, so it fell to
+     * "PingFang SC" and English was drawn by the Chinese font. Now each
+     * language leads with its own Noto face (served by the product itself,
+     * `src/api/web/type.ts`); a Chinese page leads with the Chinese face so
+     * "，。" are drawn full-width by it. `type.test.ts` checks the first family.
      */
-    voice: `ui-serif, Georgia, "Songti SC", "Noto Serif SC", "Noto Naskh Arabic", serif`,
+    family: {
+      en: `"Noto Sans", "Noto Sans SC", "Noto Sans Arabic", system-ui, sans-serif`,
+      zh: `"Noto Sans SC", "Noto Sans", system-ui, sans-serif`,
+      ar: `"Noto Sans Arabic", "Noto Sans", system-ui, sans-serif`,
+    },
+    /**
+     * The serif voice. Anything a PERSON says is set in this — the assistant's
+     * drafts, a customer's quoted words. Sans is what the PRODUCT says: labels,
+     * nav, counts, buttons. The distinction is the point; do not use it for
+     * emphasis. Arabic speech is Naskh, the hand running text is read in.
+     */
+    voice: {
+      en: `"Noto Serif", "Noto Serif SC", "Noto Naskh Arabic", Georgia, serif`,
+      zh: `"Noto Serif SC", "Noto Serif", serif`,
+      ar: `"Noto Naskh Arabic", "Noto Serif", serif`,
+    },
     sizePx: { caption: 13, small: 15, base: 17, title: 20, display: 26, hero: 34 },
     /** Set from `html[lang]`; the shell writes the locale there on every page. */
     lineHeight: { en: 1.5, zh: 1.7, ar: 1.75 },

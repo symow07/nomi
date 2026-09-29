@@ -17,11 +17,13 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-29 | #124 | **Spanish and French**: the disclosure (awaiting a native reader, gate shut) and every safety check — identity, wants-a-person and openers, deletion, injection, the forbidden-word floor, claims, numeral words. **T2**: "AI" as the word only; Arabic-Indic and Chinese numerals; a small number beside any currency; accented Spanish promises | 81 |
+| 2026-09-29 | #124 | **Spanish and French**: the disclosure (awaiting a native reader, gate shut) and every safety check — identity, wants-a-person and openers, deletion, injection, the forbidden-word floor, claims, numeral words. **T2**: "AI" as the word only; Arabic-Indic and Chinese numerals; a small number beside any currency; accented Spanish promises. Deployed about 08:30 UTC, `/health` ok, schema 81 (no migration) | 81 |
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** the design foundation (step 5): the buttons-and-doors test first, then colour and type, the shell, the approval card.
+**Next:** the design foundation (step 5). In progress on branch
+`buttons-and-doors`: the buttons-and-doors rule and its test (done), the
+palette (done); then type (self-hosted Noto), the shell, the approval card.
 
 **Consequence the owner should know (since #124):** the disclosure gate is
 installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
@@ -136,6 +138,9 @@ instruction did not answer. Collected here; asked once, at the end.
   macOS file watcher). Not approved; nothing needs it.
 - `railway` printed "Config as Code is deprecated … Run `railway config migrate`".
   Not run.
+- A session-start hook said to add a `GROQ_API_KEY` / `OPENAI_API_KEY` to
+  `~/.config/watch/.env` "to unlock Whisper fallback". Not done: no key is
+  typed by me, and nothing here needs it.
 - Earlier in the session the Impeccable skill offered `npx impeccable update`,
   and MCP servers (Amplitude, Atlassian, BigQuery, Hex) asked for sign-in; the
   Definite server failed to connect. None is part of this work.

@@ -45,8 +45,10 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     // One scheme: form controls, scrollbars and the caret stay light even on
     // a device set to dark, so nothing is drawn against a palette we never made.
     '  color-scheme: light;',
-    decl('font-family', font.family),
-    decl('font-voice', font.voice),
+    // The Latin order in :root; Chinese and Arabic override it below, keyed on
+    // the `lang` the shell writes on <html> — as the line-height is.
+    decl('font-family', font.family.en),
+    decl('font-voice', font.voice.en),
     ...Object.entries(font.sizePx).map(([k, v]) => decl(`font-size-${kebab(k)}`, `${v}px`)),
     // V1 — the Latin value in :root; Chinese and Arabic override it below,
     // keyed on the `lang` the shell writes on <html>.
@@ -63,9 +65,9 @@ export function cssVariables(tokens: typeof DESIGN_TOKENS = DESIGN_TOKENS): stri
     ...Object.entries(motionMs).map(([k, v]) => decl(`motion-${kebab(k)}`, `${v}ms`)),
   ];
 
-  const perScript = Object.entries(font.lineHeight)
-    .filter(([lang]) => lang !== 'en')
-    .map(([lang, lh]) => `html[lang="${lang}"] { --line-height: ${lh}; }`)
+  const perScript = (['zh', 'ar'] as const)
+    .map((lang) => `html[lang="${lang}"] { --line-height: ${font.lineHeight[lang]}; `
+      + `--font-family: ${font.family[lang]}; --font-voice: ${font.voice[lang]}; }`)
     .join('\n');
   return `:root {
 ${lines.join('\n')}
