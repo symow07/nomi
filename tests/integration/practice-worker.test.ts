@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHmac } from 'node:crypto';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 
 /**
@@ -15,12 +15,15 @@ import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
-const d = DATABASE_URL ? describe : describe.skip;
+const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
+const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `dd870000-0000-4000-8000-${RUN}0001`;
 const PRODUCT = `dd870000-0000-4000-8001-${RUN}0001`;
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+/** The notice's signing key, as main.ts derives it from this test's CREDENTIAL_KEY. */
+const WEB_SECRET = createHmac('sha256', 'c'.repeat(64)).update('yf-web-session').digest('hex');
 
 const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 60_000): Promise<T> => {
   const end = Date.now() + ms;
@@ -32,7 +35,7 @@ const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 
   }
 };
 
-d('Practice goes through the real pipeline, on the workspace\'s own copy (requires DATABASE_URL)', () => {
+d('Practice goes through the real pipeline, on the workspace\'s own copy (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
   let prod: import('../../src/main.js').Production;
   let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
   let cookie = '';
@@ -153,14 +156,14 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect(leaked).toBe(0);
   }, 90_000);
 
-  it('a practice turn is paid for where it ran — on the copy\'s ledger, not the workspace\'s (P5 charges the workspace, capped)', async () => {
+  it('P5 — a practice turn is the workspace\'s cost: on its own ledger and allowance, never the copy\'s', async () => {
     const ledger = (id: string) => inBiz(id, (tx) => sql<{ turns: number; calls: number }>`
       select coalesce(sum(turns), 0)::int as turns, coalesce(sum(llm_calls), 0)::int as calls
         from usage_ledger where business_id = ${id}::uuid`.execute(tx).then((r) => r.rows[0]!));
-    const onCopy = await ledger(copy);
-    expect(onCopy.turns).toBeGreaterThanOrEqual(1);
-    expect(onCopy.calls).toBeGreaterThanOrEqual(2);   // the analysis and the reply
-    expect(await ledger(PILOT)).toEqual({ turns: 0, calls: 0 });
+    const onWorkspace = await ledger(PILOT);
+    expect(onWorkspace.turns).toBeGreaterThanOrEqual(1);
+    expect(onWorkspace.calls).toBeGreaterThanOrEqual(2);   // the analysis and the reply
+    expect(await ledger(copy)).toEqual({ turns: 0, calls: 0 });
   });
 
   it('Send: the ONE approval path, then the outbound worker and its gate, then the practice adapter — on the transcript, and no provider saw it', async () => {
@@ -289,7 +292,76 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect(second).not.toContain('1000 pieces');
   }, 120_000);
 
+  it('P5 — fifty a day: the fifty-first practice line is refused, and nothing is recorded, queued or asked', async () => {
+    const conv = (await practiceConv())!;
+    const today = () => inCopy((tx) => sql<{ n: number }>`
+      select count(*)::int as n from messages m join conversations c on c.id = m.conversation_id
+       where c.business_id = ${copy}::uuid and m.direction = 'inbound'
+         and m.sent_at >= ((now() at time zone 'UTC')::date)::timestamp at time zone 'UTC'`.execute(tx).then((x) => x.rows[0]!.n));
+    const have = await today();
+    await inCopy(async (tx) => {
+      for (let i = have; i < 50; i++) {
+        await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
+                  values (${conv}::uuid, ${`cap-${RUN}-${i}`}, 'inbound', 'text', ${`line ${i}`}, now())`.execute(tx);
+      }
+    });
+    expect(await today()).toBe(50);
+    const asked = analyzer.calls;
+    const r = await say('one more?');
+    expect(r.statusCode).toBe(302);
+    const { flashSaid } = await import('./tenant.js');
+    expect(flashSaid(r, WEB_SECRET).replace(/[\u2066-\u2069]/g, '')).toContain('Practice takes 50 messages a day');
+    expect(await today()).toBe(50);
+    await new Promise((res) => setTimeout(res, 2_000));
+    expect(analyzer.calls).toBe(asked);
+    // Start over does not give the day back: the fifty are the day's, not the conversation's.
+    await post('/app/sandbox/reset');
+    expect(await practiceConv()).toBeUndefined();
+    expect(flashSaid(await say('and now?'), WEB_SECRET)).toContain('Practice takes');
+    // …tomorrow does. The filler lines move to yesterday, and Practice opens again.
+    await inCopy((tx) => sql`update messages set sent_at = sent_at - interval '1 day'
+      where external_id like ${`cap-${RUN}-%`} or conversation_id = ${conv}::uuid`.execute(tx));
+    const { practiceRefusal } = await import('../../src/db/practice.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const live = parseBusinessId(PILOT); if (!live.ok) throw new Error('fixture');
+    expect(await practiceRefusal(prod.db, live.value)).toBeNull();
+  }, 60_000);
+
+  it('P5 — the operator\'s switch (0088): practice_off for this workspace, or for everyone, refuses the message', async () => {
+    const pg = (await import('pg')).default;
+    const admin = new pg.Client({ connectionString: MIGRATE_URL });
+    await admin.connect();
+    const { practiceRefusal } = await import('../../src/db/practice.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const live = parseBusinessId(PILOT); if (!live.ok) throw new Error('fixture');
+    try {
+      // a copy that has used up nothing today
+      await post('/app/sandbox/reset');
+      expect(await practiceRefusal(prod.db, live.value)).toBeNull();
+      const own = (await admin.query(`insert into ops_flags (business_id, flag, reason, set_by) values ($1, 'practice_off', 'test', 'test') returning id`, [PILOT])).rows[0].id;
+      try {
+        const r = await say('anyone there?');
+        const { flashSaid } = await import('./tenant.js');
+        expect(flashSaid(r, WEB_SECRET)).toContain('Practice is paused for now');
+        expect(await practiceConv()).toBeUndefined();           // nothing was recorded
+      } finally {
+        await admin.query(`update ops_flags set cleared_at = now() where id = $1`, [own]);
+      }
+      expect(await practiceRefusal(prod.db, live.value)).toBeNull();
+      const everyone = (await admin.query(`insert into ops_flags (business_id, flag, reason, set_by) values (null, 'practice_off', 'test', 'test') returning id`)).rows[0].id;
+      try {
+        expect(await practiceRefusal(prod.db, live.value)).toBe('switched_off');
+      } finally {
+        await admin.query(`update ops_flags set cleared_at = now() where id = $1`, [everyone]);
+      }
+      expect(await practiceRefusal(prod.db, live.value)).toBeNull();
+    } finally {
+      await admin.end();
+    }
+  });
+
   it('Start over archives the practice conversation (never deletes) and the next message starts a new one', async () => {
+    await say('a line to start over from');
     const before = (await practiceConv())!;
     const total0 = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
     expect((await post('/app/sandbox/reset')).statusCode).toBe(302);

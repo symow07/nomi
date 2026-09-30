@@ -140,3 +140,20 @@ Until it lands, checklist item 8 shows the gap rather than passing.
 - **Not yet: a photo or a voice note in Practice.** The worker fetches media
   from the provider that received it, and a practice message has no provider.
   It needs an upload on the page (P4) and a practice media port.
+
+## P5, as built (#147)
+
+- **Charged to the workspace.** A practice copy's turn is recorded on the
+  workspace's own ledger and allowance (`practice_of`), never the copy's. The
+  payer is known before any model is paid, so a turn that fails after paying
+  is charged there too.
+- **Fifty a day.** The fifty-first practice line of the UTC day (the ledger's
+  day) is refused on the page, before anything is recorded or queued. Start
+  over does not give the day back.
+- **The platform's switch.** `practice_off` in `ops_flags` (0088), for
+  everyone or for one workspace, refuses practice messages
+  (`docs/INCIDENT-PLAYBOOK.md`).
+- **Open to every workspace.** T1's pilot-only gate and the door's `practice`
+  fact are gone. What keeps one workspace's practice from another's is the
+  copy, and `practice-own.test.ts` holds that nothing crosses.
+

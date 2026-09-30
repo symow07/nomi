@@ -5,7 +5,7 @@ import { parseLocale, type Locale } from '../../core/owner/i18n/locale.js';
 import { defaultAssistantName, validateAssistant, NAME_MAX } from '../../core/owner/assistants.js';
 import { renameMainAssistant } from '../../db/assistants.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, practiceShown } from './say.js';
+import { t } from './say.js';
 
 import { runAll } from '../../trust/harness.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
@@ -428,7 +428,7 @@ function detectedRow(key: DetectedKey, done: boolean, locale: Locale, viewer: Vi
     : '';
   return `<div class="pr todo"><span class="mk">○</span> <span class="lbl">${label}</span>
     <div class="pr-b"><span class="muted">${esc(t(locale, `pilot.blocker.${key}` as MessageKey))}</span>
-      ${(key === 'priceRules' && !viewer.isOwner) || (DETECTED_LINK[key] === '/app/sandbox' && !practiceShown()) ? '' : deeper(DETECTED_LINK[key], t(locale, 'pilot.open'))}${extra}</div></div>`;
+      ${(key === 'priceRules' && !viewer.isOwner) ? '' : deeper(DETECTED_LINK[key], t(locale, 'pilot.open'))}${extra}</div></div>`;
 }
 
 function attestRow(
@@ -538,7 +538,7 @@ function duringSection(ops: OperationsSnapshot, locale: Locale): string {
     && ops.knowledge.openGaps === 0 && ops.knowledge.recentCorrections === 0 && ops.knowledge.recentlyTaught === 0;
   const body = quiet
     ? `<div class="empty muted">${esc(t(locale, 'runbook.during.quiet'))}
-        <div>${practiceShown() ? deeper('/app/sandbox', t(locale, 'factory.ready.practice')) : ''}</div></div>`
+        <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div>`
     : `<h3 class="rbsub">${esc(t(locale, 'ops.attention.title'))}</h3>
       ${rbCount('ops.card.waiting', ops.attention.handoffs, '/app/inbox', locale)}
       ${rbCount('ops.card.approvals', ops.attention.pendingApprovals, '/app/inbox?filter=pending', locale)}
@@ -570,7 +570,7 @@ function practiceSection(r: PilotRunbook['rehearsal'], locale: Locale): string {
     <p class="muted">${esc(t(locale, 'runbook.practice.intro'))}</p>
     <ol class="rbsteps">${steps}</ol>
     ${progress}
-    ${practiceShown() ? deeper('/app/sandbox', t(locale, 'runbook.practice.open')) : ''}
+    ${deeper('/app/sandbox', t(locale, 'runbook.practice.open'))}
   </div>`;
 }
 
@@ -595,7 +595,7 @@ function feedbackSection(f: PilotFeedback, locale: Locale): string {
   if (!f.hasActivity) {
     return `<div class="block"><h2>${esc(t(locale, 'feedback.title'))}</h2>
       <div class="empty muted">${esc(t(locale, 'feedback.none'))}
-        <div>${practiceShown() ? deeper('/app/sandbox', t(locale, 'factory.ready.practice')) : ''}</div></div></div>`;
+        <div>${deeper('/app/sandbox', t(locale, 'factory.ready.practice'))}</div></div></div>`;
   }
   const row = (label: string, item: FeedbackItem) =>
     `<div class="rbrow"><span class="lbl">${esc(label)}</span><b class="n">${item.count}</b>

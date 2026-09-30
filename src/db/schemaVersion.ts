@@ -274,8 +274,11 @@ import type { Db } from './client.js';
  * 87 = which copy is mine (0087): `practice_copy`, read-only. The Practice
  *      page and its live line find the copy with it; against an 86 database
  *      every Practice page view fails.
+ * 88 = the platform's switch for Practice (0088): `practice_off` in
+ *      `ops_flags`. No column is read, but the operator's row is refused by an
+ *      87 database's check, so the switch this build reads could not be set.
  */
-export const REQUIRED_SCHEMA_VERSION = 87;
+export const REQUIRED_SCHEMA_VERSION = 88;
 
 export type SchemaState = {
   readonly required: number;

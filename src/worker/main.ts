@@ -18,7 +18,7 @@ import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
 import { assistantHold } from '../db/assistantStop.js';
-import { isPracticeCopy } from '../db/practice.js';
+import { practiceOf } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
   handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
@@ -134,8 +134,15 @@ export async function startWorker(
     // own (below), so a turn that fails after paying is still on the ledger.
     let spent: { llmCalls: number; inputTokens: number; outputTokens: number } | null = null;
     let committed = false;
+    // P5 — who pays: the workspace itself, or, for a practice copy, the workspace it practises for.
+    let payer: BusinessId = businessId.value;
     const effects = await withTenantTx(db, businessId.value, async (tx) => {
       await lockConversation(tx, conversationId.value);
+      // P5 — a practice copy's turn is the workspace's cost, on its own ledger
+      // and allowance: known before any model is paid, so a turn that fails
+      // after paying is charged there too.
+      const practisedFor = await practiceOf(tx, businessId.value);
+      if (practisedFor) payer = practisedFor;
       const base = tenantRepos(tx, businessId.value);
       const tenant = rehearsal.autonomyReleased
         ? { ...base, autonomy: { ...base.autonomy, released: rehearsal.autonomyReleased } }
@@ -193,9 +200,7 @@ export async function startWorker(
       const fx = await commitTurn(ports, req, result, started);
       // P3 — a practice turn (0086) is checked by the golden set's own
       // checkers, and the page shows what held. Only on a copy.
-      if (await isPracticeCopy(tx, businessId.value)) {
-        await notePracticeChecks(tx, tenant, businessId.value, conversationId.value, result, fx, new Date());
-      }
+      if (practisedFor) await notePracticeChecks(tx, tenant, businessId.value, conversationId.value, result, fx, new Date());
       // M51.1 — the fragments this turn answered stop being pending, in the
       // SAME transaction as the answer. A rollback leaves them pending and the
       // next wake retries: the whole reason they are rows and not a variable.
@@ -204,7 +209,7 @@ export async function startWorker(
     }).then((fx) => { committed = true; return fx; }).finally(async () => {
       // T7 — the budget dataset: what every attempt's calls cost, kept or not;
       // a turn is counted once, when it is kept (a retry is the same turn).
-      if (spent) await recordSpendAlone(db, businessId.value, spent, { turn: committed });
+      if (spent) await recordSpendAlone(db, payer, spent, { turn: committed });
     });
 
     // Effects enqueue AFTER the tenant tx commits — at-least-once, consumers

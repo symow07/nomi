@@ -78,6 +78,21 @@ update ops_flags set cleared_at = now() where id = $id;
 - Ops writes these rows as the table owner; the app role holds SELECT only, so a
   compromised app can neither silence a tenant nor un-silence one.
 
+**Practice has its own switch (0088, P5).** Every practice message is a live
+model turn, charged to the workspace that typed it and capped at 50 a day. To
+stop Practice taking messages, for everyone (`business_id` null) or for one
+workspace:
+
+```sql
+insert into ops_flags (business_id, flag, reason, set_by) values (null, 'practice_off', '...', 'simo');
+-- clear
+update ops_flags set cleared_at = now() where id = $id;
+```
+
+- It refuses the next practice message on the page ("Practice is paused for
+  now"); nothing is recorded or queued for it. A practice turn already in the
+  queue still runs. It never touches a real customer's conversation.
+
 **Verify it took effect** rather than assuming, which is the whole lesson here:
 
 ```sql

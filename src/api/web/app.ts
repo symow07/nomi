@@ -130,7 +130,7 @@ import {
   loadPracticeView, renderSandbox, sayInPractice, resetPractice,
   runScriptedPractice, renderPractice, practiceUrl,
 } from './sandbox.js';
-import { practiceCopyOf, refreshPractice, activePracticeConversation } from '../../db/practice.js';
+import { practiceCopyOf, refreshPractice, activePracticeConversation, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -605,7 +605,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * the same transaction, and forgotten with the rest when the profile is
    * saved (`/app/settings` evicts).
    */
-  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null; readonly practice: boolean }>(deps.factsTtlMs);
+  const facts = makeNameCache<WorkspaceFacts & { readonly business: string | null }>(deps.factsTtlMs);
   app.addHook('preHandler', (req, _reply, done) => {
     if (!req.url.startsWith('/app')) return done();
     const s = sessionOf(req);
@@ -618,7 +618,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * the minute's cache: a count that lags is a count that lies. A page's own
      * requests (the live line's question, a post) do not need it.
      */
-    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null; readonly practice: boolean }) => {
+    const withNeeds = (f: WorkspaceFacts & { readonly business: string | null }) => {
       if (req.method !== 'GET' || req.url.startsWith('/app/live')) return withWorkspace(f, done);
       withTenantTx(deps.db, bid.value, (tx) => readBuyerCounts(tx)).then(
         (c) => withWorkspace({ ...f, needsYou: c.waiting }, done),
@@ -631,8 +631,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       ...(await workspaceFacts(tx, bid.value)),
       business: (await sql<{ name: string | null }>`
         select name from businesses where id = ${bid.value}::uuid`.execute(tx)).rows[0]?.name ?? null,
-      // T1 — the shared practice sandbox is the pilot workspace's alone.
-      practice: s.businessId === deps.businessId,
     })).then(
       (f) => { facts.set(s.businessId, f, now); withNeeds(f); },
       () => done(),
@@ -3879,17 +3877,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // worker, approval path and send gate; the copy's adapter has no network.
   {
     /**
-     * T1 — still the pilot workspace's alone, until P5 charges practice turns to
-     * the owner's ledger and caps them: every practice message is a live model
-     * turn now. Any other session gets the same not-found as a wrong address.
+     * P5 — every workspace practises, on its own copy: its turns are charged to
+     * it and capped (`practiceRefusal`). T1's pilot-only gate is gone; the
+     * copy is what keeps one workspace's practice from another's.
      */
-    const practiceFor = (s: OwnerSession): boolean => s.businessId === deps.businessId;
     const liveOf = (s: OwnerSession) => parseBusinessId(s.businessId);
 
     app.get('/app/sandbox', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
-      if (!practiceFor(s)) return reply.callNotFound();
       const locale = localeOf(req);
       const q = req.query as { ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
@@ -3927,7 +3923,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           ? reply.code(401).header('cache-control', 'no-store').send({ news: false })
           : reply.redirect('/login');
       }
-      const copy = practiceFor(s) ? await practiceCopyOf(deps.db, live.value) : null;
+      const copy = await practiceCopyOf(deps.db, live.value);
       const cid = copy ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
       if (!copy || !cid) return reply.code(404).header('cache-control', 'no-store').send({ news: false });
       const answer = await liveAnswer(deps.db, copy, 'practice', (req.query as { since?: unknown } | undefined)?.since, cid);
@@ -3936,27 +3932,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // CC-25 — every practice action returns through `practiceUrl`: onto its
     // notice under the newest line, the reply to approve under it.
-    const say = async (s: OwnerSession, text: string): Promise<boolean> => {
+    const say = async (s: OwnerSession, text: string) => {
       const live = liveOf(s);
-      if (!live.ok || !deps.enqueueInbound) return false;
+      if (!live.ok || !deps.enqueueInbound) return 'empty' as const;
       return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text);
     };
+    /** Where a practice message lands: its notice — sent, or why Practice would not take it. */
+    const said = (reply: FastifyReply, outcome: Awaited<ReturnType<typeof say>>) =>
+      outcome === 'empty' ? reply.redirect(practiceUrl())
+        : outcome === 'daily_limit' ? flashTo(reply, practiceUrl(), 'practice.flash.daily_limit', { limit: PRACTICE_DAILY_LIMIT })
+        : flashTo(reply, practiceUrl(), outcome === 'sent' ? 'practice.sent' : 'practice.flash.switched_off');
     app.post('/app/sandbox/message', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
-      if (!practiceFor(s0)) return reply.callNotFound();
       const b = (req.body ?? {}) as { text?: string };
-      return await say(s0, String(b.text ?? '')) ? flashTo(reply, practiceUrl(), 'practice.sent') : reply.redirect(practiceUrl());
+      return said(reply, await say(s0, String(b.text ?? '')));
     });
 
     // A situation from the golden set: its customer's words, answered live.
     app.post('/app/sandbox/scenario', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
-      if (!practiceFor(s0)) return reply.callNotFound();
       const b = (req.body ?? {}) as { scenarioId?: string };
       const scenario = SCENARIOS.find((x) => x.id === String(b.scenarioId ?? ''));
-      return scenario && await say(s0, scenario.buyer.text) ? flashTo(reply, practiceUrl(), 'practice.sent') : reply.redirect(practiceUrl());
+      return said(reply, scenario ? await say(s0, scenario.buyer.text) : 'empty');
     });
 
     /** The copy, brought in line: an approval or a take-over acts under today's rules too. */
@@ -3970,7 +3969,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post('/app/sandbox/act', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
-      if (!practiceFor(s)) return reply.callNotFound();
       const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
       const copy = await copyFor(s);
       if (copy && b.draftId) {
@@ -3987,7 +3985,6 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post('/app/sandbox/reset', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
-      if (!practiceFor(s0)) return reply.callNotFound();
       const live = liveOf(s0);
       const copy = live.ok ? await practiceCopyOf(deps.db, live.value) : null;
       if (copy) await resetPractice(deps.db, copy, new Date());
@@ -4002,8 +3999,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       app.post(path, async (req, reply) => {
         const s = sessionOf(req);
         if (!s) return reply.redirect('/login');
-        if (!practiceFor(s)) return reply.callNotFound();
-        const copy = await copyFor(s);
+          const copy = await copyFor(s);
         const cid = copy ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
         if (!copy || !cid) return reply.redirect(practiceUrl());
         const r = await run(copy, cid, req, personOf(s).id);

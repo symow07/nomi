@@ -51,8 +51,43 @@ export async function practiceCopyOf(db: Db, live: BusinessId): Promise<Business
 
 /** Is this business a practice copy? Read in its own transaction: row security shows a business its own row. */
 export async function isPracticeCopy(tx: Tx, businessId: BusinessId): Promise<boolean> {
-  return (await sql<{ copy: boolean }>`
-    select practice_of is not null as copy from businesses where id = ${businessId}`.execute(tx)).rows[0]?.copy === true;
+  return (await practiceOf(tx, businessId)) !== null;
+}
+
+/** The workspace a practice copy practises for — who pays for its turns (P5) — or null for a real workspace. */
+export async function practiceOf(tx: Tx, businessId: BusinessId): Promise<BusinessId | null> {
+  return copyId((await sql<{ live: string | null }>`
+    select practice_of::text as live from businesses where id = ${businessId}`.execute(tx)).rows[0]?.live);
+}
+
+/**
+ * P5 — PRACTICE A DAY. Every practice message is a live model turn, charged to
+ * the workspace; fifty a day is plenty to rehearse with, and bounds what a
+ * page left open, or a script, can spend. Counted as the owner's practice
+ * lines since midnight UTC — the ledger's own day (T7) — so a line waiting in
+ * a batch counts before its turn runs.
+ */
+export const PRACTICE_DAILY_LIMIT = 50;
+
+export type PracticeRefusal = 'switched_off' | 'daily_limit';
+
+/**
+ * Why Practice will not take a message now, or null. The operator's switch
+ * first (0088: `practice_off`, for everyone or for this workspace — read, never
+ * written, by the app), then the day's fifty. Nothing is created to answer it.
+ */
+export async function practiceRefusal(db: Db, live: BusinessId): Promise<PracticeRefusal | null> {
+  const off = await withTenantTx(db, live, async (tx) => (await sql<{ off: boolean }>`
+    select exists (select 1 from ops_flags where flag = 'practice_off' and cleared_at is null
+                     and (business_id is null or business_id = ${live}::uuid)) as off`.execute(tx)).rows[0]?.off === true);
+  if (off) return 'switched_off';
+  const copy = await practiceCopyOf(db, live);
+  if (!copy) return null;
+  const today = await withTenantTx(db, copy, async (tx) => (await sql<{ n: number }>`
+    select count(*)::int as n from messages m join conversations c on c.id = m.conversation_id
+     where c.business_id = ${copy} and m.direction = 'inbound'
+       and m.sent_at >= ((now() at time zone 'UTC')::date)::timestamp at time zone 'UTC'`.execute(tx)).rows[0]?.n ?? 0);
+  return today >= PRACTICE_DAILY_LIMIT ? 'daily_limit' : null;
 }
 
 /**
