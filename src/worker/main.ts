@@ -344,8 +344,8 @@ export async function startWorker(
          * his lines were being grouped failed here: the job retried, died, and
          * he reached "Needs you" as "not answered" minutes later instead of as
          * what happened. The record says it now: held, and why; nothing read,
-         * nothing written, no model asked. Today's "handled" and the operator's
-         * answer-path report leave a held turn out.
+         * nothing written, no model asked — the silent path, as the plan's HF
+         * has it. Today's "handled" leaves a held turn out.
          */
         await repos.audit.recordTurn({
           messageId: job.data.messageId, conversationId: conversationId.value,
@@ -357,6 +357,8 @@ export async function startWorker(
           analysis: null, retrieved: null,
           decision: { action: { kind: 'held', reason: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' } },
           quoteId: null, promptVersion: null, modelId: null, latencyMs: Date.now() - started,
+          // The plan's HF: a hold is the silent path — nobody answered, nothing was sent.
+          measure: { path: 'silent', analyserAvoidable: false, llmCalls: 0, inputTokens: 0, outputTokens: 0 },
         });
         await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
         // 0076 — his words, and the lines still waiting in his batch: a

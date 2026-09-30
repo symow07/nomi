@@ -415,11 +415,12 @@ d('Stop · GROUPING — Stop pressed while his lines wait to be grouped (require
     expect(signals).toContain('assistant_stopped');
     expect(signals).not.toContain('not_answered');
     // The hold is a turn: nothing read, nothing written — and his line was processed in it.
-    const turn = await q((tx) => sql<{ kind: string; reason: string; analysis: unknown; processed: string | null }>`
+    const turn = await q((tx) => sql<{ kind: string; reason: string; analysis: unknown; path: string; calls: number; processed: string | null }>`
       select t.decision->'action'->>'kind' as kind, t.decision->'action'->>'reason' as reason, t.analysis,
+             t.answer_path as path, t.llm_calls as calls,
              (select processed_in from message_fragments where id = ${frag.id}) as processed
         from turns t where t.message_id = ${frag.id}`.execute(tx).then((x) => x.rows[0]));
-    expect(turn).toMatchObject({ kind: 'held', reason: 'assistant_stopped', analysis: null, processed: frag.id });
+    expect(turn).toMatchObject({ kind: 'held', reason: 'assistant_stopped', analysis: null, path: 'silent', calls: 0, processed: frag.id });
     expect(analyzer.texts).toEqual([]);   // no model was asked
     expect(sim.sendCount()).toBe(0);      // nothing was sent
   });

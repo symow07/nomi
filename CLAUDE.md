@@ -612,8 +612,9 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
   customer's lines wait to be grouped** is recorded as "stopped". The hold is a
   turn (`decision.action.kind = 'held'`, reason `assistant_stopped` /
   `ops_silenced`; no analysis, no model), the waiting lines are processed in
-  it, and the conversation is handed over as stopped. Today's "handled", the
-  herWords card and `tools/answer-paths.mjs` leave held turns out.
+  it, and the conversation is handed over as stopped. Its `answer_path` is
+  `silent` (the plan's HF); Today's "handled" and the herWords card leave held
+  turns out.
   `tests/integration/assistant-stop.test.ts` › GROUPING failed before the fix
   with the foreign-key error.
 - In Chromium on macOS (the screenshots, desktop Chrome) English renders in
