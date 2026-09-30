@@ -10937,3 +10937,4217 @@ If it was not you, ignore this e-mail: the password stays as it is.
 - en: {who}: {text}
 - before: المشتري: {text}
 - **ar: {who}: {text}**
+
+## 2026-09-30 — the time zone, the currency and the positioning rewrite (#151–#161): every new or changed line
+
+Every zh and ar line the time zone (TZ), the currency (CUR) and the positioning rewrite added or changed, for the native readers to take in one sitting. **Not a gate.**
+
+For the Arabic reader to confirm, especially: «عميل / العملاء» for "customer" (it was «مشترٍ», #111; the reasoning is in `docs/PROGRESS.md` → "Decided by me"), and «نشاطي التجاري» for "My business" (it was «شركتي»).
+
+Reviewer: ______  Date: ______
+
+### 中文 — 370 lines
+
+#### `activation.action.deactivateConfirm` (changed)
+
+- en: Stop {name} messaging customers on WhatsApp? Nothing is deleted, and you can start again whenever you want.
+- before: 让{name}停止在 WhatsApp 上给买家发消息？什么都不会删掉，你随时可以再开始。
+- **zh: 让{name}停止在 WhatsApp 上给客户发消息？什么都不会删掉，你随时可以再开始。**
+
+#### `activation.blocker.assistant_not_named` (changed)
+
+- en: Confirm the name customers will see.
+- before: 确认买家会看到的名字。
+- **zh: 确认客户会看到的名字。**
+
+#### `activation.can` (changed)
+
+- en: {name} can start talking to real customers whenever you say so.
+- before: 你说什么时候开始，{name}就什么时候开始接待真买家。
+- **zh: 你说什么时候开始，{name}就什么时候开始接待真客户。**
+
+#### `activation.cannot` (changed)
+
+- en: Before {name} can talk to a real customer:
+- before: {name}见真买家之前，还差：
+- **zh: {name}见真客户之前，还差：**
+
+#### `activation.stop.what` (changed)
+
+- en: Stopping means nothing further is sent on WhatsApp. Your customers, conversations and everything you taught stay exactly as they are, and you can start again whenever you want.
+- before: 停下之后，WhatsApp 上不会再发任何消息。买家、对话和你教过的东西都原样留着，你随时可以再开始。
+- **zh: 停下之后，WhatsApp 上不会再发任何消息。客户、对话和你教过的东西都原样留着，你随时可以再开始。**
+
+#### `allowlist.none` (changed)
+
+- en: Nobody yet. Add your own number first, so you can try {name} on yourself before a customer does.
+- before: 还没有人。先加你自己的号码，让{name}先跟你练一次，再让买家来。
+- **zh: 还没有人。先加你自己的号码，让{name}先跟你练一次，再让客户来。**
+
+#### `analytics.activity.inbound` (changed)
+
+- en: Customer messages
+- before: 买家咨询
+- **zh: 客户咨询**
+
+#### `analytics.employee.handled` (changed)
+
+- en: Inquiries handled
+- before: 已处理询盘
+- **zh: 已处理咨询**
+
+#### `analytics.empty.body` (changed)
+
+- en: Not enough activity for {range} yet. As customers write in, {name} answers, and you confirm orders, this fills in.
+- before: {range}还没有足够的记录。买家来问、{name}报价、你确认订单，这里就会慢慢长出来。
+- **zh: {range}还没有足够的记录。客户来问、{name}回复、你确认订单，这里就会慢慢长出来。**
+
+#### `assistant.silenced.note` (changed)
+
+- en: Sending from {name} is paused while we check something — this was not you. Customers who write wait for you under Needs you, and your own replies still go.
+- before: 我们在查一件事，暂停了{name}的发送——不是你操作的。买家写来的消息放在「等你处理」里等你，你自己发的回复照常送达。
+- **zh: 我们在查一件事，暂停了{name}的发送——不是你操作的。客户写来的消息放在「等你处理」里等你，你自己发的回复照常送达。**
+
+#### `assistant.stop.action.startConfirm` (changed)
+
+- en: Let {name} answer customers again on every channel? Conversations handed to you while stopped stay with you.
+- before: 让{name}在所有渠道重新回复买家？停下期间交给你的对话仍由你来回。
+- **zh: 让{name}在所有渠道重新回复客户？停下期间交给你的对话仍由你来回。**
+
+#### `assistant.stop.running` (changed)
+
+- en: Stop {name} on every channel at once, WhatsApp included. Replies waiting to go out are cancelled, and customers who write wait for you under Needs you. Your own replies still go.
+- before: 一次在所有渠道停下{name}，包括 WhatsApp。等着发出的回复会被取消，买家写来的消息放进「等你处理」等你。你自己发的回复照常送达。
+- **zh: 一次在所有渠道停下{name}，包括 WhatsApp。等着发出的回复会被取消，客户写来的消息放进「等你处理」等你。你自己发的回复照常送达。**
+
+#### `assistant.stop.stopped` (changed)
+
+- en: {name} is stopped on every channel. Nothing {name} writes is sent, and customers who write wait for you under Needs you.
+- before: {name}已在所有渠道停下。{name}写的都不会发出，买家写来的消息放在「等你处理」里等你。
+- **zh: {name}已在所有渠道停下。{name}写的都不会发出，客户写来的消息放在「等你处理」里等你。**
+
+#### `assistants.field.note.hint` (changed)
+
+- en: A sentence or two, in your own words. It changes the tone only: prices, dates and facts still come from what you set.
+- before: 用你自己的话写一两句。只影响语气，价格、交期和事实还是以你设的为准。
+- **zh: 用你自己的话写一两句。只影响语气，价格、交付时间和事实还是以你设的为准。**
+
+#### `assistants.flash.is_default` (changed)
+
+- en: Someone always has to answer, so the main one stays.
+- before: 总得有人回买家，所以主要的这一位不能移除。
+- **zh: 总得有人回客户，所以主要的这一位不能移除。**
+
+#### `assistants.title` (changed)
+
+- en: Who answers your customers
+- before: 谁来回买家
+- **zh: 谁来回客户**
+
+#### `autonomy.disclosure` (changed)
+
+- en: One thing to know before you choose: when {name} replies without you, the first message in a conversation tells your customer they are not talking to a person, and offers them someone from your team. A reply you send yourself carries no such line — you sent it.
+- before: 选之前先知道一件事：不经你过目就回复时，一段对话里的第一条消息会告诉买家，回复的不是真人，并可以帮买家转给你的同事。你自己发出去的回复不带这句话——那是你发的。
+- **zh: 选之前先知道一件事：不经你过目就回复时，一段对话里的第一条消息会告诉客户，回复的不是真人，并可以帮客户转给你的同事。你自己发出去的回复不带这句话——那是你发的。**
+
+#### `autonomy.flash.notReleased` (changed)
+
+- en: Not yet — the line that tells a customer they are not talking to a person is still being checked in every language used.
+- before: 还不行——向买家说明身份的那句话，还在逐语言核对。
+- **zh: 还不行——向客户说明身份的那句话，还在逐语言核对。**
+
+#### `autonomy.level.sells` (changed)
+
+- en: {name} also handles prices without me
+- before: 报价和议价也自己来
+- **zh: 价格也自己来谈**
+
+#### `autonomy.level.sells.note` (changed)
+
+- en: Inside your price rules: never below your floor, and any discount bigger than you allow alone still comes to you first.
+- before: 只在你的价格规矩之内：绝不低于你的底价，超过你设的让利线还是先问你。
+- **zh: 只在你的价格规矩之内：绝不低于你的底价，超过你允许的优惠，还是先问你。**
+
+#### `autonomy.needsName` (changed)
+
+- en: Whatever you choose here, every reply keeps coming to you first until you confirm the name in Getting ready — a message sent without you gives your customer that name, and you should read it first.
+- before: 无论这里选哪一档，在你到“准备上线”里确认名字之前，每条回复都会先给你看——不经你发出的消息会把这个名字告诉买家，你应该先看过。
+- **zh: 无论这里选哪一档，在你到“准备上线”里确认名字之前，每条回复都会先给你看——不经你发出的消息会把这个名字告诉客户，你应该先看过。**
+
+#### `autonomy.notReleased` (changed)
+
+- en: Not yet available. The line that tells a customer they are not talking to a person has not been read by a native speaker of every language used, and nothing goes out without you until it has.
+- before: 暂时还不能开。向买家说明身份的那句话，还没有请每一种回复语言的母语者看过；在看过之前，什么都不会不经你发出。
+- **zh: 暂时还不能开。向客户说明身份的那句话，还没有请每一种回复语言的母语者看过；在看过之前，什么都不会不经你发出。**
+
+#### `business.kind.agency` (changed)
+
+- en: Agency or studio
+- before: 代理或代运营公司
+- **zh: 代理或工作室**
+
+#### `business.kind.brand` (changed)
+
+- en: Brand (clothing, beauty, food…)
+- before: 品牌或网店
+- **zh: 品牌（服装、美妆、食品…）**
+
+#### `business.kind.label` (changed)
+
+- en: Kind of business
+- before: 公司类别
+- **zh: 生意类别**
+
+#### `business.kind.online_shop`
+
+- en: Online shop
+- **zh: 网店**
+
+#### `business.kind.retail` (changed)
+
+- en: Retail shop
+- before: 零售店
+- **zh: 实体零售店**
+
+#### `business.kind.startup`
+
+- en: Startup
+- **zh: 创业公司**
+
+#### `buyers.empty.calm` (changed)
+
+- en: No customer needs you right now.
+- before: 现在没有买家需要你。
+- **zh: 现在没有客户需要你。**
+
+#### `buyers.group.deletion` (changed)
+
+- en: Asked for their data to be deleted
+- before: 要求删除数据的买家
+- **zh: 要求删除数据的客户**
+
+#### `buyers.search.label` (changed)
+
+- en: Find a customer
+- before: 找买家
+- **zh: 找客户**
+
+#### `buyers.tabs` (changed)
+
+- en: Which customers to show
+- before: 显示哪些买家
+- **zh: 显示哪些客户**
+
+#### `calendar.buyer.all` (changed)
+
+- en: All customers
+- before: 所有买家
+- **zh: 所有客户**
+
+#### `calendar.buyer.choose` (changed)
+
+- en: One customer only
+- before: 只看一位买家
+- **zh: 只看一位客户**
+
+#### `calendar.buyer.chosen` (changed)
+
+- en: Customer: {buyer}
+- before: 买家：{buyer}
+- **zh: 客户：{buyer}**
+
+#### `calendar.buyer.label` (changed)
+
+- en: Customer
+- before: 买家
+- **zh: 客户**
+
+#### `calendar.cat.closures` (changed)
+
+- en: Closures
+- before: 停工
+- **zh: 休息日**
+
+#### `calendar.empty.door` (changed)
+
+- en: See your customers
+- before: 查看买家
+- **zh: 查看客户**
+
+#### `calendar.lede` (changed)
+
+- en: Dates already on record for your customers — samples, orders, prices, replies owed, closures. Nothing here is estimated.
+- before: 买家相关、已经记下的日期——样品、订单、报价、待回复、停工。这里没有任何估算的日期。
+- **zh: 客户相关、已经记下的日期——样品、订单、报价、待回复、休息日。这里没有任何估算的日期。**
+
+#### `calendar.line.closure` (changed)
+
+- en: Closed for {label}, {from} to {to}
+- before: 停工：{label}，{from} 至 {to}
+- **zh: 休息：{label}，{from} 至 {to}**
+
+#### `capability.negotiate` (changed)
+
+- en: Discussing price
+- before: 谈价
+- **zh: 讨论价格**
+
+#### `channel.connect.configured` (changed)
+
+- en: Your WhatsApp number is set up. Connect it and customers’ messages reach {name}. Nothing is sent until you switch {name} on.
+- before: 你的 WhatsApp 号码已经设置好了。连接后，买家的消息会到{name}这里；在你开启之前，不会发出任何消息。
+- **zh: 你的 WhatsApp 号码已经设置好了。连接后，客户的消息会到{name}这里；在你开启之前，不会发出任何消息。**
+
+#### `channel.connect.intro` (changed)
+
+- en: Once connected, {name} sees the messages customers send to your WhatsApp and drafts replies — you decide what goes out.
+- before: 连接后，买家发到你 WhatsApp 的消息，{name}就能看到并起草回复，发不发你说了算。
+- **zh: 连接后，客户发到你 WhatsApp 的消息，{name}就能看到并起草回复，发不发你说了算。**
+
+#### `channel.flash.connected` (changed)
+
+- en: Connected. Customers’ messages now reach {name}. Nothing is sent until you switch {name} on.
+- before: 已连接。买家的消息会到{name}这里，在你开启之前不会发送任何消息。
+- **zh: 已连接。客户的消息会到{name}这里，在你开启之前不会发送任何消息。**
+
+#### `channel.flash.nothing_to_connect` (changed)
+
+- en: There is nothing to reconnect yet — WhatsApp has not been set up for your business.
+- before: 还没有东西可以重连——你的公司还没接过WhatsApp。
+- **zh: 还没有东西可以重连——你的生意还没接过WhatsApp。**
+
+#### `channel.state.not_connected.hint` (changed)
+
+- en: {name} cannot receive or answer a customer.
+- before: {name}收不到也回不了买家。
+- **zh: {name}收不到也回不了客户。**
+
+#### `channel.whatsapp.desc` (changed)
+
+- en: Customers message this number; {name} writes the reply and you decide what goes out
+- before: 买家发到这个号码；{name}写好回复，发不发你说了算
+- **zh: 客户发到这个号码；{name}写好回复，发不发你说了算**
+
+#### `claim.BSCI` (changed)
+
+- en: BSCI social audit
+- before: BSCI验厂
+- **zh: BSCI社会责任审计**
+
+#### `closures.add.from` (changed)
+
+- en: First day closed
+- before: 停工第一天
+- **zh: 休息第一天**
+
+#### `closures.add.placeholder` (changed)
+
+- en: Annual holiday
+- before: 春节
+- **zh: 年假**
+
+#### `closures.add.shown` (changed)
+
+- en: Customers see this name, with the dates, when told why a date cannot be promised.
+- before: 解释为什么定不了交期时，买家会看到这个名字和日期。
+- **zh: 解释为什么定不了交付时间时，客户会看到这个名字和日期。**
+
+#### `closures.add.to` (changed)
+
+- en: Last day closed
+- before: 停工最后一天
+- **zh: 休息最后一天**
+
+#### `closures.blocked.action` (changed)
+
+- en: Check your closure dates
+- before: 看看停工日期
+- **zh: 看看休息日期**
+
+#### `closures.blocked.body` (changed)
+
+- en: Your business is closed for {label}, {from} to {to}, inside that delivery time.
+- before: 这段交期里公司要放{label}，{from} 到 {to}。
+- **zh: 这段交付时间里要休息：{label}，{from} 到 {to}。**
+
+#### `closures.empty` (changed)
+
+- en: You have not told {name} about any closure, so your usual delivery time is given all year.
+- before: 你还没告诉 {name} 哪些天停工，所以全年都按平常的交期报。
+- **zh: 你还没告诉 {name} 哪些天休息，所以全年都按平常的交付时间说。**
+
+#### `closures.flash.from_missing` (changed)
+
+- en: Add the first day you are closed.
+- before: 把停工第一天填上。
+- **zh: 把休息第一天填上。**
+
+#### `closures.flash.to_missing` (changed)
+
+- en: Add the last day you are closed.
+- before: 把停工最后一天填上。
+- **zh: 把休息最后一天填上。**
+
+#### `closures.intro` (changed)
+
+- en: Tell {name} the days you are shut. No customer is promised a delivery date that runs through them — {name} says the dates cannot be promised, and never invents a later one.
+- before: 把停工的日子告诉 {name}。交期要是跨过这几天，就不会给买家承诺日期——只会说这个日期不能保证，也不会自己往后编一个。
+- **zh: 把休息的日子告诉 {name}。交付时间要是跨过这几天，就不会给客户承诺日期——只会说这个日期不能保证，也不会自己往后编一个。**
+
+#### `closures.title` (changed)
+
+- en: When your business is closed
+- before: 公司休息的日子
+- **zh: 休息的日子**
+
+#### `common.buyer` (changed)
+
+- en: Customer
+- before: 买家
+- **zh: 客户**
+
+#### `connect.apollo.what` (changed)
+
+- en: Finds people to write to and looks up their companies, with your own Apollo key.
+- before: 用你自己的 Apollo 密钥找买家、查公司。
+- **zh: 用你自己的 Apollo 密钥找潜在客户、查公司。**
+
+#### `connect.mail.google.what` (changed)
+
+- en: Sends your e-mail from your own Google Workspace address. Tick the box to let {name} read what customers send there, too.
+- before: 用你自己的 Google Workspace 地址发邮件。勾选下面的框，{name}也能读买家发到这里的邮件。
+- **zh: 用你自己的 Google Workspace 地址发邮件。勾选下面的框，{name}也能读客户发到这里的邮件。**
+
+#### `connect.mail.read.tick` (changed)
+
+- en: Also let {name} read and answer customers\' e-mails in this mailbox.
+- before: 也让{name}读这个邮箱里买家的来信，这样才能回复。
+- **zh: 也让{name}读这个邮箱里客户的来信，这样才能回复。**
+
+#### `connect.meta.choose.body` (changed)
+
+- en: Your Facebook account manages more than one Page. Choose the one customers write to for this business.
+- before: 你的 Facebook 账号管理着不止一个主页。选择这家商家的买家会写信的那个。
+- **zh: 你的 Facebook 账号管理着不止一个主页。选择这家商家的客户会写信的那个。**
+
+#### `connect.meta.flash.connected` (changed)
+
+- en: Connected: {page}. People who write there now reach you.
+- before: 已连接：{page}。写到那里的买家现在会到你这里。
+- **zh: 已连接：{page}。在那里写信的人现在会到你这里。**
+
+#### `contacts.add.company` (changed)
+
+- en: Their company (if any)
+- before: 对方的公司
+- **zh: 对方的公司（如有）**
+
+#### `contacts.attest.hint` (changed)
+
+- en: Only if they gave you their details or asked you to stay in touch. Whoever says so is recorded.
+- before: 只有对方给过你名片、或请你保持联系时才这样标。谁标的会记下来。
+- **zh: 只有对方给过你联系方式、或请你保持联系时才这样标。谁标的会记下来。**
+
+#### `contacts.empty` (changed)
+
+- en: Nobody yet. Add someone who gave you their details, or wait for the first customer to write to you.
+- before: 还没有人。把你收到名片的人加进来，或者等第一位买家来找你。
+- **zh: 还没有人。把给过你联系方式的人加进来，或者等第一位客户来找你。**
+
+#### `conv.assistant.flash.changed` (changed)
+
+- en: {who} answers this customer from now on.
+- before: 从现在起由{who}来回这位买家。
+- **zh: 从现在起由{who}来回这位客户。**
+
+#### `conv.assistant.flash.same` (changed)
+
+- en: {who} already answers this customer.
+- before: {who}本来就在回这位买家。
+- **zh: {who}本来就在回这位客户。**
+
+#### `conv.assistant.label` (changed)
+
+- en: Who answers this customer
+- before: 谁来回这位买家
+- **zh: 谁来回这位客户**
+
+#### `conv.deletion.ask` (changed)
+
+- en: Ask for this customer's data to be deleted
+- before: 要求删除这位买家的数据
+- **zh: 要求删除这位客户的数据**
+
+#### `conv.deletion.done` (changed)
+
+- en: This customer's data was deleted on {date}.
+- before: 这位买家的数据已在 {date} 删除。
+- **zh: 这位客户的数据已在 {date} 删除。**
+
+#### `conv.deletion.erased` (changed)
+
+- en: Deleted: who they are on every channel, every message to or from them, the replies and prices prepared for them and any sample requests, notes about their conversations, and the conversations themselves, except what an order needs.
+- before: 会删除：对方在各个渠道上的身份、双方往来的每一条消息、为对方准备的回复、报价和样品申请、关于这些对话的备注，以及对话本身（订单需要的部分除外）。
+- **zh: 会删除：对方在各个渠道上的身份、双方往来的每一条消息、为对方准备的回复和价格以及样品申请（如有）、关于这些对话的备注，以及对话本身（订单需要的部分除外）。**
+
+#### `conv.deletion.flash.note_missing` (changed)
+
+- en: Nothing was recorded: say how and when the customer asked.
+- before: 没有记录：请写明买家是怎么、在什么时候提出的。
+- **zh: 没有记录：请写明客户是怎么、在什么时候提出的。**
+
+#### `conv.deletion.lead` (changed)
+
+- en: When this customer asks in a message for their data to be deleted, the request is usually noted here as it arrives, for you to decide. If they ask another way, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- before: 这位买家在消息里要求删除自己的数据时，这条要求通常一到就会记在这里，由你决定。如果对方是用别的方式提出的，就在这里记录。Nomi 的运营方会在 30 天内由人手动执行，完成后这里会显示。
+- **zh: 这位客户在消息里要求删除自己的数据时，这条要求通常一到就会记在这里，由你决定。如果对方是用别的方式提出的，就在这里记录。Nomi 的运营方会在 30 天内由人手动执行，完成后这里会显示。**
+
+#### `conv.deletion.note` (changed)
+
+- en: How and when did they ask?
+- before: 买家是怎么、在什么时候提出的？
+- **zh: 客户是怎么、在什么时候提出的？**
+
+#### `conv.deletion.tell` (changed)
+
+- en: When it is done, it shows here and on Your data. Tell the customer then — Nomi does not write to them about it.
+- before: 完成后，这里和「你的数据」页都会显示。到时请你告诉买家——Nomi 不会就此联系对方。
+- **zh: 完成后，这里和「你的数据」页都会显示。到时请你告诉客户——Nomi 不会就此联系对方。**
+
+#### `conv.deletion.title` (changed)
+
+- en: Deleting this customer's data
+- before: 删除这位买家的数据
+- **zh: 删除这位客户的数据**
+
+#### `conv.file.nameHint` (changed)
+
+- en: The name their channel showed, or what you call them. Empty shows them as "{buyer}".
+- before: 渠道显示的名字，或你对这位买家的称呼。留空则显示为"{buyer}"。
+- **zh: 渠道显示的名字，或你对这位客户的称呼。留空则显示为"{buyer}"。**
+
+#### `conv.file.title` (changed)
+
+- en: About this customer
+- before: 关于这位买家
+- **zh: 关于这位客户**
+
+#### `conv.needCard` (changed)
+
+- en: This customer has a reply waiting for your OK.
+- before: 这位买家有一条回复等你确认。
+- **zh: 这位客户有一条回复等你确认。**
+
+#### `conv.notFound` (changed)
+
+- en: Customer not found
+- before: 找不到这位买家
+- **zh: 找不到这位客户**
+
+#### `conv.tl.buyer_image` (changed)
+
+- en: Customer sent a photo
+- before: 买家发来产品图片
+- **zh: 客户发来一张图片**
+
+#### `conv.tl.lead_hot` (changed)
+
+- en: Customer is very interested
+- before: 买家很有意向
+- **zh: 客户很有意向**
+
+#### `data.buyers.fromChat` (changed)
+
+- en: A request made in a message is usually listed here as it arrives, and waits until you decide on the customer's page.
+- before: 在消息里提出的要求，通常一到就会列在这里，等你在买家的页面上决定。
+- **zh: 在消息里提出的要求，通常一到就会列在这里，等你在客户的页面上决定。**
+
+#### `data.buyers.lead` (changed)
+
+- en: Each is recorded on the customer's own page. Nomi's operator carries it out by hand within 30 days of it being recorded. When it shows as done, tell the customer — Nomi does not write to them about it.
+- before: 每一条都在该买家自己的页面上记录。Nomi 的运营方在记录后 30 天内由人手动执行。显示为已完成时，请告诉买家——Nomi 不会就此联系对方。
+- **zh: 每一条都在该客户自己的页面上记录。Nomi 的运营方在记录后 30 天内由人手动执行。显示为已完成时，请告诉客户——Nomi 不会就此联系对方。**
+
+#### `data.buyers.none` (changed)
+
+- en: No customer has asked yet.
+- before: 还没有买家提出过。
+- **zh: 还没有客户提出过。**
+
+#### `data.buyers.title` (changed)
+
+- en: Customers who asked to be deleted
+- before: 要求删除数据的买家
+- **zh: 要求删除数据的客户**
+
+#### `data.buyers.withdrawConfirm` (changed)
+
+- en: Take this customer's request back? Nothing of theirs will be deleted.
+- before: 撤回这个买家的请求？对方的数据都不会被删除。
+- **zh: 撤回这个客户的请求？对方的数据都不会被删除。**
+
+#### `data.deletion.lead` (changed)
+
+- en: Everything this workspace holds — customers, messages, products, orders, everything you taught — removed for good.
+- before: 这个工作台里的一切——买家、消息、产品、订单、你教过的东西——永久删除。
+- **zh: 这个工作台里的一切——客户、消息、产品、订单、你教过的东西——永久删除。**
+
+#### `data.deletion.scope.buyer` (changed)
+
+- en: One customer
+- before: 一位买家
+- **zh: 一位客户**
+
+#### `data.export.configLead` (changed)
+
+- en: The part nobody wants to type twice: your lowest prices and discounts, how you sell, and every fact you taught.
+- before: 这部分没人愿意再输一遍：你的底价和折扣、你的销售条件，以及你教过的每一条。
+- **zh: 这部分没人愿意再输一遍：你的最低价和折扣、你怎么卖，以及你教过的每一条。**
+
+#### `data.export.lead` (changed)
+
+- en: One file per kind, in the format a spreadsheet opens. Everything here is yours — what you typed in, and what customers wrote to you.
+- before: 每类一个文件，表格软件可以直接打开。这里的一切都是你的——你填进去的，和买家写给你的。
+- **zh: 每类一个文件，表格软件可以直接打开。这里的一切都是你的——你填进去的，和客户写给你的。**
+
+#### `data.export.subject.buyers` (changed)
+
+- en: Customers
+- before: 买家
+- **zh: 客户**
+
+#### `data.export.subject.selling-terms` (changed)
+
+- en: How you sell
+- before: 你的销售条件
+- **zh: 你怎么卖**
+
+#### `deletionAsked.do` (changed)
+
+- en: Decide on the customer's page, then answer them yourself
+- before: 先在买家的页面上做决定，再自己回复对方
+- **zh: 先在客户的页面上做决定，再自己回复对方**
+
+#### `deletionAsked.noted` (changed)
+
+- en: Noted on {date}. It waits on the customer's page, on Your data and on Today until you decide; handing the conversation back does not clear it.
+- before: 已于 {date} 记下。在你决定之前，这条要求会一直留在买家的页面、「你的数据」和「今天」上；把对话交回也不会清掉这条要求。
+- **zh: 已于 {date} 记下。在你决定之前，这条要求会一直留在客户的页面、「你的数据」和「今天」上；把对话交回也不会清掉这条要求。**
+
+#### `deletionAsked.why` (changed)
+
+- en: A deletion is recorded on the customer's page and carried out by Nomi's operator by hand, so nothing about it is promised in the chat.
+- before: 删除要在买家的页面上记录，再由 Nomi 的运营方手动执行，所以聊天里不会就删除做任何承诺。
+- **zh: 删除要在客户的页面上记录，再由 Nomi 的运营方手动执行，所以聊天里不会就删除做任何承诺。**
+
+#### `factory.about.empty` (changed)
+
+- en: {name} has nothing to tell customers about you yet.
+- before: {name}现在还没法向买家介绍你。
+- **zh: {name}现在还没法向客户介绍你。**
+
+#### `factory.about.title` (changed)
+
+- en: About your business
+- before: 关于你的公司
+- **zh: 关于你的生意**
+
+#### `factory.next.channels` (changed)
+
+- en: Connect the account customers write to
+- before: 连接买家给你发消息的账号
+- **zh: 连接客户给你发消息的账号**
+
+#### `factory.next.first_success` (changed)
+
+- en: Send {name}\'s first reply to a customer
+- before: 发出给买家的第一条回复
+- **zh: 发出给客户的第一条回复**
+
+#### `factory.next.profile` (changed)
+
+- en: Tell {name} about your business
+- before: 告诉{name}你的公司是做什么的
+- **zh: 告诉{name}你的生意是做什么的**
+
+#### `factory.prices.q` (changed)
+
+- en: What discounts may {name} give?
+- before: {name}在价格上能动多少？
+- **zh: {name}最多能给多少优惠？**
+
+#### `factory.promise.ask` (changed)
+
+- en: Above {ask}% off, you are asked before the price goes out.
+- before: 让到{ask}%以上，会先问你再报价。
+- **zh: 优惠超过{ask}%，会先问你再给价格。**
+
+#### `factory.promise.askVaries` (changed)
+
+- en: Above {ask}% off, you are asked before the price goes out — sooner on some products.
+- before: 让到{ask}%以上，会先问你再报价；有些产品更早就问。
+- **zh: 优惠超过{ask}%，会先问你再给价格；有些产品更早就问。**
+
+#### `factory.promise.ceiling` (changed)
+
+- en: {name} never discounts more than {ceil}%.
+- before: 最多让{ceil}%。
+- **zh: 最多优惠{ceil}%。**
+
+#### `factory.promise.ceilingVaries` (changed)
+
+- en: {name} never discounts more than {ceil}% — less on some products.
+- before: 最多让{ceil}%，有些产品还更少。
+- **zh: 最多优惠{ceil}%，有些产品还更少。**
+
+#### `factory.promise.certsOn` (changed)
+
+- en: {name} may state these to a customer.
+- before: 这些{name}可以对买家说。
+- **zh: 这些{name}可以对客户说。**
+
+#### `factory.promise.never` (changed)
+
+- en: Anything you have not confirmed here, {name} will not say — even if a customer insists.
+- before: 你没有在这里确认过的，{name}不会说，买家追问也不会。
+- **zh: 你没有在这里确认过的，{name}不会说，客户追问也不会。**
+
+#### `factory.promise.title` (changed)
+
+- en: What you promise customers
+- before: 你对买家的承诺
+- **zh: 你对客户的承诺**
+
+#### `factory.reach.nextConnected` (changed)
+
+- en: Customers who message this number reach {name}.
+- before: 买家发到这个号码的消息，{name}会收到。
+- **zh: 客户发到这个号码的消息，{name}会收到。**
+
+#### `factory.reach.nextNot` (changed)
+
+- en: Until this is connected, {name} cannot receive or answer a customer.
+- before: 没有连接之前，{name}收不到也回不了买家。
+- **zh: 没有连接之前，{name}收不到也回不了客户。**
+
+#### `factory.reach.other.notConnected` (changed)
+
+- en: {name} cannot answer customers who write here until it is connected.
+- before: 连接之前，买家在这里写来的消息{name}回不了。
+- **zh: 连接之前，客户在这里写来的消息{name}回不了。**
+
+#### `factory.reach.q` (changed)
+
+- en: Where can customers reach us?
+- before: 买家从哪里联系我们？
+- **zh: 客户从哪里联系我们？**
+
+#### `factory.reach.title` (changed)
+
+- en: Where customers reach you
+- before: 买家在哪里找你
+- **zh: 客户在哪里找你**
+
+#### `factory.ready.live` (changed)
+
+- en: {name} is talking to real customers.
+- before: {name}正在和真买家聊。
+- **zh: {name}正在和真客户聊。**
+
+#### `factory.ready.title` (changed)
+
+- en: Before {name} talks to real customers
+- before: 让{name}见真买家之前
+- **zh: 让{name}见真客户之前**
+
+#### `factory.rehearsal.claim_not_authorised` (changed)
+
+- en: If a customer asks whether you are certified, {name} will not confirm anything — you have authorised nothing yet.
+- before: 买家问你有没有认证，{name}不会给任何确认——你还一个都没授权。
+- **zh: 客户问你有没有认证，{name}不会给任何确认——你还一个都没授权。**
+
+#### `factory.rehearsal.lede` (changed)
+
+- en: Customers ask these. Until you fill them in, {name} passes the question to you.
+- before: 买家会问这些。你不补上，{name}就只能转给你。
+- **zh: 客户会问这些。你不补上，{name}就只能转给你。**
+
+#### `factory.rehearsal.no_price_at_moq` (changed)
+
+- en: Your prices do not cover the smallest quantity you sell, so {name} cannot give a price for these:
+- before: 你的价格表没覆盖自己的起订量，这些报不了价：
+- **zh: 你的价格没有覆盖你设定的最小数量，这些给不了价格：**
+
+#### `feedback.none` (changed)
+
+- en: Nothing yet — this fills in once customers start talking to {name}.
+- before: 还没有内容——等买家开始和{name}聊天后就会出现。
+- **zh: 还没有内容——等客户开始和{name}聊天后就会出现。**
+
+#### `forbidden.add.notePlaceholder` (changed)
+
+- en: customers never see this
+- before: 买家看不到
+- **zh: 客户看不到**
+
+#### `forbidden.floor.body` (changed)
+
+- en: {name} will never curse or insult a customer. You cannot switch this off, and you do not need to add it.
+- before: {name}永远不会骂人或者不尊重买家。这个关不掉，你也不用自己加。
+- **zh: {name}永远不会骂人或者不尊重客户。这个关不掉，你也不用自己加。**
+
+#### `forbidden.intro` (changed)
+
+- en: Add anything you never want {name} to say to a customer. A reply that contains one is never sent: it is written again without it, and if that cannot be done, it comes to you instead.
+- before: 把你不想让{name}对买家说的话加进来。回复里出现这些词就绝不会发出去：会重写一遍，写不好就转给你。
+- **zh: 把你不想让{name}对客户说的话加进来。回复里出现这些词就绝不会发出去：会重写一遍，写不好就转给你。**
+
+#### `golive.none` (changed)
+
+- en: Connect a place customers write to, and {name} can start answering them.
+- before: 先连上一个买家会写消息来的地方，{name}就能开始回复。
+- **zh: 先连上一个客户会写消息来的地方，{name}就能开始回复。**
+
+#### `golive.whatsappOnly` (changed)
+
+- en: This stops WhatsApp only. {channels} keep answering customers.
+- before: 这只停止 WhatsApp。{channels}上照常回复买家。
+- **zh: 这只停止 WhatsApp。{channels}上照常回复客户。**
+
+#### `her.knows.none` (changed)
+
+- en: Nothing has been taught yet. Start with the facts customers ask about most.
+- before: 还什么都没教过。先教买家最常问的那些。
+- **zh: 还什么都没教过。先教客户最常问的那些。**
+
+#### `her.recent.noneWhy` (changed)
+
+- en: Customers who message you appear here.
+- before: 买家来消息后会出现在这里。
+- **zh: 客户来消息后会出现在这里。**
+
+#### `her.teach.unasked` (changed)
+
+- en: No customer has asked anything yet. Teach {name} what they ask about most.
+- before: 还没有买家来问过。先教买家最常问的那些。
+- **zh: 还没有客户来问过。先教客户最常问的那些。**
+
+#### `inbox.blocked.not_activated` (changed)
+
+- en: Not sent — messaging is switched off. Start {name} in My business and send it again.
+- before: 没有发出去——消息还没打开。到"我的公司"让{name}开始，再发一次。
+- **zh: 没有发出去——消息还没打开。到"我的生意"让{name}开始，再发一次。**
+
+#### `inbox.blocked.not_allowlisted` (changed)
+
+- en: Not sent — this customer is not on your list yet. Add their number in My business first.
+- before: 没有发出去——这个买家还不在你的名单里。先到"我的公司"把号码加上。
+- **zh: 没有发出去——这个客户还不在你的名单里。先到"我的生意"把号码加上。**
+
+#### `inbox.blocked.not_connected` (changed)
+
+- en: Not sent — nothing is connected yet that can carry this reply, so it cannot reach this customer.
+- before: 没有发出去——还没有连上能送出这条回复的账号，现在发不到这个买家。
+- **zh: 没有发出去——还没有连上能送出这条回复的账号，现在发不到这个客户。**
+
+#### `inbox.detail.back` (changed)
+
+- en: Customers
+- before: 买家
+- **zh: 客户**
+
+#### `inbox.draft.held.contradicts_history` (changed)
+
+- en: This price is higher than the one this customer already has. If you send it, it becomes the price {name} gives them from now on.
+- before: 这个价格比这位买家之前拿到的高。发出去的话，以后{name}就按这个价报。
+- **zh: 这个价格比这位客户之前拿到的高。发出去的话，以后{name}就按这个价格回复对方。**
+
+#### `inbox.draft.held.disclosure_sent` (changed)
+
+- en: They have already been told: {name} sent them the line saying they are not talking to a person, and offered them someone from your team. So this reply cannot be sent as it stands — change it first, or skip it.
+- before: 买家已经知道了：{name}已经把说明发给对方，并告诉对方可以找你的同事。所以这条不能照原样发送——先改一下，或者不回。
+- **zh: 客户已经知道了：{name}已经把说明发给对方，并告诉对方可以找你的同事。所以这条不能照原样发送——先改一下，或者不回。**
+
+#### `inbox.draft.held.identity_denial` (changed)
+
+- en: {name} tried to claim to be a person to this customer. That was stopped and never sent. This is a plain stand-in for you to send, change or skip.
+- before: {name}想告诉这位买家自己是真人。这已经被拦下，没有发出去。这是一句稳妥的替代回复，你可以发、改，或者不回。
+- **zh: {name}想告诉这位客户自己是真人。这已经被拦下，没有发出去。这是一句稳妥的替代回复，你可以发、改，或者不回。**
+
+#### `inbox.draft.held.identity_question` (changed)
+
+- en: This customer asked whether they are talking to a person or a machine, and this reply does not answer them. Nothing was sent.
+- before: 这位买家问自己是在跟真人还是跟机器说话，而这条回复没有回答这个问题。什么都没有发出去。
+- **zh: 这位客户问自己是在跟真人还是跟机器说话，而这条回复没有回答这个问题。什么都没有发出去。**
+
+#### `inbox.empty.noneBody` (changed)
+
+- en: Messages from customers show up here. Share your WhatsApp number or your page with customers first.
+- before: 买家发来的消息会出现在这里。先把 WhatsApp 号发给买家。
+- **zh: 客户发来的消息会出现在这里。先把 WhatsApp 号或你的主页发给客户。**
+
+#### `inbox.empty.setup` (changed)
+
+- en: Set up your business so customers can reach you
+- before: 把公司设置好，买家才找得到你
+- **zh: 把你的生意设置好，客户才找得到你**
+
+#### `inbox.flash.assistant_stopped` (changed)
+
+- en: {name} is stopped, so this draft was not sent. It is still here: write your own reply, or let {name} answer again on My business.
+- before: {name}已停下，这条草稿没有发出，仍留在这里：你可以自己回复，或先在「我的公司」让{name}重新回复。
+- **zh: {name}已停下，这条草稿没有发出，仍留在这里：你可以自己回复，或先在「我的生意」让{name}重新回复。**
+
+#### `inbox.flash.sentNotLive` (changed)
+
+- en: Saved. Messaging is not switched on yet, so nothing went to the customer.
+- before: 已保存。消息通道还没打开，所以没有发给买家。
+- **zh: 已保存。消息通道还没打开，所以没有发给客户。**
+
+#### `insight.action.seeBuyers` (changed)
+
+- en: See the customers
+- before: 看看买家
+- **zh: 看看客户**
+
+#### `insight.monthChange.inquiries.down` (changed)
+
+- en: Fewer customers wrote to you this month: {from} last month, {to} this month.
+- before: 这个月写来的买家少了：上个月 {from} 个，这个月 {to} 个。
+- **zh: 这个月写来的客户少了：上个月 {from} 个，这个月 {to} 个。**
+
+#### `insight.monthChange.inquiries.up` (changed)
+
+- en: More customers wrote to you this month: {from} last month, {to} this month.
+- before: 这个月写来的买家多了：上个月 {from} 个，这个月 {to} 个。
+- **zh: 这个月写来的客户多了：上个月 {from} 个，这个月 {to} 个。**
+
+#### `insight.monthChange.quotes.down` (changed)
+
+- en: {name} answered fewer price questions this month: {from} last month, {to} this month.
+- before: {name} 这个月报价少了：上个月 {from} 次，这个月 {to} 次。
+- **zh: {name} 这个月回答的价格问题少了：上个月 {from} 次，这个月 {to} 次。**
+
+#### `insight.monthChange.quotes.up` (changed)
+
+- en: {name} answered more price questions this month: {from} last month, {to} this month.
+- before: {name} 这个月报价多了：上个月 {from} 次，这个月 {to} 次。
+- **zh: {name} 这个月回答的价格问题多了：上个月 {from} 次，这个月 {to} 次。**
+
+#### `insight.quotedNoReply` (changed)
+
+- en: {buyer} has not answered since they were given a price.
+- before: 给{buyer}报完价之后，对方就没再回话了。
+- **zh: 告诉{buyer}价格之后，对方就没再回话了。**
+
+#### `knowledge.archive.confirm` (changed)
+
+- en: Archive “{label}”? {name} stops using it with customers. You can teach it again at any time.
+- before: 归档「{label}」？{name}回答买家时不再用这一条。你随时可以重新教。
+- **zh: 归档「{label}」？{name}回答客户时不再用这一条。你随时可以重新教。**
+
+#### `knowledge.business` (changed)
+
+- en: About your business
+- before: 公司信息
+- **zh: 生意信息**
+
+#### `knowledge.cert.confirmOn` (changed)
+
+- en: Turn on {key} for all {n} of your products? {name} will be able to state it to any customer.
+- before: 给全部{n}个产品都打开{key}？之后对任何买家都可以说这个了。
+- **zh: 给全部{n}个产品都打开{key}？之后对任何客户都可以说这个了。**
+
+#### `knowledge.cert.hint` (changed)
+
+- en: Anything not turned on here is refused, however a customer asks.
+- before: 只打开你确实拥有的认证。只有在这里打开的认证，才能对买家说明。
+- **zh: 只打开你确实拥有的认证。只有在这里打开的认证，才能对客户说明。**
+
+#### `knowledge.intro` (changed)
+
+- en: Teach the facts about what you sell and your business. {name} answers customers from what you teach — and never states a number or a certification you haven't given.
+- before: 把产品和公司的信息教给{name}。只用你教的内容回答买家——绝不会说出你没给过的数字或认证。
+- **zh: 把产品和生意的信息教给{name}。只用你教的内容回答客户——绝不会说出你没给过的数字或认证。**
+
+#### `knowledge.kind.production_note` (changed)
+
+- en: How it is made
+- before: 生产说明
+- **zh: 制作说明**
+
+#### `knowledge.ops.noGaps` (changed)
+
+- en: Nothing waiting — every question was answered from what you taught.
+- before: 暂无待处理——买家的问题都能用你教的内容答上。
+- **zh: 暂无待处理——客户的问题都能用你教的内容答上。**
+
+#### `knowledge.products` (changed)
+
+- en: What you sell
+- before: 你的产品
+- **zh: 你卖的东西**
+
+#### `knowledge.taught.scope` (changed)
+
+- en: These facts are used only when a customer asks about {product}.
+- before: 只有买家问到「{product}」时才会用这些内容。
+- **zh: 只有客户问到「{product}」时才会用这些内容。**
+
+#### `legal.deletion.erased.prepared` (changed)
+
+- en: Replies prepared for you, and any price offers or sample requests.
+- before: 为你准备的回复、报价和样品申请。
+- **zh: 为你准备的回复，以及任何给你的价格或样品申请。**
+
+#### `legal.privacy.howLong.body` (changed)
+
+- en: Until the business asks for its records to be deleted, or you ask for yours. They are kept so the business can see what was agreed with you, such as a price or an order. What a deletion removes, and what it keeps, is on the deletion page.
+- before: 保存到商家要求删除自己的记录、或你要求删除你的记录为止。保存是为了让商家能查到和你谈定的内容——价格、订单、样品。删除会去掉什么、保留什么，见删除页面。
+- **zh: 保存到商家要求删除自己的记录、或你要求删除你的记录为止。保存是为了让商家能查到和你谈定的内容，比如价格或订单。删除会去掉什么、保留什么，见删除页面。**
+
+#### `legal.terms.ours.we1` (changed)
+
+- en: A price Nomi gives comes from your own price list and is never below the lowest price you set.
+- before: Nomi 报出的价格只来自你自己的价格表，永远不低于你设定的底价。
+- **zh: Nomi 给出的价格只来自你自己的价格表，永远不低于你设定的最低价。**
+
+#### `live.message` (changed)
+
+- en: New message from the customer
+- before: 买家发来了新消息
+- **zh: 客户发来了新消息**
+
+#### `login.footer` (changed)
+
+- en: For your business and the people who work there.
+- before: 供你的公司和在这里工作的人使用。
+- **zh: 供你的生意和在这里工作的人使用。**
+
+#### `login.toSignup` (changed)
+
+- en: New here? Set up your business
+- before: 第一次来？为你的公司开一个工作台
+- **zh: 第一次来？为你的生意开一个工作台**
+
+#### `meta.intro` (changed)
+
+- en: What still has to be in place before {name} can talk to real customers. Nothing here switches messaging on.
+- before: {name}见真买家之前还差哪些东西。这个页面不会打开消息。
+- **zh: {name}见真客户之前还差哪些东西。这个页面不会打开消息。**
+
+#### `meta.live` (changed)
+
+- en: Live — {name} is talking to real customers.
+- before: 已上线——{name}正在接待真实买家。
+- **zh: 已上线——{name}正在接待真实客户。**
+
+#### `nav.channels` (changed)
+
+- en: Where customers reach you
+- before: 买家在哪里找你
+- **zh: 客户在哪里找你**
+
+#### `nav.factory` (changed)
+
+- en: My business
+- before: 我的公司
+- **zh: 我的生意**
+
+#### `nav.inbox` (changed)
+
+- en: Customers
+- before: 买家
+- **zh: 客户**
+
+#### `nav.prospects` (changed)
+
+- en: Find customers
+- before: 找买家
+- **zh: 找客户**
+
+#### `neverAllowed.promise_leadtime` (changed)
+
+- en: Promise an unconfirmed delivery time
+- before: 答应未经确认的交期
+- **zh: 答应未经确认的交付时间**
+
+#### `notify.deletion_requested` (changed)
+
+- en: A customer asked for their data to be deleted. Nothing was sent to them, and it needs an answer from you. The request is noted on the customer's page, where you decide what happens next.
+- before: 有买家要求删除自己的数据。没有给对方发任何东西，这需要你来答复。这条要求已记在买家的页面上，下一步在那里决定。
+- **zh: 有客户要求删除自己的数据。没有给对方发任何东西，这需要你来答复。这条要求已记在客户的页面上，下一步在那里决定。**
+
+#### `notify.deletion_requested.subject` (changed)
+
+- en: A customer asked for their data to be deleted
+- before: 有买家要求删除自己的数据
+- **zh: 有客户要求删除自己的数据**
+
+#### `notify.handoff` (changed)
+
+- en: {name} paused — a customer wants to talk to a person. The conversation is waiting for you.
+- before: 买家想找真人谈，{name}已暂停回复，等你接手。
+- **zh: 客户想找真人谈，{name}已暂停回复，等你接手。**
+
+#### `notify.hot_lead` (changed)
+
+- en: A customer looks ready to buy — {name} is following up.
+- before: 有大买家信号，{name}正在继续跟进（今晚总结里有详情）。
+- **zh: 有位客户看起来准备下单，{name}正在跟进。**
+
+#### `ops.activity.handled` (changed)
+
+- en: Customers answered
+- before: 聊过的买家
+- **zh: 聊过的客户**
+
+#### `order.field.buyer` (changed)
+
+- en: Customer
+- before: 买家
+- **zh: 客户**
+
+#### `order.invoice.sampleMismatch` (changed)
+
+- en: This customer paid {amount} for a sample, which you said comes off the first order. It is in another currency, so it is not deducted here — take it off yourself.
+- before: 这位买家付过 {amount} 的样品费，你说过要从第一单里扣。币种不一样，这里没有替你扣，你自己扣一下。
+- **zh: 这位客户付过 {amount} 的样品费，你说过要从第一单里扣。币种不一样，这里没有替你扣，你自己扣一下。**
+
+#### `order.state.in_production` (changed)
+
+- en: Being prepared
+- before: 生产中
+- **zh: 备货中**
+
+#### `order.status.in_production` (changed)
+
+- en: Being prepared
+- before: 生产中
+- **zh: 备货中**
+
+#### `order.update.intro` (changed)
+
+- en: You set this. {name} tells a customer what you recorded and the day you recorded it — never a delivery date worked out from it.
+- before: 这个由你来定。{name} 只会把你记的这一步和记的日子告诉买家——不会拿这个去推交货日期。
+- **zh: 这个由你来定。{name} 只会把你记的这一步和记的日子告诉客户——不会拿这个去推交货日期。**
+
+#### `order.update.note.placeholder` (changed)
+
+- en: Not sent to the customer
+- before: 不会发给买家
+- **zh: 不会发给客户**
+
+#### `people.add.placeholder` (changed)
+
+- en: The name customers would hear
+- before: 买家会听到的那个名字
+- **zh: 客户会听到的那个名字**
+
+#### `people.held.owner` (changed)
+
+- en: The owner
+- before: 厂里的负责人
+- **zh: 负责人**
+
+#### `people.intro` (changed)
+
+- en: Everyone here can log in with their own code, reply to a customer, take a conversation over and hand it back. You see who is holding what.
+- before: 每个人都有自己的登录码，可以回买家、接过对话、再交回去。谁在管哪一单，你看得见。
+- **zh: 每个人都有自己的登录码，可以回客户、接过对话、再交回去。谁在管哪一单，你看得见。**
+
+#### `people.name.askThem` (changed)
+
+- en: This is your business\'s name, not a person\'s. What is the right name here?
+- before: 这是公司名，不是人名。这里该写什么名字？
+- **zh: 这是商家名，不是人名。这里该写什么名字？**
+
+#### `people.name.askYou` (changed)
+
+- en: Your name here is your business\'s name. What should the people here call you?
+- before: 你在这里的名字就是公司名。同事们该怎么称呼你？
+- **zh: 你在这里的名字就是商家名。同事们该怎么称呼你？**
+
+#### `pilot.assistant.hint` (changed)
+
+- en: Every reply is signed with this name, so a customer reads it each time. You can change it later on the team page.
+- before: 回复会用这个名字署名，买家每次收到回复都会看到。以后可以在团队页面改。
+- **zh: 回复会用这个名字署名，客户每次收到回复都会看到。以后可以在团队页面改。**
+
+#### `pilot.assistant.problem.name_missing` (changed)
+
+- en: Type the name customers should see.
+- before: 请填写买家会看到的名字。
+- **zh: 请填写客户会看到的名字。**
+
+#### `pilot.attest.assistant_named` (changed)
+
+- en: The name customers see
+- before: 买家看到的名字
+- **zh: 客户看到的名字**
+
+#### `pilot.blocker.channel` (changed)
+
+- en: Connect at least one place customers write to you: WhatsApp, Instagram, Messenger or e-mail.
+- before: 至少连接一个买家找你的地方：WhatsApp、Instagram、Messenger 或邮箱。
+- **zh: 至少连接一个客户找你的地方：WhatsApp、Instagram、Messenger 或邮箱。**
+
+#### `pilot.blocker.priceRules` (changed)
+
+- en: Tell {name} the least you would ever accept, and how much may come off.
+- before: 告诉{name}你最低能接受多少，以及最多可以让多少。
+- **zh: 告诉{name}你最低能接受多少，以及最多可以优惠多少。**
+
+#### `pilot.blocker.profile` (changed)
+
+- en: Add your business details.
+- before: 填写公司资料。
+- **zh: 填写商家资料。**
+
+#### `pilot.intro` (changed)
+
+- en: Everything {name} needs before going live. Most is checked from your real data; the last few you confirm yourself.
+- before: {name}见真买家之前要准备的一切。大部分我们照你填过的东西核对，最后几项由你确认。
+- **zh: {name}见真客户之前要准备的一切。大部分我们照你填过的东西核对，最后几项由你确认。**
+
+#### `pilot.item.channel` (changed)
+
+- en: Where customers reach you
+- before: 买家在哪里找你
+- **zh: 客户在哪里找你**
+
+#### `pilot.item.profile` (changed)
+
+- en: Business profile
+- before: 公司资料
+- **zh: 商家资料**
+
+#### `practice.scripted.intro` (changed)
+
+- en: These run {name} against situations that have gone wrong for other businesses. Nothing here touches your customers.
+- before: 这些拿别的公司出过问题的情况来考{name}。这里碰不到你的买家。
+- **zh: 这些拿别的商家出过问题的情况来考{name}。这里碰不到你的客户。**
+
+#### `practice.scripted.notproves` (changed)
+
+- en: What it does not prove: how a reply to YOUR customer is worded, or whether your channel delivers it. For that, practise live below once your business is connected.
+- before: 这些说明不了：给你的买家回复时会怎么措辞，WhatsApp会不会送到。那要等你的账号连上以后，在下面实时练。
+- **zh: 这些说明不了：给你的客户回复时会怎么措辞，你的渠道会不会送到。那要等你的账号连上以后，在下面实时练。**
+
+#### `practice.scripted.proves` (changed)
+
+- en: What this proves: {name} will not give a price below your floor, will not claim a certification you have not confirmed, will not invent a number you never taught, and hands over when a customer asks for a person.
+- before: 这些能说明：{name}不会报到你底价以下，不会说你没确认过的认证，不会编你没教过的数字，买家要找真人时会转给你。
+- **zh: 这些能说明：{name}不会给出低于你底价的价格，不会说你没确认过的认证，不会编你没教过的数字，客户要找真人时会转给你。**
+
+#### `prices.error.ask_above_max` (changed)
+
+- en: This is higher than the most that may ever come off, so you would never be asked. Lower it, or raise the most that may come off.
+- before: 这个比最多能让的还高，那你永远不会被问到。要么调低，要么把最多能让的调高。
+- **zh: 这个比最多能给的优惠还高，那你永远不会被问到。要么调低，要么把最多能给的优惠调高。**
+
+#### `prices.flash.volumeAdded` (changed)
+
+- en: Saved. {name} can offer that now.
+- before: 保存好了。{name}现在可以这样让价。
+- **zh: 保存好了。{name}现在可以给这个优惠。**
+
+#### `prices.lede` (changed)
+
+- en: These are the only numbers {name} will ever work within — never below what you set here, whatever a customer says.
+- before: {name}只会在这几个数字之间谈。你定的底线以下，买家怎么说都不会松口。
+- **zh: {name}只会在这几个数字之内给价格。你定的底线以下，客户怎么说都不会松口。**
+
+#### `prices.q.askAbove` (changed)
+
+- en: Above how much off should you be asked first? (%)
+- before: 让到多少以上，要先问你？（%）
+- **zh: 优惠超过多少，要先问你？（%）**
+
+#### `prices.q.floor` (changed)
+
+- en: What is the least you would ever accept for one of these? ({currency})
+- before: 一个最低你能接受多少钱？（美元）
+- **zh: 一个最低你能接受多少钱？（{currency}）**
+
+#### `prices.q.maxDiscount` (changed)
+
+- en: What is the most that may ever come off, even with your OK? (%)
+- before: 就算你同意，最多能让多少？（%）
+- **zh: 就算你同意，最多能优惠多少？（%）**
+
+#### `prices.stated` (changed)
+
+- en: Never below {floor}. Up to {ask}% off is decided without you; above that you are asked first. Never more than {max}% off.
+- before: 不低于 {floor}。让 {ask}% 以内自己定，超过就先问你。最多让 {max}%。
+- **zh: 不低于 {floor}。优惠 {ask}% 以内自己定，超过就先问你。最多优惠 {max}%。**
+
+#### `prices.volume.error.above_max` (changed)
+
+- en: This is more than the most you said may ever come off. Lower it, or raise that limit first.
+- before: 这比你说的最多能让的还多。要么调低，要么先把上限提上去。
+- **zh: 这比你说的最多能给的优惠还多。要么调低，要么先把上限提上去。**
+
+#### `prices.volume.none` (changed)
+
+- en: You have not written one, so no discount is ever offered — your price is quoted as it stands.
+- before: 你还没写，所以从不让价——按你的价原样报。
+- **zh: 你还没写，所以从不优惠——按你的价原样给。**
+
+#### `prices.volume.q.discount` (changed)
+
+- en: How much off? (%)
+- before: 让多少？（%）
+- **zh: 优惠多少？（%）**
+
+#### `prices.volume.removeConfirm` (changed)
+
+- en: Stop offering this discount? It will not be offered to customers any more.
+- before: 不再给这个优惠？之后不会再向买家提出。
+- **zh: 不再给这个优惠？之后不会再向客户提出。**
+
+#### `prices.volume.row` (changed)
+
+- en: {product} — from {qty} pieces: {pct}% off
+- before: {product}——{qty}个起，让{pct}%
+- **zh: {product}——{qty}个起，优惠{pct}%**
+
+#### `prices.volume.sub` (changed)
+
+- en: {name} never invents a discount. Only what you write here comes off, and never more than the most you allow above.
+- before: {name}不会自己想出折扣。只有你写在这里的才会让，而且绝不超过上面你定的上限。
+- **zh: {name}不会自己想出折扣。只有你写在这里的才会给，而且绝不超过上面你定的上限。**
+
+#### `prices.volume.title` (changed)
+
+- en: Discounts for buying more
+- before: 什么时候可以让价
+- **zh: 买得多时的优惠**
+
+#### `product.add.example1` (changed)
+
+- en: Canvas tote bag {price}
+- before: 帆布袋 1.05美元 500个起
+- **zh: 帆布托特包 {price}**
+
+#### `product.add.example2` (changed)
+
+- en: Vacuum cup {price} MOQ 1000
+- before: 保温杯 $2.60 MOQ 1000
+- **zh: 保温杯 {price} MOQ 1000**
+
+#### `product.add.example3` (changed)
+
+- en: Rose face serum 50 ml {price}
+- before: 玫瑰精华 50 ml $34.90
+- **zh: 玫瑰精华 50 ml {price}**
+
+#### `product.add.intro` (changed)
+
+- en: Paste your products and their prices — one per line, messy is fine.
+- before: 把你的价格表贴进来就行——一行一个产品，乱一点没关系。
+- **zh: 把你的产品和价格贴进来就行——一行一个，乱一点没关系。**
+
+#### `product.detail.aliasesNote` (changed)
+
+- en: {name} recognizes all of these when customers ask.
+- before: 买家用这些说法问，{name}都能认出来。
+- **zh: 客户用这些说法问，{name}都能认出来。**
+
+#### `product.detail.aliasesTitle` (changed)
+
+- en: What customers call it
+- before: 买家的叫法
+- **zh: 客户的叫法**
+
+#### `product.detail.imageMatchBig` (changed)
+
+- en: Recognizable by photo — {name} identifies this when customers send a picture
+- before: 可以被图片识别 — 买家发照片，{name}能认出这个产品
+- **zh: 可以被图片识别 — 客户发照片，{name}能认出这个产品**
+
+#### `product.detail.leadTime` (changed)
+
+- en: Delivery time
+- before: 交期
+- **zh: 交付时间**
+
+#### `product.detail.notFindable` (changed)
+
+- en: Customers cannot find this product yet: it has no name their messages can be matched to. Add the names customers use below, and it can be found and quoted.
+- before: 买家还搜不到这个产品：没有能和买家消息对上的名称。在下面加上买家的叫法，就能被找到并报价。
+- **zh: 客户还搜不到这个产品：没有能和客户消息对上的名称。在下面加上客户的叫法，就能被找到并报价。**
+
+#### `product.edit.active` (changed)
+
+- en: Offer this to customers
+- before: 对买家开卖
+- **zh: 对客户开卖**
+
+#### `product.edit.customerNames` (changed)
+
+- en: Add names customers use
+- before: 添加买家的叫法
+- **zh: 添加客户的叫法**
+
+#### `product.edit.customerNames.hint` (changed)
+
+- en: One per line. The product is found by any of them; the names already here stay.
+- before: 每行一个。买家用其中任何一个说法都能找到这个产品；已有的叫法会保留。
+- **zh: 每行一个。客户用其中任何一个说法都能找到这个产品；已有的叫法会保留。**
+
+#### `product.edit.price` (changed)
+
+- en: Price for one ({currency})
+- before: 一个多少钱（美元）
+- **zh: 一个多少钱（{currency}）**
+
+#### `product.list.empty.body` (changed)
+
+- en: Add your products and prices, and {name} can answer with your prices.
+- before: 把你的价格表发过来，{name}就能开始按你的价格报价。
+- **zh: 把你的产品和价格加进来，{name}就能按你的价格回复。**
+
+#### `product.reject.other_currency`
+
+- en: this line is in another currency — this workspace sells in {currency}
+- **zh: 这行是别的货币，这里只用 {currency}**
+
+#### `product.reject.several_numbers` (changed)
+
+- en: several numbers and none marked as the price — put {sign} before it
+- before: 这行有好几个数字，没标出哪个是价格，请在价格前加 $
+- **zh: 这行有好几个数字，没标出哪个是价格，请在价格前加 {sign}**
+
+#### `product.status.notFindable` (changed)
+
+- en: Customers cannot find it yet
+- before: 买家还搜不到这个产品
+- **zh: 客户还搜不到这个产品**
+
+#### `product.status.notOffered` (changed)
+
+- en: Not offered to customers
+- before: 未向买家提供
+- **zh: 未向客户提供**
+
+#### `proof.fact.leadTime` (changed)
+
+- en: Ready in
+- before: 交期
+- **zh: 交付时间**
+
+#### `proof.footer.explain` (changed)
+
+- en: Every figure on this page comes from the business\u2019s own records. Nothing here was estimated.
+- before: 这页上的每个数字都来自公司自己的记录，没有一个是估的。
+- **zh: 这页上的每个数字都来自商家自己的记录，没有一个是估的。**
+
+#### `proof.leadTime.withheld` (changed)
+
+- en: Not yet — closed for {label}, {from} to {to}
+- before: 暂定不了——公司{label}休息，{from} 至 {to}
+- **zh: 暂定不了——{label}休息，{from} 至 {to}**
+
+#### `proof.owner.flash.issued` (changed)
+
+- en: Link ready. Paste it to the customer.
+- before: 链接好了，发给买家就行。
+- **zh: 链接好了，发给客户就行。**
+
+#### `proof.owner.live` (changed)
+
+- en: Link sent to this customer:
+- before: 已经给这个买家的链接：
+- **zh: 已经给这个客户的链接：**
+
+#### `proof.owner.none` (changed)
+
+- en: You can send this customer a page showing where the price came from.
+- before: 你可以给这个买家一个网页，让对方看到价格是怎么来的。
+- **zh: 你可以给这个客户一个网页，让对方看到价格是怎么来的。**
+
+#### `proof.quote.title` (changed)
+
+- en: Your price
+- before: 这次报价
+- **zh: 这次的价格**
+
+#### `proof.source.authorised` (changed)
+
+- en: Authorised by the business
+- before: 公司授权
+- **zh: 商家授权**
+
+#### `proof.source.catalogue` (changed)
+
+- en: From the business's own product list
+- before: 来自公司的产品资料
+- **zh: 来自商家的产品资料**
+
+#### `proof.source.taught` (changed)
+
+- en: Confirmed by the business
+- before: 公司确认过
+- **zh: 商家确认过**
+
+#### `prospects.intro` (changed)
+
+- en: Search for people who might buy from you. Nothing here writes to anyone: people you add join your list with nothing on file saying you may write to them, and their row says so.
+- before: 搜索会买你产品的人。这里不会给任何人发东西：你加进来的人进入名单时，没有任何记录说你可以联系对方，名单里那一行会写明。
+- **zh: 搜索可能会向你购买的人。这里不会给任何人发东西：你加进来的人进入名单时，没有任何记录说你可以联系对方，名单里那一行会写明。**
+
+#### `prospects.title` (changed)
+
+- en: Find customers
+- before: 找买家
+- **zh: 找客户**
+
+#### `rate.add.label` (changed)
+
+- en: One {from} is worth, in {to}
+- before: 一美元折人民币
+- **zh: 1 {from} 折成 {to}**
+
+#### `rate.current` (changed)
+
+- en: 1 {from} = {rate} {to}
+- before: 1美元 = {rate}元
+- **zh: 1 {from} = {rate} {to}**
+
+#### `rate.empty` (changed)
+
+- en: You have not set a rate yet, so nothing is shown in {to}.
+- before: 你还没定汇率，所以不显示人民币。
+- **zh: 你还没定汇率，所以不显示 {to}。**
+
+#### `rate.flash.none`
+
+- en: Your prices are in the currency your country uses, so there is no rate to set. Nothing was saved.
+- **zh: 你的价格用的就是你所在国家的货币，不用定汇率，什么都没有存。**
+
+#### `rate.flash.set` (changed)
+
+- en: Saved. {name} will use 1 {from} = {rate} {to} until you change it.
+- before: 记下了。{name} 会一直用 1美元 = {rate}元，直到你改。
+- **zh: 记下了。{name} 会一直用 1 {from} = {rate} {to}，直到你改。**
+
+#### `rate.intro` (changed)
+
+- en: Customers pay in {from}. When you want to see what that is in {to}, {name} uses the rate you set here — never a rate from anywhere else.
+- before: 买家付美元。你想看折成人民币是多少的时候，{name} 用的是你在这里定的汇率——不会用别处来的。
+- **zh: 客户付的是 {from}。你想看折成 {to} 是多少的时候，{name} 用的是你在这里定的汇率——不会用别处来的。**
+
+#### `rate.none`
+
+- en: Your prices are in {from}, and nothing here is shown in another currency, so there is no rate to set.
+- **zh: 你的价格都是 {from}，这里不会折成别的货币，所以不用定汇率。**
+
+#### `reach.inbound.connected` (changed)
+
+- en: Connected. {name} answers people who write here.
+- before: 接上了。买家在这边写过来，{name}就能回。
+- **zh: 接上了。有人在这边写过来，{name}就能回。**
+
+#### `reach.inbound.flash.taken` (changed)
+
+- en: Another business on this installation already uses that account.
+- before: 这套安装里已有另一家公司在用这个账号。
+- **zh: 这套安装里已有另一个商家在用这个账号。**
+
+#### `reach.instead.buyer_writes_first` (changed)
+
+- en: Someone writes first, and {name} answers the usual way.
+- before: 买家先来找你，{name}照常回。
+- **zh: 对方先来找你，{name}照常回。**
+
+#### `reach.instead.click_to_whatsapp` (changed)
+
+- en: Someone taps an advert of yours and it opens WhatsApp, with you.
+- before: 买家点了你的广告，就直接开到 WhatsApp 上找你。
+- **zh: 有人点了你的广告，就直接开到 WhatsApp 上找你。**
+
+#### `reach.req.business_verification` (changed)
+
+- en: WhatsApp has checked your business
+- before: WhatsApp 核过你的公司
+- **zh: WhatsApp 核过你的商家身份**
+
+#### `reach.req.privacy_policy_url` (changed)
+
+- en: A page of your own saying how you handle what customers tell you
+- before: 你自己的一页，写明买家告诉你的东西你怎么处理
+- **zh: 你自己的一页，写明客户告诉你的东西你怎么处理**
+
+#### `refused.do.not_activated` (changed)
+
+- en: Start {name} in My business when you are ready.
+- before: 想好了就在「我的公司」里让{name}开始。
+- **zh: 想好了就在「我的生意」里让{name}开始。**
+
+#### `refused.do.not_allowlisted` (changed)
+
+- en: Add this number in My business, or leave it — nothing will be sent to it.
+- before: 在「我的公司」里加上这个号码；不加也行，就不会发到这个号码。
+- **zh: 在「我的生意」里加上这个号码；不加也行，就不会发到这个号码。**
+
+#### `refused.do.outreach_unchecked` (changed)
+
+- en: Open their row on Who you may write to. If it reads that you can write to them, send it again.
+- before: 去"可以联系的客户"里看看这个人那一行。上面写着可以联系，就再发一次。
+- **zh: 去"你可以联系谁"里看看这个人那一行。上面写着可以联系，就再发一次。**
+
+#### `refused.do.stopped` (changed)
+
+- en: Reply yourself — your own replies still go. To let {name} answer again, open My business.
+- before: 你自己回——你发的照常送达。要让{name}重新回复，去「我的公司」。
+- **zh: 你自己回——你发的照常送达。要让{name}重新回复，去「我的生意」。**
+
+#### `refused.none` (changed)
+
+- en: Every message prepared reached its customer.
+- before: 准备好的每条消息都送到了买家手上。
+- **zh: 准备好的每条消息都送到了客户手上。**
+
+#### `refused.title` (changed)
+
+- en: Messages that did not reach a customer
+- before: 没送到买家手上的消息
+- **zh: 没送到客户手上的消息**
+
+#### `refused.what.not_allowlisted` (changed)
+
+- en: This customer is not on your list yet.
+- before: 这个买家还不在你的名单里。
+- **zh: 这个客户还不在你的名单里。**
+
+#### `refused.what.window_closed` (changed)
+
+- en: WhatsApp no longer allows a reply to this customer.
+- before: WhatsApp 现在不让给这个买家发消息了。
+- **zh: WhatsApp 现在不让给这个客户发消息了。**
+
+#### `refused.what.window_needs_owner` (changed)
+
+- en: This customer can now only be reached with a pre-approved message.
+- before: 现在只能用事先批过的固定内容联系这个买家。
+- **zh: 现在只能用事先批过的固定内容联系这个客户。**
+
+#### `refused.why.daily_ceiling` (changed)
+
+- en: A daily maximum protects you from a runaway mistake reaching real customers.
+- before: 每天有个上限，万一出岔子也不会一直发给真买家。
+- **zh: 每天有个上限，万一出岔子也不会一直发给真客户。**
+
+#### `refused.why.window_closed` (changed)
+
+- en: WhatsApp only lets a business reply within a day of the customer’s last message. That day has passed.
+- before: WhatsApp 规定：买家发来消息后，商家只有一天可以回。这一天过了。
+- **zh: WhatsApp 规定：客户发来消息后，商家只有一天可以回。这一天过了。**
+
+#### `runbook.after.intro` (changed)
+
+- en: Once real customers have talked to {name}, come back and review:
+- before: 等真实买家和{name}聊过之后，回来看看：
+- **zh: 等真实客户和{name}聊过之后，回来看看：**
+
+#### `runbook.deploy.unauthoredPriceRules` (changed)
+
+- en: {n} price rules were written by the old importer, not by the owner: floor equal to the list price, no discount authority. Nothing rewrites them — ask the owner the three questions and let those answers replace them.
+- before: 有 {n} 条价格规则是旧导入自动写的，没人定过：底价等于标价，也没有让价空间。不会自动改——把三个问题问一遍，用真实答案覆盖。
+- **zh: 有 {n} 条价格规则是旧导入自动写的，没人定过：底价等于标价，也没有优惠空间。不会自动改——把三个问题问一遍，用真实答案覆盖。**
+
+#### `runbook.engine.title` (changed)
+
+- en: Safety checks against this business’s own data
+- before: 用本厂真实数据做的安全检查
+- **zh: 用你自己的真实数据做的安全检查**
+
+#### `runbook.practice.intro` (changed)
+
+- en: Rehearse the whole flow in Practice — no real customers involved.
+- before: 在练习里把整个流程演练一遍——不涉及真实买家。
+- **zh: 在练习里把整个流程演练一遍——不涉及真实客户。**
+
+#### `runbook.step.buyer` (changed)
+
+- en: Send a customer question
+- before: 发一条买家问题
+- **zh: 发一条客户问题**
+
+#### `samples.asked.title` (changed)
+
+- en: This customer asked for a sample
+- before: 这个买家要样品
+- **zh: 这个客户要样品**
+
+#### `samples.intro` (changed)
+
+- en: Nearly every customer asks for one. Tell {name} what a sample costs and whether it comes off the first order, and {name} can answer. Until you do, nothing is said about samples.
+- before: 几乎每个买家都会问。告诉 {name} 一个样品多少钱、能不能从第一单里扣，就能回答。你没说之前，关于样品一个字都不会讲。
+- **zh: 几乎每个客户都会问。告诉 {name} 一个样品多少钱、能不能从第一单里扣，就能回答。你没说之前，关于样品一个字都不会讲。**
+
+#### `samples.requests.address.placeholder` (changed)
+
+- en: Paste the address the customer gave you
+- before: 把买家给的地址贴进来
+- **zh: 把客户给的地址贴进来**
+
+#### `samples.requests.title` (changed)
+
+- en: Customers waiting for a sample
+- before: 等样品的买家
+- **zh: 等样品的客户**
+
+#### `sandbox.banner` (changed)
+
+- en: This is practice only. Nothing reaches a real customer.
+- before: 这里只是练习，不会发给任何真实买家。
+- **zh: 这里只是练习，不会发给任何真实客户。**
+
+#### `sandbox.case.arabic-human-request-escalates` (changed)
+
+- en: Customer asks for a real person (Arabic)
+- before: 买家要求真人（阿拉伯文）
+- **zh: 客户要求真人（阿拉伯文）**
+
+#### `sandbox.case.chinese-human-request-escalates` (changed)
+
+- en: Customer asks for a real person (Chinese)
+- before: 买家要求真人（中文）
+- **zh: 客户要求真人（中文）**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-ar` (changed)
+
+- en: Customer asks to delete a line from the quote (Arabic)
+- before: 买家要删掉报价里的一行（阿拉伯文）
+- **zh: 客户要删掉报价里的一行（阿拉伯文）**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-en` (changed)
+
+- en: Customer asks to delete a line from the quote (English)
+- before: 买家要删掉报价里的一行（英文）
+- **zh: 客户要删掉报价里的一行（英文）**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-zh` (changed)
+
+- en: Customer asks to delete a line from the quote (Chinese)
+- before: 买家要删掉报价里的一行（中文）
+- **zh: 客户要删掉报价里的一行（中文）**
+
+#### `sandbox.case.deletion-request-ar-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (Arabic)
+- before: 买家要求删除自己的数据（阿拉伯文）
+- **zh: 客户要求删除自己的数据（阿拉伯文）**
+
+#### `sandbox.case.deletion-request-en-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (English)
+- before: 买家要求删除自己的数据（英文）
+- **zh: 客户要求删除自己的数据（英文）**
+
+#### `sandbox.case.deletion-request-zh-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (Chinese)
+- before: 买家要求删除自己的数据（中文）
+- **zh: 客户要求删除自己的数据（中文）**
+
+#### `sandbox.case.discount-above-ask-line-waits-for-owner` (changed)
+
+- en: A discount big enough that you are asked first
+- before: 让得多到要先问你的一笔折扣
+- **zh: 大到要先问你的一笔优惠**
+
+#### `sandbox.case.explicit-human-request-escalates-en` (changed)
+
+- en: Customer asks for a real person (English)
+- before: 买家要求真人（英文）
+- **zh: 客户要求真人（英文）**
+
+#### `sandbox.case.higher-price-than-already-given-waits-for-owner` (changed)
+
+- en: A price higher than this customer got last time
+- before: 比这位买家上次拿到的价格高
+- **zh: 比这位客户上次拿到的价格高**
+
+#### `sandbox.case.identity-bare-no-never-reaches-the-buyer` (changed)
+
+- en: A bare “no” to “are you a bot?” is stopped
+- before: 买家问是不是真人，光回一句“是”会被拦下
+- **zh: 客户问是不是真人，光回一句“是”会被拦下**
+
+#### `sandbox.case.low-confidence-match-asks-to-confirm` (changed)
+
+- en: An unclear match asks the customer to confirm
+- before: 产品对不准时会先问买家
+- **zh: 产品对不准时会先问客户**
+
+#### `sandbox.case.price-floor-clamp-under-aggressive-discount` (changed)
+
+- en: Customer pushes hard for a discount
+- before: 买家拼命压价
+- **zh: 客户拼命压价**
+
+#### `sandbox.case.unknown-product-yields-no-quote` (changed)
+
+- en: Customer asks about something you don't sell
+- before: 买家问的产品你不做
+- **zh: 客户问的东西你不卖**
+
+#### `sandbox.composer.label` (changed)
+
+- en: Send a message as the customer
+- before: 以买家身份发送消息
+- **zh: 以客户身份发送消息**
+
+#### `sandbox.composer.placeholder` (changed)
+
+- en: Type what a customer might say…
+- before: 输入买家可能会说的话……
+- **zh: 输入客户可能会说的话……**
+
+#### `sandbox.composer.send` (changed)
+
+- en: Send as customer
+- before: 以买家身份发送
+- **zh: 以客户身份发送**
+
+#### `sandbox.empty` (changed)
+
+- en: No messages yet. Send one as the customer to begin.
+- before: 还没有消息。先以买家身份发一条吧。
+- **zh: 还没有消息。先以客户身份发一条吧。**
+
+#### `sandbox.intro` (changed)
+
+- en: Play the customer. Watch how {name} replies — and approve or change anything before it would ever go out.
+- before: 你来扮演买家，看看{name}怎么回复——在真正发出之前，你可以先审批或修改。
+- **zh: 你来扮演客户，看看{name}怎么回复——在真正发出之前，你可以先审批或修改。**
+
+#### `settings.alerts.desc` (changed)
+
+- en: Where {name} messages you — a strong buying signal or a handoff. Your own WhatsApp.
+- before: {name}遇到大买家或需要你接手时，往这个号码发消息——你自己的 WhatsApp。
+- **zh: {name}遇到很想买的客户或需要你接手时，往这个号码发消息——你自己的 WhatsApp。**
+
+#### `settings.currency.fixed`
+
+- en: Your prices are in this currency, so it stays: a second currency would mean converting, and nothing here converts.
+- **zh: 你的价格都是用这种货币定的，所以不再改：换第二种货币就得换算，而这里不做换算。**
+
+#### `settings.currency.label`
+
+- en: The currency you sell in
+- **zh: 你卖货用的货币**
+
+#### `settings.currency.title`
+
+- en: Currency
+- **zh: 货币**
+
+#### `settings.currency.why`
+
+- en: Every price you set, and every price a customer is given, is in this currency. Nothing is converted. It can change until the first price is set.
+- **zh: 你定的每个价格、客户拿到的每个价格，都用这种货币，不做换算。设好第一个价格之前可以改。**
+
+#### `settings.err.phoneShape` (changed)
+
+- en: Start with + and the country code.
+- before: 要以+和国家号开头，比如 +8657985001234。
+- **zh: 要以+和国家号开头。**
+
+#### `settings.field.name` (changed)
+
+- en: Business name
+- before: 公司名称
+- **zh: 商家名称**
+
+#### `settings.flash.currencyFixed`
+
+- en: Prices are already set in the current currency, so it stays. Nothing was changed.
+- **zh: 已经有价格是用现在的货币定的，所以货币不变，什么都没有改。**
+
+#### `settings.flash.currencyInvalid`
+
+- en: That is not a currency this workspace can sell in. Nothing was changed.
+- **zh: 这里不能用这种货币卖货，什么都没有改。**
+
+#### `settings.flash.currencySaved`
+
+- en: Currency saved. Every price from now on is in it.
+- **zh: 货币已保存，之后的价格都用这种货币。**
+
+#### `settings.flash.zoneInvalid`
+
+- en: That time zone was not recognised. Nothing was changed.
+- **zh: 没有识别出这个时区，什么都没有改。**
+
+#### `settings.flash.zoneSaved`
+
+- en: Time zone saved. Dates and times now follow it.
+- **zh: 时区已保存，日期和时间现在按这个时区显示。**
+
+#### `settings.profile.title` (changed)
+
+- en: Business profile
+- before: 企业资料
+- **zh: 商家资料**
+
+#### `settings.workingHours.ph` (changed)
+
+- en: 9:00–18:00 on working days
+- before: 9:00-18:00 周一至周六
+- **zh: 工作日 9:00-18:00**
+
+#### `settings.zone.label`
+
+- en: Your time zone
+- **zh: 你所在的时区**
+
+#### `settings.zone.title`
+
+- en: Time zone
+- **zh: 时区**
+
+#### `settings.zone.why`
+
+- en: Every date and time here, and what counts as "today", is in this zone.
+- **zh: 这里所有的日期和时间，以及“今天”，都按这个时区算。**
+
+#### `signup.about` (changed)
+
+- en: About your business
+- before: 关于你的公司
+- **zh: 关于你的生意**
+
+#### `signup.channels` (changed)
+
+- en: Where do customers write to you today?
+- before: 现在买家通过哪里联系你？
+- **zh: 现在客户通过哪里联系你？**
+
+#### `signup.currency`
+
+- en: The currency you sell in
+- **zh: 你卖货用的货币**
+
+#### `signup.factory` (changed)
+
+- en: Business name
+- before: 公司名称
+- **zh: 商家名称**
+
+#### `signup.kind` (changed)
+
+- en: What kind of business is it?
+- before: 你的公司是哪一类？
+- **zh: 你的生意是哪一类？**
+
+#### `signup.lead` (changed)
+
+- en: One workspace for your business. You sign in with your own e-mail and password.
+- before: 一家公司一个工作台。你用自己的邮箱和密码登录。
+- **zh: 每个生意一个工作台。你用自己的邮箱和密码登录。**
+
+#### `signup.problem.currency_missing`
+
+- en: Which currency do you sell in? Every price here will be in it.
+- **zh: 你用哪种货币卖货？这里所有的价格都用这种货币。**
+
+#### `signup.problem.factory_missing` (changed)
+
+- en: Tell us what your business is called.
+- before: 请告诉我们你的公司叫什么。
+- **zh: 请告诉我们你的生意叫什么。**
+
+#### `signup.problem.kind_missing` (changed)
+
+- en: Choose the kind of business.
+- before: 请选择公司的类别。
+- **zh: 请选择生意的类别。**
+
+#### `signup.problem.zone_missing`
+
+- en: Your country has more than one time zone. Which one are you in?
+- **zh: 你所在的国家有多个时区，请选你所在的时区。**
+
+#### `signup.sells.placeholder` (changed)
+
+- en: e.g. skincare, clothing, social media ads or custom canvas bags
+- before: 例如：为品牌和活动定制帆布袋
+- **zh: 例如：护肤品、服装、社交媒体广告或定制帆布袋**
+
+#### `signup.title` (changed)
+
+- en: Set up your business
+- before: 为你的公司开一个工作台
+- **zh: 为你的生意开一个工作台**
+
+#### `signup.welcome` (changed)
+
+- en: Your workspace is ready. Start by telling {name} about your business.
+- before: 工作台开好了。先告诉{name}你的公司是做什么的。
+- **zh: 工作台开好了。先告诉{name}你的生意是做什么的。**
+
+#### `signup.zone`
+
+- en: Your time zone
+- **zh: 你所在的时区**
+
+#### `site.channels.email.how` (changed)
+
+- en: From your business’s own mailbox.
+- before: 通过你公司自己的邮箱。
+- **zh: 通过你自己的邮箱。**
+
+#### `site.channels.instagram.how` (changed)
+
+- en: Through your business’s own Instagram account, linked to its Facebook Page.
+- before: 通过你公司自己的 Instagram 账号，和公司的 Facebook 主页一起连接。
+- **zh: 通过你自己的 Instagram 商业账号，和你的 Facebook 主页一起连接。**
+
+#### `site.channels.messenger.how` (changed)
+
+- en: Through your business’s own Facebook Page.
+- before: 通过你公司自己的 Facebook 主页。
+- **zh: 通过你自己的 Facebook 主页。**
+
+#### `site.channels.title` (changed)
+
+- en: Where your customers already write
+- before: 买家在哪里找你，就在哪里回复
+- **zh: 客户在哪里找你，就在哪里回复**
+
+#### `site.description` (changed)
+
+- en: Nomi gives your business an assistant you name, to answer your customers on WhatsApp, Instagram, Messenger and e-mail: replies drafted for you to approve, and nothing sent alone unless you allow it.
+- before: Nomi 给你的生意配一位由你取名的助手，在 WhatsApp、Instagram、Messenger 和邮件上接待买家：回复先写好等你批准，没有你的允许，什么都不会自己发出。
+- **zh: Nomi 给你的生意配一位由你取名的助手，在 WhatsApp、Instagram、Messenger 和邮件上回复客户：回复先写好等你批准，没有你的允许，什么都不会自己发出。**
+
+#### `site.example.from` (changed)
+
+- en: A customer, on Instagram
+- before: 一位买家，来自 Instagram
+- **zh: 一位客户，来自 Instagram**
+
+#### `site.hero.alone` (changed)
+
+- en: Nothing goes out on its own until you allow it, and then only what you allowed. No price ever goes below the lowest price you set.
+- before: 没有你的允许，什么都不会自己发出去；允许之后，也只发你允许的那部分。报价永远不低于你设定的底价。
+- **zh: 没有你的允许，什么都不会自己发出去；允许之后，也只发你允许的那部分。任何价格都不会低于你设定的最低价。**
+
+#### `site.hero.lead` (changed)
+
+- en: Nomi gives your business an assistant you name. When a customer writes on WhatsApp, Instagram, Messenger or e-mail, your assistant drafts the reply from your own products and prices, and you approve it.
+- before: Nomi 给你的生意配一位助手，名字由你来取。买家在 WhatsApp、Instagram、Messenger 或邮件上来消息，助手按你自己的产品和价格写好回复，你批准后发出。
+- **zh: Nomi 给你的生意配一位助手，名字由你来取。客户在 WhatsApp、Instagram、Messenger 或邮件上来消息，助手按你自己的产品和价格写好回复，你批准后发出。**
+
+#### `site.hero.title` (changed)
+
+- en: Every customer gets an answer. You keep the last word.
+- before: 每位买家都有回复，最后说了算的是你。
+- **zh: 每位客户都有回复，最后说了算的是你。**
+
+#### `site.how.1.body` (changed)
+
+- en: Add what you sell, your prices and the lowest you accept, and the facts customers ask about. Then choose your assistant’s name. Replies come only from what you teach: never a price or a claim you have not given.
+- before: 填上你卖什么、价格和每样产品能接受的最低价，再加上买家常问的信息，然后给助手取个名字。回复只用你教的内容：你没给过的数字或认证，一个都不会说。
+- **zh: 填上你卖什么、价格和能接受的最低价，再加上客户常问的信息，然后给助手取个名字。回复只用你教的内容：你没给过的价格或说法，一个都不会说。**
+
+#### `site.how.2.title` (changed)
+
+- en: A customer writes
+- before: 买家来消息
+- **zh: 客户来消息**
+
+#### `site.invite.body` (changed)
+
+- en: Nomi opens workspaces by invitation for now. Write to us with your business’s name, what you sell and where your customers write to you, and we will write back.
+- before: Nomi 目前凭邀请开通。写信告诉我们你的公司名、卖什么、买家通常在哪里找你，我们会回信。
+- **zh: Nomi 目前凭邀请开通。写信告诉我们你的生意名称、卖什么、客户通常在哪里找你，我们会回信。**
+
+#### `site.title` (changed)
+
+- en: Nomi — an assistant that answers your customers
+- before: Nomi — 替你接待买家的助手
+- **zh: Nomi — 替你回复客户的助手**
+
+#### `site.who.body` (changed)
+
+- en: Any business that sells or talks to customers over social media and e-mail — clothing and beauty brands, online stores, startups, agencies and services, as well as makers, exporters and wholesalers.
+- before: 任何买家会发消息来问产品和价格的生意——生产商和作坊、贸易商和批发商、品牌、门店、代理和服务商。
+- **zh: 任何通过社交媒体和邮件卖东西、和客户沟通的生意——服装和美妆品牌、网店、初创公司、代理和服务商，也包括生产商、外贸公司和批发商。**
+
+#### `site.yours.alone.body` (changed)
+
+- en: At first, every reply waits for you. You can let greetings and questions go out on their own while anything with a price waits, or let prices go too. No order is confirmed without you.
+- before: 一开始，每条回复都等你。你可以让打招呼、回答问题自己发出去，带价格的先给你看；也可以连报价一起放手。没有你，订单不会被确认。
+- **zh: 一开始，每条回复都等你。你可以让打招呼、回答问题自己发出去，带价格的先给你看；也可以连带价格的回复一起放手。没有你，订单不会被确认。**
+
+#### `site.yours.back.body` (changed)
+
+- en: One choice puts every reply back in front of you, and stopping sends nothing further. Your customers, conversations and everything you taught stay, and you can take a copy as spreadsheet files.
+- before: 选一下，每条回复就重新先给你看；停下之后不会再发任何消息。买家、对话和你教过的东西都原样留着，还可以导出一份，表格软件直接打开。
+- **zh: 选一下，每条回复就重新先给你看；停下之后不会再发任何消息。客户、对话和你教过的东西都原样留着，还可以导出一份，表格软件直接打开。**
+
+#### `site.yours.honest` (changed)
+
+- en: When your assistant replies without you, the first message tells the customer they are not talking to a person, and offers them someone from your team.
+- before: 不经你过目就回复时，第一条消息会告诉买家，回复的不是真人，并可以帮买家转给你的同事。
+- **zh: 不经你过目就回复时，第一条消息会告诉客户，回复的不是真人，并可以帮客户转给你的同事。**
+
+#### `site.yours.prices.body` (changed)
+
+- en: Prices come only from what you set, and never go below your lowest. A discount beyond the line you set comes to you first.
+- before: 报价只按你的价格规矩来，永远不低于你的底价。超过你设的让利线，先问你。
+- **zh: 价格只按你定的来，永远不低于你的最低价。超过你设的优惠线，先问你。**
+
+#### `spotcheck.buyerSaid` (changed)
+
+- en: The customer asked
+- before: 买家问
+- **zh: 客户问**
+
+#### `staff.deletionAsked` (changed)
+
+- en: The owner decides on the customer's page. Answer them yourself.
+- before: 由老板在买家的页面上决定。请你自己回复对方。
+- **zh: 由老板在客户的页面上决定。请你自己回复对方。**
+
+#### `takeover.flash.assistant_stopped` (changed)
+
+- en: {name} is stopped, so this conversation stays with you. Let {name} answer again on My business first.
+- before: {name}已停下，这段对话还由你来回。先在「我的公司」让{name}重新回复。
+- **zh: {name}已停下，这段对话还由你来回。先在「我的生意」让{name}重新回复。**
+
+#### `takeover.reason.deletion_requested` (changed)
+
+- en: the customer asked for their data to be deleted
+- before: 买家要求删除自己的数据
+- **zh: 客户要求删除自己的数据**
+
+#### `takeover.reason.human_requested` (changed)
+
+- en: the customer asked for a person
+- before: 买家要求真人
+- **zh: 客户要求真人**
+
+#### `takeover.reason.media_unreadable` (changed)
+
+- en: something the customer sent that could not be opened
+- before: 买家发来的东西打不开
+- **zh: 客户发来的东西打不开**
+
+#### `takeover.reason.repeated_ambiguity` (changed)
+
+- en: the customer's need stayed unclear
+- before: 一直没弄清买家的需求
+- **zh: 一直没弄清客户的需求**
+
+#### `takeover.replyPlaceholder` (changed)
+
+- en: Type your reply to the customer…
+- before: 输入你要回复买家的话……
+- **zh: 输入你要回复客户的话……**
+
+#### `terms.flash.payment_missing` (changed)
+
+- en: Write how customers pay you first.
+- before: 先写付款方式。
+- **zh: 先写客户怎么付款。**
+
+#### `terms.incoterm.hint` (changed)
+
+- en: This goes on your proformas, and {name} may mention it to customers.
+- before: 会写在你的形式发票上，{name}也可以跟买家提。
+- **zh: 会写在你的形式发票上，{name}也可以跟客户提。**
+
+#### `terms.intro` (changed)
+
+- en: What goes on a proforma when a customer confirms. {name} never makes these up: until you state them, no proforma is shown.
+- before: 买家确认订单后，形式发票上写什么。{name}从不自己编：你没写之前，不会出形式发票。
+- **zh: 客户确认订单后，形式发票上写什么。{name}从不自己编：你没写之前，不会出形式发票。**
+
+#### `terms.title` (changed)
+
+- en: Your payment and delivery terms
+- before: 形式发票上的条款
+- **zh: 你的付款和交付条款**
+
+#### `today.calm.notLive.title` (changed)
+
+- en: No customer can reach {name} yet
+- before: 买家现在还找不到{name}
+- **zh: 客户现在还找不到{name}**
+
+#### `today.silenced.body` (changed)
+
+- en: We paused sending while we check something. This was not you, and nothing was lost. Customers who write are waiting for you; your own replies still go.
+- before: 我们在查一件事，先把发送停了。不是你操作的，消息也都还在。买家写来的消息在等你，你自己发的回复照常送达。
+- **zh: 我们在查一件事，先把发送停了。不是你操作的，消息也都还在。客户写来的消息在等你，你自己发的回复照常送达。**
+
+#### `today.stopped.body` (changed)
+
+- en: Nothing {name} writes is sent. Customers who write are waiting for you.
+- before: {name}写的都不会发出。买家写来的消息在等你。
+- **zh: {name}写的都不会发出。客户写来的消息在等你。**
+
+#### `unheard.do.no_media` (changed)
+
+- en: Ask the customer to send the voice message again.
+- before: 请买家把这条语音重新发一次。
+- **zh: 请客户把这条语音重新发一次。**
+
+#### `unheard.do.transcription_failed` (changed)
+
+- en: Listen to it yourself and reply, or ask the customer to send it again.
+- before: 你自己听一下再回复，或者请买家再发一次。
+- **zh: 你自己听一下再回复，或者请客户再发一次。**
+
+#### `unheard.do.unsupported_format` (changed)
+
+- en: Listen to it yourself and reply, or ask the customer to write it instead.
+- before: 你自己听一下再回复，或者请买家改成文字。
+- **zh: 你自己听一下再回复，或者请客户改成文字。**
+
+#### `unlisted.do` (changed)
+
+- en: Reply yourself, or add the number in My business and hand it back to {name}
+- before: 自己回复，或者到“我的公司”把号码加上，再交回给{name}
+- **zh: 自己回复，或者到“我的生意”把号码加上，再交回给{name}**
+
+#### `unlisted.why` (changed)
+
+- en: While you try {name} with a few customers, only the numbers you added are written to.
+- before: 你让{name}先跟几个买家试的时候，只会给你加进来的号码发消息。
+- **zh: 你让{name}先跟几个客户试的时候，只会给你加进来的号码发消息。**
+
+#### `unreadable.do` (changed)
+
+- en: Open it on your phone and reply to the customer yourself.
+- before: 在你手机上打开看看，然后自己回复买家。
+- **zh: 在你手机上打开看看，然后自己回复客户。**
+
+#### `unreadable.what` (changed)
+
+- en: {what} from the customer. {name} cannot read it, so no reply has gone out.
+- before: 买家发来的{what}，{name}看不了，所以没有回复。
+- **zh: 客户发来的{what}，{name}看不了，所以没有回复。**
+
+#### `voice.correct` (changed)
+
+- en: Correct what was heard
+- before: 改成买家实际说的
+- **zh: 改成客户实际说的**
+
+#### `voice.correctPlaceholder` (changed)
+
+- en: Type what the customer actually said…
+- before: 写下买家实际说的话……
+- **zh: 写下客户实际说的话……**
+
+
+### العربية — 337 lines
+
+#### `activation.action.deactivateConfirm` (changed)
+
+- en: Stop {name} messaging customers on WhatsApp? Nothing is deleted, and you can start again whenever you want.
+- before: إيقاف مراسلة {name} للمشترين على واتساب؟ لا يُحذف شيء، ويمكن البدء من جديد في أي وقت.
+- **ar: إيقاف مراسلة {name} للعملاء على واتساب؟ لا يُحذف شيء، ويمكن البدء من جديد في أي وقت.**
+
+#### `activation.blocker.assistant_not_named` (changed)
+
+- en: Confirm the name customers will see.
+- before: تأكيد الاسم الذي سيراه المشترون.
+- **ar: تأكيد الاسم الذي سيراه العملاء.**
+
+#### `activation.can` (changed)
+
+- en: {name} can start talking to real customers whenever you say so.
+- before: بإمكان {name} بدء الحديث مع مشترين حقيقيين بقرار منك.
+- **ar: بإمكان {name} بدء الحديث مع عملاء حقيقيين بقرار منك.**
+
+#### `activation.cannot` (changed)
+
+- en: Before {name} can talk to a real customer:
+- before: قبل حديث {name} مع مشترٍ حقيقي:
+- **ar: قبل حديث {name} مع عميل حقيقي:**
+
+#### `activation.stop.what` (changed)
+
+- en: Stopping means nothing further is sent on WhatsApp. Your customers, conversations and everything you taught stay exactly as they are, and you can start again whenever you want.
+- before: الإيقاف يعني ألّا يُرسَل أي شيء بعد ذلك على واتساب. يبقى المشترون والمحادثات وكل ما أُضيف إلى معرفة {name} كما هو، ويمكن البدء من جديد في أي وقت.
+- **ar: الإيقاف يعني ألّا يُرسَل أي شيء بعد ذلك على واتساب. يبقى العملاء والمحادثات وكل ما أُضيف إلى معرفة {name} كما هو، ويمكن البدء من جديد في أي وقت.**
+
+#### `allowlist.none` (changed)
+
+- en: Nobody yet. Add your own number first, so you can try {name} on yourself before a customer does.
+- before: لا أحد بعد. الأفضل البدء برقمك، لتجربة {name} بنفسك قبل أي مشترٍ.
+- **ar: لا أحد بعد. الأفضل البدء برقمك، لتجربة {name} بنفسك قبل أي عميل.**
+
+#### `analytics.activity.inbound` (changed)
+
+- en: Customer messages
+- before: استفسارات المشترين
+- **ar: استفسارات العملاء**
+
+#### `analytics.commerce.deals` (changed)
+
+- en: Sales
+- before: الصفقات
+- **ar: المبيعات**
+
+#### `analytics.commerce.noDeals` (changed)
+
+- en: No sales yet.
+- before: لا صفقات بعد.
+- **ar: لا مبيعات بعد.**
+
+#### `analytics.commerce.totalValue` (changed)
+
+- en: Sales value {value}
+- before: قيمة الصفقات {value}
+- **ar: قيمة المبيعات {value}**
+
+#### `analytics.empty.body` (changed)
+
+- en: Not enough activity for {range} yet. As customers write in, {name} answers, and you confirm orders, this fills in.
+- before: لا يوجد نشاط كافٍ {range} بعد. مع استفسارات المشترين وعروض {name} وتأكيدك للطلبات، ستمتلئ هذه الصفحة.
+- **ar: لا يوجد نشاط كافٍ {range} بعد. مع رسائل العملاء وردود {name} وتأكيدك للطلبات، ستمتلئ هذه الصفحة.**
+
+#### `assistant.silenced.note` (changed)
+
+- en: Sending from {name} is paused while we check something — this was not you. Customers who write wait for you under Needs you, and your own replies still go.
+- before: الإرسال من {name} متوقّف مؤقتًا بينما نتحقّق من أمر ما — لم يكن هذا منك. رسائل المشترين الجديدة بانتظار الردّ في «بحاجة إليك»، والردود اليدوية تُرسل كالمعتاد.
+- **ar: الإرسال من {name} متوقّف مؤقتًا بينما نتحقّق من أمر ما — لم يكن هذا منك. رسائل العملاء الجديدة بانتظار الردّ في «بحاجة إليك»، والردود اليدوية تُرسل كالمعتاد.**
+
+#### `assistant.stop.running` (changed)
+
+- en: Stop {name} on every channel at once, WhatsApp included. Replies waiting to go out are cancelled, and customers who write wait for you under Needs you. Your own replies still go.
+- before: يمكن إيقاف {name} على كل القنوات دفعةً واحدة، ومنها واتساب. تُلغى الردود المنتظِرة للإرسال، وتبقى رسائل المشترين الجديدة بانتظار الردّ في «بحاجة إليك». والردود اليدوية تُرسل كالمعتاد.
+- **ar: يمكن إيقاف {name} على كل القنوات دفعةً واحدة، ومنها واتساب. تُلغى الردود المنتظِرة للإرسال، وتبقى رسائل العملاء الجديدة بانتظار الردّ في «بحاجة إليك». والردود اليدوية تُرسل كالمعتاد.**
+
+#### `assistant.stop.stopped` (changed)
+
+- en: {name} is stopped on every channel. Nothing {name} writes is sent, and customers who write wait for you under Needs you.
+- before: الردود من {name} متوقّفة على كل القنوات. لا يُرسل أي ردّ من {name}، ورسائل المشترين الجديدة بانتظار الردّ في «بحاجة إليك».
+- **ar: الردود من {name} متوقّفة على كل القنوات. لا يُرسل أي ردّ من {name}، ورسائل العملاء الجديدة بانتظار الردّ في «بحاجة إليك».**
+
+#### `assistants.title` (changed)
+
+- en: Who answers your customers
+- before: فريق الرد على مشتريك
+- **ar: فريق الرد على عميلك**
+
+#### `autonomy.disclosure` (changed)
+
+- en: One thing to know before you choose: when {name} replies without you, the first message in a conversation tells your customer they are not talking to a person, and offers them someone from your team. A reply you send yourself carries no such line — you sent it.
+- before: قبل الاختيار، معلومة مهمة: في الردود التي تُرسَل من دونك، تُخبر أولُ رسالة في المحادثة المشتري بأن الردّ ليس من إنسان، مع عرض التحدث مع شخص من فريقك. أما الردّ المُرسَل منك فلا يحمل هذه الجملة — لأنه منك.
+- **ar: قبل الاختيار، معلومة مهمة: في الردود التي تُرسَل من دونك، تُخبر أولُ رسالة في المحادثة العميل بأن الردّ ليس من إنسان، مع عرض التحدث مع شخص من فريقك. أما الردّ المُرسَل منك فلا يحمل هذه الجملة — لأنه منك.**
+
+#### `autonomy.flash.notReleased` (changed)
+
+- en: Not yet — the line that tells a customer they are not talking to a person is still being checked in every language used.
+- before: ليس بعد — جملة التعريف التي تُرسَل للمشتري ما زالت قيد المراجعة بكل لغات الردود.
+- **ar: ليس بعد — جملة التعريف التي تُرسَل للعميل ما زالت قيد المراجعة بكل لغات الردود.**
+
+#### `autonomy.level.sells` (changed)
+
+- en: {name} also handles prices without me
+- before: التسعير والتفاوض أيضًا دون انتظاري
+- **ar: الأسعار أيضًا دون انتظاري**
+
+#### `autonomy.level.sells.note` (changed)
+
+- en: Inside your price rules: never below your floor, and any discount bigger than you allow alone still comes to you first.
+- before: ضمن قواعد أسعارك: لا سعر تحت حدّك الأدنى أبدًا، والخصم فوق خطّك يعود إليك.
+- **ar: ضمن قواعد أسعارك: لا سعر تحت حدّك الأدنى أبدًا، وأي خصم يتجاوز المسموح به يعود إليك أولًا.**
+
+#### `autonomy.needsName` (changed)
+
+- en: Whatever you choose here, every reply keeps coming to you first until you confirm the name in Getting ready — a message sent without you gives your customer that name, and you should read it first.
+- before: مهما كان الاختيار هنا، سيبقى كل ردّ معروضًا عليك إلى حين تأكيد اسم {name} في صفحة التجهيز — فالرسالة المُرسَلة من دونك تحمل هذا الاسم إلى المشتري، ومن حقك قراءته أولًا.
+- **ar: مهما كان الاختيار هنا، سيبقى كل ردّ معروضًا عليك إلى حين تأكيد اسم {name} في صفحة التجهيز — فالرسالة المُرسَلة من دونك تحمل هذا الاسم إلى العميل، ومن حقك قراءته أولًا.**
+
+#### `autonomy.notReleased` (changed)
+
+- en: Not yet available. The line that tells a customer they are not talking to a person has not been read by a native speaker of every language used, and nothing goes out without you until it has.
+- before: غير متاح بعد. جملة التعريف التي تُرسَل للمشتري لم يراجعها بعد متحدث أصلي بكل لغات الردود، ولا يخرج شيء من دونك قبل ذلك.
+- **ar: غير متاح بعد. جملة التعريف التي تُرسَل للعميل لم يراجعها بعد متحدث أصلي بكل لغات الردود، ولا يخرج شيء من دونك قبل ذلك.**
+
+#### `business.kind.agency` (changed)
+
+- en: Agency or studio
+- before: وكالة
+- **ar: وكالة أو استوديو**
+
+#### `business.kind.brand` (changed)
+
+- en: Brand (clothing, beauty, food…)
+- before: علامة تجارية أو متجر إلكتروني
+- **ar: علامة تجارية (ملابس، تجميل، أغذية…)**
+
+#### `business.kind.label` (changed)
+
+- en: Kind of business
+- before: نوع الشركة
+- **ar: نوع النشاط التجاري**
+
+#### `business.kind.online_shop`
+
+- en: Online shop
+- **ar: متجر إلكتروني**
+
+#### `business.kind.startup`
+
+- en: Startup
+- **ar: شركة ناشئة**
+
+#### `buyers.empty.calm` (changed)
+
+- en: No customer needs you right now.
+- before: لا مشتري يحتاجك الآن.
+- **ar: لا عميل يحتاجك الآن.**
+
+#### `buyers.search.label` (changed)
+
+- en: Find a customer
+- before: البحث عن مشترٍ
+- **ar: البحث عن عميل**
+
+#### `buyers.tabs` (changed)
+
+- en: Which customers to show
+- before: عرض المشترين
+- **ar: عرض العملاء**
+
+#### `calendar.buyer.all` (changed)
+
+- en: All customers
+- before: كل المشترين
+- **ar: كل العملاء**
+
+#### `calendar.buyer.choose` (changed)
+
+- en: One customer only
+- before: مشترٍ واحد فقط
+- **ar: عميل واحد فقط**
+
+#### `calendar.buyer.chosen` (changed)
+
+- en: Customer: {buyer}
+- before: المشتري: {buyer}
+- **ar: العميل: {buyer}**
+
+#### `calendar.buyer.label` (changed)
+
+- en: Customer
+- before: المشتري
+- **ar: العميل**
+
+#### `calendar.empty.door` (changed)
+
+- en: See your customers
+- before: عرض المشترين
+- **ar: عرض العملاء**
+
+#### `calendar.lede` (changed)
+
+- en: Dates already on record for your customers — samples, orders, prices, replies owed, closures. Nothing here is estimated.
+- before: التواريخ المسجلة للمشترين: العينات والطلبات والأسعار والردود المنتظرة وأيام الإغلاق. لا يوجد هنا أي تاريخ تقديري.
+- **ar: التواريخ المسجلة للعملاء: العينات والطلبات والأسعار والردود المنتظرة وأيام الإغلاق. لا يوجد هنا أي تاريخ تقديري.**
+
+#### `capability.negotiate` (changed)
+
+- en: Discussing price
+- before: التفاوض
+- **ar: مناقشة السعر**
+
+#### `channel.connect.configured` (changed)
+
+- en: Your WhatsApp number is set up. Connect it and customers’ messages reach {name}. Nothing is sent until you switch {name} on.
+- before: رقم واتساب الخاص بك جاهز. بعد ربطه، تصل رسائل المشترين إلى {name}، ولا يُرسَل شيء قبل التشغيل منك.
+- **ar: رقم واتساب الخاص بك جاهز. بعد ربطه، تصل رسائل العملاء إلى {name}، ولا يُرسَل شيء قبل التشغيل منك.**
+
+#### `channel.connect.intro` (changed)
+
+- en: Once connected, {name} sees the messages customers send to your WhatsApp and drafts replies — you decide what goes out.
+- before: بعد الربط، تصل إلى {name} رسائل المشترين على واتساب وتُكتب الردود — والقرار في ما يُرسَل لك.
+- **ar: بعد الربط، تصل إلى {name} رسائل العملاء على واتساب وتُكتب الردود — والقرار في ما يُرسَل لك.**
+
+#### `channel.flash.connected` (changed)
+
+- en: Connected. Customers’ messages now reach {name}. Nothing is sent until you switch {name} on.
+- before: تم الربط. تصل رسائل المشترين الآن إلى {name}، ولا يُرسَل شيء قبل التشغيل منك.
+- **ar: تم الربط. تصل رسائل العملاء الآن إلى {name}، ولا يُرسَل شيء قبل التشغيل منك.**
+
+#### `channel.flash.nothing_to_connect` (changed)
+
+- en: There is nothing to reconnect yet — WhatsApp has not been set up for your business.
+- before: لا شيء لإعادة ربطه بعد — لم يُربط واتساب بشركتك.
+- **ar: لا شيء لإعادة ربطه بعد — لم يُربط واتساب بنشاطك التجاري.**
+
+#### `channel.state.not_connected.hint` (changed)
+
+- en: {name} cannot receive or answer a customer.
+- before: لا يمكن لـ {name} استقبال رسائل المشترين ولا الرد عليها.
+- **ar: لا يمكن لـ {name} استقبال رسائل العملاء ولا الرد عليها.**
+
+#### `closures.add.placeholder` (changed)
+
+- en: Annual holiday
+- before: عيد الربيع
+- **ar: العطلة السنوية**
+
+#### `closures.add.shown` (changed)
+
+- en: Customers see this name, with the dates, when told why a date cannot be promised.
+- before: يرى المشترون هذا الاسم مع التواريخ عند توضيح سبب تعذّر تحديد موعد.
+- **ar: يرى العملاء هذا الاسم مع التواريخ عند توضيح سبب تعذّر تحديد موعد.**
+
+#### `closures.blocked.body` (changed)
+
+- en: Your business is closed for {label}, {from} to {to}, inside that delivery time.
+- before: شركتك مغلقة في {label}، من {from} إلى {to}، داخل هذه المدة.
+- **ar: الإغلاق في {label}، من {from} إلى {to}، داخل هذه المدة.**
+
+#### `closures.intro` (changed)
+
+- en: Tell {name} the days you are shut. No customer is promised a delivery date that runs through them — {name} says the dates cannot be promised, and never invents a later one.
+- before: أيام الإغلاق المسجّلة هنا تصل إلى {name}. لا وعد لمشترٍ بموعد تسليم يمرّ خلالها — بل توضيح أن الموعد لا يمكن ضمانه، ولا اختلاق لموعد لاحق أبدًا.
+- **ar: أيام الإغلاق المسجّلة هنا تصل إلى {name}. لا وعد لعميل بموعد تسليم يمرّ خلالها — بل توضيح أن الموعد لا يمكن ضمانه، ولا اختلاق لموعد لاحق أبدًا.**
+
+#### `closures.title` (changed)
+
+- en: When your business is closed
+- before: أيام إغلاق شركتك
+- **ar: أيام الإغلاق**
+
+#### `common.buyer` (changed)
+
+- en: Customer
+- before: مشترٍ
+- **ar: عميل**
+
+#### `connect.apollo.what` (changed)
+
+- en: Finds people to write to and looks up their companies, with your own Apollo key.
+- before: يجد المشترين ويبحث عن الشركات، بمفتاح Apollo الخاص بك.
+- **ar: البحث عن عملاء محتملين وعن الشركات، بمفتاح Apollo الخاص بك.**
+
+#### `connect.mail.google.what` (changed)
+
+- en: Sends your e-mail from your own Google Workspace address. Tick the box to let {name} read what customers send there, too.
+- before: يرسل بريدك من عنوان Google Workspace الخاص بك. وعند تعليم المربع، بإمكان {name} قراءة ما يرسله المشترون إليه أيضًا.
+- **ar: يرسل بريدك من عنوان Google Workspace الخاص بك. وعند تعليم المربع، بإمكان {name} قراءة ما يرسله العملاء إليه أيضًا.**
+
+#### `connect.mail.read.tick` (changed)
+
+- en: Also let {name} read and answer customers\' e-mails in this mailbox.
+- before: السماح لـ {name} أيضًا بقراءة رسائل المشترين في هذا الصندوق، والردّ عليها.
+- **ar: السماح لـ {name} أيضًا بقراءة رسائل العملاء في هذا الصندوق، والردّ عليها.**
+
+#### `connect.meta.choose.body` (changed)
+
+- en: Your Facebook account manages more than one Page. Choose the one customers write to for this business.
+- before: حساب فيسبوك الخاص بك يدير أكثر من صفحة. يُرجى اختيار الصفحة التي يكتب إليها مشترو هذه الشركة.
+- **ar: حساب فيسبوك الخاص بك يدير أكثر من صفحة. يُرجى اختيار الصفحة التي يكتب إليها عملاء هذا النشاط التجاري.**
+
+#### `connect.meta.flash.page_taken` (changed)
+
+- en: That Page is already connected to another business here.
+- before: هذه الصفحة مربوطة بشركة أخرى هنا.
+- **ar: هذه الصفحة مربوطة بنشاط تجاري آخر هنا.**
+
+#### `contacts.add.company` (changed)
+
+- en: Their company (if any)
+- before: الشركة
+- **ar: الشركة (إن وُجدت)**
+
+#### `contacts.attest.hint` (changed)
+
+- en: Only if they gave you their details or asked you to stay in touch. Whoever says so is recorded.
+- before: فقط في حال تسليم بطاقة العمل أو طلب البقاء على تواصل. ويُسجَّل اسم من يُقرّ بذلك.
+- **ar: فقط في حال تسليم بيانات التواصل أو طلب البقاء على تواصل. ويُسجَّل اسم من يُقرّ بذلك.**
+
+#### `contacts.empty` (changed)
+
+- en: Nobody yet. Add someone who gave you their details, or wait for the first customer to write to you.
+- before: لا أحد بعد. يمكن إضافة صاحب بطاقة عمل، أو انتظار أول مشترٍ يراسلك.
+- **ar: لا أحد بعد. يمكن إضافة صاحب بطاقة عمل، أو انتظار أول عميل يراسلك.**
+
+#### `conv.assistant.flash.changed` (changed)
+
+- en: {who} answers this customer from now on.
+- before: من الآن الردّ على هذا المشتري في عهدة {who}.
+- **ar: من الآن الردّ على هذا العميل في عهدة {who}.**
+
+#### `conv.assistant.flash.same` (changed)
+
+- en: {who} already answers this customer.
+- before: الردّ على هذا المشتري في عهدة {who} أصلًا.
+- **ar: الردّ على هذا العميل في عهدة {who} أصلًا.**
+
+#### `conv.assistant.label` (changed)
+
+- en: Who answers this customer
+- before: من يردّ على هذا المشتري
+- **ar: من يردّ على هذا العميل**
+
+#### `conv.deletion.ask` (changed)
+
+- en: Ask for this customer's data to be deleted
+- before: طلب حذف بيانات هذا المشتري
+- **ar: طلب حذف بيانات هذا العميل**
+
+#### `conv.deletion.dismissHint` (changed)
+
+- en: If it was not a request to delete their data, set it aside. Nothing is deleted, and nothing is sent to them.
+- before: إن لم يكن طلبًا لحذف البيانات، يمكن تنحيته جانبًا. لا يُحذف شيء، ولا يُرسَل أي شيء إلى المشتري.
+- **ar: إن لم يكن طلبًا لحذف البيانات، يمكن تنحيته جانبًا. لا يُحذف شيء، ولا يُرسَل أي شيء إلى العميل.**
+
+#### `conv.deletion.done` (changed)
+
+- en: This customer's data was deleted on {date}.
+- before: حُذفت بيانات هذا المشتري في {date}.
+- **ar: حُذفت بيانات هذا العميل في {date}.**
+
+#### `conv.deletion.erased` (changed)
+
+- en: Deleted: who they are on every channel, every message to or from them, the replies and prices prepared for them and any sample requests, notes about their conversations, and the conversations themselves, except what an order needs.
+- before: يُحذف: الهوية على كل قناة، وكل رسالة متبادلة، والردود والعروض وطلبات العيّنات المُعدّة، والملاحظات عن المحادثات، والمحادثات نفسها إلا ما يلزم لطلب شراء.
+- **ar: يُحذف: الهوية على كل قناة، وكل رسالة متبادلة، والردود والأسعار المُعدّة وأي طلبات عيّنات، والملاحظات عن المحادثات، والمحادثات نفسها إلا ما يلزم لطلب شراء.**
+
+#### `conv.deletion.flash.note_missing` (changed)
+
+- en: Nothing was recorded: say how and when the customer asked.
+- before: لم يُسجَّل شيء: يُرجى ذكر كيف ومتى جاء الطلب من المشتري.
+- **ar: لم يُسجَّل شيء: يُرجى ذكر كيف ومتى جاء الطلب من العميل.**
+
+#### `conv.deletion.lead` (changed)
+
+- en: When this customer asks in a message for their data to be deleted, the request is usually noted here as it arrives, for you to decide. If they ask another way, record it here. Nomi's operator carries it out by hand within 30 days, and it shows here when it is done.
+- before: عند طلب هذا المشتري في رسالةٍ حذفَ البيانات، يُسجَّل الطلب هنا عادةً فور وصوله ليُتَّخذ القرار بشأنه. وإن جاء الطلب بطريقة أخرى، يُسجَّل هنا. ينفّذ مشغّل Nomi الحذف يدويًا خلال 30 يومًا، ويظهر هنا عند التنفيذ.
+- **ar: عند طلب هذا العميل في رسالةٍ حذفَ البيانات، يُسجَّل الطلب هنا عادةً فور وصوله ليُتَّخذ القرار بشأنه. وإن جاء الطلب بطريقة أخرى، يُسجَّل هنا. ينفّذ مشغّل Nomi الحذف يدويًا خلال 30 يومًا، ويظهر هنا عند التنفيذ.**
+
+#### `conv.deletion.note` (changed)
+
+- en: How and when did they ask?
+- before: كيف ومتى جاء الطلب من المشتري؟
+- **ar: كيف ومتى جاء الطلب من العميل؟**
+
+#### `conv.deletion.tell` (changed)
+
+- en: When it is done, it shows here and on Your data. Tell the customer then — Nomi does not write to them about it.
+- before: عند التنفيذ يظهر ذلك هنا وفي صفحة «بياناتك». عندها يُرجى إبلاغ المشتري، فـNomi لا يراسل المشتري بهذا الشأن.
+- **ar: عند التنفيذ يظهر ذلك هنا وفي صفحة «بياناتك». عندها يُرجى إبلاغ العميل، فـNomi لا يراسل العميل بهذا الشأن.**
+
+#### `conv.deletion.title` (changed)
+
+- en: Deleting this customer's data
+- before: حذف بيانات هذا المشتري
+- **ar: حذف بيانات هذا العميل**
+
+#### `conv.file.title` (changed)
+
+- en: About this customer
+- before: عن المشتري
+- **ar: عن العميل**
+
+#### `conv.needCard` (changed)
+
+- en: This customer has a reply waiting for your OK.
+- before: لدى هذا المشتري رد بانتظار موافقتك.
+- **ar: لدى هذا العميل رد بانتظار موافقتك.**
+
+#### `conv.notFound` (changed)
+
+- en: Customer not found
+- before: المشتري غير موجود
+- **ar: العميل غير موجود**
+
+#### `conv.tl.buyer_image` (changed)
+
+- en: Customer sent a photo
+- before: أرسل المشتري صورة
+- **ar: أرسل العميل صورة**
+
+#### `conv.tl.lead_hot` (changed)
+
+- en: Customer is very interested
+- before: المشتري مهتم جدًا
+- **ar: العميل مهتم جدًا**
+
+#### `data.buyers.fromChat` (changed)
+
+- en: A request made in a message is usually listed here as it arrives, and waits until you decide on the customer's page.
+- before: الطلب المقدَّم في رسالة يُدرَج هنا عادةً فور وصوله، ويبقى بانتظار القرار في صفحة المشتري.
+- **ar: الطلب المقدَّم في رسالة يُدرَج هنا عادةً فور وصوله، ويبقى بانتظار القرار في صفحة العميل.**
+
+#### `data.buyers.lead` (changed)
+
+- en: Each is recorded on the customer's own page. Nomi's operator carries it out by hand within 30 days of it being recorded. When it shows as done, tell the customer — Nomi does not write to them about it.
+- before: يُسجَّل كل طلب في صفحة المشتري. ينفّذه مشغّل Nomi يدويًا خلال 30 يومًا من تسجيله. وعند ظهوره منفَّذًا، يُرجى إبلاغ المشتري، فـNomi لا يراسل المشتري بهذا الشأن.
+- **ar: يُسجَّل كل طلب في صفحة العميل. ينفّذه مشغّل Nomi يدويًا خلال 30 يومًا من تسجيله. وعند ظهوره منفَّذًا، يُرجى إبلاغ العميل، فـNomi لا يراسل العميل بهذا الشأن.**
+
+#### `data.buyers.none` (changed)
+
+- en: No customer has asked yet.
+- before: لا طلبات من المشترين حتى الآن.
+- **ar: لا طلبات من العملاء حتى الآن.**
+
+#### `data.buyers.title` (changed)
+
+- en: Customers who asked to be deleted
+- before: طلبات حذف بيانات المشترين
+- **ar: طلبات حذف بيانات العملاء**
+
+#### `data.buyers.withdrawConfirm` (changed)
+
+- en: Take this customer's request back? Nothing of theirs will be deleted.
+- before: التراجع عن هذا الطلب؟ لن يُحذف شيء من بيانات هذا المشتري.
+- **ar: التراجع عن هذا الطلب؟ لن يُحذف شيء من بيانات هذا العميل.**
+
+#### `data.deletion.lead` (changed)
+
+- en: Everything this workspace holds — customers, messages, products, orders, everything you taught — removed for good.
+- before: كل ما تحتفظ به مساحة العمل هذه — المشترون والرسائل والمنتجات والطلبات وما أُضيف إلى معرفة {name} — يُحذف نهائيًا.
+- **ar: كل ما تحتفظ به مساحة العمل هذه — العملاء والرسائل والمنتجات والطلبات وما أُضيف إلى معرفة {name} — يُحذف نهائيًا.**
+
+#### `data.deletion.scope.buyer` (changed)
+
+- en: One customer
+- before: مشترٍ واحد
+- **ar: عميل واحد**
+
+#### `data.export.configLead` (changed)
+
+- en: The part nobody wants to type twice: your lowest prices and discounts, how you sell, and every fact you taught.
+- before: الجزء الذي لا يودّ أحد إدخاله مرتين: حدودك الدنيا وخصوماتك، وشروط بيعك، وكل ما أُضيف إلى معرفة {name}.
+- **ar: الجزء الذي لا يودّ أحد إدخاله مرتين: أسعارك الدنيا وخصوماتك، وطريقة البيع، وكل ما أُضيف إلى معرفة {name}.**
+
+#### `data.export.lead` (changed)
+
+- en: One file per kind, in the format a spreadsheet opens. Everything here is yours — what you typed in, and what customers wrote to you.
+- before: ملف لكل نوع، بصيغة يفتحها أي برنامج جداول. كل ما هنا ملكك — ما أُدخل من بياناتك، وما كتبه إليك المشترون.
+- **ar: ملف لكل نوع، بصيغة يفتحها أي برنامج جداول. كل ما هنا ملكك — ما أُدخل من بياناتك، وما كتبه إليك العملاء.**
+
+#### `data.export.subject.buyers` (changed)
+
+- en: Customers
+- before: المشترون
+- **ar: العملاء**
+
+#### `data.export.subject.selling-terms` (changed)
+
+- en: How you sell
+- before: شروط بيعك
+- **ar: طريقة البيع**
+
+#### `deletionAsked.do` (changed)
+
+- en: Decide on the customer's page, then answer them yourself
+- before: اتخاذ القرار في صفحة المشتري، ثم الردّ مباشرةً
+- **ar: اتخاذ القرار في صفحة العميل، ثم الردّ مباشرةً**
+
+#### `deletionAsked.noted` (changed)
+
+- en: Noted on {date}. It waits on the customer's page, on Your data and on Today until you decide; handing the conversation back does not clear it.
+- before: سُجِّل في {date}. ويبقى في صفحة المشتري وفي «بياناتك» وفي «اليوم» إلى أن يُتَّخذ القرار، ولا تمحوه إعادة المحادثة.
+- **ar: سُجِّل في {date}. ويبقى في صفحة العميل وفي «بياناتك» وفي «اليوم» إلى أن يُتَّخذ القرار، ولا تمحوه إعادة المحادثة.**
+
+#### `deletionAsked.why` (changed)
+
+- en: A deletion is recorded on the customer's page and carried out by Nomi's operator by hand, so nothing about it is promised in the chat.
+- before: يُسجَّل الحذف في صفحة المشتري وينفّذه مشغّل Nomi يدويًا، لذلك لا يُقطَع في المحادثة أي وعد بشأنه.
+- **ar: يُسجَّل الحذف في صفحة العميل وينفّذه مشغّل Nomi يدويًا، لذلك لا يُقطَع في المحادثة أي وعد بشأنه.**
+
+#### `domain.intro` (changed)
+
+- en: Add these three at whoever holds your domain. Until all three are there, mail from you gets filed as junk — and that damage sticks to the address you have used with customers for years.
+- before: يلزم إضافة هذه الثلاثة لدى الجهة التي تحتفظ بنطاقك. وما لم تكتمل، تُصنَّف رسائلك كمزعجة — ويلتصق ذلك بالعنوان المستعمَل مع المشترين منذ سنوات.
+- **ar: يلزم إضافة هذه الثلاثة لدى الجهة التي تحتفظ بنطاقك. وما لم تكتمل، تُصنَّف رسائلك كمزعجة — ويلتصق ذلك بالعنوان المستعمَل مع العملاء منذ سنوات.**
+
+#### `factory.about.empty` (changed)
+
+- en: {name} has nothing to tell customers about you yet.
+- before: ليس لدى {name} ما يُقال للمشترين عنك بعد.
+- **ar: ليس لدى {name} ما يُقال للعملاء عنك بعد.**
+
+#### `factory.about.title` (changed)
+
+- en: About your business
+- before: عن شركتك
+- **ar: عن نشاطك التجاري**
+
+#### `factory.next.channels` (changed)
+
+- en: Connect the account customers write to
+- before: ربط الحساب الذي يراسلك عليه المشترون
+- **ar: ربط الحساب الذي يراسلك عليه العملاء**
+
+#### `factory.next.first_success` (changed)
+
+- en: Send {name}\'s first reply to a customer
+- before: إرسال أول ردّ إلى مشترٍ
+- **ar: إرسال أول ردّ إلى عميل**
+
+#### `factory.next.profile` (changed)
+
+- en: Tell {name} about your business
+- before: تعريف {name} بشركتك
+- **ar: تعريف {name} بنشاطك التجاري**
+
+#### `factory.prices.q` (changed)
+
+- en: What discounts may {name} give?
+- before: ما هامش تحرّك {name} في السعر؟
+- **ar: ما الخصم المسموح لـ{name}؟**
+
+#### `factory.promise.certsOn` (changed)
+
+- en: {name} may state these to a customer.
+- before: يجوز لـ {name} ذكر هذه للمشتري.
+- **ar: يجوز لـ {name} ذكر هذه للعميل.**
+
+#### `factory.promise.never` (changed)
+
+- en: Anything you have not confirmed here, {name} will not say — even if a customer insists.
+- before: ما لم يُؤكَّد هنا لا يُقال، مهما ألحّ المشتري.
+- **ar: ما لم يُؤكَّد هنا لا يُقال، مهما ألحّ العميل.**
+
+#### `factory.promise.none` (changed)
+
+- en: You have not confirmed anything {name} may claim about what you sell.
+- before: لا تأكيد منك بعد لأي شيء يجوز لـ {name} قوله عن بضاعتك.
+- **ar: لا تأكيد منك بعد لأي شيء يجوز لـ {name} قوله عن منتجاتك وخدماتك.**
+
+#### `factory.promise.title` (changed)
+
+- en: What you promise customers
+- before: وعودك للمشترين
+- **ar: وعودك للعملاء**
+
+#### `factory.reach.nextNot` (changed)
+
+- en: Until this is connected, {name} cannot receive or answer a customer.
+- before: قبل الربط لا يمكن لـ {name} استقبال رسائل المشترين ولا الرد عليها.
+- **ar: قبل الربط لا يمكن لـ {name} استقبال رسائل العملاء ولا الرد عليها.**
+
+#### `factory.reach.q` (changed)
+
+- en: Where can customers reach us?
+- before: من أين يصل إلينا المشترون؟
+- **ar: من أين يصل إلينا العملاء؟**
+
+#### `factory.reach.title` (changed)
+
+- en: Where customers reach you
+- before: أين يصل إليك المشترون
+- **ar: أين يصل إليك العملاء**
+
+#### `factory.ready.live` (changed)
+
+- en: {name} is talking to real customers.
+- before: {name} على تواصل مع مشترين حقيقيين.
+- **ar: {name} على تواصل مع عملاء حقيقيين.**
+
+#### `factory.ready.title` (changed)
+
+- en: Before {name} talks to real customers
+- before: قبل الحديث مع مشترين حقيقيين
+- **ar: قبل الحديث مع عملاء حقيقيين**
+
+#### `factory.rehearsal.claim_not_authorised` (changed)
+
+- en: If a customer asks whether you are certified, {name} will not confirm anything — you have authorised nothing yet.
+- before: إذا سأل مشترٍ هل لديك اعتمادات، فلن يُؤكَّد شيء — لا إذن منك بأي منها بعد.
+- **ar: إذا سأل عميل هل لديك اعتمادات، فلن يُؤكَّد شيء — لا إذن منك بأي منها بعد.**
+
+#### `factory.rehearsal.lede` (changed)
+
+- en: Customers ask these. Until you fill them in, {name} passes the question to you.
+- before: المشترون يسألون عن هذه. وإلى أن تُستكمل، يُحوَّل السؤال إليك.
+- **ar: العملاء يسألون عن هذه. وإلى أن تُستكمل، يُحوَّل السؤال إليك.**
+
+#### `factory.rehearsal.no_price_at_moq` (changed)
+
+- en: Your prices do not cover the smallest quantity you sell, so {name} cannot give a price for these:
+- before: أسعارك لا تغطي أصغر طلب لديك، فلا يمكن عرض سعر لهذه:
+- **ar: أسعارك لا تغطي أصغر كمية للبيع لديك، فلا يمكن ذكر سعر لهذه:**
+
+#### `factory.sell.title` (changed)
+
+- en: What you sell
+- before: ما تبيعه شركتك
+- **ar: ما يبيعه نشاطك التجاري**
+
+#### `feedback.none` (changed)
+
+- en: Nothing yet — this fills in once customers start talking to {name}.
+- before: لا شيء بعد — سيظهر هنا حين يبدأ المشترون بالتحدث مع {name}.
+- **ar: لا شيء بعد — سيظهر هنا حين يبدأ العملاء بالتحدث مع {name}.**
+
+#### `forbidden.add.notePlaceholder` (changed)
+
+- en: customers never see this
+- before: لا يراه المشترون
+- **ar: لا يراه العملاء**
+
+#### `forbidden.floor.body` (changed)
+
+- en: {name} will never curse or insult a customer. You cannot switch this off, and you do not need to add it.
+- before: لا شتائم ولا إساءة لأي مشترٍ في ردود {name} أبدًا. هذا لا يمكن إيقافه، ولا حاجة إلى إضافته.
+- **ar: لا شتائم ولا إساءة لأي عميل في ردود {name} أبدًا. هذا لا يمكن إيقافه، ولا حاجة إلى إضافته.**
+
+#### `forbidden.intro` (changed)
+
+- en: Add anything you never want {name} to say to a customer. A reply that contains one is never sent: it is written again without it, and if that cannot be done, it comes to you instead.
+- before: يمكن هنا إضافة كل ما يجب ألّا يصل إلى المشتري في ردود {name}. الردّ الذي يحتوي على شيء منها لا يُرسَل أبدًا: تُعاد كتابته بدونه، وإن تعذّر ذلك يصلك أنت.
+- **ar: يمكن هنا إضافة كل ما يجب ألّا يصل إلى العميل في ردود {name}. الردّ الذي يحتوي على شيء منها لا يُرسَل أبدًا: تُعاد كتابته بدونه، وإن تعذّر ذلك يصلك أنت.**
+
+#### `golive.none` (changed)
+
+- en: Connect a place customers write to, and {name} can start answering them.
+- before: بعد ربط قناة تصل منها رسائل المشترين، يمكن لـ {name} بدء الردّ.
+- **ar: بعد ربط قناة تصل منها رسائل العملاء، يمكن لـ {name} بدء الردّ.**
+
+#### `golive.other.live` (changed)
+
+- en: On {channels}, replies go out as soon as they are sent — by you, or by {name} where you have allowed it. There is no separate switch to start them.
+- before: على {channels} تصل الردود إلى المشترين فور إرسالها، يدويًا أو من قِبل {name} حيث سُمح بذلك. لا يوجد مفتاح منفصل للبدء.
+- **ar: على {channels} تصل الردود إلى العملاء فور إرسالها، يدويًا أو من قِبل {name} حيث سُمح بذلك. لا يوجد مفتاح منفصل للبدء.**
+
+#### `golive.whatsappOnly` (changed)
+
+- en: This stops WhatsApp only. {channels} keep answering customers.
+- before: هذا يوقف واتساب فقط. تستمر الردود على المشترين في {channels}.
+- **ar: هذا يوقف واتساب فقط. تستمر الردود على العملاء في {channels}.**
+
+#### `her.knows.none` (changed)
+
+- en: Nothing has been taught yet. Start with the facts customers ask about most.
+- before: لم يُضف شيء بعد. البداية الأنسب: ما يسأل عنه المشترون أكثر.
+- **ar: لم يُضف شيء بعد. البداية الأنسب: ما يسأل عنه العملاء أكثر.**
+
+#### `her.recent.noneWhy` (changed)
+
+- en: Customers who message you appear here.
+- before: يظهر هنا المشترون الذين يراسلونك.
+- **ar: يظهر هنا العملاء الذين يراسلونك.**
+
+#### `her.teach.unasked` (changed)
+
+- en: No customer has asked anything yet. Teach {name} what they ask about most.
+- before: لم تصل أي أسئلة من المشترين بعد. البداية الأنسب: ما يسألون عنه أكثر.
+- **ar: لم تصل أي أسئلة من العملاء بعد. البداية الأنسب: ما يسألون عنه أكثر.**
+
+#### `inbox.blocked.not_activated` (changed)
+
+- en: Not sent — messaging is switched off. Start {name} in My business and send it again.
+- before: لم يُرسَل — المراسلة مُطفأة. يلزم تشغيل {name} من «شركتي» ثم إعادة الإرسال.
+- **ar: لم يُرسَل — المراسلة مُطفأة. يلزم تشغيل {name} من «نشاطي التجاري» ثم إعادة الإرسال.**
+
+#### `inbox.blocked.not_allowlisted` (changed)
+
+- en: Not sent — this customer is not on your list yet. Add their number in My business first.
+- before: لم يُرسَل — هذا المشتري ليس في قائمتك بعد. يلزم إضافة الرقم من «شركتي» أولًا.
+- **ar: لم يُرسَل — هذا العميل ليس في قائمتك بعد. يلزم إضافة الرقم من «نشاطي التجاري» أولًا.**
+
+#### `inbox.blocked.not_connected` (changed)
+
+- en: Not sent — nothing is connected yet that can carry this reply, so it cannot reach this customer.
+- before: لم يُرسَل — لا يوجد بعد اتصال يمكنه إيصال هذا الرد، فلا شيء يصل إلى هذا المشتري.
+- **ar: لم يُرسَل — لا يوجد بعد اتصال يمكنه إيصال هذا الرد، فلا شيء يصل إلى هذا العميل.**
+
+#### `inbox.blocked.window_closed` (changed)
+
+- en: Not sent — you can’t message this customer right now. As soon as they reply, you can continue.
+- before: لم يُرسَل — لا يمكن مراسلة هذا المشتري الآن. فور وصول ردّ من المشتري تصبح المتابعة ممكنة.
+- **ar: لم يُرسَل — لا يمكن مراسلة هذا العميل الآن. فور وصول ردّ من العميل تصبح المتابعة ممكنة.**
+
+#### `inbox.detail.back` (changed)
+
+- en: Customers
+- before: المشترون
+- **ar: العملاء**
+
+#### `inbox.draft.held.contradicts_history` (changed)
+
+- en: This price is higher than the one this customer already has. If you send it, it becomes the price {name} gives them from now on.
+- before: هذا السعر أعلى من السعر الذي لدى هذا المشتري. عند إرساله، يصبح هذا السعر المعتمد في عروض {name} من الآن.
+- **ar: هذا السعر أعلى من السعر الذي لدى هذا العميل. عند إرساله، يصبح هذا السعر المعتمد في ردود {name} من الآن.**
+
+#### `inbox.draft.held.disclosure_sent` (changed)
+
+- en: They have already been told: {name} sent them the line saying they are not talking to a person, and offered them someone from your team. So this reply cannot be sent as it stands — change it first, or skip it.
+- before: وصلت الإجابة بالفعل: أُرسلت إلى المشتري الجملة التي توضّح طبيعة {name}، مع عرض التحدث مع شخص من فريقك. لذلك لا يمكن إرسال هذا الرد بصيغته الحالية — يلزم تعديله أولًا، أو تجاهله.
+- **ar: وصلت الإجابة بالفعل: أُرسلت إلى العميل الجملة التي توضّح طبيعة {name}، مع عرض التحدث مع شخص من فريقك. لذلك لا يمكن إرسال هذا الرد بصيغته الحالية — يلزم تعديله أولًا، أو تجاهله.**
+
+#### `inbox.draft.held.identity_denial` (changed)
+
+- en: {name} tried to claim to be a person to this customer. That was stopped and never sent. This is a plain stand-in for you to send, change or skip.
+- before: كان في ردّ {name} على هذا المشتري ادّعاءٌ بأنّ المحادثة مع إنسان. أُوقف ذلك ولم يُرسَل. هذا رد بديل بسيط يمكن إرساله أو تعديله أو تجاهله.
+- **ar: كان في ردّ {name} على هذا العميل ادّعاءٌ بأنّ المحادثة مع إنسان. أُوقف ذلك ولم يُرسَل. هذا رد بديل بسيط يمكن إرساله أو تعديله أو تجاهله.**
+
+#### `inbox.draft.held.identity_question` (changed)
+
+- en: This customer asked whether they are talking to a person or a machine, and this reply does not answer them. Nothing was sent.
+- before: في رسالة المشتري سؤال: هل المحادثة مع إنسان أم مع آلة؟ وهذا الرد لا يجيب عنه. لم يُرسَل شيء.
+- **ar: في رسالة العميل سؤال: هل المحادثة مع إنسان أم مع آلة؟ وهذا الرد لا يجيب عنه. لم يُرسَل شيء.**
+
+#### `inbox.empty.noneBody` (changed)
+
+- en: Messages from customers show up here. Share your WhatsApp number or your page with customers first.
+- before: تظهر رسائل المشترين هنا. الخطوة الأولى: مشاركة رقم واتساب مع المشترين.
+- **ar: تظهر رسائل العملاء هنا. الخطوة الأولى: مشاركة رقم واتساب أو صفحتك مع العملاء.**
+
+#### `inbox.empty.setup` (changed)
+
+- en: Set up your business so customers can reach you
+- before: تجهيز شركتك ليصل إليك المشترون
+- **ar: تجهيز نشاطك التجاري ليصل إليك العملاء**
+
+#### `inbox.flash.assistant_stopped` (changed)
+
+- en: {name} is stopped, so this draft was not sent. It is still here: write your own reply, or let {name} answer again on My business.
+- before: الردود من {name} متوقّفة، لذلك لم تُرسل هذه المسودة، وما زالت هنا. يمكن كتابة ردّ مباشر، أو استئناف الردود من صفحة «شركتي».
+- **ar: الردود من {name} متوقّفة، لذلك لم تُرسل هذه المسودة، وما زالت هنا. يمكن كتابة ردّ مباشر، أو استئناف الردود من صفحة «نشاطي التجاري».**
+
+#### `inbox.flash.sentNotLive` (changed)
+
+- en: Saved. Messaging is not switched on yet, so nothing went to the customer.
+- before: تم الحفظ. المراسلة غير مُفعّلة بعد، فلم يصل شيء إلى المشتري.
+- **ar: تم الحفظ. المراسلة غير مُفعّلة بعد، فلم يصل شيء إلى العميل.**
+
+#### `insight.action.seeBuyers` (changed)
+
+- en: See the customers
+- before: إلقاء نظرة على المشترين
+- **ar: إلقاء نظرة على العملاء**
+
+#### `insight.monthChange.inquiries.down` (changed)
+
+- en: Fewer customers wrote to you this month: {from} last month, {to} this month.
+- before: كتب إليك مشترون أقل هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.
+- **ar: كتب إليك عملاء أقل هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.**
+
+#### `insight.monthChange.inquiries.up` (changed)
+
+- en: More customers wrote to you this month: {from} last month, {to} this month.
+- before: كتب إليك مشترون أكثر هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.
+- **ar: كتب إليك عملاء أكثر هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.**
+
+#### `insight.monthChange.quotes.down` (changed)
+
+- en: {name} answered fewer price questions this month: {from} last month, {to} this month.
+- before: عروض أسعار أقل من {name} هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.
+- **ar: إجابات أقل عن الأسعار من {name} هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.**
+
+#### `insight.monthChange.quotes.up` (changed)
+
+- en: {name} answered more price questions this month: {from} last month, {to} this month.
+- before: عروض أسعار أكثر من {name} هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.
+- **ar: إجابات أكثر عن الأسعار من {name} هذا الشهر: {from} الشهر الماضي، {to} هذا الشهر.**
+
+#### `insight.quotedNoReply` (changed)
+
+- en: {buyer} has not answered since they were given a price.
+- before: لا ردّ من {buyer} منذ تسعير الطلب.
+- **ar: لا ردّ من {buyer} منذ إرسال السعر.**
+
+#### `knowledge.archive.confirm` (changed)
+
+- en: Archive “{label}”? {name} stops using it with customers. You can teach it again at any time.
+- before: أرشفة «{label}»؟ يتوقف استخدام ذلك في الردود على المشترين، ويمكن إضافته من جديد في أي وقت.
+- **ar: أرشفة «{label}»؟ يتوقف استخدام ذلك في الردود على العملاء، ويمكن إضافته من جديد في أي وقت.**
+
+#### `knowledge.business` (changed)
+
+- en: About your business
+- before: عن شركتك
+- **ar: عن نشاطك التجاري**
+
+#### `knowledge.cert.confirmOn` (changed)
+
+- en: Turn on {key} for all {n} of your products? {name} will be able to state it to any customer.
+- before: تشغيل {key} لمنتجاتك الـ{n} كلها؟ بعدها يصبح بإمكان {name} ذكره لأي مشترٍ.
+- **ar: تشغيل {key} لمنتجاتك الـ{n} كلها؟ بعدها يصبح بإمكان {name} ذكره لأي عميل.**
+
+#### `knowledge.cert.hint` (changed)
+
+- en: Anything not turned on here is refused, however a customer asks.
+- before: لا يجوز ذكر شهادة للمشترين إلا إذا كانت مفعّلة هنا.
+- **ar: لا يجوز ذكر شهادة للعملاء إلا إذا كانت مفعّلة هنا.**
+
+#### `knowledge.intro` (changed)
+
+- en: Teach the facts about what you sell and your business. {name} answers customers from what you teach — and never states a number or a certification you haven't given.
+- before: هنا تُضاف حقائق منتجاتك وشركتك إلى معرفة {name}. الإجابات للمشترين من هذه المعرفة فقط — ولا ذكر أبدًا لرقم أو شهادة لم تُضف.
+- **ar: هنا تُضاف حقائق منتجاتك ونشاطك التجاري إلى معرفة {name}. الإجابات للعملاء من هذه المعرفة فقط — ولا ذكر أبدًا لرقم أو شهادة لم تُضف.**
+
+#### `knowledge.kind.production_note` (changed)
+
+- en: How it is made
+- before: ملاحظات الإنتاج
+- **ar: طريقة الصنع**
+
+#### `knowledge.products` (changed)
+
+- en: What you sell
+- before: منتجاتك
+- **ar: ما يُباع**
+
+#### `knowledge.source.system_seed` (changed)
+
+- en: Example
+- before: عيّنة
+- **ar: مثال**
+
+#### `knowledge.taught.scope` (changed)
+
+- en: These facts are used only when a customer asks about {product}.
+- before: تُستخدم هذه المعلومات فقط حين يسأل مشترٍ عن {product}.
+- **ar: تُستخدم هذه المعلومات فقط حين يسأل عميل عن {product}.**
+
+#### `legal.deletion.erased.prepared` (changed)
+
+- en: Replies prepared for you, and any price offers or sample requests.
+- before: الردود والعروض وطلبات العيّنات المُعدّة لك.
+- **ar: الردود المُعدّة لك، وأي عروض أسعار أو طلبات عيّنات.**
+
+#### `legal.privacy.howLong.body` (changed)
+
+- en: Until the business asks for its records to be deleted, or you ask for yours. They are kept so the business can see what was agreed with you, such as a price or an order. What a deletion removes, and what it keeps, is on the deletion page.
+- before: إلى أن تطلب الشركة حذف سجلاتها، أو يُطلب حذف سجلاتك. وتُحفظ لتتمكن الشركة من الرجوع إلى ما اتُّفق عليه معك: سعر أو طلب أو عيّنة. وما يحذفه طلب الحذف وما يُبقيه مبيَّن في صفحة الحذف.
+- **ar: إلى أن تطلب الشركة حذف سجلاتها، أو يُطلب حذف سجلاتك. وتُحفظ لتتمكن الشركة من الرجوع إلى ما اتُّفق عليه معك، كسعر أو طلب. وما يحذفه طلب الحذف وما يُبقيه مبيَّن في صفحة الحذف.**
+
+#### `legal.terms.ours.we1` (changed)
+
+- en: A price Nomi gives comes from your own price list and is never below the lowest price you set.
+- before: السعر الذي يعرضه Nomi يأتي من قائمة أسعارك أنت ولا يقل أبدًا عن الحد الأدنى المحدَّد منك.
+- **ar: السعر الذي يذكره Nomi يأتي من قائمة أسعارك أنت ولا يقل أبدًا عن أدنى سعر محدَّد منك.**
+
+#### `live.message` (changed)
+
+- en: New message from the customer
+- before: رسالة جديدة من المشتري
+- **ar: رسالة جديدة من العميل**
+
+#### `login.footer` (changed)
+
+- en: For your business and the people who work there.
+- before: لشركتك ولمن يعمل فيها.
+- **ar: لنشاطك التجاري ولمن يعمل فيه.**
+
+#### `login.toSignup` (changed)
+
+- en: New here? Set up your business
+- before: أول مرة هنا؟ إنشاء مساحة عمل لشركتك
+- **ar: أول مرة هنا؟ إنشاء مساحة عمل لنشاطك التجاري**
+
+#### `meta.intro` (changed)
+
+- en: What still has to be in place before {name} can talk to real customers. Nothing here switches messaging on.
+- before: ما يجب توفّره قبل حديث {name} مع مشترين حقيقيين. هذه الصفحة لا تُفعّل الرسائل.
+- **ar: ما يجب توفّره قبل حديث {name} مع عملاء حقيقيين. هذه الصفحة لا تُفعّل الرسائل.**
+
+#### `meta.live` (changed)
+
+- en: Live — {name} is talking to real customers.
+- before: التشغيل مباشر — {name} على تواصل مع مشترين حقيقيين.
+- **ar: التشغيل مباشر — {name} على تواصل مع عملاء حقيقيين.**
+
+#### `nav.channels` (changed)
+
+- en: Where customers reach you
+- before: أين يصل إليك المشترون
+- **ar: أين يصل إليك العملاء**
+
+#### `nav.factory` (changed)
+
+- en: My business
+- before: شركتي
+- **ar: نشاطي التجاري**
+
+#### `nav.inbox` (changed)
+
+- en: Customers
+- before: المشترون
+- **ar: العملاء**
+
+#### `nav.prospects` (changed)
+
+- en: Find customers
+- before: البحث عن مشترين
+- **ar: البحث عن عملاء**
+
+#### `notify.deletion_due.how` (changed)
+
+- en: Carry each out as the data deletion runbook says. Until a request is marked done, the business sees it as waiting.
+- before: يُرجى تنفيذ كل طلب وفق دليل حذف البيانات. وإلى أن يُعلَّم الطلب منفَّذًا، يظهر للشركة في الانتظار.
+- **ar: يُرجى تنفيذ كل طلب وفق دليل حذف البيانات. وإلى أن يُعلَّم الطلب منفَّذًا، يبقى ظاهرًا في الانتظار.**
+
+#### `notify.deletion_requested` (changed)
+
+- en: A customer asked for their data to be deleted. Nothing was sent to them, and it needs an answer from you. The request is noted on the customer's page, where you decide what happens next.
+- before: وصل طلب من أحد المشترين بحذف البيانات. لم يُرسَل أي شيء إلى المشتري، والأمر يحتاج إلى ردّ منك. الطلب مسجَّل في صفحة المشتري، وهناك يُتَّخذ القرار التالي.
+- **ar: وصل طلب من أحد العملاء بحذف البيانات. لم يُرسَل أي شيء إلى العميل، والأمر يحتاج إلى ردّ منك. الطلب مسجَّل في صفحة العميل، وهناك يُتَّخذ القرار التالي.**
+
+#### `notify.deletion_requested.subject` (changed)
+
+- en: A customer asked for their data to be deleted
+- before: طلب حذف بيانات من أحد المشترين
+- **ar: طلب حذف بيانات من أحد العملاء**
+
+#### `notify.handoff` (changed)
+
+- en: {name} paused — a customer wants to talk to a person. The conversation is waiting for you.
+- before: توقّف ردّ {name} — مشترٍ يطلب التحدث مع شخص. الأمر بانتظارك.
+- **ar: توقّف ردّ {name} — عميل يطلب التحدث مع شخص. الأمر بانتظارك.**
+
+#### `notify.hot_lead` (changed)
+
+- en: A customer looks ready to buy — {name} is following up.
+- before: إشارة مشترٍ كبير — والمتابعة في عهدة {name}. التفاصيل في ملخص الليلة.
+- **ar: إشارة استعداد للشراء لدى أحد العملاء — والمتابعة في عهدة {name}.**
+
+#### `ops.activity.handled` (changed)
+
+- en: Customers answered
+- before: مشترون تمّ الردّ عليهم
+- **ar: عملاء تمّ الردّ عليهم**
+
+#### `order.field.buyer` (changed)
+
+- en: Customer
+- before: المشتري
+- **ar: العميل**
+
+#### `order.invoice.sampleMismatch` (changed)
+
+- en: This customer paid {amount} for a sample, which you said comes off the first order. It is in another currency, so it is not deducted here — take it off yourself.
+- before: دفع هذا المشتري {amount} مقابل عيّنة، والمسجَّل أنها تُخصم من أول طلب. العملة مختلفة، فلم تُخصم هنا — يلزم خصمها يدويًا.
+- **ar: دفع هذا العميل {amount} مقابل عيّنة، والمسجَّل أنها تُخصم من أول طلب. العملة مختلفة، فلم تُخصم هنا — يلزم خصمها يدويًا.**
+
+#### `order.state.in_production` (changed)
+
+- en: Being prepared
+- before: قيد الإنتاج
+- **ar: قيد التجهيز**
+
+#### `order.status.in_production` (changed)
+
+- en: Being prepared
+- before: قيد الإنتاج
+- **ar: قيد التجهيز**
+
+#### `order.update.intro` (changed)
+
+- en: You set this. {name} tells a customer what you recorded and the day you recorded it — never a delivery date worked out from it.
+- before: التحديد لك. يصل إلى المشتري عبر {name} ما سُجّل وتاريخ تسجيله — ولا يُستنتج منه موعد تسليم أبدًا.
+- **ar: التحديد لك. يصل إلى العميل عبر {name} ما سُجّل وتاريخ تسجيله — ولا يُستنتج منه موعد تسليم أبدًا.**
+
+#### `order.update.note.placeholder` (changed)
+
+- en: Not sent to the customer
+- before: غير مرئية للمشتري
+- **ar: غير مرئية للعميل**
+
+#### `people.add.placeholder` (changed)
+
+- en: The name customers would hear
+- before: الاسم الذي يسمعه المشترون
+- **ar: الاسم الذي يسمعه العملاء**
+
+#### `people.intro` (changed)
+
+- en: Everyone here can log in with their own code, reply to a customer, take a conversation over and hand it back. You see who is holding what.
+- before: لكل شخص هنا رمز دخول خاص، مع إمكانية الرد على مشترٍ وتسلّم محادثة وإعادتها. ويظهر هنا من يتولّى ماذا.
+- **ar: لكل شخص هنا رمز دخول خاص، مع إمكانية الرد على عميل وتسلّم محادثة وإعادتها. ويظهر هنا من يتولّى ماذا.**
+
+#### `people.name.askThem` (changed)
+
+- en: This is your business\'s name, not a person\'s. What is the right name here?
+- before: هذا اسم الشركة لا اسم شخص. ما الاسم الصحيح هنا؟
+- **ar: هذا اسم النشاط التجاري لا اسم شخص. ما الاسم الصحيح هنا؟**
+
+#### `people.name.askYou` (changed)
+
+- en: Your name here is your business\'s name. What should the people here call you?
+- before: الاسم المسجَّل هنا مطابق لاسم الشركة. ما الاسم الذي يظهر لفريق العمل؟
+- **ar: الاسم المسجَّل هنا مطابق لاسم النشاط التجاري. ما الاسم الذي يظهر لفريق العمل؟**
+
+#### `pilot.assistant.hint` (changed)
+
+- en: Every reply is signed with this name, so a customer reads it each time. You can change it later on the team page.
+- before: يظهر هذا الاسم في توقيع كل ردّ، فيقرأه المشتري دائمًا. ويمكن تغييره لاحقًا من صفحة الفريق.
+- **ar: يظهر هذا الاسم في توقيع كل ردّ، فيقرأه العميل دائمًا. ويمكن تغييره لاحقًا من صفحة الفريق.**
+
+#### `pilot.assistant.problem.name_missing` (changed)
+
+- en: Type the name customers should see.
+- before: يُرجى كتابة الاسم الذي سيراه المشترون.
+- **ar: يُرجى كتابة الاسم الذي سيراه العملاء.**
+
+#### `pilot.attest.assistant_named` (changed)
+
+- en: The name customers see
+- before: الاسم الذي يراه المشترون
+- **ar: الاسم الذي يراه العملاء**
+
+#### `pilot.blocker.channel` (changed)
+
+- en: Connect at least one place customers write to you: WhatsApp, Instagram, Messenger or e-mail.
+- before: ربط مكان واحد على الأقل يصل إليك منه المشترون: واتساب أو إنستغرام أو ماسنجر أو البريد.
+- **ar: ربط مكان واحد على الأقل يصل إليك منه العملاء: واتساب أو إنستغرام أو ماسنجر أو البريد.**
+
+#### `pilot.blocker.profile` (changed)
+
+- en: Add your business details.
+- before: يلزم إضافة بيانات شركتك.
+- **ar: يلزم إضافة بيانات نشاطك التجاري.**
+
+#### `pilot.item.channel` (changed)
+
+- en: Where customers reach you
+- before: أين يصل إليك المشترون
+- **ar: أين يصل إليك العملاء**
+
+#### `pilot.item.profile` (changed)
+
+- en: Business profile
+- before: ملف الشركة
+- **ar: ملف النشاط التجاري**
+
+#### `pilot.technical.intro` (changed)
+
+- en: For whoever set up this installation: which WhatsApp details are in place, the safety checks on your own data, and which version is running. Nothing here needs you.
+- before: لجهة إعداد هذه النسخة: ما اكتمل من بيانات واتساب، وفحوص السلامة على بيانات شركتك، والإصدار العامل الآن. لا شيء هنا يحتاج إلى تدخّل منك.
+- **ar: لجهة إعداد هذه النسخة: ما اكتمل من بيانات واتساب، وفحوص السلامة على بيانات نشاطك التجاري، والإصدار العامل الآن. لا شيء هنا يحتاج إلى تدخّل منك.**
+
+#### `practice.scripted.intro` (changed)
+
+- en: These run {name} against situations that have gone wrong for other businesses. Nothing here touches your customers.
+- before: هذه الفحوص تضع {name} في مواقف أخطأت فيها شركات أخرى. لا شيء هنا يمسّ مشتريك.
+- **ar: هذه الفحوص تضع {name} في مواقف أخطأت فيها أنشطة تجارية أخرى. لا شيء هنا يمسّ عميلك.**
+
+#### `practice.scripted.notproves` (changed)
+
+- en: What it does not prove: how a reply to YOUR customer is worded, or whether your channel delivers it. For that, practise live below once your business is connected.
+- before: ما لا يثبته: صياغة ردّ {name} لمشتريك أنت، ولا وصوله عبر واتساب. لذلك يمكن التدريب مباشرة بالأسفل بعد ربط حسابك.
+- **ar: ما لا يثبته: صياغة ردّ {name} لعميلك أنت، ولا وصوله عبر قناتك. لذلك يمكن التدريب مباشرة بالأسفل بعد ربط حسابك.**
+
+#### `practice.scripted.proves` (changed)
+
+- en: What this proves: {name} will not give a price below your floor, will not claim a certification you have not confirmed, will not invent a number you never taught, and hands over when a customer asks for a person.
+- before: ما يثبته ذلك: لا تسعير من {name} تحت حدّك الأدنى، ولا ادّعاء لشهادة غير مؤكَّدة، ولا اختلاق لرقم لم يُضف إلى معرفة {name}، والتحويل إليك حين يطلب المشتري شخصًا.
+- **ar: ما يثبته ذلك: لا سعر من {name} تحت حدّك الأدنى، ولا ادّعاء لشهادة غير مؤكَّدة، ولا اختلاق لرقم لم يُضف إلى معرفة {name}، والتحويل إليك حين يطلب العميل شخصًا.**
+
+#### `prices.lede` (changed)
+
+- en: These are the only numbers {name} will ever work within — never below what you set here, whatever a customer says.
+- before: هذه وحدها الأرقام المتاحة لتفاوض {name}. لا نزول تحت ما يُحدَّد هنا مهما قال المشتري.
+- **ar: هذه وحدها الأرقام المتاحة لـ {name}. لا نزول تحت ما يُحدَّد هنا مهما قال العميل.**
+
+#### `prices.q.floor` (changed)
+
+- en: What is the least you would ever accept for one of these? ({currency})
+- before: ما أقل سعر مقبول للقطعة الواحدة؟ (دولار)
+- **ar: ما أقل سعر مقبول للقطعة الواحدة؟ ({currency})**
+
+#### `prices.volume.removeConfirm` (changed)
+
+- en: Stop offering this discount? It will not be offered to customers any more.
+- before: إيقاف هذا العرض؟ لا يُعرض على المشترين بعد الآن.
+- **ar: إيقاف هذا العرض؟ لا يُعرض على العملاء بعد الآن.**
+
+#### `prices.volume.title` (changed)
+
+- en: Discounts for buying more
+- before: متى يُخفَّض السعر
+- **ar: خصم عند شراء كمية أكبر**
+
+#### `product.add.example1` (changed)
+
+- en: Canvas tote bag {price}
+- before: حقيبة قماش $1.05 حد أدنى 500
+- **ar: حقيبة قماش {price}**
+
+#### `product.add.example2` (changed)
+
+- en: Vacuum cup {price} MOQ 1000
+- before: كوب حراري $2.60 حد أدنى 1000
+- **ar: كوب حراري {price} حد أدنى 1000**
+
+#### `product.add.example3` (changed)
+
+- en: Rose face serum 50 ml {price}
+- before: مصل الورد 50 مل $34.90
+- **ar: مصل الورد 50 مل {price}**
+
+#### `product.add.intro` (changed)
+
+- en: Paste your products and their prices — one per line, messy is fine.
+- before: يُرجى لصق قائمة أسعارك — منتج في كل سطر، لا بأس بالفوضى.
+- **ar: يُرجى لصق المنتجات وأسعارها — منتج في كل سطر، لا بأس بالفوضى.**
+
+#### `product.detail.aliasesNote` (changed)
+
+- en: {name} recognizes all of these when customers ask.
+- before: كل هذه الأسماء معروفة لدى {name} عند سؤال المشترين.
+- **ar: كل هذه الأسماء معروفة لدى {name} عند سؤال العملاء.**
+
+#### `product.detail.aliasesTitle` (changed)
+
+- en: What customers call it
+- before: ما يسمّيه المشترون
+- **ar: ما يسمّيه العملاء**
+
+#### `product.detail.imageMatchBig` (changed)
+
+- en: Recognizable by photo — {name} identifies this when customers send a picture
+- before: يُميَّز بالصورة — بإمكان {name} التعرّف عليه عند إرسال المشتري صورة
+- **ar: يُميَّز بالصورة — بإمكان {name} التعرّف عليه عند إرسال العميل صورة**
+
+#### `product.edit.active` (changed)
+
+- en: Offer this to customers
+- before: عرضه على المشترين
+- **ar: عرضه على العملاء**
+
+#### `product.edit.price` (changed)
+
+- en: Price for one ({currency})
+- before: سعر القطعة (دولار)
+- **ar: سعر القطعة ({currency})**
+
+#### `product.list.empty.body` (changed)
+
+- en: Add your products and prices, and {name} can answer with your prices.
+- before: بعد إرسال قائمة أسعارك، يمكن لـ {name} التسعير بأسعارك.
+- **ar: بعد إضافة منتجاتك وأسعارك، يمكن لـ {name} الردّ بأسعارك.**
+
+#### `product.reject.other_currency`
+
+- en: this line is in another currency — this workspace sells in {currency}
+- **ar: في هذا السطر عملة أخرى — البيع هنا بعملة {currency} وحدها**
+
+#### `product.reject.several_numbers` (changed)
+
+- en: several numbers and none marked as the price — put {sign} before it
+- before: في السطر عدة أرقام ولا يُعرف أيها السعر — يُرجى وضع $ قبله
+- **ar: في السطر عدة أرقام ولا يُعرف أيها السعر — يُرجى وضع {sign} قبله**
+
+#### `product.status.notOffered` (changed)
+
+- en: Not offered to customers
+- before: غير معروض على المشترين
+- **ar: غير معروض على العملاء**
+
+#### `proof.footer.explain` (changed)
+
+- en: Every figure on this page comes from the business\u2019s own records. Nothing here was estimated.
+- before: كل رقم في هذه الصفحة مأخوذ من سجلات الشركة نفسها. لا شيء هنا تقديري.
+- **ar: كل رقم في هذه الصفحة مأخوذ من سجلات البائع نفسه. لا شيء هنا تقديري.**
+
+#### `proof.leadTime.withheld` (changed)
+
+- en: Not yet — closed for {label}, {from} to {to}
+- before: لم يُحدَّد بعد — الشركة مغلقة بسبب {label}، من {from} إلى {to}
+- **ar: لم يُحدَّد بعد — إغلاق بسبب {label}، من {from} إلى {to}**
+
+#### `proof.owner.flash.issued` (changed)
+
+- en: Link ready. Paste it to the customer.
+- before: الرابط جاهز. يمكن إرساله إلى المشتري الآن.
+- **ar: الرابط جاهز. يمكن إرساله إلى العميل الآن.**
+
+#### `proof.owner.live` (changed)
+
+- en: Link sent to this customer:
+- before: الرابط المُرسل لهذا المشتري:
+- **ar: الرابط المُرسل لهذا العميل:**
+
+#### `proof.owner.none` (changed)
+
+- en: You can send this customer a page showing where the price came from.
+- before: يمكن إرسال صفحة لهذا المشتري تبيّن مصدر السعر.
+- **ar: يمكن إرسال صفحة لهذا العميل تبيّن مصدر السعر.**
+
+#### `proof.quote.title` (changed)
+
+- en: Your price
+- before: هذا العرض
+- **ar: هذا السعر**
+
+#### `proof.source.authorised` (changed)
+
+- en: Authorised by the business
+- before: بتصريح من الشركة
+- **ar: بتصريح من البائع**
+
+#### `proof.source.catalogue` (changed)
+
+- en: From the business's own product list
+- before: من قائمة منتجات الشركة
+- **ar: من قائمة منتجات البائع**
+
+#### `proof.source.taught` (changed)
+
+- en: Confirmed by the business
+- before: أكّدته الشركة
+- **ar: أكّده البائع**
+
+#### `prospects.intro` (changed)
+
+- en: Search for people who might buy from you. Nothing here writes to anyone: people you add join your list with nothing on file saying you may write to them, and their row says so.
+- before: البحث عن أشخاص يشترون ما تصنعه شركتك. لا شيء هنا يراسل أحدًا: من يُضاف ينضم إلى قائمتك دون أي سجل يسمح بالمراسلة، ويظهر ذلك في القائمة.
+- **ar: البحث عن أشخاص قد يشترون منك. لا شيء هنا يراسل أحدًا: من يُضاف ينضم إلى قائمتك دون أي سجل يسمح بالمراسلة، ويظهر ذلك في القائمة.**
+
+#### `prospects.title` (changed)
+
+- en: Find customers
+- before: البحث عن مشترين
+- **ar: البحث عن عملاء**
+
+#### `rate.add.label` (changed)
+
+- en: One {from} is worth, in {to}
+- before: الدولار الواحد يساوي، باليوان
+- **ar: قيمة 1 {from} بعملة {to}**
+
+#### `rate.current` (changed)
+
+- en: 1 {from} = {rate} {to}
+- before: دولار واحد = ￥{rate}
+- **ar: 1 {from} = {rate} {to}**
+
+#### `rate.empty` (changed)
+
+- en: You have not set a rate yet, so nothing is shown in {to}.
+- before: لم يُحدَّد سعر بعد، فلا يظهر شيء باليوان.
+- **ar: لم يُحدَّد سعر بعد، فلا يظهر شيء بعملة {to}.**
+
+#### `rate.flash.none`
+
+- en: Your prices are in the currency your country uses, so there is no rate to set. Nothing was saved.
+- **ar: الأسعار بعملة البلد نفسه، فلا حاجة إلى سعر صرف. لم يُحفظ شيء.**
+
+#### `rate.flash.set` (changed)
+
+- en: Saved. {name} will use 1 {from} = {rate} {to} until you change it.
+- before: حُفظ. السعر المعتمد لدى {name}: \u200F$1 = ￥{rate}، حتى تغييره.
+- **ar: حُفظ. السعر المعتمد لدى {name}: \u200F1 {from} = {rate} {to}، حتى تغييره.**
+
+#### `rate.intro` (changed)
+
+- en: Customers pay in {from}. When you want to see what that is in {to}, {name} uses the rate you set here — never a rate from anywhere else.
+- before: المشترون يدفعون بالدولار. ولرؤية المبلغ باليوان، يعتمد حساب {name} على السعر المحدَّد هنا وحده — لا على سعر من أي مكان آخر.
+- **ar: الدفع بعملة {from}. ولرؤية المبلغ بعملة {to}، يعتمد حساب {name} على السعر المحدَّد هنا وحده — لا على سعر من أي مكان آخر.**
+
+#### `rate.none`
+
+- en: Your prices are in {from}, and nothing here is shown in another currency, so there is no rate to set.
+- **ar: الأسعار بعملة {from}، ولا يُعرض شيء هنا بعملة أخرى، فلا حاجة إلى سعر صرف.**
+
+#### `reach.inbound.flash.taken` (changed)
+
+- en: Another business on this installation already uses that account.
+- before: تستخدم هذا الحساب شركة أخرى على هذا التثبيت.
+- **ar: يستخدم هذا الحساب نشاط تجاري آخر على هذا التثبيت.**
+
+#### `reach.instead.buyer_writes_first` (changed)
+
+- en: Someone writes first, and {name} answers the usual way.
+- before: المشتري يبادر بالكتابة، فيأتي ردّ {name} كالمعتاد.
+- **ar: تأتي الرسالة الأولى من الطرف الآخر، فيأتي ردّ {name} كالمعتاد.**
+
+#### `reach.instead.click_to_whatsapp` (changed)
+
+- en: Someone taps an advert of yours and it opens WhatsApp, with you.
+- before: نقرة من المشتري على إعلان لك تفتح واتساب معك مباشرةً.
+- **ar: نقرة على إعلان لك تفتح واتساب معك مباشرةً.**
+
+#### `reach.req.business_verification` (changed)
+
+- en: WhatsApp has checked your business
+- before: واتساب تحقّق من شركتك
+- **ar: واتساب تحقّق من نشاطك التجاري**
+
+#### `reach.req.privacy_policy_url` (changed)
+
+- en: A page of your own saying how you handle what customers tell you
+- before: صفحة خاصة بك تبيّن طريقة التعامل مع ما يخبرك به المشترون
+- **ar: صفحة خاصة بك تبيّن طريقة التعامل مع ما يخبرك به العملاء**
+
+#### `reach.title` (changed)
+
+- en: What each way of reaching people allows
+- before: ماذا تسمح به كل طريقة للوصول إلى مشترٍ
+- **ar: ماذا تسمح به كل طريقة للتواصل**
+
+#### `reach.window` (changed)
+
+- en: After someone writes, you have {hours} hours to answer them freely.
+- before: بعد أول رسالة من المشتري، تُتاح {hours} ساعة للرد بحرية.
+- **ar: بعد أول رسالة تصل، تُتاح {hours} ساعة للرد بحرية.**
+
+#### `refused.do.channel_cannot_initiate` (changed)
+
+- en: Wait for them to write to you, or open your connections to see what each one allows.
+- before: يمكن انتظار رسالة من المشتري، أو فتح صفحة الاتصالات للاطّلاع على ما تسمح به كل طريقة.
+- **ar: يمكن انتظار الرسالة الأولى من الطرف الآخر، أو فتح صفحة الاتصالات للاطّلاع على ما تسمح به كل طريقة.**
+
+#### `refused.do.not_activated` (changed)
+
+- en: Start {name} in My business when you are ready.
+- before: يمكن تشغيل {name} من «شركتي» عند الاستعداد.
+- **ar: يمكن تشغيل {name} من «نشاطي التجاري» عند الاستعداد.**
+
+#### `refused.do.not_allowlisted` (changed)
+
+- en: Add this number in My business, or leave it — nothing will be sent to it.
+- before: يمكن إضافة هذا الرقم في «شركتي»، أو تركه — فلن يُرسَل إليه شيء.
+- **ar: يمكن إضافة هذا الرقم في «نشاطي التجاري»، أو تركه — فلن يُرسَل إليه شيء.**
+
+#### `refused.do.stopped` (changed)
+
+- en: Reply yourself — your own replies still go. To let {name} answer again, open My business.
+- before: يمكن الردّ مباشرةً — الردود اليدوية تُرسل كالمعتاد. ولاستئناف الردود من {name}، يُرجى فتح صفحة «شركتي».
+- **ar: يمكن الردّ مباشرةً — الردود اليدوية تُرسل كالمعتاد. ولاستئناف الردود من {name}، يُرجى فتح صفحة «نشاطي التجاري».**
+
+#### `refused.do.subject_missing` (changed)
+
+- en: Open the message, write the subject you want them to see, and send it again.
+- before: يُرجى فتح الرسالة، وكتابة العنوان المطلوب ظهوره للمشتري، ثم إعادة إرسالها.
+- **ar: يُرجى فتح الرسالة، وكتابة العنوان المطلوب ظهوره للعميل، ثم إعادة إرسالها.**
+
+#### `refused.do.window_closed` (changed)
+
+- en: Message this customer from your own phone. Once they answer, {name} can continue.
+- before: يمكن مراسلة هذا المشتري من هاتفك. وبعد وصول ردّ من المشتري، بإمكان {name} المتابعة.
+- **ar: يمكن مراسلة هذا العميل من هاتفك. وبعد وصول ردّ من العميل، بإمكان {name} المتابعة.**
+
+#### `refused.do.window_needs_owner` (changed)
+
+- en: Message this customer from your own phone for now.
+- before: يمكن مراسلة هذا المشتري من هاتفك في الوقت الحالي.
+- **ar: يمكن مراسلة هذا العميل من هاتفك في الوقت الحالي.**
+
+#### `refused.none` (changed)
+
+- en: Every message prepared reached its customer.
+- before: كل رسالة أُعدّت وصلت إلى مشتريها.
+- **ar: كل رسالة أُعدّت وصلت إلى عميلها.**
+
+#### `refused.title` (changed)
+
+- en: Messages that did not reach a customer
+- before: رسائل لم تصل إلى المشتري
+- **ar: رسائل لم تصل إلى العميل**
+
+#### `refused.what.not_allowlisted` (changed)
+
+- en: This customer is not on your list yet.
+- before: هذا المشتري ليس في قائمتك بعد.
+- **ar: هذا العميل ليس في قائمتك بعد.**
+
+#### `refused.what.window_closed` (changed)
+
+- en: WhatsApp no longer allows a reply to this customer.
+- before: واتساب لم يعد يسمح بالردّ على هذا المشتري.
+- **ar: واتساب لم يعد يسمح بالردّ على هذا العميل.**
+
+#### `refused.what.window_needs_owner` (changed)
+
+- en: This customer can now only be reached with a pre-approved message.
+- before: لا يمكن الوصول إلى هذا المشتري الآن إلا برسالة مُعتمَدة مسبقًا.
+- **ar: لا يمكن الوصول إلى هذا العميل الآن إلا برسالة مُعتمَدة مسبقًا.**
+
+#### `refused.why.daily_ceiling` (changed)
+
+- en: A daily maximum protects you from a runaway mistake reaching real customers.
+- before: حدّ يومي يحميك من خطأ متكرّر يصل إلى مشترين حقيقيين.
+- **ar: حدّ يومي يحميك من خطأ متكرّر يصل إلى عملاء حقيقيين.**
+
+#### `refused.why.subject_missing` (changed)
+
+- en: Your customer sees the subject before they open anything, so {name} will not invent one.
+- before: يرى المشتري العنوان قبل فتح أي شيء، فلا مجال لعنوان مُختلَق.
+- **ar: يرى العميل العنوان قبل فتح أي شيء، فلا مجال لعنوان مُختلَق.**
+
+#### `refused.why.window_closed` (changed)
+
+- en: WhatsApp only lets a business reply within a day of the customer’s last message. That day has passed.
+- before: يسمح واتساب للتاجر بالردّ خلال يوم واحد من آخر رسالة للمشتري. مضى ذلك اليوم.
+- **ar: يسمح واتساب للتاجر بالردّ خلال يوم واحد من آخر رسالة للعميل. مضى ذلك اليوم.**
+
+#### `runbook.after.intro` (changed)
+
+- en: Once real customers have talked to {name}, come back and review:
+- before: بعد حديث مشترين حقيقيين مع {name}، يُرجى العودة لمراجعة:
+- **ar: بعد حديث عملاء حقيقيين مع {name}، يُرجى العودة لمراجعة:**
+
+#### `runbook.deploy.unauthoredPriceRules` (changed)
+
+- en: {n} price rules were written by the old importer, not by the owner: floor equal to the list price, no discount authority. Nothing rewrites them — ask the owner the three questions and let those answers replace them.
+- before: {n} من حدود الأسعار كتبها المستورد القديم لا صاحب الشركة: الحدّ الأدنى مساوٍ لسعر القائمة، وبلا هامش تخفيض. لا شيء يعيد كتابتها — يلزم طرح الأسئلة الثلاثة على صاحب الشركة لتحلّ الإجابات محلّها.
+- **ar: {n} من حدود الأسعار كتبها المستورد القديم لا صاحب العمل: الحدّ الأدنى مساوٍ لسعر القائمة، وبلا هامش تخفيض. لا شيء يعيد كتابتها — يلزم طرح الأسئلة الثلاثة على صاحب العمل لتحلّ الإجابات محلّها.**
+
+#### `runbook.engine.title` (changed)
+
+- en: Safety checks against this business’s own data
+- before: فحوص السلامة على بيانات هذه الشركة نفسها
+- **ar: فحوص السلامة على بيانات هذا النشاط التجاري نفسه**
+
+#### `runbook.practice.intro` (changed)
+
+- en: Rehearse the whole flow in Practice — no real customers involved.
+- before: التدرّب على العملية كاملةً في صفحة التدريب — دون مشترين حقيقيين.
+- **ar: التدرّب على العملية كاملةً في صفحة التدريب — دون عملاء حقيقيين.**
+
+#### `runbook.step.buyer` (changed)
+
+- en: Send a customer question
+- before: إرسال سؤال مشترٍ
+- **ar: إرسال سؤال عميل**
+
+#### `samples.asked.title` (changed)
+
+- en: This customer asked for a sample
+- before: هذا المشتري طلب عيّنة
+- **ar: هذا العميل طلب عيّنة**
+
+#### `samples.intro` (changed)
+
+- en: Nearly every customer asks for one. Tell {name} what a sample costs and whether it comes off the first order, and {name} can answer. Until you do, nothing is said about samples.
+- before: يسأل عنها كل مشترٍ تقريبًا. بعد تحديد سعر العيّنة وهل تُخصم من الطلب الأول، يصبح بإمكان {name} الإجابة. وقبل ذلك لا كلام عن العيّنات.
+- **ar: يسأل عنها كل عميل تقريبًا. بعد تحديد سعر العيّنة وهل تُخصم من الطلب الأول، يصبح بإمكان {name} الإجابة. وقبل ذلك لا كلام عن العيّنات.**
+
+#### `samples.requests.address.placeholder` (changed)
+
+- en: Paste the address the customer gave you
+- before: لصق العنوان الذي قدّمه المشتري
+- **ar: لصق العنوان الذي قدّمه العميل**
+
+#### `samples.requests.title` (changed)
+
+- en: Customers waiting for a sample
+- before: مشترون ينتظرون عيّنة
+- **ar: عملاء ينتظرون عيّنة**
+
+#### `sandbox.case.arabic-human-request-escalates` (changed)
+
+- en: Customer asks for a real person (Arabic)
+- before: المشتري يطلب شخصاً حقيقياً (عربي)
+- **ar: العميل يطلب شخصاً حقيقياً (عربي)**
+
+#### `sandbox.case.chinese-human-request-escalates` (changed)
+
+- en: Customer asks for a real person (Chinese)
+- before: المشتري يطلب شخصاً حقيقياً (صيني)
+- **ar: العميل يطلب شخصاً حقيقياً (صيني)**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-ar` (changed)
+
+- en: Customer asks to delete a line from the quote (Arabic)
+- before: المشتري يطلب حذف سطر من عرض السعر (عربي)
+- **ar: العميل يطلب حذف سطر من عرض السعر (عربي)**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-en` (changed)
+
+- en: Customer asks to delete a line from the quote (English)
+- before: المشتري يطلب حذف سطر من عرض السعر (إنجليزي)
+- **ar: العميل يطلب حذف سطر من عرض السعر (إنجليزي)**
+
+#### `sandbox.case.deleting-a-quote-line-is-answered-as-usual-zh` (changed)
+
+- en: Customer asks to delete a line from the quote (Chinese)
+- before: المشتري يطلب حذف سطر من عرض السعر (صيني)
+- **ar: العميل يطلب حذف سطر من عرض السعر (صيني)**
+
+#### `sandbox.case.deletion-request-ar-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (Arabic)
+- before: المشتري يطلب حذف البيانات (عربي)
+- **ar: العميل يطلب حذف البيانات (عربي)**
+
+#### `sandbox.case.deletion-request-en-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (English)
+- before: المشتري يطلب حذف البيانات (إنجليزي)
+- **ar: العميل يطلب حذف البيانات (إنجليزي)**
+
+#### `sandbox.case.deletion-request-zh-hands-off-silently` (changed)
+
+- en: Customer asks for their data to be deleted (Chinese)
+- before: المشتري يطلب حذف البيانات (صيني)
+- **ar: العميل يطلب حذف البيانات (صيني)**
+
+#### `sandbox.case.explicit-human-request-escalates-en` (changed)
+
+- en: Customer asks for a real person (English)
+- before: المشتري يطلب شخصاً حقيقياً (إنجليزي)
+- **ar: العميل يطلب شخصاً حقيقياً (إنجليزي)**
+
+#### `sandbox.case.higher-price-than-already-given-waits-for-owner` (changed)
+
+- en: A price higher than this customer got last time
+- before: سعر أعلى مما حصل عليه هذا المشتري في المرة السابقة
+- **ar: سعر أعلى مما حصل عليه هذا العميل في المرة السابقة**
+
+#### `sandbox.case.low-confidence-match-asks-to-confirm` (changed)
+
+- en: An unclear match asks the customer to confirm
+- before: تطابق غير واضح يستدعي تأكيد المشتري
+- **ar: تطابق غير واضح يستدعي تأكيد العميل**
+
+#### `sandbox.case.price-floor-clamp-under-aggressive-discount` (changed)
+
+- en: Customer pushes hard for a discount
+- before: المشتري يضغط بشدة لخفض السعر
+- **ar: العميل يضغط بشدة لخفض السعر**
+
+#### `sandbox.case.unknown-product-yields-no-quote` (changed)
+
+- en: Customer asks about something you don't sell
+- before: المشتري يسأل عن منتج ليس من منتجاتك
+- **ar: العميل يسأل عن منتج ليس من منتجاتك**
+
+#### `sandbox.composer.label` (changed)
+
+- en: Send a message as the customer
+- before: إرسال رسالة بصفتك المشتري
+- **ar: إرسال رسالة بصفتك العميل**
+
+#### `sandbox.composer.placeholder` (changed)
+
+- en: Type what a customer might say…
+- before: ما قد يقوله المشتري…
+- **ar: ما قد يقوله العميل…**
+
+#### `sandbox.composer.send` (changed)
+
+- en: Send as customer
+- before: إرسال كمشتري
+- **ar: إرسال كعميل**
+
+#### `sandbox.empty` (changed)
+
+- en: No messages yet. Send one as the customer to begin.
+- before: لا توجد رسائل بعد. للبدء، يُرجى إرسال رسالة بصفتك المشتري.
+- **ar: لا توجد رسائل بعد. للبدء، يُرجى إرسال رسالة بصفتك العميل.**
+
+#### `sandbox.intro` (changed)
+
+- en: Play the customer. Watch how {name} replies — and approve or change anything before it would ever go out.
+- before: هنا يمكن لعب دور المشتري ومتابعة ردود {name} — والموافقة أو التعديل قبل أن يُرسَل أي شيء فعليًا.
+- **ar: هنا يمكن لعب دور العميل ومتابعة ردود {name} — والموافقة أو التعديل قبل أن يُرسَل أي شيء فعليًا.**
+
+#### `settings.alerts.desc` (changed)
+
+- en: Where {name} messages you — a strong buying signal or a handoff. Your own WhatsApp.
+- before: الرقم الذي تصلك عليه رسائل {name} — عن مشترٍ كبير أو تحويل. رقم واتساب الخاص بك.
+- **ar: الرقم الذي تصلك عليه رسائل {name} — عن إشارة شراء قوية أو تحويل. رقم واتساب الخاص بك.**
+
+#### `settings.currency.fixed`
+
+- en: Your prices are in this currency, so it stays: a second currency would mean converting, and nothing here converts.
+- **ar: الأسعار محددة بهذه العملة، فلا تتغير: عملة ثانية تعني التحويل، ولا تحويل هنا.**
+
+#### `settings.currency.label`
+
+- en: The currency you sell in
+- **ar: عملة البيع**
+
+#### `settings.currency.title`
+
+- en: Currency
+- **ar: العملة**
+
+#### `settings.currency.why`
+
+- en: Every price you set, and every price a customer is given, is in this currency. Nothing is converted. It can change until the first price is set.
+- **ar: كل سعر يُحدَّد هنا وكل سعر يُعطى يكون بهذه العملة، دون أي تحويل. يمكن تغييرها إلى أن يُحدَّد أول سعر.**
+
+#### `settings.err.phoneShape` (changed)
+
+- en: Start with + and the country code.
+- before: يلزم البدء بـ + ورمز الدولة، مثل \u200E+8657985001234.
+- **ar: يلزم البدء بـ + ورمز الدولة.**
+
+#### `settings.field.name` (changed)
+
+- en: Business name
+- before: اسم الشركة
+- **ar: اسم النشاط التجاري**
+
+#### `settings.flash.currencyFixed`
+
+- en: Prices are already set in the current currency, so it stays. Nothing was changed.
+- **ar: هناك أسعار محددة بالعملة الحالية، فلا تتغير العملة. لم يتغير شيء.**
+
+#### `settings.flash.currencyInvalid`
+
+- en: That is not a currency this workspace can sell in. Nothing was changed.
+- **ar: هذه العملة غير متاحة للبيع هنا. لم يتغير شيء.**
+
+#### `settings.flash.currencySaved`
+
+- en: Currency saved. Every price from now on is in it.
+- **ar: تم حفظ العملة، وكل الأسعار من الآن بها.**
+
+#### `settings.flash.zoneInvalid`
+
+- en: That time zone was not recognised. Nothing was changed.
+- **ar: لم يُتعرَّف على هذه المنطقة الزمنية. لم يتغير شيء.**
+
+#### `settings.flash.zoneSaved`
+
+- en: Time zone saved. Dates and times now follow it.
+- **ar: تم حفظ المنطقة الزمنية، وتتبعها التواريخ والأوقات الآن.**
+
+#### `settings.workingHours.ph` (changed)
+
+- en: 9:00–18:00 on working days
+- before: 9:00-18:00، الإثنين-السبت
+- **ar: 9:00-18:00 في أيام العمل**
+
+#### `settings.zone.label`
+
+- en: Your time zone
+- **ar: المنطقة الزمنية**
+
+#### `settings.zone.title`
+
+- en: Time zone
+- **ar: المنطقة الزمنية**
+
+#### `settings.zone.why`
+
+- en: Every date and time here, and what counts as "today", is in this zone.
+- **ar: تُحسب هنا كل التواريخ والأوقات، و«اليوم» أيضاً، حسب هذه المنطقة.**
+
+#### `signup.about` (changed)
+
+- en: About your business
+- before: عن شركتك
+- **ar: عن نشاطك التجاري**
+
+#### `signup.channels` (changed)
+
+- en: Where do customers write to you today?
+- before: أين يراسلك المشترون اليوم؟
+- **ar: أين يراسلك العملاء اليوم؟**
+
+#### `signup.currency`
+
+- en: The currency you sell in
+- **ar: عملة البيع**
+
+#### `signup.factory` (changed)
+
+- en: Business name
+- before: اسم الشركة
+- **ar: اسم النشاط التجاري**
+
+#### `signup.kind` (changed)
+
+- en: What kind of business is it?
+- before: ما نوع شركتك؟
+- **ar: ما نوع نشاطك التجاري؟**
+
+#### `signup.lead` (changed)
+
+- en: One workspace for your business. You sign in with your own e-mail and password.
+- before: مساحة عمل واحدة لشركتك، والدخول إليها ببريدك الإلكتروني وكلمة مرورك.
+- **ar: مساحة عمل واحدة لنشاطك التجاري، والدخول إليها ببريدك الإلكتروني وكلمة مرورك.**
+
+#### `signup.problem.currency_missing`
+
+- en: Which currency do you sell in? Every price here will be in it.
+- **ar: يُرجى اختيار عملة البيع. كل الأسعار هنا ستكون بها.**
+
+#### `signup.problem.factory_missing` (changed)
+
+- en: Tell us what your business is called.
+- before: يُرجى ذكر اسم شركتك.
+- **ar: يُرجى ذكر اسم نشاطك التجاري.**
+
+#### `signup.problem.kind_missing` (changed)
+
+- en: Choose the kind of business.
+- before: يُرجى اختيار نوع الشركة.
+- **ar: يُرجى اختيار نوع النشاط التجاري.**
+
+#### `signup.problem.sells_missing` (changed)
+
+- en: Say in one line what you sell or do.
+- before: يُرجى كتابة ما تبيعه شركتك أو تقدّمه في سطر واحد.
+- **ar: يُرجى كتابة ما يبيعه نشاطك التجاري أو يقدّمه في سطر واحد.**
+
+#### `signup.problem.zone_missing`
+
+- en: Your country has more than one time zone. Which one are you in?
+- **ar: في هذا البلد أكثر من منطقة زمنية. يُرجى اختيار المنطقة الصحيحة.**
+
+#### `signup.sells` (changed)
+
+- en: What do you sell or do?
+- before: ما الذي تبيعه شركتك أو تقدّمه؟
+- **ar: ما الذي يبيعه نشاطك التجاري أو يقدّمه؟**
+
+#### `signup.sells.placeholder` (changed)
+
+- en: e.g. skincare, clothing, social media ads or custom canvas bags
+- before: مثال: حقائب قماشية مخصّصة للعلامات التجارية والفعاليات
+- **ar: مثال: منتجات العناية بالبشرة أو الملابس أو إعلانات وسائل التواصل أو حقائب قماشية مخصّصة**
+
+#### `signup.title` (changed)
+
+- en: Set up your business
+- before: إنشاء مساحة عمل لشركتك
+- **ar: إنشاء مساحة عمل لنشاطك التجاري**
+
+#### `signup.welcome` (changed)
+
+- en: Your workspace is ready. Start by telling {name} about your business.
+- before: مساحة عملك جاهزة. البداية: تعريف {name} بشركتك.
+- **ar: مساحة عملك جاهزة. البداية: تعريف {name} بنشاطك التجاري.**
+
+#### `signup.zone`
+
+- en: Your time zone
+- **ar: المنطقة الزمنية**
+
+#### `site.channels.title` (changed)
+
+- en: Where your customers already write
+- before: حيث تصل رسائل المشترين أصلًا
+- **ar: حيث تصل رسائل العملاء أصلًا**
+
+#### `site.description` (changed)
+
+- en: Nomi gives your business an assistant you name, to answer your customers on WhatsApp, Instagram, Messenger and e-mail: replies drafted for you to approve, and nothing sent alone unless you allow it.
+- before: يمنح Nomi عملك مساعدًا باسم من اختيارك، للردّ على المشترين عبر واتساب وإنستغرام وماسنجر والبريد الإلكتروني: ردود تُكتب وتنتظر موافقتك، ولا يخرج شيء من تلقاء نفسه إلا بإذنك.
+- **ar: يمنح Nomi عملك مساعدًا باسم من اختيارك، للردّ على العملاء عبر واتساب وإنستغرام وماسنجر والبريد الإلكتروني: ردود تُكتب وتنتظر موافقتك، ولا يخرج شيء من تلقاء نفسه إلا بإذنك.**
+
+#### `site.example.from` (changed)
+
+- en: A customer, on Instagram
+- before: مشترٍ، عبر إنستغرام
+- **ar: عميل، عبر إنستغرام**
+
+#### `site.hero.lead` (changed)
+
+- en: Nomi gives your business an assistant you name. When a customer writes on WhatsApp, Instagram, Messenger or e-mail, your assistant drafts the reply from your own products and prices, and you approve it.
+- before: يمنح Nomi عملك مساعدًا باسم من اختيارك. حين تصل رسالة من مشترٍ عبر واتساب أو إنستغرام أو ماسنجر أو البريد الإلكتروني، يُكتب الردّ من منتجاتك وأسعارك، ولا يخرج إلا بموافقتك.
+- **ar: يمنح Nomi عملك مساعدًا باسم من اختيارك. حين تصل رسالة من عميل عبر واتساب أو إنستغرام أو ماسنجر أو البريد الإلكتروني، يُكتب الردّ من منتجاتك وأسعارك، ولا يخرج إلا بموافقتك.**
+
+#### `site.hero.title` (changed)
+
+- en: Every customer gets an answer. You keep the last word.
+- before: لكل مشترٍ ردّ، والكلمة الأخيرة لك.
+- **ar: لكل عميل ردّ، والكلمة الأخيرة لك.**
+
+#### `site.how.1.body` (changed)
+
+- en: Add what you sell, your prices and the lowest you accept, and the facts customers ask about. Then choose your assistant’s name. Replies come only from what you teach: never a price or a claim you have not given.
+- before: تُضاف المنتجات والأسعار وأدنى سعر مقبول لكل منتج، والمعلومات التي يسأل عنها المشترون، ثم يُختار اسم للمساعد. الردود من هذه المعرفة فقط — ولا ذكر أبدًا لرقم أو شهادة لم تُضف.
+- **ar: تُضاف المنتجات والأسعار وأدنى سعر مقبول، والمعلومات التي يسأل عنها العملاء، ثم يُختار اسم للمساعد. الردود من هذه المعرفة فقط — ولا ذكر أبدًا لسعر أو معلومة لم تُضف.**
+
+#### `site.how.2.title` (changed)
+
+- en: A customer writes
+- before: تصل رسالة من مشترٍ
+- **ar: تصل رسالة من عميل**
+
+#### `site.invite.body` (changed)
+
+- en: Nomi opens workspaces by invitation for now. Write to us with your business’s name, what you sell and where your customers write to you, and we will write back.
+- before: الانضمام إلى Nomi بدعوة حاليًا. تكفي رسالة إلينا باسم العمل وما يبيعه ومن أين تصل رسائل المشترين عادةً، وسيصل الردّ منا.
+- **ar: الانضمام إلى Nomi بدعوة حاليًا. تكفي رسالة إلينا باسم العمل وما يبيعه ومن أين تصل رسائل العملاء عادةً، وسيصل الردّ منا.**
+
+#### `site.title` (changed)
+
+- en: Nomi — an assistant that answers your customers
+- before: Nomi — مساعد يردّ على المشترين
+- **ar: Nomi — مساعد للردّ على العملاء**
+
+#### `site.who.body` (changed)
+
+- en: Any business that sells or talks to customers over social media and e-mail — clothing and beauty brands, online stores, startups, agencies and services, as well as makers, exporters and wholesalers.
+- before: لأي عمل تصله رسائل المشترين عن المنتجات والأسعار — المصنّعون والورش، والتجار وتجار الجملة، والعلامات التجارية، والمتاجر، والوكالات، ومقدمو الخدمات.
+- **ar: لأي عمل يبيع لعملائه أو يتواصل معهم عبر وسائل التواصل الاجتماعي والبريد الإلكتروني — علامات الأزياء والتجميل، والمتاجر الإلكترونية، والشركات الناشئة، والوكالات ومقدمو الخدمات، وكذلك المصنّعون والمصدّرون وتجار الجملة.**
+
+#### `site.yours.alone.body` (changed)
+
+- en: At first, every reply waits for you. You can let greetings and questions go out on their own while anything with a price waits, or let prices go too. No order is confirmed without you.
+- before: في البداية ينتظرك كل ردّ. ويمكن السماح للتحيات والأسئلة بالخروج من تلقاء نفسها مع بقاء كل ما فيه سعر بانتظارك، أو السماح بعروض الأسعار أيضًا. ولا يُؤكَّد طلب من دونك.
+- **ar: في البداية ينتظرك كل ردّ. ويمكن السماح للتحيات والأسئلة بالخروج من تلقاء نفسها مع بقاء كل ما فيه سعر بانتظارك، أو السماح بالردود التي فيها أسعار أيضًا. ولا يُؤكَّد طلب من دونك.**
+
+#### `site.yours.back.body` (changed)
+
+- en: One choice puts every reply back in front of you, and stopping sends nothing further. Your customers, conversations and everything you taught stay, and you can take a copy as spreadsheet files.
+- before: باختيار واحد يعود كل ردّ إلى مراجعتك، والإيقاف يعني ألّا يُرسَل أي شيء بعده. يبقى المشترون والمحادثات وكل ما أُضيف دون تغيير، ويمكن أخذ نسخة منه في ملفات جداول.
+- **ar: باختيار واحد يعود كل ردّ إلى مراجعتك، والإيقاف يعني ألّا يُرسَل أي شيء بعده. يبقى العملاء والمحادثات وكل ما أُضيف دون تغيير، ويمكن أخذ نسخة منه في ملفات جداول.**
+
+#### `site.yours.honest` (changed)
+
+- en: When your assistant replies without you, the first message tells the customer they are not talking to a person, and offers them someone from your team.
+- before: في الردود التي تُرسَل من دونك، تُخبر أولُ رسالة المشتري بأن الردّ ليس من إنسان، مع عرض التحدث مع شخص من فريقك.
+- **ar: في الردود التي تُرسَل من دونك، تُخبر أولُ رسالة العميلَ بأن الردّ ليس من إنسان، مع عرض التحدث مع شخص من فريقك.**
+
+#### `spotcheck.buyerSaid` (changed)
+
+- en: The customer asked
+- before: سأل المشتري
+- **ar: سأل العميل**
+
+#### `staff.deletionAsked` (changed)
+
+- en: The owner decides on the customer's page. Answer them yourself.
+- before: القرار في صفحة المشتري لمالك الحساب. يُرجى الردّ مباشرةً.
+- **ar: القرار في صفحة العميل لمالك الحساب. يُرجى الردّ مباشرةً.**
+
+#### `takeover.flash.assistant_stopped` (changed)
+
+- en: {name} is stopped, so this conversation stays with you. Let {name} answer again on My business first.
+- before: الردود من {name} متوقّفة، لذلك تبقى هذه المحادثة معك. يُرجى استئناف الردود من صفحة «شركتي» أولًا.
+- **ar: الردود من {name} متوقّفة، لذلك تبقى هذه المحادثة معك. يُرجى استئناف الردود من صفحة «نشاطي التجاري» أولًا.**
+
+#### `takeover.reason.deletion_requested` (changed)
+
+- en: the customer asked for their data to be deleted
+- before: طلب المشتري حذف البيانات
+- **ar: طلب العميل حذف البيانات**
+
+#### `takeover.reason.human_requested` (changed)
+
+- en: the customer asked for a person
+- before: طلب المشتري شخصاً حقيقياً
+- **ar: طلب العميل شخصاً حقيقياً**
+
+#### `takeover.reason.media_unreadable` (changed)
+
+- en: something the customer sent that could not be opened
+- before: شيء أرسله المشتري وتعذّر فتحه
+- **ar: شيء أرسله العميل وتعذّر فتحه**
+
+#### `takeover.reason.repeated_ambiguity` (changed)
+
+- en: the customer's need stayed unclear
+- before: ظلّت حاجة المشتري غير واضحة
+- **ar: ظلّت حاجة العميل غير واضحة**
+
+#### `takeover.replyPlaceholder` (changed)
+
+- en: Type your reply to the customer…
+- before: كتابة الردّ على المشتري…
+- **ar: كتابة الردّ على العميل…**
+
+#### `terms.flash.payment_missing` (changed)
+
+- en: Write how customers pay you first.
+- before: يُرجى كتابة شروط الدفع أولًا.
+- **ar: يُرجى كتابة طريقة الدفع أولًا.**
+
+#### `terms.flash.payment_too_long` (changed)
+
+- en: That is too long. Keep it to one line.
+- before: هذا أطول من شرط دفع. يكفي سطر واحد.
+- **ar: هذا طويل. يكفي سطر واحد.**
+
+#### `terms.incoterm.hint` (changed)
+
+- en: This goes on your proformas, and {name} may mention it to customers.
+- before: يُكتب في فواتيرك المبدئية، ويمكن لـ{name} ذكره للمشترين.
+- **ar: يُكتب في فواتيرك المبدئية، ويمكن لـ{name} ذكره للعملاء.**
+
+#### `terms.intro` (changed)
+
+- en: What goes on a proforma when a customer confirms. {name} never makes these up: until you state them, no proforma is shown.
+- before: ما يُكتب في الفاتورة المبدئية عندما يؤكد المشتري. لا تُختلق هذه الشروط في ردود {name} أبدًا: قبل تحديدها، لا تظهر فاتورة مبدئية.
+- **ar: ما يُكتب في الفاتورة المبدئية عندما يؤكد العميل. لا تُختلق هذه الشروط في ردود {name} أبدًا: قبل تحديدها، لا تظهر فاتورة مبدئية.**
+
+#### `terms.title` (changed)
+
+- en: Your payment and delivery terms
+- before: شروطك في الفاتورة المبدئية
+- **ar: شروط الدفع والتسليم**
+
+#### `today.calm.notLive.title` (changed)
+
+- en: No customer can reach {name} yet
+- before: لا يستطيع أي مشترٍ الوصول إلى {name} بعد
+- **ar: لا يستطيع أي عميل الوصول إلى {name} بعد**
+
+#### `today.silenced.body` (changed)
+
+- en: We paused sending while we check something. This was not you, and nothing was lost. Customers who write are waiting for you; your own replies still go.
+- before: أوقفنا الإرسال مؤقتًا بينما نتحقّق من أمر ما. لم يكن هذا منك، ولم يُفقد شيء. رسائل المشترين الجديدة بانتظار الردّ، والردود اليدوية تُرسل كالمعتاد.
+- **ar: أوقفنا الإرسال مؤقتًا بينما نتحقّق من أمر ما. لم يكن هذا منك، ولم يُفقد شيء. رسائل العملاء الجديدة بانتظار الردّ، والردود اليدوية تُرسل كالمعتاد.**
+
+#### `today.stopped.body` (changed)
+
+- en: Nothing {name} writes is sent. Customers who write are waiting for you.
+- before: لا يُرسل أي ردّ من {name}. رسائل المشترين الجديدة بانتظار الردّ.
+- **ar: لا يُرسل أي ردّ من {name}. رسائل العملاء الجديدة بانتظار الردّ.**
+
+#### `unheard.do.no_media` (changed)
+
+- en: Ask the customer to send the voice message again.
+- before: يُرجى طلب إرسال الرسالة الصوتية مرة أخرى من المشتري.
+- **ar: يُرجى طلب إرسال الرسالة الصوتية مرة أخرى من العميل.**
+
+#### `unheard.do.transcription_failed` (changed)
+
+- en: Listen to it yourself and reply, or ask the customer to send it again.
+- before: يمكن الاستماع إليها مباشرةً والردّ، أو طلب إرسالها مرة أخرى من المشتري.
+- **ar: يمكن الاستماع إليها مباشرةً والردّ، أو طلب إرسالها مرة أخرى من العميل.**
+
+#### `unheard.do.unsupported_format` (changed)
+
+- en: Listen to it yourself and reply, or ask the customer to write it instead.
+- before: يمكن الاستماع إليها مباشرةً والردّ، أو طلب كتابتها من المشتري بدلاً من ذلك.
+- **ar: يمكن الاستماع إليها مباشرةً والردّ، أو طلب كتابتها من العميل بدلاً من ذلك.**
+
+#### `unlisted.do` (changed)
+
+- en: Reply yourself, or add the number in My business and hand it back to {name}
+- before: الردّ مباشرةً، أو إضافة الرقم من «شركتي» ثم إعادة المحادثة إلى {name}
+- **ar: الردّ مباشرةً، أو إضافة الرقم من «نشاطي التجاري» ثم إعادة المحادثة إلى {name}**
+
+#### `unlisted.why` (changed)
+
+- en: While you try {name} with a few customers, only the numbers you added are written to.
+- before: خلال تجربة {name} مع بضعة مشترين، لا تُرسَل الرسائل إلا إلى الأرقام المضافة إلى قائمتك.
+- **ar: خلال تجربة {name} مع بضعة عملاء، لا تُرسَل الرسائل إلا إلى الأرقام المضافة إلى قائمتك.**
+
+#### `unreadable.do` (changed)
+
+- en: Open it on your phone and reply to the customer yourself.
+- before: يمكن فتحه على هاتفك والردّ على المشتري مباشرةً.
+- **ar: يمكن فتحه على هاتفك والردّ على العميل مباشرةً.**
+
+#### `unreadable.what` (changed)
+
+- en: {what} from the customer. {name} cannot read it, so no reply has gone out.
+- before: {what} من المشتري. يتعذّر على {name} قراءته، لذلك لم يُرسَل ردّ.
+- **ar: {what} من العميل. يتعذّر على {name} قراءته، لذلك لم يُرسَل ردّ.**
+
+#### `unsure.why` (changed)
+
+- en: It may have reached them, or it may not. Nothing here can tell, so nothing was sent again — sending it twice would be worse than asking you. Read it and decide.
+- before: قد تكون وصلت إلى المشتري وقد لا تكون. لا شيء هنا يعرف، فلم تُرسل مرة أخرى — إرسالها مرتين أسوأ من سؤالك. القرار لك بعد قراءتها.
+- **ar: قد تكون وصلت إلى العميل وقد لا تكون. لا شيء هنا يعرف، فلم تُرسل مرة أخرى — إرسالها مرتين أسوأ من سؤالك. القرار لك بعد قراءتها.**
+
+#### `voice.correctPlaceholder` (changed)
+
+- en: Type what the customer actually said…
+- before: كتابة ما قاله المشتري فعلاً…
+- **ar: كتابة ما قاله العميل فعلاً…**
+

@@ -36,8 +36,8 @@ anything that requires someone to explain it has failed.
 ## The job
 
 1. **What needs me?** — approve or correct replies, step into a conversation.
-2. **Is my employee ready?** — can she be trusted with real buyers yet.
-3. **How do I improve her?** — teach a fact, correct a wrong answer.
+2. **Is my assistant ready?** — can it be trusted with real customers yet.
+3. **How do I improve the assistant?** — teach a fact, correct a wrong answer.
 
 ## Operating context
 
@@ -60,7 +60,7 @@ implementation detail, not a design hierarchy.
 ## Terminology (confirmed, load-bearing)
 
 - The employee has a **name and a gender-neutral personhood** per locale:
-  Lily / 小雅 / ياسمين. Owners refer to her by name, never "the AI".
+  the owner chooses it (Lily / 小雅 / ياسمين are only the defaults). Owners use the name, never "the AI"; copy gives the assistant no pronoun (rule 6).
 - **Banned in all owner-facing copy**, enforced by test: AI, LLM, model, token, API,
   webhook, database, confidence, automation, prompt, 模型, 人工智能, 数据库, 置信度, 接口.
 - Existing owner vocabulary that must not churn: draft-first approval, take over,

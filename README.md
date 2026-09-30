@@ -1,12 +1,13 @@
 # Nomi
 
-**A sales employee a factory can trust in front of a real buyer.**
+**A sales assistant a business can trust in front of a real customer.**
 
-A Yiwu-area factory hires a digital employee. She answers buyer enquiries on
-WhatsApp — identifies the product, quotes within the owner's own price rules,
-and never states a price, specification or certification the owner has not given
-her. When she cannot answer safely, she stops and hands the conversation to a
-person.
+For anyone who sells or talks to customers over social media — clothing and
+beauty brands, online stores, startups, agencies, as well as makers and
+exporters. The assistant answers customers on WhatsApp, Instagram, Messenger and
+e-mail: it identifies the product, gives prices within the owner's own rules, and
+never states a price, specification or certification the owner has not given.
+When it cannot answer safely, it stops and hands the conversation to a person.
 
 The owner runs it themselves. There is no operator between them and the product.
 
@@ -15,18 +16,18 @@ The owner runs it themselves. There is no operator between them and the product.
 The product is not "an AI that replies to customers". It is a control system
 around one, built on four commitments:
 
-**Owner-controlled.** She proposes; the owner decides. Draft-first is the
+**Owner-controlled.** The assistant proposes; the owner decides. Draft-first is the
 default and order confirmation is draft-forever. Autonomy is granted per
 capability, one capability at a time, and can be taken back in one tap.
 
-**Factory knowledge before answering.** Every claim traces to something the
+**Business knowledge before answering.** Every claim traces to something the
 owner taught or confirmed. Certifications are default-deny: anything not
-explicitly authorised is refused, even if the buyer insists. Prices come from
+explicitly authorised is refused, even if the customer insists. Prices come from
 the owner's catalogue and price rules, never from the model.
 
-**Human takeover when needed.** One ownership model — she has it, a human is
-waited on, or the owner holds it. A buyer who asks for a person gets one, and
-while a human holds a conversation she is silent.
+**Human takeover when needed.** One ownership model — the assistant has it, a
+human is waited on, or the owner holds it. A customer who asks for a person gets
+one, and while a human holds a conversation the assistant is silent.
 
 **Trust before scale.** Messaging is off until the owner explicitly turns it on,
 and even then only the numbers on their allowlist can be reached. Going live is
@@ -43,7 +44,7 @@ A modular TypeScript monolith. One process serves the owner's web surface and
 runs the background worker.
 
 ```
-Buyer on WhatsApp
+Customer on WhatsApp, Instagram, Messenger or e-mail
       │  signed webhook
       ▼
   ingress ──► pipeline/turn ──► decide ──► retrieval (taught knowledge)
@@ -60,12 +61,12 @@ Buyer on WhatsApp
 | Layer | Where | What it is |
 |---|---|---|
 | HTTP + owner UI | `src/api/` | Fastify. Server-rendered HTML, no client framework. |
-| Turn pipeline | `src/pipeline/` | One buyer message end to end. |
+| Turn pipeline | `src/pipeline/` | One customer message end to end. |
 | Pure domain | `src/core/` | Decisions, guards, pricing, i18n. **No I/O, no clock, no randomness** — enforced by `npm run boundaries`. |
 | Persistence | `src/db/` | Postgres via Kysely. Every query runs inside a tenant transaction. |
 | Queues | `src/queue/`, `src/worker/` | pg-boss, in the same Postgres. |
 | Channels | `src/channels/` | WhatsApp adapters, allowlist, activation. |
-| Outbound | `src/outbound/` | The one path a message takes to a buyer. |
+| Outbound | `src/outbound/` | The one path a message takes to a customer. |
 | Model calls | `src/llm/` | Anthropic. Never a source of prices or claims. |
 | Trust harness | `src/trust/` | Scripted safety scenarios, run as a test. |
 
@@ -92,14 +93,14 @@ is a defect, not a design choice.
 
 ### The send gate
 
-Nothing reaches a buyer without passing all of it, and every check fails closed —
+Nothing reaches a customer without passing all of it, and every check fails closed —
 an unresolved input is treated as "no", never "yes":
 
 | Refusal | Meaning |
 |---|---|
 | `not_activated` | The owner has not turned messaging on for this channel. |
-| `not_allowlisted` | This buyer is not on the pilot allowlist. Binds the owner too. |
-| `handed_off` | A human holds this conversation; she stays silent. |
+| `not_allowlisted` | This customer is not on the pilot allowlist. Binds the owner too. |
+| `handed_off` | A human holds this conversation; the assistant stays silent. |
 | `paused` | The capability was pulled back, or the tenant is paused. |
 | `daily_ceiling` | The tenant hit its daily maximum (employee messages only). |
 | `window_closed` | Outside the 24-hour window; it goes back to the owner. |
@@ -129,9 +130,9 @@ Four destinations, each answering one question:
 | Surface | Question |
 |---|---|
 | **Today** (`/app`) | What needs me today? |
-| **Buyers** (`/app/inbox`) | Who needs care? |
-| **小雅** (`/app/employee`) | Who is she today? |
-| **My factory** (`/app/factory`) | What does she need to know about my factory? |
+| **Customers** (`/app/inbox`) | Who needs care? |
+| **The assistant** (`/app/employee`, shown by the name the owner chose) | How is it doing today? |
+| **My business** (`/app/business`) | What does the assistant need to know about my business? |
 
 Everything else — products, knowledge, connections, settings, practice, the
 go-live runbook — is reached from one of those four, never from a permanent
@@ -149,7 +150,7 @@ bash .claude/skills/run-nomi/smoke.sh
 ```
 
 That script is the fastest honest path: it starts an ephemeral Postgres,
-migrates, seeds a demo factory and the practice sandbox, builds, launches, and
+migrates, seeds a demo business and the practice sandbox, builds, launches, and
 drives the whole owner walkthrough. It prints the URL and login code, and leaves
 the server running.
 
@@ -188,7 +189,7 @@ DATABASE_URL='postgresql://…' npx vitest run tests/integration/
 | Suite | What it protects |
 |---|---|
 | `tests/parity/` | Pure logic and every rendered surface, in all three locales |
-| `tests/pipeline/` | One buyer turn, with fakes for I/O |
+| `tests/pipeline/` | One customer turn, with fakes for I/O |
 | `tests/integration/` | Real Postgres: RLS, the send path, boot, owner routes |
 | `tests/harness/` | The trust harness — scripted safety scenarios |
 
@@ -254,38 +255,38 @@ roles file restores with RLS enabled and zero policies. See
 **Controlled-pilot ready, messaging deliberately disabled.** Deployed and
 verified in production: schema current, tenant isolation enforced and proven,
 three boot guards active, and the owner surfaces serving a real, intentional
-factory tenant.
+business tenant.
 
 Built and verified:
 
 - **Activation** — connect ≠ activate. Preconditions are a live derivation, the
-  owner starts and stops messaging from My factory, and the send gate refuses
+  owner starts and stops messaging from My business, and the send gate refuses
   anything the owner has not turned on.
-- **Allowlist** — add and remove numbers from My factory, audited. During a
+- **Allowlist** — add and remove numbers from My business, audited. During a
   pilot the list binds everyone, the owner included.
-- **Refusal visibility** — every way a message can fail to reach a buyer is
+- **Refusal visibility** — every way a message can fail to reach a customer is
   recorded, surfaced on the conversation it belongs to and in Today, and says
   what happened and what to do about it. A silent refusal is a product defect.
-- **Factory rehearsal** — what she cannot answer yet, derived from the owner's
+- **Business rehearsal** — what the assistant cannot answer yet, derived from the owner's
   own catalogue, prices, taught knowledge and authorised claims. Never blocks
   activation.
 - **Tenant identity** — the process refuses to boot on a missing tenant, or on
   the practice sandbox.
-- **Her price rules are the owner's** — floor, maximum discount and the point
+- **The price rules are the owner's** — floor, maximum discount and the point
   above which a person decides. A product with no rules stated is not sellable:
-  absence means "not answered yet", never a default, so she quotes nothing until
-  the owner has said what she will accept. The owner authors and edits them from
-  My factory, and every change is recorded with its before and after.
-- **Pictures** — she reads a buyer's photo and matches it to a product, and she
-  can send one back. A picture goes out through the same single send path and
+  absence means "not answered yet", never a default, so no price is given until
+  the owner has said what they will accept. The owner authors and edits them from
+  My business, and every change is recorded with its before and after.
+- **Pictures** — the assistant reads a customer's photo and matches it to a product,
+  and can send one back. A picture goes out through the same single send path and
   the same gate as any reply, and an image whose photo cannot be carried is
-  refused rather than quietly sent as its caption alone. A photo she cannot read,
+  refused rather than quietly sent as its caption alone. A photo the assistant cannot read,
   or that sits between two of the owner's products, goes to the owner rather
   than being answered from its caption.
-- **Voice notes** — she hears them, and the words she heard are shown to the
-  owner beside her reply and can be corrected. A voice note she cannot make out
-  is refused and handed over, never treated as silence; and a QUANTITY she heard
-  that would set a price waits for the owner however her autonomy is set.
+- **Voice notes** — the assistant hears them, and the words it heard are shown to
+  the owner beside the reply and can be corrected. A voice note it cannot make out
+  is refused and handed over, never treated as silence; and a number heard in a
+  voice note that would set a price waits for the owner, whatever the owner allowed.
 
 Not done, and the only external dependency: **Meta / WhatsApp Cloud**. Business
 verification, phone provisioning, credentials, message-template approval, webhook
