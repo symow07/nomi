@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { type Money, usd } from '../../core/types/money.js';
-import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
+import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -13,7 +13,7 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, type PracticeRefusal } from '../../db/practice.js';
+import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal } from '../../db/practice.js';
 import { recordTypedMessage } from '../../pipeline/received.js';
 import type { InboundJob } from '../../queue/boss.js';
 import * as show from './values.js';
@@ -63,6 +63,7 @@ export async function sayInPractice(
   // P5 — the operator's switch, and the day's fifty: refused before anything is made or queued.
   const refused = await practiceRefusal(deps.db, live);
   if (refused) return refused;
+  await countPracticeLine(deps.db, live);
   const copy = await refreshPractice(deps.db, live);
   const messageId = `practice:${randomUUID()}`;
   const conversationId = await withTenantTx(deps.db, copy, async (tx) => {
@@ -72,23 +73,6 @@ export async function sayInPractice(
   });
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
   return 'sent';
-}
-
-/** Archive the practice conversation — never delete — with an event trace. The next message starts a new one. */
-export async function resetPractice(db: Db, copy: BusinessId, now: Date): Promise<void> {
-  await withTenantTx(db, copy, async (tx) => {
-    const conversationId = await activePracticeConversation(tx, copy);
-    if (!conversationId) return;
-    await lockConversation(tx, conversationId);
-    // Archive-not-erase (the app role has no DELETE): close + deactivate. Any
-    // pending draft is rejected so it cannot linger against an archived thread.
-    await sql`update drafts set status = 'rejected', decided_at = ${now} where conversation_id = ${conversationId} and status = 'pending'`.execute(tx);
-    await sql`update conversations set is_active = false, closed_at = ${now} where id = ${conversationId}`.execute(tx);
-    await sql`
-      insert into conversation_events (business_id, conversation_id, type, payload)
-      values (${copy}, ${conversationId}, 'sandbox_reset', ${JSON.stringify({ actor: 'owner', at: now.toISOString() })}::jsonb)
-    `.execute(tx);
-  });
 }
 
 /**
@@ -372,7 +356,8 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
 
   return `
     <div class="dhead spread">
-      <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
+      <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit" onclick="return confirm(this.dataset.confirm)"
+        data-confirm="${esc(t(locale, 'sandbox.reset.confirm'))}">${esc(t(locale, 'sandbox.reset'))}</button></form>
     </div>
     ${banner}
     ${intro}

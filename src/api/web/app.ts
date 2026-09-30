@@ -127,10 +127,10 @@ import {
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
-  loadPracticeView, renderSandbox, sayInPractice, resetPractice,
+  loadPracticeView, renderSandbox, sayInPractice,
   runScriptedPractice, renderPractice, practiceUrl,
 } from './sandbox.js';
-import { practiceCopyOf, refreshPractice, activePracticeConversation, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
+import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -3981,13 +3981,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       return reply.redirect(practiceUrl());
     });
 
-    // An emptied practice lands on its notice, under the empty transcript.
+    // P6 — Start over ERASES the practice conversations (0089); the emptied
+    // practice lands on its notice, under the empty transcript.
     app.post('/app/sandbox/reset', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       const live = liveOf(s0);
-      const copy = live.ok ? await practiceCopyOf(deps.db, live.value) : null;
-      if (copy) await resetPractice(deps.db, copy, new Date());
+      if (live.ok) await startPracticeOver(deps.db, live.value);
       return flashTo(reply, practiceUrl(), 'sandbox.reset.done');
     });
 

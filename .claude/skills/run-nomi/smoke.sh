@@ -21,6 +21,18 @@ CODE="${OWNER_ACCESS_CODE:-smoke-code}"
 SK="${SK:-/tmp/yf-run}"                 # scratch: ephemeral PG data + logs + HTML
 BASEURL="http://127.0.0.1:${APPPORT}"
 
+# An earlier run still up would be wiped under its own feet (its data directory
+# is $SK) and would then answer this run's requests with its own, older build:
+# on 2026-09-30 a leftover app on the port took the walkthrough's practice
+# message and failed it, while this run's server was still starting. Refuse,
+# and say what to stop, before touching anything.
+if curl -s -o /dev/null --max-time 2 "$BASEURL/health"; then
+  echo "FAIL: something already answers on :$APPPORT — an earlier run? Stop it first (see its 'Stop everything' line)." >&2; exit 1
+fi
+if pg_isready -h 127.0.0.1 -p "$PGPORT" >/dev/null 2>&1; then
+  echo "FAIL: a Postgres already listens on :$PGPORT — an earlier run? pg_ctl -D $SK/pg stop" >&2; exit 1
+fi
+
 rm -rf "$SK"; mkdir -p "$SK"
 SOCK="$(mktemp -d /tmp/yfs.XXXX)"       # PG unix-socket dir must be a SHORT path (<103 chars)
 
@@ -41,7 +53,7 @@ pg_ctl -D "$SK/pg" -o "-p $PGPORT -c listen_addresses=127.0.0.1 -c unix_socket_d
   -l "$SK/pg.log" -w start >/dev/null 2>&1 || fail "postgres start (see $SK/pg.log)"
 createdb -h 127.0.0.1 -p "$PGPORT" -U postgres nomi || fail "createdb"
 
-echo "[2/6] migrate + grant app-role login + seed demo & sandbox tenants"
+echo "[2/6] migrate + grant app-role login + seed the demo tenant"
 export MIGRATE_DATABASE_URL="postgresql://postgres@127.0.0.1:$PGPORT/nomi"
 node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
 # Migration 0005 creates the role NOLOGIN; local runs need it to log in.
@@ -51,9 +63,8 @@ node tools/migrate.mjs >/dev/null 2>&1 || fail "migrate"
 # tests/parity/no-secret-in-argv.test.ts). Local, so there is no password.
 psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc "alter role nomi_app login;" >/dev/null 2>&1 || fail "grant login"
 node tools/seed-demo.mjs >/dev/null 2>&1 || fail "seed demo"
-# The sandbox tenant is what the rehearsal walkthrough (step 7) practises in.
-DATABASE_URL="postgresql://nomi_app@127.0.0.1:$PGPORT/nomi" \
-  node tools/seed-sandbox.mjs >/dev/null 2>&1 || fail "seed sandbox"
+# Practice needs no seed: each workspace practises on its own copy, made on its
+# first practice message (docs/PRACTICE.md).
 
 echo "[3/6] build (tsc → dist)"
 npm run build >/dev/null 2>&1 || fail "build"
@@ -122,13 +133,18 @@ for r in /app/settings /app/products /app/knowledge /app/channels; do
 done
 
 #  rehearsal: buyer turn → take over → owner reply → hand back
-post /app/sandbox/message  "mode=scripted&text=Do%20you%20make%20canvas%20tote%20bags%3F" "sandbox buyer turn"
+post /app/sandbox/message  "text=Do%20you%20make%20canvas%20tote%20bags%3F" "practice customer line"
 get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "take-over control missing"
-post /app/sandbox/takeover "mode=scripted" "sandbox takeover"
+post /app/sandbox/takeover "" "practice takeover"
 get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/reply"'   "owner reply box missing after takeover"
-post /app/sandbox/reply    "mode=scripted&text=Owner%20here%20%E2%80%94%20yes%2C%20we%20can%20do%20that." "sandbox owner reply"
-get  /app/sandbox "$SK/app-sandbox.html" "Owner here" "owner reply never reached the transcript"
-post /app/sandbox/resume   "mode=scripted" "sandbox resume"
+post /app/sandbox/reply    "text=Owner%20here%20%E2%80%94%20yes%2C%20we%20can%20do%20that." "practice owner reply"
+# The reply leaves through the outbound worker to the practice adapter: a second or two.
+for _ in $(seq 1 30); do
+  curl -sS -b "$J" "$BASEURL/app/sandbox" -o "$SK/app-sandbox.html" && grep -q "Owner here" "$SK/app-sandbox.html" && break
+  sleep 1
+done
+grep -q "Owner here" "$SK/app-sandbox.html" || fail "owner reply never reached the transcript"
+post /app/sandbox/resume   "" "practice resume"
 get  /app/sandbox "$SK/app-sandbox.html" 'action="/app/sandbox/takeover"' "did not hand back to the employee"
 
 #  the runbook must now observe the rehearsal it just practised
@@ -136,10 +152,10 @@ get /app/onboarding "$SK/app-onboard.html" "Practice before launch" "Pilot runbo
 REHEARSED="$(grep -o 'Practice before launch · [0-9]*/[0-9]*' "$SK/app-onboard.html" | head -1)"
 case "$REHEARSED" in *"3/5"*|*"4/5"*|*"5/5"*) ;; *) fail "rehearsal not observed by the runbook (got '$REHEARSED')";; esac
 
-#  nothing was really delivered: the sandbox tenant has no channel credential
+#  nothing was really delivered: a practice copy can hold no channel credential (0086's trigger)
 CREDS="$(psql -h 127.0.0.1 -p "$PGPORT" -U postgres -d nomi -tAc \
-  "select count(*) from channel_credentials where business_id='5a4d0000-0000-4000-8000-0000000000b1';" 2>/dev/null | tr -d ' ')"
-[ "$CREDS" = "0" ] || fail "sandbox tenant must have NO channel credentials (found $CREDS)"
+  "select count(*) from channel_credentials c join businesses b on b.id = c.business_id where b.practice_of is not null;" 2>/dev/null | tr -d ' ')"
+[ "$CREDS" = "0" ] || fail "a practice copy must have NO channel credentials (found $CREDS)"
 
 cat <<EOF
 

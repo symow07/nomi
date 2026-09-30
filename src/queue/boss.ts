@@ -59,6 +59,11 @@ export const QUEUES = {
    * is set, and only once the server listens.
    */
   heartbeat: 'ops.heartbeat',
+  /**
+   * P6 — once a day: every copy's practice conversations quiet for thirty days
+   * are erased (0089, `practice_expire`). Practice is not kept.
+   */
+  practiceExpiry: 'ops.practice_expiry',
 } as const;
 
 export type SequenceSweepJob = { businessId: string };
@@ -68,6 +73,7 @@ export type DeletionWatchJob = { businessId: string };
 export type ErrorSweepJob = { businessId: string };
 export type MetaErrorWatchJob = { businessId: string };
 export type HeartbeatJob = Record<string, never>;
+export type PracticeExpiryJob = Record<string, never>;
 
 /** `app_error` only: the error the alert is about, as recorded — redacted, cut. Dates as ISO strings. */
 export type AppErrorAlertJob = {

@@ -63,9 +63,11 @@ export async function practiceOf(tx: Tx, businessId: BusinessId): Promise<Busine
 /**
  * P5 — PRACTICE A DAY. Every practice message is a live model turn, charged to
  * the workspace; fifty a day is plenty to rehearse with, and bounds what a
- * page left open, or a script, can spend. Counted as the owner's practice
- * lines since midnight UTC — the ledger's own day (T7) — so a line waiting in
- * a batch counts before its turn runs.
+ * page left open, or a script, can spend. Counted per UTC day — the ledger's
+ * own (T7) — on the workspace's own row (0089: `practice_day`,
+ * `practice_lines`), as each line is taken, so a line waiting in a batch
+ * counts before its turn runs, and Start over, which erases the transcript,
+ * does not give the day back.
  */
 export const PRACTICE_DAILY_LIMIT = 50;
 
@@ -81,13 +83,19 @@ export async function practiceRefusal(db: Db, live: BusinessId): Promise<Practic
     select exists (select 1 from ops_flags where flag = 'practice_off' and cleared_at is null
                      and (business_id is null or business_id = ${live}::uuid)) as off`.execute(tx)).rows[0]?.off === true);
   if (off) return 'switched_off';
-  const copy = await practiceCopyOf(db, live);
-  if (!copy) return null;
-  const today = await withTenantTx(db, copy, async (tx) => (await sql<{ n: number }>`
-    select count(*)::int as n from messages m join conversations c on c.id = m.conversation_id
-     where c.business_id = ${copy} and m.direction = 'inbound'
-       and m.sent_at >= ((now() at time zone 'UTC')::date)::timestamp at time zone 'UTC'`.execute(tx)).rows[0]?.n ?? 0);
+  const today = await withTenantTx(db, live, async (tx) => (await sql<{ n: number }>`
+    select case when practice_day = (now() at time zone 'UTC')::date then practice_lines else 0 end as n
+      from businesses where id = ${live}::uuid`.execute(tx)).rows[0]?.n ?? 0);
   return today >= PRACTICE_DAILY_LIMIT ? 'daily_limit' : null;
+}
+
+/** One practice line taken today, on the workspace's own row (0089). */
+export async function countPracticeLine(db: Db, live: BusinessId): Promise<void> {
+  await withTenantTx(db, live, (tx) => sql`
+    update businesses
+       set practice_lines = case when practice_day = (now() at time zone 'UTC')::date then practice_lines + 1 else 1 end,
+           practice_day = (now() at time zone 'UTC')::date
+     where id = ${live}::uuid`.execute(tx));
 }
 
 /**
@@ -104,6 +112,16 @@ export async function practiceConversation(tx: Tx, copy: BusinessId): Promise<st
   return conversationId;
 }
 
+/**
+ * P6 — is this conversation still there? Practice's Start over and the daily
+ * erasure (0089) take conversations away while a job for one may still be
+ * queued; a job whose conversation is gone asks nothing of anyone. Row
+ * security answers for the job's own business only.
+ */
+export async function conversationExists(tx: Tx, conversationId: string): Promise<boolean> {
+  return (await sql<{ one: number }>`select 1 as one from conversations where id = ${conversationId}::uuid`.execute(tx)).rows.length > 0;
+}
+
 /** The practice conversation still open, if any — for drawing the page. */
 export async function activePracticeConversation(tx: Tx, copy: BusinessId): Promise<string | null> {
   return (await sql<{ id: string }>`
@@ -113,3 +131,20 @@ export async function activePracticeConversation(tx: Tx, copy: BusinessId): Prom
      where c.business_id = ${copy} and c.channel = ${PRACTICE_CHANNEL} and c.is_active
      order by c.created_at desc limit 1`.execute(tx)).rows[0]?.id ?? null;
 }
+
+/**
+ * P6 — "Start over": the workspace's practice conversations are ERASED, now,
+ * with everything that hangs off them (0089). Not archived: a customer's words
+ * pasted in through "Try it" must not outlive a deletion request. Only for the
+ * workspace the caller is in; the number erased.
+ */
+export async function startPracticeOver(db: Db, live: BusinessId): Promise<number> {
+  return withTenantTx(db, live, async (tx) =>
+    (await sql<{ n: number }>`select practice_start_over(${live}::uuid) as n`.execute(tx)).rows[0]?.n ?? 0);
+}
+
+/** P6 — the daily erasure: every copy's practice conversations quiet for thirty days (0089). The number erased. */
+export async function expirePractice(db: Db): Promise<number> {
+  return (await sql<{ n: number }>`select practice_expire() as n`.execute(db)).rows[0]?.n ?? 0;
+}
+

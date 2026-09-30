@@ -56,9 +56,9 @@ import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
-import { isPracticeCopy, PRACTICE_CHANNEL } from './db/practice.js';
+import { isPracticeCopy, expirePractice, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
 import type { PgBoss } from 'pg-boss';
-import type { ErrorSweepJob, MetaErrorWatchJob } from './queue/boss.js';
+import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
@@ -758,6 +758,9 @@ export async function buildProduction(
 
       const effects = await withTenantTx(db, businessId.value, async (tx) => {
         await lockConversation(tx, job.data.conversationId);
+        // P6 — a conversation that is gone (Practice's Start over, an erasure)
+        // has nobody to send to: the job asks nothing of anyone.
+        if (!(await conversationExists(tx, job.data.conversationId))) return [];
         if (job.data.reply) {
           await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
             'employee', null, job.data.asks ?? null);
@@ -789,6 +792,20 @@ export async function buildProduction(
       }
     };
 
+  /**
+   * P6 — PRACTICE IS NOT KEPT (0089): once a day, every copy's practice
+   * conversations quiet for thirty days are erased — a customer's words put
+   * there through "Try it" must not outlive a deletion request by long. In
+   * both modes: Practice runs with no channel configured, too.
+   */
+  const erasePracticeDaily = async (): Promise<void> => {
+    await boss.schedule(QUEUES.practiceExpiry, '40 3 * * *', {} satisfies PracticeExpiryJob);
+    await boss.work<PracticeExpiryJob>(QUEUES.practiceExpiry, async () => {
+      const n = await expirePractice(db);
+      if (n > 0) console.log(`[practice] ${n} practice conversation(s) quiet for thirty days erased`);
+    });
+  };
+
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
   // webhook routes — for hosting before ANY channel is configured. An override
   // adapter (tests) always takes the messaging path so composition stays
@@ -797,6 +814,7 @@ export async function buildProduction(
   // `channel_unavailable`, where the owner sees it, since nothing can carry it.
   if (channelsHere.length === 0) {
     await boss.work<DriveJob>(QUEUES.outbound, driveOutbound(async () => ({})));
+    await erasePracticeDaily();
     const app = Fastify({ logger: overrides?.logger ?? true });
     mountHealth(app, 'disabled');
     mountCommandCenter(app);
@@ -1130,6 +1148,8 @@ export async function buildProduction(
    * next one, so every five minutes the oldest held error gets the alert it
    * was owed, once the hour has room (src/db/appErrors.ts).
    */
+  await erasePracticeDaily();
+
   await boss.schedule(QUEUES.errors, '*/5 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies ErrorSweepJob);
   await boss.work<ErrorSweepJob>(QUEUES.errors, async ([job]: { data: ErrorSweepJob }[]) => {
     if (!job) return;

@@ -498,6 +498,8 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     ['inbox.ts', /\/proof\/revoke$/],
     ['people.ts', /\/people\/\$\{[^}]+\}\/remove$/],
     ['assistants.ts', /\/assistants\/\$\{[^}]+\}\/archive$/],
+    // P6 — Practice's Start over erases (0089).
+    ['sandbox.ts', /^\/app\/sandbox\/reset$/],
     ['factory.ts', /^\/app\/factory\/allowlist\/remove$/],
     ['factory.ts', /^\/app\/factory\/\$\{action\}$/],
   ];
@@ -533,13 +535,13 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     }
   });
 
-  it('left one tap on purpose: they take nothing away (practice, an answer, a hand-back)', () => {
-    // Considered on 2026-09-28 and kept as they are. Practice reset archives the
-    // practice conversation (sandbox.reset.done says so); a spot-check answer is
+  it('left one tap on purpose: they take nothing away (an answer, a hand-back)', () => {
+    // Considered on 2026-09-28 and kept as they are. A spot-check answer is
     // the owner answering the page's question; handing back and "leave it" are
     // decisions about one conversation; recording a deletion request can be
-    // taken back on Your data.
-    const oneTap = ['/app/sandbox/reset', '/app/inbox/${cid}/resume', '/app/outbound/${esc(u.outboundId)}/leave', '${here}/deletion'];
+    // taken back on Your data. Practice's Start over left this list with P6: it
+    // ERASES now (0089), so it asks first.
+    const oneTap = ['/app/inbox/${cid}/resume', '/app/outbound/${esc(u.outboundId)}/leave', '${here}/deletion'];
     for (const a of oneTap) {
       const f = forms.find((x) => x.action === a);
       expect(f, a).toBeDefined();

@@ -157,3 +157,28 @@ Until it lands, checklist item 8 shows the gap rather than passing.
   fact are gone. What keeps one workspace's practice from another's is the
   copy, and `practice-own.test.ts` holds that nothing crosses.
 
+## P6, as built (#148): Practice is not kept
+
+- **Start over erases.** The workspace's practice conversations go at once,
+  with everything that hangs off them: messages, turns, drafts, quotes,
+  orders, events and promised dates (`practice_start_over`, 0089). It asks
+  first (CC-29's idiom). The copy, its catalogue and the practice customer
+  stay.
+- **Thirty days.** Once a day (03:40 UTC) `practice_expire` erases every
+  copy's practice conversations quiet for thirty days. It takes no argument,
+  so nobody can ask it for less.
+- **The day's fifty survive Start over.** They are counted on the
+  workspace's own row (`practice_day`, `practice_lines`), because the
+  transcript P5 counted is now erased.
+- **A job whose conversation is gone is dropped** by both workers: no turn,
+  no send, no error.
+- **The shared sandbox is retired from the product.** No page reads it, and
+  the local smoke walkthrough no longer seeds it. Its production row still
+  holds the pilot's practice from before P3. Erasing it is the owner's call
+  (PROGRESS, "Waiting on the owner").
+- **Deferred: the rehearsal findings' wider inputs** (forbidden words,
+  closures, sample policy, terms, business-level knowledge in
+  `factoryRehearsal.ts`). Practice now runs the real turn on the copy, which
+  holds all of those, so what the in-memory rehearsal leaves out, Practice
+  shows.
+
