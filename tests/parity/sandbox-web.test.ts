@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { usd } from '../../src/core/types/money.js';
 import {
   renderSandbox,
   type SandboxView,
@@ -10,7 +11,7 @@ import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { computeTurn, commitTurn } from '../../src/pipeline/turn.js';
 import { FakeTenant, FakeAnalyzer, FakeReplyWriter, FakeRetriever } from '../pipeline/fakes.js';
-import { emptyState, CONVERSATION } from './fixtures.js';
+import { emptyState, CONVERSATION, conversationDetail } from './fixtures.js';
 import type { AutonomyGrant } from '../../src/core/conversation/autonomy.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 
@@ -20,7 +21,7 @@ const passCheck = (invariant: PracticeTrust['checks'][number]['invariant']) =>
   ({ invariant, pass: true, detail: 'ok' } as const);
 
 const view = (over: Partial<SandboxView> = {}): SandboxView => ({
-  hasConversation: true, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI', ...over,
+  hasConversation: true, messages: [], lastTurn: null, ownership: 'AI', ...over,
 });
 
 const trust = (over: Partial<PracticeTrust> = {}): PracticeTrust => ({
@@ -95,14 +96,34 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
     expect(html).toContain('msg outbound');
   });
 
-  it('a pending draft shows the same approve/skip/revoke controls, posting to the sandbox', () => {
-    const v = view({ pendingDraft: { draftId: 'draft-1', draftText: 'Our MOQ is 1,000 pcs.' } });
-    const html = renderSandbox(v, 'en', { flash: null });
-    expect(html).toContain('Our MOQ is 1,000 pcs.');
+  it('P4 — a reply waiting is the conversation page\'s own card: why it waited, where each figure came from, one Send — posting to Practice', () => {
+    const v = view({ detail: conversationDetail({ pendingDraft: {
+      draftId: 'draft-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote',
+      withheld: { reason: 'disclosure_not_reviewed', language: 'es' },
+    } }) });
+    const html = renderSandbox(v, 'en', { flash: null, now: new Date('2026-09-27T10:00:00Z') });
+    expect(html).toContain('class="card draft" id="approve"');
     expect(html).toContain('action="/app/sandbox/act"');
-    expect(html).toContain('value="发送"');   // wire command, localized label
+    expect(html).toContain('formaction="/app/sandbox/takeover"');
+    expect(html).not.toContain('/app/inbox/');                           // never the conversation page's routes
+    expect(html).toContain('name="command" value="send"');
     expect(html).toContain('value="不回"');
-    expect(html).toContain('value="收回"');
+    expect(html).toContain('does not send alone to customers writing in Spanish yet');   // why it waited
+    expect(html).toContain('class="reasons"');                           // where each figure came from
+  });
+
+  it('P4 — handed to a person: why, and that nothing was sent after the customer\'s line', () => {
+    const v = view({ ownership: 'WAITING_HUMAN',
+      messages: [{ direction: 'inbound', text: 'I want to speak to a real person', isImage: false }],
+      detail: conversationDetail({ ownership: 'WAITING_HUMAN', pendingDraft: null, handoffReasons: ['human_requested'] }) });
+    const html = renderSandbox(v, 'en', { flash: null });
+    expect(html).toContain(t('en', 'takeover.reason.human_requested'));
+    expect(html).toContain(t('en', 'practice.handoff.nothingSent'));
+  });
+
+  it('P4 — the checks strip names the product\'s own unit, not "pcs" for everything', () => {
+    const html = renderSandbox(view({ lastTurn: trust({ quote: { unitPrice: usd(12), total: usd(120), unit: 'boxes' } }) }), 'en', { flash: null });
+    expect(html).toMatch(/\$12(\.00)?\/boxes|\/box/);
   });
 
   it('trust strip: none-state until a turn runs; then verdict + localized labels', () => {
@@ -237,7 +258,7 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
   });
 
   it('OWNER_CONTROLLED: reply box + return-to-employee; the draft card steps aside', () => {
-    const v = view({ ownership: 'OWNER_CONTROLLED', pendingDraft: { draftId: 'd-1', draftText: 'Our MOQ is 1,000 pcs.' } });
+    const v = view({ ownership: 'OWNER_CONTROLLED', detail: conversationDetail({ ownership: 'OWNER_CONTROLLED' }) });
     const html = renderSandbox(v, 'en', { flash: null });
     expect(html).toContain(t('en', 'takeover.status.owner'));
     expect(html).toContain('action="/app/sandbox/reply"');

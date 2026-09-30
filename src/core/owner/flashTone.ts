@@ -126,6 +126,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'sandbox.reset.done',
   // P3 — the practice message is on its way; the reply comes by the live line.
   'practice.sent',
+  // P4 — Practice's two switches, done.
+  'practice.flash.alone', 'practice.flash.levels', 'practice.flash.stopped', 'practice.flash.started',
 ]);
 
 /**

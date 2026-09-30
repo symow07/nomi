@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'kysely';
 import { randomUUID, createHmac } from 'node:crypto';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
+import { t } from '../../src/core/owner/i18n/messages.js';
 
 /**
  * PRACTICE THROUGH THE REAL PIPELINE (P3; docs/PRACTICE.md), in the production
@@ -180,6 +181,18 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     nothingReachedAProvider('Yes, we make canvas totes in natural cotton.');
   }, 90_000);
 
+  it('P4 — the card\'s one Send with the box changed sends the owner\'s words, through the same path', async () => {
+    replyWriter.replies = ['Yes, the totes come in natural cotton.'];
+    await say('What are they made of?');
+    const conv = (await practiceConv())!;
+    const draft = await until(() => pendingDraft(conv), 'the second draft');
+    expect((await page()).body).toContain('name="command" value="send"');
+    const act = await post('/app/sandbox/act', `draftId=${draft.id}&command=send&edit=${encodeURIComponent('Natural cotton, and a black one too.')}`);
+    expect(act.statusCode).toBe(302);
+    const sent = await until(async () => (await sentReplies(conv)).find((x) => x.body.includes('Natural cotton, and a black one too.')), 'the edited reply, sent');
+    expect(sent.provider).toMatch(/^practice:/);
+  }, 90_000);
+
   it('the live line: both sides counted — the owner\'s own line is not news, the answer is', async () => {
     const conv = (await practiceConv())!;
     const { conversationMark } = await import('../../src/api/web/live.js');
@@ -227,6 +240,76 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     } finally {
       await inBiz(PILOT, (tx) => sql`update businesses set assistant_stopped_at = null, assistant_stopped_by = null where id = ${PILOT}::uuid`.execute(tx));
     }
+  }, 90_000);
+
+  it('P4 — as if sending alone: a reply the workspace would hold goes alone in Practice, with the disclosure; the workspace\'s levels are untouched', async () => {
+    await post('/app/sandbox/reset');
+    const levels = () => inBiz(PILOT, (tx) => sql<{ n: number }>`select count(*)::int as n from autonomy_policy
+      where business_id = ${PILOT}::uuid and mode = 'auto'`.execute(tx).then((x) => x.rows[0]!.n));
+    const before = await levels();
+    const on = await post('/app/sandbox/alone', 'on=1');
+    expect(on.statusCode).toBe(302);
+    expect((await page()).body).toContain('action="/app/sandbox/alone"');
+    try {
+      replyWriter.replies = ['Yes, we make totes to order.'];
+      await say('Do you make totes to order?');
+      const conv = (await practiceConv())!;
+      const sent = await until(async () => (await sentReplies(conv)).find((x) => x.body.includes('Yes, we make totes to order.')), 'the reply, alone');
+      expect(sent.body).toContain('AI assistant');                       // as a customer meets it: the disclosure in front
+      expect(await pendingDraft(conv)).toBeUndefined();
+      expect(await levels()).toBe(before);                                // the workspace's own levels: unchanged
+    } finally {
+      await post('/app/sandbox/alone', 'on=');
+    }
+    const auto = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from autonomy_policy
+      where business_id = ${copy}::uuid and mode = 'auto'`.execute(tx).then((x) => x.rows[0]!.n));
+    expect(auto).toBe(before);                                            // back to the workspace's levels
+  }, 90_000);
+
+  it('P4 — as if sending alone lifts the owner\'s level and nothing else: a Spanish customer\'s reply still waits, and the card says why', async () => {
+    await post('/app/sandbox/reset');
+    await post('/app/sandbox/alone', 'on=1');
+    try {
+      analyzer.next = {
+        language: { detected: 'es', replyIn: 'es' },
+        intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
+        recommendedPhase: 'clarification',
+      } as never;
+      replyWriter.replies = ['Sí, hacemos bolsas de lona.'];
+      await say('¿Hacen bolsas de lona?');
+      const conv = (await practiceConv())!;
+      await until(() => pendingDraft(conv), 'the Spanish reply, waiting');
+      expect((await page()).body).toContain('does not send alone to customers writing in Spanish yet');
+    } finally {
+      analyzer.next = {
+        language: { detected: 'en', replyIn: 'en' },
+        intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
+        recommendedPhase: 'clarification',
+      } as never;
+      await post('/app/sandbox/alone', 'on=');
+    }
+  }, 90_000);
+
+  it('P4 — Practice\'s own Stop: the message is held and handed to the owner; the workspace\'s real Stop is untouched', async () => {
+    await post('/app/sandbox/reset');
+    expect((await post('/app/sandbox/stop', 'on=1')).statusCode).toBe(302);
+    try {
+      expect((await page()).body).toContain(t('en', 'practice.stop.stopped'));
+      const asked = analyzer.calls;
+      await say('Anyone there?');
+      const conv = (await practiceConv())!;
+      await until(() => inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from turns
+        where conversation_id = ${conv}::uuid and decision->'action'->>'kind' = 'held'`.execute(tx).then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'the held turn');
+      expect(analyzer.calls).toBe(asked);
+      const real = await inBiz(PILOT, (tx) => sql<{ s: boolean }>`select assistant_stopped_at is not null as s from businesses
+        where id = ${PILOT}::uuid`.execute(tx).then((x) => x.rows[0]!.s));
+      expect(real).toBe(false);
+    } finally {
+      await post('/app/sandbox/stop', 'on=');
+    }
+    const copyStopped = await inCopy((tx) => sql<{ s: boolean }>`select assistant_stopped_at is not null as s from businesses
+      where id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.s));
+    expect(copyStopped).toBe(false);
   }, 90_000);
 
   it('Practice alerts nobody: the notify consumer refuses a copy, whatever queued the alert', async () => {

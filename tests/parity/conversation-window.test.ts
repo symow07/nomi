@@ -172,7 +172,7 @@ describe('CC-25 · the conversation page', () => {
 
 describe('CC-25 · the practice page reads the same window', () => {
   const view = (over: Partial<SandboxView> = {}): SandboxView => ({
-    hasConversation: true, pendingDraft: null, lastTurn: null, ownership: 'AI',
+    hasConversation: true, lastTurn: null, ownership: 'AI',
     messages: Array.from({ length: 50 }, (_, i) => ({ direction: i % 2 ? 'outbound' : 'inbound', text: `p-${i + 1}`, isImage: false })),
     transcript: { earlier: `1790000000123_${ID}`, older: false }, ...over,
   });
