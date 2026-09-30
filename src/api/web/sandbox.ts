@@ -13,7 +13,10 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal } from '../../db/practice.js';
+import { approvalCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
+import { unitLabel } from './products.js';
+import { formatList } from '../../core/owner/i18n/format.js';
+import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal, type PracticeSettings } from '../../db/practice.js';
 import { recordTypedMessage } from '../../pipeline/received.js';
 import type { InboundJob } from '../../queue/boss.js';
 import * as show from './values.js';
@@ -130,14 +133,19 @@ export type SandboxView = {
   readonly messages: readonly SandboxMessage[];
   /** CC-25 — the same window the conversation page reads; absent reads as the newest, with nothing before it. */
   readonly transcript?: { readonly earlier: string | null; readonly older: boolean };
-  readonly pendingDraft: { readonly draftId: string; readonly draftText: string } | null;
+  /**
+   * P4 — the conversation as its own page reads it (`loadConversationDetail`,
+   * on the copy): the reply waiting with why it waited and where each figure
+   * came from, and why it was handed to a person. Absent before a message.
+   */
+  readonly detail?: ConversationDetail | null;
   readonly lastTurn: PracticeTrust | null;
   /** M16.3 — the SAME ownership model as the inbox (ownershipOf), so the owner
    *  rehearses the real human-takeover lifecycle here. */
   readonly ownership: ConversationOwnership;
 };
 
-const EMPTY: SandboxView = { hasConversation: false, conversationId: null, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI' };
+const EMPTY: SandboxView = { hasConversation: false, conversationId: null, messages: [], lastTurn: null, ownership: 'AI' };
 
 async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<SandboxView> {
   const assigned = (await sql<{ assigned_to: string | null }>`
@@ -150,11 +158,6 @@ async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<
     .filter((m) => m.text_content !== null)
     .map((m): SandboxMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image' }));
 
-  const draft = (await sql<{ id: string; draft_text: string }>`
-    select id, draft_text from drafts where conversation_id = ${conversationId} and status = 'pending'
-     order by created_at desc limit 1
-  `.execute(tx)).rows[0];
-
   const evt = (await sql<{ payload: PracticeTrust }>`
     select payload from conversation_events
      where conversation_id = ${conversationId} and type = 'sandbox_turn'
@@ -166,7 +169,6 @@ async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<
     conversationId,
     messages,
     transcript: { earlier: transcript.earlier, older: transcript.older },
-    pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
     lastTurn: evt ? evt.payload : null,
     ownership: ownershipOf(assigned),
   };
@@ -177,12 +179,16 @@ export async function loadPracticeView(
   db: Db, copy: BusinessId | null,
   /** CC-25 — the request's `before`: an older window of the practice transcript, or the newest. */
   before: unknown = null,
+  now: Date = new Date(),
 ): Promise<SandboxView> {
   if (!copy) return EMPTY;
-  return withTenantTx(db, copy, async (tx) => {
+  const view = await withTenantTx(db, copy, async (tx) => {
     const conversationId = await activePracticeConversation(tx, copy);
     return conversationId ? viewOf(tx, conversationId, before) : EMPTY;
   });
+  // P4 — the conversation page's own reading of it, for the card and the hand-off's reason.
+  const detail = view.conversationId ? await loadConversationDetail(db, copy, view.conversationId, now, before) : null;
+  return { ...view, detail };
 }
 
 // ── renderer (pure, localized, escaped) ───────────────────────────────────────
@@ -210,7 +216,7 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   const chips = [
     `<span class="chip">${esc(labelled(locale, t(locale, 'sandbox.xray.skill'), capabilityName(locale, trust.capability)))}</span>`,
     `<span class="chip ${trust.appliedMode === 'auto' ? 'auto' : 'draft'}">${esc(labelled(locale, t(locale, 'sandbox.xray.delivery'), t(locale, deliveryKey as MessageKey)))}</span>`,
-    trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(t(locale, 'product.unit.pcs'))}</bdi></span>` : '',
+    trust.quote ? `<span class="chip"><bdi>${esc(show.money(locale, quoteUnit(trust.quote)))}/${esc(unitLabel(locale, trust.quote.unit ?? 'pcs'))}</bdi></span>` : '',
     trust.guardViolations > 0 ? `<span class="chip warn">⚠ ${trust.guardViolations}</span>` : '',
     trust.scenarioId
       ? `<span class="chip badge">${esc(labelled(locale, t(locale, 'sandbox.scenario.badge'), caseName(locale, trust.scenarioId)))}</span>`
@@ -260,8 +266,16 @@ function sandboxTakeoverCard(view: SandboxView, locale: Locale): string {
   switch (view.ownership) {
     case 'AI':
       return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${take}</div>`;
-    case 'WAITING_HUMAN':
-      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${take}</div>`;
+    case 'WAITING_HUMAN': {
+      // P4 — why it came to you, and whether the customer heard anything: the
+      // newest line is theirs, so nothing was sent after it.
+      const reasons = view.detail?.handoffReasons ?? [];
+      const why = reasons.length ? `<p class="why muted">${esc(labelled(locale, t(locale, 'takeover.why'),
+        formatList(locale, reasons.map((k) => t(locale, `takeover.reason.${k}` as MessageKey)))))}</p>` : '';
+      const quiet = view.messages.at(-1)?.direction === 'inbound'
+        ? `<p class="muted">${esc(t(locale, 'practice.handoff.nothingSent'))}</p>` : '';
+      return `<div class="card takeover warn"><span class="pill warn">${esc(t(locale, 'takeover.status.waiting'))}</span>${why}${quiet}${take}</div>`;
+    }
     case 'OWNER_CONTROLLED':
       return `<div class="card takeover owner">
         <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
@@ -272,6 +286,27 @@ function sandboxTakeoverCard(view: SandboxView, locale: Locale): string {
         <form method="post" action="/app/sandbox/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
+}
+
+/**
+ * P4 — HOW PRACTICE ANSWERS: the owner's levels, or "as if sending alone" (0090)
+ * — the customer's view of an assistant that sends without waiting; and
+ * Practice's own Stop. Both are the copy's alone. The owner's real Stop, when
+ * on, stops Practice too, and there is nothing here to lift it.
+ */
+function practiceModeCard(settings: PracticeSettings, locale: Locale): string {
+  const name = assistantName(locale);
+  const toggle = (action: string, on: boolean, label: string) =>
+    `<form method="post" action="${action}" class="inline"><input type="hidden" name="on" value="${on ? '1' : ''}" /><button class="btn" type="submit">${esc(label)}</button></form>`;
+  const mode = settings.alone
+    ? `<p>${esc(t(locale, 'practice.mode.alone'))}</p>${toggle('/app/sandbox/alone', false, t(locale, 'practice.mode.aloneOff'))}`
+    : `<p class="muted">${esc(t(locale, 'practice.mode.levels'))}</p>${toggle('/app/sandbox/alone', true, t(locale, 'practice.mode.aloneOn'))}`;
+  const stop = settings.ownerStopped
+    ? `<p class="muted">${esc(t(locale, 'practice.stop.ownerStopped'))}</p>`
+    : settings.stopped
+      ? `<p>${esc(t(locale, 'practice.stop.stopped'))}</p>${toggle('/app/sandbox/stop', false, t(locale, 'practice.stop.off', { name }))}`
+      : toggle('/app/sandbox/stop', true, t(locale, 'practice.stop.on', { name }));
+  return `<div class="card sbx-mode"><h2>${esc(t(locale, 'practice.mode.title'))}</h2>${mode}${stop}</div>`;
 }
 
 /** M20.4 (F-04) — what scripted practice proves, and what it does not. */
@@ -291,7 +326,7 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string }): string {
+export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings }): string {
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
@@ -319,22 +354,10 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
     ${timeline}
     ${older ? deeper(esc(practiceUrl()), t(locale, 'inbox.log.latest')) : ''}`;
 
-  const draftCard = view.pendingDraft
-    ? `<div class="card draft" role="region">
-        <div dir="auto" class="proposed"><bdi>${esc(view.pendingDraft.draftText)}</bdi></div>
-        <form method="post" action="/app/sandbox/act" class="acts">
-          <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
-          <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
-          <button class="btn" name="command" value="不回">${esc(t(locale, 'inbox.action.skip'))}</button>
-          <button class="btn danger" name="command" value="收回">${esc(t(locale, 'inbox.action.revoke'))}</button>
-        </form>
-        <form method="post" action="/app/sandbox/act" class="editform">
-          <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
-          <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
-          <textarea id="edit" name="edit" rows="2" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}"></textarea>
-          <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
-        </form>
-      </div>`
+  // P4 — the conversation page's own card: the reply once, why it waited, where
+  // each figure came from, one Send; posting to Practice's own routes.
+  const draftCard = view.detail?.pendingDraft
+    ? approvalCard(view.detail, locale, opts.now ?? new Date(), { act: '/app/sandbox/act', handTo: '/app/sandbox/takeover' })
     : '';
 
   /**
@@ -361,6 +384,7 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
     </div>
     ${banner}
     ${intro}
+    ${opts.settings ? practiceModeCard(opts.settings, locale) : ''}
     <div class="block"><h2>${esc(t(locale, 'nav.sandbox'))}</h2>${log}</div>
     ${flashHtml}
     ${acts}

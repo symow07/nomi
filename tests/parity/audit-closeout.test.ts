@@ -90,7 +90,7 @@ const order = (over: Partial<OrderView> = {}): OrderView => ({
 });
 
 const practice = (trust: Partial<PracticeTrust> = {}): SandboxView => ({
-  hasConversation: true, messages: [], pendingDraft: null, ownership: 'AI',
+  hasConversation: true, messages: [], ownership: 'AI',
   lastTurn: {
     scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
     guardViolations: 0, handoff: false, quote: { unitPrice: usd(0.85), total: usd(17000) },

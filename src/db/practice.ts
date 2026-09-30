@@ -148,3 +148,29 @@ export async function expirePractice(db: Db): Promise<number> {
   return (await sql<{ n: number }>`select practice_expire() as n`.execute(db)).rows[0]?.n ?? 0;
 }
 
+/** How Practice answers, for its page: "as if sending alone", its own Stop, and the owner's real one. */
+export type PracticeSettings = { readonly alone: boolean; readonly stopped: boolean; readonly ownerStopped: boolean };
+
+export async function practiceSettings(db: Db, live: BusinessId, copy: BusinessId | null): Promise<PracticeSettings> {
+  const ownerStopped = await withTenantTx(db, live, async (tx) => (await sql<{ s: boolean }>`
+    select assistant_stopped_at is not null as s from businesses where id = ${live}::uuid`.execute(tx)).rows[0]?.s === true);
+  if (!copy) return { alone: false, stopped: false, ownerStopped };
+  const row = await withTenantTx(db, copy, async (tx) => (await sql<{ alone: boolean; stopped: boolean }>`
+    select practice_alone as alone, practice_stopped_at is not null as stopped from businesses where id = ${copy}::uuid`.execute(tx)).rows[0]);
+  return { alone: row?.alone === true, stopped: row?.stopped === true, ownerStopped };
+}
+
+/**
+ * P4 — a practice-only switch, on the COPY: "as if sending alone" (0090) or
+ * Practice's own Stop (0086). The workspace's own levels and Stop are never
+ * touched; the copy is refreshed at once, so the next message meets it.
+ */
+export async function setPractice(db: Db, live: BusinessId, what: 'alone' | 'stopped', on: boolean): Promise<void> {
+  const copy = await refreshPractice(db, live);
+  await withTenantTx(db, copy, (tx) => (what === 'alone'
+    ? sql`update businesses set practice_alone = ${on} where id = ${copy}::uuid`
+    : sql`update businesses set practice_stopped_at = case when ${on} then coalesce(practice_stopped_at, now()) end where id = ${copy}::uuid`
+  ).execute(tx));
+  await refreshPractice(db, live);
+}
+

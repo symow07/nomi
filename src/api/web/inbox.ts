@@ -1532,10 +1532,18 @@ const stateHead = (tone: 'warn' | 'bad', title: string): string =>
  * wait (its hold, the disclosure, a contradicted price, a forbidden word) is
  * the card's state line, drawn before anything else on it.
  */
-function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string {
+/**
+ * Where the card's two forms post. A conversation's own routes, unless the card
+ * is drawn elsewhere: Practice (P4) draws this same card for the practice copy's
+ * reply, posting to its own routes — one card, one approval path.
+ */
+export type ApprovalTargets = { readonly act: string; readonly handTo: string };
+
+export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, targets?: ApprovalTargets): string {
   const p = d.pendingDraft;
   if (!p) return '';
   const cid = encodeURIComponent(d.conversationId);
+  const to: ApprovalTargets = targets ?? { act: `/app/inbox/${cid}/act`, handTo: `/app/inbox/${cid}/takeover` };
   const name = assistantName(locale);
   const channel = d.channel ? channelName(locale, d.channel) : null;
   const lastIn = [...d.messages].reverse().find((m) => m.direction === 'inbound') ?? null;
@@ -1634,7 +1642,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
       ${said}
       ${und}
       ${how}
-      <form method="post" action="/app/inbox/${cid}/act" class="approve">
+      <form method="post" action="${esc(to.act)}" class="approve">
         <input type="hidden" name="draftId" value="${esc(p.draftId)}" />
         <div class="lab"><label for="reply" class="k">${esc(t(locale, 'card.reply'))}</label>${
           channel ? `<span class="k">${esc(t(locale, 'card.goes', { channel }))}</span>` : ''}</div>
@@ -1645,7 +1653,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
         <div class="acts">
           <button class="btn send" type="submit" name="command" value="send">${esc(t(locale, 'inbox.action.send'))}</button>
           <label class="btn" for="reply">${esc(t(locale, 'card.edit'))}</label>
-          <button class="btn" type="submit" formaction="/app/inbox/${cid}/takeover">${esc(t(locale, 'card.handToMe'))}</button>
+          <button class="btn" type="submit" formaction="${esc(to.handTo)}">${esc(t(locale, 'card.handToMe'))}</button>
           <button class="btn ghost quiet" type="submit" name="command" value="不回">${esc(t(locale, 'card.noReply'))}</button>
         </div>
       </form>

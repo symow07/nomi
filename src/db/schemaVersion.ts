@@ -280,8 +280,10 @@ import type { Db } from './client.js';
  * 89 = Practice is not kept (0089): `practice_start_over`, `practice_expire`.
  *      Start over and the daily erasure call them; against an 88 database
  *      Start over fails.
+ * 90 = Practice "as if sending alone" (0090): `businesses.practice_alone`,
+ *      and the refresh that reads it. Practice's page reads the column.
  */
-export const REQUIRED_SCHEMA_VERSION = 89;
+export const REQUIRED_SCHEMA_VERSION = 90;
 
 export type SchemaState = {
   readonly required: number;

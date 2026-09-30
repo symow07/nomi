@@ -130,7 +130,7 @@ import {
   loadPracticeView, renderSandbox, sayInPractice,
   runScriptedPractice, renderPractice, practiceUrl,
 } from './sandbox.js';
-import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
+import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, setPractice, practiceSettings, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -3899,12 +3899,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const mark = copy && live.ok ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy))
         .then((cid) => (cid ? conversationMark(deps.db, copy, cid, 'both') : null)) : null;
       // CC-25 — `before` pages the practice transcript back, as on a conversation.
-      const view = await loadPracticeView(deps.db, copy, q.before);
+      const now = new Date();
+      const view = await loadPracticeView(deps.db, copy, q.before, now);
+      const settings = live.ok ? await practiceSettings(deps.db, live.value, copy) : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale)
           + (deps.enqueueInbound
-            ? renderSandbox(view, locale, { flash, prefill })
+            ? renderSandbox(view, locale, { flash, prefill, now, ...(settings ? { settings } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark)) } : {}),
       }));
@@ -3972,6 +3974,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
       const copy = await copyFor(s);
       if (copy && b.draftId) {
+        // P4 — the card's one Send posts what is in the box, as on a conversation:
+        // the draft's own words go as the draft (发送), anything else as an edit (改).
+        if (b.command === 'send') {
+          const text = (b.edit ?? '').trim();
+          if (!text) return flashTo(reply, practiceUrl(), 'inbox.flash.empty');
+          const drafted = UUID.test(b.draftId) ? await withTenantTx(deps.db, copy, (tx) => draftTextOf(tx, copy, b.draftId!)) : null;
+          b.command = drafted !== null && sameWords(drafted, text) ? '发送' : '改';
+          b.edit = text;
+        }
         const rawReply = b.command === '改' ? `改：${b.edit ?? ''}` : (b.command ?? '');
         await applyOwnerCommand(
           { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
@@ -3980,6 +3991,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }
       return reply.redirect(practiceUrl());
     });
+
+    // P4 — Practice's two switches, on the copy alone: "as if sending alone"
+    // (0090) and Practice's own Stop. Each lands on its notice.
+    const practiceSwitch = (what: 'alone' | 'stopped') => async (req: FastifyRequest, reply: FastifyReply) => {
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      const live = liveOf(s0);
+      const on = (req.body as { on?: unknown } | undefined)?.on === '1';
+      if (live.ok) await setPractice(deps.db, live.value, what, on);
+      return flashTo(reply, practiceUrl(), what === 'alone'
+        ? (on ? 'practice.flash.alone' : 'practice.flash.levels')
+        : (on ? 'practice.flash.stopped' : 'practice.flash.started'));
+    };
+    app.post('/app/sandbox/alone', practiceSwitch('alone'));
+    app.post('/app/sandbox/stop', practiceSwitch('stopped'));
 
     // P6 — Start over ERASES the practice conversations (0089); the emptied
     // practice lands on its notice, under the empty transcript.

@@ -1197,6 +1197,7 @@ const STYLE_PAGES = `
   .sbx-banner { background:var(--color-waiting-wash); color:var(--color-waiting); border:1px solid var(--color-waiting-line); border-radius:12px; padding:12px 16px; font-weight:600; font-size:var(--font-size-small); margin:var(--space-8) 0 var(--space-12); }
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
+  .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
   .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }

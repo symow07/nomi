@@ -38,7 +38,7 @@ export type PracticeTrust = {
    * written to `conversation_events`, so a row from before this milestone has
    * `unitPriceUsd` instead; the page reads either.
    */
-  readonly quote: { readonly unitPrice: Money; readonly total: Money } | null;
+  readonly quote: { readonly unitPrice: Money; readonly total: Money; readonly unit?: string } | null;
   readonly checks: readonly CheckResult[];
 };
 
@@ -72,7 +72,8 @@ export function evaluateTrust(input: {
     capability, appliedMode,
     guardViolations: result.guardViolations,
     handoff: effects.handoffAlert,
-    quote: result.quote ? { unitPrice: result.quote.unitPrice, total: result.quote.total } : null,
+    // P4 — the unit the product is sold in: the strip said "pcs" for every product.
+    quote: result.quote ? { unitPrice: result.quote.unitPrice, total: result.quote.total, unit: result.quote.quantity.unit } : null,
     checks,
   };
 }

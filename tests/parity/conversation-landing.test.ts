@@ -246,7 +246,8 @@ const trust: PracticeTrust = {
 };
 const practice = (over: Partial<SandboxView> = {}): SandboxView => ({
   hasConversation: true, lastTurn: trust, ownership: 'AI',
-  pendingDraft: { draftId: 'd-1', draftText: 'Our MOQ is 1,000 pcs.' },
+  // P4 — the reply waiting, as the conversation page reads it: Practice draws the same card.
+  detail: detail({ pendingDraft: { draftId: 'd-1', draftText: 'Our MOQ is 1,000 pcs.', capability: 'quote' } }),
   messages: Array.from({ length: 50 }, (_, i) => ({ direction: i % 2 ? 'outbound' : 'inbound', text: `p-${i + 1}`, isImage: false })),
   transcript: { earlier: `1790000000123_${ID}`, older: false }, ...over,
 });
@@ -282,7 +283,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
   });
 
   it('Reset empties it, and lands on its notice: under the empty transcript, the box under that', () => {
-    const empty = practice({ hasConversation: false, messages: [], pendingDraft: null, lastTurn: null, transcript: { earlier: null, older: false } });
+    const empty = practice({ hasConversation: false, messages: [], detail: null, lastTurn: null, transcript: { earlier: null, older: false } });
     const html = renderSandbox(empty, 'en', { flash: SENT });
     expect(landing(html)).toBeGreaterThan(at(html, `<div class="empty muted">${esc(t('en', 'sandbox.empty'))}</div>`));
     expect(at(html, 'id="compose"')).toBeGreaterThan(landing(html));

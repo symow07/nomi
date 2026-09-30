@@ -76,3 +76,22 @@ export const policy = (over: Partial<PricingPolicy> = {}): PricingPolicy => ({
   humanRequiredAbovePct: 7,
   ...over,
 });
+
+/**
+ * P4 — a conversation as its page reads it, for the pages that draw its cards
+ * (the conversation page, and Practice since P4). A reply waits, about one
+ * product and one quote.
+ */
+export const conversationDetail = (
+  over: Partial<import('../../src/api/web/inbox.js').ConversationDetail> = {},
+): import('../../src/api/web/inbox.js').ConversationDetail => ({
+  conversationId: '44444444-4444-4444-8444-444444444444', buyer: 'Ahmed', country: 'AE', status: 'awaiting',
+  product: { name: 'Vacuum cup', nameZh: null }, quantity: 5000,
+  quote: { unitPrice: usd(0.92), total: usd(4600), quantity: 5000 }, order: null,
+  messages: [{ direction: 'inbound', text: 'How much for 5,000?', at: new Date('2026-09-27T09:55:00Z') }],
+  transcript: { earlier: null, older: false },
+  pendingDraft: { draftId: 'd-1', draftText: 'For 5,000 pcs: $0.92/pc FOB Ningbo.', capability: 'quote' },
+  ownership: 'AI', refusals: [], uncertainSends: [], handoffReasons: [], unheardReason: null,
+  lastHumanAction: null, knowledgeUsed: [], rate: null, leadTimeBlocked: null, sampleAsked: null,
+  proof: { quoteId: null, token: null }, ...over,
+});

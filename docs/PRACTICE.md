@@ -182,3 +182,26 @@ Until it lands, checklist item 8 shows the gap rather than passing.
   holds all of those, so what the in-memory rehearsal leaves out, Practice
   shows.
 
+## P4, part one, as built (#149): the card, the reasons, the two switches
+
+- **The conversation page's own card.** A reply waiting in Practice is drawn
+  with the same card as a real conversation, posting to Practice's routes. It
+  shows the reply once, why it waited (the owner's level, a language whose
+  disclosure is unread, the name not yet chosen, a hold rule), and where each
+  figure came from. It has one Send (the box's words, as the draft or as an
+  edit), Hand to me, and No reply needed.
+- **Handed to a person:** the reason, and "No reply was sent after this line"
+  when the customer's line is the last.
+- **The checks strip** names the product's own unit.
+- **"As if sending alone"** (0090, `practice_alone` on the copy): the refresh
+  gives the copy every capability alone instead of the owner's levels. It lifts
+  the owner's level and nothing else. The name gate, the disclosure gate per
+  language, hold rules, the operator's switches and the order tap still apply,
+  and the waiting reply names which one. The workspace's own levels are never
+  touched.
+- **Practice's own Stop** (`practice_stopped_at` on the copy): messages are
+  held and come to the owner, as with the real Stop. The real Stop, when on,
+  stops Practice too.
+- **Still to build (P4, part two):** the checklist with its retail and
+  no-catalogue variants, and "your total first".
+
