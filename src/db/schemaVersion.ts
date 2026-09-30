@@ -287,8 +287,10 @@ import type { Db } from './client.js';
  * 92 = one currency per workspace (0092): `businesses.currency`, the widened
  *      currency checks and price precision. Sign-up writes the column and
  *      every owner form reads it; against a 91 database sign-up fails.
+ * 93 = two kinds of business (0093): 'online_shop' and 'startup'. Sign-up and
+ *      the business page offer them; a 92 database refuses the row.
  */
-export const REQUIRED_SCHEMA_VERSION = 92;
+export const REQUIRED_SCHEMA_VERSION = 93;
 
 export type SchemaState = {
   readonly required: number;

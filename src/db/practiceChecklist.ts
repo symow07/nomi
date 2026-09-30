@@ -41,7 +41,7 @@ export const checklistFor = (kind: ChecklistKind): readonly ChecklistItem[] =>
 export const NOT_YET: ReadonlySet<ChecklistItem> = new Set(['retail_price']);
 
 /** The kinds of business the plan calls retail: a price asked before any quantity. */
-const RETAIL_KINDS = new Set(['retail', 'brand']);
+const RETAIL_KINDS = new Set(['retail', 'brand', 'online_shop']);
 
 export async function checklistKind(db: Db, live: BusinessId): Promise<ChecklistKind> {
   const r = await withTenantTx(db, live, async (tx) => (await sql<{ kind: string | null; priced: boolean }>`

@@ -126,6 +126,9 @@ describe('ADR-0008 · t() and countryName', () => {
     expect(countryName('en', 'AE')).toBe('UAE');
     expect(countryName('zh', 'AE')).toBe('阿联酋');
     expect(countryName('ar', 'SA')).toBe('السعودية');
+    // The positioning rewrite: every country is named, not only the export trade's ten.
+    expect(countryName('en', 'FR')).toBe('France');
+    expect(countryName('zh', 'FR')).toBe('法国');
     expect(countryName('en', 'ZZ')).toBeNull();
     expect(countryName('en', null)).toBeNull();
   });

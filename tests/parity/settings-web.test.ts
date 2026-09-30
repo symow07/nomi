@@ -41,8 +41,9 @@ describe('M11.1 · profile validation (pure)', () => {
   });
 
   it('languages filtered to the supported set; description capped', () => {
-    const r = validateProfile({ ...baseInput, languagesServed: ['en', 'xx', 'ar', 'fr'] });
-    expect(r.ok && r.value.languagesServed).toEqual(['en', 'ar']);
+    // 0093 — the nine languages served; anything else is dropped.
+    const r = validateProfile({ ...baseInput, languagesServed: ['en', 'xx', 'ar', 'fr', 'klingon'] });
+    expect(r.ok && r.value.languagesServed).toEqual(['en', 'ar', 'fr']);
     expect(validateProfile({ ...baseInput, description: 'x'.repeat(1001) }).ok).toBe(false);
   });
 });
@@ -142,8 +143,9 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
   });
 
   it('the phone error states the shape it wants', () => {
+    // The positioning rewrite: the shape, without a Yiwu number as the example.
     expect(withoutIsolates(renderProfile(bare, 'en', null, typed, { contactPhone: 'phoneShape' })))
-      .toContain('+8657985001234');
+      .toContain('Start with + and the country code.');
     expect(withoutIsolates(renderProfile(bare, 'zh', null, typed, { contactPhone: 'phoneShape' })))
       .toContain('要以+和国家号开头');
     expect(withoutIsolates(renderProfile(bare, 'ar', null, typed, { contactPhone: 'phoneShape' })))
