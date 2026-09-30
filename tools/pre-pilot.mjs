@@ -634,8 +634,9 @@ const scenarios = [
         `select body from outbound_messages where conversation_id=$1 order by created_at desc limit 1`, [fresh])
         .then((r) => r ?? undefined), 'the status answer');
       ok(said.body.includes(order.order_reference), `his order was not named: ${said.body}`);
-      ok(/production/i.test(said.body), `the state was not told to him: ${said.body}`);
-      return { conv, note: `${order.order_reference} · in production` };
+      // The positioning rewrite: the state is "being prepared" (it said "in production").
+      ok(/being prepared/i.test(said.body), `the state was not told to him: ${said.body}`);
+      return { conv, note: `${order.order_reference} · being prepared` };
     },
   },
   {

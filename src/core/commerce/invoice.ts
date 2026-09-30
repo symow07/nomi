@@ -77,7 +77,7 @@ export function renderInvoiceEn(inv: InvoiceData): string {
   return [
     `PROFORMA INVOICE ${inv.piNumber}`,
     `Seller: ${inv.seller}`,
-    `Buyer: ${inv.buyerName}`,
+    `Customer: ${inv.buyerName}`,
     ``,
     `${inv.productName} (${inv.productSku})`,
     `Qty: ${inv.quantity.toLocaleString('en-US')} ${inv.unit}`,
@@ -91,7 +91,7 @@ export function renderInvoiceEn(inv: InvoiceData): string {
       `Less sample already paid: -${money(inv.sampleCredit)}`,
       `Amount due: ${money({ amount: inv.total.amount - inv.sampleCredit.amount, currency: inv.total.currency })}`,
     ] : []),
-    inv.leadTimeDays !== null ? `Lead time: ${inv.leadTimeDays} days` : null,
+    inv.leadTimeDays !== null ? `Ready in: ${inv.leadTimeDays} days` : null,
     `Payment: ${inv.paymentTermsEn}`,
   ].filter((l): l is string => l !== null).join('\n');
 }
