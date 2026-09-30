@@ -423,8 +423,12 @@ d('Stop · GROUPING — Stop pressed while his lines wait to be grouped (require
              (select processed_in from message_fragments where id = ${frag.id}) as processed
         from turns t where t.message_id = ${frag.id}`.execute(tx).then((x) => x.rows[0]));
     expect(turn).toMatchObject({ kind: 'held', reason: 'assistant_stopped', analysis: null, path: 'silent', calls: 0, processed: frag.id });
-    expect(analyzer.texts).toEqual([]);   // no model was asked
-    expect(sim.sendCount()).toBe(0);      // nothing was sent
+    // This production's worker also drains jobs other files left in the shared
+    // queue — other tenants' messages, answered under their own conditions (found
+    // 2026-10-01: 'price for 500 totes?' and 'hello' reached this analyzer). So the
+    // claim is about HIS line and HIS number: no model read it, nothing went to him.
+    expect(analyzer.texts.filter((t) => t.includes('do you make tote bags'))).toEqual([]);
+    expect(sim.requests.filter((x) => x.body.includes(C))).toEqual([]);
   });
 });
 

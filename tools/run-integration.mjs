@@ -22,6 +22,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { toolClient } from './lib/db.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -61,6 +62,40 @@ if (process.env['MIGRATE_DATABASE_URL'] && !process.argv.includes('--no-prune'))
 }
 
 /**
+ * THE SUITE LEAVES THE SCHEMA AS THE MIGRATIONS MADE IT (found 2026-09-30).
+ *
+ * THE BUG THIS EXISTS FOR. money-currency.test.ts drops a currency check to
+ * force a row the code cannot read, and put back a check of its own — USD
+ * only — after 0092 had widened it. Every later file met a database that
+ * refused dirhams, and the failures they showed looked like the currency
+ * work's. Where rows in other currencies already existed, the re-add failed
+ * instead and the check was simply gone: the files after it passed against a
+ * database with no check at all. Either way a test changed what every other
+ * test ran against, and nothing said so.
+ *
+ * So every constraint in the schemas the app uses is read before the suite and
+ * again after it; a difference fails the run and names it. A test may change
+ * the schema only if it puts it back exactly.
+ */
+const SCHEMA_SQL = `
+  select n.nspname || '.' || c.conrelid::regclass::text || ' ' || c.conname || ' ' || pg_get_constraintdef(c.oid) as line
+    from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+   where n.nspname in ('public', 'shadow') and c.conrelid <> 0
+   order by 1`;
+async function constraints() {
+  const url = process.env['MIGRATE_DATABASE_URL'];
+  if (!url) return null;
+  const client = toolClient(url, { replyTimeoutMs: 60_000 });
+  try {
+    await client.connect();
+    return (await client.query(SCHEMA_SQL)).rows.map((r) => r.line);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+const schemaBefore = await constraints();
+
+/**
  * A HOOK OUTLASTS A GRACEFUL STOP. Most files end with `await prod.close()`,
  * and close stops pg-boss gracefully: it waits — up to pg-boss's own 30 s — for
  * a job already running to finish (a buyer's turn, the minute's sweep). The
@@ -79,6 +114,19 @@ const run = spawnSync(
    '--reporter=default', ...process.argv.slice(2).filter((a) => a !== '--no-prune')],
   { stdio: 'inherit', encoding: 'utf8' },
 );
+
+// Read right after the run, whatever it did: a changed schema is most worth
+// seeing on the run whose failures it caused.
+const schemaAfter = schemaBefore === null ? null : await constraints();
+const schemaDrift = schemaBefore !== null && schemaAfter !== null
+  ? { gone: schemaBefore.filter((l) => !schemaAfter.includes(l)), added: schemaAfter.filter((l) => !schemaBefore.includes(l)) }
+  : { gone: [], added: [] };
+if (schemaDrift.gone.length > 0 || schemaDrift.added.length > 0) {
+  console.error('\n  ✗ integration: the suite left the schema different from what it found');
+  for (const l of schemaDrift.gone) console.error(`      before: ${l}`);
+  for (const l of schemaDrift.added) console.error(`      after:  ${l}`);
+  console.error('    A test changed a constraint and did not put it back exactly; every file after it ran against that.');
+}
 
 /**
  * THE REPORT SURVIVES A FAILURE. It is deleted on SUCCESS only.
@@ -113,6 +161,11 @@ const total = report.numTotalTests ?? 0;
 const passed = report.numPassedTests ?? 0;
 const failed = report.numFailedTests ?? 0;
 const skipped = (report.numPendingTests ?? 0) + (report.numTodoTests ?? 0);
+
+if (schemaDrift.gone.length > 0 || schemaDrift.added.length > 0) {
+  keep('the schema changed during the run');
+  process.exit(1);
+}
 
 if (failed > 0 || run.status !== 0) {
   console.error(`\n  ✗ integration: ${failed} failed of ${total}`);
