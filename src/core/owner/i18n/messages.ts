@@ -1331,6 +1331,12 @@ const EN = {
   'import.floors.back': 'Back to the list',
   'import.flash.floorsSet': 'Lowest prices set for {n} products: they can be offered now.',
   'import.flash.dropped': 'The list was set aside. Nothing from it was added.',
+  // K6 — ask about three of these, in Practice. Drafts for the native readers.
+  'import.ask.intro': 'Check what {name} now knows: ask about three of these as a customer would, in Practice. Nothing reaches anyone.',
+  'import.ask.door': 'Ask {name} about three of these',
+  'practice.ask.title': 'Questions about what you just added',
+  'practice.ask.price': 'How much is the {product}?',
+  'practice.ask.have': 'Do you have {product}?',
   // K5 — "prices go to me" (0094). Drafts for the native readers.
   'product.pricesToMe.title': 'No list? Prices can go to you',
   'product.pricesToMe.intro': 'If you have no price list, or you give prices only in private messages, {name} can greet customers and answer questions about what you do, and hand every price question to you. No price is ever said.',
@@ -4013,6 +4019,12 @@ const ZH: Record<MessageKey, string> = {
   'import.floors.back': '回到清单',
   'import.flash.floorsSet': '{n} 个产品已有最低价，现在可以给客户价格了。',
   'import.flash.dropped': '这份清单已经放下，里面的产品都没有加入。',
+  // K6 — ask about three of these, in Practice. Drafts for the native readers.
+  'import.ask.intro': '看看{name}现在知道了什么：在练习里像客户一样问问其中三个。不会发给任何人。',
+  'import.ask.door': '问{name}其中三个',
+  'practice.ask.title': '关于你刚加的产品的问题',
+  'practice.ask.price': '{product}多少钱？',
+  'practice.ask.have': '你们有{product}吗？',
   // K5 — "prices go to me" (0094). Drafts for the native readers.
   'product.pricesToMe.title': '没有价目表？价格可以交给你',
   'product.pricesToMe.intro': '如果你没有价目表，或者只在私信里报价，{name}可以接待客户、回答关于你生意的问题，并把每个问价都交给你，不说出任何价格。',
@@ -6649,6 +6661,12 @@ const AR: Record<MessageKey, string> = {
   'import.floors.back': 'العودة إلى القائمة',
   'import.flash.floorsSet': 'حُدّد أدنى سعر لعدد {n} من المنتجات، ويمكن عرضها الآن.',
   'import.flash.dropped': 'وُضعت القائمة جانبًا، ولم يُضف منها شيء.',
+  // K6 — ask about three of these, in Practice. Drafts for the native readers.
+  'import.ask.intro': 'للتحقق من معرفة {name} الآن: أسئلة عن ثلاثة منها بصيغة أسئلة العملاء، في التدريب. لا يصل شيء إلى أحد.',
+  'import.ask.door': 'أسئلة لـ{name} عن ثلاثة منها',
+  'practice.ask.title': 'أسئلة عمّا أُضيف للتو',
+  'practice.ask.price': 'كم سعر {product}؟',
+  'practice.ask.have': 'هل يتوفر {product}؟',
   // K5 — "prices go to me" (0094). Drafts for the native readers.
   'product.pricesToMe.title': 'لا توجد قائمة؟ يمكن أن تصل الأسعار إليك',
   'product.pricesToMe.intro': 'إن لم تكن هناك قائمة أسعار، أو كانت الأسعار تُعطى في الرسائل الخاصة فقط، فيمكن لـ{name} الترحيب بالعملاء والإجابة عن الأسئلة حول النشاط، مع تحويل كل سؤال عن السعر إليك. ولا يُذكر أي سعر أبدًا.',
