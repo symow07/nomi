@@ -229,7 +229,7 @@ describe('M29 · questions, not a form', () => {
 // ── the importer stopped inventing ───────────────────────────────────────────
 
 describe('M29 · the importer no longer writes a rule the owner did not give', () => {
-  it('confirmImport touches pricing_policy nowhere', async () => {
+  it('the import writes a price rule only as the owner\'s own answer, through the one save', async () => {
     const src = await readFile(new URL('../../src/api/web/products.ts', import.meta.url), 'utf8');
     const fn = src.slice(src.indexOf('export async function confirmImport'),
                          src.indexOf('export const importFlash'));
@@ -241,7 +241,11 @@ describe('M29 · the importer no longer writes a rule the owner did not give', (
     // everything already covers it — read from her row, never a literal true,
     // and never a rule the import wrote (the assertion above still stands).
     expect(fn).toContain('is_active');
-    expect(fn).toMatch(/price_usd_per_unit, currency, is_active\)[\s\S]*\$\{coveredByGeneral\(p\.price\)\}\)/);
+    expect(fn).toMatch(/price_usd_per_unit, currency, is_active,[\s\S]*\$\{coveredByGeneral\(p\.price\)\},/);
+    // K2 — the one rule an import may write is the floor she ticked on the
+    // floors page, from the discount she gave, through the one audited save.
+    expect(fn.match(/savePriceRulesTx\(/g)?.length).toBe(1);
+    expect(fn).toMatch(/const floor = floors\?\.byRow\.get\(row\.key\);[\s\S]{0,120}if \(floors && floor !== undefined/);
     expect(fn).not.toMatch(/is_active\)[\s\S]{0,220},\s*true\)/);
     expect(fn).toMatch(/from pricing_policy[\s\S]{0,120}product_id is null/);
     expect(fn).toMatch(/price\.amount >= Number\(general\.floor\)/);

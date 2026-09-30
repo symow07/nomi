@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { reviewPage } from './reviewPage.js';
+import { validateExtracted, parsePriceLines } from '../../src/core/onboard/catalogImport.js';
 import { usd } from '../../src/core/types/money.js';
 import {
-  renderProductList, renderProductDetail, renderAddForm, renderReview, reviewImport,
+  renderProductList, renderProductDetail, renderAddForm,
   type ProductListItem, type ProductDetail,
 } from '../../src/api/web/products.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -86,24 +88,24 @@ describe('M9.5 · product detail (localized)', () => {
 
 describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
   it('review reuses the M6 parser (product names are data, any UI locale)', () => {
-    const v = reviewImport('帆布袋 1.05美元 500个起\n保温杯 $2.60 MOQ 1000\n随便聊两句', 'USD');
+    const v = validateExtracted(parsePriceLines('帆布袋 1.05美元 500个起\n保温杯 $2.60 MOQ 1000\n随便聊两句', 'USD'));
     expect(v.accepted.length).toBeGreaterThanOrEqual(2);
     expect(v.accepted[0]!.name).toContain('帆布袋');
     expect(v.accepted[0]!.price).toEqual(usd(1.05));
   });
 
-  it('a price-less line is "Needs a price" in the review, never auto-priced', () => {
-    const v = reviewImport('新款化妆包', 'USD');
-    const en = renderReview(v, '新款化妆包', 'en');
-    expect(en).toContain('Needs a price'); expect(en).toContain('Price to add');
-    expect(en).toContain('action="/app/products/add/confirm"'); expect(en).toContain('name="text"');
-    expect(renderReview(v, '新款化妆包', 'zh')).toContain('需要价格');
+  it('a price-less line is said to have no price yet in the review, never auto-priced', () => {
+    const en = reviewPage('新款化妆包', 'en');
+    expect(en).toContain(t('en', 'import.row.noPrice'));
+    expect(en).toContain('name="price:l1" value=""');
+    expect(en).toContain('action="/app/products/import/');
+    expect(reviewPage('新款化妆包', 'zh')).toContain(t('zh', 'import.row.noPrice'));
   });
 
   it('rejected reasons localize from the reason code', () => {
-    const v = reviewImport('x\n帆布袋 $1\n帆布袋 $1', 'USD'); // too-short name + duplicate
-    expect(renderReview(v, 'x', 'en')).toMatch(/name unclear|duplicate/);
-    expect(renderReview(v, 'x', 'zh')).toMatch(/名字没认出来|重复了/);
+    const text = 'x\n帆布袋 $1\n帆布袋 $1'; // too-short name + duplicate
+    expect(reviewPage(text, 'en')).toMatch(/name unclear|duplicate/);
+    expect(reviewPage(text, 'zh')).toMatch(/名字没认出来|重复了/);
   });
 
   it('add form promises nothing is enabled before confirmation — per locale', () => {

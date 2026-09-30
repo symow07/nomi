@@ -66,6 +66,9 @@ export const PRACTICE_SKIP = [
   'usage_ledger', 'tenant_budgets', 'subscriptions', 'app_errors',
   // What the WORKSPACE has seen in Practice (0091): written on the workspace, never on a copy.
   'practice_checks', 'practice_totals',
+  // K1 (0094) — the owner's lists being checked, and their photos: how the
+  // catalogue was taught, not what Practice answers from (it copies the products).
+  'catalog_imports', 'catalog_import_photos',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

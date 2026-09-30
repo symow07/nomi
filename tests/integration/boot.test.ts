@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { RUN_NS, RUN_BIZ, nsId, runPhone, seedRunTenant, flashSaid} from './tenant.js';
+import { pasteAndAdd } from './importReview.js';
 import { sql } from 'kysely';
 import { createHmac } from 'node:crypto';
 import { offlineModels } from '../pipeline/fakes.js';
@@ -580,9 +581,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     // Teach one priced product and one without a price.
     const text = '独家测试杯 $5.00 MOQ 500\n神秘无价样品';
-    const conf = await prod.app.inject({ method: 'POST', url: '/app/products/add/confirm',
-      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-      payload: `text=${encodeURIComponent(text)}` });
+    // K1 — through the kept review, added as it stands.
+    const { res: conf } = await pasteAndAdd(prod.app, cookie, text);
     expect(conf.statusCode).toBe(302);
     expect(flashSaid(conf, WEB_SECRET)).not.toBe('');
 

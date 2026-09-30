@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { pasteAndAdd } from './importReview.js';
 import { seedRunTenant } from './tenant.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 
@@ -88,7 +89,8 @@ d('0081 · a product may have no minimum (requires DATABASE_URL)', () => {
 
   it('an imported line that states no minimum is written with none — a stated one as stated', async () => {
     const text = ['Lip balm $6.50', 'Gift box $24 MOQ 10'].join('\n');
-    const r = await post('/app/products/add/confirm', { text });
+    // K1 — through the kept review, added as it stands.
+    const { res: r } = await pasteAndAdd(app, cookie, text);
     expect(r.statusCode).toBe(302);
     expect(await moqOf('Lip balm')).toBeNull();
     expect(await moqOf('Gift box')).toBe(10);

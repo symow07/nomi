@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parsePriceLines, validateExtracted, validatePage } from '../../src/core/onboard/catalogImport.js';
-import { renderReview, renderAddForm } from '../../src/api/web/products.js';
+import { renderAddForm } from '../../src/api/web/products.js';
+import { reviewPage } from './reviewPage.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { esc } from '../../src/api/web/layout.js';
@@ -85,9 +86,8 @@ describe('T4 · the review names each refusal, with the line itself', () => {
   });
   it('the review shows the line as written, and why, in every language', () => {
     const text = 'Serum €34.90';
-    const v = validateExtracted(parsePriceLines(text, 'USD'));
     for (const locale of LOCALES) {
-      const html = renderReview(v, text, locale as Locale);
+      const html = reviewPage(text, locale as Locale);
       expect(html, locale).toContain('Serum €34.90');
       expect(html, locale).toContain(esc(t(locale as Locale, 'product.reject.other_currency' as MessageKey, { currency: 'USD', sign: '$' })));
     }

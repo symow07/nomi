@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #162 | **The schema guard; the currency work re-verified**: `tools/run-integration.mjs` reads every constraint in `public` and `shadow` before and after the suite and fails the run naming each line a test changed and did not put back (the #153 defect, made loud; negative control: the pre-fix test fails the run and names the vanished check). #152 and #153 re-run on a cluster built from nothing — ordered runs, the pre-fix negative control, then the whole suite, 991 of 991, none skipped (below, "Found on the way"). #144's grouping test asserts about its own customer. CI: both jobs reported pass (integration 12 m 39 s). Merged 21:49 UTC as `7f31bed`, deployed, `/health` ok (no migration) | 93 |
 | 2026-09-30 | #161 | **Positioning rewrite, 4 of 4, part e — the documents**: the Help drafts (`docs/kb/`, not linked from the app) describe the product as it is — the five setup steps, the approval card, a list pasted or photographed, the workspace's own time zone, the disclosure — with no pronoun for the assistant and no buyers; the unserved Chinese legal drafts `docs/legal/{PRIVACY,TERMS}-zh.md` are retired (they contradicted the served pages: a trial and payment methods that do not exist; git history keeps them, a copy is in the session scratchpad); PRODUCT.md and README.md say who Nomi is for and give the assistant no pronoun; every zh/ar line of TZ, CUR and the rewrite (370 zh, 337 ar) appended to `docs/NATIVE-REVIEW-UI.md` for the native readers (not a gate) (no migration) | 93 |
 | 2026-09-30 | #160 | **Positioning rewrite, 4 of 4, part d — the addresses**: My business lives at `/app/business` (every page, form, link, tool and test moved; `/app/factory…` answers for good — 301 for a page, 308 for a form so an open tab's post keeps its body; a path that only starts with the same letters is not redirected); the export downloads as `customers.csv` and `prices-given.csv` (the subjects keep their names; the old file names still download); the calendar asks `?who=` (an old `?buyer=` link still works); the owner's label zh 负责人, "Example" for a seeded fact, "What you sell". Merged 18:53 UTC, deployed; in production `/app/factory` answers 301 → `/app/business` (no migration) | 93 |
 | 2026-09-30 | #159 | **Positioning rewrite, 4 of 4, part c — sign-up and the profile** (0093): the kinds of business lead with who Nomi is for — Brand (clothing, beauty, food…), Online shop, Retail shop, Agency or studio, Services company, Startup — then makers, exporters and wholesalers; 'online_shop' and 'startup' are new (Practice counts an online shop as a shop); the languages a business serves are the nine the safety checks read, each in its own name (informational, nothing gates on it); every country is named in the reader's language — the ten short names stay, the rest come from Intl (a customer from France had none); the sign-up's example is skincare and clothing, the working hours "on working days", the phone error without a Yiwu number. Merged 18:37 UTC, deployed, `/health` ok, schema 93 (backup `nomi-backup-20260930T030201Z`) | 93 |
@@ -62,6 +63,11 @@ under "Decided" below.
 **Next (the owner's instruction of 2026-10-01): self-serve onboarding,
 complete and final** — the onboarding plan (artifact `CvtJ8w4TsXWT8HnzrdXTGn`;
 stages 0–9, scopes in "Build order", sizes in "The one-month build order").
+Parked, not worked on (the owner, 2026-10-01): the golden scenarios about
+certification and delivery-term claims, the phone calendar week view, the
+forbidden-words page's built-in list, README's Status section, and the
+owner-facing review lines in `docs/NATIVE-REVIEW-UI.md`. Never set a
+native-review gate to true.
 The target: a stranger signs up, connects a channel, teaches Nomi their
 products and goes live with no operator step, guided in-app, with video
 tutorials. Meta's paths are built as if verification and App Review had
@@ -71,7 +77,15 @@ trial's clock from the first channel connected. Each open decision is taken
 as the plan recommends, unless the instruction says otherwise. The order:
 1. **Learning the business** — K3 + K5 (one migration), K1 the import
    review, K7 challenge rows, K2 the discount question, K6, K8 store import,
-   RT **without** price-before-quantity (the owner's "do not touch"), HS.
+   RT **in full**, HS. **Corrected by the owner the same day:** "do not
+   touch price-after-quantity" was scoped to the positioning pass only. RT
+   makes three things one piece of work, conditional on the kind of
+   business: retail and brand businesses (retail, brand, online shop — the
+   plan's retail kinds, the same set Practice already uses) quote a unit
+   price without asking the quantity first, count in whatever unit fits the
+   goods, and import without a minimum; factories, exporters and wholesalers
+   keep quantity first, "pcs" and minimums. Retail and brand businesses must
+   be able to reach "sells" — R2 is built so they can, and a test holds it.
 2. **Channels and alerts** — G5 e-mail alerts, CH3 echoes, G5b phone alert
    and expired drafts, CH4 "Nomi and Meta".
 3. **The cohort gate** — G1, G2, G3, G4, G6, G7, G9, G10, G8.

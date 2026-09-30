@@ -99,6 +99,10 @@ export const quantityOf = (locale: Locale, n: number, unit: string): string => i
 /** A figure already written (a range, "5,000+") and its unit, as one. */
 export const figureOf = (locale: Locale, figure: string, unit: string): string => isolate(locale, f.withUnit(locale, figure, unit));
 
+/** K2 — a percentage: "10%", "12.5%" — the same figure in every locale, isolated. */
+export const percent = (locale: Locale, n: number): string =>
+  isolate(locale, `${new Intl.NumberFormat(rtl(locale) ? AR : locale, { maximumFractionDigits: 2 }).format(n)}%`);
+
 /** A count on its own: "12". */
 export const count = (locale: Locale, n: number): string =>
   isolate(locale, new Intl.NumberFormat(rtl(locale) ? AR : locale).format(n));

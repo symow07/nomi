@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { parsePriceLines, validatePage } from '../../src/core/onboard/catalogImport.js';
-import { importFromPhoto, renderReview, reviewImport, renderPhotoRefusal, renderAddForm } from '../../src/api/web/products.js';
+import { renderPhotoRefusal, renderAddForm } from '../../src/api/web/products.js';
+import { readPhotos } from '../../src/api/web/importFlow.js';
+import { validateExtracted } from '../../src/core/onboard/catalogImport.js';
+import { liveRows } from '../../src/core/onboard/importReview.js';
+import { reviewPage } from './reviewPage.js';
 import type { PageTranscriber } from '../../src/llm/ports.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
@@ -31,64 +35,62 @@ const reader = (over: Partial<Awaited<ReturnType<PageTranscriber['transcribe']>>
     usage: { inputTokens: 1, outputTokens: 1 }, ...over,
   }),
 });
-const shot = { imageBase64: 'aGk=', mediaType: 'image/jpeg' as const, currency: 'USD' as const };
+const shot = [{ bytes: Buffer.from('hi'), mediaType: 'image/jpeg' as const }];
+const read = (r: PageTranscriber) => readPhotos({ transcriber: r }, shot, 'USD', 'pcs');
 
 describe('M37 · the model never produces a price the page does not contain', () => {
-  it('every accepted price appears verbatim in the transcribed text', async () => {
-    const out = await importFromPhoto({ transcriber: reader() }, shot);
-    expect(out.kind).toBe('read');
-    if (out.kind !== 'read') return;
-    for (const p of out.review.accepted) {
-      expect(p.price).not.toBeNull();
-      expect(out.text, `${p.name} priced at something no line says`)
-        .toContain(String(p.price!.amount));
+  it('every row\'s price appears verbatim in the transcribed text', async () => {
+    const out = await read(reader());
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    for (const r of liveRows(out.rows)) {
+      expect(r.price).not.toBeNull();
+      expect(out.transcripts[0], `${r.name} priced at something no line says`).toContain(String(r.price));
     }
   });
 
-  it('the products come from the PARSER, not from the reader', async () => {
-    // The deterministic parser over the transcribed text gives the same result,
-    // so there is no second extraction path where a model could add a row.
-    const out = await importFromPhoto({ transcriber: reader() }, shot);
-    if (out.kind !== 'read') throw new Error('unreachable');
-    expect(out.review).toEqual(validatePage(parsePriceLines(PAGE, 'USD')));
+  it('the rows come from the PARSER, not from the reader', async () => {
+    // The deterministic parser over the transcribed text gives the same rows,
+    // so there is no second extraction path where a model could add one.
+    const out = await read(reader());
+    if (!out.ok) throw new Error('unreachable');
+    const byParser = validatePage(parsePriceLines(PAGE, 'USD')).accepted;
+    expect(liveRows(out.rows).map((r) => [r.name, r.price, r.moq, r.line]))
+      .toEqual(byParser.map((p) => [p.name, p.price!.amount, p.moq, p.sourceLine]));
   });
 
-  it('WHAT CONFIRM WRITES IS WHAT THE REVIEW SHOWED', async () => {
-    // The staged text round-trips through a hidden field and confirmImport
-    // re-parses it with the PASTE rule. If staging carried the whole page, the
-    // page rule and the paste rule would disagree and confirm would write rows
-    // she never saw — two paths deriving one list by different rules, which is
-    // this repo's recurring bug.
-    const out = await importFromPhoto({ transcriber: reader({ text: `TIANHE TEXTILE CO., LTD\n${PAGE}\nThank you for your order` }) }, shot);
-    if (out.kind !== 'read') throw new Error('unreachable');
-    expect(reviewImport(out.text, 'USD').accepted).toEqual(out.review.accepted);
-    expect(out.text).not.toContain('Thank you for your order');
+  it('WHAT IS ADDED IS WHAT THE REVIEW SHOWED: the rows are kept, never read again from text on the way', async () => {
+    // K1 — the confirm writes the stored rows as they stand; it reads nothing
+    // again. The letterhead and the footer are rows the review shows as not
+    // added, and the writer's own list (`liveRows`) leaves them out.
+    const out = await read(reader({ text: `TIANHE TEXTILE CO., LTD\n${PAGE}\nThank you for your order` }));
+    if (!out.ok) throw new Error('unreachable');
+    expect(out.rows).toHaveLength(4);
+    expect(liveRows(out.rows).map((r) => r.name)).not.toContain('Thank you for your order');
+    expect(out.rows.filter((r) => r.refused).map((r) => r.line)).toEqual(['TIANHE TEXTILE CO., LTD', 'Thank you for your order']);
   });
 
-  it('a line with no price on it is SHOWN as skipped, never silently dropped', async () => {
-    const out = await importFromPhoto({ transcriber: reader({ text: `TIANHE TEXTILE CO., LTD\n${PAGE}` }) }, shot);
-    if (out.kind !== 'read') throw new Error('unreachable');
-    const skipped = out.review.rejected.map((r) => r.product.name);
-    expect(skipped).toContain('TIANHE TEXTILE CO., LTD');
-    const html = renderReview(out.review, out.text, 'en');
+  it('a line with no price on it is SHOWN as not added, never silently dropped', async () => {
+    const text = `TIANHE TEXTILE CO., LTD\n${PAGE}`;
+    const html = reviewPage(text, 'en', { kind: 'photo' });
+    expect(html).toContain('TIANHE TEXTILE CO., LTD');
     expect(html).toContain(t('en', 'product.reject.no_price_on_page'));
   });
 
   it('and the paste flow is UNCHANGED — a priceless line she typed is still hers', () => {
     // Two inputs, two rules, on purpose: a paste is what she chose to paste.
-    const pasted = reviewImport('Canvas tote bag', 'USD');
+    const pasted = validateExtracted(parsePriceLines('Canvas tote bag', 'USD'));
     expect(pasted.accepted.map((p) => p.name)).toEqual(['Canvas tote bag']);
     expect(validatePage(parsePriceLines('Canvas tote bag', 'USD')).accepted).toEqual([]);
   });
 
-  it('a reader that hallucinates a product still cannot price one — the line is shown', async () => {
-    // Suppose the page reader invents a whole line. It becomes a product, and
-    // that is exactly why the LINE travels with it to the review screen: the
-    // owner is checking a transcription against paper, not approving a list.
+  it('a reader that hallucinates a product still cannot price one unseen — the line is shown', async () => {
+    // Suppose the page reader invents a whole line. It becomes a row, and that
+    // is exactly why the LINE travels with it to the review: the owner checks a
+    // transcription against paper, not a list — and K7 has her type prices
+    // from the paper itself.
     const invented = 'Ghost lamp  X-999  $9.99  MOQ 100';
-    const out = await importFromPhoto({ transcriber: reader({ text: `${PAGE}\n${invented}` }) }, shot);
-    if (out.kind !== 'read') throw new Error('unreachable');
-    const html = renderReview(out.review, out.text, 'en');
+    const html = reviewPage(`${PAGE}\n${invented}`, 'en');
     expect(html).toContain('Ghost lamp  X-999  $9.99  MOQ 100');
     expect(html).toContain(t('en', 'product.review.fromLine'));
   });
@@ -101,7 +103,7 @@ describe('M37 · the source line, beside every product', () => {
   });
 
   it('the review renders it — for a PASTE too, not only a photo', () => {
-    const html = renderReview(reviewImport(PAGE, 'USD'), PAGE, 'en');
+    const html = reviewPage(PAGE, 'en');
     expect(html).toContain('class="rev-src');
     expect(html).toContain('Canvas tote bag  A-100');
     // isolated for RTL: an English price line inside an Arabic page must not
@@ -111,33 +113,28 @@ describe('M37 · the source line, beside every product', () => {
 
   it('and the label exists in all three locales', () => {
     for (const locale of LOCALES) {
-      const html = renderReview(reviewImport(PAGE, 'USD'), PAGE, locale);
-      expect(html, locale).toContain(t(locale, 'product.review.fromLine'));
+      expect(reviewPage(PAGE, locale), locale).toContain(t(locale, 'product.review.fromLine'));
     }
   });
 });
 
 describe('M37 · an unreadable page is refused WHOLE', () => {
   it('a page the reader could not read produces no products at all', async () => {
-    const out = await importFromPhoto({ transcriber: reader({ text: '', unreadable: true }) }, shot);
-    expect(out.kind).toBe('refused');
-    if (out.kind !== 'refused') return;
-    expect(out.reason).toBe('unreadable');
-    // No partial import exists as a value: the "read" branch is the only one
-    // carrying products, so there is no half-page to accidentally confirm.
-    expect('review' in out).toBe(false);
+    const out = await read(reader({ text: '', unreadable: true }));
+    expect(out).toEqual({ ok: false, reason: 'unreadable', photo: 1 });
+    // No partial import exists as a value: the "ok" branch is the only one
+    // carrying rows, so there is no half-page to accidentally confirm.
+    expect('rows' in out).toBe(false);
   });
 
   it('text with nothing product-shaped in it is refused rather than shown as empty', async () => {
-    const out = await importFromPhoto({ transcriber: reader({ text: 'INVOICE\nThank you for your order' }) }, shot);
-    expect(out.kind).toBe('refused');
-    if (out.kind === 'refused') expect(out.reason).toBe('no_lines');
+    const out = await read(reader({ text: 'INVOICE\nThank you for your order' }));
+    expect(out).toEqual({ ok: false, reason: 'no_lines' });
   });
 
   it('NOT CONFIGURED is a legitimate state, and says so — it does not pretend', async () => {
-    const out = await importFromPhoto({ transcriber: undefined }, shot);
-    expect(out.kind).toBe('refused');
-    if (out.kind === 'refused') expect(out.reason).toBe('not_configured');
+    const out = await readPhotos({ transcriber: undefined }, shot, 'USD', 'pcs');
+    expect(out).toEqual({ ok: false, reason: 'not_configured' });
   });
 
   it('every refusal names the next action, in every locale', () => {
@@ -207,6 +204,8 @@ describe('M37 · the owner can reach it', () => {
     // Unbounded parts and unbounded file size are the two defaults that matter.
     expect(app).toMatch(/limits: \{[\s\S]{0,400}fileSize: 8 \* 1024 \* 1024/);
     expect(app).toMatch(/limits: \{[\s\S]{0,400}files: 1/);
+    // K1 — the photo route raises files and parts together, for ten photos and the question.
+    expect(app).toContain('req.parts({ limits: { files: MAX_PHOTOS, parts: MAX_PHOTOS + 4 } })');
     expect(app).toMatch(/limits: \{[\s\S]{0,400}parts: 6/);
     expect(app).toMatch(/limits: \{[\s\S]{0,400}fields: 4/);
   });

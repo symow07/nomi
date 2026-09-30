@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID, createHmac } from 'node:crypto';
 import pg from 'pg';
 import { flashSaid } from './tenant.js';
+import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
@@ -103,10 +104,12 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   let pid = '';
   it('A PASTED LIST IS READ IN DIRHAMS: its own marks are prices, a dollar line is refused', async () => {
     const text = 'Oud oil AED 120\nMusk oil 45 درهم\nAmber $30';
-    const review = await form('/app/products/add/review', { text }, cookie);
+    // K1 — the list becomes a kept import; its review names the refused line.
+    const at = importAt(await form('/app/products/add/review', { text }, cookie));
+    const review = await get(at);
     expect(review.statusCode).toBe(200);
     expect(review.body).toContain(t('en', 'product.reject.other_currency', { currency: 'AED', sign: 'AED' }));
-    const confirm = await form('/app/products/add/confirm', { text }, cookie);
+    const { res: confirm } = await submitReview(prod.app, cookie, at, { tickAll: true });
     expect(confirm.statusCode).toBe(302);
     const rows = (await admin.query(
       `select p.name, p.currency, p.price_usd_per_unit::float as price, t.currency as tier_currency

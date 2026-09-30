@@ -141,6 +141,25 @@ function readingFor(currency: Currency): Reading {
 const NUMBER_CELL = /^\d[\d.,]*$/;
 
 /**
+ * K1 — how many prices in the workspace's own currency a line carries. The
+ * parser takes the first; a second is a struck price, a "was/now", or one price
+ * per size ("Hoodie S-M $40 / L-XL $45"), and the review flags it. A figure
+ * written with a sign on both sides ("$12 USD") is one price, not two.
+ */
+export function ownPriceCount(line: string, currency: Currency): number {
+  const r = readingFor(currency);
+  const starts = new Set<number>();
+  for (const re of [r.beforeAll, r.afterAll]) {
+    re.lastIndex = 0;
+    for (const m of line.matchAll(re)) {
+      const at = m.index + m[0].search(/\d/);
+      starts.add(at);
+    }
+  }
+  return starts.size;
+}
+
+/**
  * An article number at the START of the line — where suppliers put it. Two
  * shapes, both requiring letters AND digits so a plain word or a bare quantity
  * can never be mistaken for one:
