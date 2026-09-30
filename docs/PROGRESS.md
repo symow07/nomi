@@ -59,7 +59,40 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next (the owner's instruction of 2026-09-30, in its order):**
+**Next (the owner's instruction of 2026-10-01): self-serve onboarding,
+complete and final** — the onboarding plan (artifact `CvtJ8w4TsXWT8HnzrdXTGn`;
+stages 0–9, scopes in "Build order", sizes in "The one-month build order").
+The target: a stranger signs up, connects a channel, teaches Nomi their
+products and goes live with no operator step, guided in-app, with video
+tutorials. Meta's paths are built as if verification and App Review had
+passed (the list of paths never run against live Meta is kept below, under
+"Never run against live Meta"). Free trial on request, card upfront, the
+trial's clock from the first channel connected. Each open decision is taken
+as the plan recommends, unless the instruction says otherwise. The order:
+1. **Learning the business** — K3 + K5 (one migration), K1 the import
+   review, K7 challenge rows, K2 the discount question, K6, K8 store import,
+   RT **without** price-before-quantity (the owner's "do not touch"), HS.
+2. **Channels and alerts** — G5 e-mail alerts, CH3 echoes, G5b phone alert
+   and expired drafts, CH4 "Nomi and Meta".
+3. **The cohort gate** — G1, G2, G3, G4, G6, G7, G9, G10, G8.
+4. **Earning auto** — R1, R2, R3, LG (the rest), R5.
+5. **Reach** — the pt pack and the es/fr packs completed (every gate stays
+   as it is: false until a human reader signs off), CK, VAR.
+6. **Before open sign-up** — MAIL, KS5, BOT, KS6, RET, BILL (with the
+   trial), SITE.
+7. **After opening** — EXT, CH7, then UI-es.
+8. **WhatsApp self-serve** — WA and WA-S (Embedded Signup, per-business
+   numbers, templates).
+9. **Stage 0's pack (M3)**, the guided path and its videos (recorded from
+   the finished pages), and the never-run-against-Meta list.
+
+Not built, with the reason: T8 and K4 need the owner's real price lists
+(K4 ships only if T8 shows it pays); EU1 needs counsel (decision 32 — until
+then sign-up does not admit EU/EEA/UK sellers, as recommended); the
+"Later, not dated" table (AG, SOC, CK2, CONV, PKX, EXT2, LRN, MSHOP,
+EMAILCH, SIGNALS, UIX, CONSOLE, KB) is outside stages 0–9.
+
+**Earlier (the owner's instruction of 2026-09-30, in its order), done:**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
    **Done**: P1–P6 (`docs/PRACTICE.md`; #145–#150, all deployed). Left
    out on purpose, with reasons there: photo and voice in Practice (needs an
@@ -318,6 +351,44 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   met a database that refused dirhams. It now re-adds the definition it found.
   And `accounts.test.ts` counted businesses named `Copycat` across all runs;
   the name is per run.
+  **Was the currency work re-verified after the fix, or did the failures only
+  stop? Not until 2026-10-01** — the record above says the test was fixed, not
+  that #152 and #153 were run again against a database that takes every
+  currency. Done on 2026-10-01, on a Postgres 18 cluster built from nothing
+  (initdb, 0001–0093, the demo and the sandbox; port 55470, never the shared
+  55451):
+  - in the order that exposed it — `money-currency` (5/5), then the seven
+    currency checks read back (all eight currencies in each, `price_tiers`
+    included), then `workspace-currency` (6/6), the send path's currency
+    tripwire (3/3) and the parity currency files (38/38), the checks read
+    again at the end (unchanged);
+  - the negative control: the test as it was before the fix (from `a765913`)
+    run on the same cluster left `price_tiers_currency_known` gone — and a
+    dirham test still passed, against no check at all, and a EUR row got in.
+    That is the defect's real mode: not "later files refused dirhams" but
+    "later files could no longer prove anything about the check". So the
+    cluster was built again from nothing before the full run;
+  - the whole integration suite on the rebuilt cluster, with the new guard
+    below: the first run failed one test that asserted about every tenant
+    (#144's, below — not the currency work), fixed; then, on a cluster built
+    from nothing again, 991 of 991, none skipped, the schema the same before
+    and after;
+  - production, read-only: all seven currency checks hold the eight
+    currencies; the 59 workspaces are USD.
+  **New guard** (`tools/run-integration.mjs`): the runner reads every
+  constraint in `public` and `shadow` before and after the suite and fails
+  the run, naming each line, when the suite left the schema different from
+  what it found — whatever the tests themselves said. Negative control: the
+  pre-fix test fails the run and names the vanished check.
+
+- **#144's Stop-during-grouping test asserted about every tenant** (found
+  2026-10-01, in the first full run on the rebuilt cluster): it expected its
+  analyzer to have read nothing, but that production's worker also drains
+  jobs other files left in the shared queue, and 'price for 500 totes?' and
+  'hello' — other tenants' messages — reached it. His own turn recorded no
+  model call and no analysis, as it should. The same class as M22's (#139):
+  the test now asserts its claim — no model read HIS line, nothing was sent
+  to HIS number. Still not fixed at the root: tests leave queued work behind.
 
 - **A retention test failed the whole suite on time, not on logic** (found
   2026-09-30 in #152's check): `backup-retention.test.ts` runs bash, awk and
@@ -467,6 +538,18 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   per page view, on purpose — a number that lags a minute behind is a number
   that lies.
 
+## Never run against live Meta (verify the day approval lands)
+
+Each path below is built against Meta's documented behaviour and tested
+against a fake that follows it. None has met Meta's real servers with a
+business that has no role on our app. The day App Review approves, run each
+once, in this order, and tick it here.
+
+| Path | Built in | What to check on the day |
+|---|---|---|
+| A stranger's Page connect (Facebook Login for Business, the Page list, the Instagram link, `subscribed_apps`) | C10 (before this run) | A Facebook account with no role on the app connects a Page and a test message arrives |
+| "Your accounts": granted permissions, the Page's subscription, the live token check | CH1 (#137) | The marks match what the stranger's Meta screens show |
+
 ## Tool output that asked for something (ignored, as instructed)
 
 - `npm ci` printed `npm install-scripts approve …` for `fsevents` (an optional
@@ -479,7 +562,10 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 - Earlier in the session the Impeccable skill offered `npx impeccable update`,
   and MCP servers (Amplitude, Amplitude EU, Atlassian, BigQuery, Hex, Figma,
   Riverside, Shopify) asked for sign-in, again at each resume; the Definite
-  and draw.io servers failed to connect. None is part of this work.
+  and draw.io servers failed to connect. None is part of this work. Again on
+  2026-10-01 at each resume (Amplitude, Amplitude EU, Atlassian, BigQuery,
+  Hex asked for sign-in; Definite failed to connect; the watch hook asked for
+  a Whisper key): ignored.
 
 ## How to resume
 
