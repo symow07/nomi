@@ -270,7 +270,7 @@ const statusPill = (label: string, tone: Tone): string =>
  * English sentence or a price inside an Arabic line keeps its own order (the
  * sentence and the words ran together, and an ellipsis landed at the wrong end).
  */
-function milestoneHtml(locale: Locale, m: Milestone): string {
+function milestoneHtml(locale: Locale, m: Milestone, buyer: string | null): string {
   const name = assistantName(locale);
   const pcs = t(locale, 'product.unit.pcs');
   const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
@@ -278,7 +278,9 @@ function milestoneHtml(locale: Locale, m: Milestone): string {
   const said = (key: MessageKey, params: Record<string, string>, blank: string, part: string): string =>
     esc(t(locale, key, { ...params, [blank]: '\u0000' })).replace('\u0000', part);
   switch (m.kind) {
-    case 'buyer_text': return said('conv.tl.buyer_text', {}, 'text', iso(m.text ?? ''));
+    // The design pass (UI-PASS 5): the customer by name, never the lone role word.
+    case 'buyer_text': return esc(t(locale, 'conv.tl.buyer_text', { who: '\u0001', text: '\u0000' }))
+      .replace('\u0001', iso(buyer ?? t(locale, 'common.buyer'))).replace('\u0000', iso(m.text ?? ''));
     case 'buyer_image': return esc(t(locale, 'conv.tl.buyer_image'));
     case 'reply': return said('conv.tl.reply', { name }, 'text', iso(m.text ?? ''));
     case 'quote': return said('conv.tl.quote', { name }, 'detail',
@@ -435,7 +437,7 @@ export function renderCustomerFile(
   const timeline = `<div class="block"><h2>${esc(t(locale, 'conv.tl.title'))}</h2>
     ${f.timeline.length
       ? `<ul class="tl">${f.timeline.map((m) => `<li class="tl-${TL_CLASS[m.kind]}"><span class="ic">${TL_ICON[m.kind]}</span>
-          <div><div class="tx">${milestoneHtml(locale, m)}</div>${m.at ? `<div class="muted ts">${esc(show.when(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
+          <div><div class="tx">${milestoneHtml(locale, m, f.buyer)}</div>${m.at ? `<div class="muted ts">${esc(show.when(locale, m.at, now))}</div>` : ''}</div></li>`).join('')}</ul>
         ${/* CC-25 — this is the recent part; every word, paged, is the conversation. */ ''}${deeper(conversationUrl(f.conversationId), t(locale, 'conv.tl.whole'))}`
       : `<div class="empty muted">${esc(t(locale, 'conv.tl.empty'))}</div>`}</div>`;
 

@@ -1,19 +1,17 @@
 # Nomi — handoff for the next session
 
-**A roadmap run is in progress (from 2026-09-29): read `docs/PROGRESS.md`
-first.** It says what shipped, what is next, what waits on the owner, and how
-to resume — without asking the owner anything.
+**The roadmap run (2026-09-29 → 30) is complete: read `docs/PROGRESS.md`
+first.** It says what shipped, what waits on the owner, what was found on the
+way, and how to resume.
 
-Last updated **2026-09-29**, after #123 — **a product may have no minimum**
-(0081, §5 rule 24) with T4's honest price-list reading, and PRODUCT.md's
-description rewritten to the positioning. Before it, #122 — **an order waits
-for the owner's tap** (0080, rule 23). Before that, #121 — "told" is what REACHED the buyer
-(0079): a shop's opener asked again hands off only once a message carrying the
-disclosure was accepted by the provider, in draft and auto alike (§5 rules 3,
-19). The positioning is recorded in §0 — read it before writing any copy.
-Before it, #120 (shop openers), #119 ("wants a person" in zh/ar), #117 (the
-disclosure gate is open, rule 1), #115 (`tools/add-login.mjs`, 0078) and the
-"clear the queue" batch (#110–#113). Written so the next session needs nothing from the
+Last updated **2026-09-30**, after #141 — **the roadmap run's eight steps are
+done** (#122–#141): the live order defect, no-minimum products, Spanish and
+French, the design foundation, the calendar and its promised dates, the build
+items (T1, T3, T5, T7, Q1, CH1/CH2/CH5/CH7a, PWR, FAIR, CEIL, REKEY), and the
+design pass (Today by time, right-to-left values, names, Setup, People, the
+door, the live line, the review pass). What waits is the owner's: see
+`docs/PROGRESS.md` "Waiting on the owner". The positioning is recorded in §0 —
+read it before writing any copy. Written so the next session needs nothing from the
 one that wrote it.
 
 Nomi is a server-rendered Fastify + Postgres app: an AI sales employee
@@ -145,9 +143,9 @@ before suspecting code.
 `&&`. Commits end with the Co-Authored-By line; PR bodies with the Claude Code
 footer.
 
-## 4 · What is live (production, 2026-09-28)
+## 4 · What is live (production, 2026-09-30)
 
-- **Deployed:** the merge of #123 (`528203b`, 0081 — no minimum), 2026-09-29 07:41 UTC; production `schema_version` = **81**; backup before it `~/nomi-backups/nomi-backup-20260929T072729Z` (schema 80, drill 4/4). Before it, the merge of #122 (`9581518`, 0080 — an order waits for the owner's tap), 2026-09-29 07:03 UTC. Backup before it: `~/nomi-backups/nomi-backup-20260929T064304Z` (manual, schema 79, drill 4/4 — see `docs/PROGRESS.md` "Found on the way": no scheduled backup could pass its drill since 0078 until #122 fixed the drill). Before it, the merge of #121 (0079, the disclosure delivered). Before it
+- **Deployed (2026-09-30):** the merge of #140 (`94a6130`, merged 04:59 UTC), then #141 (see PROGRESS); production `schema_version` = **85** (0084 login recovery, 0085 send ceiling); `/health` ok over IPv4 (from this Mac use `curl -4`: its resolver invents an IPv6 address). The newest scheduled backup `nomi-backup-20260930T030201Z` (schema 85, drill passed) — the first since #122 fixed the drill. The history below is kept for orientation. Earlier: the merge of #123 (`528203b`, 0081 — no minimum), 2026-09-29 07:41 UTC; production `schema_version` = **81**; backup before it `~/nomi-backups/nomi-backup-20260929T072729Z` (schema 80, drill 4/4). Before it, the merge of #122 (`9581518`, 0080 — an order waits for the owner's tap), 2026-09-29 07:03 UTC. Backup before it: `~/nomi-backups/nomi-backup-20260929T064304Z` (manual, schema 79, drill 4/4 — see `docs/PROGRESS.md` "Found on the way": no scheduled backup could pass its drill since 0078 until #122 fixed the drill). Before it, the merge of #121 (0079, the disclosure delivered). Before it
   #120 (shop openers), #119, #118, #117 (the gate), #116, the merge of #115
   (`tools/add-login.mjs`, 0078), `079d776` (#113, the audit's last items), #112 (CC-26), #111 (A + the V1
   close-out), #110 (0077, "wants a person" in two layers). `/health` → `{"ok":true,"db":true,"worker":true,"provider":"active"}`;
@@ -157,8 +155,8 @@ footer.
   page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
   says so at boot; until the owner pastes a Healthchecks.io URL
   (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
-- **Schema:** 79. Last three: `0077 not_answered`, `0078 login_setups`,
-  `0079 disclosure_delivered`.
+- **Schema:** 85. Last three: `0083 promised_dates`, `0084 login_recovery`,
+  `0085 send_ceiling`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -187,6 +185,10 @@ Recent PRs, newest first:
 
 | # | What |
 |---|---|
+| 141 | **The review pass** — every page in three languages read; no raw catalogue key on any page (walk + typed Practice labels); History names the customer; the run's 278 zh/ar lines in `docs/NATIVE-REVIEW-UI.md` — see §5 rule 39 |
+| 140 | **Names, People, Setup, the door, the live line in the headers** — see §5 rule 39 |
+| 139 | **Right to left, by design** — `src/api/web/values.ts`, every value isolated on Arabic pages, the Arabic walk — see §5 rule 38 |
+| 138 | **Today by time** — who needs you now, the last 24 hours, coming up; plural rules — see §5 rule 37 |
 | 137 | **CH1 + CH2 — "Your accounts" read live on Channels, and the help page** — see §5 rule 36 |
 | 136 | **CEIL — 50 a day for a new workspace (0085), and an hourly Meta-errors alarm** for the operator — see §5 rule 35 |
 | 135 | **FAIR — the inbound queue shared fairly between workspaces**: a group per workspace, three workers, one at a time per workspace — see §5 rule 34 |
@@ -494,6 +496,7 @@ Recent PRs, newest first:
 39. **Names, People, Setup, the door and the live line** (the design pass, UI-PASS 5–8 and 10, #140, 2026-09-30).
    - **Names:** in "Hand to" the reader is "You" (whoever the row is called). On People anyone called by the business's name — an owner provisioned before logins (0035) — is asked for their own (`namedLikeBusiness`: case, width, spacing aside; `POST /app/settings/people/:id/name`, owner-only). The transcript names each speaker (the customer by name, "You", the assistant); no lone role word under a message, and the Buyers row does not repeat the customer under their own name.
    - **People:** pills only for states ("online now"); "You" is plain text. Every owner-only act has its line on the page (a test; `data_rights` printed a raw key until 2026-09-30).
+   - **No raw key on any page** (#141): the surface walk fails any page, en or ar, showing text shaped like a catalogue key; Practice's check labels are typed against `InvariantId` (a check without words fails the typecheck). A key built at run time (`` `x.${id}` ``) needs one of the two.
    - **Setup:** doors, each with its state (`.tlines`, as on Today): Getting ready's count, channels connected or not, the profile done or not, the kind of business, how many people. The profile is its own page, `/app/settings/profile` (saving lands there; `STEP_LINK.profile`). Log out is the rail's; Setup keeps one only on a phone.
    - **The door:** the e-mail first; the access code (the pilot's owner and staff codes) is a small door at the foot to its own card, `/login?with=code`, with a door back; a wrong code shows that card.
    - **The live line** sits in the page's header, in the flow — the Buyers title row and the conversation's head (`LIVE_SLOT` in the body; else under the title) — never sticky over the reply box, never fixed. An owner reading the bottom of a long conversation sees it on scrolling up; a screen reader hears it (polite region) wherever it is.

@@ -41,6 +41,8 @@ export type Simulator = {
   /** wamids of successful sends, in order. */
   readonly sentIds: readonly string[];
   readonly sendCount: () => number;
+  /** Every call that reached the provider, in order — what a failing test says was sent. */
+  readonly requests: readonly { readonly url: string; readonly body: string }[];
   /** Build a SIGNED raw webhook body + headers, as the provider would POST. */
   inboundText(args: { from?: string; text: string; name?: string; at?: Date }): SignedWebhook;
   inboundImage(args: { from?: string; caption?: string | null; at?: Date }): SignedWebhook;
@@ -98,6 +100,7 @@ export function whatsappSimulator(
   let eventN = 0;
   const remaining = [...script];
   const sentIds: string[] = [];
+  const requests: { url: string; body: string }[] = [];
   /** media id → the MIME type the provider would report for it. */
   const media = new Map<string, string>();
 
@@ -115,8 +118,9 @@ export function whatsappSimulator(
     };
   };
 
-  const fetchImpl: FetchLike = async (_url, init) => {
+  const fetchImpl: FetchLike = async (url, init) => {
     sendN += 1;
+    requests.push({ url: String(url), body: typeof init?.body === 'string' ? init.body.slice(0, 400) : '' });
     const behavior = remaining.shift() ?? 'ok';
     switch (behavior) {
       case 'ok': {
@@ -172,6 +176,7 @@ export function whatsappSimulator(
     adapter: simAdapter,
     phoneNumberId,
     sentIds,
+    requests,
     sendCount: () => sendN,
 
     inboundText({ from = SIM_BUYER, text, name = 'Sim Buyer', at }) {

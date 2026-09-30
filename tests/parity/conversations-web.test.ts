@@ -94,7 +94,9 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
 
   it('a buyer\'s words inside a history line keep their own direction — isolated, and still escaped', () => {
     const ar = renderCustomerFile({ ...file, timeline: [m({ kind: 'buyer_text', at: NOW, text: 'Price for 5,000 pcs?' })] }, 'ar', NOW);
-    expect(ar).toContain(`${t('ar', 'conv.tl.buyer_text', { text: '\u0000' }).split('\u0000')[0]}<bdi>Price for 5,000 pcs?</bdi>`);
+    // …and the customer by name (UI-PASS 5), isolated too — never the lone role word.
+    expect(ar).toContain(`<bdi>${file.buyer}</bdi>: <bdi>Price for 5,000 pcs?</bdi>`);
+    expect(ar).not.toContain('المشتري: ');
   });
 
   it('escapes buyer text and messages (no XSS)', () => {
