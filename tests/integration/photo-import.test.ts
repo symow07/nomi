@@ -144,7 +144,7 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const at = importAt(await shoot());
     const { res: confirm } = await submitReview(app, cookie, at, { typeFromPaper: paper, tickAll: true });
     expect(confirm.statusCode).toBe(302);
-    expect(confirm.headers['location']).toBe('/app/products');
+    expect(confirm.headers['location']).toMatch(/^\/app\/products\?import=[0-9a-f-]{36}$/);
     const rows = await products();
     // Two priced lines on the page, two rows in the catalogue. The article
     // number stays inside the name here because it sits mid-line rather than at

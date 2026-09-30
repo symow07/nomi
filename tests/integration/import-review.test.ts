@@ -74,6 +74,8 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
       employeeName: 'Lily', avatar: '👩‍💼', provider: 'disabled', factsTtlMs: 0,
       secureCookie: false, messagingEnabled: false, pageTranscriber: transcriber,
       kickOutbound: async () => {}, kickDrive: async () => {},
+      // Practice's box is drawn where live practice can queue a message (K6 fills it).
+      enqueueInbound: async () => {},
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     cookie = String((await app.inject({ method: 'POST', url: '/login', payload: `code=${encodeURIComponent(CODE)}`, headers: FORM }))
@@ -106,7 +108,7 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
   it('ADDED AS IT STANDS: her name, unit and names customers use; the row she left out is nowhere; each says where it came from', async () => {
     const { res } = await submitReview(app, cookie, kept);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe('/app/products');
+    expect(res.headers['location']).toMatch(/^\/app\/products\?import=[0-9a-f-]{36}$/);
     const tote = (await product('Canvas tote'))!;
     expect(tote).toMatchObject({ unit: 'pair', moq: null, active: false, line: 'Tote bag $12.00' });
     expect(Number(tote.price)).toBe(12);
@@ -130,6 +132,17 @@ d('K1 · the kept import review (requires DATABASE_URL)', () => {
     expect((await get(kept)).body).toContain(t('en', 'import.gone'));
     // The product's page says where it came from.
     expect((await get(`/app/products/${tote.id}`)).body).toContain('Tote bag $12.00');
+    // K6 — the list she lands on offers to ask about three of them in Practice…
+    const landed = await get(String(res.headers['location']));
+    const id = kept.split('/').pop()!;
+    expect(landed.body).toContain(`href="/app/sandbox?from=${id}"`);
+    // …and Practice opens with those questions, the first already in the box.
+    const practice = await get(`/app/sandbox?from=${id}`);
+    expect(practice.body).toContain(t('en', 'practice.ask.price', { product: 'Canvas tote' }));
+    expect(practice.body).toContain(t('en', 'practice.ask.price', { product: 'Silk scarf' }));
+    expect(practice.body).toMatch(/<textarea id="buyer" name="text"[^>]*>How much is the (Canvas tote|Silk scarf)\?<\/textarea>/);
+    // Another list's questions are not hers to ask: an unknown import asks nothing.
+    expect((await get(`/app/sandbox?from=${randomUUID()}`)).body).not.toContain(t('en', 'practice.ask.title'));
   });
 
   it('A FLAGGED ROW NEEDS HER TICK: without it nothing is added, and she is told what is left', async () => {

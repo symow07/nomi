@@ -46,6 +46,7 @@ import {
 import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
   stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
+  importedProducts, askAboutThree, renderAskAboutThree, renderAskedQuestions,
 } from './importFlow.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
@@ -2393,7 +2394,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products', authed('products', async (s, req, locale, reply) => {
     // D2 — the import redirects here with what it did; the page dropped it.
     const flash = takeFlash(req, reply);
-    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s));
+    // K6 — just after a list was added: ask about three of its products in Practice.
+    const imported = (req.query as { import?: unknown }).import;
+    const ask = typeof imported === 'string'
+      ? renderAskAboutThree(locale, imported, (await importedProducts(deps.db, s.businessId, imported)).length) : '';
+    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s)) + ask;
   }));
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
@@ -2498,7 +2503,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       case 'gone': return reply.redirect('/app/products/add');
       case 'saved': return reply.redirect(`/app/products/import/${encodeURIComponent(id)}`);
       case 'floors': return reply.redirect(`/app/products/import/${encodeURIComponent(id)}/floors`);
-      case 'added': return flashTo(reply, '/app/products', stagedFlash(out.result));
+      case 'added': return flashTo(reply, `/app/products?import=${encodeURIComponent(id)}`, stagedFlash(out.result));
       case 'currency_changed':
       case 'review': {
         const m = await loadReviewModel(deps.db, s.businessId, id);
@@ -2526,7 +2531,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const locale = localeOf(req);
     facts.evict(s.businessId);
     const out = await confirmWithFloors(deps.db, s.businessId, id, personOf(s).id, (req.body ?? {}) as Record<string, string | undefined>);
-    if (out.kind === 'added') return flashTo(reply, '/app/products', stagedFlash(out.result));
+    if (out.kind === 'added') return flashTo(reply, `/app/products?import=${encodeURIComponent(id)}`, stagedFlash(out.result));
     if (out.kind === 'gone') return reply.redirect('/app/products/add');
     const m = await loadReviewModel(deps.db, s.businessId, id);
     if (!m) return reply.redirect('/app/products/add');
@@ -4033,7 +4038,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const locale = localeOf(req);
       const q = req.query as { ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
-      const prefill = typeof q.ask === 'string' ? q.ask : '';
+      // K6 — "ask {name} about three of these": the questions about a list just added.
+      const from = typeof (req.query as { from?: unknown }).from === 'string' ? (req.query as { from: string }).from : null;
+      const asked = from ? askAboutThree(locale, await importedProducts(deps.db, s.businessId, from)) : [];
+      const prefill = typeof q.ask === 'string' ? q.ask : asked[0] ?? '';
       // M20.4 (F-04) — the safety checks run IN MEMORY, so a workspace made
       // one minute ago can practise. Nothing there writes or sends.
       const practice = await runScriptedPractice();
@@ -4055,7 +4063,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       } : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale)
+        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + (from ? renderAskedQuestions(locale, from, asked) : '') + renderPractice(practice, locale)
           + (deps.enqueueInbound
             ? renderSandbox(view, locale, { flash, prefill, now, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),

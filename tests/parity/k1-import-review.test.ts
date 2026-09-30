@@ -6,7 +6,7 @@ import {
 } from '../../src/core/onboard/importReview.js';
 import { defaultUnitFor, isRetailKind } from '../../src/core/owner/sellingStyle.js';
 import { diffAgainstCatalogue } from '../../src/core/onboard/catalogDiff.js';
-import { renderImportReview, renderFloors, type ReviewModel } from '../../src/api/web/importFlow.js';
+import { renderImportReview, renderFloors, askAboutThree, renderAskedQuestions, renderAskAboutThree, type ReviewModel } from '../../src/api/web/importFlow.js';
 import { asExtracted } from '../../src/core/onboard/importReview.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import type { ExtractedProduct } from '../../src/core/onboard/catalogImport.js';
@@ -213,5 +213,24 @@ describe('K1 · the page', () => {
     }
     expect(renderFloors(m, 'en')).toContain('$10.80');
     expect(renderFloors(m, 'en')).toContain('10%');
+  });
+});
+
+describe('K6 · ask about three of these', () => {
+  const products = [
+    { name: 'Canvas tote', nameZh: '帆布袋', priced: true },
+    { name: 'Gift wrap', nameZh: null, priced: false },
+  ];
+  it('a price question for a priced product, "do you have" for one without; the Chinese name in Chinese', () => {
+    expect(askAboutThree('en', products)).toEqual(['How much is the Canvas tote?', 'Do you have Gift wrap?']);
+    expect(askAboutThree('zh', products)[0]).toContain('帆布袋');
+    for (const l of LOCALES) for (const q of askAboutThree(l, products)) expect(q, l).not.toMatch(/practice\.ask\./);
+  });
+  it('each question is a door that fills Practice\'s box; nothing is drawn for a list that added nothing', () => {
+    const html = renderAskedQuestions('en', 'imp-1', ['How much is the Canvas tote?']);
+    expect(html).toContain(`href="/app/sandbox?from=imp-1&amp;ask=${encodeURIComponent('How much is the Canvas tote?')}"`);
+    expect(renderAskedQuestions('en', 'imp-1', [])).toBe('');
+    expect(renderAskAboutThree('en', 'imp-1', 0)).toBe('');
+    for (const l of LOCALES) expect(renderAskAboutThree(l, 'imp-1', 2), l).toContain('href="/app/sandbox?from=imp-1"');
   });
 });

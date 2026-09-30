@@ -423,6 +423,46 @@ export const notFoundImport = (locale: Locale): string =>
   `<h1 class="page">${esc(t(locale, 'import.title'))}</h1>
     <div class="block"><p>${esc(t(locale, 'import.gone'))}</p>${back('/app/products/add', t(locale, 'product.detail.back'))}</div>`;
 
+/**
+ * K6 — up to three products a confirmed import added, priced ones first: what
+ * "ask {name} about three of these" asks about. Only this business's list.
+ */
+export async function importedProducts(db: Db, businessIdRaw: string, id: string, limit = 3): Promise<readonly { readonly name: string; readonly nameZh: string | null; readonly priced: boolean }[]> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return [];
+  return withTenantTx(db, bid.value, async (tx) => {
+    const imp = await loadImport(tx, bid.value, id);
+    if (!imp || imp.state !== 'confirmed') return [];
+    const ids = imp.rows.map((r) => r.productId).filter((x): x is string => typeof x === 'string');
+    if (ids.length === 0) return [];
+    const rows = (await sql<{ name: string; name_zh: string | null; priced: boolean }>`
+      select name, name_zh, price_usd_per_unit is not null as priced from products
+       where business_id = ${bid.value} and id = any(${ids}::uuid[])
+       order by (price_usd_per_unit is not null) desc, created_at, sku limit ${limit}`.execute(tx)).rows;
+    return rows.map((r) => ({ name: r.name, nameZh: r.name_zh, priced: r.priced }));
+  });
+}
+
+/** K6 — the questions, in the owner's language: a price for a priced product, else whether it is sold. */
+export function askAboutThree(locale: Locale, products: readonly { name: string; nameZh: string | null; priced: boolean }[]): readonly string[] {
+  return products.map((p) => t(locale, p.priced ? 'practice.ask.price' : 'practice.ask.have',
+    { product: locale === 'zh' ? (p.nameZh ?? p.name) : p.name }));
+}
+
+/** K6 — on the products list after an import: the door to Practice with three of them asked. */
+export function renderAskAboutThree(locale: Locale, importId: string, count: number): string {
+  if (count === 0) return '';
+  return `<div class="block"><p>${esc(t(locale, 'import.ask.intro', { name: assistantName(locale) }))}</p>
+    <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a></div>`;
+}
+
+/** K6 — in Practice: the three questions, each a door that fills the box. */
+export function renderAskedQuestions(locale: Locale, importId: string, questions: readonly string[]): string {
+  if (questions.length === 0) return '';
+  return `<div class="block"><h2>${esc(t(locale, 'practice.ask.title'))}</h2>
+    ${questions.map((q) => `<a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}&amp;ask=${encodeURIComponent(q)}" dir="auto">${esc(q)}<span class="go" aria-hidden="true">›</span></a>`).join('')}</div>`;
+}
+
 /** ── Pages ────────────────────────────────────────────────────────────────── */
 
 const base = (id: string): string => `/app/products/import/${encodeURIComponent(id)}`;
