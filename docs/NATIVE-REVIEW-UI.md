@@ -8029,3 +8029,2911 @@ are listed here too, because a buyer reads them. `tests/parity/buyer-arabic.test
 - en: Great — glad we're on the same page. Now, roughly how many pieces are you looking at?
 - **ar: ممتاز، نعم هذا هو المنتج. ما الكمية المطلوبة تقريبًا؟**
 
+
+## 2026-09-29 → 30 — the roadmap run (#122–#141): every new or changed line
+
+Everything the run added to the zh and ar catalogue, for the native readers to take in one sitting with the screenshots. The design direction's §9 counted about 40 lines for the design pass alone; the run's other features added the rest.
+
+**Not a gate**, except where a line belongs to a disclosure. Those lines live in `src/core/conversation/disclosure.ts`, not here.
+
+A counted sentence is shown once, with each form its language uses: Chinese has one, Arabic six (zero, one, two, few, many, other). `{n}` is the count, `{name}` the assistant's name.
+
+For the Arabic reader to confirm:
+- The month names are kept as they are: سبتمبر (readers in the Levant say أيلول).
+- Arabic pages keep Western digits.
+- Money now reads in the locale's own form, "1.95 US$" (#139).
+
+Reviewer: ______  Date: ______
+
+### 中文 — 278 lines
+
+#### `accounts.after`
+
+- en: After the Page is connected.
+- **zh: 连接主页之后。**
+
+#### `accounts.afterReconnect`
+
+- en: After connecting again.
+- **zh: 重新连接之后。**
+
+#### `accounts.help`
+
+- en: What to check
+- **zh: 要检查什么**
+
+#### `accounts.instagram`
+
+- en: Instagram linked to the Page
+- **zh: 和主页关联的 Instagram**
+
+#### `accounts.instagram.bad`
+
+- en: No Instagram professional account is linked to this Page, so Instagram messages cannot arrive.
+- **zh: 这个主页没有关联 Instagram 专业账号，所以收不到 Instagram 消息。**
+
+#### `accounts.instagram.done`
+
+- en: Linked: {account}.
+- **zh: 已关联：{account}。**
+
+#### `accounts.lead`
+
+- en: Each step is read from Meta, and from the messages received, when this page opens.
+- **zh: 打开这个页面时，每一步都从 Meta 和收到的消息里读出来。**
+
+#### `accounts.mark.bad`
+
+- en: needs you
+- **zh: 需要你处理**
+
+#### `accounts.mark.done`
+
+- en: done
+- **zh: 已完成**
+
+#### `accounts.mark.todo`
+
+- en: not yet
+- **zh: 还没有**
+
+#### `accounts.mark.unknown`
+
+- en: could not check
+- **zh: 暂时查不到**
+
+#### `accounts.page`
+
+- en: A Facebook Page you manage
+- **zh: 你管理的 Facebook 主页**
+
+#### `accounts.page.done`
+
+- en: Connected: {page}.
+- **zh: 已连接：{page}。**
+
+#### `accounts.page.todo`
+
+- en: Not connected yet: connect it on the Instagram or Messenger card above.
+- **zh: 还没连接：在上面的 Instagram 或 Messenger 卡片里连接。**
+
+#### `accounts.permissions`
+
+- en: Every permission granted
+- **zh: 所有权限都已授予**
+
+#### `accounts.permissions.bad`
+
+- en: Meta did not grant: {missing}. Connect again and leave every box ticked.
+- **zh: Meta 没有授予：{missing}。请重新连接，并保持所有选项都勾选。**
+
+#### `accounts.permissions.done`
+
+- en: All the permissions asked for were granted.
+- **zh: 要求的权限都已授予。**
+
+#### `accounts.subscribed`
+
+- en: The Page sends its messages here
+- **zh: 主页把消息发到这里**
+
+#### `accounts.subscribed.bad`
+
+- en: No: the Page is not subscribed, so its messages stay in its own inbox. Connect again.
+- **zh: 没有：主页没有订阅，消息只会留在主页那边。请重新连接。**
+
+#### `accounts.test`
+
+- en: A first message from another account
+- **zh: 从另一个账号发来的第一条消息**
+
+#### `accounts.test.on`
+
+- en: First on {channel}: {date}.
+- **zh: {channel} 第一条：{date}。**
+
+#### `accounts.test.todo`
+
+- en: Send the shop a message from another account; it shows here when it arrives.
+- **zh: 用另一个账号给店铺发一条消息，收到后会显示在这里。**
+
+#### `accounts.title`
+
+- en: Your Facebook Page and Instagram
+- **zh: 你的 Facebook 主页和 Instagram**
+
+#### `accounts.token`
+
+- en: Meta still accepts the connection
+- **zh: Meta 仍然接受这个连接**
+
+#### `accounts.token.bad`
+
+- en: No. Connect again; until then nothing is sent on Instagram or Messenger.
+- **zh: 不接受了。请重新连接；在那之前，Instagram 和 Messenger 上什么都发不出去。**
+
+#### `accounts.unknown`
+
+- en: Meta did not answer just now; it is asked again when this page opens.
+- **zh: Meta 暂时没有回应；下次打开这个页面时会再查。**
+
+#### `accounts.yes`
+
+- en: Yes.
+- **zh: 是的。**
+
+#### `buyers.badge.order`
+
+- en: Order waiting
+- **zh: 订单等你确认**
+
+#### `buyers.group.order`
+
+- en: Said yes to an order
+- **zh: 确认要下单的客户**
+
+#### `calendar.add`
+
+- en: Add a date
+- **zh: 添加日期**
+
+#### `calendar.add.day`
+
+- en: Date
+- **zh: 日期**
+
+#### `calendar.add.from`
+
+- en: From
+- **zh: 从**
+
+#### `calendar.add.hint`
+
+- en: Leave the times empty for the whole day.
+- **zh: 不填时间就是全天。**
+
+#### `calendar.add.save`
+
+- en: Add
+- **zh: 添加**
+
+#### `calendar.add.to`
+
+- en: To
+- **zh: 到**
+
+#### `calendar.add.what`
+
+- en: What
+- **zh: 事项**
+
+#### `calendar.cat.promised`
+
+- en: Promised
+- **zh: 答应过的**
+
+#### `calendar.cat.yours`
+
+- en: Your dates
+- **zh: 你的日程**
+
+#### `calendar.empty.day`
+
+- en: Nothing is dated this day.
+- **zh: 这一天没有日期。**
+
+#### `calendar.empty.month`
+
+- en: Nothing is dated this month.
+- **zh: 这个月没有日期。**
+
+#### `calendar.empty.week`
+
+- en: Nothing is dated this week.
+- **zh: 这一周没有日期。**
+
+#### `calendar.flash.added`
+
+- en: Added to the calendar.
+- **zh: 已加到日程上。**
+
+#### `calendar.flash.day`
+
+- en: Not added: that is not a date.
+- **zh: 没有添加：这不是一个日期。**
+
+#### `calendar.flash.notFound`
+
+- en: Nothing was taken off: that date is not on the calendar.
+- **zh: 没有移除：日程上没有这一项。**
+
+#### `calendar.flash.order`
+
+- en: Not added: it ends before it starts.
+- **zh: 没有添加：结束时间早于开始时间。**
+
+#### `calendar.flash.removed`
+
+- en: Taken off the calendar.
+- **zh: 已从日程上移除。**
+
+#### `calendar.flash.time`
+
+- en: Not added: a time is written as 09:30, and an end needs a start.
+- **zh: 没有添加：时间写成 09:30，有结束时间就要有开始时间。**
+
+#### `calendar.flash.title`
+
+- en: Not added: a date needs a name, up to 80 characters.
+- **zh: 没有添加：需要一个名称，最多 80 个字。**
+
+#### `calendar.kind.closure`
+
+- en: Closed
+- **zh: 休息**
+
+#### `calendar.kind.conversation_closed`
+
+- en: Conversation closed
+- **zh: 对话结束**
+
+#### `calendar.kind.followup_due`
+
+- en: Follow-up
+- **zh: 跟进**
+
+#### `calendar.kind.order_state`
+
+- en: Order
+- **zh: 订单**
+
+#### `calendar.kind.own`
+
+- en: Your date
+- **zh: 你的日程**
+
+#### `calendar.kind.price_worked_out`
+
+- en: Price worked out
+- **zh: 算出报价**
+
+#### `calendar.kind.promise_delivery`
+
+- en: Delivery promised
+- **zh: 答应交货**
+
+#### `calendar.kind.promise_follow_up`
+
+- en: Follow-up promised
+- **zh: 答应跟进**
+
+#### `calendar.kind.promise_price_end`
+
+- en: Price ends
+- **zh: 报价到期**
+
+#### `calendar.kind.reply_due`
+
+- en: Reply due
+- **zh: 待回复**
+
+#### `calendar.kind.sample_asked`
+
+- en: Sample asked
+- **zh: 要样品**
+
+#### `calendar.kind.sample_handled`
+
+- en: Sample dealt with
+- **zh: 样品已处理**
+
+#### `calendar.legend.dashed`
+
+- en: Added by you
+- **zh: 你添加的**
+
+#### `calendar.legend.solid`
+
+- en: From a conversation
+- **zh: 来自对话**
+
+#### `calendar.line.promise`
+
+- en: “{said}”
+- **zh: 「{said}」**
+
+#### `calendar.more`
+
+- en: {n} more
+- **zh: 还有 {n} 项**
+
+#### `calendar.move`
+
+- en: Earlier and later
+- **zh: 往前和往后**
+
+#### `calendar.next`
+
+- en: Later
+- **zh: 往后**
+
+#### `calendar.prev`
+
+- en: Earlier
+- **zh: 往前**
+
+#### `calendar.remove`
+
+- en: Remove
+- **zh: 移除**
+
+#### `calendar.remove.confirm`
+
+- en: Take “{title}” off the calendar?
+- **zh: 把「{title}」从日程上移除？**
+
+#### `calendar.todayDoor`
+
+- en: Today
+- **zh: 今天**
+
+#### `calendar.view.day`
+
+- en: Day
+- **zh: 日**
+
+#### `calendar.view.list`
+
+- en: List
+- **zh: 列表**
+
+#### `calendar.view.month`
+
+- en: Month
+- **zh: 月**
+
+#### `calendar.view.week`
+
+- en: Week
+- **zh: 周**
+
+#### `calendar.views`
+
+- en: Month, week, day or list
+- **zh: 按月、周、日或列表看**
+
+#### `card.asked`
+
+- en: {customer} asked · {channel} · {time}
+- **zh: {customer} 在 {channel} 上问 · {time}**
+
+#### `card.checked`
+
+- en: checked twice
+- **zh: 两次核对**
+
+#### `card.checked.differs`
+
+- en: read two ways
+- **zh: 两种理解**
+
+#### `card.checked.differsOn`
+
+- en: a second, separate reading differed on {fields}
+- **zh: 另一套独立的判断在{fields}上不同**
+
+#### `card.checked.same`
+
+- en: a second, separate reading found the same
+- **zh: 另一套独立的判断得出相同的结果**
+
+#### `card.closingIn`
+
+- en: {channel} takes replies for {left} more
+- **zh: {channel} 还能回复 {left}**
+
+#### `card.closingSoon`
+
+- en: Closing soon
+- **zh: 快到期了**
+
+#### `card.customer`
+
+- en: The customer
+- **zh: 客户**
+
+#### `card.drafted`
+
+- en: {name} drafted
+- **zh: {name} 起草**
+
+#### `card.edit`
+
+- en: Edit
+- **zh: 修改**
+
+#### `card.field.complaint`
+
+- en: whether it is a complaint
+- **zh: 是否投诉**
+
+#### `card.field.language`
+
+- en: the language
+- **zh: 语言**
+
+#### `card.field.phase`
+
+- en: the stage of the sale
+- **zh: 销售阶段**
+
+#### `card.field.product`
+
+- en: the product
+- **zh: 产品**
+
+#### `card.field.quantity`
+
+- en: the quantity
+- **zh: 数量**
+
+#### `card.goes`
+
+- en: goes on {channel}, as written
+- **zh: 按原样发到 {channel}**
+
+#### `card.handToMe`
+
+- en: Hand to me
+- **zh: 我来回复**
+
+#### `card.intent.complaint`
+
+- en: a complaint
+- **zh: 投诉**
+
+#### `card.intent.inquiry`
+
+- en: a question
+- **zh: 咨询**
+
+#### `card.intent.order_intent`
+
+- en: ready to order
+- **zh: 想下单**
+
+#### `card.intent.out_of_scope`
+
+- en: not about what you sell
+- **zh: 与生意无关**
+
+#### `card.intent.price_request`
+
+- en: a price question
+- **zh: 问价**
+
+#### `card.intent.product_search`
+
+- en: looking for a product
+- **zh: 找产品**
+
+#### `card.intent.unclear`
+
+- en: not clear yet
+- **zh: 还不清楚**
+
+#### `card.noReply`
+
+- en: No reply needed
+- **zh: 不用回复**
+
+#### `card.reasons`
+
+- en: How {name} read this
+- **zh: {name} 是怎么理解的**
+
+#### `card.reasons.count` (counted)
+
+- en: {n} reason / {n} reasons
+- **zh: {n} 条依据**
+
+#### `card.reply`
+
+- en: Reply
+- **zh: 回复**
+
+#### `card.source.discount`
+
+- en: a discount your rules allow
+- **zh: 你的规则允许的折扣**
+
+#### `card.source.lead_time`
+
+- en: the days you need before it ships
+- **zh: 你设定的出货前天数**
+
+#### `card.source.minimum`
+
+- en: the smallest quantity you sell
+- **zh: 你设定的最少数量**
+
+#### `card.source.price`
+
+- en: your price for {product}
+- **zh: 你给{product}定的价**
+
+#### `card.source.priceAny`
+
+- en: your price
+- **zh: 你定的价**
+
+#### `card.source.product`
+
+- en: one of your product names
+- **zh: 你的产品名之一**
+
+#### `card.source.taught`
+
+- en: something you taught
+- **zh: 你教过的内容**
+
+#### `card.source.their_words`
+
+- en: in their own words
+- **zh: 对方的原话**
+
+#### `card.source.total`
+
+- en: the total, at your prices
+- **zh: 按你的价格算出的总价**
+
+#### `card.source.unsourced`
+
+- en: no source found
+- **zh: 找不到出处**
+
+#### `card.sourced`
+
+- en: Every figure has a source
+- **zh: 每个数字都有出处**
+
+#### `card.understood`
+
+- en: Understood
+- **zh: 理解为**
+
+#### `card.unsourced`
+
+- en: Not every figure has a source
+- **zh: 有数字找不到出处**
+
+#### `card.waiting`
+
+- en: Waiting for you
+- **zh: 在等你**
+
+#### `card.window`
+
+- en: {channel} takes replies until {time}
+- **zh: {time} 前可在 {channel} 回复**
+
+#### `forgot.lead`
+
+- en: Type the e-mail you sign in with. A link to choose a new password goes there; it works for {minutes} minutes.
+- **zh: 填写你登录用的邮箱。设置新密码的链接会发到这个邮箱，{minutes} 分钟内有效。**
+
+#### `forgot.mail.body`
+
+- en: A new password was asked for {email} on Nomi.
+
+To choose one, open this link within {minutes} minutes:
+{link}
+
+If it was not you, ignore this e-mail: the password stays as it is.
+- **zh: 有人为 {email} 申请了新的 Nomi 密码。
+
+请在 {minutes} 分钟内打开下面的链接设置新密码：
+{link}
+
+如果不是你申请的，请忽略这封邮件，密码不会改变。**
+
+#### `forgot.mail.subject`
+
+- en: Choose a new password for Nomi
+- **zh: 设置你的 Nomi 新密码**
+
+#### `forgot.sent`
+
+- en: If {email} signs in to Nomi, a link to choose a new password is on its way. It works for {minutes} minutes. Nothing arrived? Look in spam, or ask again in a few minutes.
+- **zh: 如果 {email} 是 Nomi 的登录邮箱，设置新密码的链接已经发出，{minutes} 分钟内有效。没收到？看看垃圾邮件，或者过几分钟再试。**
+
+#### `forgot.submit`
+
+- en: E-mail me a link
+- **zh: 把链接发给我**
+
+#### `forgot.title`
+
+- en: Choose a new password
+- **zh: 设置新密码**
+
+#### `help.meta.back`
+
+- en: Channels
+- **zh: 渠道**
+
+#### `help.meta.checkLabel`
+
+- en: Check:
+- **zh: 检查：**
+
+#### `help.meta.connect.check`
+
+- en: The Channels page says Meta still accepts it. If not, connect again with the same Facebook account.
+- **zh: 渠道页面显示 Meta 仍然接受这个连接。如果不接受，用同一个 Facebook 账号重新连接。**
+
+#### `help.meta.connect.title`
+
+- en: Meta still accepts the connection
+- **zh: Meta 仍然接受这个连接**
+
+#### `help.meta.connect.why`
+
+- en: A changed password, a removed Page role or a withdrawn permission ends the connection. Then nothing is sent on Instagram or Messenger, and the page says why.
+- **zh: 修改密码、移除主页角色或撤回权限都会结束连接。之后 Instagram 和 Messenger 上什么都发不出去，页面会说明原因。**
+
+#### `help.meta.instagram.check`
+
+- en: The Instagram account is a professional account (business or creator), linked to that Page.
+- **zh: Instagram 账号是专业账号（商家或创作者），并且和这个主页关联。**
+
+#### `help.meta.instagram.title`
+
+- en: Instagram linked to the Page
+- **zh: 和主页关联的 Instagram**
+
+#### `help.meta.instagram.why`
+
+- en: Meta gives an app Instagram messages only for a professional account linked to a Page.
+- **zh: Meta 只会把关联了主页的专业账号的 Instagram 消息交给应用。**
+
+#### `help.meta.lead`
+
+- en: What to check at each step, and why. The Channels page shows which steps are done; for where to click, Meta’s own help pages are linked.
+- **zh: 每一步要检查什么，以及为什么。渠道页面会显示哪些步骤已完成；具体在哪里点，链接到 Meta 自己的帮助页面。**
+
+#### `help.meta.link.createPage`
+
+- en: Meta’s help: create a Facebook Page
+- **zh: Meta 帮助：创建 Facebook 主页**
+
+#### `help.meta.link.linkPage`
+
+- en: Meta’s help: connect Instagram and a Facebook Page
+- **zh: Meta 帮助：关联 Instagram 和 Facebook 主页**
+
+#### `help.meta.link.professional`
+
+- en: Meta’s help: set up a professional Instagram account
+- **zh: Meta 帮助：设置 Instagram 专业账号**
+
+#### `help.meta.page.check`
+
+- en: The shop has a Facebook Page, and you manage it with full control.
+- **zh: 店铺有 Facebook 主页，而且你有完全的管理权限。**
+
+#### `help.meta.page.title`
+
+- en: A Facebook Page you manage
+- **zh: 你管理的 Facebook 主页**
+
+#### `help.meta.page.why`
+
+- en: Messenger messages arrive at the Page and replies leave as the Page; Instagram is reached through the Page it is linked to.
+- **zh: Messenger 的消息发到主页，回复也以主页的名义发出；Instagram 通过关联的主页连接。**
+
+#### `help.meta.permissions.check`
+
+- en: In the Facebook window that opens when connecting, leave every box ticked.
+- **zh: 连接时弹出的 Facebook 窗口里，保持所有选项都勾选。**
+
+#### `help.meta.permissions.title`
+
+- en: Every permission granted
+- **zh: 所有权限都已授予**
+
+#### `help.meta.permissions.why`
+
+- en: Each one allows one thing: seeing the Page, receiving and answering Messenger messages, receiving and answering Instagram messages. Without one of them, those messages never arrive.
+- **zh: 每项权限对应一件事：看到主页、接收和回复 Messenger 消息、接收和回复 Instagram 消息。少了任何一项，那些消息就永远到不了。**
+
+#### `help.meta.rules.first`
+
+- en: {name} cannot write first on Instagram or Messenger: the customer starts.
+- **zh: {name}不能在 Instagram 或 Messenger 上先发消息：要由客户先开始。**
+
+#### `help.meta.rules.media`
+
+- en: Shared posts and mentions in stories come to you, named, and are not answered.
+- **zh: 分享的帖子和快拍里的提及会交给你处理，并注明是什么。**
+
+#### `help.meta.rules.title`
+
+- en: What works on Instagram and Messenger
+- **zh: Instagram 和 Messenger 上能做什么**
+
+#### `help.meta.rules.window`
+
+- en: {name} can reply for 24 hours after the customer’s last message. After that, reply in the Instagram or Messenger app.
+- **zh: 客户最后一条消息后的 24 小时内，{name}可以回复。之后请在 Instagram 或 Messenger 应用里回复。**
+
+#### `help.meta.subscription.check`
+
+- en: Nothing to do: connecting subscribes the Page. If the Channels page says it is not subscribed, connect again.
+- **zh: 不需要做什么：连接时会为主页订阅。如果渠道页面显示没有订阅，就重新连接。**
+
+#### `help.meta.subscription.title`
+
+- en: The Page sends its messages here
+- **zh: 主页把消息发到这里**
+
+#### `help.meta.subscription.why`
+
+- en: Without it, Meta keeps the messages in the Page’s own inbox and they never reach {name}.
+- **zh: 没有订阅，Meta 会把消息留在主页那边，永远到不了{name}这里。**
+
+#### `help.meta.test.check`
+
+- en: From a different account (a friend’s, or a personal one), send the shop a message on Instagram and on Messenger. On Instagram, the setting “Allow access to messages”, under Connected tools in the app’s message settings, must be on.
+- **zh: 用另一个账号（朋友的或个人的）在 Instagram 和 Messenger 上给店铺发一条消息。Instagram 里，消息设置中“已连接的工具”下的“允许访问消息”必须打开。**
+
+#### `help.meta.test.title`
+
+- en: A first message from another account
+- **zh: 从另一个账号发来的第一条消息**
+
+#### `help.meta.test.why`
+
+- en: It proves the whole road, including the one Instagram setting nobody can read from outside: the first message arriving is the proof.
+- **zh: 这能证明整条路是通的，包括那个从外部读不到的 Instagram 设置：第一条消息到了，就证明设置好了。**
+
+#### `help.meta.title`
+
+- en: Connecting a Facebook Page and Instagram
+- **zh: 连接 Facebook 主页和 Instagram**
+
+#### `help.meta.whyLabel`
+
+- en: Why:
+- **zh: 原因：**
+
+#### `inbox.draft.held.order_waits_for_owner`
+
+- en: This customer said yes to an order that is waiting for you, so every reply waits for you too.
+- **zh: 这位客户确认的订单在等你，所以每条回复也先等你。**
+
+#### `inbox.flash.empty`
+
+- en: Nothing went: the reply box was empty.
+- **zh: 没有发出：回复框是空的。**
+
+#### `insight.draftsWaiting` (counted)
+
+- en: {n} reply is written and waiting for you. / {n} replies are written and waiting for you.
+- **zh: {n}条回复已经写好，等你。**
+
+#### `insight.followUpsWaiting` (counted)
+
+- en: {n} follow-up e-mail is waiting for you to check your inbox. / {n} follow-up e-mails are waiting for you to check your inbox.
+- **zh: {n}封跟进邮件在等你先看一眼邮箱。**
+
+#### `insight.productsNoPrice` (counted)
+
+- en: {n} product has no price yet, so {name} cannot quote it. / {n} products have no price yet, so {name} cannot quote them.
+- **zh: {n}个产品还没有价格，客户问到也只能先记着。**
+
+#### `insight.uncertainSends` (counted)
+
+- en: {n} message may or may not have reached a customer. / {n} messages may or may not have reached a customer.
+- **zh: {n}条消息不确定有没有送到客户手上。**
+
+#### `live.channels`
+
+- en: Something changed on your channels
+- **zh: 渠道有变化**
+
+#### `live.notify.ask`
+
+- en: Tell me in this browser when an order waits
+- **zh: 有订单等我确认时，在这个浏览器里提醒我**
+
+#### `live.notify.on`
+
+- en: This browser will tell you when an order waits, while Nomi is open in a tab.
+- **zh: 只要 Nomi 在某个标签页里开着，这个浏览器会在有订单等你时提醒你。**
+
+#### `login.forgot`
+
+- en: Forgot your password?
+- **zh: 忘记密码？**
+
+#### `login.withEmail`
+
+- en: Sign in with your e-mail
+- **zh: 用邮箱登录**
+
+#### `nav.conversations`
+
+- en: Conversations
+- **zh: 对话**
+
+#### `nav.customers`
+
+- en: Customers
+- **zh: 客户**
+
+#### `nav.needsYou` (counted)
+
+- en: {n} customer needs you / {n} customers need you
+- **zh: {n} 位客户在等你**
+
+#### `notify.meta_errors`
+
+- en: Workspaces where Meta refused or lost many messages in the last 24 hours: {n}.
+- **zh: 过去 24 小时里，Meta 拒收或丢失了大量消息的工作台：{n} 个。**
+
+#### `notify.meta_errors.how`
+
+- en: One app carries every workspace’s Instagram and Messenger, so a workspace sending into errors can get it restricted for all of them. Look at what it sends. Its daily limit is set with tools/send-ceiling.mjs; the emergency switch silences every workspace.
+- **zh: 所有工作台的 Instagram 和 Messenger 都走同一个应用，一个工作台不断发出被拒的消息，可能让所有工作台一起被限制。先看看这个工作台在发什么。每天的上限用 tools/send-ceiling.mjs 设置；紧急开关会让所有工作台停止发送。**
+
+#### `notify.meta_errors.line`
+
+- en: · {business} — {failed} of {attempted} refused or lost ({errors})
+- **zh: · {business} — {attempted} 条里有 {failed} 条被拒收或丢失（{errors}）**
+
+#### `notify.meta_errors.more`
+
+- en: · and {n} more
+- **zh: · 还有 {n} 个**
+
+#### `notify.meta_errors.subject`
+
+- en: Nomi: Meta is refusing messages
+- **zh: Nomi：Meta 正在拒收消息**
+
+#### `notify.order_proposed`
+
+- en: A customer said yes to an order. Nothing was confirmed and nothing was sent to them: the order waits for you. Open the conversation to confirm it, or to answer them yourself.
+- **zh: 有客户确认要下单。订单还没有确认，也没有给对方发任何消息：订单在等你。打开对话，确认订单，或者自己回复对方。**
+
+#### `notify.order_proposed.subject`
+
+- en: A customer said yes to an order
+- **zh: 有客户确认要下单**
+
+#### `order.action.confirm`
+
+- en: Confirm the order
+- **zh: 确认订单**
+
+#### `order.action.stepIn`
+
+- en: I'll answer them
+- **zh: 我来回复**
+
+#### `order.action.stepIn.note`
+
+- en: Sets the order aside and gives you the conversation. Nothing is sent.
+- **zh: 先放下这个订单，对话交给你。不会发出任何消息。**
+
+#### `order.card.email`
+
+- en: E-mail
+- **zh: 邮箱**
+
+#### `order.card.intro`
+
+- en: Nothing is confirmed and nothing has been sent. When you confirm, the order is recorded and they are sent the message below.
+- **zh: 还没有确认，也没有发出任何消息。你确认后，订单才会记下，并把下面这条消息发给对方。**
+
+#### `order.card.reference`
+
+- en: (its reference, given when you confirm)
+- **zh: （确认后生成的订单号）**
+
+#### `order.card.terms`
+
+- en: Payment terms
+- **zh: 付款条件**
+
+#### `order.card.title`
+
+- en: They said yes to this order
+- **zh: 对方确认了这个订单**
+
+#### `order.card.willSend`
+
+- en: What they will be sent
+- **zh: 将发给对方的消息**
+
+#### `order.flash.already_decided`
+
+- en: This order was already decided.
+- **zh: 这个订单已经处理过了。**
+
+#### `order.flash.assistant_silenced`
+
+- en: Sending is paused while we look into something, so the order still waits: nothing was recorded or sent.
+- **zh: 我们在查一件事，暂时停了发送，订单仍在等你：没有记下，也没有发出。**
+
+#### `order.flash.assistant_stopped`
+
+- en: Sending is stopped on every channel, so the order still waits: nothing was recorded or sent.
+- **zh: 所有渠道的发送都已停下，订单仍在等你：没有记下，也没有发出。**
+
+#### `order.flash.confirmed`
+
+- en: Order confirmed. They are being sent the confirmation.
+- **zh: 订单已确认，正在把确认消息发给对方。**
+
+#### `order.flash.confirmedNotLive`
+
+- en: Order recorded. Nothing was sent: sending is not switched on here yet.
+- **zh: 订单已记下。这里还没开通发送，所以没有发出任何东西。**
+
+#### `order.flash.incomplete`
+
+- en: This order cannot be recorded as it stands: its product or price is no longer there. Answer them yourself.
+- **zh: 这个订单无法按原样记下：产品或价格已经不在了。请你自己回复对方。**
+
+#### `order.flash.not_found`
+
+- en: That order is no longer waiting.
+- **zh: 这个订单已经不在等待中。**
+
+#### `order.flash.set_aside`
+
+- en: The order is set aside, and the conversation is yours.
+- **zh: 订单先放下了，对话交给你。**
+
+#### `pane.label`
+
+- en: Conversations
+- **zh: 对话**
+
+#### `panel.act.alone`
+
+- en: {name} replied
+- **zh: {name} 回复了**
+
+#### `panel.act.draft_sent`
+
+- en: You sent {name}’s draft
+- **zh: 你发出了{name}的草稿**
+
+#### `panel.act.edit_sent`
+
+- en: You sent your version of {name}’s draft
+- **zh: 你改过后发出了{name}的草稿**
+
+#### `panel.act.not_reached.assistant`
+
+- en: {name}’s reply didn’t reach them
+- **zh: {name}的回复没有送达**
+
+#### `panel.act.not_reached.person`
+
+- en: Your reply didn’t reach them
+- **zh: 你的回复没有送达**
+
+#### `panel.act.owner`
+
+- en: You answered yourself
+- **zh: 你自己回复了**
+
+#### `panel.act.waiting`
+
+- en: Waiting for you
+- **zh: 在等你**
+
+#### `panel.activity`
+
+- en: Activity
+- **zh: 动态**
+
+#### `panel.askedAbout`
+
+- en: Asked about
+- **zh: 问过**
+
+#### `panel.close`
+
+- en: Close
+- **zh: 关闭**
+
+#### `panel.conversations` (counted)
+
+- en: {n} conversation / {n} conversations
+- **zh: {n} 段对话**
+
+#### `panel.details`
+
+- en: Their details, their data
+- **zh: 联系方式与数据**
+
+#### `panel.firstWrote`
+
+- en: First wrote {date}
+- **zh: {date} 第一次来信**
+
+#### `panel.label`
+
+- en: The customer
+- **zh: 客户**
+
+#### `panel.now`
+
+- en: now
+- **zh: 现在**
+
+#### `panel.onCalendar`
+
+- en: On the calendar
+- **zh: 日程上**
+
+#### `panel.onRecord`
+
+- en: On record
+- **zh: 记录**
+
+#### `panel.open`
+
+- en: The customer
+- **zh: 客户**
+
+#### `panel.order`
+
+- en: Order {reference}
+- **zh: 订单 {reference}**
+
+#### `panel.priceDoor`
+
+- en: the conversation
+- **zh: 那段对话**
+
+#### `panel.prices`
+
+- en: Prices worked out
+- **zh: 算过的价**
+
+#### `panel.promised`
+
+- en: Promised
+- **zh: 答应过的事**
+
+#### `panel.sample`
+
+- en: Sample
+- **zh: 样品**
+
+#### `panel.sampleAsked`
+
+- en: asked {date}
+- **zh: {date} 申请**
+
+#### `panel.sampleHandled`
+
+- en: dealt with {date}
+- **zh: {date} 已处理**
+
+#### `panel.times` (counted)
+
+- en: once / {n} times
+- **zh: {n} 次**
+
+#### `panel.writesIn`
+
+- en: writes in {language}
+- **zh: 用{language}写**
+
+#### `people.flash.renamed`
+
+- en: Saved. Everyone here sees {name} now.
+- **zh: 已保存。现在大家看到的是{name}。**
+
+#### `people.name.askThem`
+
+- en: This is your business's name, not a person's. What is the right name here?
+- **zh: 这是公司名，不是人名。这里该写什么名字？**
+
+#### `people.name.askYou`
+
+- en: Your name here is your business's name. What should the people here call you?
+- **zh: 你在这里的名字就是公司名。同事们该怎么称呼你？**
+
+#### `people.name.save`
+
+- en: Save the name
+- **zh: 保存名字**
+
+#### `people.ownerOnly.data_rights`
+
+- en: Record a customer's request to have their data deleted
+- **zh: 登记客户删除资料的请求**
+
+#### `product.add.example3`
+
+- en: Rose face serum 50 ml $34.90
+- **zh: 玫瑰精华 50 ml $34.90**
+
+#### `product.detail.notFindable`
+
+- en: Customers cannot find this product yet: it has no name their messages can be matched to. Add the names customers use below, and it can be found and quoted.
+- **zh: 买家还搜不到这个产品：没有能和买家消息对上的名称。在下面加上买家的叫法，就能被找到并报价。**
+
+#### `product.edit.customerNames`
+
+- en: Add names customers use
+- **zh: 添加买家的叫法**
+
+#### `product.edit.customerNames.hint`
+
+- en: One per line. The product is found by any of them; the names already here stay.
+- **zh: 每行一个。买家用其中任何一个说法都能找到这个产品；已有的叫法会保留。**
+
+#### `product.edit.error.too_long`
+
+- en: Too long: a name can have at most 120 characters.
+- **zh: 太长了：每个名称最多 120 个字符。**
+
+#### `product.edit.error.too_many`
+
+- en: At most 20 names at a time.
+- **zh: 一次最多添加 20 个名称。**
+
+#### `product.edit.moq.hint`
+
+- en: Leave it empty if there is no minimum.
+- **zh: 没有最低起订量就留空。**
+
+#### `product.edit.name`
+
+- en: Name
+- **zh: 名称**
+
+#### `product.edit.nameZh`
+
+- en: Name in Chinese
+- **zh: 中文名称**
+
+#### `product.noMinimum`
+
+- en: No minimum
+- **zh: 无最低起订量**
+
+#### `product.photo.refused.cut_off`
+
+- en: The page is too long to read in one photo, so nothing was added. Send it as two photos — the top half, then the bottom half.
+- **zh: 这一页太长，一张照片读不完，所以什么都没加。请分成两张照片发：上半页一张，下半页一张。**
+
+#### `product.reject.ambiguous_price`
+
+- en: the price can be read two ways — write it like 1250.00
+- **zh: 价格有两种读法，请写成 1250.00 这样**
+
+#### `product.reject.not_usd`
+
+- en: only US dollars for now — this line has another currency
+- **zh: 目前只认美元，这行是别的货币**
+
+#### `product.reject.several_numbers`
+
+- en: several numbers and none marked as the price — put $ before it
+- **zh: 这行有好几个数字，没标出哪个是价格，请在价格前加 $**
+
+#### `product.status.notFindable`
+
+- en: Customers cannot find it yet
+- **zh: 买家还搜不到这个产品**
+
+#### `received.shared_post`
+
+- en: A shared post
+- **zh: 分享的帖子**
+
+#### `received.story_mention`
+
+- en: A mention in their story
+- **zh: 在对方快拍里提到你**
+
+#### `received.story_reply`
+
+- en: A reply to your story
+- **zh: 对你快拍的回复**
+
+#### `sandbox.case.order-yes-waits-for-the-owner-in-auto`
+
+- en: A "yes" to an order waits for your tap — nothing is sent
+- **zh: 客户确认下单后，订单等你确认——不会发出任何消息**
+
+#### `sandbox.inv.answeredAsUsual`
+
+- en: Answered as usual — nothing to hand over
+- **zh: 照常回答，不必交给人**
+
+#### `sandbox.inv.certOnlyIfAuthorized`
+
+- en: Named only the certifications you hold
+- **zh: 只提你真有的认证**
+
+#### `sandbox.inv.deletionHandsOffSilently`
+
+- en: A deletion request went to you, and nothing was sent
+- **zh: 删除请求交给了你，没有发出任何消息**
+
+#### `sandbox.inv.neverDeniesBeingAi`
+
+- en: Never claimed to be a person
+- **zh: 从不自称是真人**
+
+#### `sandbox.inv.noDeletionPromise`
+
+- en: Promised no deletion
+- **zh: 没有承诺删除资料**
+
+#### `sandbox.inv.noUnsourcedSpecNumber`
+
+- en: Every figure came from your products, the quote or the customer
+- **zh: 每个数字都有出处：你的产品、报价或客户**
+
+#### `sandbox.inv.orderWaitsForOwner`
+
+- en: The order waited for your tap
+- **zh: 订单在等你确认**
+
+#### `setup.state.connected`
+
+- en: Connected
+- **zh: 已连接**
+
+#### `setup.state.done`
+
+- en: Done
+- **zh: 已完成**
+
+#### `setup.state.notAnswered`
+
+- en: Not answered yet
+- **zh: 还没选**
+
+#### `setup.state.notConnected`
+
+- en: Nothing connected yet
+- **zh: 还没连接**
+
+#### `setup.state.people` (counted)
+
+- en: {n} person / {n} people
+- **zh: {n} 人**
+
+#### `setup.state.toDo`
+
+- en: Not finished
+- **zh: 还没填完**
+
+#### `today.blocked` (counted)
+
+- en: {n} message did not reach a customer / {n} messages did not reach customers
+- **zh: {n} 条消息没送到客户手上**
+
+#### `today.coming.all`
+
+- en: The calendar
+- **zh: 日历**
+
+#### `today.coming.none`
+
+- en: Nothing on the calendar in the next seven days.
+- **zh: 接下来七天日历上没有安排。**
+
+#### `today.coming.title`
+
+- en: Coming up
+- **zh: 接下来**
+
+#### `today.deletion` (counted)
+
+- en: {n} customer asked for their data to be deleted / {n} customers asked for their data to be deleted
+- **zh: {n} 位客户要求删除自己的资料**
+
+#### `today.gaps` (counted)
+
+- en: {n} question {name} could not answer / {n} questions {name} could not answer
+- **zh: {n} 个{name}答不上来的问题**
+
+#### `today.last.answered` (counted)
+
+- en: {name} answered {n} customer / {name} answered {n} customers
+- **zh: {name}回复了 {n} 位客户**
+
+#### `today.last.handed` (counted)
+
+- en: {name} handed {n} customer to you / {name} handed {n} customers to you
+- **zh: {name}把 {n} 位客户交给了你**
+
+#### `today.last.none`
+
+- en: Nothing in the last 24 hours yet.
+- **zh: 过去 24 小时里还没有动静。**
+
+#### `today.last.sent` (counted)
+
+- en: You sent {n} reply {name} wrote / You sent {n} replies {name} wrote
+- **zh: 你发出了 {n} 条{name}写的回复**
+
+#### `today.last.title`
+
+- en: In the last 24 hours
+- **zh: 过去 24 小时**
+
+#### `today.last.yourself` (counted)
+
+- en: You answered {n} customer yourself / You answered {n} customers yourself
+- **zh: 你亲自回复了 {n} 位客户**
+
+#### `today.needs.all` (counted)
+
+- en: The {n} who needs you / All {n} who need you
+- **zh: 全部 {n} 位在等你的客户**
+
+#### `today.needs.none`
+
+- en: No one is waiting for you.
+- **zh: 现在没有人在等你。**
+
+#### `today.sending`
+
+- en: Sending:
+- **zh: 发送：**
+
+#### `today.sending.on`
+
+- en: on
+- **zh: 开着**
+
+#### `today.sending.paused`
+
+- en: paused
+- **zh: 已暂停**
+
+#### `today.setup.line`
+
+- en: Setup: {done} of {total} done.
+- **zh: 设置：{total} 步里完成了 {done} 步。**
+
+#### `unreadable.open`
+
+- en: Open it
+- **zh: 打开看看**
+
+#### `autonomy.level.talks.note` (changed)
+
+- en: Greetings, questions and recommendations go out by themselves. A reply that states a price waits for you.
+- before: 打招呼、提问、推荐、跟进会自己发出去。带价格的回复先给你看。
+- **zh: 打招呼、提问、推荐会自己发出去。带价格的回复先给你看。**
+
+#### `conv.tl.buyer_text` (changed)
+
+- en: {who}: {text}
+- before: 买家：{text}
+- **zh: {who}：{text}**
+
+### العربية — 278 lines
+
+#### `accounts.after`
+
+- en: After the Page is connected.
+- **ar: بعد ربط الصفحة.**
+
+#### `accounts.afterReconnect`
+
+- en: After connecting again.
+- **ar: بعد الربط من جديد.**
+
+#### `accounts.help`
+
+- en: What to check
+- **ar: ما يجب التحقق منه**
+
+#### `accounts.instagram`
+
+- en: Instagram linked to the Page
+- **ar: Instagram مرتبط بالصفحة**
+
+#### `accounts.instagram.bad`
+
+- en: No Instagram professional account is linked to this Page, so Instagram messages cannot arrive.
+- **ar: لا يوجد حساب Instagram احترافي مرتبط بهذه الصفحة، فلا يمكن أن تصل رسائل Instagram.**
+
+#### `accounts.instagram.done`
+
+- en: Linked: {account}.
+- **ar: مرتبط: {account}.**
+
+#### `accounts.lead`
+
+- en: Each step is read from Meta, and from the messages received, when this page opens.
+- **ar: تُقرأ كل خطوة من Meta ومن الرسائل التي وصلت، عند فتح هذه الصفحة.**
+
+#### `accounts.mark.bad`
+
+- en: needs you
+- **ar: بحاجة إلى إجراء**
+
+#### `accounts.mark.done`
+
+- en: done
+- **ar: مكتمل**
+
+#### `accounts.mark.todo`
+
+- en: not yet
+- **ar: لم يكتمل بعد**
+
+#### `accounts.mark.unknown`
+
+- en: could not check
+- **ar: تعذّر التحقق**
+
+#### `accounts.page`
+
+- en: A Facebook Page you manage
+- **ar: صفحة Facebook بإدارتك**
+
+#### `accounts.page.done`
+
+- en: Connected: {page}.
+- **ar: متصلة: {page}.**
+
+#### `accounts.page.todo`
+
+- en: Not connected yet: connect it on the Instagram or Messenger card above.
+- **ar: غير متصلة بعد: يمكن ربطها من بطاقة Instagram أو Messenger أعلاه.**
+
+#### `accounts.permissions`
+
+- en: Every permission granted
+- **ar: منح كل الأذونات**
+
+#### `accounts.permissions.bad`
+
+- en: Meta did not grant: {missing}. Connect again and leave every box ticked.
+- **ar: لم تمنح Meta: {missing}. يُرجى الربط من جديد مع إبقاء كل الخيارات محددة.**
+
+#### `accounts.permissions.done`
+
+- en: All the permissions asked for were granted.
+- **ar: مُنحت كل الأذونات المطلوبة.**
+
+#### `accounts.subscribed`
+
+- en: The Page sends its messages here
+- **ar: إرسال الصفحة رسائلها إلى هنا**
+
+#### `accounts.subscribed.bad`
+
+- en: No: the Page is not subscribed, so its messages stay in its own inbox. Connect again.
+- **ar: لا: الصفحة غير مشتركة، فتبقى رسائلها في صندوقها الخاص. يُرجى الربط من جديد.**
+
+#### `accounts.test`
+
+- en: A first message from another account
+- **ar: أول رسالة من حساب آخر**
+
+#### `accounts.test.on`
+
+- en: First on {channel}: {date}.
+- **ar: الأولى على {channel}: {date}.**
+
+#### `accounts.test.todo`
+
+- en: Send the shop a message from another account; it shows here when it arrives.
+- **ar: يُرجى إرسال رسالة إلى المتجر من حساب آخر؛ تظهر هنا عند وصولها.**
+
+#### `accounts.title`
+
+- en: Your Facebook Page and Instagram
+- **ar: صفحة Facebook وحساب Instagram**
+
+#### `accounts.token`
+
+- en: Meta still accepts the connection
+- **ar: قبول Meta للاتصال**
+
+#### `accounts.token.bad`
+
+- en: No. Connect again; until then nothing is sent on Instagram or Messenger.
+- **ar: لا. يُرجى الربط من جديد؛ وحتى ذلك الحين لا يُرسل شيء على Instagram أو Messenger.**
+
+#### `accounts.unknown`
+
+- en: Meta did not answer just now; it is asked again when this page opens.
+- **ar: لم تُجب Meta الآن؛ يُعاد السؤال عند فتح هذه الصفحة.**
+
+#### `accounts.yes`
+
+- en: Yes.
+- **ar: نعم.**
+
+#### `buyers.badge.order`
+
+- en: Order waiting
+- **ar: طلب بانتظارك**
+
+#### `buyers.group.order`
+
+- en: Said yes to an order
+- **ar: موافقات على طلبات شراء**
+
+#### `calendar.add`
+
+- en: Add a date
+- **ar: إضافة موعد**
+
+#### `calendar.add.day`
+
+- en: Date
+- **ar: التاريخ**
+
+#### `calendar.add.from`
+
+- en: From
+- **ar: من**
+
+#### `calendar.add.hint`
+
+- en: Leave the times empty for the whole day.
+- **ar: يُترك الوقت فارغًا ليوم كامل.**
+
+#### `calendar.add.save`
+
+- en: Add
+- **ar: إضافة**
+
+#### `calendar.add.to`
+
+- en: To
+- **ar: إلى**
+
+#### `calendar.add.what`
+
+- en: What
+- **ar: الموعد**
+
+#### `calendar.cat.promised`
+
+- en: Promised
+- **ar: الوعود**
+
+#### `calendar.cat.yours`
+
+- en: Your dates
+- **ar: المواعيد المضافة**
+
+#### `calendar.empty.day`
+
+- en: Nothing is dated this day.
+- **ar: لا مواعيد في هذا اليوم.**
+
+#### `calendar.empty.month`
+
+- en: Nothing is dated this month.
+- **ar: لا مواعيد في هذا الشهر.**
+
+#### `calendar.empty.week`
+
+- en: Nothing is dated this week.
+- **ar: لا مواعيد في هذا الأسبوع.**
+
+#### `calendar.flash.added`
+
+- en: Added to the calendar.
+- **ar: أُضيف إلى التقويم.**
+
+#### `calendar.flash.day`
+
+- en: Not added: that is not a date.
+- **ar: لم يُضف شيء: هذا ليس تاريخًا.**
+
+#### `calendar.flash.notFound`
+
+- en: Nothing was taken off: that date is not on the calendar.
+- **ar: لم يُزل شيء: هذا الموعد ليس في التقويم.**
+
+#### `calendar.flash.order`
+
+- en: Not added: it ends before it starts.
+- **ar: لم يُضف شيء: النهاية قبل البداية.**
+
+#### `calendar.flash.removed`
+
+- en: Taken off the calendar.
+- **ar: أُزيل من التقويم.**
+
+#### `calendar.flash.time`
+
+- en: Not added: a time is written as 09:30, and an end needs a start.
+- **ar: لم يُضف شيء: يُكتب الوقت هكذا 09:30، ولا نهاية بلا بداية.**
+
+#### `calendar.flash.title`
+
+- en: Not added: a date needs a name, up to 80 characters.
+- **ar: لم يُضف شيء: يلزم اسم للموعد لا يزيد على 80 حرفًا.**
+
+#### `calendar.kind.closure`
+
+- en: Closed
+- **ar: إغلاق**
+
+#### `calendar.kind.conversation_closed`
+
+- en: Conversation closed
+- **ar: أُغلقت المحادثة**
+
+#### `calendar.kind.followup_due`
+
+- en: Follow-up
+- **ar: متابعة**
+
+#### `calendar.kind.order_state`
+
+- en: Order
+- **ar: طلب**
+
+#### `calendar.kind.own`
+
+- en: Your date
+- **ar: موعد مضاف**
+
+#### `calendar.kind.price_worked_out`
+
+- en: Price worked out
+- **ar: حُسب السعر**
+
+#### `calendar.kind.promise_delivery`
+
+- en: Delivery promised
+- **ar: تسليم موعود**
+
+#### `calendar.kind.promise_follow_up`
+
+- en: Follow-up promised
+- **ar: متابعة موعودة**
+
+#### `calendar.kind.promise_price_end`
+
+- en: Price ends
+- **ar: ينتهي السعر**
+
+#### `calendar.kind.reply_due`
+
+- en: Reply due
+- **ar: موعد الرد**
+
+#### `calendar.kind.sample_asked`
+
+- en: Sample asked
+- **ar: طلب عينة**
+
+#### `calendar.kind.sample_handled`
+
+- en: Sample dealt with
+- **ar: عولجت العينة**
+
+#### `calendar.legend.dashed`
+
+- en: Added by you
+- **ar: أُضيف يدويًا**
+
+#### `calendar.legend.solid`
+
+- en: From a conversation
+- **ar: من محادثة**
+
+#### `calendar.line.promise`
+
+- en: “{said}”
+- **ar: «{said}»**
+
+#### `calendar.more`
+
+- en: {n} more
+- **ar: {n} أخرى**
+
+#### `calendar.move`
+
+- en: Earlier and later
+- **ar: السابق واللاحق**
+
+#### `calendar.next`
+
+- en: Later
+- **ar: اللاحق**
+
+#### `calendar.prev`
+
+- en: Earlier
+- **ar: السابق**
+
+#### `calendar.remove`
+
+- en: Remove
+- **ar: إزالة**
+
+#### `calendar.remove.confirm`
+
+- en: Take “{title}” off the calendar?
+- **ar: إزالة «{title}» من التقويم؟**
+
+#### `calendar.todayDoor`
+
+- en: Today
+- **ar: اليوم**
+
+#### `calendar.view.day`
+
+- en: Day
+- **ar: يوم**
+
+#### `calendar.view.list`
+
+- en: List
+- **ar: قائمة**
+
+#### `calendar.view.month`
+
+- en: Month
+- **ar: شهر**
+
+#### `calendar.view.week`
+
+- en: Week
+- **ar: أسبوع**
+
+#### `calendar.views`
+
+- en: Month, week, day or list
+- **ar: عرض بالشهر أو الأسبوع أو اليوم أو قائمة**
+
+#### `card.asked`
+
+- en: {customer} asked · {channel} · {time}
+- **ar: سؤال من {customer} · {channel} · {time}**
+
+#### `card.checked`
+
+- en: checked twice
+- **ar: قراءتان**
+
+#### `card.checked.differs`
+
+- en: read two ways
+- **ar: قراءتان مختلفتان**
+
+#### `card.checked.differsOn`
+
+- en: a second, separate reading differed on {fields}
+- **ar: اختلفت قراءة ثانية مستقلة في: {fields}**
+
+#### `card.checked.same`
+
+- en: a second, separate reading found the same
+- **ar: قراءة ثانية مستقلة وصلت إلى النتيجة نفسها**
+
+#### `card.closingIn`
+
+- en: {channel} takes replies for {left} more
+- **ar: يمكن الرد عبر {channel} لمدة {left} أخرى**
+
+#### `card.closingSoon`
+
+- en: Closing soon
+- **ar: يقترب موعد الإغلاق**
+
+#### `card.customer`
+
+- en: The customer
+- **ar: العميل**
+
+#### `card.drafted`
+
+- en: {name} drafted
+- **ar: مسودة من {name}**
+
+#### `card.edit`
+
+- en: Edit
+- **ar: تعديل**
+
+#### `card.field.complaint`
+
+- en: whether it is a complaint
+- **ar: كونها شكوى**
+
+#### `card.field.language`
+
+- en: the language
+- **ar: اللغة**
+
+#### `card.field.phase`
+
+- en: the stage of the sale
+- **ar: مرحلة البيع**
+
+#### `card.field.product`
+
+- en: the product
+- **ar: المنتج**
+
+#### `card.field.quantity`
+
+- en: the quantity
+- **ar: الكمية**
+
+#### `card.goes`
+
+- en: goes on {channel}, as written
+- **ar: يُرسل عبر {channel} دون تغيير**
+
+#### `card.handToMe`
+
+- en: Hand to me
+- **ar: تولّي الرد**
+
+#### `card.intent.complaint`
+
+- en: a complaint
+- **ar: شكوى**
+
+#### `card.intent.inquiry`
+
+- en: a question
+- **ar: استفسار**
+
+#### `card.intent.order_intent`
+
+- en: ready to order
+- **ar: رغبة في الطلب**
+
+#### `card.intent.out_of_scope`
+
+- en: not about what you sell
+- **ar: خارج نطاق النشاط**
+
+#### `card.intent.price_request`
+
+- en: a price question
+- **ar: سؤال عن السعر**
+
+#### `card.intent.product_search`
+
+- en: looking for a product
+- **ar: البحث عن منتج**
+
+#### `card.intent.unclear`
+
+- en: not clear yet
+- **ar: غير واضح بعد**
+
+#### `card.noReply`
+
+- en: No reply needed
+- **ar: لا حاجة إلى رد**
+
+#### `card.reasons`
+
+- en: How {name} read this
+- **ar: أساس فهم {name} للرسالة**
+
+#### `card.reasons.count` (counted)
+
+- en: {n} reason / {n} reasons
+- **ar (zero): لا أسباب**
+- **ar (one): سبب واحد**
+- **ar (two): سببان**
+- **ar (few): {n} أسباب**
+- **ar (many): {n} سببًا**
+- **ar (other): {n} سبب**
+
+#### `card.reply`
+
+- en: Reply
+- **ar: الرد**
+
+#### `card.source.discount`
+
+- en: a discount your rules allow
+- **ar: خصم تسمح به القواعد المحددة**
+
+#### `card.source.lead_time`
+
+- en: the days you need before it ships
+- **ar: أيام التجهيز المحددة قبل الشحن**
+
+#### `card.source.minimum`
+
+- en: the smallest quantity you sell
+- **ar: أقل كمية محددة للبيع**
+
+#### `card.source.price`
+
+- en: your price for {product}
+- **ar: سعر {product} في قائمة أسعارك**
+
+#### `card.source.priceAny`
+
+- en: your price
+- **ar: من قائمة أسعارك**
+
+#### `card.source.product`
+
+- en: one of your product names
+- **ar: من أسماء منتجاتك**
+
+#### `card.source.taught`
+
+- en: something you taught
+- **ar: من المعلومات المُضافة**
+
+#### `card.source.their_words`
+
+- en: in their own words
+- **ar: الكلمات نفسها في رسالة العميل**
+
+#### `card.source.total`
+
+- en: the total, at your prices
+- **ar: الإجمالي وفق أسعارك**
+
+#### `card.source.unsourced`
+
+- en: no source found
+- **ar: بلا مصدر معروف**
+
+#### `card.sourced`
+
+- en: Every figure has a source
+- **ar: لكل رقم مصدر**
+
+#### `card.understood`
+
+- en: Understood
+- **ar: ما فُهم**
+
+#### `card.unsourced`
+
+- en: Not every figure has a source
+- **ar: ليس لكل رقم مصدر**
+
+#### `card.waiting`
+
+- en: Waiting for you
+- **ar: بانتظارك**
+
+#### `card.window`
+
+- en: {channel} takes replies until {time}
+- **ar: يمكن الرد عبر {channel} حتى {time}**
+
+#### `forgot.lead`
+
+- en: Type the e-mail you sign in with. A link to choose a new password goes there; it works for {minutes} minutes.
+- **ar: يُرجى كتابة البريد الإلكتروني المستخدم لتسجيل الدخول. يُرسَل إليه رابط لاختيار كلمة مرور جديدة، صالح لمدة {minutes} دقيقة.**
+
+#### `forgot.mail.body`
+
+- en: A new password was asked for {email} on Nomi.
+
+To choose one, open this link within {minutes} minutes:
+{link}
+
+If it was not you, ignore this e-mail: the password stays as it is.
+- **ar: طُلبت كلمة مرور جديدة للبريد {email} على Nomi.
+
+لاختيارها، يُرجى فتح هذا الرابط خلال {minutes} دقيقة:
+{link}
+
+إن لم يكن الطلب منك، يُرجى تجاهل هذه الرسالة، ولن تتغيّر كلمة المرور.**
+
+#### `forgot.mail.subject`
+
+- en: Choose a new password for Nomi
+- **ar: اختيار كلمة مرور جديدة لـ Nomi**
+
+#### `forgot.sent`
+
+- en: If {email} signs in to Nomi, a link to choose a new password is on its way. It works for {minutes} minutes. Nothing arrived? Look in spam, or ask again in a few minutes.
+- **ar: إن كان {email} مستخدمًا لتسجيل الدخول إلى Nomi، فالرابط لاختيار كلمة مرور جديدة في الطريق، صالح لمدة {minutes} دقيقة. لم يصل شيء؟ يُرجى التحقق من البريد المزعج، أو إعادة الطلب بعد بضع دقائق.**
+
+#### `forgot.submit`
+
+- en: E-mail me a link
+- **ar: إرسال الرابط بالبريد**
+
+#### `forgot.title`
+
+- en: Choose a new password
+- **ar: اختيار كلمة مرور جديدة**
+
+#### `help.meta.back`
+
+- en: Channels
+- **ar: القنوات**
+
+#### `help.meta.checkLabel`
+
+- en: Check:
+- **ar: التحقق:**
+
+#### `help.meta.connect.check`
+
+- en: The Channels page says Meta still accepts it. If not, connect again with the same Facebook account.
+- **ar: تُظهر صفحة القنوات أن Meta ما زالت تقبل الاتصال. وإلا فيُرجى الربط من جديد بحساب Facebook نفسه.**
+
+#### `help.meta.connect.title`
+
+- en: Meta still accepts the connection
+- **ar: قبول Meta للاتصال**
+
+#### `help.meta.connect.why`
+
+- en: A changed password, a removed Page role or a withdrawn permission ends the connection. Then nothing is sent on Instagram or Messenger, and the page says why.
+- **ar: تغيير كلمة المرور أو سحب دور في الصفحة أو إلغاء إذن ينهي الاتصال. عندها لا يُرسل شيء على Instagram أو Messenger، وتذكر الصفحة السبب.**
+
+#### `help.meta.instagram.check`
+
+- en: The Instagram account is a professional account (business or creator), linked to that Page.
+- **ar: حساب Instagram احترافي (تجاري أو لصانع محتوى) ومرتبط بتلك الصفحة.**
+
+#### `help.meta.instagram.title`
+
+- en: Instagram linked to the Page
+- **ar: Instagram مرتبط بالصفحة**
+
+#### `help.meta.instagram.why`
+
+- en: Meta gives an app Instagram messages only for a professional account linked to a Page.
+- **ar: لا تُسلّم Meta رسائل Instagram إلى أي تطبيق إلا لحساب احترافي مرتبط بصفحة.**
+
+#### `help.meta.lead`
+
+- en: What to check at each step, and why. The Channels page shows which steps are done; for where to click, Meta’s own help pages are linked.
+- **ar: ما يجب التحقق منه في كل خطوة، وسببه. تُظهر صفحة القنوات الخطوات المكتملة؛ ولمعرفة مواضع النقر، روابط إلى صفحات مساعدة Meta نفسها.**
+
+#### `help.meta.link.createPage`
+
+- en: Meta’s help: create a Facebook Page
+- **ar: مساعدة Meta: إنشاء صفحة Facebook**
+
+#### `help.meta.link.linkPage`
+
+- en: Meta’s help: connect Instagram and a Facebook Page
+- **ar: مساعدة Meta: ربط Instagram بصفحة Facebook**
+
+#### `help.meta.link.professional`
+
+- en: Meta’s help: set up a professional Instagram account
+- **ar: مساعدة Meta: إعداد حساب Instagram احترافي**
+
+#### `help.meta.page.check`
+
+- en: The shop has a Facebook Page, and you manage it with full control.
+- **ar: للمتجر صفحة على Facebook، وإدارتها الكاملة بيدك.**
+
+#### `help.meta.page.title`
+
+- en: A Facebook Page you manage
+- **ar: صفحة Facebook بإدارتك**
+
+#### `help.meta.page.why`
+
+- en: Messenger messages arrive at the Page and replies leave as the Page; Instagram is reached through the Page it is linked to.
+- **ar: تصل رسائل Messenger إلى الصفحة وتُرسل الردود باسم الصفحة؛ ويُوصل إلى Instagram عبر الصفحة المرتبط بها.**
+
+#### `help.meta.permissions.check`
+
+- en: In the Facebook window that opens when connecting, leave every box ticked.
+- **ar: في نافذة Facebook التي تُفتح عند الربط، يُرجى إبقاء كل الخيارات محددة.**
+
+#### `help.meta.permissions.title`
+
+- en: Every permission granted
+- **ar: منح كل الأذونات**
+
+#### `help.meta.permissions.why`
+
+- en: Each one allows one thing: seeing the Page, receiving and answering Messenger messages, receiving and answering Instagram messages. Without one of them, those messages never arrive.
+- **ar: كل إذن يتيح أمرًا واحدًا: رؤية الصفحة، واستقبال رسائل Messenger والرد عليها، واستقبال رسائل Instagram والرد عليها. ومن دون أحدها لا تصل تلك الرسائل أبدًا.**
+
+#### `help.meta.rules.first`
+
+- en: {name} cannot write first on Instagram or Messenger: the customer starts.
+- **ar: لا يمكن بدء المحادثة على Instagram أو Messenger: البداية من العميل.**
+
+#### `help.meta.rules.media`
+
+- en: Shared posts and mentions in stories come to you, named, and are not answered.
+- **ar: تصل المنشورات المشاركة والإشارات في القصص إليك مع اسمها، ولا يُرد عليها.**
+
+#### `help.meta.rules.title`
+
+- en: What works on Instagram and Messenger
+- **ar: ما يعمل على Instagram وMessenger**
+
+#### `help.meta.rules.window`
+
+- en: {name} can reply for 24 hours after the customer’s last message. After that, reply in the Instagram or Messenger app.
+- **ar: يمكن الرد خلال 24 ساعة من آخر رسالة للعميل. بعد ذلك يكون الرد من تطبيق Instagram أو Messenger.**
+
+#### `help.meta.subscription.check`
+
+- en: Nothing to do: connecting subscribes the Page. If the Channels page says it is not subscribed, connect again.
+- **ar: لا شيء مطلوب: الربط يُشرك الصفحة. وإن أظهرت صفحة القنوات أنها غير مشتركة، فيُرجى الربط من جديد.**
+
+#### `help.meta.subscription.title`
+
+- en: The Page sends its messages here
+- **ar: إرسال الصفحة رسائلها إلى هنا**
+
+#### `help.meta.subscription.why`
+
+- en: Without it, Meta keeps the messages in the Page’s own inbox and they never reach {name}.
+- **ar: من دون الاشتراك تُبقي Meta الرسائل في صندوق الصفحة الخاص، فلا تصل أبدًا إلى {name}.**
+
+#### `help.meta.test.check`
+
+- en: From a different account (a friend’s, or a personal one), send the shop a message on Instagram and on Messenger. On Instagram, the setting “Allow access to messages”, under Connected tools in the app’s message settings, must be on.
+- **ar: من حساب آخر، لصديق أو حساب شخصي، يُرجى إرسال رسالة إلى المتجر على Instagram وعلى Messenger. وفي Instagram يجب تفعيل خيار «السماح بالوصول إلى الرسائل» ضمن الأدوات المتصلة في إعدادات الرسائل.**
+
+#### `help.meta.test.title`
+
+- en: A first message from another account
+- **ar: أول رسالة من حساب آخر**
+
+#### `help.meta.test.why`
+
+- en: It proves the whole road, including the one Instagram setting nobody can read from outside: the first message arriving is the proof.
+- **ar: وصول الرسالة الأولى يُثبت الطريق كله، بما فيه إعداد Instagram الوحيد الذي لا يمكن قراءته من الخارج.**
+
+#### `help.meta.title`
+
+- en: Connecting a Facebook Page and Instagram
+- **ar: ربط صفحة Facebook وحساب Instagram**
+
+#### `help.meta.whyLabel`
+
+- en: Why:
+- **ar: السبب:**
+
+#### `inbox.draft.held.order_waits_for_owner`
+
+- en: This customer said yes to an order that is waiting for you, so every reply waits for you too.
+- **ar: في هذه المحادثة طلب شراء بانتظار قرارك، لذلك ينتظر كل ردّ قرارك أيضًا.**
+
+#### `inbox.flash.empty`
+
+- en: Nothing went: the reply box was empty.
+- **ar: لم يُرسل شيء: خانة الرد فارغة.**
+
+#### `insight.draftsWaiting` (counted)
+
+- en: {n} reply is written and waiting for you. / {n} replies are written and waiting for you.
+- **ar (zero): لا ردود جاهزة.**
+- **ar (one): ردّ واحد جاهز وبانتظارك.**
+- **ar (two): ردّان جاهزان وبانتظارك.**
+- **ar (few): {n} ردود جاهزة وبانتظارك.**
+- **ar (many): {n} ردًّا جاهزًا وبانتظارك.**
+- **ar (other): {n} ردّ جاهز وبانتظارك.**
+
+#### `insight.followUpsWaiting` (counted)
+
+- en: {n} follow-up e-mail is waiting for you to check your inbox. / {n} follow-up e-mails are waiting for you to check your inbox.
+- **ar (zero): لا رسائل متابعة بالانتظار.**
+- **ar (one): رسالة متابعة واحدة بانتظار مراجعة بريدك أولًا.**
+- **ar (two): رسالتا متابعة بانتظار مراجعة بريدك أولًا.**
+- **ar (few): {n} رسائل متابعة بانتظار مراجعة بريدك أولًا.**
+- **ar (many): {n} رسالة متابعة بانتظار مراجعة بريدك أولًا.**
+- **ar (other): {n} رسالة متابعة بانتظار مراجعة بريدك أولًا.**
+
+#### `insight.productsNoPrice` (counted)
+
+- en: {n} product has no price yet, so {name} cannot quote it. / {n} products have no price yet, so {name} cannot quote them.
+- **ar (zero): لا منتجات بلا سعر.**
+- **ar (one): منتج واحد بلا سعر، فلا يمكن تسعيره.**
+- **ar (two): منتجان بلا سعر، فلا يمكن تسعيرهما.**
+- **ar (few): {n} منتجات بلا سعر، فلا يمكن تسعيرها.**
+- **ar (many): {n} منتجًا بلا سعر، فلا يمكن تسعيرها.**
+- **ar (other): {n} منتج بلا سعر، فلا يمكن تسعيرها.**
+
+#### `insight.uncertainSends` (counted)
+
+- en: {n} message may or may not have reached a customer. / {n} messages may or may not have reached a customer.
+- **ar (zero): لا رسائل غير مؤكدة الوصول.**
+- **ar (one): رسالة واحدة قد تكون وصلت العميل وقد لا تكون.**
+- **ar (two): رسالتان قد تكونان وصلتا العميل وقد لا تكونان.**
+- **ar (few): {n} رسائل قد تكون وصلت العميل وقد لا تكون.**
+- **ar (many): {n} رسالةً قد تكون وصلت العميل وقد لا تكون.**
+- **ar (other): {n} رسالة قد تكون وصلت العميل وقد لا تكون.**
+
+#### `live.channels`
+
+- en: Something changed on your channels
+- **ar: تغيّر شيء في القنوات**
+
+#### `live.notify.ask`
+
+- en: Tell me in this browser when an order waits
+- **ar: تنبيه في هذا المتصفح عند وجود طلب بانتظار التأكيد**
+
+#### `live.notify.on`
+
+- en: This browser will tell you when an order waits, while Nomi is open in a tab.
+- **ar: سيصل تنبيه في هذا المتصفح عند وجود طلب بانتظار القرار، ما دام Nomi مفتوحًا في إحدى علامات التبويب.**
+
+#### `login.forgot`
+
+- en: Forgot your password?
+- **ar: نسيان كلمة المرور؟**
+
+#### `login.withEmail`
+
+- en: Sign in with your e-mail
+- **ar: تسجيل الدخول بالبريد الإلكتروني**
+
+#### `nav.conversations`
+
+- en: Conversations
+- **ar: المحادثات**
+
+#### `nav.customers`
+
+- en: Customers
+- **ar: العملاء**
+
+#### `nav.needsYou` (counted)
+
+- en: {n} customer needs you / {n} customers need you
+- **ar (zero): لا توجد محادثات بانتظارك**
+- **ar (one): محادثة واحدة بانتظارك**
+- **ar (two): محادثتان بانتظارك**
+- **ar (few): {n} محادثات بانتظارك**
+- **ar (many): {n} محادثةً بانتظارك**
+- **ar (other): {n} محادثة بانتظارك**
+
+#### `notify.meta_errors`
+
+- en: Workspaces where Meta refused or lost many messages in the last 24 hours: {n}.
+- **ar: مساحات عمل رُفضت فيها أو فُقدت رسائل كثيرة لدى Meta خلال آخر 24 ساعة: {n}.**
+
+#### `notify.meta_errors.how`
+
+- en: One app carries every workspace’s Instagram and Messenger, so a workspace sending into errors can get it restricted for all of them. Look at what it sends. Its daily limit is set with tools/send-ceiling.mjs; the emergency switch silences every workspace.
+- **ar: تطبيق واحد يحمل Instagram وMessenger لكل مساحات العمل، فمساحة عمل تستمر في إرسال رسائل مرفوضة قد تتسبب في تقييده للجميع. يُرجى النظر فيما تُرسله. يُضبط الحد اليومي بـ tools/send-ceiling.mjs، ومفتاح الطوارئ يوقف الإرسال في كل مساحات العمل.**
+
+#### `notify.meta_errors.line`
+
+- en: · {business} — {failed} of {attempted} refused or lost ({errors})
+- **ar: · {business} — {failed} من {attempted} مرفوضة أو مفقودة ({errors})**
+
+#### `notify.meta_errors.more`
+
+- en: · and {n} more
+- **ar: · و{n} غيرها**
+
+#### `notify.meta_errors.subject`
+
+- en: Nomi: Meta is refusing messages
+- **ar: Nomi: رسائل مرفوضة لدى Meta**
+
+#### `notify.order_proposed`
+
+- en: A customer said yes to an order. Nothing was confirmed and nothing was sent to them: the order waits for you. Open the conversation to confirm it, or to answer them yourself.
+- **ar: وصلت موافقة على طلب شراء من أحد العملاء. لم يُؤكَّد الطلب ولم يُرسَل أي شيء: الطلب بانتظار قرارك. يمكن فتح المحادثة لتأكيده أو للرد مباشرة.**
+
+#### `notify.order_proposed.subject`
+
+- en: A customer said yes to an order
+- **ar: موافقة على طلب شراء بانتظار قرارك**
+
+#### `order.action.confirm`
+
+- en: Confirm the order
+- **ar: تأكيد الطلب**
+
+#### `order.action.stepIn`
+
+- en: I'll answer them
+- **ar: تولّي الرد**
+
+#### `order.action.stepIn.note`
+
+- en: Sets the order aside and gives you the conversation. Nothing is sent.
+- **ar: يُترَك الطلب جانبًا وتُسنَد المحادثة إليك. لا يُرسَل شيء.**
+
+#### `order.card.email`
+
+- en: E-mail
+- **ar: البريد الإلكتروني**
+
+#### `order.card.intro`
+
+- en: Nothing is confirmed and nothing has been sent. When you confirm, the order is recorded and they are sent the message below.
+- **ar: لم يُؤكَّد شيء ولم يُرسَل شيء. عند التأكيد يُسجَّل الطلب وتُرسَل الرسالة أدناه.**
+
+#### `order.card.reference`
+
+- en: (its reference, given when you confirm)
+- **ar: (رقم الطلب، يُحدَّد عند التأكيد)**
+
+#### `order.card.terms`
+
+- en: Payment terms
+- **ar: شروط الدفع**
+
+#### `order.card.title`
+
+- en: They said yes to this order
+- **ar: تمت الموافقة على هذا الطلب**
+
+#### `order.card.willSend`
+
+- en: What they will be sent
+- **ar: الرسالة التي ستُرسَل**
+
+#### `order.flash.already_decided`
+
+- en: This order was already decided.
+- **ar: سبق اتخاذ قرار بشأن هذا الطلب.**
+
+#### `order.flash.assistant_silenced`
+
+- en: Sending is paused while we look into something, so the order still waits: nothing was recorded or sent.
+- **ar: الإرسال متوقف مؤقتًا ريثما نتحقق من أمر ما، لذلك ما زال الطلب بانتظارك: لم يُسجَّل شيء ولم يُرسَل شيء.**
+
+#### `order.flash.assistant_stopped`
+
+- en: Sending is stopped on every channel, so the order still waits: nothing was recorded or sent.
+- **ar: الإرسال متوقف على كل القنوات، لذلك ما زال الطلب بانتظارك: لم يُسجَّل شيء ولم يُرسَل شيء.**
+
+#### `order.flash.confirmed`
+
+- en: Order confirmed. They are being sent the confirmation.
+- **ar: تم تأكيد الطلب، وتُرسَل رسالة التأكيد الآن.**
+
+#### `order.flash.confirmedNotLive`
+
+- en: Order recorded. Nothing was sent: sending is not switched on here yet.
+- **ar: تم تسجيل الطلب. لم يُرسَل شيء لأن الإرسال غير مفعَّل هنا بعد.**
+
+#### `order.flash.incomplete`
+
+- en: This order cannot be recorded as it stands: its product or price is no longer there. Answer them yourself.
+- **ar: لا يمكن تسجيل هذا الطلب بصيغته الحالية: المنتج أو السعر لم يعد موجودًا. يُرجى الرد مباشرة.**
+
+#### `order.flash.not_found`
+
+- en: That order is no longer waiting.
+- **ar: هذا الطلب لم يعد بانتظار القرار.**
+
+#### `order.flash.set_aside`
+
+- en: The order is set aside, and the conversation is yours.
+- **ar: تُرك الطلب جانبًا، والمحادثة مُسنَدة إليك.**
+
+#### `pane.label`
+
+- en: Conversations
+- **ar: المحادثات**
+
+#### `panel.act.alone`
+
+- en: {name} replied
+- **ar: ردّ من {name}**
+
+#### `panel.act.draft_sent`
+
+- en: You sent {name}’s draft
+- **ar: أُرسلت مسودة {name} بموافقتك**
+
+#### `panel.act.edit_sent`
+
+- en: You sent your version of {name}’s draft
+- **ar: أُرسلت نسختك المعدّلة من مسودة {name}**
+
+#### `panel.act.not_reached.assistant`
+
+- en: {name}’s reply didn’t reach them
+- **ar: لم يصل ردّ {name}**
+
+#### `panel.act.not_reached.person`
+
+- en: Your reply didn’t reach them
+- **ar: لم يصل ردّك**
+
+#### `panel.act.owner`
+
+- en: You answered yourself
+- **ar: ردّ منك مباشرة**
+
+#### `panel.act.waiting`
+
+- en: Waiting for you
+- **ar: بانتظارك**
+
+#### `panel.activity`
+
+- en: Activity
+- **ar: النشاط**
+
+#### `panel.askedAbout`
+
+- en: Asked about
+- **ar: ما سُئل عنه**
+
+#### `panel.close`
+
+- en: Close
+- **ar: إغلاق**
+
+#### `panel.conversations` (counted)
+
+- en: {n} conversation / {n} conversations
+- **ar (zero): {n} محادثة**
+- **ar (one): محادثة واحدة**
+- **ar (two): محادثتان**
+- **ar (few): {n} محادثات**
+- **ar (many): {n} محادثةً**
+- **ar (other): {n} محادثة**
+
+#### `panel.details`
+
+- en: Their details, their data
+- **ar: التفاصيل والبيانات**
+
+#### `panel.firstWrote`
+
+- en: First wrote {date}
+- **ar: أول رسالة في {date}**
+
+#### `panel.label`
+
+- en: The customer
+- **ar: العميل**
+
+#### `panel.now`
+
+- en: now
+- **ar: الآن**
+
+#### `panel.onCalendar`
+
+- en: On the calendar
+- **ar: في التقويم**
+
+#### `panel.onRecord`
+
+- en: On record
+- **ar: في السجل**
+
+#### `panel.open`
+
+- en: The customer
+- **ar: العميل**
+
+#### `panel.order`
+
+- en: Order {reference}
+- **ar: الطلب {reference}**
+
+#### `panel.priceDoor`
+
+- en: the conversation
+- **ar: المحادثة**
+
+#### `panel.prices`
+
+- en: Prices worked out
+- **ar: الأسعار المحسوبة**
+
+#### `panel.promised`
+
+- en: Promised
+- **ar: ما وُعد به**
+
+#### `panel.sample`
+
+- en: Sample
+- **ar: عينة**
+
+#### `panel.sampleAsked`
+
+- en: asked {date}
+- **ar: طُلبت في {date}**
+
+#### `panel.sampleHandled`
+
+- en: dealt with {date}
+- **ar: عولجت في {date}**
+
+#### `panel.times` (counted)
+
+- en: once / {n} times
+- **ar (zero): {n} مرة**
+- **ar (one): مرة واحدة**
+- **ar (two): مرتان**
+- **ar (few): {n} مرات**
+- **ar (many): {n} مرةً**
+- **ar (other): {n} مرة**
+
+#### `panel.writesIn`
+
+- en: writes in {language}
+- **ar: يكتب بـ{language}**
+
+#### `people.flash.renamed`
+
+- en: Saved. Everyone here sees {name} now.
+- **ar: تم الحفظ. الاسم الظاهر للجميع الآن: {name}.**
+
+#### `people.name.askThem`
+
+- en: This is your business's name, not a person's. What is the right name here?
+- **ar: هذا اسم الشركة لا اسم شخص. ما الاسم الصحيح هنا؟**
+
+#### `people.name.askYou`
+
+- en: Your name here is your business's name. What should the people here call you?
+- **ar: الاسم المسجَّل هنا مطابق لاسم الشركة. ما الاسم الذي يظهر لفريق العمل؟**
+
+#### `people.name.save`
+
+- en: Save the name
+- **ar: حفظ الاسم**
+
+#### `people.ownerOnly.data_rights`
+
+- en: Record a customer's request to have their data deleted
+- **ar: تسجيل طلب حذف بيانات عميل**
+
+#### `product.add.example3`
+
+- en: Rose face serum 50 ml $34.90
+- **ar: مصل الورد 50 مل $34.90**
+
+#### `product.detail.notFindable`
+
+- en: Customers cannot find this product yet: it has no name their messages can be matched to. Add the names customers use below, and it can be found and quoted.
+- **ar: لا يمكن للعملاء العثور على هذا المنتج بعد: لا يوجد اسم تُطابَق به رسائلهم. يُرجى إضافة الأسماء التي يستخدمها العملاء أدناه ليصبح ممكنًا العثور عليه وتسعيره.**
+
+#### `product.edit.customerNames`
+
+- en: Add names customers use
+- **ar: إضافة أسماء يستخدمها العملاء**
+
+#### `product.edit.customerNames.hint`
+
+- en: One per line. The product is found by any of them; the names already here stay.
+- **ar: اسم في كل سطر. يُعثَر على المنتج بأيٍّ منها، وتبقى الأسماء الموجودة.**
+
+#### `product.edit.error.too_long`
+
+- en: Too long: a name can have at most 120 characters.
+- **ar: طويل جدًا: 120 حرفًا على الأكثر لكل اسم.**
+
+#### `product.edit.error.too_many`
+
+- en: At most 20 names at a time.
+- **ar: 20 اسمًا على الأكثر في كل مرة.**
+
+#### `product.edit.moq.hint`
+
+- en: Leave it empty if there is no minimum.
+- **ar: يُترك الحقل فارغًا إن لم يوجد حد أدنى.**
+
+#### `product.edit.name`
+
+- en: Name
+- **ar: الاسم**
+
+#### `product.edit.nameZh`
+
+- en: Name in Chinese
+- **ar: الاسم بالصينية**
+
+#### `product.noMinimum`
+
+- en: No minimum
+- **ar: بلا حد أدنى**
+
+#### `product.photo.refused.cut_off`
+
+- en: The page is too long to read in one photo, so nothing was added. Send it as two photos — the top half, then the bottom half.
+- **ar: الصفحة أطول من أن تُقرأ في صورة واحدة، فلم يُضف شيء. يُرجى إرسالها في صورتين: النصف الأعلى ثم النصف الأسفل.**
+
+#### `product.reject.ambiguous_price`
+
+- en: the price can be read two ways — write it like 1250.00
+- **ar: يمكن قراءة السعر بطريقتين — يُرجى كتابته هكذا: 1250.00**
+
+#### `product.reject.not_usd`
+
+- en: only US dollars for now — this line has another currency
+- **ar: الدولار الأمريكي فقط حاليًا — في هذا السطر عملة أخرى**
+
+#### `product.reject.several_numbers`
+
+- en: several numbers and none marked as the price — put $ before it
+- **ar: في السطر عدة أرقام ولا يُعرف أيها السعر — يُرجى وضع $ قبله**
+
+#### `product.status.notFindable`
+
+- en: Customers cannot find it yet
+- **ar: لا يمكن للعملاء العثور عليه بعد**
+
+#### `received.shared_post`
+
+- en: A shared post
+- **ar: منشور مُشارك**
+
+#### `received.story_mention`
+
+- en: A mention in their story
+- **ar: إشارة في قصة العميل**
+
+#### `received.story_reply`
+
+- en: A reply to your story
+- **ar: ردّ على قصتك**
+
+#### `sandbox.case.order-yes-waits-for-the-owner-in-auto`
+
+- en: A "yes" to an order waits for your tap — nothing is sent
+- **ar: الموافقة على طلب الشراء تنتظر قرارك — لا يُرسَل شيء**
+
+#### `sandbox.inv.answeredAsUsual`
+
+- en: Answered as usual — nothing to hand over
+- **ar: ردّ معتاد دون إحالة**
+
+#### `sandbox.inv.certOnlyIfAuthorized`
+
+- en: Named only the certifications you hold
+- **ar: ذكر الشهادات المتوفرة فقط**
+
+#### `sandbox.inv.deletionHandsOffSilently`
+
+- en: A deletion request went to you, and nothing was sent
+- **ar: إحالة طلب الحذف إليك دون إرسال أي رد**
+
+#### `sandbox.inv.neverDeniesBeingAi`
+
+- en: Never claimed to be a person
+- **ar: لا ادّعاء للصفة البشرية**
+
+#### `sandbox.inv.noDeletionPromise`
+
+- en: Promised no deletion
+- **ar: لا وعد بحذف البيانات**
+
+#### `sandbox.inv.noUnsourcedSpecNumber`
+
+- en: Every figure came from your products, the quote or the customer
+- **ar: لكل رقم مصدر: منتجاتك أو عرض السعر أو العميل**
+
+#### `sandbox.inv.orderWaitsForOwner`
+
+- en: The order waited for your tap
+- **ar: الطلب بانتظار تأكيدك**
+
+#### `setup.state.connected`
+
+- en: Connected
+- **ar: متصل**
+
+#### `setup.state.done`
+
+- en: Done
+- **ar: مكتمل**
+
+#### `setup.state.notAnswered`
+
+- en: Not answered yet
+- **ar: لم يُحدَّد بعد**
+
+#### `setup.state.notConnected`
+
+- en: Nothing connected yet
+- **ar: لا اتصال بعد**
+
+#### `setup.state.people` (counted)
+
+- en: {n} person / {n} people
+- **ar (zero): لا أحد**
+- **ar (one): شخص واحد**
+- **ar (two): شخصان**
+- **ar (few): {n} أشخاص**
+- **ar (many): {n} شخصًا**
+- **ar (other): {n} شخص**
+
+#### `setup.state.toDo`
+
+- en: Not finished
+- **ar: غير مكتمل**
+
+#### `today.blocked` (counted)
+
+- en: {n} message did not reach a customer / {n} messages did not reach customers
+- **ar (zero): لا رسائل لم تصل**
+- **ar (one): رسالة واحدة لم تصل إلى العميل**
+- **ar (two): رسالتان لم تصلا إلى العملاء**
+- **ar (few): {n} رسائل لم تصل إلى العملاء**
+- **ar (many): {n} رسالةً لم تصل إلى العملاء**
+- **ar (other): {n} رسالة لم تصل إلى العملاء**
+
+#### `today.coming.all`
+
+- en: The calendar
+- **ar: التقويم**
+
+#### `today.coming.none`
+
+- en: Nothing on the calendar in the next seven days.
+- **ar: لا شيء في التقويم خلال الأيام السبعة القادمة.**
+
+#### `today.coming.title`
+
+- en: Coming up
+- **ar: القادم**
+
+#### `today.deletion` (counted)
+
+- en: {n} customer asked for their data to be deleted / {n} customers asked for their data to be deleted
+- **ar (zero): لا طلبات لحذف البيانات**
+- **ar (one): طلب واحد لحذف البيانات**
+- **ar (two): طلبان لحذف البيانات**
+- **ar (few): {n} طلبات لحذف البيانات**
+- **ar (many): {n} طلبًا لحذف البيانات**
+- **ar (other): {n} طلب لحذف البيانات**
+
+#### `today.gaps` (counted)
+
+- en: {n} question {name} could not answer / {n} questions {name} could not answer
+- **ar (zero): أسئلة بلا إجابة لدى {name}: {n}**
+- **ar (one): سؤال واحد بلا إجابة لدى {name}**
+- **ar (two): سؤالان بلا إجابة لدى {name}**
+- **ar (few): {n} أسئلة بلا إجابة لدى {name}**
+- **ar (many): {n} سؤالًا بلا إجابة لدى {name}**
+- **ar (other): {n} سؤال بلا إجابة لدى {name}**
+
+#### `today.last.answered` (counted)
+
+- en: {name} answered {n} customer / {name} answered {n} customers
+- **ar (zero): ردود {name} على {n} من العملاء**
+- **ar (one): ردود {name} على عميل واحد**
+- **ar (two): ردود {name} على عميلين**
+- **ar (few): ردود {name} على {n} عملاء**
+- **ar (many): ردود {name} على {n} عميلًا**
+- **ar (other): ردود {name} على {n} عميل**
+
+#### `today.last.handed` (counted)
+
+- en: {name} handed {n} customer to you / {name} handed {n} customers to you
+- **ar (zero): إحالة {n} من العملاء إليك من {name}**
+- **ar (one): إحالة عميل واحد إليك من {name}**
+- **ar (two): إحالة عميلين إليك من {name}**
+- **ar (few): إحالة {n} عملاء إليك من {name}**
+- **ar (many): إحالة {n} عميلًا إليك من {name}**
+- **ar (other): إحالة {n} عميل إليك من {name}**
+
+#### `today.last.none`
+
+- en: Nothing in the last 24 hours yet.
+- **ar: لا شيء خلال آخر 24 ساعة حتى الآن.**
+
+#### `today.last.sent` (counted)
+
+- en: You sent {n} reply {name} wrote / You sent {n} replies {name} wrote
+- **ar (zero): ردود من {name} أُرسلت بموافقتك: {n}**
+- **ar (one): ردّ واحد من {name} أُرسل بموافقتك**
+- **ar (two): ردّان من {name} أُرسلا بموافقتك**
+- **ar (few): {n} ردود من {name} أُرسلت بموافقتك**
+- **ar (many): {n} ردًّا من {name} أُرسلت بموافقتك**
+- **ar (other): {n} ردّ من {name} أُرسلت بموافقتك**
+
+#### `today.last.title`
+
+- en: In the last 24 hours
+- **ar: خلال آخر 24 ساعة**
+
+#### `today.last.yourself` (counted)
+
+- en: You answered {n} customer yourself / You answered {n} customers yourself
+- **ar (zero): ردودك بنفسك على {n} من العملاء**
+- **ar (one): ردّك بنفسك على عميل واحد**
+- **ar (two): ردودك بنفسك على عميلين**
+- **ar (few): ردودك بنفسك على {n} عملاء**
+- **ar (many): ردودك بنفسك على {n} عميلًا**
+- **ar (other): ردودك بنفسك على {n} عميل**
+
+#### `today.needs.all` (counted)
+
+- en: The {n} who needs you / All {n} who need you
+- **ar (zero): كل من بانتظارك**
+- **ar (one): العميل الوحيد بانتظارك**
+- **ar (two): العميلان بانتظارك**
+- **ar (few): كل من بانتظارك: {n}**
+- **ar (many): كل من بانتظارك: {n}**
+- **ar (other): كل من بانتظارك: {n}**
+
+#### `today.needs.none`
+
+- en: No one is waiting for you.
+- **ar: لا أحد بانتظارك الآن.**
+
+#### `today.sending`
+
+- en: Sending:
+- **ar: الإرسال:**
+
+#### `today.sending.on`
+
+- en: on
+- **ar: مفعّل**
+
+#### `today.sending.paused`
+
+- en: paused
+- **ar: متوقف**
+
+#### `today.setup.line`
+
+- en: Setup: {done} of {total} done.
+- **ar: الإعداد: اكتمل {done} من {total}.**
+
+#### `unreadable.open`
+
+- en: Open it
+- **ar: فتحه**
+
+#### `autonomy.level.talks.note` (changed)
+
+- en: Greetings, questions and recommendations go out by themselves. A reply that states a price waits for you.
+- before: التحيات والأسئلة والتوصيات والمتابعات تخرج من تلقاء نفسها. الردّ الذي يذكر سعرًا ينتظرك.
+- **ar: التحيات والأسئلة والتوصيات تخرج من تلقاء نفسها. الردّ الذي يذكر سعرًا ينتظرك.**
+
+#### `conv.tl.buyer_text` (changed)
+
+- en: {who}: {text}
+- before: المشتري: {text}
+- **ar: {who}: {text}**
