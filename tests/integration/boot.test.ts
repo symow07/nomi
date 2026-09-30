@@ -291,7 +291,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     const login = await prod.app.inject({ method: 'GET', url: '/login' });
     expect(login.statusCode).toBe(200);
-    expect(login.body).toContain('name="code"');
+    // UI-PASS 10: the e-mail first; the access code behind a small door.
+    expect(login.body).toContain('name="email"');
+    expect(login.body).toContain('href="/login?with=code"');
+    expect((await prod.app.inject({ method: 'GET', url: '/login?with=code' })).body).toContain('name="code"');
   });
 
   it('M9: wrong code rejected; correct code opens the shell with the dashboard', async () => {
@@ -340,11 +343,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     // default English
     const en = await prod.app.inject({ method: 'GET', url: '/login' });
     expect(en.body).toContain('<html lang="en" dir="ltr">');
-    expect(en.body).toContain('Access code');
+    expect(en.body).toContain('I have an access code');
     // Accept-Language Arabic → RTL
     const ar = await prod.app.inject({ method: 'GET', url: '/login', headers: { 'accept-language': 'ar-SA,ar;q=0.9' } });
     expect(ar.body).toContain('<html lang="ar" dir="rtl">');
-    expect(ar.body).toContain('رمز الدخول');
+    expect(ar.body).toContain('لديّ رمز دخول');
     // yf_locale cookie → Chinese
     const zh = await prod.app.inject({ method: 'GET', url: '/login', headers: { cookie: 'yf_locale=zh' } });
     expect(zh.body).toContain('<html lang="zh"');
@@ -892,9 +895,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       sql`update businesses set name='Yiwu Demo Factory', location='Yiwu, Zhejiang' where id=${parsed.value}`.execute(tx));
 
     const cookie = await login();
-    const res = await prod.app.inject({ method: 'GET', url: '/app/settings', headers: { cookie } });
+    const res = await prod.app.inject({ method: 'GET', url: '/app/settings/profile', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('Business profile');          // English default
+    expect(res.body).toContain('Business profile');          // English default — its own page since UI-PASS 7
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
     expect(res.body).toContain('Company name');
     expect(res.body).toContain('Product categories');
@@ -929,7 +932,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       payload: 'name=Acme%20Exports&location=Ningbo&contact_email=sales%40acme.co&lang_en=on&lang_zh=on' });
     expect(ok.statusCode).toBe(302);
-    expect(ok.headers['location']).toBe('/app/settings');
+    expect(ok.headers['location']).toBe('/app/settings/profile');   // UI-PASS 7: the profile's own page
     expect(flashSaid(ok, WEB_SECRET)).not.toBe('');
     expect(await nameOf()).toBe('Acme Exports');            // persisted
     expect(await auditCount()).toBe(before + 1);            // audited (update_profile)

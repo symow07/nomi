@@ -139,13 +139,11 @@ async function prepareOut() {
 async function signIn(browser) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  await page.goto(`${BASE}/login`);
-  // A1 — the door is e-mail + password now; the access-code form sits inside a
-  // collapsed <details>, so open it first and submit ITS button, not the first
-  // submit on the page (which is the e-mail form's).
-  await page.click('details summary');
-  await page.fill('details input[name="code"]', CODE);
-  await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login')), page.click('details form button[type="submit"]')]);
+  // The door leads with the e-mail; the access code has its own card, behind
+  // the small door at the foot (UI-PASS 10, 2026-09-30).
+  await page.goto(`${BASE}/login?with=code`);
+  await page.fill('input[name="code"]', CODE);
+  await Promise.all([page.waitForURL((u) => !u.pathname.startsWith('/login')), page.click('form button[type="submit"]')]);
   const state = await ctx.storageState();
   await ctx.close();
   return state;

@@ -198,6 +198,6 @@ describe('V1 · the components page', () => {
   it('is reached from Setup and lives in its hub group', () => {
     const settings = CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === '/app/settings');
     expect(settings?.routes).toContain('/app/settings/components');
-    expect(read('settings.ts')).toContain("deeper('/app/settings/components'");
+    expect(read('settings.ts')).toContain("door('/app/settings/components'");
   });
 });

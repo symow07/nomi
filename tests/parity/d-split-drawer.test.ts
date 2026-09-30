@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shell, NAV, CONTEXTUAL_ROUTES_BY_HUB, CONTEXTUAL_ROUTES, hubFor, isOutreachRoute, OUTREACH_PREFIXES } from '../../src/api/web/layout.js';
 import { withWorkspace, withAssistantName, outreachShown, setupState, type RequestScope } from '../../src/api/web/say.js';
-import { renderSettings } from '../../src/api/web/settings.js';
+import { renderSetup } from '../../src/api/web/settings.js';
 import { renderOperationsHome } from '../../src/api/web/operations.js';
 import { NOTHING_TODAY } from '../../src/api/web/today.js';
 import { renderInboxList } from '../../src/api/web/inbox.js';
@@ -145,19 +145,25 @@ describe('D · the Today card', () => {
 });
 
 describe('D · the doors moved, the pages did not', () => {
-  const profile = {
-    name: 'X', description: null, location: null, workingHours: null, languagesServed: ['en'],
-    contactEmail: null, contactPhone: null, categories: [],
-  } as unknown as Parameters<typeof renderSettings>[0];
-
-  it('Setup holds Getting ready, channels, people, business, sign-in, data — and none of what you sell', () => {
-    const html = withWorkspace(facts(), () => renderSettings(profile, 'en', null));
-    for (const href of ['/app/onboarding', '/app/channels', '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data'])
+  it('Setup holds Getting ready, channels, the profile, people, business, sign-in, data — and none of what you sell', () => {
+    const html = withWorkspace(facts(), () => renderSetup({ kind: 'Manufacturer', people: 3 }, 'en', null));
+    for (const href of ['/app/onboarding', '/app/channels', '/app/settings/profile', '/app/settings/people', '/app/settings/business', '/app/settings/account', '/app/settings/data'])
       expect(html).toContain(`href="${href}"`);
     for (const href of ['/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate', '/app/settings/forbidden'])
       expect(html).not.toContain(`href="${href}"`);
     expect(html).toContain(`<h1 class="page">${t('en', 'nav.settings')}</h1>`);
-    expect(html).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+  });
+
+  it('UI-PASS 7 · each door says where it stands; the profile\'s form is not on Setup', () => {
+    const html = withWorkspace(facts(), () => renderSetup({ kind: null, people: 1 }, 'en', null));
+    const doorTo = (href: string) => /<a class="tline" href="([^"]+)">[\s\S]*?<\/a>/g;
+    const doors = Object.fromEntries([...html.matchAll(doorTo(''))].map((m) => [m[1], m[0]]));
+    expect(doors['/app/onboarding']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    expect(doors['/app/settings/business']).toContain(t('en', 'setup.state.notAnswered'));
+    expect(doors['/app/settings/people']).toContain('1 person');
+    expect(html).not.toContain('action="/app/settings"');   // the form lives on its own page
+    expect(withWorkspace(facts({ setup: COMPLETE }), () => renderSetup({ kind: 'Retailer', people: 4 }, 'en', null)))
+      .toContain(`<span class="tl-why">${t('en', 'setup.state.done')}</span>`);
   });
 });
 

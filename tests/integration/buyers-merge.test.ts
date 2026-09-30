@@ -308,7 +308,8 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const r = await get('/app/inbox?q=zhang');
     const row = /<a class="buyer unanswered" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec(r.body)?.[1] ?? '';
     expect(row, 'Zhang wrote last and is still waiting').not.toBe('');
-    expect(row).toContain(`<div class="buyer-t muted">${await lastContact(zhang)} · <bdi>Buyer</bdi> · Instagram</div>`);
+    // UI-PASS 5: the row is the customer's name already; who wrote last is said only when it is not them.
+    expect(row).toContain(`<div class="buyer-t muted">${await lastContact(zhang)} · Instagram</div>`);
     const omar = /<a class="buyer" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec((await get('/app/inbox?q=Omar')).body)?.[1] ?? '';
     expect(omar).toMatch(new RegExp(`<div class="buyer-t muted">${await lastContact(dubai)} · <bdi>[^<]+</bdi> · WhatsApp</div>`));
   });

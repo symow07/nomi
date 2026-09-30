@@ -17,7 +17,7 @@ import { NOTHING_DONE, setupProgress, type SetupProgress, type SetupStep } from 
 
 export type OnboardingStep = SetupStep;
 export const STEP_LINK: Record<OnboardingStep, string> = {
-  profile: '/app/settings', products: '/app/products', name: '/app/onboarding',
+  profile: '/app/settings/profile', products: '/app/products', name: '/app/onboarding',
   channels: '/app/channels', first_success: '/app/inbox',
 };
 

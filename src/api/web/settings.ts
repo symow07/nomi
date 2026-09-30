@@ -3,7 +3,7 @@ import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, setupState } from './say.js';
+import { t, tn, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
 import { FORBIDDEN_FLOOR } from '../../core/safety/forbiddenWords.js';
 import { type OwnerRate, type RateError, validateRate } from '../../core/commerce/exchange.js';
@@ -16,7 +16,7 @@ import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
 import { parseCurrency } from '../../core/types/money.js';
 
-import { switcher, deeper, esc, conversationUrl } from './layout.js';
+import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
 import * as show from './values.js';
@@ -177,7 +177,52 @@ export async function saveBusinessProfile(
 /** What the owner just typed, so a rejected save re-renders THEIR words. */
 export type ProfileDraft = Partial<Record<ProfileField, string>> & { readonly languagesServed?: readonly string[] };
 
-export function renderSettings(
+/**
+ * THE DESIGN PASS (UI-PASS 7) — Setup is doors, each with its state: where
+ * setup stands, which channels, the business profile, what kind of business,
+ * who is here. The profile's form has its own page (\`renderProfile\`); the
+ * language switch stays first, the one thing here an owner looks for in a
+ * hurry; Log out is the rail's, and here only on a phone, where the rail is a
+ * row of five.
+ */
+export type SetupView = {
+  /** "What kind of business" as the owner last answered it; null = not yet. */
+  readonly kind: string | null;
+  /** How many people work here. */
+  readonly people: number;
+};
+
+export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
+  const setup = setupState();
+  const step = (k: string): boolean | null => setup?.steps.find((x) => x.step === k)?.done ?? null;
+  const state = (done: boolean | null, yes: MessageKey, no: MessageKey): string =>
+    done === null ? '' : t(locale, done ? yes : no);
+  const door = (href: string, label: string, said = ''): string =>
+    `<li><a class="tline" href="${href}"><span class="tl-who">${esc(label)}</span>${
+      said ? ` <span class="tl-why">${esc(said)}</span>` : ''}<span class="go" aria-hidden="true">→</span></a></li>`;
+  const ready = setup
+    ? (setup.next === null ? t(locale, 'setup.state.done') : t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))
+    : '';
+  return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
+    ${flashBanner(flash)}
+    <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
+    <ul class="tlines setup-doors">
+      ${door('/app/onboarding', t(locale, 'nav.onboarding'), ready)}
+      ${door('/app/channels', t(locale, 'nav.channels'), state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'))}
+      ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
+      ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}
+      ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
+      ${door('/app/settings/account', t(locale, 'account.title'))}
+      ${door('/app/settings/data', t(locale, 'data.title'))}
+      ${door('/app/settings/components', t(locale, 'components.title'))}
+    </ul>
+    <div class="block signout"><form method="post" action="/logout">
+      <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
+    </form></div>`;
+}
+
+/** The business profile, on its own page (it was inline among Setup's doors). */
+export function renderProfile(
   p: BusinessProfile, locale: Locale, flash: Flash | null,
   draft: ProfileDraft = {}, errors: ProfileErrors = {},
 ): string {
@@ -198,7 +243,7 @@ export function renderSettings(
     <div class="langs">${LOCALES.map((l) =>
       `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> ${esc(LOCALE_LABEL[l])}</label>`).join('')}</div></div>`;
 
-  const form = `<div class="block"><h2>${esc(t(locale, 'settings.profile.title'))}</h2>
+  const form = `<div class="block">
     <form method="post" action="/app/settings" class="pform">
       ${field('name', 'settings.field.name', 'name', p.name)}
       <label class="fld"><span class="muted">${esc(t(locale, 'settings.field.description'))}</span>
@@ -218,37 +263,10 @@ export function renderSettings(
       : `<div class="muted empty">${esc(t(locale, 'settings.categories.empty'))}</div>`}
   </div>`;
 
-  // D — Setup: how this installation is wired. Getting ready leads while setup
-  // is unfinished, with the count the nav shows; what you SELL (terms, samples,
-  // closed days, the rate) is reached from My business now, and how the
-  // assistant BEHAVES (forbidden words) from the assistant's own page.
-  const setup = setupState();
-  const progress = setup && setup.next !== null
-    ? `<p class="muted setup-line">${esc(t(locale, 'nav.setup.progress', { done: setup.done, total: setup.total }))}</p>`
-    : '';
-
-  // V1 · option A put the language switch and log out at the top of Setup.
-  // The switch stays first — it is the one thing here an owner looks for in a
-  // hurry. Log out moved LAST, and is a button (V1 close-out, the review's
-  // noted item): it ends the session, so it does something rather than going
-  // somewhere (decision 4), and the one action that signs the owner out no
-  // longer sits between the language and Getting ready.
-  return `<h1 class="page">${esc(t(locale, 'nav.settings'))}</h1>
+  return `${back('/app/settings', t(locale, 'nav.settings'))}
+    <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
-    ${progress}
-    <div class="block"><h2>${esc(t(locale, 'settings.language.title'))}</h2>${switcher(locale, '/app/settings')}</div>
-    ${deeper('/app/onboarding', t(locale, 'nav.onboarding'))}
-    ${deeper('/app/channels', t(locale, 'nav.channels'))}
-    ${form}${categories}
-    ${deeper('/app/settings/business', t(locale, 'business.kind.label'))}
-    ${deeper('/app/settings/people', t(locale, 'people.title'))}
-    ${deeper('/app/settings/account', t(locale, 'account.title'))}
-    ${deeper('/app/settings/data', t(locale, 'data.title'))}
-    ${deeper('/app/settings/components', t(locale, 'components.title'))}
-    <div class="block signout"><form method="post" action="/logout">
-      <button class="btn ghost" type="submit">${esc(t(locale, 'header.logout'))}</button>
-    </form></div>
-    `;
+    ${form}${categories}`;
 }
 
 

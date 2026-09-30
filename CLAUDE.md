@@ -491,6 +491,13 @@ Recent PRs, newest first:
    - The web `t`/`tn` isolate every figure run in a finished sentence (a text parameter carrying a figure goes in whole; the catalogue's own "30 days", "{done}/{total}" as one run each). Customer-typed text (product names, calendar titles) goes in `<bdi>`.
    - The test: the surface walk draws every owner page in Arabic over real rows and fails any digit run or currency sign outside an isolate (`tests/parity/isolates.ts` reads it). Tests that check a page's WORDS read it through `withoutIsolates`. No literal direction character may be written into the source — escape it (`\u2068`); the Write tool turns escapes into the characters, so check new files.
 
+39. **Names, People, Setup, the door and the live line** (the design pass, UI-PASS 5–8 and 10, #140, 2026-09-30).
+   - **Names:** in "Hand to" the reader is "You" (whoever the row is called). On People anyone called by the business's name — an owner provisioned before logins (0035) — is asked for their own (`namedLikeBusiness`: case, width, spacing aside; `POST /app/settings/people/:id/name`, owner-only). The transcript names each speaker (the customer by name, "You", the assistant); no lone role word under a message, and the Buyers row does not repeat the customer under their own name.
+   - **People:** pills only for states ("online now"); "You" is plain text. Every owner-only act has its line on the page (a test; `data_rights` printed a raw key until 2026-09-30).
+   - **Setup:** doors, each with its state (`.tlines`, as on Today): Getting ready's count, channels connected or not, the profile done or not, the kind of business, how many people. The profile is its own page, `/app/settings/profile` (saving lands there; `STEP_LINK.profile`). Log out is the rail's; Setup keeps one only on a phone.
+   - **The door:** the e-mail first; the access code (the pilot's owner and staff codes) is a small door at the foot to its own card, `/login?with=code`, with a door back; a wrong code shows that card.
+   - **The live line** sits in the page's header, in the flow — the Buyers title row and the conversation's head (`LIVE_SLOT` in the body; else under the title) — never sticky over the reply box, never fixed. An owner reading the bottom of a long conversation sees it on scrolling up; a screen reader hears it (polite region) wherever it is.
+
 ## 6 · What's next
 
 **The 2026-09-28 batch — "clear the queue"** (the owner's order): Task 1

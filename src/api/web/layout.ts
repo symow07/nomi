@@ -370,15 +370,16 @@ ${LANGSW_CSS}
   .flash.bad { background:var(--color-warn-wash); color:var(--color-warn);
     border-color:var(--color-warn-line); }
   /* CC-26 · the line a page shows when something new arrives while it is
-     open: the notice's own shape and tone, and the whole line one door to
-     the newest. It sits at the foot of the column, at the reading measure,
-     and stays in view while she scrolls, over nothing she is reading until
-     she reaches it; empty, it takes no room. Nothing above it moves when it
-     appears. */
-  .live { position:sticky; bottom:var(--space-16); z-index:1; max-width:var(--measure-prose); }
-  .live-line { padding:0; margin:var(--space-16) 0 0; box-shadow:var(--shadow-lift2); }
-  .live-line .deeper { width:100%; justify-content:space-between; gap:var(--space-12);
-    padding:var(--space-8) var(--space-16); color:inherit; font-weight:600; }
+     open: the notice's own tone, and the whole line one door to the newest.
+     The design pass (UI-PASS 6): it sits in the page's header, in the flow —
+     the list's, the conversation's — never over a control; empty, it takes
+     no room. */
+  .live { max-width:var(--measure-prose); }
+  .dhead .live { margin-inline-start:auto; }
+  .dhead.listhead { margin-bottom:var(--space-16); }
+  .listhead h1.page { margin:0; }
+  .live-line { padding:0; margin:0; }
+  .live-line .deeper { gap:var(--space-8); padding:0 var(--space-12); color:inherit; font-weight:600; }
 
   /* One tab row. */
   .tabs { display:flex; gap:var(--space-8); margin-bottom:var(--space-16); }
@@ -1069,9 +1070,6 @@ const STYLE_PAGES = `
     .panes > .panel:target { display:block; position:fixed; inset-block:0; inset-inline-end:0; width:320px; z-index:5;
       overflow-y:auto; padding:var(--space-16); background:var(--color-surface); box-shadow:var(--shadow-lift2); }
     .panes > .panel:target .panel-close { display:inline-flex; margin-bottom:var(--space-12); font-size:var(--font-size-small); }
-    /* The line that says something new arrived sits over the conversation's
-       head, never over the card docked at its foot. */
-    main.wide > .live { position:fixed; top:var(--space-16); bottom:auto; inset-inline-start:calc(508px + var(--space-24)); z-index:4; }
   }
   @media (min-width: 1440px) {
     .panes { grid-template-columns:300px minmax(560px, 1fr) 300px; }
@@ -1549,7 +1547,7 @@ ${scriptTo(LIVE_JS)}</head>
     ${nav}
   </nav>
   <div class="content">
-    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${input.bodyHtml}${input.live ?? ''}</main>
+    <main id="main"${input.wide ? ' class="wide"' : ''}>${heading}${placeLive(input.bodyHtml, input.live ?? '')}</main>
   </div>
 </div></body></html>`;
 }
@@ -1593,6 +1591,8 @@ const DOOR_STYLE = `
   summary { cursor:pointer; color:var(--color-ink-secondary); font-size:var(--font-size-caption); min-height:44px; display:flex; align-items:center; }
   details form { margin-top:var(--space-8); }
   .login .other { text-align:center; margin:var(--space-16) 0 0; font-size:var(--font-size-caption); }
+  .login .other.small { margin-top:var(--space-8); }
+  .login .other.small a { color:var(--color-ink-secondary); }
   .login .foot { text-align:center; font-size:var(--font-size-caption); }
   .forgot { margin:var(--space-8) 0 0; font-size:var(--font-size-caption); }
 `;
@@ -1622,6 +1622,14 @@ ${typeLink(locale)}</head>
 
 export type LoginProblem = 'code' | 'password' | 'locked' | 'slow';
 
+/**
+ * Where a page's header wants the live line (UI-PASS 6): the list's title row,
+ * the conversation's head. A page that marks no place gets it under its title.
+ */
+export const LIVE_SLOT = '<!--live-->';
+const placeLive = (body: string, live: string): string =>
+  body.includes(LIVE_SLOT) ? body.replace(LIVE_SLOT, live) : `${live}${body}`;
+
 export function loginPage(input: {
   readonly locale: Locale; readonly path: string;
   /** Kept for the callers that only know "it failed": the access-code sentence. */
@@ -1631,36 +1639,45 @@ export function loginPage(input: {
   readonly notice?: string | null;
   /** PWR — the door can e-mail a link (the installation sends system mail). */
   readonly recoveryOn?: boolean;
+  /** The design pass (UI-PASS 10) — the access-code form, reached by its small door. */
+  readonly withCode?: boolean;
 }): string {
   const { locale } = input;
   const problem: LoginProblem | null = input.problem ?? (input.error ? 'code' : null);
+  const codeMode = input.withCode === true || problem === 'code';
   const sentence = problem === 'password' ? t(locale, 'login.errorPassword')
     : problem === 'locked' ? t(locale, 'login.locked')
     : problem === 'slow' ? t(locale, 'login.slow')
     : problem === 'code' ? t(locale, 'login.error') : null;
-  const card = `
+  // THE DESIGN PASS (UI-PASS 10): the door leads with the e-mail. The access
+  // code is for the pilot's owner and staff codes; most owners never need it,
+  // so it is no longer a question on the page but a small door at its foot,
+  // to a card of its own — and a door back.
+  const codeCard = `
+    ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
+    <form method="post" action="/login">
+      <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
+      <input id="login-code" type="password" name="code" required autocomplete="off" autofocus />
+      <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
+    </form>`;
+  const card = codeMode ? codeCard : `
     ${input.notice ? `<div class="hint" role="status">${esc(input.notice)}</div>` : ''}
-    ${sentence && problem !== 'code' ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
+    ${sentence ? `<div class="err" role="alert">${esc(sentence)}</div>` : ''}
     <form method="post" action="/login">
       <label for="login-email">${esc(t(locale, 'login.emailLabel'))}</label>
       <input id="login-email" type="email" name="email" value="${esc(input.email ?? '')}" required
-        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" ${problem === 'code' ? '' : 'autofocus'} />
+        autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" autofocus />
       <label for="login-password">${esc(t(locale, 'login.secretLabel'))}</label>
       <input id="login-password" type="password" name="password" required autocomplete="current-password" />
       <button type="submit">${esc(t(locale, 'login.submit'))}</button>
     </form>
-    ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}
-    <details${problem === 'code' ? ' open' : ''}>
-      <summary>${esc(t(locale, 'login.codeToggle'))}</summary>
-      ${problem === 'code' ? `<div class="err" role="alert">${esc(sentence ?? '')}</div>` : ''}
-      <form method="post" action="/login">
-        <label for="login-code">${esc(t(locale, 'login.passwordLabel'))}</label>
-        <input id="login-code" type="password" name="code" required autocomplete="off" ${problem === 'code' ? 'autofocus' : ''} />
-        <button type="submit">${esc(t(locale, 'login.codeSubmit'))}</button>
-      </form>
-    </details>`;
-  const other = input.signupOpen === false ? ''
-    : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`;
+    ${input.recoveryOn ? `<p class="forgot"><a href="/login/forgot">${esc(t(locale, 'login.forgot'))}</a></p>` : ''}`;
+  const other = [
+    input.signupOpen === false || codeMode ? '' : `<p class="other"><a href="/signup">${esc(t(locale, 'login.toSignup'))}</a></p>`,
+    codeMode
+      ? `<p class="other"><a href="/login">${esc(t(locale, 'login.withEmail'))}</a></p>`
+      : `<p class="other small"><a href="/login?with=code">${esc(t(locale, 'login.codeToggle'))}</a></p>`,
+  ].join('');
   return doorFrame(locale, input.path, t(locale, 'login.title'), card, other, true);
 }
 

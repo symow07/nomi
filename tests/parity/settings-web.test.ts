@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateProfile, renderSettings, type ProfileInput, type BusinessProfile,
+  validateProfile, renderProfile, type ProfileInput, type BusinessProfile,
 } from '../../src/api/web/settings.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
@@ -49,7 +49,7 @@ describe('M11.1 · profile validation (pure)', () => {
 
 describe('M11.1 · settings renderer (localized)', () => {
   it('en: title, fields, derived categories, save', () => {
-    const html = withoutIsolates(renderSettings(full, 'en', null));
+    const html = withoutIsolates(renderProfile(full, 'en', null));
     expect(html).toContain('Business profile');
     expect(html).toContain('Company name'); expect(html).toContain('Yiwu Sunshine Trading');
     expect(html).toContain('Working hours'); expect(html).toContain('Languages served');
@@ -62,7 +62,7 @@ describe('M11.1 · settings renderer (localized)', () => {
     // My factory owns that question now, from ONE derivation (loadOnboarding).
     // A blank field on this form already says the same thing where it matters.
     for (const p of [full, bare]) {
-      const html = withoutIsolates(renderSettings(p, 'en', null));
+      const html = withoutIsolates(renderProfile(p, 'en', null));
       expect(html).not.toContain('Profile checklist');
       expect(html).not.toContain('All set');
       expect(html).not.toContain('○');
@@ -71,25 +71,25 @@ describe('M11.1 · settings renderer (localized)', () => {
   });
 
   it('derived categories empty state; language checkboxes reflect served set', () => {
-    expect(withoutIsolates(renderSettings(bare, 'en', null))).toContain('Add products and their categories appear here');
-    const html = withoutIsolates(renderSettings(full, 'en', null));
+    expect(withoutIsolates(renderProfile(bare, 'en', null))).toContain('Add products and their categories appear here');
+    const html = withoutIsolates(renderProfile(full, 'en', null));
     expect(html).toMatch(/name="lang_en"[^>]*checked/);
     expect(html).toMatch(/name="lang_zh"[^>]*checked/);
     expect(html).not.toMatch(/name="lang_ar"[^>]*checked/);   // ar not served here
   });
 
   it('zh + ar render localized labels', () => {
-    expect(withoutIsolates(renderSettings(full, 'zh', null))).toContain('企业资料');
-    expect(withoutIsolates(renderSettings(full, 'zh', null))).toContain('公司名称');
-    const ar = withoutIsolates(renderSettings(full, 'ar', null));
+    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('企业资料');
+    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('公司名称');
+    const ar = withoutIsolates(renderProfile(full, 'ar', null));
     expect(ar).toContain('ملف النشاط'); expect(ar).toContain('اسم الشركة');
   });
 
   it('escapes owner-entered values; no tables; no tech vocabulary (every locale)', () => {
-    const evil = withoutIsolates(renderSettings({ ...full, name: '<script>x</script>' }, 'en', null));
+    const evil = withoutIsolates(renderProfile({ ...full, name: '<script>x</script>' }, 'en', null));
     expect(evil).not.toContain('<script>x'); expect(evil).toContain('&lt;script&gt;');
     for (const l of LOCALES) {
-      const html = (withoutIsolates(renderSettings(full, l, null)) + withoutIsolates(renderSettings(bare, l, null))).toLowerCase();
+      const html = (withoutIsolates(renderProfile(full, l, null)) + withoutIsolates(renderProfile(bare, l, null))).toLowerCase();
       expect(html).not.toContain('<table');
       for (const w of ['ai', 'llm', 'model', 'api', 'webhook', 'database']) {
         expect(new RegExp(`\\b${w}\\b`).test(html), `${l}:${w}`).toBe(false);
@@ -127,7 +127,7 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
 
   it('the re-render carries the owner’s own words back, not the stored row', () => {
     const stored: BusinessProfile = { ...bare, name: 'OLD NAME' };
-    const html = withoutIsolates(renderSettings(stored, 'zh', null, typed, { contactPhone: 'phoneShape' }));
+    const html = withoutIsolates(renderProfile(stored, 'zh', null, typed, { contactPhone: 'phoneShape' }));
     for (const v of ['义乌宏发保温杯厂', '不锈钢保温杯、饭盒、竹砧板。', '浙江义乌',
                      '周一至周六 9:00-18:00', 'sales@hongfa.example', '8657985001234'])
       expect(html, v).toContain(v);
@@ -135,23 +135,23 @@ describe('M20.4 · F-07 · a rejected save loses nothing and says which field', 
   });
 
   it('marks the field that failed, and only that one', () => {
-    const html = withoutIsolates(renderSettings(bare, 'en', null, typed, { contactPhone: 'phoneShape' }));
+    const html = withoutIsolates(renderProfile(bare, 'en', null, typed, { contactPhone: 'phoneShape' }));
     expect(html.match(/class="fld bad"/g) ?? []).toHaveLength(1);
     expect(html).toContain('role="alert"');
     expect(html).toContain('Start with + and the country code');
   });
 
   it('the phone error states the shape it wants', () => {
-    expect(withoutIsolates(renderSettings(bare, 'en', null, typed, { contactPhone: 'phoneShape' })))
+    expect(withoutIsolates(renderProfile(bare, 'en', null, typed, { contactPhone: 'phoneShape' })))
       .toContain('+8657985001234');
-    expect(withoutIsolates(renderSettings(bare, 'zh', null, typed, { contactPhone: 'phoneShape' })))
+    expect(withoutIsolates(renderProfile(bare, 'zh', null, typed, { contactPhone: 'phoneShape' })))
       .toContain('要以+和国家号开头');
-    expect(withoutIsolates(renderSettings(bare, 'ar', null, typed, { contactPhone: 'phoneShape' })))
+    expect(withoutIsolates(renderProfile(bare, 'ar', null, typed, { contactPhone: 'phoneShape' })))
       .toContain(t('ar', 'settings.err.phoneShape'));   // states the shape: + and the country code
   });
 
   it('checkbox state survives too — the languages she ticked stay ticked', () => {
-    const html = withoutIsolates(renderSettings(bare, 'en', null, { ...typed, languagesServed: ['ar'] }, { contactPhone: 'phoneShape' }));
+    const html = withoutIsolates(renderProfile(bare, 'en', null, { ...typed, languagesServed: ['ar'] }, { contactPhone: 'phoneShape' }));
     expect(html).toMatch(/name="lang_ar"[^>]*checked/);
     expect(html).not.toMatch(/name="lang_zh"[^>]*checked/);
   });

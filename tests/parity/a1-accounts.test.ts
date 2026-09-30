@@ -102,18 +102,28 @@ describe('A1 · how often the door may be tried', () => {
 });
 
 describe('A1 · the two pages a stranger may see', () => {
-  it('the door asks for an e-mail and a password first, and keeps the access code one tap away', () => {
+  it('the door asks for an e-mail and a password; the access code is a small door at its foot (UI-PASS 10)', () => {
     const html = loginPage({ locale: 'en', path: '/login' });
     expect(html).toContain('name="email"');
     expect(html).toContain('autocomplete="current-password"');
-    expect(html).toMatch(/<details>[\s\S]*name="code"[\s\S]*<\/details>/);
+    expect(html).not.toContain('name="code"');   // not a question on the page any more
+    const foot = html.slice(html.indexOf('</div>', html.indexOf('<div class="card">')));
+    expect(foot).toContain(`<p class="other small"><a href="/login?with=code">${t('en', 'login.codeToggle')}</a></p>`);
     expect(html).toContain('href="/signup"');
     expect(loginPage({ locale: 'en', path: '/login', signupOpen: false })).not.toContain('href="/signup"');
   });
 
-  it('a wrong access code opens the access-code part and says so THERE', () => {
+  it('the code has its own card, with a door back to the e-mail', () => {
+    const html = loginPage({ locale: 'en', path: '/login?with=code', withCode: true });
+    expect(html).toContain('name="code"');
+    expect(html).not.toContain('name="email"');
+    expect(html).toContain(`<a href="/login">${t('en', 'login.withEmail')}</a>`);
+  });
+
+  it('a wrong access code shows the code\'s card and says so THERE', () => {
     const html = loginPage({ locale: 'en', path: '/login', error: true });
-    expect(html).toMatch(/<details open>[\s\S]*role="alert"[\s\S]*name="code"/);
+    expect(html).toMatch(/role="alert"[\s\S]*name="code"/);
+    expect(html).not.toContain('name="email"');
     expect(html.split(t('en', 'login.error')).length - 1).toBe(1);
   });
 
