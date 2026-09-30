@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #140 | **Names, People, Setup, the door, the live line** (design pass, UI-PASS 5–8, 10): "You" in Hand to; a person named like the business asked for a name; speakers by name; People's pills only for states (and the owner-only line that printed a raw key); Setup as doors with their state, the profile its own page; the sign-in door e-mail first, the code a small door; the live line in the headers, never over controls (no migration) | 85 |
+| 2026-09-30 | #141 | **The review pass** (design pass, the last step): every owner page screenshotted in three languages, phone and desktop (180, none wider than its screen) and read. Found and fixed: seven Practice checks and one People line printed as raw catalogue keys (the Practice labels now typed against the checks; the surface walk fails any page showing a key); the customer file's History said "Buyer:". The zh/ar lines of the whole run (278 each) are in `docs/NATIVE-REVIEW-UI.md` for the native readers (no migration) | 85 |
+| 2026-09-30 | #140 | **Names, People, Setup, the door, the live line** (design pass, UI-PASS 5–8, 10): "You" in Hand to; a person named like the business asked for a name; speakers by name; People's pills only for states (and the owner-only line that printed a raw key); Setup as doors with their state, the profile its own page; the sign-in door e-mail first, the code a small door; the live line in the headers, never over controls. Merged 04:59 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #139 | **Right to left, by design** (design pass §9): one value layer (`src/api/web/values.ts`) — money, quantities, counts, dates, times, phone numbers, order numbers — isolated on Arabic pages; Arabic money in the locale's own form; every figure in a sentence isolated; the surface walk draws all 33 owner pages in Arabic and fails any figure outside an isolate. The symbol check reads namespace imports. Merged 21:48 UTC (no migration) | 85 |
 | 2026-09-30 | #138 | **Today by time** (design pass §4): who needs you now, the last 24 hours, what is coming up; every line a door; figures in sentences through the plural rules (the counted insights too); the sending line only where messaging is live. Merged 20:01 UTC, deployed 20:09 UTC, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #137 | **CH1 + CH2 — "Your accounts" read live on Channels, and the help page**: each step marked from what is there (the Page, its Instagram, Meta's word on the token, the permissions granted, the subscription, the newest message per channel); a token Meta refuses is recorded as a send would find it; Meta not answering is "could not check"; `/app/help/meta` says what to check and why, linking only Meta's own help pages. Merged 19:25 UTC, deployed, `/health` ok (no migration) | 85 |
@@ -37,11 +38,16 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** the design pass's last step — screenshots of every page in three
-languages and one review pass — and with it the zh/ar lines this run added,
-into `docs/NATIVE-REVIEW-UI.md` for the native readers (none were added by
-#122–#140; the design plan counted about 40 for the pass alone). Then the
-single report to the owner. **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
+**Next:** nothing in the plan's eight steps is left to build without the
+owner. The run is done: the single report to the owner (the decisions in
+"Waiting on the owner", the Westlake backfill yes, the es/fr consequence, and
+what the review pass left for taste — below).
+
+**The review pass left these for the owner's eye, not fixed (taste, or parked
+scope):** the phone nav says "Buyers" where the rail says "Customers"; many
+older sentences still say "buyer" (the positioning rewrite is parked); the
+calendar's week is narrow on a phone (the plan: "the phone later"); the
+forbidden-words floor is a long list on its page. **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
 `backup_runs` row** (below).
 
 **Consequence the owner should know (since #124):** the disclosure gate is
@@ -150,9 +156,9 @@ instruction did not answer. Collected here; asked once, at the end.
   on 09-29. Fixed in #122: only a table the runtime role can reach counts
   (negative control: a reachable table without a policy is still caught).
   A manual backup was taken before 0080: `~/nomi-backups/nomi-backup-20260929T064304Z`
-  (schema 79, drill 4/4 after the fix). **Check the next scheduled run
-  (2026-09-30 03:00 UTC) wrote a `backup_runs` row**; the backup service
-  rebuilds on changes to `tools/verify-restore.sh` (its watch path).
+  (schema 79, drill 4/4 after the fix). **Proven 2026-09-30:** the
+  scheduled run `nomi-backup-20260930T030201Z` (schema 85, drill passed)
+  wrote its `backup_runs` row.
   Confirmed from the service's own log (read 2026-09-29 19:10 UTC): the run
   of 2026-09-29 03:04 UTC dumped schema 79, failed exactly this check (b)
   "RLS-without-policy=1", and uploaded nothing. The backup service rebuilt
