@@ -48,6 +48,9 @@ import {
   stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
   importedProducts, askAboutThree, renderAskAboutThree, renderAskedQuestions,
 } from './importFlow.js';
+import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
+import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
+import { parseTable } from '../../core/onboard/csvTable.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
@@ -348,6 +351,8 @@ export type WebDeps = {
    * keeps working.
    */
   readonly pageTranscriber?: PageTranscriber;
+  /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
+  readonly storeFetcher?: StoreFetcher;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -2429,8 +2434,48 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
     if (!text.trim()) return reply.redirect('/app/products/add');
+    // K8 — a pasted table (a store's export, spreadsheet rows) is mapped by its columns first.
+    if (looksLikeTable(text)) {
+      const table = await startTableImport(deps.db, s.businessId, personOf(s).id, text);
+      if (table.ok) return reply.redirect(`/app/products/import/${table.id}/columns`, 303);
+    }
     const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
     return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
+  });
+  /** K8 — her store's address: its public product list, read into a kept import. */
+  app.post('/app/products/add/store', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const out = await startStoreImport(deps.db, s.businessId, personOf(s).id, deps.storeFetcher ?? publicFetcher,
+      { address: String(b['address'] ?? ''), currencyConfirmed: b['currency'] === 'on' });
+    if (!out.ok) {
+      return reply.type('text/html; charset=utf-8').send(page(req, {
+        title: t(locale, 'import.store.refusedTitle'), active: 'products', bodyHtml: renderStoreRefusal(locale, out.reason, out.stated),
+      }));
+    }
+    return reply.redirect(`/app/products/import/${out.id}`, 303);
+  });
+  /** K8 — a file her store exported (or any table): its columns first, then the review. */
+  app.post('/app/products/add/file', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const refuse = () => reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'import.store.refusedTitle'), active: 'products', bodyHtml: renderStoreRefusal(locale, 'not_a_table'),
+    }));
+    let text = '';
+    try {
+      const file = await req.file();
+      if (!file) return refuse();
+      text = (await file.toBuffer()).toString('utf8');
+    } catch {
+      return refuse();
+    }
+    const out = await startTableImport(deps.db, s.businessId, personOf(s).id, text);
+    if (!out.ok) return refuse();
+    return reply.redirect(`/app/products/import/${out.id}/columns`, 303);
   });
   /**
    * M37 + K1 — she photographs the printed list instead of typing it: up to
@@ -2489,8 +2534,34 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
     const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
     if (!m) return notFoundImport(locale);
+    // K8 — a table whose columns are not mapped yet shows its columns first.
+    const table = m.imp.kind === 'file' && m.imp.rows.length === 0 && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
+    if (table) return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
     return renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [] });
   }));
+  app.get('/app/products/import/:importId/columns', ownerPage('price_rules', 'products', '/app/products', async (s, req, _reply, locale) => {
+    const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
+    const table = m && m.imp.kind === 'file' && m.imp.state === 'open' ? parseTable(m.imp.sourceText ?? '') : null;
+    if (!m || !table) return notFoundImport(locale);
+    return renderColumns(locale, m.imp.id, table, m.imp.currency, null);
+  }));
+  app.post('/app/products/import/:importId/columns', async (req, reply) => {
+    const id = (req.params as { importId: string }).importId;
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const out = await applyColumns(deps.db, s.businessId, id, b);
+    if (out.ok) return reply.redirect(`/app/products/import/${encodeURIComponent(id)}`);
+    if (out.problem === 'gone') return reply.redirect('/app/products/add');
+    const m = await loadReviewModel(deps.db, s.businessId, id);
+    const table = m ? parseTable(m.imp.sourceText ?? '') : null;
+    if (!m || !table) return reply.redirect('/app/products/add');
+    return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'import.columns.title'), active: 'products',
+      bodyHtml: renderColumns(locale, m.imp.id, table, m.imp.currency, out.problem, mappingFrom(b, table)),
+    }));
+  });
   app.post('/app/products/import/:importId/save', async (req, reply) => {
     const id = (req.params as { importId: string }).importId;
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');

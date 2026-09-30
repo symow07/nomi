@@ -8,6 +8,7 @@ import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catal
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
 import { defaultUnitFor } from '../../core/owner/sellingStyle.js';
+import { renderStoreForms } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -356,6 +357,14 @@ export async function writeImportRows(
       // NO pricing_policy row unless she answered: absence is the only honest
       // representation of "not asked yet" (M29).
     }
+    // K8 — a store's options (sizes, colours, shades) are what the product is
+    // offered in: its knowledge, never a price. Figures in it ("EU 38") are
+    // sourced for this product, as product knowledge always is.
+    if (row.options) {
+      const label = row.options.split(' · ').map((part) => part.split(':')[0]!.trim()).filter(Boolean).join(', ').slice(0, 80) || 'Options';
+      await sql`insert into product_knowledge (business_id, product_id, kind, label, content, source_language, source, status)
+                values (${bid}, ${id}::uuid, 'specification', ${label}, ${row.options}, 'und', 'owner_confirmed', 'active')`.execute(tx);
+    }
     // K3 — where it came from, on the audit trail: the line, the import, the photo.
     await sql`
       insert into channel_audit (business_id, channel_id, action, actor, detail)
@@ -617,6 +626,7 @@ export function renderAddForm(
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>
+    ${renderStoreForms(locale, currency)}
     ${renderPricesToMe(locale, pricesToOwner)}`;
 }
 
