@@ -98,7 +98,8 @@ d('0081 · a product may have no minimum (requires DATABASE_URL)', () => {
     for (const [lang, said] of [['en', t('en', 'product.noMinimum')], ['zh', t('zh', 'product.noMinimum')]] as const) {
       const csv = (await get('/app/settings/data/products.csv', { cookie: `${cookie}; yf_locale=${lang}` })).body;
       const header = csv.split(/\r?\n/)[0]!.split(',');
-      const col = header.indexOf('moq');
+      // The positioning rewrite named the column "minimum order" (it was "moq").
+      const col = header.indexOf('minimum order');
       expect(col, 'the minimum column').toBeGreaterThan(-1);
       const serum = csv.split(/\r?\n/).find((l) => l.includes('Rose face serum'))!;
       expect(serum, lang).toContain(said);

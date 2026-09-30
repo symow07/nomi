@@ -123,7 +123,7 @@ const messages: Loader = async (tx, businessId) => {
      order by m.sent_at nulls last
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['when', 'channel', 'buyer', 'direction', 'kind', 'subject', 'what was said', 'heard as', 'language'],
+    header: ['when', 'channel', 'customer', 'direction', 'kind', 'subject', 'what was said', 'heard as', 'language'],
     rows: r.rows.map((x) => [
       x.sent_at, x.channel, x.buyer, x.direction, x.input_type, x.subject,
       x.text_content, x.transcription, x.detected_language,
@@ -147,8 +147,8 @@ const products: Loader = async (tx, businessId, locale) => {
      order by p.created_at
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['sku', 'name', 'name (zh)', 'description', 'category', 'unit', 'moq', 'currency',
-      'price', 'price breaks', 'lead time (days)', 'customizable', 'offered', 'added'],
+    header: ['sku', 'name', 'other name', 'description', 'category', 'unit', 'minimum order', 'currency',
+      'price', 'quantity prices', 'days to deliver', 'customizable', 'offered', 'added'],
     rows: r.rows.map((x) => [
       // 0081 — never a blank where a minimum would go: the owner's words for none.
       x.sku, x.name, x.name_zh, x.description, x.category, x.unit, x.moq ?? t(locale, 'product.noMinimum'), x.currency,
@@ -179,8 +179,8 @@ const orders: Loader = async (tx, businessId) => {
      order by o.created_at
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['reference', 'placed', 'confirmed', 'buyer', 'product', 'quantity', 'unit', 'currency',
-      'unit price', 'total', 'status', 'where it is', 'payment terms', 'delivery term',
+    header: ['reference', 'placed', 'confirmed', 'customer', 'product', 'quantity', 'unit', 'currency',
+      'unit price', 'total', 'status', 'where it is', 'payment terms', 'delivery',
       'tracking', 'ship to', 'notes'],
     rows: r.rows.map((x) => [
       x.order_reference, x.created_at, x.confirmed_at, x.buyer, x.product, x.quantity, x.unit,
@@ -208,8 +208,8 @@ const quotes: Loader = async (tx, businessId) => {
      order by q.created_at
      limit ${EXPORT_MAX_ROWS}`.execute(tx);
   return {
-    header: ['when', 'buyer', 'product', 'quantity', 'currency', 'unit price', 'discount %',
-      'total', 'waited for you', 'lead time (days)', 'date withheld by'],
+    header: ['when', 'customer', 'product', 'quantity', 'currency', 'unit price', 'discount %',
+      'total', 'waited for you', 'days to deliver', 'date withheld by'],
     rows: r.rows.map((x) => [
       x.created_at, x.buyer, x.product, x.quantity, x.currency, x.unit_price_usd,
       x.discount_pct, x.total_usd, x.requires_human, x.lead_time_days, x.lead_time_withheld,
@@ -343,7 +343,7 @@ const sellingTerms: Loader = async (tx, businessId) => {
     select payment_terms, incoterm, stated_at, stated_by from trade_terms
      where business_id = ${businessId} order by stated_at desc`.execute(tx);
   for (const x of terms.rows) {
-    rows.push(['Payment terms', x.payment_terms, '', x.stated_at, x.stated_by]);
+    rows.push(['How you get paid', x.payment_terms, '', x.stated_at, x.stated_by]);
     rows.push(['Delivery term', x.incoterm, '', x.stated_at, x.stated_by]);
   }
 

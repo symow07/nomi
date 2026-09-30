@@ -46,7 +46,7 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
 
   it('timeline milestones localize from neutral kinds; empty state honest', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
-    expect(zh).toContain('沟通记录'); expect(zh).toContain('客户发来产品图片');
+    expect(zh).toContain('沟通记录'); expect(zh).toContain('客户发来一张图片');
     // V1 close-out — the figures are isolated, one each, so they keep their order in Arabic.
     expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi>5000个</bdi> · <bdi>$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);

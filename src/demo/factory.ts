@@ -162,7 +162,7 @@ export function demoSeedSql(namespace: string = DEMO_NAMESPACE): string {
     `insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine) values`,
     `  ('${B}', 'whatsapp', 'DEMO_PNID', 'demo-no-secret', 'service') on conflict (channel, external_ref) do nothing;`,
     `insert into channels (business_id, kind, status, display_phone, connected_at) values`,
-    `  ('${B}', 'whatsapp', 'connected', '+86 579****0001', now()) on conflict (business_id, kind) do nothing;`,
+    `  ('${B}', 'whatsapp', 'connected', '+1 555 0100', now()) on conflict (business_id, kind) do nothing;`,
   ];
 
   for (const p of DEMO_PRODUCTS) {

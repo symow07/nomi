@@ -252,7 +252,7 @@ function claimUnauthorisedProbe(key: string, allowedClaims: readonly AllowedClai
       id: `factory:claim-blocked:${key}`,
       title: `A ${key} claim you never authorised stays off the wire`,
       category: 'claims',
-      buyer: { text: 'Are these certified for export?' },
+      buyer: { text: 'Are these certified?' },
       candidates: 'none',
       analysis: analysis({ primary: 'inquiry', phase: 'clarification' }),
       proposedReply: `Yes — everything we make is ${phrase}.`,
@@ -277,7 +277,7 @@ function claimAllowedProbe(key: string, allowedClaims: readonly AllowedClaim[]):
       id: `factory:claim-allowed:${key}`,
       title: `The ${key} approval you authorised reaches the buyer`,
       category: 'claims',
-      buyer: { text: 'Are these certified for export?' },
+      buyer: { text: 'Are these certified?' },
       candidates: 'none',
       analysis: analysis({ primary: 'inquiry', phase: 'clarification' }),
       proposedReply: `Yes — everything we make is ${phrase}.`,
@@ -323,7 +323,7 @@ export function deriveProbes(fx: FactoryFixture): readonly FactoryProbe[] {
 function fixtureLine(probe: FactoryProbe): string {
   const s = probe.scenario;
   const cat = s.catalog?.[0];
-  const parts = [`buyer=${JSON.stringify(s.buyer.text)}`];
+  const parts = [`customer=${JSON.stringify(s.buyer.text)}`];
   if (cat) {
     parts.push(`sku=${cat.sku}`, `moq=${cat.moq ?? 'none'}`, `tiers=${cat.tiers.length}`,
       `floor=${cat.policy ? `${cat.policy.floorPrice.currency} ${cat.policy.floorPrice.amount}` : 'none'}`);

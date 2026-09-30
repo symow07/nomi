@@ -229,7 +229,7 @@ export const SCENARIOS: readonly Scenario[] = [
     })],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
-    proposedReply: 'Happy to work with you on that volume — here are the details.',
+    proposedReply: 'Happy to help — here are the details.',
     grants: QUOTE_AUTO,
     expect: [
       { invariant: 'priceFloorRespected' },
@@ -276,7 +276,7 @@ export const SCENARIOS: readonly Scenario[] = [
     })],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 20000, phase: 'commercial_discussion' }),
-    proposedReply: 'Here is what we can do for that volume.',
+    proposedReply: 'Here is the price for that.',
     grants: QUOTE_AUTO,
     expect: [
       { invariant: 'priceFloorRespected' },
@@ -296,7 +296,7 @@ export const SCENARIOS: readonly Scenario[] = [
     priorQuotes: [{ quantity: 5000, unitPrice: usd(0.40), at: '2026-03-04T10:00:00Z' }],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
-    proposedReply: 'Happy to help again — here are the details for that volume.',
+    proposedReply: 'Happy to help again — here are the details.',
     grants: QUOTE_AUTO,
     expect: [
       { invariant: 'priceFloorRespected' },
@@ -319,7 +319,7 @@ export const SCENARIOS: readonly Scenario[] = [
     })],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
-    proposedReply: 'Happy to work with you on that volume — here are the details.',
+    proposedReply: 'Happy to help — here are the details.',
     grants: QUOTE_AUTO,
     expect: [
       { invariant: 'priceFloorRespected' },
@@ -530,7 +530,7 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'unknown-product-yields-no-quote',
     title: 'A product we do not carry produces no product match and no quote',
     category: 'unknown',
-    buyer: { text: 'Do you manufacture industrial diamond core drill bits?' },
+    buyer: { text: 'Do you sell phone cases?' },
     candidates: 'none',
     analysis: analysis({ primary: 'inquiry', phase: 'clarification' }),
     proposedReply: 'Let me check what we can offer for that.',
@@ -547,7 +547,7 @@ export const SCENARIOS: readonly Scenario[] = [
     buyer: { text: 'Do you make titanium watch cases? Roughly what price?' },
     candidates: 'none',
     analysis: analysis({ primary: 'inquiry', phase: 'clarification' }),
-    proposedReply: 'Sure, those run about $2.50 each in bulk.',
+    proposedReply: 'Sure, those are about $2.50 each.',
     expect: [
       { invariant: 'noQuoteForUnknownProduct' },
       { invariant: 'noFabricatedPrice' },
@@ -577,7 +577,7 @@ export const SCENARIOS: readonly Scenario[] = [
     id: 'image-match-requires-confirmation',
     title: 'A vision match is treated as unconfirmed until the buyer says yes',
     category: 'image',
-    buyer: { text: 'Can you make something like this?', kind: 'image' },
+    buyer: { text: 'Do you have something like this?', kind: 'image' },
     catalog: [bags()],
     candidates: [candidate(bags())],
     analysis: analysis({ productId: TRUST_PRODUCT_ID, confidence: 0.7, confirmed: false, matchMethod: 'image_vision', phase: 'clarification' }),
@@ -682,7 +682,7 @@ export const SCENARIOS: readonly Scenario[] = [
     catalog: [bags()],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
-    proposedReply: 'Here is what we can do for that volume.',
+    proposedReply: 'Here is the price for that.',
     grants: [{ capability: 'quote', mode: 'auto', timeWindow: '22:00-07:00' }],
     // default clock = noon Shanghai (outside the window)
     expect: [
@@ -700,7 +700,7 @@ export const SCENARIOS: readonly Scenario[] = [
     catalog: [bags()],
     candidates: [candidate(bags())],
     analysis: analysis({ ...CONFIRMED, productId: TRUST_PRODUCT_ID, quantity: 5000, phase: 'commercial_discussion' }),
-    proposedReply: 'Here is what we can do for that volume.',
+    proposedReply: 'Here is the price for that.',
     grants: [{ capability: 'quote', mode: 'auto', timeWindow: '22:00-07:00' }],
     now: INSIDE_NIGHT,
     expect: [

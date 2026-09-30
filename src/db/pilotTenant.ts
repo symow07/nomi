@@ -146,7 +146,7 @@ export function describePilotTenantProblem(state: PilotTenantState, problem: Pil
 
   switch (problem) {
     case 'unset':
-      return 'PILOT_BUSINESS_ID is not set, so there is no factory to serve.\n' + provision;
+      return 'PILOT_BUSINESS_ID is not set, so there is no workspace to serve.\n' + provision;
     case 'is_sandbox':
       return (
         `PILOT_BUSINESS_ID points at the PRACTICE SANDBOX (${state.sandboxId}).\n` +
