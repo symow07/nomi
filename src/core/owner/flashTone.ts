@@ -116,6 +116,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'product.flash.addedNeedPrice', 'product.flash.addedNeedRules', 'product.flash.addedReady',
   // K1/K2 — a list's floors written with it; a list set aside, as she asked.
   'import.flash.floorsSet', 'import.flash.dropped',
+  // K5 — prices go to the owner, or back to the list: both what she asked.
+  'product.pricesToMe.flash.on', 'product.pricesToMe.flash.off',
   'product.flash.alreadyHere', 'product.flash.updated', 'proof.owner.flash.issued',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',

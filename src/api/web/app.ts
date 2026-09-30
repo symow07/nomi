@@ -47,6 +47,7 @@ import {
   startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
   stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
 } from './importFlow.js';
+import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -2396,7 +2397,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   }));
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
-      await openImportOf(deps.db, s.businessId), takeFlash(req, reply))));
+      await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId))));
+  /** K5 — "prices go to me", on or off. Money is the owner's (rule 11). */
+  app.post('/app/products/prices-to-me', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products/add');
+    if (!s) return reply;
+    const on = String(((req.body ?? {}) as Record<string, string | undefined>)['on'] ?? '') === '1';
+    facts.evict(s.businessId);   // D — it completes Setup's products step
+    await setPricesGoToOwner(deps.db, s.businessId, personOf(s).id, on);
+    return flashTo(reply, '/app/products/add', on ? 'product.pricesToMe.flash.on' : 'product.pricesToMe.flash.off');
+  });
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);

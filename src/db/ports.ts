@@ -280,9 +280,18 @@ export interface CatalogRepo {
    * stated none. Null is the answer, not a gap to fill.
    */
   tradeTerms(): Promise<TradeTerms | null>;
+  /** K5 · RT — how the business sells: whether its prices go to the owner, and its kind. */
+  selling(): Promise<SellingFacts>;
   bundleRules(): Promise<BundleRule[]>;
   substitutions(productId: string): Promise<SubstitutionRule[]>;
 }
+
+/**
+ * K5 · RT — HOW THE BUSINESS SELLS, as the turn needs it. `pricesToOwner`:
+ * the business states no price and every price question goes to the owner
+ * (0094). `kind`: the kind of business sign-up recorded (RT reads it).
+ */
+export type SellingFacts = { readonly pricesToOwner: boolean; readonly kind: string | null };
 
 /**
  * M45 — a buyer asked for a sample. One row per conversation.

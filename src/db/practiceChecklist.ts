@@ -72,7 +72,10 @@ async function seenOnCopy(db: Db, copy: BusinessId): Promise<Set<ChecklistItem>>
         exists (select 1 from order_proposals where business_id = ${copy}::uuid and state = 'confirmed') as order_tapped,
         exists (select 1 from turns t where t.business_id = ${copy}::uuid
                   and t.analysis->'intent'->>'primary' = 'price_request' and t.quote_id is null
-                  and exists (select 1 from drafts d where d.turn_message_id = t.message_id)) as price_handed,
+                  and exists (select 1 from drafts d where d.turn_message_id = t.message_id))
+        -- K5 — or handed to the owner because her prices go to her.
+        or exists (select 1 from conversation_signals s join conversations c on c.id = s.conversation_id
+                    where c.business_id = ${copy}::uuid and s.kind = 'price_to_owner') as price_handed,
         exists (select 1 from turns t where t.business_id = ${copy}::uuid
                   and coalesce(t.decision->'product', 'null'::jsonb) = 'null'::jsonb
                   and t.answer_path in ('model', 'taught_answer')) as offer_answered`.execute(tx)).rows[0] ?? {};
