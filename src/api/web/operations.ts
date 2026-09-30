@@ -225,7 +225,8 @@ export async function loadOperationsSnapshot(
       `.execute(tx)).rows[0]!.c;
       return (await sql<{ handled: number; drafts: number; corrections: number }>`
         select
-          (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}) as handled,
+          (select count(distinct conversation_id)::int from turns where business_id = ${B} and created_at >= ${cutoff}
+             and decision->'action'->>'kind' is distinct from 'held') as handled,
           (select count(*)::int from drafts where business_id = ${B} and created_at >= ${cutoff}) as drafts,
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
       `.execute(tx)).rows[0]!;

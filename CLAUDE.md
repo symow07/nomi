@@ -608,12 +608,15 @@ preHandler, `db/outreach.ts`). Tests: `tests/parity/d-split-drawer.test.ts`,
   The pieces exist — a system mail sender (A3) and `login_setups` (0078) — but
   no page asks for a link. Until then a lost password is the operator's
   `add-login.mjs --reset`.
-- **Found, not fixed (send path, needs a decision):** Stop pressed while a
-  buyer's batch is still waiting fails the hold path — `markFragmentsProcessed`
-  writes `processed_in`, which references `turns`, and the hold path writes no
-  turn. The job dead-letters and, since #110, the buyer reaches "Needs you" as
-  `not_answered` about five minutes later instead of as "stopped". Fix: a turn
-  row for the hold, leave the lines pending, or a schema change.
+- **Fixed 2026-09-30 (#144, the owner's decision): Stop pressed while a
+  customer's lines wait to be grouped** is recorded as "stopped". The hold is a
+  turn (`decision.action.kind = 'held'`, reason `assistant_stopped` /
+  `ops_silenced`; no analysis, no model), the waiting lines are processed in
+  it, and the conversation is handed over as stopped. Its `answer_path` is
+  `silent` (the plan's HF); Today's "handled" and the herWords card leave held
+  turns out.
+  `tests/integration/assistant-stop.test.ts` › GROUPING failed before the fix
+  with the foreign-key error.
 - In Chromium on macOS (the screenshots, desktop Chrome) English renders in
   PingFang SC: the font stack starts with `-apple-system`, which Chromium does
   not match (hyphens look wide). `system-ui` after it would fix it — type is

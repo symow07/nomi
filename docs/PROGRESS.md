@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #143 | **The disclosure gate, per language** — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
+| 2026-09-30 | #144 | **Stop pressed while a customer's lines are being grouped: recorded as "stopped"** (the owner's decision). The hold is a turn (`held`, the silent path, no model), the waiting lines are processed in it, the conversation handed over as stopped — it used to dead-letter and surface as "not answered". Pre-pilot 12/12 before and after; the new GROUPING test failed before the fix (no migration) | 85 |
+| 2026-09-30 | #143 | **The disclosure gate, per language** (merged 08:1x UTC, deployed, `/health` ok) — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
 | 2026-09-30 | — | **Westlake's products made findable (T3 backfill, the owner's yes):** backup `~/nomi-backups/nomi-backup-20260930T064218Z` (schema 85, restore proven 4/4), dry run, then `tools/backfill-aliases.mjs --business 7dc89f42… --yes`: 5 names written for 5 products (each its own name, nothing removed); a second run adds nothing | 85 |
 | 2026-09-30 | #142 | **The owner's two questions answered** (below): the gate #124 closed as a side effect; zh signed off; the Arabic sentence changed after sign-off (#118); the backup ping unwired; the uptime ping verified (docs only) | 85 |
 | 2026-09-30 | #141 | **The review pass** (design pass, the last step): every owner page screenshotted in three languages, phone and desktop (180, none wider than its screen) and read. Found and fixed: seven Practice checks and one People line printed as raw catalogue keys (the Practice labels now typed against the checks; the surface walk fails any page showing a key); the customer file's History said "Buyer:". The zh/ar lines of the whole run (278 each) are in `docs/NATIVE-REVIEW-UI.md` for the native readers (no migration) | 85 |
@@ -225,7 +226,6 @@ instruction did not answer. Collected here; asked once, at the end.
 
 | Items | Decision (plan numbering) |
 |---|---|
-| HF (the hold-path defect: Stop pressed while a batch waits) | 25 |
 | T9 (languages beyond the five get what?) | 20 |
 | P1–P6, Q1W (per-workspace Practice) | 4, 5 |
 | TZ (business time zone) | 22 |
