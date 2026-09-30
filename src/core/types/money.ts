@@ -37,8 +37,17 @@
  * unless the owner has stated the rate herself, with the date she stated it.
  * A buyer pays dollars; a Yiwu factory owner thinks in ￥; nothing crosses
  * between them except through a number she wrote down.
+ *
+ * CUR (the owner's decision, 2026-09-30) — ONE CURRENCY PER WORKSPACE, with
+ * no conversion: a shop in Dubai prices in dirhams, one in São Paulo in reais,
+ * and every figure a customer reads is in that one currency. The first list
+ * is the plan's (decision 19): USD, AED, SAR, BRL, MXN, INR, IDR, and CNY that
+ * was already here. EUR and GBP join only with EU1. A workspace that sells in
+ * two currencies waits for CONV. The promise above is re-read for each: no
+ * comparison in `core/commerce` ever crosses two of them (`sameCurrency`
+ * throws), and the numeral guard refuses a figure written in another one.
  */
-export type Currency = 'USD' | 'CNY';
+export type Currency = 'USD' | 'CNY' | 'AED' | 'SAR' | 'BRL' | 'MXN' | 'INR' | 'IDR';
 
 /** An amount and the currency it is denominated in. Never one without the other. */
 export type Money = {
@@ -49,7 +58,7 @@ export type Money = {
 /** The common constructor, and the only one most callers need. */
 export const usd = (amount: number): Money => ({ amount, currency: 'USD' });
 
-const CURRENCIES: readonly Currency[] = ['USD', 'CNY'];
+export const CURRENCIES: readonly Currency[] = ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR'];
 
 /** A currency read from a row, checked. Unknown text is not silently accepted. */
 export function parseCurrency(raw: string): Currency | null {
@@ -114,6 +123,23 @@ export const roundMoney = (m: Money, places = 2): Money =>
  * The symbol a reader sees. NOT a translation — $ is $ and ￥ is ￥ in all
  * three locales, because a currency sign is part of the number, not of the
  * language around it.
+ *
+ * CUR — a currency with no sign of its own is written with its code and a
+ * space ("AED 120.00"); the peso is MX$ so that no page shows a bare $ that
+ * could be read as dollars.
  */
-const SYMBOL: Record<Currency, string> = { USD: '$', CNY: '￥' };
+const SYMBOL: Record<Currency, string> = {
+  USD: '$', CNY: '￥', AED: 'AED ', SAR: 'SAR ', BRL: 'R$', MXN: 'MX$', INR: '₹', IDR: 'Rp ',
+};
 export const currencySymbol = (c: Currency): string => SYMBOL[c];
+
+/** Is the symbol the code itself ("AED ")? Then a sentence need not repeat the code after the figure. */
+export const symbolIsCode = (c: Currency): boolean => SYMBOL[c].trim() === c;
+
+/**
+ * CUR — how the currency's own people write a figure: Brazil and Indonesia
+ * group thousands with a dot and mark decimals with a comma ("R$ 1.250,50",
+ * "Rp 150.000"); the others as in English. Nothing is converted — this only
+ * says how the SAME figure may be written.
+ */
+export const DOT_THOUSANDS: ReadonlySet<Currency> = new Set<Currency>(['BRL', 'IDR']);

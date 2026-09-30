@@ -526,6 +526,12 @@ Recent PRs, newest first:
    - `tests/parity/workspace-zone.test.ts` fails any file in `src/` naming Shanghai outside the country table, the demo, the scenarios and one note; `provision-factory.mjs` requires `--zone=`.
    - The 59 workspaces made before it all keep `Asia/Shanghai` (never asked); changing any is the owner's (PROGRESS, "Waiting on the owner").
 
+42. **One currency per workspace, no conversion** (CUR, the owner's decision 2026-09-30; part one #152: the send path).
+   - `Currency` (`src/core/types/money.ts`) is USD, CNY, AED, SAR, BRL, MXN, INR, IDR (the plan's decision 19; EUR and GBP only with EU1; two currencies in one workspace wait for CONV). Each has its sign (`currencySymbol`; a code where it has none, "AED 12.00"; the peso MX$).
+   - **The numeral guard sources a price only in the quote's currency** (`currencyBeside` in `src/core/safety/numerals.ts`): a figure the words beside it put in another currency ("$12" for AED 12, 合计2250元, €) is unsourced whatever its value, unless the customer wrote that figure. "$" is the dollar and the peso; a foreign ISO code counts in capitals only ("try", "mad", "won" are words). For a quote in BRL or IDR (`DOT_THOUSANDS`), "R$ 1.250,50" and "Rp 150.000" count as what they say; for any other, "$1.250" is still 1.25.
+   - "₹500", "Rp 5000", "150 reais" are prices, never quantities (`extractQuantity`). "High value" is `HIGH_VALUE[currency]` in `src/core/scoring/signals.ts`: round figures per currency, never a conversion.
+   - Tests: `tests/parity/currency-send-path.test.ts` (each guard switched off fails its own cases).
+
 ## 6 · What's next
 
 **The 2026-09-28 batch — "clear the queue"** (the owner's order): Task 1

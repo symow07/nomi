@@ -83,8 +83,14 @@ const UNITS: readonly (readonly [RegExp, string])[] = [
   [/^(dozens?|dz|打|دزينة)$/i, 'dozen'], [/^(pairs?|双|زوج)$/i, 'pairs'],
   [/^(rolls?|卷)$/i, 'rolls'], [/^(meters?|metres?|m|米|متر)$/i, 'm'], [/^(kgs?|kilos?|公斤|كيلو)$/i, 'kg'],
 ];
-/** Words that make the number beside them something other than a quantity. */
-const NOT_A_QUANTITY = /^(usd|dollars?|eur|euros?|rmb|cny|yuan|元|块|aed|sar|dirhams?|mad|%|percent|cm|mm|inch(es)?|in|oz|ml|l|g|gsm|days?|weeks?|months?|年|月|天|يوم|أيام)$/i;
+/**
+ * Words that make the number beside them something other than a quantity.
+ * CUR — every currency a workspace can sell in, by its code and its name:
+ * "500 rupees" and "150 reais" are prices, never 500 or 150 of something.
+ */
+const NOT_A_QUANTITY = /^(usd|dollars?|eur|euros?|rmb|cny|yuan|元|块|aed|sar|dirhams?|riyals?|mad|brl|reais|mxn|pesos|inr|rupees?|idr|rupiah|درهم|دراهم|ريال|روبية|%|percent|cm|mm|inch(es)?|in|oz|ml|l|g|gsm|days?|weeks?|months?|年|月|天|يوم|أيام)$/i;
+/** CUR — a currency written before a figure: "$", "₹", "Rp", "Rs.", "R$", "AED 120". */
+const PRICE_BEFORE = /(?:[$€¥£₹￥]|(?<![\p{L}])(?:rp|rs|aed|sar|inr|idr|brl|mxn|usd|cny|rmb)\.?)\s?$/iu;
 const CUE = /\b(qty|quantity|order|need|want|buy|purchase|looking for|require|commit|take|for)\b|需要|要|订|采购|أحتاج|أريد|نحتاج|طلب|كمية|besoin|commander|necesito|quiero|preciso/i;
 
 /** Words that make a weight or a length a description of the goods, not an order. */
@@ -102,11 +108,11 @@ export function extractQuantity(text: string): { value: number; unit: string } |
   const re = /(?<![\w.$€¥£])(\d{1,3}(?:[,\s ]\d{3})+|\d+(?:\.\d+)?)\s*(k(?!\p{L})|万|千)?\s*([\p{L}%]+)?/giu;
   const plain: number[] = [];
   for (const m of text.matchAll(re)) {
-    const before = text.slice(Math.max(0, (m.index ?? 0) - 2), m.index ?? 0);
-    if (/[$€¥£]\s?$/.test(before)) continue;                 // a price
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 6), m.index ?? 0);
+    if (PRICE_BEFORE.test(before)) continue;                  // a price
     const word = m[3] ?? '';
     if (word && NOT_A_QUANTITY.test(word)) continue;          // a price, a size, a duration
-    if (/^x$/i.test(word) || /x\s*$/i.test(before)) continue; // 38 x 40: a dimension
+    if (/^x$/i.test(word) || /x\s*$/i.test(before.slice(-2))) continue; // 38 x 40: a dimension
     const value = toNumber(m[1]!, m[2]);
     if (!Number.isFinite(value) || value < 1 || !Number.isInteger(value)) continue;
     // Chinese writes no space after the counter ("5000个袋子"), so its first character is tried too.

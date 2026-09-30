@@ -41,8 +41,12 @@ export type CheckResult = { readonly invariant: InvariantId; readonly pass: bool
 
 const mk = (invariant: InvariantId, pass: boolean, detail: string): CheckResult => ({ invariant, pass, detail });
 
-/** A price-like fragment: `$2`, `2.50 USD`, `0.45 per`. Deliberately narrow. */
-const PRICE_LIKE = /\$\s?\d|\d[\d,]*(?:\.\d{1,2})?\s*(?:usd|dollars?|per\b|\/\s*(?:pc|piece|unit))/i;
+/**
+ * A price-like fragment: `$2`, `2.50 USD`, `0.45 per`. Deliberately narrow.
+ * CUR — and the other currencies a workspace can sell in: `₹500`, `Rp 150.000`,
+ * `AED 12`, `49 reais`.
+ */
+const PRICE_LIKE = /\$\s?\d|[₹￥¥]\s?\d|\b(?:rp|rs|aed|sar|inr|idr|brl|mxn|cny|rmb)\.?\s?\d|\d[\d.,]*\s*(?:usd|dollars?|aed|sar|brl|mxn|inr|idr|cny|rmb|dirhams?|riyals?|reais|pesos|rupees?|rupiah|per\b|\/\s*(?:pc|piece|unit))/i;
 
 type CheckFn = (ctx: TurnOutcome, exp: Expectation) => CheckResult;
 

@@ -88,6 +88,15 @@ const sh = (script: string, extra: Record<string, string> = {}): Ran =>
     env: { PATH: `${BIN}:${process.env['PATH'] ?? '/usr/bin:/bin'}`, HOME: TMP, LANG: 'C', RETENTION_LIB: LIB, ...extra },
   }));
 
+/**
+ * Every case below runs bash (and awk, find) SYNCHRONOUSLY. Alone each takes
+ * about a tenth of a second; inside the whole suite, with every worker busy,
+ * the first one of a group once took 5.7 s and failed vitest's default 5 s
+ * (2026-09-30) — the machine was slow, the script was not. The file's other
+ * shell groups already allow 120 s; these get a minute.
+ */
+const SHELL = { timeout: 60_000 };
+
 const fresh = (label: string) => mkdtempSync(join(TMP, `${label}-`));
 
 /** Every path under a folder, sorted — a snapshot to compare before and after. */
@@ -144,7 +153,7 @@ describe('the two limits, side by side, in one file', () => {
   });
 });
 
-describe('a pair is dated by the UTC time in its name', () => {
+describe('a pair is dated by the UTC time in its name', SHELL, () => {
   // Every awk on this machine: macOS's, and on Linux mawk — the container's.
   const AWKS = [...new Set(['awk', 'mawk', 'gawk', 'original-awk', 'nawk']
     .filter((a) => sh(`command -v ${a}`).status === 0))];
@@ -196,7 +205,7 @@ const plan = (listing: readonly string[], keep: number, opts: { now?: number; ma
   return d;
 };
 
-describe('the plan — which pairs go, and which never do', () => {
+describe('the plan — which pairs go, and which never do', SHELL, () => {
   it('older than 180 days goes: 181 days goes, 179 stays; exactly 180 stays, one second more goes', () => {
     const p181 = pair(NOW - 181 * DAY), p179 = pair(NOW - 179 * DAY);
     const p180 = pair(NOW - 180 * DAY), p180s = pair(NOW - 180 * DAY - 1), newest = pair(NOW - DAY);
@@ -282,7 +291,7 @@ const bucketFixture = () => {
 const pruneBucket = (args: string, extra: Record<string, string> = {}) =>
   sh(`. "$RETENTION_LIB" && prune_bucket ${args}; echo "rc=$? pruned=$RETENTION_PRUNED kept=$RETENTION_KEPT"`, extra);
 
-describe('the bucket — prune_bucket over a folder standing in for it', () => {
+describe('the bucket — prune_bucket over a folder standing in for it', SHELL, () => {
   it('manual pairs at the root older than 180 days go WHOLE; daily/ is not touched by the manual rule', () => {
     const f = bucketFixture();
     const dailyBefore = tree(f.daily);
@@ -391,7 +400,7 @@ describe('the bucket — prune_bucket over a folder standing in for it', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('backup/run.sh — step 5 and the ending, lifted out and run', () => {
+describe('backup/run.sh — step 5 and the ending, lifted out and run', SHELL, () => {
   const run = read('backup/run.sh');
   const step5 = run.slice(run.indexOf('# ── 5 · prune'), run.indexOf('# ── 6 · record'));
   const ending = run.slice(run.indexOf('# The copy is safe and recorded'));
@@ -575,7 +584,7 @@ const drill = () => {
   return { home, dest, bucket, now, newest };
 };
 
-describe('the laptop — tools/fetch-backup.sh, end to end, in a temporary HOME', () => {
+describe('the laptop — tools/fetch-backup.sh, end to end, in a temporary HOME', SHELL, () => {
   it('fetches the newest daily, then prunes pairs older than 180 days — even one the old fetch left unreadable', () => {
     const { home, dest, bucket, now, newest } = drill();
     const old = pair(now - 181 * DAY), young = pair(now - 179 * DAY), locked = pair(now - 250 * DAY);

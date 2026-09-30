@@ -1,4 +1,4 @@
-import type { Signal } from './signals.js';
+import { type Signal, HIGH_VALUE } from './signals.js';
 import { type Money, scaleMoney, isAbove } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 import type { Analysis } from '../conversation/decide.js';
@@ -517,7 +517,7 @@ export function detectSignals(input: {
   // between two comparable amounts rather than two bare numbers.
   if (unitPrice !== null) {
     const total = scaleMoney(unitPrice, qty);
-    if (isAbove(total, { amount: 3_000, currency: total.currency })) {
+    if (isAbove(total, { amount: HIGH_VALUE[total.currency].large, currency: total.currency })) {
       out.push({ kind: 'high_value', total });
     }
   }

@@ -1,5 +1,5 @@
 import type { BlockingReason, Quote, QuoteRefusal } from '../types/commerce.js';
-import { currencySymbol } from '../types/money.js';
+import { currencySymbol, symbolIsCode } from '../types/money.js';
 
 /**
  * Deterministic outbound templates.
@@ -96,7 +96,9 @@ export function guardFallbackReply(quote: Quote | null, nextQuestion: string | n
       `For ${quote.quantity.value.toLocaleString('en-US')} ${quote.quantity.unit}, ` +
       // Symbol and code both come from the quote's currency. A hardcoded "$"
       // beside an amount that is not dollars is the defect M43a removes.
-      `the unit price is ${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)} ${quote.unitPrice.currency} — ` +
+      // CUR — a currency written by its code ("AED 12.00") is not repeated after it.
+      `the unit price is ${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)}` +
+      `${symbolIsCode(quote.unitPrice.currency) ? '' : ` ${quote.unitPrice.currency}`} — ` +
       `${currencySymbol(quote.total.currency)}${quote.total.amount.toLocaleString('en-US')} in total` +
       (quote.leadTimeDays ? `, with a lead time of ${quote.leadTimeDays} days.` : '.')
     );
