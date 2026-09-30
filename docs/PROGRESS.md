@@ -17,6 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #146 | **Practice P3 — through the real pipeline**: a practice message is an inbound job on the workspace's own copy; the worker's turn, Stop and batching apply; approvals and owner replies leave through the real outbound worker, which hands a copy the practice adapter (no network) and nothing else, with or without a channel configured; a practice send is recorded delivered at once; no owner alert from a copy; the golden checks per practice turn; the live line; one lane (live). `practice_copy` (0087). Still the pilot's alone until P5. Pre-pilot 12/12 before and after | 87 |
+| 2026-09-30 | #145 | **Practice P1 + P2 — the copy** (0086): `docs/PRACTICE.md`; `businesses.practice_of`, `practice_refresh`, the trigger refusing channels, credentials, people and logins on a copy; erase-workspace takes the copy; add-login refuses one; the Meta-errors check skips copies. Today's backup `nomi-backup-20260930T030201Z` (schema 85, drill passed) before it. Merged 08:53 UTC, deployed, `/health` ok, schema 86 | 86 |
 | 2026-09-30 | #144 | **Stop pressed while a customer's lines are being grouped: recorded as "stopped"** (the owner's decision). The hold is a turn (`held`, the silent path, no model), the waiting lines are processed in it, the conversation handed over as stopped — it used to dead-letter and surface as "not answered". Pre-pilot 12/12 before and after; the new GROUPING test failed before the fix. Merged 08:28 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #143 | **The disclosure gate, per language** (merged 08:1x UTC, deployed, `/health` ok) — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
 | 2026-09-30 | — | **Westlake's products made findable (T3 backfill, the owner's yes):** backup `~/nomi-backups/nomi-backup-20260930T064218Z` (schema 85, restore proven 4/4), dry run, then `tools/backfill-aliases.mjs --business 7dc89f42… --yes`: 5 names written for 5 products (each its own name, nothing removed); a second run adds nothing | 85 |
@@ -45,9 +47,9 @@ under "Decided" below.
 **Next (the owner's instruction of 2026-09-30, in its order):**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
    The design and the table-by-table classification are `docs/PRACTICE.md`
-   (P1). P2 (the copy, 0086) is in review; then P3 (the real ingress and worker,
-   a practice adapter with no network), P4 (the page), P5 (metering, 50 a day,
-   the platform flag), P6 (the shared sandbox retired, transcripts expire).
+   (P1). P2 (the copy, 0086, #145) and P3 (the real pipeline, #146) are in;
+   then P4 (the page), P5 (metering, 50 a day, the platform flag, and open to
+   every workspace), P6 (the shared sandbox retired, transcripts expire).
 2. **One time zone and one currency per workspace**, chosen during setup.
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
@@ -362,8 +364,10 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   needs per-face size and ascent overrides measured against each device
   font. Polish, not a gate; the files are cached for good after the first.
 - **Practice keeps the old card** (`sandbox.ts`, `/app/sandbox/act`) until
-  P4 draws the per-workspace Practice page; a second copy of the new card on
-  the shared sandbox would be thrown away with it in P6.
+  P4 draws the Practice page anew; the card is the one thing on it P4 replaces.
+- **No photo or voice note in Practice yet** (P3, #146): the worker fetches
+  media from the provider that received it, and a practice message has none.
+  It needs an upload on the Practice page and a practice media port (P4).
 - **The other cards on the conversation page** are drawn as states of the
   one card since #126 (a dot, the state's words, then why and what to do),
   but they are still separate cards under it, not lines inside it: moving

@@ -56,6 +56,7 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     '/app/live/buyers': '0.0000000000000000',
     '/app/live/channels': '0.0000000000000000',
     '/app/live/conversation/:conversationId': '0.0.00000000',
+    '/app/live/practice': '0.0.00000000',
   };
   const asked = (url: string, target: string): string =>
     STALE_MARK[url] ? `${target}?since=${STALE_MARK[url]}` : target;
@@ -88,6 +89,19 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
         `select id::text as id from product_knowledge where business_id = '${RUN_BIZ}' limit 1`);
     });
     expect(real['conversationId'], 'the seed produced no conversation').not.toBe('');
+
+    // P3 — the workspace has practised once: its copy, and a practice line, so
+    // Practice and its live line are drawn on real rows too.
+    {
+      const { refreshPractice, practiceConversation } = await import('../../src/db/practice.js');
+      const copy = await refreshPractice(db, bid.value);
+      await withTenantTx(db, copy, async (tx) => {
+        const conv = await practiceConversation(tx, copy);
+        await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
+                  values (${conv}::uuid, ${`practice:walk-${RUN_BIZ}`}, 'inbound', 'text', 'How much for 5,000 pieces?', now())
+                  on conflict do nothing`.execute(tx);
+      });
+    }
     expect(real['productId'], 'the seed produced no product').not.toBe('');
 
     // THE DEMO SEED CREATES NO QUOTES. A "fully populated fake company" with no

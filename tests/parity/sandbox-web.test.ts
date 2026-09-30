@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  renderSandbox, evaluateTrust,
-  type SandboxView, type SandboxTrust,
+  renderSandbox,
+  type SandboxView,
 } from '../../src/api/web/sandbox.js';
+import { evaluateTrust, type PracticeTrust } from '../../src/trust/practiceChecks.js';
 import { sandboxSeedSql, SANDBOX_BUSINESS_ID } from '../../src/demo/sandbox.js';
 import { SCENARIOS, TRUST_PRODUCT_ID, analysis } from '../../src/trust/scenarios.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
@@ -15,15 +16,15 @@ import type { Analysis } from '../../src/core/conversation/decide.js';
 
 // ── fixtures ───────────────────────────────────────────────────────────────
 
-const passCheck = (invariant: SandboxTrust['checks'][number]['invariant']) =>
+const passCheck = (invariant: PracticeTrust['checks'][number]['invariant']) =>
   ({ invariant, pass: true, detail: 'ok' } as const);
 
 const view = (over: Partial<SandboxView> = {}): SandboxView => ({
   hasConversation: true, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI', ...over,
 });
 
-const trust = (over: Partial<SandboxTrust> = {}): SandboxTrust => ({
-  mode: 'scripted', scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
+const trust = (over: Partial<PracticeTrust> = {}): PracticeTrust => ({
+  scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
   guardViolations: 0, handoff: false, quote: null,
   checks: [passCheck('priceFloorRespected'), passCheck('noSilentCapabilityEscalation')],
   ...over,
@@ -58,7 +59,7 @@ describe('M12.2 · sandbox isolation (structural)', () => {
 describe('M12.2 · sandbox surface (localized renderer)', () => {
   it('always shows the simulation banner + the reset/composer, in en/zh/ar', () => {
     for (const l of LOCALES) {
-      const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: false, flash: null });
+      const html = renderSandbox(view(), l, { flash: null });
       expect(html).toContain(t(l, 'sandbox.banner'));           // "This is practice only…"
       expect(html).toContain('action="/app/sandbox/message"');  // composer
       expect(html).toContain('action="/app/sandbox/scenario"'); // scenario loader
@@ -69,20 +70,17 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
   });
 
   it('lists every golden scenario as a loadable test case (owner-facing name)', () => {
-    const html = renderSandbox(view(), 'en', { mode: 'scripted', liveAvailable: true, flash: null });
+    const html = renderSandbox(view(), 'en', { flash: null });
     for (const s of SCENARIOS) expect(html).toContain(`value="${s.id}"`);
     // M16.4b: the picker shows the owner label, never the engineering title.
     expect(html).toContain(t('en', `sandbox.case.${SCENARIOS[0]!.id}` as MessageKey));
     expect(html).not.toContain(SCENARIOS[0]!.title);
   });
 
-  it('mode toggle: scripted is the default; live is offered only when available', () => {
-    const on = renderSandbox(view(), 'en', { mode: 'scripted', liveAvailable: true, flash: null });
-    expect(on).toMatch(/name="mode" value="scripted"[^>]*checked/);
-    expect(on).toContain('value="live"');
-    const off = renderSandbox(view(), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
-    expect(off).not.toContain('value="live"');            // no live radio
-    expect(off).toContain(t('en', 'sandbox.mode.live'));  // shown, but disabled label
+  it('P3 — no scripted or live choice: every practice message is answered by the real worker', () => {
+    const html = renderSandbox(view(), 'en', { flash: null });
+    expect(html).not.toContain('name="mode"');
+    expect(html).not.toContain('name="image"');           // a photo needs a file the worker can fetch: not offered
   });
 
   it('renders the transcript with buyer + employee bubbles', () => {
@@ -90,7 +88,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
       { direction: 'inbound', text: 'do you have canvas bags?', isImage: false },
       { direction: 'outbound', text: 'Yes — what quantity?', isImage: false },
     ] });
-    const html = renderSandbox(v, 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const html = renderSandbox(v, 'en', { flash: null });
     expect(html).toContain('do you have canvas bags?');
     expect(html).toContain('Yes — what quantity?');
     expect(html).toContain('msg inbound');
@@ -99,7 +97,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
 
   it('a pending draft shows the same approve/skip/revoke controls, posting to the sandbox', () => {
     const v = view({ pendingDraft: { draftId: 'draft-1', draftText: 'Our MOQ is 1,000 pcs.' } });
-    const html = renderSandbox(v, 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const html = renderSandbox(v, 'en', { flash: null });
     expect(html).toContain('Our MOQ is 1,000 pcs.');
     expect(html).toContain('action="/app/sandbox/act"');
     expect(html).toContain('value="发送"');   // wire command, localized label
@@ -108,10 +106,10 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
   });
 
   it('trust strip: none-state until a turn runs; then verdict + localized labels', () => {
-    const none = renderSandbox(view(), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const none = renderSandbox(view(), 'en', { flash: null });
     expect(none).toContain(t('en', 'sandbox.trust.none'));
 
-    const passing = renderSandbox(view({ lastTurn: trust() }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const passing = renderSandbox(view({ lastTurn: trust() }), 'en', { flash: null });
     expect(passing).toContain(t('en', 'sandbox.trust.allPass'));
     expect(passing).toContain('✓');
     expect(passing).toContain(t('en', 'sandbox.inv.priceFloorRespected'));
@@ -119,7 +117,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
 
     const failing = renderSandbox(view({ lastTurn: trust({
       checks: [{ invariant: 'noUnsupportedClaim', pass: false, detail: 'LEAKED: CE certified' }],
-    }) }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    }) }), 'en', { flash: null });
     expect(failing).toContain(t('en', 'sandbox.trust.someFail'));
     expect(failing).toContain('✗');
   });
@@ -127,7 +125,7 @@ describe('M12.2 · sandbox surface (localized renderer)', () => {
   it('a scenario turn is badged with its owner-facing name', () => {
     const s = SCENARIOS[0]!;
     const html = renderSandbox(view({ lastTurn: trust({ scenarioId: s.id, scenarioTitle: s.title }) }), 'en',
-      { mode: 'scripted', liveAvailable: false, flash: null });
+      { flash: null });
     expect(html).toContain(t('en', 'sandbox.scenario.badge'));
     expect(html).toContain(t('en', `sandbox.case.${s.id}` as MessageKey));
     expect(html).not.toContain(s.title);   // the engineering title stays internal
@@ -167,14 +165,13 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
   it('a draft-mode reply passes the universal checks and is marked held-for-approval', async () => {
     const r = await runFake({ text: 'hello, interested in your bags', replies: ['What quantity are you after?'] });
     const out = evaluateTrust({
-      mode: 'scripted', expectations: [
+      expectations: [
         { invariant: 'noSilentCapabilityEscalation' },
         { invariant: 'noFabricatedPrice' },
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified'] },
       ],
       result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
     });
-    expect(out.mode).toBe('scripted');
     expect(out.scenarioTitle).toBeNull();
     expect(out.appliedMode).toBe('draft');
     expect(out.checks.every((c) => c.pass)).toBe(true);
@@ -183,7 +180,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
   it('an explicit human request is scored as an escalation', async () => {
     const r = await runFake({ text: 'I want to speak to a real person now', state: { phase: 'qualification' } });
     const out = evaluateTrust({
-      mode: 'scripted', expectations: [{ invariant: 'escalatesToHuman' }],
+      expectations: [{ invariant: 'escalatesToHuman' }],
       result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
     });
     expect(out.handoff).toBe(true);
@@ -202,7 +199,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
       replies: ['Yes — CE certified and FDA approved.', 'Yes — CE certified and FDA approved.'],
     });
     const out = evaluateTrust({
-      mode: 'scripted', expectations: [
+      expectations: [
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved'] },
         { invariant: 'priceFloorRespected' },
       ],
@@ -221,7 +218,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
  */
 describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => {
   const at = (o: SandboxView['ownership']) =>
-    renderSandbox(view({ ownership: o }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    renderSandbox(view({ ownership: o }), 'en', { flash: null });
 
   it('AI: employee-handling status + Take over; no reply/return controls', () => {
     const html = at('AI');
@@ -241,7 +238,7 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
 
   it('OWNER_CONTROLLED: reply box + return-to-employee; the draft card steps aside', () => {
     const v = view({ ownership: 'OWNER_CONTROLLED', pendingDraft: { draftId: 'd-1', draftText: 'Our MOQ is 1,000 pcs.' } });
-    const html = renderSandbox(v, 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const html = renderSandbox(v, 'en', { flash: null });
     expect(html).toContain(t('en', 'takeover.status.owner'));
     expect(html).toContain('action="/app/sandbox/reply"');
     expect(html).toContain('name="text"');
@@ -250,15 +247,9 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
     expect(html).not.toContain('action="/app/sandbox/act"');   // no draft approval while the owner holds it
   });
 
-  it('controls carry the sandbox mode so a rehearsal never changes lane', () => {
-    for (const mode of ['scripted', 'live'] as const) {
-      const html = renderSandbox(view({ ownership: 'OWNER_CONTROLLED' }), 'en', { mode, liveAvailable: true, flash: null });
-      expect(html).toContain(`value="${mode}"`);
-    }
-  });
 
   it('no controls at all before a conversation exists', () => {
-    const html = renderSandbox(view({ hasConversation: false }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
+    const html = renderSandbox(view({ hasConversation: false }), 'en', { flash: null });
     expect(html).not.toContain('action="/app/sandbox/takeover"');
     expect(html).not.toContain('action="/app/sandbox/reply"');
   });
@@ -269,7 +260,7 @@ describe('M16.3 · sandbox human-control rehearsal (localized renderer)', () => 
     const card = (html: string) => html.match(/<div class="card takeover[\s\S]*?<\/div>\s*<div class="card sbx-trust/)?.[0] ?? '';
     for (const l of LOCALES) {
       for (const o of ['AI', 'WAITING_HUMAN', 'OWNER_CONTROLLED'] as const) {
-        const html = renderSandbox(view({ ownership: o }), l, { mode: 'scripted', liveAvailable: false, flash: null });
+        const html = renderSandbox(view({ ownership: o }), l, { flash: null });
         expect(html).toContain(t(l, `takeover.status.${o === 'AI' ? 'ai' : o === 'WAITING_HUMAN' ? 'waiting' : 'owner'}`));
         const low = card(html).toLowerCase();
         expect(low.length, `${l}/${o}: control card found`).toBeGreaterThan(0);
@@ -301,7 +292,7 @@ describe('M16.4b · owner-facing practice-case names', () => {
 
   it('no engineering title reaches the rendered page, in any locale', () => {
     for (const l of LOCALES) {
-      const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: true, flash: null });
+      const html = renderSandbox(view(), l, { flash: null });
       for (const s of SCENARIOS) expect(html, `${l}:${s.id}`).not.toContain(s.title);
     }
   });
@@ -309,7 +300,7 @@ describe('M16.4b · owner-facing practice-case names', () => {
   it('the picker carries no engineering vocabulary — in any locale', () => {
     const picker = (html: string) => html.match(/<select[\s\S]*?<\/select>/)?.[0] ?? '';
     for (const l of LOCALES) {
-      const html = renderSandbox(view(), l, { mode: 'scripted', liveAvailable: true, flash: null });
+      const html = renderSandbox(view(), l, { flash: null });
       const opts = picker(html);
       expect(opts.length, `${l}: picker found`).toBeGreaterThan(0);
       // option VALUES are scenario ids (the wire contract) — check the labels only.
@@ -322,7 +313,7 @@ describe('M16.4b · owner-facing practice-case names', () => {
   });
 
   it('scenario ids remain the wire contract (values unchanged)', () => {
-    const html = renderSandbox(view(), 'zh', { mode: 'scripted', liveAvailable: true, flash: null });
+    const html = renderSandbox(view(), 'zh', { flash: null });
     for (const s of SCENARIOS) expect(html).toContain(`value="${s.id}"`);
   });
 });

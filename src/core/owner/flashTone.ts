@@ -122,6 +122,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // family, so it went unclassified and was painted as a refusal — unseen at
   // the bottom of the page until CC-25 landed the owner on it after Reset.
   'sandbox.reset.done',
+  // P3 — the practice message is on its way; the reply comes by the live line.
+  'practice.sent',
 ]);
 
 /**

@@ -177,13 +177,13 @@ describe('CC-25 · the practice page reads the same window', () => {
     transcript: { earlier: `1790000000123_${ID}`, older: false }, ...over,
   });
 
-  it('the door back carries the mode she is practising in; the newest line is marked', () => {
-    const html = renderSandbox(view(), 'en', { mode: 'live', liveAvailable: true, flash: null });
-    expect(html).toContain(`href="/app/sandbox?mode=live&amp;before=1790000000123_${ID}#latest"`);
+  it('the door back pages Practice back; the newest line is marked', () => {
+    const html = renderSandbox(view(), 'en', { flash: null });
+    expect(html).toContain(`href="/app/sandbox?before=1790000000123_${ID}#latest"`);
     expect(html).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble"><bdi>p-50<\/bdi>/);
     expect(html).not.toContain(t('en', 'inbox.log.latest'));
-    const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { mode: 'scripted', liveAvailable: false, flash: null });
-    expect(older).toContain('href="/app/sandbox?mode=scripted#latest"');
+    const older = renderSandbox(view({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
+    expect(older).toContain('href="/app/sandbox#latest"');
     expect(older).not.toContain('before=');
   });
 });

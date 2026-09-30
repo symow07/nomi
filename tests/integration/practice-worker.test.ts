@@ -1,0 +1,303 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { sql } from 'kysely';
+import { randomUUID } from 'node:crypto';
+import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
+
+/**
+ * PRACTICE THROUGH THE REAL PIPELINE (P3; docs/PRACTICE.md), in the production
+ * composition: the page → the workspace's own copy (0086) → the inbound queue
+ * → the worker and its turn → the approval path → the outbound worker and its
+ * send gate → the practice adapter, which has no network.
+ *
+ * Before P3 the page ran turns itself, in the request, on one shared tenant:
+ * Stop, batching and the send gate never applied, and every signed-in owner
+ * could read and reset the same sandbox.
+ */
+
+const DATABASE_URL = process.env['DATABASE_URL'];
+const d = DATABASE_URL ? describe : describe.skip;
+
+const RUN = randomUUID().slice(0, 8);
+const PILOT = `dd870000-0000-4000-8000-${RUN}0001`;
+const PRODUCT = `dd870000-0000-4000-8001-${RUN}0001`;
+const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
+
+const until = async <T>(probe: () => Promise<T | undefined>, what: string, ms = 60_000): Promise<T> => {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await probe();
+    if (v !== undefined) return v;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+};
+
+d('Practice goes through the real pipeline, on the workspace\'s own copy (requires DATABASE_URL)', () => {
+  let prod: import('../../src/main.js').Production;
+  let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
+  let cookie = '';
+  let copy = '';
+  const analyzer = new FakeAnalyzer();
+  const replyWriter = new FakeReplyWriter();
+
+  type Tx = import('../../src/db/client.js').Tx;
+  const inBiz = async <R>(id: string, fn: (tx: Tx) => Promise<R>): Promise<R> => {
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const b = parseBusinessId(id); if (!b.ok) throw new Error('fixture');
+    return withTenantTx(prod.db, b.value, fn);
+  };
+  const inCopy = <R>(fn: (tx: Tx) => Promise<R>) => inBiz(copy, fn);
+  const post = (url: string, payload = '') => prod.app.inject({ method: 'POST', url, headers: { cookie, ...FORM }, payload });
+  const page = () => prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
+  const say = (text: string) => post('/app/sandbox/message', `text=${encodeURIComponent(text)}`);
+
+  /** The copy's open practice conversation, as the routes find it. */
+  const practiceConv = () => inCopy((tx) => sql<{ id: string }>`
+    select c.id::text as id from conversations c
+      join client_channels cc on cc.client_id = c.client_id and cc.channel = 'instagram' and cc.channel_user_id = ${`practice:${copy}`}
+     where c.business_id = ${copy}::uuid and c.is_active order by c.created_at desc limit 1`.execute(tx).then((r) => r.rows[0]?.id));
+  const pendingDraft = (conv: string) => inCopy((tx) => sql<{ id: string; text: string }>`
+    select id::text as id, draft_text as text from drafts where conversation_id = ${conv}::uuid and status = 'pending'
+     order by created_at desc limit 1`.execute(tx).then((r) => r.rows[0]));
+  /** What left: accepted by the practice adapter, and delivered at once — the page is the customer's phone. */
+  const sentReplies = (conv: string) => inCopy((tx) => sql<{ body: string; provider: string | null; origin: string; status: string }>`
+    select body, provider_message_id as provider, origin, status from outbound_messages
+     where conversation_id = ${conv}::uuid and status in ('sent', 'delivered') order by seq`.execute(tx).then((r) => r.rows));
+  const setAutonomy = (mode: 'draft' | 'auto') => inBiz(PILOT, async (tx) => {
+    for (const cap of ['greet', 'qualify', 'recommend', 'quote', 'negotiate', 'follow_up']) {
+      await sql`insert into autonomy_policy (business_id, capability, mode) values (${PILOT}, ${cap}, ${mode})
+                on conflict (business_id, capability) do update set mode = ${mode}`.execute(tx);
+    }
+  });
+  const nothingReachedAProvider = (text: string) =>
+    expect(sim.requests.filter((r) => r.body.includes(text.slice(0, 20))), 'a practice reply reached a provider').toEqual([]);
+
+  beforeAll(async () => {
+    const { buildProduction } = await import('../../src/main.js');
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    sim = whatsappSimulator([], { tag: `pw${RUN}` });
+    const setup = createDb(DATABASE_URL!);
+    const b = parseBusinessId(PILOT); if (!b.ok) throw new Error('fixture');
+    await withTenantTx(setup, b.value, async (t) => {
+      await sql`insert into businesses (id, name, engine, batch_debounce_ms, batch_max_window_ms)
+                values (${PILOT}, 'Practice Pipeline Co', 'service', 300, 10000)`.execute(t);
+      await sql`insert into products (id, business_id, sku, name, unit, moq, price_usd_per_unit)
+                values (${PRODUCT}, ${PILOT}, ${`PW-${RUN}`}, 'Canvas tote', 'pcs', 100, 2.5)`.execute(t);
+      await sql`insert into price_tiers (product_id, min_qty, unit_price_usd) values (${PRODUCT}, 100, 2.5)`.execute(t);
+      await sql`insert into assistants (business_id, name, is_default) values (${PILOT}, 'Lily', true)`.execute(t);
+      await sql`insert into onboarding_state (business_id, assistant_named_at) values (${PILOT}, now())`.execute(t);
+    });
+    await setup.destroy();
+    process.env['PILOT_BUSINESS_ID'] = PILOT;
+    prod = await buildProduction({
+      provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real',
+      META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'pw-verify-token-xxx', CREDENTIAL_KEY: 'c'.repeat(64), PORT: 0,
+    }, { adapter: sim.adapter, logger: false, media: {}, models: { analyzer, replyWriter } });
+    const login = await prod.app.inject({ method: 'POST', url: '/login', headers: FORM,
+      payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
+    cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+    // An enquiry the writer answers (language-gate.test.ts's shape): no template stands in for it.
+    analyzer.next = {
+      language: { detected: 'en', replyIn: 'en' },
+      intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
+      recommendedPhase: 'clarification',
+    } as never;
+  }, 60_000);
+  afterAll(async () => { await prod?.close(); delete process.env['PILOT_BUSINESS_ID']; });
+
+  it('signed out, Practice and its live line send the visitor to sign in (or 401 to the script)', async () => {
+    const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/login');
+    const live = await prod.app.inject({ method: 'GET', url: '/app/live/practice?since=0.0.00000000', headers: { accept: 'application/json' } });
+    expect(live.statusCode).toBe(401);
+  });
+
+  it('before the first message there is no copy and nothing to watch; the page starts empty', async () => {
+    const res = await page();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('No messages yet');
+    expect(res.body).not.toContain('/app/live/practice');
+  });
+
+  it('a practice message: the copy is made, the line is on the page at once, and the WORKER answers it — a reply that waits, draft-first', async () => {
+    replyWriter.replies = ['Yes, we make canvas totes in natural cotton.'];
+    const r = await say('Do you make canvas totes?');
+    expect(r.statusCode).toBe(302);
+    expect(r.headers['location']).toBe('/app/sandbox#latest');
+
+    copy = await inBiz(PILOT, (tx) => sql<{ id: string }>`select practice_copy(${PILOT}::uuid)::text as id`.execute(tx).then((x) => x.rows[0]!.id));
+    expect(copy).toMatch(/^[0-9a-f-]{36}$/);
+    expect(copy).not.toBe(PILOT);
+    const conv = (await practiceConv())!;
+    expect((await page()).body).toContain('Do you make canvas totes?');       // on the transcript before any turn
+
+    const draft = await until(() => pendingDraft(conv), 'the practice draft');
+    expect(draft.text).toContain('Yes, we make canvas totes in natural cotton.');
+    expect(analyzer.texts).toContain('Do you make canvas totes?');            // the worker's turn, the real analyser port
+    const shown = (await page()).body;
+    expect(shown).toContain('action="/app/sandbox/act"');
+    expect(shown).toContain('All checks passed');                               // the golden set's checks, run in the worker
+    const checked = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_events
+      where conversation_id = ${conv}::uuid and type = 'sandbox_turn'`.execute(tx).then((x) => x.rows[0]!.n));
+    expect(checked).toBe(1);
+    expect(shown).toContain('/app/live/practice?since=');                       // and the page now watches for the answer
+    // The workspace itself is untouched: the practice customer is the copy's alone.
+    const leaked = await inBiz(PILOT, (tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${PILOT}::uuid`
+      .execute(tx).then((x) => x.rows[0]!.n));
+    expect(leaked).toBe(0);
+  }, 90_000);
+
+  it('a practice turn is paid for where it ran — on the copy\'s ledger, not the workspace\'s (P5 charges the workspace, capped)', async () => {
+    const ledger = (id: string) => inBiz(id, (tx) => sql<{ turns: number; calls: number }>`
+      select coalesce(sum(turns), 0)::int as turns, coalesce(sum(llm_calls), 0)::int as calls
+        from usage_ledger where business_id = ${id}::uuid`.execute(tx).then((r) => r.rows[0]!));
+    const onCopy = await ledger(copy);
+    expect(onCopy.turns).toBeGreaterThanOrEqual(1);
+    expect(onCopy.calls).toBeGreaterThanOrEqual(2);   // the analysis and the reply
+    expect(await ledger(PILOT)).toEqual({ turns: 0, calls: 0 });
+  });
+
+  it('Send: the ONE approval path, then the outbound worker and its gate, then the practice adapter — on the transcript, and no provider saw it', async () => {
+    const conv = (await practiceConv())!;
+    const draft = (await pendingDraft(conv))!;
+    const act = await post('/app/sandbox/act', `draftId=${draft.id}&command=${encodeURIComponent('发送')}`);
+    expect(act.statusCode).toBe(302);
+    const sent = await until(async () => (await sentReplies(conv)).find((x) => x.body.includes('Yes, we make canvas totes')), 'the approved reply, sent');
+    expect(sent.provider).toMatch(/^practice:/);
+    expect(sent.origin).toBe('employee');
+    // Delivered through the receipt path, so the next reply is not held 90 s for a receipt.
+    expect(await until(async () => (await sentReplies(conv)).find((x) => x.status === 'delivered'), 'the receipt')).toBeTruthy();
+    expect((await page()).body).toContain('msg outbound');
+    nothingReachedAProvider('Yes, we make canvas totes in natural cotton.');
+  }, 90_000);
+
+  it('the live line: both sides counted — the owner\'s own line is not news, the answer is', async () => {
+    const conv = (await practiceConv())!;
+    const { conversationMark } = await import('../../src/api/web/live.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const c = parseBusinessId(copy); if (!c.ok) throw new Error('fixture');
+    const mark = (await conversationMark(prod.db, c.value, conv, 'both'))!;
+    const ask = (since: string) => prod.app.inject({ method: 'GET', url: `/app/live/practice?since=${since}`, headers: { cookie, accept: 'application/json' } });
+    expect((await ask(mark)).json()).toEqual({ news: false });
+    const [n, ...rest] = mark.split('.');
+    expect((await ask([String(Number(n) - 1), ...rest].join('.'))).json()).toEqual({ news: true, what: 'practice' });
+    expect((await ask('not-a-mark')).statusCode).toBe(400);
+  });
+
+  it('a capability the workspace lets send alone sends alone in Practice — the refresh carries it — with the disclosure in front', async () => {
+    await setAutonomy('auto');
+    try {
+      replyWriter.replies = ['Yes, there is a minimum order on every tote.'];
+      replyWriter.calls = 0;
+      await say('Do you have a minimum?');
+      const conv = (await practiceConv())!;
+      const sent = await until(async () => (await sentReplies(conv)).find((x) => x.body.includes('Yes, there is a minimum order on every tote.')), 'the reply sent alone');
+      expect(sent.body).toContain('AI assistant');
+      expect(sent.provider).toMatch(/^practice:/);
+      nothingReachedAProvider('Yes, there is a minimum order on every tote.');
+    } finally {
+      await setAutonomy('draft');
+    }
+  }, 90_000);
+
+  it('the owner\'s Stop binds Practice: the message is held — a turn, no model — and handed to a person; nothing is sent or drafted', async () => {
+    await post('/app/sandbox/reset');   // a conversation of its own: nothing earlier waits in it
+    await inBiz(PILOT, (tx) => sql`update businesses set assistant_stopped_at = now(), assistant_stopped_by = 'owner' where id = ${PILOT}::uuid`.execute(tx));
+    try {
+      const asked = analyzer.calls;
+      await say('Are you there?');
+      const conv = (await practiceConv())!;
+      const held = await until(() => inCopy((tx) => sql<{ reason: string }>`
+        select decision->'action'->>'reason' as reason from turns
+         where conversation_id = ${conv}::uuid and decision->'action'->>'kind' = 'held' limit 1`.execute(tx).then((x) => x.rows[0])), 'the held turn');
+      expect(held.reason).toBe('assistant_stopped');
+      expect(analyzer.calls).toBe(asked);
+      const assigned = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));
+      expect(assigned).toBe('unclaimed');
+      expect(await pendingDraft(conv)).toBeUndefined();
+    } finally {
+      await inBiz(PILOT, (tx) => sql`update businesses set assistant_stopped_at = null, assistant_stopped_by = null where id = ${PILOT}::uuid`.execute(tx));
+    }
+  }, 90_000);
+
+  it('Practice alerts nobody: the notify consumer refuses a copy, whatever queued the alert', async () => {
+    const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
+    const sent: string[] = [];
+    const recorder = { sendText: async (to: string) => { sent.push(to); return { ok: true as const, providerMessageId: 'x' }; } };
+    const conv = (await practiceConv())!;
+    for (const kind of ['handoff', 'hot_lead', 'deletion_requested', 'order_proposed'] as const) {
+      expect(await deliverOwnerAlert({ db: prod.db, adapter: recorder }, { businessId: copy, kind, conversationId: conv }), kind).toBe('skipped_practice');
+    }
+    expect(sent).toEqual([]);
+  });
+
+  it('take over, reply, hand back — the same lifecycle, on the copy; the owner\'s reply leaves through the outbound worker to the practice adapter', async () => {
+    const conv = (await practiceConv())!;
+    expect((await post('/app/sandbox/takeover')).statusCode).toBe(302);
+    const holder = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));
+    expect(holder).not.toBeNull();
+    expect(holder).not.toBe('unclaimed');
+    expect((await page()).body).toContain('action="/app/sandbox/reply"');
+
+    expect((await post('/app/sandbox/reply', `text=${encodeURIComponent('Owner here — 4,800 pcs is fine.')}`)).statusCode).toBe(302);
+    const mine = await until(async () => (await sentReplies(conv)).find((x) => x.origin === 'owner'), 'the owner\'s reply, sent');
+    expect(mine.body).toBe('Owner here — 4,800 pcs is fine.');
+    expect(mine.provider).toMatch(/^practice:/);
+    nothingReachedAProvider('Owner here — 4,800 pcs is fine.');
+
+    expect((await post('/app/sandbox/resume')).statusCode).toBe(302);
+    const back = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));
+    expect(back).toBeNull();
+    expect((await page()).body).toContain('action="/app/sandbox/takeover"');
+
+    // Getting ready reads the rehearsal from the workspace's own copy.
+    const { loadPilotRunbook } = await import('../../src/api/web/pilot.js');
+    const rb = await loadPilotRunbook(prod.db, PILOT, { practiceBusinessId: copy });
+    expect(rb.rehearsal.done).toMatchObject({ takeover: true, ownerReply: true, resume: true });
+    const onboarding = await prod.app.inject({ method: 'GET', url: '/app/onboarding', headers: { cookie } });
+    expect(onboarding.statusCode).toBe(200);
+  }, 90_000);
+
+  it('teach an answer on the workspace → Practice answers with it; correct it → the NEW answer: the copy follows the workspace', async () => {
+    const { teachKnowledge, correctKnowledge } = await import('../../src/api/web/knowledge.js');
+    const label = 'What is your minimum order?';
+    await teachKnowledge(prod.db, PILOT, { productId: null, kind: 'faq', label, content: 'Our minimum order is 1000 pieces.' });
+    const ask = async (want: string) => {
+      await post('/app/sandbox/reset');
+      await say('what is your minimum order?');
+      const conv = (await practiceConv())!;
+      return until(async () => {
+        const t = await inCopy((tx) => sql<{ t: string }>`
+          select coalesce(string_agg(x, ' | '), '') as t from (
+            select draft_text as x from drafts where conversation_id = ${conv}::uuid
+            union all select body from outbound_messages where conversation_id = ${conv}::uuid) y`.execute(tx).then((r) => r.rows[0]!.t));
+        return t.includes(want) ? t : undefined;
+      }, `an answer with "${want}"`);
+    };
+    expect(await ask('Our minimum order is 1000 pieces.')).toContain('1000 pieces');
+    const id = await inBiz(PILOT, (tx) => sql<{ id: string }>`
+      select id::text as id from product_knowledge where business_id = ${PILOT}::uuid and status = 'active' and label = ${label}`
+      .execute(tx).then((r) => r.rows[0]!.id));
+    await correctKnowledge(prod.db, PILOT, id, 'Our minimum order is 2000 pieces.');
+    const second = await ask('Our minimum order is 2000 pieces.');
+    expect(second).not.toContain('1000 pieces');
+  }, 120_000);
+
+  it('Start over archives the practice conversation (never deletes) and the next message starts a new one', async () => {
+    const before = (await practiceConv())!;
+    const total0 = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
+    expect((await post('/app/sandbox/reset')).statusCode).toBe(302);
+    expect(await practiceConv()).toBeUndefined();
+    const total1 = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
+    expect(total1).toBe(total0);
+    const evt = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_events where conversation_id = ${before}::uuid and type = 'sandbox_reset'`.execute(tx).then((x) => x.rows[0]!.n));
+    expect(evt).toBe(1);
+    expect((await page()).body).toContain('No messages yet');
+  });
+});

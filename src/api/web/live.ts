@@ -57,10 +57,10 @@ import type { LiveWatch } from './flash.js';
  * shows, read by the same function (`readAttention`), so the two cannot differ.
  */
 
-export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels';
+export type LiveKind = 'conversation' | 'buyers' | 'today' | 'channels' | 'practice';
 
 /** What the line can say: one sentence each (`live.<what>` in the catalogue). */
-export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels';
+export type LiveNews = 'message' | 'reply' | 'changed' | 'list' | 'today' | 'channels' | 'practice';
 
 /** What the page's script is told. `what` only when there is news. */
 export type LiveSaid = { readonly news: false } | { readonly news: true; readonly what: LiveNews };
@@ -76,12 +76,14 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
  *   buyers        `<conversations>.<sixteen hex of the list's fingerprint>`
  *   today         `<replies waiting>.<waiting for a person>.<held by a person>.<did not go>.<deletion asked>`
  *   channels      `<channels a customer wrote on>.<sixteen hex of when, and of the Page connection>`
+ *   practice      a conversation's shape, the first figure counting BOTH sides (P3)
  */
 const MARK: Record<LiveKind, RegExp> = {
   conversation: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
   buyers: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
   today: new RegExp(`^${COUNT}(?:\\.${COUNT}){5}$`),
   channels: new RegExp(`^${COUNT}\\.[0-9a-f]{16}$`),
+  practice: new RegExp(`^${COUNT}\\.(?:0|${ID})\\.[0-9a-f]{8}$`),
 };
 
 /** Is this a mark of this kind, as a page would carry it? */
@@ -102,10 +104,11 @@ export const isMark = (kind: LiveKind, raw: unknown): raw is string =>
  * page shows, and the sentence says "changed", never "new".
  */
 export function liveNews(kind: LiveKind, since: string, now: string): LiveSaid {
-  if (kind === 'conversation') {
+  if (kind === 'conversation' || kind === 'practice') {
     const [said0 = '0', waiting0 = '0', state0 = ''] = since.split('.');
     const [said1 = '0', waiting1 = '0', state1 = ''] = now.split('.');
-    if (Number(said1) > Number(said0)) return { news: true, what: 'message' };
+    // P3 — in Practice the owner wrote the customer's side; what is news is the answer.
+    if (Number(said1) > Number(said0)) return { news: true, what: kind === 'practice' ? 'practice' : 'message' };
     if (waiting1 !== '0' && waiting1 !== waiting0) return { news: true, what: 'reply' };
     if (state1 !== state0) return { news: true, what: 'changed' };
     return { news: false };
@@ -136,12 +139,16 @@ const SHOWN = sql<boolean>`(m.text_content is not null or m.input_type = 'voice'
  * drafts, the sends by `(conversation_id, seq)`. Null when the conversation is
  * not this business's — row security hides it, so it is simply not there.
  */
-export async function conversationMark(db: Db, bid: BusinessId, conversationId: string): Promise<string | null> {
+export async function conversationMark(
+  db: Db, bid: BusinessId, conversationId: string,
+  /** P3 — Practice counts both sides: the owner wrote the customer's, and the news is the reply. */
+  sides: 'customer' | 'both' = 'customer',
+): Promise<string | null> {
   if (!UUID.test(conversationId)) return null;
   return withTenantTx(db, bid, async (tx) => {
     const row = (await sql<{ said: number; waiting: string | null; state: string }>`
       select (select count(*)::int from messages m
-               where m.conversation_id = c.id and m.direction = 'inbound' and ${SHOWN}) as said,
+               where m.conversation_id = c.id and (${sides === 'both'} or m.direction = 'inbound') and ${SHOWN}) as said,
              (select d.id::text from drafts d
                where d.business_id = c.business_id and d.status = 'pending' and d.conversation_id = c.id
                order by d.created_at desc, d.id desc limit 1) as waiting,
@@ -214,10 +221,13 @@ export async function liveAnswer(
 ): Promise<LiveAnswer> {
   if (!isMark(kind, since)) return { status: 400, said: { news: false } };
   const now = kind === 'conversation' ? await conversationMark(db, bid, conversationId)
+    : kind === 'practice' ? await conversationMark(db, bid, conversationId, 'both')
     : kind === 'buyers' ? await buyersMark(db, bid)
     : kind === 'channels' ? await channelsMark(db, bid)
     : todayMark(await readAttention(db, bid));
   if (now === null) return { status: 404, said: { news: false } };
+  // A practice copy's orders are not the workspace's: the rail's count is left as it is.
+  if (kind === 'practice') return { status: 200, said: liveNews(kind, since, now) };
   return { status: 200, said: liveNews(kind, since, now), orders: await ordersWaitingCount(db, bid) };
 }
 
@@ -226,6 +236,13 @@ export const conversationWatch = (conversationId: string, mark: string): LiveWat
   ask: `/app/live/conversation/${encodeURIComponent(conversationId)}?since=${mark}`,
   door: conversationUrl(conversationId),
   says: [{ what: 'message', key: 'live.message' }, { what: 'reply', key: 'live.reply' }, { what: 'changed', key: 'live.changed' }],
+});
+
+/** P3 — Practice watches the copy's practice conversation; the door is Practice, on its newest line. */
+export const practiceWatch = (mark: string): LiveWatch => ({
+  ask: `/app/live/practice?since=${mark}`,
+  door: '/app/sandbox#latest',
+  says: [{ what: 'practice', key: 'live.practice' }, { what: 'reply', key: 'live.reply' }, { what: 'changed', key: 'live.changed' }],
 });
 
 /** Buyers watches the whole list; the door is the first page of the tab and the search she is on. */

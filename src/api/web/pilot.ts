@@ -182,7 +182,7 @@ export type PilotRunbook = {
   readonly readiness: PilotReadiness;       // before launch (M15)
   readonly operations: OperationsSnapshot;  // during pilot (M16.2a)
   readonly rehearsal: {
-    readonly available: boolean;                       // a sandbox tenant exists to practice in
+    readonly available: boolean;                       // the workspace has practised (its copy exists)
     readonly done: Record<RehearsalStep, boolean>;
     readonly completed: number;
     readonly total: number;
@@ -192,7 +192,7 @@ export type PilotRunbook = {
 
 export async function loadPilotRunbook(
   db: Db, businessIdRaw: string,
-  opts: { sandboxBusinessId?: string | undefined; provider?: string | undefined; range?: Range | undefined } = {},
+  opts: { practiceBusinessId?: string | null | undefined; provider?: string | undefined; range?: Range | undefined } = {},
 ): Promise<PilotRunbook> {
   const provider = opts.provider ?? 'disabled';
   const range: Range = opts.range ?? 'week';
@@ -214,8 +214,9 @@ export async function loadPilotRunbook(
       `.execute(tx)).rows[0]!.e)
     : false;
 
-  // Sandbox rehearsal signals — the SANDBOX tenant's own events, read-only.
-  const sb = opts.sandboxBusinessId ? parseBusinessId(opts.sandboxBusinessId) : null;
+  // Rehearsal signals — the workspace's own practice copy's events, read-only
+  // (P3; before, one shared sandbox's, whoever had rehearsed there).
+  const sb = opts.practiceBusinessId ? parseBusinessId(opts.practiceBusinessId) : null;
   const available = !!(sb && sb.ok);
   const sbx = sb && sb.ok
     ? await withTenantTx(db, sb.value, async (tx) => (await sql<{ takeover: boolean; owner_reply: boolean; resume: boolean }>`

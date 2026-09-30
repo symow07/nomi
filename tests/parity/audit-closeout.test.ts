@@ -17,7 +17,8 @@ import {
 import { renderContacts, type ContactsView } from '../../src/api/web/contacts.js';
 import type { ContactRow } from '../../src/db/contacts.js';
 import { renderOrder, type OrderView } from '../../src/api/web/orders.js';
-import { renderSandbox, type SandboxView, type SandboxTrust } from '../../src/api/web/sandbox.js';
+import { renderSandbox, type SandboxView } from '../../src/api/web/sandbox.js';
+import type { PracticeTrust } from '../../src/trust/practiceChecks.js';
 import { renderInboxList, renderConversationDetail, type InboxList, type ConversationDetail } from '../../src/api/web/inbox.js';
 import { renderCustomerFile, type CustomerFile } from '../../src/api/web/conversations.js';
 import { renderKnowledgeIndex, renderProductKnowledge, type ProductKnowledge } from '../../src/api/web/knowledge.js';
@@ -88,10 +89,10 @@ const order = (over: Partial<OrderView> = {}): OrderView => ({
   ...over,
 });
 
-const practice = (trust: Partial<SandboxTrust> = {}): SandboxView => ({
+const practice = (trust: Partial<PracticeTrust> = {}): SandboxView => ({
   hasConversation: true, messages: [], pendingDraft: null, ownership: 'AI',
   lastTurn: {
-    mode: 'scripted', scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
+    scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
     guardViolations: 0, handoff: false, quote: { unitPrice: usd(0.85), total: usd(17000) },
     checks: [{ invariant: 'priceFloorRespected', pass: true, detail: 'ok' }], ...trust,
   },
@@ -233,7 +234,7 @@ describe('CC-13 · each language its own punctuation, and a figure spaced from i
 
   it('practice: each chip\'s colon, and the price per unit in the page\'s language (it said "/pc" everywhere)', () => {
     for (const l of LOCALES) {
-      const html = withoutIsolates(renderSandbox(practice(), l, { mode: 'scripted', liveAvailable: false, flash: null }));
+      const html = withoutIsolates(renderSandbox(practice(), l, { flash: null }));
       expect(html, l).toContain(esc(labelled(l, t(l, 'sandbox.xray.skill'), t(l, 'capability.quote' as MessageKey))));
       expect(html, l).toContain(`${l === 'ar' ? `\u200F0.85${NBSP}US$` : '$0.85'}/${esc(t(l, 'product.unit.pcs'))}`);
       expect(html, l).not.toContain('/pc<');

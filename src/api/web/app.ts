@@ -25,7 +25,7 @@ import {
   defaultFilter, buyersHref, type InboxFilter,
 } from './inbox.js';
 import {
-  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, ordersWaitingCount, type LiveKind,
+  liveAnswer, conversationMark, buyersMark, todayMark, conversationWatch, buyersWatch, todayWatch, practiceWatch, ordersWaitingCount, type LiveKind,
   channelsMark, channelsWatch,
 } from './live.js';
 import { renderYourAccounts, type YourAccounts } from './yourAccounts.js';
@@ -127,11 +127,12 @@ import {
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
-  loadSandboxView, renderSandbox, runSandboxTurn, resetSandbox, sandboxOutboundSink,
-  activeSandboxConversationId, sandboxFlushOutbound,
+  loadPracticeView, renderSandbox, sayInPractice, resetPractice,
   runScriptedPractice, renderPractice, practiceUrl,
-  type SandboxDeps, type SandboxMode,
 } from './sandbox.js';
+import { practiceCopyOf, refreshPractice, activePracticeConversation } from '../../db/practice.js';
+import { SCENARIOS } from '../../trust/scenarios.js';
+import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
 import { isAutonomyLevel } from '../../core/conversation/autonomyLevel.js';
 import { answerSpotCheck } from '../../pipeline/spotChecks.js';
@@ -140,7 +141,7 @@ import { confirmOrderProposal, stepIntoOrder } from '../../pipeline/orderProposa
 import { takeOver, resumeAi, handTo } from '../../conversations/takeover.js';
 import { ownerReply } from '../../outbound/ownerReply.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import type { Analyzer, ReplyWriter, PageTranscriber } from '../../llm/ports.js';
+import type { PageTranscriber } from '../../llm/ports.js';
 import {
   shell, loginPage, signupPage, verifyPage, setPasswordPage, forgotPasswordPage, type SetPasswordProblem, errorPage, esc, back, isOutreachRoute, conversationUrl, MERGED_INTO_BUYERS, assetAt,
 } from './layout.js';
@@ -326,12 +327,12 @@ export type WebDeps = {
    * and the page says so.
    */
   readonly audio?: import('../../channels/whatsapp/media.js').AudioFetcher;
-  /** M12.2 pilot sandbox: a dedicated tenant, distinct from `businessId`.
-   *  Absent → the sandbox surface is not mounted. */
-  readonly sandboxBusinessId?: string;
-  /** Live-AI ports for the sandbox. Absent → scripted mode only. */
-  readonly analyzer?: Analyzer;
-  readonly replyWriter?: ReplyWriter;
+  /**
+   * P3 — Practice: a practice message joins the inbound queue, on the
+   * workspace's own copy, like a customer's. Absent → Practice can be read,
+   * and nothing typed there is answered (the page is not offered to write in).
+   */
+  readonly enqueueInbound?: (job: InboundJob) => Promise<void>;
   /**
    * M37 — reads a photographed price sheet. ABSENT IS A LEGITIMATE STATE:
    * without it, photographing a page refuses honestly and says so, while
@@ -2853,8 +2854,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
+    const bid0 = parseBusinessId(s.businessId);
     const data = await loadPilotRunbook(deps.db, s.businessId, {
-      sandboxBusinessId: deps.sandboxBusinessId, provider: deps.provider,
+      // P3 — the rehearsal is read from this workspace's own practice copy.
+      practiceBusinessId: bid0.ok ? await practiceCopyOf(deps.db, bid0.value) : null, provider: deps.provider,
     });
     // M17.6: what actually happened — counts and dates from stored signals/events.
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
@@ -3871,87 +3874,113 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return kBack(reply, req, String(b.productId ?? ''), r.code);
   });
 
-  // ── M12.2 Interactive pilot sandbox ───────────────────────────────────────
-  // A dedicated tenant, session-gated but NEVER the pilot business. No inbox
-  // changes: these routes bind to deps.sandboxBusinessId exclusively.
-  if (deps.sandboxBusinessId) {
+  // ── Practice (M12.2; per workspace since P3, docs/PRACTICE.md) ─────────────
+  // Each workspace practises on its OWN copy (0086), through the real queue,
+  // worker, approval path and send gate; the copy's adapter has no network.
+  {
     /**
-     * T1 — ONE shared practice tenant, so only the pilot workspace may use it.
-     * Any other session gets the same not-found as a wrong address: it could
-     * otherwise read, write and reset what the pilot put there.
+     * T1 — still the pilot workspace's alone, until P5 charges practice turns to
+     * the owner's ledger and caps them: every practice message is a live model
+     * turn now. Any other session gets the same not-found as a wrong address.
      */
     const practiceFor = (s: OwnerSession): boolean => s.businessId === deps.businessId;
-    const sbxDeps: SandboxDeps = {
-      db: deps.db, businessId: deps.sandboxBusinessId, now: () => new Date(),
-      analyzer: deps.analyzer, replyWriter: deps.replyWriter,
-    };
-    const liveAvailable = !!(deps.analyzer && deps.replyWriter);
-    const modeOf = (raw: unknown): SandboxMode => (raw === 'live' && liveAvailable ? 'live' : 'scripted');
+    const liveOf = (s: OwnerSession) => parseBusinessId(s.businessId);
 
     app.get('/app/sandbox', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       if (!practiceFor(s)) return reply.callNotFound();
       const locale = localeOf(req);
-      const q = req.query as { mode?: string; ask?: string; before?: unknown };
+      const q = req.query as { ask?: string; before?: unknown };
       const flash = takeFlash(req, reply);
       const prefill = typeof q.ask === 'string' ? q.ask : '';
-      // M20.4 (F-04) — the safety checks run IN MEMORY, so a factory provisioned
-      // one minute ago can practise. Nothing here writes or sends.
+      // M20.4 (F-04) — the safety checks run IN MEMORY, so a workspace made
+      // one minute ago can practise. Nothing there writes or sends.
       const practice = await runScriptedPractice();
-      // The free-typing half still needs a practice conversation. If this
-      // installation has none, say so — never render a picker that does nothing.
+      const live = liveOf(s);
+      const copy = live.ok ? await practiceCopyOf(deps.db, live.value) : null;
+      // CC-26 — the mark is read BEFORE the page, so a reply that lands in between is news once more, never lost.
+      const mark = copy && live.ok ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy))
+        .then((cid) => (cid ? conversationMark(deps.db, copy, cid, 'both') : null)) : null;
       // CC-25 — `before` pages the practice transcript back, as on a conversation.
-      const view = await loadSandboxView(sbxDeps, q.before).catch(() => null);
+      const view = await loadPracticeView(deps.db, copy, q.before);
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
-        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale) + (view
-          ? renderSandbox(view, locale, { mode: modeOf(q.mode), liveAvailable, flash, prefill })
-          : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
+        bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale)
+          + (deps.enqueueInbound
+            ? renderSandbox(view, locale, { flash, prefill })
+            : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
+        ...(mark ? { live: liveRegion(locale, practiceWatch(mark)) } : {}),
       }));
     });
 
-    // CC-25 — every practice action returns through `practiceUrl`, in the mode
-    // she was practising in: onto its notice under the newest line (onto the
-    // line itself when there is nothing to say), the reply to approve under
-    // it — the conversation page's landing, not the top of a page whose first
-    // screen is the safety-check card.
+    /**
+     * P3 — HAS THE ASSISTANT ANSWERED? The practice conversation's mark,
+     * both sides counted, on the session's own copy. Signed out, 401; no
+     * practice yet (or not this workspace's to ask), 404.
+     */
+    app.get('/app/live/practice', { logLevel: 'warn' }, async (req, reply) => {
+      const s = sessionOf(req);
+      const live = s ? liveOf(s) : null;
+      if (!s || !live || !live.ok) {
+        return String(req.headers['accept'] ?? '').includes('application/json')
+          ? reply.code(401).header('cache-control', 'no-store').send({ news: false })
+          : reply.redirect('/login');
+      }
+      const copy = practiceFor(s) ? await practiceCopyOf(deps.db, live.value) : null;
+      const cid = copy ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
+      if (!copy || !cid) return reply.code(404).header('cache-control', 'no-store').send({ news: false });
+      const answer = await liveAnswer(deps.db, copy, 'practice', (req.query as { since?: unknown } | undefined)?.since, cid);
+      return reply.code(answer.status).header('cache-control', 'no-store').send(answer.said);
+    });
+
+    // CC-25 — every practice action returns through `practiceUrl`: onto its
+    // notice under the newest line, the reply to approve under it.
+    const say = async (s: OwnerSession, text: string): Promise<boolean> => {
+      const live = liveOf(s);
+      if (!live.ok || !deps.enqueueInbound) return false;
+      return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text);
+    };
     app.post('/app/sandbox/message', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       if (!practiceFor(s0)) return reply.callNotFound();
-      const b = (req.body ?? {}) as { text?: string; image?: string; mode?: string };
-      const mode = modeOf(b.mode);
-      await runSandboxTurn(sbxDeps, { mode, text: String(b.text ?? ''), kind: b.image === '1' ? 'image' : 'text' });
-      return reply.redirect(practiceUrl(mode));
+      const b = (req.body ?? {}) as { text?: string };
+      return await say(s0, String(b.text ?? '')) ? flashTo(reply, practiceUrl(), 'practice.sent') : reply.redirect(practiceUrl());
     });
 
+    // A situation from the golden set: its customer's words, answered live.
     app.post('/app/sandbox/scenario', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       if (!practiceFor(s0)) return reply.callNotFound();
-      const b = (req.body ?? {}) as { scenarioId?: string; mode?: string };
-      const mode = modeOf(b.mode);
-      if (b.scenarioId) await runSandboxTurn(sbxDeps, { mode, scenarioId: String(b.scenarioId) });
-      return reply.redirect(practiceUrl(mode));
+      const b = (req.body ?? {}) as { scenarioId?: string };
+      const scenario = SCENARIOS.find((x) => x.id === String(b.scenarioId ?? ''));
+      return scenario && await say(s0, scenario.buyer.text) ? flashTo(reply, practiceUrl(), 'practice.sent') : reply.redirect(practiceUrl());
     });
 
-    // Approval reuses the ONE approval service; the sink records, never transmits.
+    /** The copy, brought in line: an approval or a take-over acts under today's rules too. */
+    const copyFor = async (s: OwnerSession) => {
+      const live = liveOf(s);
+      return live.ok ? refreshPractice(deps.db, live.value) : null;
+    };
+
+    // Approval: the ONE approval service, on the copy; the reply goes through
+    // the real outbound worker to the practice adapter.
     app.post('/app/sandbox/act', async (req, reply) => {
       const s = sessionOf(req);
       if (!s) return reply.redirect('/login');
       if (!practiceFor(s)) return reply.callNotFound();
-      const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string; mode?: string };
-      const mode = modeOf(b.mode);
-      const bid = parseBusinessId(deps.sandboxBusinessId!);
-      if (bid.ok && b.draftId) {
+      const b = (req.body ?? {}) as { draftId?: string; command?: string; edit?: string };
+      const copy = await copyFor(s);
+      if (copy && b.draftId) {
         const rawReply = b.command === '改' ? `改：${b.edit ?? ''}` : (b.command ?? '');
         await applyOwnerCommand(
-          { db: deps.db, now: () => new Date(), kickOutbound: sandboxOutboundSink(sbxDeps) },
-          { businessId: bid.value, draftId: b.draftId, rawReply, decidedBy: personOf(s).id },
+          { db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound },
+          { businessId: copy, draftId: b.draftId, rawReply, decidedBy: personOf(s).id },
         );
       }
-      return reply.redirect(practiceUrl(mode));
+      return reply.redirect(practiceUrl());
     });
 
     // An emptied practice lands on its notice, under the empty transcript.
@@ -3959,36 +3988,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       if (!practiceFor(s0)) return reply.callNotFound();
-      await resetSandbox(sbxDeps);
-      return flashTo(reply, practiceUrl(modeOf((req.body as { mode?: unknown } | undefined)?.mode)), 'sandbox.reset.done');
+      const live = liveOf(s0);
+      const copy = live.ok ? await practiceCopyOf(deps.db, live.value) : null;
+      if (copy) await resetPractice(deps.db, copy, new Date());
+      return flashTo(reply, practiceUrl(), 'sandbox.reset.done');
     });
 
-    // ── M16.3 sandbox human-control rehearsal ─────────────────────────────────
+    // ── M16.3 the human-control rehearsal ───────────────────────────────────
     // The SAME lifecycle as the inbox: takeOver / ownerReply / resumeAi on the
-    // sandbox tenant. The owner reply goes through ownerReply (the one send path)
-    // and is flushed to the transcript by the sandbox sink — never a real send.
-    //
-    // CC-25 — the forms always carried the mode; these routes dropped it, so
-    // taking over a live rehearsal put her back in scripted practice.
-    const sbxFlash = (reply: FastifyReply, mode: SandboxMode, outcome: string) =>
-      flashTo(reply, practiceUrl(mode), `takeover.flash.${outcome}` as MessageKey);
+    // copy. The owner's reply goes through the one send path and the real
+    // outbound worker, to the practice adapter.
     const sbxAction = (path: string, run: (bid: import('../../core/types/ids.js').BusinessId, cid: string, req: FastifyRequest, actor: string) => Promise<{ outcome: string }>) =>
       app.post(path, async (req, reply) => {
         const s = sessionOf(req);
         if (!s) return reply.redirect('/login');
-      if (!practiceFor(s)) return reply.callNotFound();
-        const mode = modeOf((req.body as { mode?: unknown } | undefined)?.mode);
-        const bid = parseBusinessId(deps.sandboxBusinessId!);
-        const cid = await activeSandboxConversationId(sbxDeps);
-        if (!bid.ok || !cid) return reply.redirect(practiceUrl(mode));
-        const r = await run(bid.value, cid, req, personOf(s).id);
-        return sbxFlash(reply, mode, r.outcome);
+        if (!practiceFor(s)) return reply.callNotFound();
+        const copy = await copyFor(s);
+        const cid = copy ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
+        if (!copy || !cid) return reply.redirect(practiceUrl());
+        const r = await run(copy, cid, req, personOf(s).id);
+        return flashTo(reply, practiceUrl(), `takeover.flash.${r.outcome}` as MessageKey);
       });
     sbxAction('/app/sandbox/takeover', (bid, cid, _req, actor) =>
       takeOver({ db: deps.db, now: () => new Date() }, { businessId: bid, conversationId: cid, actor }));
     sbxAction('/app/sandbox/reply', (bid, cid, req, actor) =>
       ownerReply(
-        { db: deps.db, now: () => new Date(), kickDrive: (_b, c) => sandboxFlushOutbound(sbxDeps, c) },
+        { db: deps.db, now: () => new Date(), kickDrive: deps.kickDrive ?? (async () => {}) },
         { businessId: bid, conversationId: cid, text: String((req.body as { text?: string } | undefined)?.text ?? ''), actor },
       ));
     sbxAction('/app/sandbox/resume', (bid, cid, _req, actor) =>

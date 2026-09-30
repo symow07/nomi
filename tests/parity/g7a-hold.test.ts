@@ -106,11 +106,10 @@ describe('G7a · a held turn never auto-sends — the invariant', () => {
     expect(check(clean, 'auto')).toBe(true);
   });
 
-  it('it is on the sandbox’s universal watchlist, with owner words in every locale', async () => {
-    const { readFile } = await import('node:fs/promises');
-    const sandbox = await readFile(new URL('../../src/api/web/sandbox.ts', import.meta.url), 'utf8');
-    const watch = sandbox.slice(sandbox.indexOf('const DEFAULT_INVARIANTS'), sandbox.indexOf('];', sandbox.indexOf('const DEFAULT_INVARIANTS')));
-    expect(watch).toContain("'heldTurnNeverAutoSends'");
+  it('it is on Practice’s universal watchlist, with owner words in every locale', async () => {
+    // P3 — the checks every practice turn runs, now in the worker (src/trust/practiceChecks.ts).
+    const { PRACTICE_CHECKS } = await import('../../src/trust/practiceChecks.js');
+    expect(PRACTICE_CHECKS.map((e) => e.invariant)).toContain('heldTurnNeverAutoSends');
     for (const l of LOCALES) {
       const label = t(l, 'sandbox.inv.heldTurnNeverAutoSends');
       expect(label, l).not.toBe('sandbox.inv.heldTurnNeverAutoSends');

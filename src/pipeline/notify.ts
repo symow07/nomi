@@ -10,6 +10,7 @@ import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
 import { formatDate } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { deletionDueBy } from '../core/ops/deletions.js';
+import { isPracticeCopy } from '../db/practice.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -31,7 +32,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 
 export type AlertKind = NotifyJob['kind'];
-export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'failed_permanent';
+export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice' | 'failed_permanent';
 
 /**
  * OPERATOR alerts — about the installation, not about a buyer: its backups
@@ -180,6 +181,11 @@ export type NotifyDeps = {
 export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promise<AlertOutcome> {
   const bid = parseBusinessId(job.businessId);
   if (!bid.ok) return 'skipped_no_destination';
+  // P3 — Practice alerts nobody. A practice copy (0086) hands conversations to
+  // a person and asks for approvals like the workspace does, and every one of
+  // those queues an alert: this one check refuses them all, whichever path
+  // queued it. The owner is on the Practice page, watching it happen.
+  if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
 
   const found = await withTenantTx(deps.db, bid.value, async (tx) => {

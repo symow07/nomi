@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { conversationUrl, esc } from '../../src/api/web/layout.js';
 import { renderConversationDetail, type ConversationDetail, type TimelineMessage } from '../../src/api/web/inbox.js';
-import { renderSandbox, practiceUrl, type SandboxView, type SandboxTrust } from '../../src/api/web/sandbox.js';
+import { renderSandbox, practiceUrl, type SandboxView } from '../../src/api/web/sandbox.js';
+import type { PracticeTrust } from '../../src/trust/practiceChecks.js';
 import type { Flash } from '../../src/api/web/flash.js';
 import { flashTone } from '../../src/core/owner/flashTone.js';
 import { usd } from '../../src/core/types/money.js';
@@ -123,19 +124,19 @@ describe('CC-25 · one address for a conversation', () => {
     // whatever it is handed, it never grows a second segment, a query or a fragment of its own
     expect(conversationUrl('a/b?c#d')).toBe('/app/inbox/a%2Fb%3Fc%23d#latest');
     expect(conversationUrl(CONV, 'x&y#z')).toBe(`/app/inbox/${CONV}?before=x%26y%23z#latest`);
-    // Practice lands the same way, in the mode she is practising in.
-    expect(practiceUrl('live')).toBe('/app/sandbox?mode=live#latest');
-    expect(practiceUrl('scripted', CURSOR)).toBe(`/app/sandbox?mode=scripted&before=${CURSOR}#latest`);
+    // Practice lands the same way (P3: there is no mode left to carry).
+    expect(practiceUrl()).toBe('/app/sandbox#latest');
+    expect(practiceUrl(CURSOR)).toBe(`/app/sandbox?before=${CURSOR}#latest`);
   });
 
   it('every practice action goes back through `practiceUrl`, and nothing else writes that address', () => {
     const app = read('src/api/web/app.ts');
-    const practice = app.slice(app.indexOf('// ── M12.2 Interactive pilot sandbox'));
+    const practice = app.slice(app.indexOf('// ── Practice (M12.2; per workspace since P3'));
     expect(practice.length).toBeGreaterThan(1000);
     // In the practice routes, `/app/sandbox…` is written only as a ROUTE: a
     // literal anywhere else is an address somebody is sent to by hand.
     expect([...practice.matchAll(/(?<!(?:app\.get|app\.post|sbxAction)\()['"`]\/app\/sandbox[^'"`]*['"`]?/g)].map((m) => m[0])).toEqual([]);
-    expect(practice).toMatch(/const sbxFlash = [^;]*flashTo\(reply, practiceUrl\(mode\)/);
+    expect(practice).toMatch(/flashTo\(reply, practiceUrl\(\), `takeover\.flash\./);
     for (const f of sources('src')) {
       const src = f === 'src/api/web/sandbox.ts' ? read(f).replace(PRACTICE_HELPER, '') : read(f);
       expect(src, f).not.toMatch(/\/app\/sandbox\?mode=/);
@@ -238,8 +239,8 @@ describe('CC-25 · the conversation page lands on the notice, under the newest m
 
 // ── Practice ───────────────────────────────────────────────────────────────
 
-const trust: SandboxTrust = {
-  mode: 'scripted', scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
+const trust: PracticeTrust = {
+  scenarioId: null, scenarioTitle: null, capability: 'quote', appliedMode: 'draft',
   guardViolations: 0, handoff: false, quote: null,
   checks: [{ invariant: 'priceFloorRespected', pass: true, detail: 'ok' }],
 };
@@ -253,19 +254,19 @@ const practice = (over: Partial<SandboxView> = {}): SandboxView => ({
 describe('CC-25 · Practice reads in the conversation page’s order', () => {
   it('the transcript, the notice, her reply to approve, the take-over card, the checks, the buyer’s next message', () => {
     for (const l of LOCALES) {
-      for (const mode of ['scripted', 'live'] as const) {
-        const html = renderSandbox(practice(), l, { mode, liveAvailable: true, flash: SENT });
+      {
+        const html = renderSandbox(practice(), l, { flash: SENT });
         const order = [
           at(html, 'class="timeline"'), at(html, '<bdi>p-50</bdi>'), landing(html),
           at(html, 'class="card draft"'), at(html, 'class="card takeover'),
           at(html, 'class="card sbx-trust'), at(html, 'id="compose"'),
         ];
-        expect(order, `${l}/${mode}`).toEqual([...order].sort((a, b) => a - b));
+        expect(order, l).toEqual([...order].sort((a, b) => a - b));
         expect(notices(html), l).toBe(1);
         expect(marks(html), l).toBe(1);
         expect(html.slice(at(html, '<bdi>p-50</bdi>'), at(html, 'class="card draft"')), l).not.toMatch(/class="card|<form/);
         // after an action with nothing to say — a line sent, a case loaded — the newest line is the landing
-        const quiet = renderSandbox(practice(), l, { mode, liveAvailable: true, flash: null });
+        const quiet = renderSandbox(practice(), l, { flash: null });
         expect(quiet, l).toMatch(/id="latest" class="msg (?:inbound|outbound)">\s*<div dir="auto" class="bubble"><bdi>p-50<\/bdi>/);
         expect(at(quiet, 'id="latest"'), l).toBeLessThan(at(quiet, 'class="card draft"'));
       }
@@ -273,7 +274,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
   });
 
   it('while she holds it, the notice sits over her own reply box; the approval steps aside', () => {
-    const html = renderSandbox(practice({ ownership: 'OWNER_CONTROLLED' }), 'en', { mode: 'live', liveAvailable: true, flash: SENT });
+    const html = renderSandbox(practice({ ownership: 'OWNER_CONTROLLED' }), 'en', { flash: SENT });
     expect(html).not.toContain('action="/app/sandbox/act"');
     const notice = landing(html);
     expect(notice).toBeGreaterThan(at(html, '<bdi>p-50</bdi>'));
@@ -282,7 +283,7 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
 
   it('Reset empties it, and lands on its notice: under the empty transcript, the box under that', () => {
     const empty = practice({ hasConversation: false, messages: [], pendingDraft: null, lastTurn: null, transcript: { earlier: null, older: false } });
-    const html = renderSandbox(empty, 'en', { mode: 'scripted', liveAvailable: false, flash: SENT });
+    const html = renderSandbox(empty, 'en', { flash: SENT });
     expect(landing(html)).toBeGreaterThan(at(html, `<div class="empty muted">${esc(t('en', 'sandbox.empty'))}</div>`));
     expect(at(html, 'id="compose"')).toBeGreaterThan(landing(html));
     expect(marks(html)).toBe(1);
@@ -291,19 +292,20 @@ describe('CC-25 · Practice reads in the conversation page’s order', () => {
   });
 
   it('a window further back is for reading: the transcript and the way home, nothing to act on', () => {
-    const html = renderSandbox(practice({ transcript: { earlier: null, older: true } }), 'en', { mode: 'live', liveAvailable: true, flash: null });
-    expect(html).toContain(`href="${practiceUrl('live').replace(/&/g, '&amp;')}"`);
+    const html = renderSandbox(practice({ transcript: { earlier: null, older: true } }), 'en', { flash: null });
+    expect(html).toContain(`href="${practiceUrl()}"`);
     for (const gone of ['class="card draft"', 'class="card takeover', 'class="card sbx-trust', 'id="compose"', 'action="/app/sandbox/message"']) {
       expect(html, gone).not.toContain(gone);
     }
     expect(html).toContain('action="/app/sandbox/reset"');   // starting over is always offered
   });
 
-  it('every practice form carries the mode — Reset included — so an action never changes lane', () => {
-    const html = renderSandbox(practice({ ownership: 'OWNER_CONTROLLED' }), 'en', { mode: 'live', liveAvailable: true, flash: null });
+  it('P3 — no practice form carries a mode: there is one lane, the real worker', () => {
+    const html = renderSandbox(practice({ ownership: 'OWNER_CONTROLLED' }), 'en', { flash: null });
     for (const action of ['/app/sandbox/reset', '/app/sandbox/reply', '/app/sandbox/resume', '/app/sandbox/scenario', '/app/sandbox/message']) {
       const form = new RegExp(`<form method="post" action="${action}"[^>]*>[\\s\\S]*?</form>`).exec(html)?.[0] ?? '';
-      expect(form, action).toContain('<input type="hidden" name="mode" value="live" />');
+      expect(form.length, action).toBeGreaterThan(0);
+      expect(form, action).not.toContain('name="mode"');
     }
   });
 });

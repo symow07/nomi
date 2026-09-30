@@ -1,268 +1,91 @@
-import { recordSpendAlone } from '../../db/usage.js';
-import type { PendingQuestion } from '../../core/types/conversation.js';
-import { markQuestionAsked } from '../../db/pendingQuestion.js';
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { type Money, usd } from '../../core/types/money.js';
 import { withTenantTx, lockConversation, type Db, type Tx } from '../../db/client.js';
-import { tenantRepos } from '../../db/repos.js';
-import { hybridRetriever } from '../../retrieval/hybrid.js';
-import { ensureConversation } from '../../db/channels.js';
-import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts, type TurnResult, type TurnEffects } from '../../pipeline/turn.js';
-import { capabilityOf, resolveMode, type AutonomyGrant } from '../../core/conversation/autonomy.js';
-import type { Analyzer, ReplyWriter } from '../../llm/ports.js';
-import type { Analysis } from '../../core/conversation/decide.js';
-import type { Retriever, RetrievedProduct } from '../../retrieval/ports.js';
 import type { BusinessId } from '../../core/types/ids.js';
-import { parseBusinessId, parseConversationId } from '../../core/types/ids.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
 import { labelled } from '../../core/owner/i18n/format.js';
-import {
-  SCENARIOS, analysis as buildAnalysis, candidate as toCandidate,
-  type Expectation, type Scenario,
-} from '../../trust/scenarios.js';
-import { runCheck, type CheckResult, type TurnOutcome } from '../../trust/invariants.js';
+import { SCENARIOS } from '../../trust/scenarios.js';
+import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
+import { refreshPractice, practiceConversation, activePracticeConversation } from '../../db/practice.js';
+import { recordTypedMessage } from '../../pipeline/received.js';
+import type { InboundJob } from '../../queue/boss.js';
 import * as show from './values.js';
 import type { InvariantId } from '../../trust/scenarios.js';
 
 /**
- * M12.2 — Interactive pilot sandbox.
+ * PRACTICE — the owner plays a customer, and the assistant answers as it
+ * would answer them (M12.2; per workspace since P3, docs/PRACTICE.md).
  *
- * The owner plays the buyer; each message runs through the REAL engine
- * (computeTurn → commitTurn) against a dedicated sandbox tenant — a SECOND
- * CALLER of the same functions the worker runs, never a second engine. Replies
- * either auto-"send" or become a pending draft resolved through the existing
- * applyOwnerCommand. Every turn is scored live by the M12.1 trust invariants.
+ * Each workspace practises on its OWN copy (0086): its catalogue, prices,
+ * rules and assistant, and nobody real. A practice message is an ordinary
+ * inbound message on the copy — the real queue, worker, turn, approval path and
+ * send gate — and it ends at the practice adapter, which has no network. So
+ * what Practice shows is what the business would do: batching, the Stop, the
+ * window, a hand-off, a draft that waits. The golden set's checks run on every
+ * practice turn in the worker (`src/trust/practiceChecks.ts`).
  *
- * No Meta, no network send, no production-inbox changes: the sandbox tenant has
- * no channel credential (unroutable), and "delivery" is a recorded message row.
+ * Before P3 this page ran turns itself, in the request, against one shared
+ * tenant — a second caller of the engine that skipped Stop, batching and the
+ * send gate, and a sandbox every signed-in owner could read and reset.
  */
-
-export type SandboxMode = 'scripted' | 'live';
 
 /**
  * CC-25 — the practice page's address. It lands where the conversation page
  * lands (`conversationUrl`): on the newest line, with the notice and the reply
- * to approve under it. Every practice action comes back through here, in the
- * mode she was practising in; `before` is the "Earlier messages" door. A
- * cursor is digits, hex and `_`, so no `%` reaches the page.
+ * to approve under it. Every practice action comes back through here; `before`
+ * is the "Earlier messages" door. A cursor is digits, hex and `_`, so no `%`
+ * reaches the page.
  */
-export const practiceUrl = (mode: SandboxMode, before?: string | null): string =>
-  `/app/sandbox?mode=${mode}${before ? `&before=${encodeURIComponent(before)}` : ''}#latest`;
+export const practiceUrl = (before?: string | null): string =>
+  `/app/sandbox${before ? `?before=${encodeURIComponent(before)}` : ''}#latest`;
 
-export type SandboxDeps = {
-  readonly db: Db;
-  readonly businessId: string;          // the sandbox tenant (never the pilot)
-  readonly now: () => Date;
-  /** Present only when Live AI is enabled; absent → scripted only. */
-  readonly analyzer?: Analyzer | undefined;
-  readonly replyWriter?: ReplyWriter | undefined;
-};
+// ── the message ───────────────────────────────────────────────────────────────
 
-// A fixed simulated-buyer identity. Reset archives the conversation, not the
-// client, so this wa_id persists and a fresh conversation is created next turn.
-const SANDBOX_WA_ID = 'sandbox-buyer';
-const SANDBOX_BUYER_NAME = 'Buyer (you)';
-const DEFAULT_REPLY = 'Thanks for your message — could you tell me a little more about what you need?';
-
-/** Universal invariants evaluated on a free-typed (non-scenario) turn. */
-const DEFAULT_INVARIANTS: readonly Expectation[] = [
-  { invariant: 'priceFloorRespected' },
-  { invariant: 'noFabricatedPrice' },
-  { invariant: 'noSilentCapabilityEscalation' },
-  { invariant: 'heldTurnNeverAutoSends' },
-  // 0075 — nothing the assistant writes promises a buyer their data is deleted.
-  { invariant: 'noDeletionPromise' },
-  { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved', 'DDP', 'money-back', 'refund guarantee', 'ISO 9001'] },
-];
-
-// ── stub ports (scripted mode) — the same seam M12.1 fakes, in src ────────────
-
-class ScriptedRetriever implements Retriever {
-  constructor(private readonly results: readonly RetrievedProduct[]) {}
-  async byText(): Promise<RetrievedProduct[]> { return [...this.results]; }
-  async byImageDescription(): Promise<RetrievedProduct[]> { return [...this.results]; }
-  async explore(): Promise<RetrievedProduct[]> { return [...this.results]; }
-}
-class ScriptedAnalyzer implements Analyzer {
-  constructor(private readonly analysis: Analysis) {}
-  async analyze() {
-    return { analysis: this.analysis, promptVersion: 'sandbox@scripted', modelId: 'scripted', usage: { inputTokens: 0, outputTokens: 0 } };
-  }
-}
-class ScriptedReplyWriter implements ReplyWriter {
-  constructor(private readonly reply: string) {}
-  async write() {
-    return { reply: this.reply, promptVersion: 'sandbox@scripted', modelId: 'scripted', usage: { inputTokens: 0, outputTokens: 0 } };
-  }
-}
-
-// ── low-level helpers ─────────────────────────────────────────────────────────
-
-const bidOf = (raw: string): BusinessId => {
-  const p = parseBusinessId(raw);
-  if (!p.ok) throw new Error(`sandbox: invalid business id`);
-  return p.value;
-};
-
-/** Record a transcript row. clock_timestamp() guarantees inbound < outbound order. */
-async function recordMessage(
-  tx: Tx, conversationId: string, direction: 'inbound' | 'outbound', inputType: 'text' | 'image', text: string,
-  externalId: string | null = null,
-): Promise<void> {
-  await sql`
-    insert into messages (conversation_id, direction, input_type, text_content, sent_at, external_id)
-    values (${conversationId}, ${direction}, ${inputType}, ${text}, clock_timestamp(), ${externalId})
-  `.execute(tx);
-}
-
-async function findActiveConversation(tx: Tx, businessId: BusinessId): Promise<string | null> {
-  const r = await sql<{ id: string }>`
-    select c.id from conversations c
-      join client_channels cc on cc.client_id = c.client_id and cc.channel = 'whatsapp' and cc.channel_user_id = ${SANDBOX_WA_ID}
-     where c.business_id = ${businessId} and c.is_active
-     order by c.created_at desc limit 1
-  `.execute(tx);
-  return r.rows[0]?.id ?? null;
-}
-
-/** The live lane runs only when asked for AND the real models are there; otherwise it is scripted. */
-const live = (mode: SandboxMode, deps: SandboxDeps): boolean => mode === 'live' && !!deps.analyzer && !!deps.replyWriter;
-
-function buildPorts(mode: SandboxMode, scenario: Scenario | undefined, tx: Tx, businessId: BusinessId, deps: SandboxDeps): TurnPorts {
-  const tenant = tenantRepos(tx, businessId);
-  if (live(mode, deps) && deps.analyzer && deps.replyWriter) {
-    return { tenant, retriever: hybridRetriever(tx, businessId), analyzer: deps.analyzer, replyWriter: deps.replyWriter, now: deps.now };
-  }
-  // Scripted: deterministic stub ports, seeded from the scenario when present.
-  const a = scenario?.analysis ?? buildAnalysis();
-  const reply = scenario?.proposedReply ?? DEFAULT_REPLY;
-  const candidates: readonly RetrievedProduct[] = scenario
-    ? (scenario.candidates === 'none' ? [] : scenario.candidates ?? (scenario.catalog?.map(toCandidate) ?? []))
-    : [];
-  return { tenant, retriever: new ScriptedRetriever(candidates), analyzer: new ScriptedAnalyzer(a), replyWriter: new ScriptedReplyWriter(reply), now: deps.now };
-}
-
-// ── the turn ──────────────────────────────────────────────────────────────────
-
-export type SandboxTurnInput = {
-  readonly mode: SandboxMode;
-  readonly text?: string;
-  readonly kind?: 'text' | 'image';
-  readonly scenarioId?: string;
-};
-
-/** Run one simulated buyer turn through the real engine, persist it, score it. */
-export async function runSandboxTurn(deps: SandboxDeps, input: SandboxTurnInput): Promise<void> {
-  const businessId = bidOf(deps.businessId);
-  const scenario = input.scenarioId ? SCENARIOS.find((s) => s.id === input.scenarioId) : undefined;
-  const text = (scenario ? scenario.buyer.text : input.text ?? '').trim();
-  if (!text) return;
-  const kind: 'text' | 'image' = scenario ? (scenario.buyer.kind === 'image' ? 'image' : 'text') : (input.kind ?? 'text');
-  const started = deps.now().getTime();
-
-  await withTenantTx(deps.db, businessId, async (tx) => {
-    const { conversationId } = await ensureConversation(tx, businessId, SANDBOX_WA_ID, SANDBOX_BUYER_NAME);
-    const cid = parseConversationId(conversationId);
-    if (!cid.ok) return;
-    await lockConversation(tx, conversationId);
-    // Q1 — recorded under the turn's own id, so the turn does not see it twice
-    // (once as the message, once as its history).
-    const messageId = `sbx-${started}-${Math.random().toString(36).slice(2, 8)}`;
-    await recordMessage(tx, conversationId, 'inbound', kind, text, messageId);
-
-    const ports = buildPorts(input.mode, scenario, tx, businessId, deps);
-    const req = { conversationId: cid.value, messageId, text };
-    const result = await computeTurn(ports, req);
-    // T7 — a live practice turn is paid for too: on the practice tenant's own
-    // ledger, where it ran. (P5 charges it to the owner's.) A scripted one asked
-    // no model, whatever its stand-ins count.
-    if (live(input.mode, deps)) await recordSpendAlone(deps.db, businessId, result.usage, { turn: true });
-    const effects = await commitTurn(ports, req, result, started);
-    if (effects.outbound) {
-      await recordMessage(tx, conversationId, 'outbound', 'text', effects.outbound.reply);
-      // 0080 — Practice records it as sent, so what it asked is now asked.
-      await markQuestionAsked(tx, conversationId, effects.outbound.asks ?? null);
-    }
-
-    // ── trust strip: the SAME M12.1 checkers, live ──────────────────────────
-    const grants = await ports.tenant.autonomy.grants();
-    const policy = result.quote ? await ports.tenant.catalog.pricingPolicy(result.quote.productId) : null;
-    // respectsAutonomy encodes a scenario's OWN fake grant; the live sandbox is
-    // governed by the tenant's real (draft-first) policy, so drop it here — the
-    // universal noSilentCapabilityEscalation covers "applied matches policy".
-    const scenarioExp = scenario?.expect.filter((e) => e.invariant !== 'respectsAutonomy') ?? [];
-    const trust = evaluateTrust({
-      mode: input.mode, scenario,
-      expectations: scenario && scenarioExp.length > 0 ? scenarioExp : DEFAULT_INVARIANTS,
-      result, effects, grants, now: deps.now(), floorPrice: policy?.floorPrice ?? null,
-    });
-    await sql`
-      insert into conversation_events (business_id, conversation_id, type, payload)
-      values (${businessId}, ${conversationId}, 'sandbox_turn', ${JSON.stringify(trust)}::jsonb)
-    `.execute(tx);
+/**
+ * The owner writes as a customer. The copy is brought in line with the
+ * workspace first, so the reply quotes today's prices; the line is on the
+ * transcript at once (the worker records it again under the same id, which
+ * changes nothing); then it joins the inbound queue like anyone's message.
+ */
+export async function sayInPractice(
+  deps: { readonly db: Db; readonly enqueue: (job: InboundJob) => Promise<void> },
+  live: BusinessId, text: string,
+): Promise<boolean> {
+  const said = text.trim();
+  if (!said) return false;
+  const copy = await refreshPractice(deps.db, live);
+  const messageId = `practice:${randomUUID()}`;
+  const conversationId = await withTenantTx(deps.db, copy, async (tx) => {
+    const id = await practiceConversation(tx, copy);
+    await recordTypedMessage(tx, id, messageId, said);
+    return id;
   });
+  await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
+  return true;
 }
 
-/** Archive the active sandbox conversation — never delete — with an event trace. */
-export async function resetSandbox(deps: SandboxDeps): Promise<void> {
-  const businessId = bidOf(deps.businessId);
-  await withTenantTx(deps.db, businessId, async (tx) => {
-    const conversationId = await findActiveConversation(tx, businessId);
+/** Archive the practice conversation — never delete — with an event trace. The next message starts a new one. */
+export async function resetPractice(db: Db, copy: BusinessId, now: Date): Promise<void> {
+  await withTenantTx(db, copy, async (tx) => {
+    const conversationId = await activePracticeConversation(tx, copy);
     if (!conversationId) return;
     await lockConversation(tx, conversationId);
     // Archive-not-erase (the app role has no DELETE): close + deactivate. Any
     // pending draft is rejected so it cannot linger against an archived thread.
-    await sql`update drafts set status = 'rejected', decided_at = ${deps.now()} where conversation_id = ${conversationId} and status = 'pending'`.execute(tx);
-    await sql`update conversations set is_active = false, closed_at = ${deps.now()} where id = ${conversationId}`.execute(tx);
+    await sql`update drafts set status = 'rejected', decided_at = ${now} where conversation_id = ${conversationId} and status = 'pending'`.execute(tx);
+    await sql`update conversations set is_active = false, closed_at = ${now} where id = ${conversationId}`.execute(tx);
     await sql`
       insert into conversation_events (business_id, conversation_id, type, payload)
-      values (${businessId}, ${conversationId}, 'sandbox_reset', ${JSON.stringify({ actor: 'owner', at: deps.now().toISOString() })}::jsonb)
+      values (${copy}, ${conversationId}, 'sandbox_reset', ${JSON.stringify({ actor: 'owner', at: now.toISOString() })}::jsonb)
     `.execute(tx);
   });
-}
-
-/**
- * Score a turn with the M12.1 trust checkers — pure, so the sandbox's live
- * readout is unit-testable off a FakeTenant and provably the SAME logic the CI
- * gate runs. `expectations` are the scenario's when replaying a golden case,
- * else the universal watchlist.
- */
-export function evaluateTrust(input: {
-  readonly mode: SandboxMode;
-  readonly scenario?: Scenario | undefined;
-  readonly expectations: readonly Expectation[];
-  readonly result: TurnResult;
-  readonly effects: TurnEffects;
-  readonly grants: readonly AutonomyGrant[];
-  readonly now: Date;
-  readonly floorPrice: Money | null;
-}): SandboxTrust {
-  const { result, effects } = input;
-  const capability = capabilityOf(result.decision, result.quote !== null);
-  // G7a — her hold rules narrow the grant; the same field commitTurn read.
-  const requestedMode = result.hold ? 'draft'
-    : resolveMode({ capability, grants: input.grants, now: input.now, timeZone: BUSINESS_TZ });
-  const appliedMode: SandboxTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
-  const floorOf = (pid: string): number | null =>
-    result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
-  const ctx: TurnOutcome = { scenario: input.scenario, result, effects, floorOf, capability, requestedMode, appliedMode };
-  const checks = input.expectations.map((e) => runCheck(e, ctx));
-  return {
-    mode: input.mode,
-    scenarioId: input.scenario?.id ?? null,
-    scenarioTitle: input.scenario?.title ?? null,
-    capability, appliedMode,
-    guardViolations: result.guardViolations,
-    handoff: effects.handoffAlert,
-    quote: result.quote ? { unitPrice: result.quote.unitPrice, total: result.quote.total } : null,
-    checks,
-  };
 }
 
 /**
@@ -272,54 +95,19 @@ export function evaluateTrust(input: {
  * carry `unitPrice: Money`. Both were USD, and the older shape says so by its
  * name — which is the last useful thing that name does.
  */
-export function quoteUnit(q: NonNullable<SandboxTrust['quote']>): Money {
+export function quoteUnit(q: NonNullable<PracticeTrust['quote']>): Money {
   const legacy = (q as unknown as { unitPriceUsd?: number }).unitPriceUsd;
   return q.unitPrice ?? usd(legacy ?? 0);
-}
-
-/** The outbound sink for applyOwnerCommand in the sandbox: record, never transmit. */
-export function sandboxOutboundSink(deps: SandboxDeps): (businessId: string, conversationId: string, reply: string, asks?: PendingQuestion | null) => Promise<void> {
-  return async (_businessId, conversationId, reply, asks) => {
-    await withTenantTx(deps.db, bidOf(deps.businessId), async (tx) => {
-      await recordMessage(tx, conversationId, 'outbound', 'text', reply);
-      await markQuestionAsked(tx, conversationId, asks ?? null);
-    });
-  };
 }
 
 // ── read model ────────────────────────────────────────────────────────────────
 
 export type SandboxMessage = { readonly direction: 'inbound' | 'outbound'; readonly text: string; readonly isImage: boolean };
-export type SandboxTrust = {
-  readonly mode: SandboxMode;
-  /** M16.4b: the id drives the owner-facing label; the title stays internal
-   *  (and is kept so payloads written before M16.4b still render). */
-  readonly scenarioId?: string | null;
-  readonly scenarioTitle: string | null;
-  readonly capability: string; readonly appliedMode: 'auto' | 'draft' | 'none';
-  readonly guardViolations: number; readonly handoff: boolean;
-  /**
-   * M43a — the amount and its currency. The KEYS changed, and this payload is
-   * written to `conversation_events`, so a row from before this milestone has
-   * `unitPriceUsd` instead. The renderer below reads either, exactly as it
-   * already does for `scenarioTitle`: a practice run recorded last week must
-   * still render, and the sandbox is where an operator looks when something
-   * looks wrong.
-   */
-  readonly quote: { readonly unitPrice: Money; readonly total: Money } | null;
-  readonly checks: readonly CheckResult[];
-};
+
 /**
- * M20.4 (F-04) — scripted practice, run IN MEMORY.
- *
- * The M21 rehearsal found this surface silently dead on a fresh factory: it
- * wrote turns to a separate hard-coded tenant that only an operator script
- * creates, so choosing a case returned 302 and nothing happened. Scripted
- * practice now runs the M12.1 harness in process — the same 25 golden scenarios
- * the readiness check runs — so it works the moment a factory exists.
- *
- * Isolation is now absolute rather than conventional: no DB write, no adapter,
- * no conversation. There is nothing for a message to escape through.
+ * M20.4 (F-04) — scripted practice, run IN MEMORY: the golden safety set,
+ * the same cases the readiness check runs. No database, no adapter, no
+ * conversation — nothing for a message to escape through.
  */
 export type PracticeCase = {
   readonly id: string;
@@ -337,7 +125,6 @@ export type PracticeReport = {
 /** Run the golden safety set. No database, no provider — nothing can be sent. */
 export async function runScriptedPractice(): Promise<PracticeReport> {
   const { runAll } = await import('../../trust/harness.js');
-  const { SCENARIOS } = await import('../../trust/scenarios.js');
   const r = await runAll(SCENARIOS);
   return {
     cases: r.scenarios.map((x) => ({
@@ -350,89 +137,64 @@ export async function runScriptedPractice(): Promise<PracticeReport> {
 
 export type SandboxView = {
   readonly hasConversation: boolean;
+  /** The practice conversation, for the live line; null before the first message. */
+  readonly conversationId?: string | null;
   /** CC-25 — one window of the practice transcript, the newest unless `transcript.older`; oldest first. */
   readonly messages: readonly SandboxMessage[];
   /** CC-25 — the same window the conversation page reads; absent reads as the newest, with nothing before it. */
   readonly transcript?: { readonly earlier: string | null; readonly older: boolean };
   readonly pendingDraft: { readonly draftId: string; readonly draftText: string } | null;
-  readonly lastTurn: SandboxTrust | null;
+  readonly lastTurn: PracticeTrust | null;
   /** M16.3 — the SAME ownership model as the inbox (ownershipOf), so the owner
    *  rehearses the real human-takeover lifecycle here. */
   readonly ownership: ConversationOwnership;
 };
 
-export async function loadSandboxView(
-  deps: SandboxDeps,
+const EMPTY: SandboxView = { hasConversation: false, conversationId: null, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI' };
+
+async function viewOf(tx: Tx, conversationId: string, before: unknown): Promise<SandboxView> {
+  const assigned = (await sql<{ assigned_to: string | null }>`
+    select assigned_to from conversations where id = ${conversationId} limit 1
+  `.execute(tx)).rows[0]?.assigned_to ?? null;
+
+  // CC-25 — the newest window, as on the conversation page.
+  const transcript = await loadTranscriptWindow(tx, conversationId, before);
+  const messages = transcript.rows
+    .filter((m) => m.text_content !== null)
+    .map((m): SandboxMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image' }));
+
+  const draft = (await sql<{ id: string; draft_text: string }>`
+    select id, draft_text from drafts where conversation_id = ${conversationId} and status = 'pending'
+     order by created_at desc limit 1
+  `.execute(tx)).rows[0];
+
+  const evt = (await sql<{ payload: PracticeTrust }>`
+    select payload from conversation_events
+     where conversation_id = ${conversationId} and type = 'sandbox_turn'
+     order by created_at desc limit 1
+  `.execute(tx)).rows[0];
+
+  return {
+    hasConversation: true,
+    conversationId,
+    messages,
+    transcript: { earlier: transcript.earlier, older: transcript.older },
+    pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
+    lastTurn: evt ? evt.payload : null,
+    ownership: ownershipOf(assigned),
+  };
+}
+
+/** The practice page's view of the workspace's copy; empty before its first message. */
+export async function loadPracticeView(
+  db: Db, copy: BusinessId | null,
   /** CC-25 — the request's `before`: an older window of the practice transcript, or the newest. */
   before: unknown = null,
 ): Promise<SandboxView> {
-  const businessId = bidOf(deps.businessId);
-  return withTenantTx(deps.db, businessId, async (tx) => {
-    const conversationId = await findActiveConversation(tx, businessId);
-    if (!conversationId) return { hasConversation: false, messages: [], pendingDraft: null, lastTurn: null, ownership: 'AI' };
-
-    const assigned = (await sql<{ assigned_to: string | null }>`
-      select assigned_to from conversations where id = ${conversationId} limit 1
-    `.execute(tx)).rows[0]?.assigned_to ?? null;
-
-    // CC-25 — the newest window, as on the conversation page. This read the
-    // oldest two hundred, so a long practice ran on with its newest lines —
-    // the ones she had just typed — nowhere on the page.
-    const transcript = await loadTranscriptWindow(tx, conversationId, before);
-    const messages = transcript.rows
-      .filter((m) => m.text_content !== null)
-      .map((m): SandboxMessage => ({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', text: m.text_content!, isImage: m.input_type === 'image' }));
-
-    const draft = (await sql<{ id: string; draft_text: string }>`
-      select id, draft_text from drafts where conversation_id = ${conversationId} and status = 'pending'
-       order by created_at desc limit 1
-    `.execute(tx)).rows[0];
-
-    const evt = (await sql<{ payload: SandboxTrust }>`
-      select payload from conversation_events
-       where conversation_id = ${conversationId} and type = 'sandbox_turn'
-       order by created_at desc limit 1
-    `.execute(tx)).rows[0];
-
-    return {
-      hasConversation: true,
-      messages,
-      transcript: { earlier: transcript.earlier, older: transcript.older },
-      pendingDraft: draft ? { draftId: draft.id, draftText: draft.draft_text } : null,
-      lastTurn: evt ? evt.payload : null,
-      ownership: ownershipOf(assigned),
-    };
-  });
-}
-
-/** The active sandbox conversation, for the takeover routes (M16.3). */
-export async function activeSandboxConversationId(deps: SandboxDeps): Promise<string | null> {
-  const businessId = bidOf(deps.businessId);
-  return withTenantTx(deps.db, businessId, (tx) => findActiveConversation(tx, businessId));
-}
-
-/**
- * M16.3 — the sandbox "delivery" for an owner reply. ownerReply() has already
- * gone through the ONE send path (enqueueOutboundRow, origin='owner') and
- * written the owner_reply event; this is the kickDrive it fires afterwards. The
- * sandbox has no worker and no channel credential, so instead of a real send we
- * SINK the queued owner row into the transcript (the same recordMessage the AI
- * reply and the approval sink use) and mark the row terminal. No real outbound
- * delivery, and no second send path.
- */
-export async function sandboxFlushOutbound(deps: SandboxDeps, conversationId: string): Promise<void> {
-  const businessId = bidOf(deps.businessId);
-  await withTenantTx(deps.db, businessId, async (tx) => {
-    await lockConversation(tx, conversationId);
-    const queued = (await sql<{ id: string; body: string }>`
-      select id, body from outbound_messages
-       where conversation_id = ${conversationId} and origin = 'owner' and status = 'queued'
-       order by seq asc
-    `.execute(tx)).rows;
-    for (const row of queued) {
-      await recordMessage(tx, conversationId, 'outbound', 'text', row.body);   // the sink
-      await sql`update outbound_messages set status = 'sent', sent_at = now() where id = ${row.id}`.execute(tx);
-    }
+  if (!copy) return EMPTY;
+  return withTenantTx(db, copy, async (tx) => {
+    const conversationId = await activePracticeConversation(tx, copy);
+    return conversationId ? viewOf(tx, conversationId, before) : EMPTY;
   });
 }
 
@@ -448,7 +210,7 @@ const invLabel = (locale: Locale, id: InvariantId): string => t(locale, `sandbox
 /** M16.4b — the owner-facing name of a practice case, by scenario id. */
 export const caseName = (locale: Locale, id: string): string => t(locale, `sandbox.case.${id}` as MessageKey);
 
-function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
+function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   if (!trust) return `<div class="card sbx-trust"><h2>${esc(t(locale, 'sandbox.trust.title'))}</h2><div class="empty muted">${esc(t(locale, 'sandbox.trust.none'))}</div></div>`;
   const allPass = trust.checks.every((c) => c.pass);
   const deliveryKey = trust.appliedMode === 'auto' ? 'sandbox.xray.deliveryAuto' : trust.appliedMode === 'draft' ? 'sandbox.xray.deliveryDraft' : 'sandbox.xray.deliveryNone';
@@ -474,23 +236,16 @@ function renderTrust(trust: SandboxTrust | null, locale: Locale): string {
   </div>`;
 }
 
-function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolean, prefill = ''): string {
+function renderComposer(locale: Locale, prefill = ''): string {
   // M16.4b: the owner reads an owner-facing name; the engineering title in
-  // src/trust/scenarios.ts is unchanged and stays internal (tests, CI).
+  // src/trust/scenarios.ts is unchanged and stays internal (tests, CI). A
+  // situation sends its customer's words, and the assistant answers them live.
   const scenarioOpts = SCENARIOS.map((s) => `<option value="${esc(s.id)}">${esc(caseName(locale, s.id))}</option>`).join('');
-  const modeRadio = (m: SandboxMode, labelKey: MessageKey, disabled = false) =>
-    `<label class="radio ${disabled ? 'off' : ''}"><input type="radio" name="mode" value="${m}" ${m === mode && !disabled ? 'checked' : ''} ${disabled ? 'disabled' : ''}/> ${esc(t(locale, labelKey))}</label>`;
   // CC-25 — `compose` is where a "try it in practice" link lands: the box sits
   // under the transcript now, where the conversation continues.
   return `
   <div id="compose" class="card sbx-compose">
-    <div class="modebar">
-      <span class="muted">${esc(t(locale, 'sandbox.mode.label'))}:</span>
-      ${modeRadio('scripted', 'sandbox.mode.scripted')}
-      ${liveAvailable ? modeRadio('live', 'sandbox.mode.live') : `<span class="radio off muted" title="${esc(t(locale, 'sandbox.mode.liveOff'))}">${esc(t(locale, 'sandbox.mode.live'))}</span>`}
-    </div>
     <form method="post" action="/app/sandbox/scenario" class="scenariobar">
-      <input type="hidden" name="mode" value="${mode}" />
       <label class="muted" for="scenario">${esc(t(locale, 'sandbox.scenario.label'))}</label>
       <select id="scenario" name="scenarioId">
         <option value="">${esc(t(locale, 'sandbox.scenario.none'))}</option>
@@ -499,11 +254,9 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
       <button class="btn" type="submit">${esc(t(locale, 'sandbox.scenario.load'))}</button>
     </form>
     <form method="post" action="/app/sandbox/message" class="msgbar">
-      <input type="hidden" name="mode" value="${mode}" />
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
       <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
       <div class="msgacts">
-        <label class="chkbox"><input type="checkbox" name="image" value="1" /> ${esc(t(locale, 'sandbox.composer.image'))}</label>
         <button class="btn send" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
     </form>
@@ -514,10 +267,9 @@ function renderComposer(locale: Locale, mode: SandboxMode, liveAvailable: boolea
  *  (same ownershipOf, same takeover.* wording, same take-over/reply/return
  *  services). Sandbox routes carry no conversation id — there is one active
  *  conversation, resolved server-side. */
-function sandboxTakeoverCard(view: SandboxView, locale: Locale, mode: SandboxMode): string {
+function sandboxTakeoverCard(view: SandboxView, locale: Locale): string {
   if (!view.hasConversation) return '';
-  const m = `<input type="hidden" name="mode" value="${mode}" />`;
-  const take = `<form method="post" action="/app/sandbox/takeover" class="inline">${m}<button class="btn ${view.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
+  const take = `<form method="post" action="/app/sandbox/takeover" class="inline"><button class="btn ${view.ownership === 'WAITING_HUMAN' ? 'send' : ''}" type="submit">${esc(t(locale, 'takeover.action.take'))}</button></form>`;
   switch (view.ownership) {
     case 'AI':
       return `<div class="card takeover"><span class="pill ok">${esc(t(locale, 'takeover.status.ai'))}</span>${take}</div>`;
@@ -526,11 +278,11 @@ function sandboxTakeoverCard(view: SandboxView, locale: Locale, mode: SandboxMod
     case 'OWNER_CONTROLLED':
       return `<div class="card takeover owner">
         <span class="pill owner">${esc(t(locale, 'takeover.status.owner'))}</span>
-        <form method="post" action="/app/sandbox/reply" class="replyform">${m}
+        <form method="post" action="/app/sandbox/reply" class="replyform">
           <textarea name="text" rows="2" placeholder="${esc(t(locale, 'takeover.replyPlaceholder'))}" required></textarea>
           <button class="btn send" type="submit">${esc(t(locale, 'takeover.action.reply'))}</button>
         </form>
-        <form method="post" action="/app/sandbox/resume" class="inline">${m}<button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
+        <form method="post" action="/app/sandbox/resume" class="inline"><button class="btn ghost" type="submit">${esc(t(locale, 'takeover.action.resume'))}</button></form>
       </div>`;
   }
 }
@@ -545,14 +297,14 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   return `<div class="card">
     <h2>${esc(t(locale, 'practice.scripted.title'))}</h2>
     <p class="muted">${esc(t(locale, 'practice.scripted.intro', { name: assistantName(locale) }))}</p>
-    <div class="pcount">${report.passed} / ${report.total}</div>
+    <div class="pcount">${esc(show.isolate(locale, `${report.passed} / ${report.total}`))}</div>
     <ul class="pcases">${rows}</ul>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.proves', { name: assistantName(locale) }))}</p>
     <p class="muted pproves">${esc(t(locale, 'practice.scripted.notproves', { name: assistantName(locale) }))}</p>
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: SandboxMode; liveAvailable: boolean; flash: Flash | null; prefill?: string }): string {
+export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string }): string {
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
@@ -565,7 +317,6 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
 
   // CC-25 — one window, newest at the bottom and marked `latest` (unless a
   // notice carries the mark); the same doors as the conversation page,
-  // carrying the mode she is practising in.
   const older = view.transcript?.older === true;
   const earlier = view.transcript?.earlier ?? null;
   const last = opts.flash === null ? view.messages.length - 1 : -1;
@@ -577,23 +328,21 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
         </div>`).join('')}</div>`
     : older || earlier ? ''
     : `<div class="empty muted">${esc(t(locale, 'sandbox.empty'))}</div>`;
-  const log = `${earlier ? back(esc(practiceUrl(opts.mode, earlier)), t(locale, 'inbox.log.earlier')) : ''}
+  const log = `${earlier ? back(esc(practiceUrl(earlier)), t(locale, 'inbox.log.earlier')) : ''}
     ${timeline}
-    ${older ? deeper(esc(practiceUrl(opts.mode)), t(locale, 'inbox.log.latest')) : ''}`;
+    ${older ? deeper(esc(practiceUrl()), t(locale, 'inbox.log.latest')) : ''}`;
 
   const draftCard = view.pendingDraft
     ? `<div class="card draft" role="region">
         <div dir="auto" class="proposed"><bdi>${esc(view.pendingDraft.draftText)}</bdi></div>
         <form method="post" action="/app/sandbox/act" class="acts">
           <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
-          <input type="hidden" name="mode" value="${opts.mode}" />
           <button class="btn send" name="command" value="发送">${esc(t(locale, 'inbox.action.send'))}</button>
           <button class="btn" name="command" value="不回">${esc(t(locale, 'inbox.action.skip'))}</button>
           <button class="btn danger" name="command" value="收回">${esc(t(locale, 'inbox.action.revoke'))}</button>
         </form>
         <form method="post" action="/app/sandbox/act" class="editform">
           <input type="hidden" name="draftId" value="${esc(view.pendingDraft.draftId)}" />
-          <input type="hidden" name="mode" value="${opts.mode}" />
           <label class="muted" for="edit">${esc(t(locale, 'inbox.action.editLabel'))}</label>
           <textarea id="edit" name="edit" rows="2" placeholder="${esc(t(locale, 'inbox.action.editPlaceholder'))}"></textarea>
           <button class="btn" name="command" value="改">${esc(t(locale, 'inbox.action.editSend'))}</button>
@@ -614,13 +363,13 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { mode: S
    */
   const acts = older ? '' : `
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
-    ${sandboxTakeoverCard(view, locale, opts.mode)}
+    ${sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}
-    ${renderComposer(locale, opts.mode, opts.liveAvailable, opts.prefill ?? '')}`;
+    ${renderComposer(locale, opts.prefill ?? '')}`;
 
   return `
     <div class="dhead spread">
-      <form method="post" action="/app/sandbox/reset"><input type="hidden" name="mode" value="${opts.mode}" /><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
+      <form method="post" action="/app/sandbox/reset"><button class="btn ghost" type="submit">${esc(t(locale, 'sandbox.reset'))}</button></form>
     </div>
     ${banner}
     ${intro}
