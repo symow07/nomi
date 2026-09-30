@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #151 | **TZ — one time zone per workspace, chosen at sign-up** (the owner's decision): a country with one zone gets it, a country with several is asked, a country the table has no zone for is offered every zone (a test draws the form for every country it lists), the profile page changes it; every date and time an owner reads, every "today" (the send ceiling, outreach's cap, Today, insights' months, the calendar, promised dates, the operator's alerts) is the workspace's own — no code outside the country table, the demo and the golden scenarios names Shanghai (a test). The zone is written in the sign-up's own transaction. `provision-factory.mjs` requires `--zone=`. Existing workspaces keep what they have (below). Pre-pilot 12/12 before and after (no migration) | 91 |
+| 2026-09-30 | #152 | **CUR, part one — the send path knows every currency** (before any workspace can price in one): `Currency` is USD, CNY, AED, SAR, BRL, MXN, INR, IDR, each with its sign (a code where it has none: "AED 12.00"; the peso MX$); the numeral guard refuses a quoted figure written in another currency ("$12" for AED 12), unless the customer wrote it themselves, and reads "Rp 150.000" / "R$ 1.250,50" as they say for a quote in rupiah or reais only; "₹500", "Rp 5000" and "150 reais" are never quantities; "high value" sized in each currency's own figures, nothing converted; the stand-in reply no longer says "AED 12.00 AED". Plus a test-timing defect found on the way (below). Pre-pilot 12/12 before and after (no migration) | 91 |
+| 2026-09-30 | #151 | **TZ — one time zone per workspace, chosen at sign-up** (the owner's decision): a country with one zone gets it, a country with several is asked, a country the table has no zone for is offered every zone (a test draws the form for every country it lists), the profile page changes it; every date and time an owner reads, every "today" (the send ceiling, outreach's cap, Today, insights' months, the calendar, promised dates, the operator's alerts) is the workspace's own — no code outside the country table, the demo and the golden scenarios names Shanghai (a test). The zone is written in the sign-up's own transaction. `provision-factory.mjs` requires `--zone=`. Existing workspaces keep what they have (below). Pre-pilot 12/12 before and after. Merged 15:01 UTC, deployed, `/health` ok (no migration) | 91 |
 | 2026-09-30 | #150 | **Practice P4, part two — the checklist and "your total first"** (0091): what the owner has seen in Practice, from the list for their kind of business (a catalogue, a shop — whose "how much is this?" shows the gap until RT — or none), read from the real turn's rows on the copy and written on the workspace so Start over does not take a tick back; the total the owner expects, typed before the answer and set beside it, the rows also measuring how often the two disagree; an order in Practice tapped through the one order service. Merged 14:27 UTC, deployed, `/health` ok, schema 91 | 91 |
 | 2026-09-30 | #149 | **Practice P4, part one — the card, the reasons, the two switches** (0090): a waiting practice reply is the conversation page's own card (why it waited, where each figure came from, one Send); a hand-off says why and that nothing was sent; the checks strip names the product's unit; "as if sending alone" lifts the owner's level in Practice only (the Spanish gate still holds, and says so); Practice's own Stop. Merged 13:43 UTC, deployed, `/health` ok, schema 90 | 90 |
 | 2026-09-30 | #148 | **Practice P6 — not kept** (0089): Start over erases the workspace's practice conversations and all that hangs off them (asks first); a daily job erases practice quiet for 30 days; the day's 50 counted on the workspace's row so Start over does not reset them; both workers drop a job whose conversation is gone; the shared sandbox is read by nothing and no longer seeded locally; plus two tests' ledger race, root-caused (CI's second pass). Merged 13:21 UTC, deployed, `/health` ok, schema 89 | 89 |
@@ -56,7 +57,9 @@ under "Decided" below.
    upload), the rehearsal findings' wider inputs, and the checklist feeding a
    "Ready for customers" page (G6) and funnel events (G9), neither built.
 2. **One time zone and one currency per workspace**, chosen during setup.
-   Time zone **done** (#151). Currency next (CUR).
+   Time zone **done** (#151, deployed). Currency: part one, the send path
+   (#152); part two next — the migration, the choice at sign-up, the owner's
+   forms and the import in the workspace's currency, the rate page.
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
 
@@ -264,6 +267,14 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 | **Erase the old shared practice sandbox** (`5a4d0000-0000-4000-8000-0000000000b1`): nothing reads it since P3, but it still holds the pilot's practice from before — possibly customers' words pasted in through "Try it". After a backup: `tools/erase-workspace.mjs --business 5a4d0000-0000-4000-8000-0000000000b1` (dry run), then with `--confirm "Practice sandbox" --yes` | a permanent deletion: yours to run |
 
 ## Found on the way
+
+- **A retention test failed the whole suite on time, not on logic** (found
+  2026-09-30 in #152's check): `backup-retention.test.ts` runs bash, awk and
+  find synchronously; alone each case takes about 0.1 s, but the first case of
+  a group took 5.7 s with every worker busy and failed vitest's default 5 s.
+  The file's other shell groups already allowed 120 s; the five without a limit
+  now allow 60 s (`SHELL`). Not a retry: the cause is the default limit on a
+  synchronous spawn in a parallel suite.
 
 - **The restore drill failed every backup taken since 0078** (found
   2026-09-29): `tools/verify-restore.sh` counted every table with a

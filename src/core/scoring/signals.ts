@@ -1,5 +1,5 @@
 import type { Scores } from '../types/conversation.js';
-import { type Money, usd, isAbove } from '../types/money.js';
+import { type Money, type Currency, usd, isAbove } from '../types/money.js';
 
 /**
  * Observations about a conversation. Scores are DERIVED from these, never
@@ -221,6 +221,24 @@ export function toTriggerReason(s: Signal): TriggerReason {
 const clamp = (n: number): number => Math.max(0, Math.min(100, n));
 
 /**
+ * CUR — what counts as a large order, written in each currency's own figures.
+ * NOT a conversion: no price is ever worked out from these, and they move no
+ * customer's money; they only say when an order is big enough to mark (3,000
+ * dollars was the one line, and every order in rupiah would have crossed it).
+ * Round figures of the same order of size, in the money a shop there counts in.
+ */
+export const HIGH_VALUE: Readonly<Record<Currency, { readonly large: number; readonly veryLarge: number }>> = {
+  USD: { large: 3_000, veryLarge: 10_000 },
+  CNY: { large: 20_000, veryLarge: 70_000 },
+  AED: { large: 10_000, veryLarge: 35_000 },
+  SAR: { large: 10_000, veryLarge: 35_000 },
+  BRL: { large: 15_000, veryLarge: 50_000 },
+  MXN: { large: 50_000, veryLarge: 175_000 },
+  INR: { large: 250_000, veryLarge: 800_000 },
+  IDR: { large: 50_000_000, veryLarge: 150_000_000 },
+};
+
+/**
  * Pure, total, and the ONLY place scores are produced.
  *
  * Note what does NOT appear here: any notion of "previous score". The score is a
@@ -254,7 +272,7 @@ export function computeScores(signals: readonly Signal[]): Scores {
 
       // --- lead: the client is buying. NEVER add these to `problem`. ---
       case 'high_value':
-        lead += isAbove(s.total, { amount: 10_000, currency: s.total.currency }) ? 60 : 40;
+        lead += isAbove(s.total, { amount: HIGH_VALUE[s.total.currency].veryLarge, currency: s.total.currency }) ? 60 : 40;
         break;
       case 'customization_requested':
         lead += 30;

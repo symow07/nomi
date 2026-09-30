@@ -1,5 +1,6 @@
 import { type Result, ok, err } from '../types/result.js';
 import type { Quote } from '../types/commerce.js';
+import { type Currency, DOT_THOUSANDS } from '../types/money.js';
 import type { ConversationState } from '../types/conversation.js';
 
 /**
@@ -44,8 +45,12 @@ const COMMERCIAL_CONTEXT = new RegExp(
     // T2 — a small number beside ANY currency is a price: "9 AED" and "₹9"
     // passed as ordinary words. Symbols, ISO codes, and the words for them.
     /[₹₩₽₺₫₪]\s*\d[\d,]*(?:\.\d+)?/.source,
-    /\d[\d,]*(?:\.\d+)?\s*(?:[₹₩₽₺₫₪]|(?:aed|sar|qar|kwd|omr|bhd|egp|inr|gbp|hkd|aud|cad|sgd|jpy|cny|try|mxn|brl)\b|درهم|دراهم|ريال|دينار|جنيه|元|块|美元|欧元|英镑)/.source,
-    /(?:aed|sar|qar|kwd|omr|bhd|egp|inr|gbp|hkd|aud|cad|sgd|jpy|cny|try|mxn|brl)\s*\d[\d,]*(?:\.\d+)?/.source,
+    /\d[\d,]*(?:\.\d+)?\s*(?:[₹₩₽₺₫₪]|(?:aed|sar|qar|kwd|omr|bhd|egp|inr|idr|gbp|hkd|aud|cad|sgd|jpy|cny|try|mxn|brl)\b|درهم|دراهم|ريال|دينار|جنيه|روبية|بيزو|元|块|美元|欧元|英镑)/.source,
+    /(?:aed|sar|qar|kwd|omr|bhd|egp|inr|idr|gbp|hkd|aud|cad|sgd|jpy|cny|try|mxn|brl)\s*\d[\d,]*(?:\.\d+)?/.source,
+    // CUR — the new currencies' own marks: "Rp 150.000", "Rs 500", "R$ 49",
+    // and their names, so a small figure beside them is a price too.
+    /(?:\brp\.?|\brs\.?|د\.إ|ر\.س)\s*\d[\d.,]*/.source,
+    /\d[\d.,]*\s*(?:rupiah|rupees?|reais|pesos?|riyals?|dirhams?)\b/.source,
     /\d[\d,]*(?:\.\d+)?\s*%/.source,                             // 12%, 5 %
     /\d[\d,]*(?:\.\d+)?\s*(?:percent|dollars?|usd|rmb|yuan|euros?|por\s+ciento|pour\s+cent|d[oó]lares|dollars?\s+am[ée]ricains?)/.source,
     // Spanish and French: "descuento del 3", "une remise de 5".
@@ -64,7 +69,12 @@ const COMMERCIAL_CONTEXT = new RegExp(
   'gi',
 );
 
-export type ExtractedNumeral = { readonly value: number; readonly commercial: boolean };
+export type ExtractedNumeral = {
+  readonly value: number;
+  readonly commercial: boolean;
+  /** CUR — where it stands in the text: the currency beside it is read from there. */
+  readonly at?: readonly [number, number];
+};
 
 /**
  * Extract numerals with position context:
@@ -123,13 +133,91 @@ export function extractNumerals(raw: string): ExtractedNumeral[] {
   for (const m of text.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
     const n = Number(m[0].replace(/,/g, ''));
     if (!Number.isFinite(n)) continue;
-    out.push({ value: n, commercial: inCommercialSpan(m.index, m.index + m[0].length) });
+    out.push({ value: n, commercial: inCommercialSpan(m.index, m.index + m[0].length), at: [m.index, m.index + m[0].length] });
   }
   for (const m of text.matchAll(ZH_FIGURE)) {
     const n = zhNumber(m[0]);
     if (n === null) continue;
     const end = m.index + m[0].length;
-    out.push({ value: n, commercial: ZH_MONEY.test(text.slice(end)) || inCommercialSpan(m.index, end) });
+    out.push({ value: n, commercial: ZH_MONEY.test(text.slice(end)) || inCommercialSpan(m.index, end), at: [m.index, end] });
+  }
+  return out;
+}
+
+/**
+ * CUR (2026-09-30) — ONE CURRENCY PER WORKSPACE, NO CONVERSION. A price is
+ * sourced only in the currency it was worked out in: "$12" for a quote of
+ * AED 12 is the right number in the wrong money, and it reaches a customer as
+ * a price nobody set. The marks below say which of this product's currencies
+ * the words beside a figure can mean — "$" is the dollar AND the peso, "¥" the
+ * yuan, "ريال" the riyal; a mark for money this product does not hold (€, £,
+ * euros, 日元) means none of them. Longest first, so "R$" is never read as "$".
+ * A three-letter code of someone else's money is matched in capitals only:
+ * "try", "mad" and "won" are English words.
+ */
+type Mark = { readonly re: string; readonly means: readonly Currency[]; readonly word?: true; readonly caps?: true };
+const MARKS: readonly Mark[] = [
+  { re: 'US\\$', means: ['USD'] }, { re: 'R\\$', means: ['BRL'] }, { re: 'MEX\\$|MX\\$', means: ['MXN'] },
+  { re: '(?:HK|NT|NZ|C|A|S)\\$', means: [] }, { re: '[$＄]', means: ['USD', 'MXN'] },
+  { re: '[€£₩₽₺₫₪₱₦฿]', means: [] }, { re: '[¥￥]', means: ['CNY'] }, { re: '₹', means: ['INR'] },
+  { re: 'د\\.إ\\.?', means: ['AED'] }, { re: 'ر\\.س\\.?', means: ['SAR'] },
+  { re: 'usd|dollars?|d[oó]lares', means: ['USD'], word: true },
+  { re: 'cny|rmb|yuan|renminbi', means: ['CNY'], word: true },
+  { re: 'aed|dirhams?|dhs?', means: ['AED'], word: true },
+  { re: 'sar|riyals?', means: ['SAR'], word: true },
+  { re: 'brl|reais', means: ['BRL'], word: true },
+  { re: 'mxn|pesos', means: ['MXN'], word: true },
+  { re: 'inr|rupees?|rs\\.?', means: ['INR'], word: true },
+  { re: 'idr|rupiah|rp\\.?', means: ['IDR'], word: true },
+  { re: 'euros?|pounds sterling|yen', means: [], word: true },
+  { re: 'EUR|GBP|JPY|HKD|AUD|CAD|SGD|NZD|CHF|QAR|KWD|OMR|BHD|EGP|MAD|TRY|KRW|RUB|VND|THB|PHP|MYR|PKR|NGN|KES|ZAR|TWD', means: [], word: true, caps: true },
+  { re: '美元|美金', means: ['USD'] }, { re: '人民币|元|块', means: ['CNY'] },
+  { re: '欧元|英镑|日元|港元|港币|韩元|卢布', means: [] },
+  { re: '迪拉姆', means: ['AED'] }, { re: '里亚尔', means: ['SAR'] }, { re: '雷亚尔', means: ['BRL'] },
+  { re: '比索', means: ['MXN'] }, { re: '卢比', means: ['INR'] }, { re: '印尼盾', means: ['IDR'] },
+  { re: 'دولار(?:ات)?', means: ['USD'] }, { re: 'درهم|دراهم', means: ['AED'] },
+  { re: 'ريال(?:ات)?\\s+برازيلي(?:ة)?', means: ['BRL'] }, { re: 'ريال(?:ات)?', means: ['SAR'] },
+  { re: 'روبية\\s+إندونيسية', means: ['IDR'] }, { re: 'روبية', means: ['INR', 'IDR'] },
+  { re: 'بيزو', means: ['MXN'] }, { re: 'يوان', means: ['CNY'] }, { re: 'يورو|جنيه|دينار', means: [] },
+];
+const markRe = (m: Mark, side: 'before' | 'after'): RegExp => {
+  const flags = m.caps ? 'u' : 'iu';
+  return side === 'before'
+    ? new RegExp(`${m.word ? '(?<![\\p{L}])' : ''}(?:${m.re})\\s*$`, flags)
+    : new RegExp(`^\\s*(?:${m.re})${m.word ? '(?![\\p{L}])' : ''}`, flags);
+};
+const BEFORE = MARKS.map((m) => ({ re: markRe(m, 'before'), means: m.means }));
+const AFTER = MARKS.map((m) => ({ re: markRe(m, 'after'), means: m.means }));
+
+/**
+ * The currencies the words right beside a figure can mean, or null when they
+ * name none. `text` is the text the figure's `at` indexes (digits made ASCII).
+ */
+export function currencyBeside(text: string, at: readonly [number, number]): readonly Currency[] | null {
+  const before = text.slice(Math.max(0, at[0] - 16), at[0]);
+  const after = text.slice(at[1], at[1] + 24);
+  const named: Currency[][] = [];
+  const b = BEFORE.find((m) => m.re.test(before));
+  if (b) named.push([...b.means]);
+  const a = AFTER.find((m) => m.re.test(after));
+  if (a) named.push([...a.means]);
+  if (named.length === 0) return null;
+  // "$12 USD": both marks must allow it.
+  return named.reduce((x, y) => x.filter((c) => y.includes(c)));
+}
+
+/**
+ * CUR — Brazil and Indonesia write "R$ 1.250,50" and "Rp 150.000". For a quote
+ * in their currency the SAME figure may be written that way; the ordinary
+ * reading would take "150.000" for 150 and hold a right reply. Each such
+ * figure, read their way, with its place in the text.
+ */
+const DOT_FIGURE = /(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+,\d{1,2})(?![\d.,]*\d)/g;
+function dotFigures(text: string): { value: number; at: [number, number] }[] {
+  const out: { value: number; at: [number, number] }[] = [];
+  for (const m of text.matchAll(DOT_FIGURE)) {
+    const value = Number(m[1]!.replace(/\./g, '').replace(',', '.'));
+    if (Number.isFinite(value)) out.push({ value, at: [m.index, m.index + m[0].length] });
   }
   return out;
 }
@@ -171,8 +259,31 @@ export function guardNumerals(input: {
   }
   if (state.quantity) sourced.push(state.quantity.value);
 
+  // CUR — the quote's currency is the only one a price is said in. A figure
+  // the words beside it put in another currency is unsourced, whatever its
+  // value — unless the customer wrote that figure themselves (they may quote
+  // their own budget in their own money back at us).
+  const currency = quote?.unitPrice.currency ?? null;
+  const text = asciiDigits(reply);
+  const theirs = extractNumerals(clientText).map((n) => n.value);
+  const foreign = (n: ExtractedNumeral): boolean => {
+    if (currency === null || !n.at) return false;
+    const named = currencyBeside(text, n.at);
+    return named !== null && !named.includes(currency) && !theirs.some((c) => near(c, n.value));
+  };
+  // A figure written the Brazilian or Indonesian way, in a quote of theirs,
+  // counts for what it says there ("Rp 150.000" is 150000).
+  const covered = currency !== null && DOT_THOUSANDS.has(currency)
+    ? dotFigures(text).filter((d) => sourced.some((s) => near(s, d.value))
+      && !foreign({ value: d.value, commercial: true, at: d.at }))
+    : [];
+  const inCovered = (n: ExtractedNumeral): boolean =>
+    !!n.at && covered.some((d) => n.at![0] >= d.at[0] && n.at![1] <= d.at[1]);
+
   const unsourced = extractNumerals(reply)
     .filter((n) => {
+      if (inCovered(n)) return false;
+      if (foreign(n)) return true;
       // Commercial position ("12%", "$7", "5% off"): the small-integer
       // allowlist does NOT apply. Every such figure must be sourced.
       return !isSafeSmall(n) && !sourced.some((s) => near(s, n.value));
