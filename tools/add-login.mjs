@@ -47,7 +47,8 @@
  * and no clash.
  *
  * IT REFUSES, and changes nothing, when: the business does not exist or is
- * switched off; it is the practice sandbox; the e-mail is another workspace's
+ * switched off; it is the practice sandbox or a workspace's practice copy
+ * (0086); the e-mail is another workspace's
  * login; the workspace already has a login (unless --replace — said out loud,
  * with what is there); the e-mail is already this workspace's (unless --reset).
  */
@@ -129,8 +130,9 @@ try {
   await client.query('begin');
 
   // The business, held for the length of the change so two runs cannot race.
-  const biz = (await client.query('select id, name, is_active from businesses where id = $1 for update', [businessId])).rows[0];
+  const biz = (await client.query('select id, name, is_active, practice_of::text as practice_of from businesses where id = $1 for update', [businessId])).rows[0];
   if (!biz) await refuse(`Refusing: no business ${businessId}. Nothing was changed.`);
+  if (biz.practice_of) await refuse(`Refusing: ${businessId} is the practice copy of ${biz.practice_of}. Nobody signs in to a copy — give the login to the workspace itself. Nothing was changed.`);
   if (!biz.is_active) await refuse(`Refusing: ${biz.name} (${businessId}) is switched off, and nobody can sign in to it. Nothing was changed.`);
 
   const owner = (await client.query(

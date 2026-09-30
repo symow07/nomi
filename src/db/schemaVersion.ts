@@ -268,8 +268,11 @@ import type { Db } from './client.js';
  * 85 = a send ceiling per workspace, and Meta's error rate (0085). The send
  *      gate reads `businesses.daily_send_ceiling`; against an 84 database the
  *      read fails and nothing the assistant writes is sent.
+ * 86 = Practice, per workspace (0086): `businesses.practice_of`, the copy's
+ *      source ids, `practice_refresh`. Practice opens the owner's copy with
+ *      it; against an 85 database the call fails and Practice cannot start.
  */
-export const REQUIRED_SCHEMA_VERSION = 85;
+export const REQUIRED_SCHEMA_VERSION = 86;
 
 export type SchemaState = {
   readonly required: number;

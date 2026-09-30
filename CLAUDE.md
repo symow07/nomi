@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 85. Last three: `0083 promised_dates`, `0084 login_recovery`,
-  `0085 send_ceiling`.
+- **Schema:** 86 once #145 deploys. Last three: `0084 login_recovery`,
+  `0085 send_ceiling`, `0086 practice`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -508,6 +508,12 @@ Recent PRs, newest first:
    - **Setup:** doors, each with its state (`.tlines`, as on Today): Getting ready's count, channels connected or not, the profile done or not, the kind of business, how many people. The profile is its own page, `/app/settings/profile` (saving lands there; `STEP_LINK.profile`). Log out is the rail's; Setup keeps one only on a phone.
    - **The door:** the e-mail first; the access code (the pilot's owner and staff codes) is a small door at the foot to its own card, `/login?with=code`, with a door back; a wrong code shows that card.
    - **The live line** sits in the page's header, in the flow — the Buyers title row and the conversation's head (`LIVE_SLOT` in the body; else under the title) — never sticky over the reply box, never fixed. An owner reading the bottom of a long conversation sees it on scrolling up; a screen reader hears it (polite region) wherever it is.
+40. **Practice is per workspace: a copy that can reach nobody** (the owner's decision 2026-09-30, blocking before anyone outside signs up; 0086; `docs/PRACTICE.md`).
+   - Each workspace's **practice copy** is a `businesses` row with `practice_of` = the workspace (one each; erased with it — `erase-workspace` takes the copy first). `practice_refresh(live)` (definer; only for `current_business_id()`, never for a copy) creates it and brings it in line before every practice turn: profile, catalogue, prices, rules, terms (current rows), the assistant, the name's confirmation, autonomy, the operator's switches, the owner's Stop. Products and assistants are refreshed IN PLACE by `source_id` (Practice's own quotes and conversations point at them); a product the owner removed is deactivated, never deleted; everything else is replaced whole; what Practice writes itself is never touched.
+   - **What is copied and what is not:** `tests/integration/practice-tables.ts`, every business-scoped table named once; `practice-copy.test.ts` fails a new table nobody classified, and a copied table the refresh does not write.
+   - **Nobody real, by construction:** a trigger refuses channels, credentials, channel sources, connectors, Meta and mail accounts, sending domains, people and logins on a copy. `add-login` refuses a copy by name.
+   - **Not a workspace:** whole-installation readers skip copies (`meta_error_rates`; `live_business_ids` and `inboxes_to_read` cannot see one — no sequences, domains or mailboxes). Anything new that counts or scans workspaces must say `practice_of is null`. Fleet counts too.
+   - Still the shared sandbox until P3–P6 (the pilot's alone since #129).
 
 ## 6 · What's next
 

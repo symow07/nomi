@@ -36,6 +36,7 @@ const tool = (args: string[], url = ADMIN): Run => {
 d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_URL and MIGRATE_DATABASE_URL)', () => {
   let db: import('pg').Client;
   const jobs: Record<string, string> = {};
+  let copy = '';   // W1's practice copy (0086): a business of its own, `practice_of` W1
 
   /** Every row carrying this business, in every schema we write to. */
   const footprint = async (biz: string): Promise<Record<string, number>> => {
@@ -72,19 +73,30 @@ d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_U
     }
     await db.query(`insert into deletion_requests (business_id, scope, asked_by) values ($1, 'workspace', 'owner')`, [W1]);
 
+    // W1 practised: a product copied in, and a practice conversation of the copy's own.
+    await db.query(`insert into products (business_id, sku, name, price_usd_per_unit) values ($1, 'E-1', 'A thing', 5)`, [W1]);
+    await db.query('begin');
+    await db.query(`select set_config('app.business_id', $1, true)`, [W1]);
+    copy = (await db.query(`select practice_refresh($1::uuid)::text as id`, [W1])).rows[0].id;
+    await db.query('commit');
+    const pc = (await db.query(`insert into clients (business_id, display_name) values ($1, 'Practice') returning id`, [copy])).rows[0].id;
+    const pv = (await db.query(`insert into conversations (business_id, client_id, channel) values ($1, $2, 'instagram') returning id`, [copy, pc])).rows[0].id;
+    await db.query(`insert into messages (conversation_id, direction, input_type, text_content, sent_at) values ($1, 'inbound', 'text', 'a customer said this in practice', now())`, [pv]);
+
     // Queued work through the production queue, as tools/erase-buyer's test does.
     const { startBoss, QUEUES } = await import('../../src/queue/boss.js');
     const boss = await startBoss(DATABASE_URL!);
     try {
       jobs['w1'] = (await boss.send(QUEUES.inbound, { businessId: W1, conversationId: randomUUID(), messageId: 'm', text: 'a buyer said this' }, { startAfter: 3600 }))!;
       jobs['w2'] = (await boss.send(QUEUES.inbound, { businessId: W2, conversationId: randomUUID(), messageId: 'm', text: 'keep this' }, { startAfter: 3600 }))!;
+      jobs['copy'] = (await boss.send(QUEUES.inbound, { businessId: copy, conversationId: randomUUID(), messageId: 'm', text: 'a practice line' }, { startAfter: 3600 }))!;
     } finally {
       await boss.stop();
     }
   }, 120_000);
 
   afterAll(async () => {
-    await db?.query(`delete from pgboss.job where data->>'businessId' = any($1::text[])`, [[W1, W2]]).catch(() => {});
+    await db?.query(`delete from pgboss.job where data->>'businessId' = any($1::text[])`, [[W1, W2, copy]]).catch(() => {});
     await db?.end();
   });
 
@@ -105,6 +117,7 @@ d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_U
     expect(r.out).toMatch(/shadow\.turn_decisions/);
     expect(r.out).toMatch(/pgboss\.job/);
     expect(r.out).toMatch(/Dry run\. Nothing was deleted\./);
+    expect(r.out).toMatch(/conversations \(its practice copy\)/);
     expect(await footprint(W1)).toEqual(before);
   });
 
@@ -121,13 +134,15 @@ d('erase-workspace: nothing of a workspace is left anywhere (requires DATABASE_U
     }
   });
 
-  it('erases the workspace: nothing of it is left in any table, shadow decision or queued job — the neighbour untouched', async () => {
+  it('erases the workspace and its practice copy: nothing of either is left in any table, shadow decision or queued job — the neighbour untouched', async () => {
     const neighbour = await footprint(W2);
     expect(Object.keys(neighbour).length).toBeGreaterThan(4);
+    expect(await footprint(copy)).toMatchObject({ businesses: 1, 'public.products': 1, 'public.conversations': 1, 'pgboss.job': 1 });
     const r = tool(['--business', W1, '--confirm', NAME, '--yes']);
     expect(r.code, r.err).toBe(0);
     expect(r.out).toMatch(/erased/);
     expect(await footprint(W1)).toEqual({});
+    expect(await footprint(copy)).toEqual({});
     expect(await footprint(W2)).toEqual(neighbour);
   });
 });
