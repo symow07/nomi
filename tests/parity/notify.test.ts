@@ -13,9 +13,10 @@ describe('P3 · owner alerts (pure)', () => {
 
   it('renders each alert kind in en/zh/ar with the assistant\'s name, else "your assistant"', () => {
     expect(renderOwnerAlert('en', 'hot_lead').toLowerCase()).toContain(ASSISTANT_FALLBACK.en);
-    expect(renderOwnerAlert('en', 'hot_lead')).toContain('Big-buyer');
+    // The positioning rewrite: a strong buying signal, and no promise of a nightly summary nothing builds.
+    expect(renderOwnerAlert('en', 'hot_lead')).toContain('looks ready to buy');
     expect(renderOwnerAlert('zh', 'hot_lead')).toContain(ASSISTANT_FALLBACK.zh);
-    expect(renderOwnerAlert('zh', 'hot_lead')).toContain('大买家');
+    expect(renderOwnerAlert('zh', 'hot_lead')).toContain('准备下单');
     expect(renderOwnerAlert('ar', 'hot_lead')).toContain(ASSISTANT_FALLBACK.ar);
 
     expect(renderOwnerAlert('en', 'handoff').toLowerCase()).toContain(ASSISTANT_FALLBACK.en);

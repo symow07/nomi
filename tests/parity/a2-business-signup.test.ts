@@ -115,8 +115,8 @@ describe('A2 · nothing says "factory" any more', () => {
 
   it('the menu, the door and the buyer\'s proof page say it the new way', () => {
     expect(t('en', 'nav.factory')).toBe('My business');
-    expect(t('zh', 'nav.factory')).toBe('我的公司');
-    expect(t('ar', 'nav.factory')).toBe('شركتي');
+    expect(t('zh', 'nav.factory')).toBe('我的生意');
+    expect(t('ar', 'nav.factory')).toBe('نشاطي التجاري');
     // The positioning rewrite: not every seller is a company either.
     expect(t('en', 'proof.source.taught')).toBe('Confirmed by the business');
     expect(t('en', 'signup.title')).toBe('Set up your business');

@@ -377,7 +377,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
   });
 
   it('the owner is told the buyer is not written to — the owner tells them', () => {
-    expect(messages.en['conv.deletion.tell']).toMatch(/Tell the buyer then — Nomi does not write to them about it/);
+    expect(messages.en['conv.deletion.tell']).toMatch(/Tell the customer then — Nomi does not write to them about it/);
     expect(messages.en['data.buyers.lead']).toMatch(/Nomi does not write to them about it/);
     for (const l of LOCALES) {
       for (const k of ['conv.deletion.tell', 'data.buyers.lead', 'conv.deletion.lead', 'conv.deletion.flash.asked'] as const) {

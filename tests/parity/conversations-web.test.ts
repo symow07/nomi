@@ -34,8 +34,10 @@ const file: CustomerFile = {
 describe('M9.7 · the buyer\'s own page (localized)', () => {
   it('buyer profile shows only data that exists', () => {
     const en = renderCustomerFile(file, 'en', NOW);
-    // A — one word for one idea: the page is about a BUYER, never a "customer".
-    expect(en).toContain('About this buyer'); expect(en).not.toContain('Customer');
+    // A — one word for one idea. The positioning rewrite made it "customer":
+    // the page is about a CUSTOMER, and never says "buyer".
+    // Its visible words, that is: a link's address (?buyer=) is not a word anyone reads.
+    expect(en).toContain('About this customer'); expect(en.replace(/<[^>]*>/g, ' ')).not.toMatch(/\bbuyers?\b/i);
     expect(en).toContain('First contact');
     expect(en).toContain('Products of interest'); expect(en).toContain('Quotes'); expect(en).toContain('Orders');
     const bare = renderCustomerFile({ ...file, profile: { ...file.profile, quoteCount: 0, orderCount: 0 } }, 'en', NOW);
@@ -44,12 +46,12 @@ describe('M9.7 · the buyer\'s own page (localized)', () => {
 
   it('timeline milestones localize from neutral kinds; empty state honest', () => {
     const zh = renderCustomerFile(file, 'zh', NOW);
-    expect(zh).toContain('沟通记录'); expect(zh).toContain('买家发来产品图片');
+    expect(zh).toContain('沟通记录'); expect(zh).toContain('客户发来产品图片');
     // V1 close-out — the figures are isolated, one each, so they keep their order in Arabic.
     expect(zh).toContain(t('zh', 'conv.tl.quote', { detail: '<bdi>5000个</bdi> · <bdi>$0.92/个</bdi>' })); expect(zh).toContain('你确认发送');
     const en = renderCustomerFile(file, 'en', NOW);
     // CC-13 — English spaces a figure from its unit (no-break); Chinese, above, sets them together.
-    expect(en).toContain('Buyer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000\u00a0pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
+    expect(en).toContain('Customer sent a photo'); expect(en).toContain(t('en', 'conv.tl.quote', { detail: '<bdi>5,000\u00a0pcs</bdi> · <bdi>$0.92/pcs</bdi>' }));
     expect(en).toContain('You approved sending');
     expect(renderCustomerFile({ ...file, timeline: [] }, 'en', NOW)).toContain('No history yet');
   });

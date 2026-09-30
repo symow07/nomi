@@ -140,11 +140,11 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
   it('My business shows the channel she uses, and no WhatsApp list of who may be messaged', async () => {
     const html = (await get(ig, igOwner, '/app/factory')).body;
     expect(html).toContain(esc(t('en', 'reach.channel.instagram')));
-    expect(html).toContain('answers buyers who write here');             // reach.inbound.connected
+    expect(html).toContain('answers people who write here');             // reach.inbound.connected
     expect(html).toContain('<div class="fconn on">');
     // Messenger is offered here, not yet connected, and is a door to connect it
     expect(html).toContain(esc(t('en', 'reach.channel.messenger')));
-    expect(html).toContain('cannot answer buyers who write here until it is connected');
+    expect(html).toContain('cannot answer customers who write here until it is connected');
     // the list of who may be messaged is WhatsApp's alone
     expect(html).not.toContain('action="/app/factory/allowlist/add"');
     expect(html).not.toContain('Add your own number first');

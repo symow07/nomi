@@ -149,7 +149,7 @@ describe('M22 · a refusal can never render as a success', () => {
 
   it('the conversation shows the refusal, never a tick', () => {
     const html = renderConversationDetail(detail([refusal('window_closed')]), 'en', NOW, null);
-    expect(html).toContain('WhatsApp no longer allows a reply to this buyer.');
+    expect(html).toContain('WhatsApp no longer allows a reply to this customer.');
     const card = between(html, 'card refused', 'takeover');
     expect(card).not.toContain('✓');
     expect(card).not.toContain('class="ok"');
