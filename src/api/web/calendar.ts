@@ -84,7 +84,9 @@ export function parseCalendarQuery(query: unknown, now: Date, firstDay = 1): Cal
   const cat = q['category'];
   const category = typeof cat === 'string' && (CALENDAR_CATEGORIES as readonly string[]).includes(cat)
     ? cat as CalendarCategory : null;
-  const b = typeof q['buyer'] === 'string' ? q['buyer'].toLowerCase() : '';
+  // The positioning rewrite: ?who= (an old ?buyer= link still works).
+  const w = q['who'] ?? q['buyer'];
+  const b = typeof w === 'string' ? w.toLowerCase() : '';
   const buyer = UUID.test(b) ? b : null;
   const at = parseYmd(q['at']) ?? today;
   if (view === 'list') {
@@ -111,7 +113,7 @@ const href = (p: {
     p.at ? `at=${p.at}` : '',
     p.from ? `from=${p.from}` : '',
     p.category ? `category=${p.category}` : '',
-    p.buyer ? `buyer=${p.buyer}` : '',
+    p.buyer ? `who=${p.buyer}` : '',
   ].filter(Boolean);
   return parts.length ? `/app/calendar?${parts.join('&')}` : '/app/calendar';
 };
@@ -324,7 +326,7 @@ function buyerForm(locale: Locale, v: CalendarView, hidden: Record<string, strin
       <form method="get" action="/app/calendar" class="pform">
         ${Object.entries(hidden).filter(([, val]) => val).map(([k, val]) => `<input type="hidden" name="${k}" value="${esc(val!)}" />`).join('')}
         <label class="fld"><span class="muted">${esc(t(locale, 'calendar.buyer.label'))}</span>
-          <select name="buyer">
+          <select name="who">
             <option value="">${esc(t(locale, 'calendar.buyer.all'))}</option>
             ${[...v.buyers, ...(v.buyer && !v.buyers.some((b) => b.id === v.buyer!.id) ? [v.buyer] : [])].map((b) =>
               `<option value="${esc(b.id)}"${b.id === buyerId ? ' selected' : ''}>${esc(`${flag(b.country) ? `${flag(b.country)} ` : ''}${buyerLabel(locale, b)}`)}</option>`).join('')}

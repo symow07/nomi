@@ -150,7 +150,7 @@ d('Stop · SEND — the gate binds the assistant on Instagram, never the owner (
   it('SEND · a reply QUEUED BEFORE Stop is cancelled at send time — recorded, shown, never sent late', async () => {
     const before = sent.length;
     const id = await queue('Queued a moment before Stop.', 'employee');
-    const r = await web.post('/app/factory/stop-assistant');
+    const r = await web.post('/app/business/stop-assistant');
     expect(r.statusCode).toBe(302);
     expect(flashSaid(r, SECRET)).toContain('Stopped on every channel');
     expect(await stoppedAt(db, BIZ)).not.toBeNull();
@@ -191,7 +191,7 @@ d('Stop · SEND — the gate binds the assistant on Instagram, never the owner (
   });
 
   it('SEND · Start lifts it: the next reply the assistant writes goes', async () => {
-    const r = await web.post('/app/factory/start-assistant');
+    const r = await web.post('/app/business/start-assistant');
     expect(flashSaid(r, SECRET)).toContain('answers again');
     expect(await stoppedAt(db, BIZ)).toBeNull();
     const id = await queue('Back to answering.', 'employee');
@@ -277,7 +277,7 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
       payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
     cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
-    const r = await act('/app/factory/stop-assistant');
+    const r = await act('/app/business/stop-assistant');
     expect(flashSaid(r, WEB_SECRET)).toContain('Stopped on every channel');
   }, 60_000);
   afterAll(async () => { await prod?.close(); });
@@ -328,7 +328,7 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
   });
 
   it('WAITING · Start lifts it: a buyer who writes after Start is answered; the one who waited stays with the owner', async () => {
-    const r = await act('/app/factory/start-assistant');
+    const r = await act('/app/business/start-assistant');
     expect(flashSaid(r, WEB_SECRET)).toContain('answers again');
     const w = sim.inboundText({ from: B, text: 'Do you make canvas bags?' });
     expect((await post(w)).statusCode).toBe(200);
@@ -404,7 +404,7 @@ d('Stop · GROUPING — Stop pressed while his lines wait to be grouped (require
       select f.id from message_fragments f join conversations c on c.id = f.conversation_id
        where c.business_id = ${BIZ}::uuid and f.processed_in is null`.execute(tx).then((r) => r.rows[0])), 'his line waiting in its batch');
     // The owner presses Stop while it waits.
-    const r = await prod.app.inject({ method: 'POST', url: '/app/factory/stop-assistant', headers: { cookie, ...FORM }, payload: '' });
+    const r = await prod.app.inject({ method: 'POST', url: '/app/business/stop-assistant', headers: { cookie, ...FORM }, payload: '' });
     expect(flashSaid(r, WEB_SECRET)).toContain('Stopped on every channel');
     // The batch wakes, meets the Stop, and hands him over — as stopped.
     const conv = await until(() => q((tx) => sql<{ conv: string; assigned: string | null }>`
@@ -477,18 +477,18 @@ d('Stop · DOOR — nothing takes a waiting buyer off Needs you while stopped (r
   afterAll(async () => { await web?.app.close(); await db?.destroy(); });
 
   it('DOOR · only the owner may Stop or Start — a sales assistant is refused and nothing changes', async () => {
-    const r = await web.post('/app/factory/stop-assistant', {}, staff);
+    const r = await web.post('/app/business/stop-assistant', {}, staff);
     expect(flashSaid(r, SECRET)).toContain('Only the owner');
     expect(await stoppedAt(db, BIZ)).toBeNull();
-    const s = await web.post('/app/factory/stop-assistant');
+    const s = await web.post('/app/business/stop-assistant');
     expect(flashSaid(s, SECRET)).toContain('Stopped on every channel');
-    const t2 = await web.post('/app/factory/start-assistant', {}, staff);
+    const t2 = await web.post('/app/business/start-assistant', {}, staff);
     expect(flashSaid(t2, SECRET)).toContain('Only the owner');
     expect(await stoppedAt(db, BIZ)).not.toBeNull();
   });
 
   it('DOOR · a second Stop changes nothing and records nothing', async () => {
-    const r = await web.post('/app/factory/stop-assistant');
+    const r = await web.post('/app/business/stop-assistant');
     expect(flashSaid(r, SECRET)).toContain('already stopped');
     const n = await inTenant(db, BIZ, (tx) => sql<{ n: number }>`
       select count(*)::int as n from channel_audit where business_id = ${BIZ} and action = 'assistant_stop'`
@@ -546,19 +546,19 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
   afterAll(async () => { await web?.app.close(); await db?.destroy(); });
 
   it('PAGE · answering: My business offers Stop on every channel, confirmed first', async () => {
-    const html = (await web.get('/app/factory')).body;
+    const html = (await web.get('/app/business')).body;
     expect(html).toContain('data-golive="every"');
-    expect(html).toContain('action="/app/factory/stop-assistant"');
-    expect(html).not.toContain('action="/app/factory/start-assistant"');
-    expect(html).toMatch(/action="\/app\/factory\/stop-assistant"[\s\S]*?onclick="return confirm\(this\.dataset\.confirm\)"/);
+    expect(html).toContain('action="/app/business/stop-assistant"');
+    expect(html).not.toContain('action="/app/business/start-assistant"');
+    expect(html).toMatch(/action="\/app\/business\/stop-assistant"[\s\S]*?onclick="return confirm\(this\.dataset\.confirm\)"/);
   });
 
   it('PAGE · stopped: My business says so, offers Start, and says nothing about the assistant answering anyone', async () => {
-    await web.post('/app/factory/stop-assistant');
-    const html = (await web.get('/app/factory')).body;
+    await web.post('/app/business/stop-assistant');
+    const html = (await web.get('/app/business')).body;
     expect(html).toContain('is stopped on every channel');
-    expect(html).toContain('action="/app/factory/start-assistant"');
-    expect(html).not.toContain('action="/app/factory/stop-assistant"');
+    expect(html).toContain('action="/app/business/start-assistant"');
+    expect(html).not.toContain('action="/app/business/stop-assistant"');
     expect(html).toContain('href="/app/inbox?filter=pending"');
     expect(html).not.toContain('replies go out as soon as they are sent');   // golive.other.live
     const today = (await web.get('/app')).body;
@@ -568,7 +568,7 @@ d('Stop · PAGE — My business and Today say what is true (requires DATABASE_UR
 
   it('PAGE · in every locale, nothing is left as a key', async () => {
     for (const l of ['zh', 'ar'] as const) {
-      for (const url of ['/app/factory', '/app']) {
+      for (const url of ['/app/business', '/app']) {
         const html = (await web.app.inject({ method: 'GET', url, headers: { cookie: web.cookie, 'accept-language': l } })).body;
         expect(html, `${l} ${url}`).toContain(`lang="${l}"`);
         expect(html, `${l} ${url}`).not.toMatch(/assistant\.stop\.|today\.stopped\./);

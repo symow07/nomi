@@ -102,7 +102,7 @@ d('CC-24 · the owner’s words survive a refusal (requires DATABASE_URL)', () =
   });
 
   it('an edit REFUSED because the assistant is stopped is kept on the draft, and the box opens with it', async () => {
-    await post('/app/factory/stop-assistant');
+    await post('/app/business/stop-assistant');
     const r = await post(`/app/inbox/${open}/act`, { draftId, command: '改', edit: 'My own words: 500 pcs at 2.35 each, ships Friday.' });
     expect(flashSaid(r, SECRET)).toContain('this draft was not sent');
     expect(await draftRow(draftId)).toEqual({ status: 'pending', owner_edit: 'My own words: 500 pcs at 2.35 each, ships Friday.', sent_text: null });
@@ -113,7 +113,7 @@ d('CC-24 · the owner’s words survive a refusal (requires DATABASE_URL)', () =
   });
 
   it('after Start, the kept edit sends exactly as written', async () => {
-    await post('/app/factory/start-assistant');
+    await post('/app/business/start-assistant');
     const kept = editBox(await page(open))!;
     await post(`/app/inbox/${open}/act`, { draftId, command: '改', edit: kept });
     expect(kicked).toEqual([{ conversationId: open, text: 'My own words: 500 pcs at 2.35 each, ships Friday.' }]);

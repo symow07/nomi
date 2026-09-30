@@ -330,7 +330,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
   });
 
   it('0076 · while the assistant is STOPPED, a deletion request is still written down, and alerted as one', async () => {
-    const stop = await postForm('/app/factory/stop-assistant');
+    const stop = await postForm('/app/business/stop-assistant');
     expect(stop.statusCode).toBe(302);
     try {
       expect((await post(sim.inboundText({ from: DURING_STOP.from, text: DURING_STOP.text }))).statusCode).toBe(200);
@@ -344,7 +344,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
       expect(await alertsFor(conv, 'handoff')).toBe(0);
       expect({ drafts: f.drafts, outbound: f.outbound }).toEqual({ drafts: 0, outbound: 0 });
     } finally {
-      await postForm('/app/factory/start-assistant');
+      await postForm('/app/business/start-assistant');
     }
   });
 

@@ -45,7 +45,7 @@ const PAGES: ReadonlyArray<readonly [string, (v: Viewer) => string, RegExp]> = [
   ['rate', (v) => renderRate({ current: { from: 'USD', to: 'CNY', rate: 7.15, statedAt: NOW }, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null, v), /action="\/app\/settings\/rate"/],
   ['terms', (v) => renderTerms({ terms: null }, 'en', null, v), /action="\/app\/settings\/terms"/],
   ['samples', (v) => renderSamples({ policy: null, waiting: [] }, 'en', null, NOW, v), /action="\/app\/settings\/samples"/],
-  ['getting ready', (v) => renderPilotReadiness(pilot, 'en', null, v), /action="\/app\/onboarding\/|href="\/app\/factory\/prices"/],
+  ['getting ready', (v) => renderPilotReadiness(pilot, 'en', null, v), /action="\/app\/onboarding\/|href="\/app\/business\/prices"/],
 ];
 
 describe('Phase 4a · staff see no form that would refuse them', () => {

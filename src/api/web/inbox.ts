@@ -1102,7 +1102,7 @@ export function renderInboxList(
       ? `<div class="empty">${esc(t(locale, 'refused.none'))}
           <div>${deeper(esc(buyersHref({ filter: 'all' })), t(locale, 'inbox.empty.seeAll'))}</div></div>`
       : `<div class="empty">${esc(t(locale, 'inbox.empty.none'))}<br><span class="muted">${esc(t(locale, 'inbox.empty.noneBody'))}</span>
-          <div>${deeper('/app/factory', t(locale, 'inbox.empty.setup'))}</div></div>`;
+          <div>${deeper('/app/business', t(locale, 'inbox.empty.setup'))}</div></div>`;
     return `${head}<div class="block">${body}</div>${doors}`;
   }
 
@@ -1792,7 +1792,7 @@ export function renderConversationDetail(
         <div class="rf">
           <div class="rf-w">${esc(t(locale, 'unlisted.what', { name: assistantName(locale) }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unlisted.why', { name: assistantName(locale) }))}</div>
-          <div class="rf-d"><a href="/app/factory">${esc(t(locale, 'unlisted.do'))}</a></div>
+          <div class="rf-d"><a href="/app/business">${esc(t(locale, 'unlisted.do'))}</a></div>
         </div>
       </div>`
     : '';

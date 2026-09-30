@@ -109,9 +109,9 @@ describe('Phase F · every empty surface says what happens next', () => {
   });
 
   it('the quiet branches still lead somewhere', () => {
-    expect(emptyToday).toContain('href="/app/factory"');     // nobody can reach the assistant yet: the way to go live
+    expect(emptyToday).toContain('href="/app/business"');     // nobody can reach the assistant yet: the way to go live
     expect(emptyToday).toContain('href="/app/calendar"');    // nothing coming up: the calendar all the same
-    expect(emptyBuyers('all')).toContain('href="/app/factory"');
+    expect(emptyBuyers('all')).toContain('href="/app/business"');
     expect(emptySearch).toContain('href="/app/inbox?filter=all"');   // every buyer, the search let go
     expect(emptyCalendar).toContain('href="/app/inbox"');
   });
@@ -127,7 +127,7 @@ describe('Phase F · every empty surface says what happens next', () => {
     for (const l of LOCALES) {
       const html = renderInboxList({ filter: 'all', waitingCount: 0, blockedCount: 0, conversations: [] }, l, NOW);
       expect(html.length).toBeGreaterThan(100);
-      expect(html).toContain('href="/app/factory"');           // the way forward, every locale
+      expect(html).toContain('href="/app/business"');           // the way forward, every locale
       if (l !== 'en') expect(html).not.toContain('No conversations yet');
     }
   });

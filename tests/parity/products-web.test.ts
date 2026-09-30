@@ -154,11 +154,11 @@ describe('D1 · the badge says WHAT is missing', () => {
     const html = renderProductList(waiting, 'en', { text: 'Added 3 products.', bad: false });
     expect(html).toContain('Added 3 products.');
     expect(html).toContain(t('en', 'product.list.needLimits', { n: 2 }));
-    expect(html).toContain('href="/app/factory/prices"');
+    expect(html).toContain('href="/app/business/prices"');
     expect(html.split(t('en', 'product.status.needsLimits')).length - 1).toBe(2);
     expect(html).toContain(t('en', 'product.status.notOffered'));
     expect(html).not.toContain(t('en', 'product.status.needsConfirm'));
-    expect(renderProductList(items, 'en'), 'nothing waiting, nothing said').not.toContain('/app/factory/prices');
+    expect(renderProductList(items, 'en'), 'nothing waiting, nothing said').not.toContain('/app/business/prices');
   });
 });
 

@@ -112,8 +112,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/onboarding/attest', 'which=owner_ready'],
     ['/app/onboarding/assistant-name', 'name=Mira'],
     ['/app/onboarding/validate', ''],
-    ['/app/factory/allowlist/add', 'phone=%2B971500001111&label=Staff%20try'],
-    ['/app/factory/allowlist/remove', `phone=${encodeURIComponent(LISTED)}`],
+    ['/app/business/allowlist/add', 'phone=%2B971500001111&label=Staff%20try'],
+    ['/app/business/allowlist/remove', `phone=${encodeURIComponent(LISTED)}`],
     ['/app/channels/whatsapp/test', ''],
     ['/app/channels/whatsapp/disconnect', ''],
     ['/app/channels/whatsapp/reconnect', ''],
@@ -173,7 +173,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(await tx((t) => sql<{ status: string }>`
       select status from channels where business_id = ${BIZ} and kind = 'whatsapp'`.execute(t)
       .then((r) => r.rows[0]?.status))).toBe('connected');
-    await post(ownerCookie, '/app/factory/allowlist/add', `phone=${encodeURIComponent(LISTED)}&label=Buyer%20one`);
+    await post(ownerCookie, '/app/business/allowlist/add', `phone=${encodeURIComponent(LISTED)}&label=Buyer%20one`);
     expect((await rows('pilot_allowlist')).length).toBe(1);
   }, 60_000);
 
@@ -197,7 +197,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   it('a refusal lands on the page the form was on', async () => {
     const where = async (url: string, payload = '') => String((await post(staffCookie, url, payload)).headers['location']);
     expect(await where('/app/onboarding/attest', 'which=owner_ready')).toBe('/app/onboarding');
-    expect(await where('/app/factory/allowlist/add', 'phone=%2B971500001111')).toBe('/app/factory');
+    expect(await where('/app/business/allowlist/add', 'phone=%2B971500001111')).toBe('/app/business');
     expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels');
     expect(await where(`/app/products/${PID}/edit`, 'moq=1')).toBe(`/app/products/${PID}`);
     expect(await where('/app/products/add/confirm', 'text=x')).toBe('/app/products');
@@ -208,7 +208,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   it('STAFF SEE NO FORM THAT WOULD REFUSE THEM — the values, and whose decision they are', async () => {
     const pages: ReadonlyArray<readonly [string, RegExp]> = [
       ['/app/onboarding', /action="\/app\/onboarding\/(attest|assistant-name|validate)"/],
-      ['/app/factory', /action="\/app\/factory\/allowlist\/(add|remove)"/],
+      ['/app/business', /action="\/app\/business\/allowlist\/(add|remove)"/],
       ['/app/channels', /action="\/app\/(channels\/whatsapp\/(test|disconnect|reconnect)|settings\/owner-phone)"/],
       ['/app/products', /href="\/app\/products\/add"/],
       ['/app/products/add', /action="\/app\/products\/add\/(review|photo)"/],
@@ -230,11 +230,11 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const product = (await get(staffCookie, `/app/products/${PID}`)).body;
     expect(product).toContain('Canvas tote');
     expect(product).toContain('500');
-    const factory = (await get(staffCookie, '/app/factory')).body;
+    const factory = (await get(staffCookie, '/app/business')).body;
     expect(factory).toContain(digits(LISTED));
     // Nor a door that opens only onto a refusal: the price limits are an owner page.
-    for (const url of ['/app/onboarding', '/app/products', `/app/products/${PID}`, '/app/factory']) {
-      expect((await get(staffCookie, url)).body, url).not.toContain('href="/app/factory/prices"');
+    for (const url of ['/app/onboarding', '/app/products', `/app/products/${PID}`, '/app/business']) {
+      expect((await get(staffCookie, url)).body, url).not.toContain('href="/app/business/prices"');
     }
   });
 
@@ -273,8 +273,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
 
   it('THE OWNER STILL DOES EACH — who may be written to, the number, her alerts', async () => {
     const me = await ownerId();
-    await post(ownerCookie, '/app/factory/allowlist/add', 'phone=%2B971500003333&label=Buyer%20two');
-    await post(ownerCookie, '/app/factory/allowlist/remove', `phone=${encodeURIComponent(LISTED)}`);
+    await post(ownerCookie, '/app/business/allowlist/add', 'phone=%2B971500003333&label=Buyer%20two');
+    await post(ownerCookie, '/app/business/allowlist/remove', `phone=${encodeURIComponent(LISTED)}`);
     const list = await tx((t) => sql<{ phone: string; archived_at: Date | null; added_by: string }>`
       select phone, archived_at, added_by from pilot_allowlist where business_id = ${BIZ} order by phone
     `.execute(t).then((r) => r.rows));
@@ -320,6 +320,32 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const after = await snapshot();
     expect(after.rates).toHaveLength(1);
     expect(after.samples).toHaveLength(1);
+  });
+
+  it('the positioning rewrite: My business moved to /app/business, and the old address answers for good', async () => {
+    const { LEGACY_BUSINESS } = await import('../../src/api/web/app.js');
+    const page = await get(ownerCookie, LEGACY_BUSINESS);
+    expect(page.statusCode).toBe(301);
+    expect(page.headers['location']).toBe('/app/business');
+    const deep = await get(ownerCookie, `${LEGACY_BUSINESS}/prices?productId=x`);
+    expect(deep.statusCode).toBe(301);
+    expect(deep.headers['location']).toBe('/app/business/prices?productId=x');
+    // A form posted from a page open before the move keeps its method and body.
+    const form = await post(ownerCookie, `${LEGACY_BUSINESS}/prices`, 'floor=1');
+    expect(form.statusCode).toBe(308);
+    expect(form.headers['location']).toBe('/app/business/prices');
+    // Only that address: a path that merely starts with the same letters is not it.
+    expect((await get(ownerCookie, `${LEGACY_BUSINESS}ish`)).statusCode).toBe(404);
+    expect((await get(ownerCookie, '/app/business')).statusCode).toBe(200);
+  });
+
+  it('the positioning rewrite: the export downloads as customers.csv, and the old name still works', async () => {
+    for (const file of ['customers.csv', 'buyers.csv']) {
+      const r = await get(ownerCookie, `/app/settings/data/${file}`);
+      expect(r.statusCode, file).toBe(200);
+      expect(String(r.headers['content-disposition']), file).toMatch(/filename="nomi-customers-\d{4}-\d{2}-\d{2}\.csv"/);
+    }
+    expect((await get(ownerCookie, '/app/settings/data/prices-given.csv')).statusCode).toBe(200);
   });
 
   it('the people page names what is now the owner’s', async () => {

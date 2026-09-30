@@ -101,7 +101,7 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     const spaced = `${lastCode().slice(0, 3)} ${lastCode().slice(3)}`;
     const ok = await form('/verify', { code: spaced }, `yf_otp=${pending}`);
     expect(ok.statusCode, ok.body.slice(0, 200)).toBe(302);
-    expect(String(ok.headers['location'])).toBe('/app/factory');
+    expect(String(ok.headers['location'])).toBe('/app/business');
     expect(flashSaid(ok, WEB_SECRET)).toBe(t('en', 'signup.welcome'));
     const set = cookies(ok);
     device = set['yf_dev'] ?? '';

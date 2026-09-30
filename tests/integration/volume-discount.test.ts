@@ -95,7 +95,7 @@ d('G22 · when she comes down on price (requires DATABASE_URL)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('WITH NO LIMITS STATED, a discount is refused — the floor is what makes one safe', async () => {
-    const res = await post('/app/factory/prices/volume', { productId: '', minQty: '10000', discountPct: '3' });
+    const res = await post('/app/business/prices/volume', { productId: '', minQty: '10000', discountPct: '3' });
     expect(res.statusCode).toBe(400);
     const rules = await tx((t) => sql<{ n: number }>`
       select count(*)::int as n from negotiation_rules where business_id = ${BIZ}`.execute(t).then((r) => r.rows[0]!.n));
@@ -103,14 +103,14 @@ d('G22 · when she comes down on price (requires DATABASE_URL)', () => {
   });
 
   it('and above the most she said may ever come off, it is refused with her own number', async () => {
-    await post('/app/factory/prices', { productId: '', floor: '0.30', maxDiscountPct: '8', askAbovePct: '5' });
-    const res = await post('/app/factory/prices/volume', { productId: '', minQty: '10000', discountPct: '30' });
+    await post('/app/business/prices', { productId: '', floor: '0.30', maxDiscountPct: '8', askAbovePct: '5' });
+    const res = await post('/app/business/prices/volume', { productId: '', minQty: '10000', discountPct: '30' });
     expect(res.statusCode).toBe(400);
     expect(res.body).toContain('more than the most you said may ever come off');
   });
 
   it('THE ONE SHE WRITES IS THE ONE A BUYER GETS', async () => {
-    const res = await post('/app/factory/prices/volume', { productId: '', minQty: '10000', discountPct: '3' });
+    const res = await post('/app/business/prices/volume', { productId: '', minQty: '10000', discountPct: '3' });
     expect(res.statusCode).toBe(302);
     const q = await quoteFor(10_000);
     expect(q.ok).toBe(true);
@@ -123,7 +123,7 @@ d('G22 · when she comes down on price (requires DATABASE_URL)', () => {
   });
 
   it('past her ask-me line the quote WAITS FOR HER, which is what G7a built', async () => {
-    await post('/app/factory/prices/volume', { productId: '', minQty: '50000', discountPct: '7' });
+    await post('/app/business/prices/volume', { productId: '', minQty: '50000', discountPct: '7' });
     const q = await quoteFor(50_000);
     expect(q.ok).toBe(true);
     if (!q.ok) return;
@@ -136,7 +136,7 @@ d('G22 · when she comes down on price (requires DATABASE_URL)', () => {
       select id::text as id from negotiation_rules
        where business_id = ${BIZ} and is_active and (condition->>'qtyGte')::int = 10000 limit 1
     `.execute(t).then((r) => r.rows[0]!.id));
-    const res = await post(`/app/factory/prices/volume/${id}/archive`, {});
+    const res = await post(`/app/business/prices/volume/${id}/archive`, {});
     expect(res.statusCode).toBe(302);
 
     const row = await tx((t) => sql<{ is_active: boolean }>`

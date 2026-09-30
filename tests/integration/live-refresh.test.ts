@@ -285,14 +285,14 @@ d('CC-26 · the page learns that something new arrived (requires DATABASE_URL)',
   });
 
   it('a stopped assistant changes nothing about it: a buyer who writes is still news', async () => {
-    const stopped = await post('/app/factory/stop-assistant');
+    const stopped = await post('/app/business/stop-assistant');
     expect(stopped.statusCode).toBe(302);
     try {
       const url = await pageAsk(`/app/inbox/${conv}`);
       await buyerWrites(BIZ, conv, 'Are you there?');
       expect((await ask(url)).said).toEqual({ news: true, what: 'message' });
     } finally {
-      await post('/app/factory/start-assistant');
+      await post('/app/business/start-assistant');
     }
   });
 

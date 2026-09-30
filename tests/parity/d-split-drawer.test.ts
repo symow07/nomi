@@ -38,7 +38,7 @@ const navOf = (html: string) => html.split('<nav class="side"')[1]?.split('</nav
 
 describe('D · five entries', () => {
   it('Today, Buyers, the assistant, My business, Setup — in that order, and no conditional sixth', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/factory', '/app/settings']);
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/business', '/app/settings']);
     expect(NAV.map((n) => n.id)).toEqual(['home', 'inbox', 'employee', 'factory', 'settings']);
   });
 
@@ -49,8 +49,8 @@ describe('D · five entries', () => {
 
   it('the map puts what you sell under My business, behaviour under the assistant, wiring under Setup', () => {
     const under = (hub: string) => CONTEXTUAL_ROUTES_BY_HUB.find((g) => g.hub === hub)?.routes ?? [];
-    expect(under('/app/factory')).toEqual(expect.arrayContaining([
-      '/app/products', '/app/factory/prices', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
+    expect(under('/app/business')).toEqual(expect.arrayContaining([
+      '/app/products', '/app/business/prices', '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
     ]));
     expect(under('/app/employee')).toEqual(expect.arrayContaining(['/app/knowledge', '/app/settings/forbidden', '/app/sandbox']));
     expect(under('/app/settings')).toEqual(expect.arrayContaining(['/app/onboarding', '/app/channels', '/app/settings/people']));

@@ -6,7 +6,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 
 import { deletionDueBy } from '../../core/ops/deletions.js';
-import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, type ExportSubject } from './dataExport.js';
+import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, exportFileName, type ExportSubject } from './dataExport.js';
 import { back, deeper, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import type { Viewer } from '../../core/conversation/people.js';
@@ -309,7 +309,7 @@ export function renderDataRights(
   // and the second half is the one an owner leaving would not think to ask for.
   const links = (subjects: readonly ExportSubject[]) =>
     `<ul class="chips">${subjects.map((s) => `<li>
-      ${deeper(`/app/settings/data/${s}.csv`, t(locale, `data.export.subject.${s}` as MessageKey), '', 'download')}
+      ${deeper(`/app/settings/data/${exportFileName(s)}.csv`, t(locale, `data.export.subject.${s}` as MessageKey), '', 'download')}
     </li>`).join('')}</ul>`;
   const CONFIG: readonly ExportSubject[] = ['price-rules', 'selling-terms', 'teaching'];
   const record = EXPORT_SUBJECTS.filter((s) => !CONFIG.includes(s));

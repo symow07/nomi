@@ -124,7 +124,7 @@ d('P5 · every workspace practises on its own copy, and no other reaches it (req
   });
 
   it('every workspace is offered the door', async () => {
-    for (const url of ['/app/employee', '/app/factory']) {
+    for (const url of ['/app/employee', '/app/business']) {
       const r = await app.inject({ method: 'GET', url, headers: { cookie: other } });
       if (r.statusCode === 200) expect(r.body, url).toContain('href="/app/sandbox');
     }

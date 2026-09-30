@@ -415,7 +415,7 @@ export async function runValidation(db: Db, businessIdRaw: string): Promise<{ pa
 // ── renderer (pure, localized, escaped) ──────────────────────────────────────
 
 const DETECTED_LINK: Record<DetectedKey, string> = {
-  profile: '/app/settings', products: '/app/products', priceRules: '/app/factory/prices',
+  profile: '/app/settings', products: '/app/products', priceRules: '/app/business/prices',
   knowledge: '/app/knowledge', claims: '/app/knowledge', sandbox: '/app/sandbox',
   channel: '/app/channels',
 };

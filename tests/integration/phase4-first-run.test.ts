@@ -138,7 +138,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
   });
 
   it('My business shows the channel she uses, and no WhatsApp list of who may be messaged', async () => {
-    const html = (await get(ig, igOwner, '/app/factory')).body;
+    const html = (await get(ig, igOwner, '/app/business')).body;
     expect(html).toContain(esc(t('en', 'reach.channel.instagram')));
     expect(html).toContain('answers people who write here');             // reach.inbound.connected
     expect(html).toContain('<div class="fconn on">');
@@ -146,7 +146,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     expect(html).toContain(esc(t('en', 'reach.channel.messenger')));
     expect(html).toContain('cannot answer customers who write here until it is connected');
     // the list of who may be messaged is WhatsApp's alone
-    expect(html).not.toContain('action="/app/factory/allowlist/add"');
+    expect(html).not.toContain('action="/app/business/allowlist/add"');
     expect(html).not.toContain('Add your own number first');
     // WhatsApp is still listed — the Channels page shows it too — but it does
     // not claim nobody can be answered while Instagram is answering.
@@ -158,7 +158,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     await post(ig, igOwner, '/app/channels/messenger/connect');
     expect(await channelsStep(IG_BIZ)).toBe(true);
     expect((await progress(IG_BIZ)).done).toBe(1);
-    const html = (await get(ig, igOwner, '/app/factory')).body;
+    const html = (await get(ig, igOwner, '/app/business')).body;
     expect(html.split(`<div class="fconn on">`).length - 1).toBe(2);
   });
 
@@ -207,16 +207,16 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
 
   it('a WhatsApp business still sees its list of who may be messaged, and completes the step', async () => {
     expect(await channelsStep(WA_BIZ)).toBe(false);
-    const before = (await get(wa, waOwner, '/app/factory')).body;
-    expect(before).not.toContain('action="/app/factory/allowlist/add"');   // nothing connected yet
+    const before = (await get(wa, waOwner, '/app/business')).body;
+    expect(before).not.toContain('action="/app/business/allowlist/add"');   // nothing connected yet
 
     const r = await post(wa, waOwner, '/app/channels/whatsapp/connect');
     expect(flashSaid(r, SECRET)).not.toBe('');
     expect(await channelsStep(WA_BIZ)).toBe(true);
     expect(channelRow((await get(wa, waOwner, '/app/onboarding')).body, true)).toBe(true);
 
-    const html = (await get(wa, waOwner, '/app/factory')).body;
-    expect(html).toContain('action="/app/factory/allowlist/add"');
+    const html = (await get(wa, waOwner, '/app/business')).body;
+    expect(html).toContain('action="/app/business/allowlist/add"');
     expect(html).toContain('Add your own number first');
     // Yiwu is in China, so here +86 is the right example
     expect(html).toContain('placeholder="+86 …"');
@@ -244,7 +244,7 @@ d('Phase 4b · first run without WhatsApp (requires DATABASE_URL)', () => {
     const page = renderFactory(await loadFactory(db, MAIL_BIZ, false), 'en');
     expect(page).toContain(esc(t('en', 'reach.channel.email')));
     expect(page).toContain(`<bdi>sales-${RUN}@mailbox.test</bdi>`);
-    expect(page).not.toContain('action="/app/factory/allowlist/add"');
+    expect(page).not.toContain('action="/app/business/allowlist/add"');
     // No country given: a neutral sentence, not somebody else's number
     const { phonePlaceholder } = await import('../../src/api/web/channels.js');
     expect(phonePlaceholder('en', null)).toBe(t('en', 'settings.alerts.placeholder'));

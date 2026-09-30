@@ -125,7 +125,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
   });
 
   it('A FLOOR, A NEW PRICE AND A SAMPLE are in dirhams too', async () => {
-    await form('/app/factory/prices', { productId: pid, floor: '100', maxDiscountPct: '10', askAbovePct: '5' }, cookie);
+    await form('/app/business/prices', { productId: pid, floor: '100', maxDiscountPct: '10', askAbovePct: '5' }, cookie);
     expect(await one(`select currency, floor_price_usd::float as floor from pricing_policy where business_id = $1 and product_id = $2`, [bid, pid]))
       .toEqual({ currency: 'AED', floor: 100 });
     // The page posts the "offered" box with every save; left out, it would switch the product off.
@@ -145,7 +145,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
     const r = await form('/app/settings/rate', { rate: '3.67' }, cookie);
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'rate.flash.none'));
     expect((await admin.query(`select 1 from owner_rates where business_id = $1`, [bid])).rowCount).toBe(0);
-    expect((await get('/app/factory')).body).not.toContain('href="/app/settings/rate"');
+    expect((await get('/app/business')).body).not.toContain('href="/app/settings/rate"');
   });
 
   it('A QUOTE FROM THOSE ROWS IS IN DIRHAMS, and the same figure in dollars does not leave', async () => {

@@ -93,7 +93,7 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
 
     const r = await form('/signup', { ...A, email: `  ${A.email.toUpperCase()} `, invite: ticketA }, '', ['whatsapp', 'instagram', 'smoke-signals']);
     expect(r.statusCode, r.body.slice(0, 300)).toBe(302);
-    expect(String(r.headers['location'])).toBe('/app/factory');
+    expect(String(r.headers['location'])).toBe('/app/business');
     expect(flashSaid(r, WEB_SECRET)).toBe(t('en', 'signup.welcome'));
     cookieA = cookieOf(r);
     expect(cookieA).not.toBe('');
