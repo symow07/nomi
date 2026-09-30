@@ -3,7 +3,6 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { flashSaid } from './tenant.js';
-import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -36,7 +35,6 @@ const d = DATABASE_URL ? describe : describe.skip;
 const RUN = randomUUID().slice(0, 8);
 const BIZ = `cc2e0000-0000-4000-8000-${RUN}0001`;
 const PROD = `cc2e0000-0000-4000-8000-${RUN}0002`;
-const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
 const SECRET = 'a-test-session-secret-of-sufficient-length';
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
 
@@ -55,6 +53,17 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   let newerDraft = '';
   const unsure: string[] = [];   // sends nobody can account for
   const answered: string[] = [];
+  const practised: { businessId: string; conversationId: string }[] = [];
+  /** The practice adapter's part, for this test: queued rows sent, and on the transcript. */
+  const deliver = (biz: string, conv: string) => as(biz, async (x) => {
+    const rows = (await sql<{ id: string; body: string }>`
+      select id::text as id, body from outbound_messages where conversation_id = ${conv}::uuid and status = 'queued'`.execute(x)).rows;
+    for (const r of rows) {
+      await sql`update outbound_messages set status = 'sent', sent_at = now(), provider_message_id = ${`practice:${r.id}`} where id = ${r.id}::uuid`.execute(x);
+      await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
+                values (${conv}::uuid, ${`out:${r.id}`}, 'outbound', 'text', ${r.body}, clock_timestamp())`.execute(x);
+    }
+  });
 
   const as = async <R>(biz: string, fn: (x: Tx) => Promise<R>): Promise<R> => {
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -147,36 +156,19 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
         returning id::text as id`.execute(x)).rows[0]!.id;
     });
 
-    // Practice: the one sandbox tenant, emptied the way the owner empties it
-    // (reset archives; it never deletes), then seeded — boot.test.ts's recipe.
-    const { resetSandbox } = await import('../../src/api/web/sandbox.js');
-    const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
-    const activeNow = () => as(SANDBOX, (x) => sql<{ n: number }>`
-      select count(*)::int as n from conversations c
-        join client_channels cc on cc.client_id = c.client_id
-         and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
-       where c.business_id = ${SANDBOX} and c.is_active`.execute(x).then((r) => r.rows[0]!.n));
-    for (let i = 0; i < 50 && (await activeNow()) > 0; i++) {
-      await resetSandbox({ db, businessId: SANDBOX, now: () => new Date() });
-    }
-    await as(SANDBOX, async (x) => {
-      for (const stmt of sandboxSeedSql().split(';')) {
-        const s = stmt.trim();
-        if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
-        await sql.raw(s).execute(x);
-      }
-    });
-
     app = Fastify({ logger: false });
     const code = `landing-${RUN}`;
     registerWebApp(app, {
       db, businessId: BIZ, accessCode: code, sessionSecret: SECRET,
       employeeName: 'Lily', avatar: '👩‍💼', secureCookie: false, factsTtlMs: 0,
       provider: 'disabled', messagingEnabled: true,
-      kickOutbound: async () => {}, kickDrive: async () => {},
+      kickOutbound: async () => {},
+      // Practice (P3) runs on the worker, which this test does not start: it stands
+      // in for the worker's answer (below) and for the practice adapter here — an
+      // owner's reply on the practice copy is delivered as the adapter would.
+      kickDrive: async (b: string, c: string) => { if (b !== BIZ) await deliver(b, c); },
       kickAnswer: async (_b: string, c: string) => { answered.push(c); },
-      // Practice, with its live lane offered, so the lane can be seen to hold.
-      sandboxBusinessId: SANDBOX, analyzer: new FakeAnalyzer(), replyWriter: new FakeReplyWriter(),
+      enqueueInbound: async (job: { businessId: string; conversationId: string }) => { practised.push(job); },
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     cookie = String((await app.inject({ method: 'POST', url: '/login', payload: `code=${code}`, headers: FORM }))
@@ -184,14 +176,7 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
     expect(cookie).not.toBe('');
   }, 120_000);
 
-  afterAll(async () => {
-    // Practice is shared by every run: leave it as the owner leaves it, empty.
-    if (db) {
-      const { resetSandbox } = await import('../../src/api/web/sandbox.js');
-      await resetSandbox({ db, businessId: SANDBOX, now: () => new Date() }).catch(() => {});
-    }
-    await app?.close(); await db?.destroy();
-  });
+  afterAll(async () => { await app?.close(); await db?.destroy(); });
 
   it('Today, the calendar, an order, the samples list, Buyers and the buyer file open it on its newest message', async () => {
     const landing = `href="/app/inbox/${conv}#latest"`;
@@ -281,52 +266,64 @@ d('CC-25 · every way back lands on the newest message (requires DATABASE_URL)',
   });
 
   it('Practice: the transcript, then the approval, the take-over, the checks and the next message — and every action lands on #latest', async () => {
-    const run = await post('/app/sandbox/scenario', { mode: 'scripted', scenarioId: 'price-floor-clamp-under-aggressive-discount' });
+    const run = await post('/app/sandbox/scenario', { scenarioId: 'price-floor-clamp-under-aggressive-discount' });
     expect(run.statusCode).toBe(302);
-    expect(run.headers['location']).toBe('/app/sandbox?mode=scripted#latest');
+    expect(run.headers['location']).toBe('/app/sandbox#latest');
+    // P3 — the case's words went to the queue, on the workspace's own copy; the notice says so, under the line.
+    const job = practised.at(-1)!;
+    expect(job.businessId).not.toBe(BIZ);
+    const sent = await land(run);
+    expect(sent).toContain('We can commit to 5000 units');
+    expect(landing(sent)).toBeGreaterThan(at(sent, 'We can commit to 5000 units'));
 
-    // A case loaded says nothing: the newest line is the landing, the approval under it.
-    const page = await land(run);
+    // What the worker would write: the reply for approval, and the checks it ran.
+    await as(job.businessId, async (x) => {
+      await sql`insert into drafts (business_id, conversation_id, capability, draft_text, status)
+                values (${job.businessId}::uuid, ${job.conversationId}::uuid, 'negotiate', 'Our floor for 5000 units is firm.', 'pending')`.execute(x);
+      await sql`insert into conversation_events (business_id, conversation_id, type, payload)
+                values (${job.businessId}::uuid, ${job.conversationId}::uuid, 'sandbox_turn', ${JSON.stringify({
+                  scenarioId: null, scenarioTitle: null, capability: 'negotiate', appliedMode: 'draft', guardViolations: 0,
+                  handoff: false, quote: null, checks: [{ invariant: 'priceFloorRespected', pass: true, detail: 'ok' }] })}::jsonb)`.execute(x);
+    });
+    const page = await get('/app/sandbox').then((r) => r.body);
     const order = [
       at(page, 'class="timeline"'), at(page, 'id="latest"'), at(page, 'class="card draft"'),
       at(page, 'class="card takeover'), at(page, 'class="card sbx-trust'), at(page, 'id="compose"'),
     ];
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(page).toMatch(/id="latest" class="msg (?:inbound|outbound)">/);
-    expect(page).toContain('We can commit to 5000 units');   // the buyer's line, in the transcript above the approval
     expect(at(page, 'We can commit to 5000 units')).toBeLessThan(at(page, 'class="card draft"'));
 
-    // The live lane is kept through the take-over, as the forms always asked.
-    const took = await post('/app/sandbox/takeover', { mode: 'live' });
-    expect(took.headers['location']).toBe('/app/sandbox?mode=live#latest');
+    const took = await post('/app/sandbox/takeover');
+    expect(took.headers['location']).toBe('/app/sandbox#latest');
     const held = await land(took);
     const notice = landing(held);
     expect(notice).toBeGreaterThan(at(held, 'class="timeline"'));
     expect(notice).toBeLessThan(at(held, 'action="/app/sandbox/reply"'));
 
-    const replied = await post('/app/sandbox/reply', { mode: 'live', text: 'Let me check the floor for you.' });
-    expect(replied.headers['location']).toBe('/app/sandbox?mode=live#latest');
+    const replied = await post('/app/sandbox/reply', { text: 'Let me check the floor for you.' });
+    expect(replied.headers['location']).toBe('/app/sandbox#latest');
     const after = await land(replied);
     // her reply is the newest line now, and the notice — the landing — is under it
     // the signature line may carry the assistant's ✦ and name in spans (the design pass)
     expect(after).toMatch(/<div class="msg outbound">\s*<div dir="auto" class="bubble"><bdi>Let me check the floor for you\.<\/bdi><\/div>\s*<div class="ts muted">(?:[^<]|<\/?span[^>]*>)*<\/div>\s*<\/div><\/div>/);
     expect(landing(after)).toBeGreaterThan(at(after, 'Let me check the floor for you.'));
 
-    const resumed = await post('/app/sandbox/resume', { mode: 'live' });
-    expect(resumed.headers['location']).toBe('/app/sandbox?mode=live#latest');
+    const resumed = await post('/app/sandbox/resume');
+    expect(resumed.headers['location']).toBe('/app/sandbox#latest');
 
-    const said = await post('/app/sandbox/message', { mode: 'scripted', text: 'do you have canvas bags?' });
-    expect(said.headers['location']).toBe('/app/sandbox?mode=scripted#latest');
-    const draftId = await as(SANDBOX, (x) => sql<{ id: string }>`
-      select id::text as id from drafts where business_id = ${SANDBOX} and status = 'pending'
+    const said = await post('/app/sandbox/message', { text: 'do you have canvas bags?' });
+    expect(said.headers['location']).toBe('/app/sandbox#latest');
+    const draftId = await as(job.businessId, (x) => sql<{ id: string }>`
+      select id::text as id from drafts where business_id = ${job.businessId}::uuid and status = 'pending'
        order by created_at desc limit 1`.execute(x).then((r) => r.rows[0]?.id ?? ''));
-    const acted = await post('/app/sandbox/act', { mode: 'scripted', draftId, command: '发送' });
-    expect(acted.headers['location']).toBe('/app/sandbox?mode=scripted#latest');
+    const acted = await post('/app/sandbox/act', { draftId, command: '发送' });
+    expect(acted.headers['location']).toBe('/app/sandbox#latest');
 
     // Reset empties it, and lands on its notice: under the empty transcript, the box under that —
     // not the top of a page whose first screen is the safety-check card.
-    const reset = await post('/app/sandbox/reset', { mode: 'live' });
-    expect(reset.headers['location']).toBe('/app/sandbox?mode=live#latest');
+    const reset = await post('/app/sandbox/reset');
+    expect(reset.headers['location']).toBe('/app/sandbox#latest');
     const empty = await land(reset);
     const mark = landing(empty);
     expect(empty.slice(mark)).toMatch(/^<div class="flash" role="status" id="latest">/);   // good news, not drawn as a refusal

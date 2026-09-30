@@ -280,6 +280,36 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(prod.channels, 'deployment mode mounted a channel').toEqual([]);
   });
 
+  it('P3 — with no channel configured, the outbound worker still carries Practice: an approved practice reply reaches the practice adapter', async () => {
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { refreshPractice, practiceConversation } = await import('../../src/db/practice.js');
+    const live = parseBusinessId(DEMO_BIZ); if (!live.ok) throw new Error('fixture');
+    const copy = await refreshPractice(prod.db, live.value);
+    const { conv, draft } = await withTenantTx(prod.db, copy, async (tx) => {
+      const c = await practiceConversation(tx, copy);
+      const d = (await sql<{ id: string }>`insert into drafts (business_id, conversation_id, capability, draft_text, status)
+        values (${copy}, ${c}::uuid, 'qualify', 'Deployment mode practice reply.', 'pending') returning id::text as id`.execute(tx)).rows[0]!.id;
+      return { conv: c, draft: d };
+    });
+    const ok = await prod.app.inject({ method: 'POST', url: '/login', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
+    const cookie = String(ok.headers['set-cookie']).split(';')[0]!;
+    const act = await prod.app.inject({ method: 'POST', url: '/app/sandbox/act',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: `draftId=${draft}&command=${encodeURIComponent('发送')}` });
+    expect(act.statusCode).toBe(302);
+    const end = Date.now() + 30_000;
+    let row: { status: string; provider: string | null } | undefined;
+    while (Date.now() < end) {
+      row = await withTenantTx(prod.db, copy, (tx) => sql<{ status: string; provider: string | null }>`
+        select status, provider_message_id as provider from outbound_messages where conversation_id = ${conv}::uuid`.execute(tx).then((r) => r.rows[0]));
+      if (row && row.status === 'delivered') break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(row).toMatchObject({ status: 'delivered' });
+    expect(row!.provider).toMatch(/^practice:/);
+  }, 60_000);
+
   it('M9 command center: / and /app require login; /login serves the form', async () => {
     const root = await prod.app.inject({ method: 'GET', url: '/' });
     expect(root.statusCode).toBe(302);
@@ -1011,141 +1041,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     return String(ok.headers['set-cookie']).split(';')[0] ?? '';
   }
 
-  // ── M12.2 Interactive pilot sandbox (dedicated tenant, real engine) ─────────
-  describe('M12.2 · interactive pilot sandbox', () => {
-    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
+  // M12.2 · Practice — through the real pipeline since P3: tests/integration/practice-worker.test.ts.
 
-    const withSandbox = async <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> => {
-      const { withTenantTx } = await import('../../src/db/client.js');
-      const { parseBusinessId } = await import('../../src/core/types/ids.js');
-      const bid = parseBusinessId(SANDBOX); if (!bid.ok) throw new Error('fixture');
-      return withTenantTx(prod.db, bid.value, fn as never);
-    };
-
-    beforeAll(async () => {
-      // M22 — the sandbox tenant is a SINGLETON by design (one practice space
-      // per installation), so unlike the factory it cannot be re-namespaced per
-      // run. These tests assert it starts empty, which a previous run's practice
-      // conversation breaks. Clear it through the product's own affordance —
-      // the same one the owner taps, which archives rather than deletes.
-      //
-      // BEFORE the seed, not after: reset archives the ONE active conversation
-      // it finds, so seeding first and resetting second leaves the seed's
-      // conversation archived and a later test's conversation active — which is
-      // exactly the state the reset test then fails on.
-      // `resetSandbox` archives THE active conversation — one per call, because
-      // the sandbox is meant to hold one. Runs accumulate them, so drain until
-      // none is left. Bounded: a reset that stops archiving is a real defect and
-      // should surface as this loop giving up, not as an infinite one.
-      const { resetSandbox } = await import('../../src/api/web/sandbox.js');
-      // Scoped to the sandbox BUYER's thread, which is the only thing
-      // `resetSandbox` governs (it finds the conversation by SANDBOX_WA_ID).
-      // Counting every active conversation in the tenant would demand more of
-      // reset than it promises, and fail on threads it cannot reach.
-      const activeNow = () => withSandbox((tx) => sql<{ n: number }>`
-        select count(*)::int as n from conversations c
-          join client_channels cc on cc.client_id = c.client_id
-           and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
-         where c.business_id=${SANDBOX} and c.is_active`
-        .execute(tx as never).then((r) => r.rows[0]!.n));
-      for (let i = 0; i < 50 && (await activeNow()) > 0; i++) {
-        await resetSandbox({ db: prod.db, businessId: SANDBOX, now: () => new Date() });
-      }
-      expect(await activeNow(), 'sandbox would not drain').toBe(0);
-
-      const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
-      // App-role seed inside the sandbox tenant tx (businesses RLS with-check = id).
-      await withSandbox(async (tx) => {
-        for (const stmt of sandboxSeedSql().split(';')) {
-          const s = stmt.trim();
-          if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
-          await sql.raw(s).execute(tx as never);
-        }
-      });
-    });
-
-    it('requires owner auth', async () => {
-      const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox' });
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toBe('/login');
-    });
-
-    it('ISOLATION: the sandbox tenant has NO channel credential (unroutable from any webhook)', async () => {
-      const n = await withSandbox((tx) =>
-        sql<{ n: number }>`select count(*)::int as n from channel_credentials where business_id=${SANDBOX}`
-          .execute(tx as never).then((r) => r.rows[0]!.n));
-      expect(n).toBe(0);
-    });
-
-    it('renders the simulation banner and starts empty', async () => {
-      const cookie = await login();
-      const res = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('This is practice only. Nothing reaches a real buyer.');
-      expect(res.body).toContain('No messages yet');
-    });
-
-    it('a scripted scenario runs the REAL engine → transcript + a passing trust strip, draft-first', async () => {
-      const cookie = await login();
-      const post = await prod.app.inject({ method: 'POST', url: '/app/sandbox/scenario',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'mode=scripted&scenarioId=price-floor-clamp-under-aggressive-discount' });
-      expect(post.statusCode).toBe(302);
-
-      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(page.body).toContain('We can commit to 5000 units');   // buyer message, in the transcript
-      expect(page.body).toContain('Trust check');
-      expect(page.body).toContain('All checks passed');             // floor respected, no silent escalation
-      expect(page.body).toContain('action="/app/sandbox/act"');     // draft-first → pending approval
-    });
-
-    it('approval records the reply via the ONE approval service; a GET never sent it', async () => {
-      const cookie = await login();
-      const draft = await withSandbox((tx) =>
-        sql<{ id: string }>`select id from drafts where status='pending' order by created_at desc limit 1`
-          .execute(tx as never).then((r) => r.rows[0]));
-      expect(draft).toBeTruthy();
-
-      const act = await prod.app.inject({ method: 'POST', url: '/app/sandbox/act',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: `draftId=${draft!.id}&command=${encodeURIComponent('发送')}&mode=scripted` });
-      expect(act.statusCode).toBe(302);
-
-      const after = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(after.body).toContain('msg outbound');   // the approved reply is now a sent bubble
-    });
-
-    it('reset archives (never deletes) and leaves a sandbox_reset audit event', async () => {
-      const cookie = await login();
-      const total0 = await withSandbox((tx) =>
-        sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX}`
-          .execute(tx as never).then((r) => r.rows[0]!.n));
-
-      const reset = await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
-      expect(reset.statusCode).toBe(302);
-
-      const { active, total, evt } = await withSandbox(async (tx) => ({
-        // M22 — scoped to the sandbox BUYER's thread, which is what reset
-        // governs (`findActiveConversation` looks it up by SANDBOX_WA_ID).
-        // Counting every active conversation in the tenant demanded more of
-        // reset than it promises and only passed on a never-reused database:
-        // the human-control tests below open threads under other numbers that
-        // reset structurally cannot reach.
-        active: (await sql<{ n: number }>`select count(*)::int as n from conversations c
-          join client_channels cc on cc.client_id = c.client_id
-           and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
-         where c.business_id=${SANDBOX} and c.is_active`.execute(tx as never)).rows[0]!.n,
-        total: (await sql<{ n: number }>`select count(*)::int as n from conversations where business_id=${SANDBOX}`.execute(tx as never)).rows[0]!.n,
-        evt: (await sql<{ n: number }>`select count(*)::int as n from conversation_events where business_id=${SANDBOX} and type='sandbox_reset'`.execute(tx as never)).rows[0]!.n,
-      }));
-      expect(active).toBe(0);              // conversation archived
-      expect(total).toBe(total0);          // nothing deleted
-      expect(evt).toBeGreaterThanOrEqual(1); // audit trace left
-    });
-  });
-
-  // ── M13 factory knowledge: teach → answer → correct → new answer, live ──────
+  // ── M13 factory knowledge: a certification is a claim, not a fact ─────────────
   describe('M13 · factory knowledge in the sandbox', () => {
     const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
     const TRUST_PRODUCT = 'b0000000-0000-0000-0000-000000000001';
@@ -1170,74 +1068,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       });
     });
 
-    /*
-     * THIS TEST OWNS ITS FACTS, BEFORE AND AFTER.
-     *
-     * The sandbox tenant is deliberately never pruned, so this test used to
-     * inherit every minimum-order fact every previous run had taught it. After
-     * a few hundred runs the local database held 119 active facts for it, the
-     * matcher answered from an older one, and "the correction won" failed — on
-     * a machine that had run the suite before, and nowhere else. Nothing was
-     * flaky and nothing in the product was wrong: the test did not own its
-     * starting state, and it left its own facts behind for the next run to
-     * trip over.
-     *
-     * It cannot avoid the label — the buyer's question is matched against it,
-     * so a label unique to this run would never be found. What it can do is
-     * take that label's facts out of the way on the way in AND on the way out,
-     * so the tenant is no dirtier afterwards than before. Archived, never
-     * deleted: this product does not erase, and the assertion below counts
-     * archived rows anyway.
-     */
-    const LABEL = 'What is your minimum order?';
-    const clearOwnFacts = () => q((tx) => sql`
-      update product_knowledge set status = 'archived'
-       where business_id = ${SANDBOX} and status = 'active'
-         and kind = 'faq' and label = ${LABEL}`.execute(tx as never));
-
-    const ask = async (cookie: string) => {
-      await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
-      await prod.app.inject({ method: 'POST', url: '/app/sandbox/message',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'mode=scripted&text=' + encodeURIComponent('what is your minimum order?') });
-      return prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-    };
-
-    it('teach → answer, then correct → the NEW answer, old row archived (never deleted)', async () => {
-      const { teachKnowledge, correctKnowledge } = await import('../../src/api/web/knowledge.js');
-      const cookie = await login();
-      await clearOwnFacts();
-      try {
-        await teachKnowledge(prod.db, SANDBOX, { productId: null, kind: 'faq',
-          label: LABEL, content: 'Our minimum order is 1000 pieces.' });
-        const first = await ask(cookie);
-        expect(first.body).toContain('Our minimum order is 1000 pieces.');   // answered from taught knowledge
-
-        const id = await q((tx) => sql<{ id: string }>`
-          select id from product_knowledge where business_id=${SANDBOX} and status='active' and kind='faq'
-          order by created_at desc limit 1`.execute(tx as never).then((r) => r.rows[0]!.id));
-        await correctKnowledge(prod.db, SANDBOX, id, 'Our minimum order is 2000 pieces.');
-
-        const second = await ask(cookie);
-        expect(second.body).toContain('Our minimum order is 2000 pieces.');  // the correction won
-        expect(second.body).not.toContain('1000 pieces');                    // fresh thread → only the new answer
-
-        const archived = await q((tx) => sql<{ n: number }>`
-          select count(*)::int as n from product_knowledge where business_id=${SANDBOX} and status='archived'`
-          .execute(tx as never).then((r) => r.rows[0]!.n));
-        expect(archived).toBeGreaterThanOrEqual(1);
-      } finally {
-        // On the way out too, and on a FAILING run as well — the run that
-        // fails is the one whose leftovers would confuse the next one.
-        await clearOwnFacts();
-      }
-      const leftActive = await q((tx) => sql<{ n: number }>`
-        select count(*)::int as n from product_knowledge
-         where business_id = ${SANDBOX} and status = 'active' and kind = 'faq' and label = ${LABEL}`
-        .execute(tx as never).then((r) => r.rows[0]!.n));
-      expect(leftActive, 'this test left facts behind for the next run').toBe(0);
-    });
+    // teach → answer → correct → the NEW answer: practice-worker.test.ts (P3), where
+    // the copy follows the workspace's knowledge.
 
     it('a certification is authorised through claims_policy, not stored as knowledge', async () => {
       const { setCertification, loadProductKnowledge } = await import('../../src/api/web/knowledge.js');
@@ -1261,12 +1093,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const p = parseBusinessId(SANDBOX); if (!p.ok) throw new Error('fixture');
       return withTenantTx(prod.db, p.value, fn as never);
     };
-    const askSandbox = async (cookie: string, text: string) => {
-      await prod.app.inject({ method: 'POST', url: '/app/sandbox/reset',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: '' });
-      await prod.app.inject({ method: 'POST', url: '/app/sandbox/message',
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'mode=scripted&text=' + encodeURIComponent(text) });
+    // One scripted turn on the scratch tenant (P3 moved Practice onto the worker;
+    // these read a turn's rows, not the page).
+    const askSandbox = async (_cookie: string, text: string) => {
+      const { scriptedTurn } = await import('./scripted-turn.js');
+      await scriptedTurn(prod.db, SANDBOX, text);
     };
 
     beforeAll(async () => {
@@ -1770,130 +1601,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
   });
 
-  // ── M16.3 Sandbox human-control rehearsal (the real routes, sandbox tenant) ─
-  // The sandbox exercises the SAME lifecycle as production: takeOver /
-  // ownerReply / resumeAi on the sandbox tenant, driven through the real HTTP
-  // routes. Nothing is delivered — the owner row is sunk into the transcript.
-  describe('M16.3 · sandbox human-control rehearsal', () => {
-    const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
-    let sbid: import('../../src/core/types/ids.js').BusinessId;
-
-    const inSandbox = <T>(fn: (tx: import('kysely').Transaction<never>) => Promise<T>): Promise<T> =>
-      import('../../src/db/client.js').then(({ withTenantTx }) => withTenantTx(prod.db, sbid, fn as never));
-    const post = async (path: string, payload = 'mode=scripted') => {
-      const cookie = await login();
-      return prod.app.inject({ method: 'POST', url: `/app/sandbox/${path}`,
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload });
-    };
-    // The SAME lookup the routes use: the sandbox buyer's active conversation.
-    // (Earlier describes archive theirs via /app/sandbox/reset, so this describe
-    // starts its own rather than inheriting ambient state.)
-    const convId = () => inSandbox((tx) => sql<{ id: string }>`
-      select c.id from conversations c
-        join client_channels cc on cc.client_id = c.client_id
-         and cc.channel = 'whatsapp' and cc.channel_user_id = 'sandbox-buyer'
-       where c.business_id=${SANDBOX} and c.is_active order by c.created_at desc limit 1
-    `.execute(tx as never).then((r) => r.rows[0]?.id ?? null));
-    const assigned = async () => {
-      const cid = await convId();
-      return inSandbox((tx) => sql<{ a: string | null }>`
-        select assigned_to as a from conversations where id=${cid}
-      `.execute(tx as never).then((r) => r.rows.length === 0 ? 'MISSING' : r.rows[0]!.a));
-    };
-    const events = (type: string) => inSandbox((tx) => sql<{ n: number }>`
-      select count(*)::int n from conversation_events where business_id=${SANDBOX} and type=${type}
-    `.execute(tx as never).then((r) => r.rows[0]!.n));
-
-    beforeAll(async () => {
-      const { parseBusinessId } = await import('../../src/core/types/ids.js');
-      const p = parseBusinessId(SANDBOX); if (!p.ok) throw new Error('fixture'); sbid = p.value;
-      // Start a fresh rehearsal conversation the way an owner does — one buyer
-      // message through the real route (the M12.2 tenant is already seeded).
-      const started = await post('message', 'mode=scripted&text=' + encodeURIComponent('Do you make canvas tote bags?'));
-      expect(started.statusCode).toBe(302);
-      expect(await convId()).not.toBeNull();
-    });
-
-    it('SECURITY: the rehearsal routes require owner auth', async () => {
-      for (const path of ['takeover', 'reply', 'resume']) {
-        const res = await prod.app.inject({ method: 'POST', url: `/app/sandbox/${path}`, payload: {} });
-        expect(res.statusCode).toBe(302);
-        expect(res.headers['location']).toBe('/login');
-      }
-    });
-
-    it('take over: assigned to the signed-in owner + a takeover event; the page shows owner controls', async () => {
-      expect((await post('takeover')).statusCode).toBe(302);
-      // G9b — WHO took it over: the owner's person row, not the word 'owner'.
-      // The ownership model reads any person id as a human holding it.
-      const ownerId = await import('../../src/db/client.js').then(({ withTenantTx }) =>
-        import('../../src/core/types/ids.js').then(({ parseBusinessId }) => {
-          const b = parseBusinessId(DEMO_BIZ); if (!b.ok) throw new Error('fixture');
-          return withTenantTx(prod.db, b.value, (tx) => sql<{ id: string }>`
-            select id::text as id from people where business_id = ${DEMO_BIZ} and is_owner limit 1
-          `.execute(tx).then((r) => r.rows[0]!.id));
-        }));
-      expect(await assigned()).toBe(ownerId);
-      expect(await events('takeover')).toBeGreaterThanOrEqual(1);   // M16.2d can observe it
-
-      const cookie = await login();
-      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(page.body).toContain('action="/app/sandbox/reply"');
-      expect(page.body).toContain('action="/app/sandbox/resume"');
-    });
-
-    it('owner reply: ONE owner-origin row through the one send path, sunk into the transcript', async () => {
-      const cid = (await convId())!;
-      const before = await inSandbox((tx) => sql<{ n: number }>`select count(*)::int n from outbound_messages where conversation_id=${cid}`.execute(tx as never).then((r) => r.rows[0]!.n));
-      expect((await post('reply', 'mode=scripted&text=' + encodeURIComponent('Owner here — I can do 4,800 pcs.'))).statusCode).toBe(302);
-
-      const rows = await inSandbox((tx) => sql<{ origin: string; status: string; provider_message_id: string | null }>`
-        select origin, status, provider_message_id from outbound_messages where conversation_id=${cid} order by seq desc
-      `.execute(tx as never).then((r) => r.rows));
-      expect(rows.length - before).toBe(1);            // exactly one — no second send path
-      expect(rows[0]!.origin).toBe('owner');           // via enqueueOutboundRow(origin='owner')
-      expect(rows[0]!.provider_message_id).toBeNull(); // NO real delivery — no provider ever saw it
-      expect(await events('owner_reply')).toBeGreaterThanOrEqual(1);
-
-      const cookie = await login();
-      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(page.body).toContain('Owner here — I can do 4,800 pcs.');   // sunk into the transcript
-    });
-
-    it('return to the employee: back to AI + a resume_ai event; take-over offered again', async () => {
-      expect((await post('resume')).statusCode).toBe(302);
-      expect(await assigned()).toBeNull();
-      expect(await events('resume_ai')).toBeGreaterThanOrEqual(1);
-
-      const cookie = await login();
-      const page = await prod.app.inject({ method: 'GET', url: '/app/sandbox', headers: { cookie } });
-      expect(page.body).toContain('action="/app/sandbox/takeover"');
-    });
-
-    it('NO real delivery: the sandbox tenant still has no channel credential', async () => {
-      const n = await inSandbox((tx) => sql<{ n: number }>`select count(*)::int n from channel_credentials where business_id=${SANDBOX}`.execute(tx as never).then((r) => r.rows[0]!.n));
-      expect(n).toBe(0);
-    });
-
-    it('TENANT ISOLATION: the rehearsal touched no pilot conversation', async () => {
-      const { withTenantTx } = await import('../../src/db/client.js');
-      const { parseBusinessId } = await import('../../src/core/types/ids.js');
-      const p = parseBusinessId(DEMO_BIZ); if (!p.ok) throw new Error('fixture');
-      const leaked = await withTenantTx(prod.db, p.value, (tx) => sql<{ n: number }>`
-        select count(*)::int n from outbound_messages
-         where business_id=${DEMO_BIZ} and body like 'Owner here — I can do 4,800%'
-      `.execute(tx as never).then((r) => r.rows[0]!.n));
-      expect(leaked).toBe(0);
-    });
-
-    it('the M16.2d runbook now observes all three rehearsals as practiced', async () => {
-      const { loadPilotRunbook } = await import('../../src/api/web/pilot.js');
-      const rb = await loadPilotRunbook(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
-      expect(rb.rehearsal.done.takeover).toBe(true);
-      expect(rb.rehearsal.done.ownerReply).toBe(true);
-      expect(rb.rehearsal.done.resume).toBe(true);
-    });
-  });
+  // M16.3 · the human-control rehearsal — on the workspace's own practice copy
+  // since P3: tests/integration/practice-worker.test.ts.
 
   // ── M17.1 deployment visibility: authenticated only, never on /health ───────
   describe('M17.1 · deployment visibility', () => {
@@ -1962,7 +1671,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         on conflict (business_id) do update set last_validation_at = now(),
           last_validation_pass = 5, last_validation_total = 5, updated_at = now()
       `.execute(tx as never));
-      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      const rb = await (await load())(prod.db, DEMO_BIZ, { practiceBusinessId: SANDBOX });
       expect(rb.rehearsal.done.validationPassed).toBe(true);
       expect(rb.readiness.detected.sandbox).toBe(true);
     });
@@ -1975,7 +1684,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
                     values (${SANDBOX}, gen_random_uuid(), ${type}, ${JSON.stringify({ actor: 'owner' })}::jsonb)`.execute(tx as never);
         }
       });
-      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      const rb = await (await load())(prod.db, DEMO_BIZ, { practiceBusinessId: SANDBOX });
       expect(rb.rehearsal.done.takeover).toBe(true);
       expect(rb.rehearsal.done.ownerReply).toBe(true);
       // "not practiced stays ○" is proven against an empty sandbox in the
@@ -1989,13 +1698,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         insert into product_knowledge (business_id, product_id, kind, label, content, source)
         values (${DEMO_BIZ}, null, 'faq', 'rehearsal', 'a corrected fact', 'owner_corrected')
       `.execute(tx as never));
-      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX });
+      const rb = await (await load())(prod.db, DEMO_BIZ, { practiceBusinessId: SANDBOX });
       expect(rb.rehearsal.done.knowledgeCorrection).toBe(true);
     });
 
     it('during-pilot operations equal the real snapshot (composed, not recomputed)', async () => {
       const [rb, snap] = await Promise.all([
-        (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: SANDBOX, range: 'week' }),
+        (await load())(prod.db, DEMO_BIZ, { practiceBusinessId: SANDBOX, range: 'week' }),
         import('../../src/api/web/operations.js').then(({ loadOperationsSnapshot }) => loadOperationsSnapshot(prod.db, DEMO_BIZ, 'week', 'disabled')),
       ]);
       expect(rb.operations).toEqual(snap);
@@ -2105,11 +1814,11 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.lastActivityAt).toBeNull();
     });
 
-    it('TENANT ISOLATION: a pilot pointed at a different sandbox sees none of that rehearsal', async () => {
-      const rb = await (await load())(prod.db, DEMO_BIZ, { sandboxBusinessId: ZERO });
+    it('TENANT ISOLATION: a pilot pointed at a different practice copy sees none of that rehearsal', async () => {
+      const rb = await (await load())(prod.db, DEMO_BIZ, { practiceBusinessId: ZERO });
       expect(rb.rehearsal.done.takeover).toBe(false);      // the SANDBOX events do not leak
       expect(rb.rehearsal.done.ownerReply).toBe(false);
-      expect(rb.rehearsal.available).toBe(true);           // a sandbox id was supplied, just an empty one
+      expect(rb.rehearsal.available).toBe(true);           // a copy id was supplied, just an empty one
     });
   });
 

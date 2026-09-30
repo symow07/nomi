@@ -18,6 +18,8 @@ import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
 import { assistantHold } from '../db/assistantStop.js';
+import { isPracticeCopy } from '../db/practice.js';
+import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
   handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
 } from '../pipeline/received.js';
@@ -189,6 +191,11 @@ export async function startWorker(
       const result = await computeTurn(ports, req);
       spent = result.usage;
       const fx = await commitTurn(ports, req, result, started);
+      // P3 — a practice turn (0086) is checked by the golden set's own
+      // checkers, and the page shows what held. Only on a copy.
+      if (await isPracticeCopy(tx, businessId.value)) {
+        await notePracticeChecks(tx, tenant, businessId.value, conversationId.value, result, fx, new Date());
+      }
       // M51.1 — the fragments this turn answered stop being pending, in the
       // SAME transaction as the answer. A rollback leaves them pending and the
       // next wake retries: the whole reason they are rows and not a variable.

@@ -8,7 +8,7 @@ import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
-import { anthropicAnalyzer, anthropicReplyWriter, anthropicPageTranscriber } from './llm/anthropic.js';
+import { anthropicPageTranscriber } from './llm/anthropic.js';
 import { llmClient, llmProviderFrom, requestExtrasFor } from './llm/provider.js';
 import { aiProcessor, processorForLog, HOSTING } from './core/legal/processors.js';
 import { readNewMail } from './channels/email/inboxReader.js';
@@ -46,15 +46,17 @@ import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey, acceptRetiredKeys } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
 import { metaAdapter } from './channels/whatsapp/meta.js';
-import { withTenantTx, lockConversation, type Db } from './db/client.js';
+import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
-import { driveConversationOutbound, type MailEnvelope } from './outbound/worker.js';
+import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
+import { practiceAdapter } from './channels/practice.js';
+import { isPracticeCopy, PRACTICE_CHANNEL } from './db/practice.js';
 import type { PgBoss } from 'pg-boss';
 import type { ErrorSweepJob, MetaErrorWatchJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -619,11 +621,6 @@ export async function buildProduction(
   if (legalFacts.processor.country === null) {
     console.warn(`Model provider ${legalFacts.processor.name} is not a host this build can name a country for — the privacy page will not state where messages are processed.`);
   }
-  // M12.2: Live-AI sandbox is opt-in (it spends Anthropic tokens). Default is
-  // scripted-only; set SANDBOX_LIVE_AI=1 to offer the Live AI mode.
-  const sandboxLive = process.env['SANDBOX_LIVE_AI'] === '1'
-    ? ((c) => ({ analyzer: anthropicAnalyzer(c, llm.model, requestExtrasFor(llm)), replyWriter: anthropicReplyWriter(c, llm.model, requestExtrasFor(llm)) }))(llmClient(llm))
-    : {};
   // M37 — the page reader, wired at the production entrypoint. A feature whose
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
@@ -683,7 +680,6 @@ export async function buildProduction(
     },
     // Her own mail server (SMTP), so the accounts page can say what actually sends.
     smtpFrom: smtpConfig?.from ?? null,
-      sandboxBusinessId: SANDBOX_ID,
       employeeName: process.env['EMPLOYEE_NAME'] ?? '小雅',
       // Named on /privacy and /data-deletion; absent, those pages say to write
       // to the business from the account you used.
@@ -711,7 +707,8 @@ export async function buildProduction(
         await boss.send(QUEUES.outbound, { businessId, conversationId },
           { singletonKey: conversationId });
       },
-      ...sandboxLive,
+      // P3 — a practice message joins the SAME inbound queue a customer's does.
+      enqueueInbound: (job) => enqueueInbound(boss, job),
     });
   };
 
@@ -738,11 +735,68 @@ export async function buildProduction(
     },
   });
 
+  // Outbound drive: consumes both reply jobs (from turn effects) and bare
+  // re-drive ticks (from status webhooks / wait-recheck).
+  // 0080 — `asks`: the question the reply asks, written on its outbound row.
+  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null };
+  type Drivers = { adapter?: ChannelAdapter; adapters?: AdapterFor; mailHeaders?: MailHeadersFor };
+  /**
+   * P3 — PRACTICE'S SENDS (docs/PRACTICE.md). A practice copy's replies go
+   * through this worker and its send gate like anyone's — Stop, the window,
+   * the ceiling — and end at the practice adapter, which has no network. It is
+   * picked by the BUSINESS: a copy is handed this map and nothing else, never
+   * the installation's WhatsApp adapter or an account's Page.
+   */
+  const practiceChannel = practiceAdapter();
+  const practiceDrivers: Drivers = { adapters: (channel) => (channel === PRACTICE_CHANNEL ? practiceChannel : undefined) };
+  /** The one outbound handler; `real` gives a real business its adapters, inside the send's own transaction. */
+  const driveOutbound = (real: (tx: Tx, businessId: BusinessId) => Promise<Drivers>) =>
+    async ([job]: { data: DriveJob }[]): Promise<void> => {
+      if (!job) return;
+      const businessId = parseBusinessId(job.data.businessId);
+      if (!businessId.ok || !job.data.conversationId) return;   // poison: drop
+
+      const effects = await withTenantTx(db, businessId.value, async (tx) => {
+        await lockConversation(tx, job.data.conversationId);
+        if (job.data.reply) {
+          await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
+            'employee', null, job.data.asks ?? null);
+        }
+        const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
+        const practice = await isPracticeCopy(tx, businessId.value);
+        const drivers = practice ? practiceDrivers : await real(tx, businessId.value);
+        const fx = await driveConversationOutbound({ store, ...drivers, now: () => new Date() }, job.data.conversationId);
+        // The practice customer's phone is the page: a reply accepted is a reply
+        // delivered. Recorded through the receipt path a status webhook takes, so
+        // the next reply is not held for a receipt that could never come (the
+        // sequencer waits up to 90 s for one on Instagram).
+        if (practice) {
+          for (const e of fx) if (e.kind === 'sent') await store.reconcileStatus(e.providerMessageId, 'delivered', null);
+        }
+        return fx;
+      });
+
+      const waiting = effects.find((e) => e.kind === 'waiting');
+      const progressed = effects.some((e) => e.kind === 'sent');
+      if (waiting && waiting.kind === 'waiting') {
+        await boss.send(QUEUES.outbound,
+          { businessId: job.data.businessId, conversationId: job.data.conversationId },
+          { startAfter: Math.max(1, Math.ceil(waiting.recheckInMs / 1000)), singletonKey: job.data.conversationId });
+      } else if (progressed) {
+        await boss.send(QUEUES.outbound,
+          { businessId: job.data.businessId, conversationId: job.data.conversationId },
+          { startAfter: 1, singletonKey: job.data.conversationId });
+      }
+    };
+
   // DEPLOYMENT MODE: full stack up, NO messaging surface. No adapter, no
-  // webhook routes, no outbound worker — for hosting before ANY channel is
-  // configured. An override adapter (tests) always takes the messaging path so
-  // composition stays covered.
+  // webhook routes — for hosting before ANY channel is configured. An override
+  // adapter (tests) always takes the messaging path so composition stays
+  // covered. The outbound worker runs for Practice (P3): a copy's replies reach
+  // the practice adapter; anything else queued here is refused
+  // `channel_unavailable`, where the owner sees it, since nothing can carry it.
   if (channelsHere.length === 0) {
+    await boss.work<DriveJob>(QUEUES.outbound, driveOutbound(async () => ({})));
     const app = Fastify({ logger: overrides?.logger ?? true });
     mountHealth(app, 'disabled');
     mountCommandCenter(app);
@@ -786,10 +840,6 @@ export async function buildProduction(
     return parsed.ok ? parsed.value : null;
   }
 
-  // Outbound drive: consumes both reply jobs (from turn effects) and bare
-  // re-drive ticks (from status webhooks / wait-recheck).
-  // 0080 — `asks`: the question the reply asks, written on its outbound row.
-  type DriveJob = { businessId: string; conversationId: string; reply?: string; asks?: PendingQuestion | null };
   /**
    * C4.a / C6 — the adapters this installation has, by channel, FOR ONE BUSINESS.
    *
@@ -887,42 +937,15 @@ export async function buildProduction(
     };
   };
 
-  await boss.work<DriveJob>(QUEUES.outbound, async ([job]: { data: DriveJob }[]) => {
-    if (!job) return;
-    const businessId = parseBusinessId(job.data.businessId);
-    if (!businessId.ok || !job.data.conversationId) return;   // poison: drop
-
-    const effects = await withTenantTx(db, businessId.value, async (tx) => {
-      await lockConversation(tx, job.data.conversationId);
-      if (job.data.reply) {
-        await enqueueOutboundRow(tx, businessId.value, job.data.conversationId, job.data.reply,
-          'employee', null, job.data.asks ?? null);
-      }
-      const store = channelStore(tx, businessId.value, { template: TEMPLATE_STATE });
-      // C10 — read inside the same transaction as the send it authorises, so a
-      // disconnect takes effect on the next reply, not the next boot.
-      const metaAccount = await liveMetaAccount(tx, businessId.value);
-      return driveConversationOutbound(
-        {
-          store, ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId.value, metaAccount),
-          mailHeaders: mailHeadersFor(businessId.value), now: () => new Date(),
-        },
-        job.data.conversationId,
-      );
-    });
-
-    const waiting = effects.find((e) => e.kind === 'waiting');
-    const progressed = effects.some((e) => e.kind === 'sent');
-    if (waiting && waiting.kind === 'waiting') {
-      await boss.send(QUEUES.outbound,
-        { businessId: job.data.businessId, conversationId: job.data.conversationId },
-        { startAfter: Math.max(1, Math.ceil(waiting.recheckInMs / 1000)), singletonKey: job.data.conversationId });
-    } else if (progressed) {
-      await boss.send(QUEUES.outbound,
-        { businessId: job.data.businessId, conversationId: job.data.conversationId },
-        { startAfter: 1, singletonKey: job.data.conversationId });
-    }
-  });
+  await boss.work<DriveJob>(QUEUES.outbound, driveOutbound(async (tx, businessId) => {
+    // C10 — read inside the same transaction as the send it authorises, so a
+    // disconnect takes effect on the next reply, not the next boot.
+    const metaAccount = await liveMetaAccount(tx, businessId);
+    return {
+      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount),
+      mailHeaders: mailHeadersFor(businessId),
+    };
+  }));
 
   /**
    * C4.b — follow-ups. Once a minute, whatever is due for this installation's

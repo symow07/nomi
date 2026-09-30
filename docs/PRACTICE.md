@@ -112,3 +112,31 @@ classified fails it.
 
 Out of this pass: RT (a shop's price before quantity) is the plan's phase 3.
 Until it lands, checklist item 8 shows the gap rather than passing.
+
+## P3, as built (#146)
+
+- **The message.** `POST /app/sandbox/message` refreshes the copy, writes
+  the line on the practice transcript at once, and queues an ordinary inbound
+  job on the copy (`sayInPractice`, `src/api/web/sandbox.ts`). The worker runs
+  it like any customer's message: batching, the Stop, the hand-offs, the turn.
+- **The checks.** The golden set's checks run on every practice turn in the
+  worker (`src/trust/practiceChecks.ts`). The page shows what held.
+- **The send.** The approval path and the owner's own reply go through the
+  real outbound worker and its gate. For a copy, the worker hands over the
+  practice adapter and nothing else (`driveOutbound`, `src/main.ts`), in both
+  modes, including an installation with no channel.
+- **The receipt.** A practice reply is recorded as delivered as soon as it is
+  accepted, through the same receipt path a status webhook takes. The page
+  is the customer's phone. Without this, the sequencer held every second
+  reply 90 seconds for an Instagram receipt that never comes.
+- **No alerts.** `deliverOwnerAlert` refuses a copy (`skipped_practice`).
+- **The live line.** `/app/live/practice` counts both sides: the owner wrote
+  the customer's side, so the news is the answer.
+- **One lane.** The scripted/live choice is gone: every practice message is
+  a live model turn (the plan: "the live model always"). The in-memory
+  golden run stays on the page.
+- **Still the pilot's alone** (T1) until P5 charges practice turns to the
+  owner's ledger and caps them.
+- **Not yet: a photo or a voice note in Practice.** The worker fetches media
+  from the provider that received it, and a practice message has no provider.
+  It needs an upload on the page (P4) and a practice media port.

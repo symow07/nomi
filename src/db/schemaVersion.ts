@@ -271,8 +271,11 @@ import type { Db } from './client.js';
  * 86 = Practice, per workspace (0086): `businesses.practice_of`, the copy's
  *      source ids, `practice_refresh`. Practice opens the owner's copy with
  *      it; against an 85 database the call fails and Practice cannot start.
+ * 87 = which copy is mine (0087): `practice_copy`, read-only. The Practice
+ *      page and its live line find the copy with it; against an 86 database
+ *      every Practice page view fails.
  */
-export const REQUIRED_SCHEMA_VERSION = 86;
+export const REQUIRED_SCHEMA_VERSION = 87;
 
 export type SchemaState = {
   readonly required: number;

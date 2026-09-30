@@ -234,21 +234,12 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
   let db: Db;
   let cookie = '';
   let cutOff = false;
-  const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
   const reader: PageTranscriber = {
     transcribe: async () => ({
       text: 'Canvas tote  CT-1  $2.40  MOQ 500', unreadable: false, cutOff,
       promptVersion: 'test', modelId: 'test', usage: { inputTokens: 900, outputTokens: 300 },
     }),
   };
-  const analyzer = new FakeAnalyzer();
-  analyzer.next = {
-    language: { detected: 'en', replyIn: 'en' },
-    intent: { primary: 'inquiry', productCandidate: null, quantityMentioned: null, nextLogicalQuestion: null, missingFields: [] },
-    recommendedPhase: 'clarification',
-  };
-  const replyWriter = new FakeReplyWriter();
-
   const BOUNDARY = '----nomiMeterTest';
   const shoot = () => app.inject({
     method: 'POST', url: '/app/products/add/photo',
@@ -263,20 +254,9 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
     const { registerWebApp } = await import('../../src/api/web/app.js');
-    const { resetSandbox } = await import('../../src/api/web/sandbox.js');
-    const { sandboxSeedSql } = await import('../../src/demo/sandbox.js');
     db = createDb(DATABASE_URL!);
     await inTenant(db, SHOP, (x) => sql`insert into businesses (id, name, owner_locale) values (${SHOP}, 'Metered Pages', 'en')
       on conflict (id) do nothing`.execute(x));
-    // Practice: emptied the way the owner empties it, then seeded (conversation-landing.test.ts's recipe).
-    await resetSandbox({ db, businessId: SANDBOX, now: () => new Date() }).catch(() => {});
-    await inTenant(db, SANDBOX, async (x) => {
-      for (const stmt of sandboxSeedSql().split(';')) {
-        const s = stmt.trim();
-        if (!s || s.replace(/--.*$/gm, '').trim() === '') continue;
-        await sql.raw(s).execute(x);
-      }
-    });
     process.env['PILOT_BUSINESS_ID'] = SHOP;
     app = Fastify({ logger: false });
     const code = `t7-${RUN}`;
@@ -284,7 +264,7 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
       db, businessId: SHOP, accessCode: code, sessionSecret: 'a-test-session-secret-of-sufficient-length',
       employeeName: 'Lily', avatar: '👩‍💼', secureCookie: false, factsTtlMs: 0,
       provider: 'disabled', messagingEnabled: false, kickOutbound: async () => {}, kickDrive: async () => {},
-      pageTranscriber: reader, sandboxBusinessId: SANDBOX, analyzer, replyWriter,
+      pageTranscriber: reader,
     } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     cookie = String((await app.inject({ method: 'POST', url: '/login', payload: `code=${code}`, headers: FORM }))
@@ -293,10 +273,6 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
   }, 60_000);
 
   afterAll(async () => {
-    if (db) {
-      const { resetSandbox } = await import('../../src/api/web/sandbox.js');
-      await resetSandbox({ db, businessId: SANDBOX, now: () => new Date() }).catch(() => {});
-    }
     await app?.close(); await db?.destroy();
   });
 
@@ -313,19 +289,5 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
     expect(once.utc).toBe(true);
   });
 
-  it('a live Practice turn is on the practice tenant\'s ledger; a scripted one costs nothing', async () => {
-    const before = await ledgerOf(db, SANDBOX);
-    const [a0, w0] = [analyzer.calls, replyWriter.calls];
-    const r = await app.inject({ method: 'POST', url: '/app/sandbox/message', headers: { cookie, ...FORM },
-      payload: new URLSearchParams({ mode: 'live', text: 'do you have canvas bags?' }).toString() });
-    expect(r.statusCode).toBe(302);
-    // What the fakes were asked, at the fakes' own prices (tests/pipeline/fakes.ts).
-    const [a, w] = [analyzer.calls - a0, replyWriter.calls - w0];
-    expect(a).toBeGreaterThan(0);
-    const live = await ledgerOf(db, SANDBOX);
-    expect(minus(live, before)).toEqual({ turns: 1, calls: a + w, input: 500 * a + 300 * w, output: 120 * a + 80 * w });
-    await app.inject({ method: 'POST', url: '/app/sandbox/message', headers: { cookie, ...FORM },
-      payload: new URLSearchParams({ mode: 'scripted', text: 'and in blue?' }).toString() });
-    expect(minus(await ledgerOf(db, SANDBOX), live)).toEqual({ turns: 0, calls: 0, input: 0, output: 0 });
-  });
+  // A practice turn runs in the worker since P3: its ledger is held in practice-worker.test.ts.
 });
