@@ -28,7 +28,9 @@ export function orderConfirmedReply(input: {
   return (
     `Your order is confirmed — reference ${orderReference}: ` +
     `${quantity.toLocaleString('en-US')} ${unit} of ${productName}. ` +
-    `The factory will send you the proforma invoice.`
+    // The positioning rewrite (2026-09-30): not every business is a factory,
+    // and not every one sends a proforma.
+    `We'll send you the invoice next.`
   );
 }
 
@@ -41,7 +43,7 @@ export function orderBlockedReply(reasons: readonly BlockingReason[], quote: Quo
     case 'product_not_confirmed_by_client':
       return 'Before I confirm — could you confirm this is exactly the product you want?';
     case 'quantity_missing':
-      return 'How many pieces should I put on the order?';
+      return 'How many would you like?';
     case 'quantity_below_moq':
       // 0081 — only a product with a stated minimum is ever below it; the
       // minimum is said in the product's own unit, not in "pieces".
@@ -75,8 +77,9 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
   }
 }
 
+/** The positioning rewrite (2026-09-30): "specialists" assumed a sales team; a one-person brand has none. */
 export const HANDOFF_REPLY =
-  'Thanks — one of our specialists will follow up with you personally, shortly.';
+  'Thanks — someone from our team will reply to you personally, as soon as they can.';
 
 /**
  * G8 — the one reply that needs no guard: no figure, no claim, no promise, no
@@ -93,14 +96,15 @@ export const SAFE_REPLY = 'Thanks for your message — let me check the details 
 export function guardFallbackReply(quote: Quote | null, nextQuestion: string | null): string {
   if (quote) {
     return (
-      `For ${quote.quantity.value.toLocaleString('en-US')} ${quote.quantity.unit}, ` +
+      `For ${quote.quantity.value.toLocaleString('en-US')} ${quote.quantity.unit}: ` +
       // Symbol and code both come from the quote's currency. A hardcoded "$"
       // beside an amount that is not dollars is the defect M43a removes.
       // CUR — a currency written by its code ("AED 12.00") is not repeated after it.
-      `the unit price is ${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)}` +
-      `${symbolIsCode(quote.unitPrice.currency) ? '' : ` ${quote.unitPrice.currency}`} — ` +
+      `${currencySymbol(quote.unitPrice.currency)}${quote.unitPrice.amount.toFixed(2)}` +
+      `${symbolIsCode(quote.unitPrice.currency) ? '' : ` ${quote.unitPrice.currency}`} each, ` +
       `${currencySymbol(quote.total.currency)}${quote.total.amount.toLocaleString('en-US')} in total` +
-      (quote.leadTimeDays ? `, with a lead time of ${quote.leadTimeDays} days.` : '.')
+      // The positioning rewrite: "lead time" is trade vocabulary.
+      (quote.leadTimeDays ? `, ready in ${quote.leadTimeDays} days.` : '.')
     );
   }
   return nextQuestion ?? 'Thanks for your message — could you tell me a little more about what you need?';

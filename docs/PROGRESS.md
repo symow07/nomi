@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #154 | **Positioning rewrite, 1 of 4 — what a customer sees** (`docs/POSITIONING-INVENTORY.md`, the owner's order): the fixed replies no longer assume a factory with a sales team — the hand-off ("someone from our team will reply to you personally, as soon as they can"), the order confirmed ("We'll send you the invoice next"), "How many would you like?" (en/zh/es; was "pieces"), the stand-in ("… each, … in total, ready in N days"), an order "being prepared" (was "in production"), the injection fallback; the price page says "Your price", "Ready in", "the business" (zh 商家); the order text says "Customer" and "Ready in"; three legal lines and a comment. The §5 sentences that vary by kind of business are left, by the decision above. Pre-pilot 12/12 before and after (its order-status check now reads "being prepared") (no migration) | 92 |
 | 2026-09-30 | #153 | **CUR, part two — one currency per workspace, chosen at sign-up** (0092): `businesses.currency`; a country whose own money is on the list sells in it, any other is asked (only the eight answer); the profile changes it until the first price is set, owner only, the check and the write under one lock; the pasted or photographed price list is read in it (its marks, its notation — "Rp 150.000", "R$ 49,90" — anyone else's money refused; dollars read as before); floors, a product's price (its entry tier now carries the currency — the insert used to leave it to the column's USD), samples and Practice's typed total in it, each box read the currency's way; the paste page's examples in it; the rate page converts the selling currency into the country's own, and only where they differ (it was dollars into ￥ for everyone; no rate is stated in production); the price columns widened for rupiah; the export's floors carry their currency; `provision-factory.mjs` requires `--currency=`. Every workspace made before keeps USD. Pre-pilot 12/12 before and after | 92 |
 | 2026-09-30 | #152 | **CUR, part one — the send path knows every currency** (before any workspace can price in one): `Currency` is USD, CNY, AED, SAR, BRL, MXN, INR, IDR, each with its sign (a code where it has none: "AED 12.00"; the peso MX$); the numeral guard refuses a quoted figure written in another currency ("$12" for AED 12), unless the customer wrote it themselves, and reads "Rp 150.000" / "R$ 1.250,50" as they say for a quote in rupiah or reais only; "₹500", "Rp 5000" and "150 reais" are never quantities; "high value" sized in each currency's own figures, nothing converted; the stand-in reply no longer says "AED 12.00 AED". Plus a test-timing defect found on the way (below). Pre-pilot 12/12 before and after. Merged 15:41 UTC, deployed, `/health` ok (no migration) | 91 |
 | 2026-09-30 | #151 | **TZ — one time zone per workspace, chosen at sign-up** (the owner's decision): a country with one zone gets it, a country with several is asked, a country the table has no zone for is offered every zone (a test draws the form for every country it lists), the profile page changes it; every date and time an owner reads, every "today" (the send ceiling, outreach's cap, Today, insights' months, the calendar, promised dates, the operator's alerts) is the workspace's own — no code outside the country table, the demo and the golden scenarios names Shanghai (a test). The zone is written in the sign-up's own transaction. `provision-factory.mjs` requires `--zone=`. Existing workspaces keep what they have (below). Pre-pilot 12/12 before and after. Merged 15:01 UTC, deployed, `/health` ok (no migration) | 91 |
@@ -103,6 +104,32 @@ take.
    not Meta's review process; built unless they turn out to need App Review.
 8. **The rest of the design pass** folded into the pages those items touch
    (Today, customer panel, RTL values, names, Setup, People, door).
+
+## Decided by me, as the owner asked (2026-09-30, for the positioning rewrite)
+
+- **The Arabic word for "customer" is عميل / العملاء** — reversing #111's
+  مشترٍ, as a consequence rather than a change of mind: #111 translated the
+  English "buyer", and the rewrite replaces "buyer" with "customer" (Nomi is
+  "for anyone who sells or talks to customers over social media"). مشترٍ is a
+  purchaser — someone buying or who bought — and most people who write to a
+  shop on Instagram have not bought and may never; عميل is the word Arabic
+  shops and business software use for the people they serve (خدمة العملاء),
+  as true of someone asking a question as of someone ordering, and it keeps
+  the owner's pages saying what the English says. Rule 6 is unchanged: the noun
+  only, never a pronoun or a verb that agrees with the person.
+- **The kind-of-business switches are not built in this pass.** The ~96
+  strings that cannot go neutral (the inventory's §5) describe what the
+  product DOES — a minimum order, a price only after a quantity, samples, a
+  proforma and delivery terms, what an order needs — and this pass must not
+  touch price-after-quantity, the 'pcs' unit or the 100-item import minimum. A
+  switch that rewords them while the product still behaves the old way would
+  make the words say one thing and the product do another. Where the behaviour
+  already follows the workspace's own data, the words follow it too (a minimum
+  said only when a product has one, since 0081; the currency and the time zone;
+  the rate page only where there is a pair). The items that change those
+  behaviours are RT, HS and CK, waiting on the owner's decisions 18, 29, 41
+  and 42; the switches belong with them, so each string changes once. Until
+  then those strings keep their wording, and §5 is their list.
 
 ## Decided (from the owner's instruction of 2026-09-29)
 

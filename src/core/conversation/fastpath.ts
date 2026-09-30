@@ -56,11 +56,12 @@ export type FastPathResult =
 /** Language-keyed reply templates. Deterministic data, not generation. */
 const REPLIES: Record<FastPathType, Record<string, string>> = {
   product_confirmed_yes: {
-    en: "Great — glad we're on the same page. Now, roughly how many pieces are you looking at?",
+    // The positioning rewrite (2026-09-30): "pieces" assumed wholesale goods.
+    en: "Great — glad we're on the same page. How many would you like?",
     // Rule 6: «تحتاج» ("you [masc.] need") addressed the buyer in a gender; a noun phrase addresses nobody.
     ar: 'ممتاز، نعم هذا هو المنتج. ما الكمية المطلوبة تقريبًا؟',
-    zh: '好的，就是这个产品。您大概需要多少件？',
-    es: 'Perfecto. ¿Aproximadamente cuántas piezas necesitas?',
+    zh: '好的，就是这个产品。请问需要多少？',
+    es: 'Perfecto. ¿Qué cantidad necesitas?',
   },
   product_confirmed_no: {
     en: "No problem — could you describe what you're looking for in more detail, or send another photo?",

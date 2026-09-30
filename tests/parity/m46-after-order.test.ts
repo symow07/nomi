@@ -29,7 +29,8 @@ describe('M46 · she reports the state and its date, and nothing more', () => {
   it('names the state and the day SHE set it', () => {
     const r = orderStatusReply({ reference: 'PI-HF-20260803-0301', update: update(), formatDate: fmt });
     expect(r.reply).toContain('PI-HF-20260803-0301');
-    expect(r.reply).toContain('in production');
+    // The positioning rewrite: not everything sold is produced to order.
+    expect(r.reply).toContain('being prepared');
     expect(r.reply).toContain('2026-08-03');
   });
 

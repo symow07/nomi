@@ -348,7 +348,7 @@ describe('M46 · "where is my order?" is answered from the row', () => {
     expect(r.replyDeterministic).toBe(true);
     expect(p.replyWriter.calls).toBe(0);
     expect(r.reply).toContain('PI-T-0001');
-    expect(r.reply).toContain('in production');
+    expect(r.reply).toContain('being prepared');
   });
 
   it('AND IT NEVER ESTIMATES A DELIVERY DATE', async () => {

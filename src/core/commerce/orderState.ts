@@ -112,7 +112,8 @@ export function orderStatusReply(input: {
   const when = input.formatDate(update.at);
   const WORDS: Record<ReportedOrderState, string> = {
     confirmed: 'confirmed',
-    in_production: 'in production',
+    // The positioning rewrite: not everything sold is produced to order.
+    in_production: 'being prepared',
     shipped: 'shipped',
     cancelled: 'cancelled',
     pending_confirmation: 'awaiting confirmation',

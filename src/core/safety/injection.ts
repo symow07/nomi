@@ -56,4 +56,4 @@ export function detectInjection(text: string): InjectionVerdict {
 
 /** Returned instead of an AI reply. Costs nothing and reveals nothing. */
 export const SAFE_FALLBACK_REPLY =
-  'Thanks for your message — what products are you looking to source today?';
+  'Thanks for your message — what are you looking for today?';
