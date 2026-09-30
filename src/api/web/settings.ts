@@ -2,7 +2,7 @@ import { zoneChoices, zoneLabel, isZone, ALL_ZONES } from '../../core/owner/zone
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import { type Locale, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
+import { type Locale, LOCALES, LOCALE_LABEL, SERVED_LANGUAGES, SERVED_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { validateOwnerPhone } from '../../pipeline/notify.js';
@@ -83,7 +83,7 @@ export function validateProfile(
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   if (!phone.ok) return { ok: false, errors };
 
-  const langs = input.languagesServed.filter((l): l is Locale => l === 'en' || l === 'zh' || l === 'ar');
+  const langs = input.languagesServed.filter((l) => (SERVED_LANGUAGES as readonly string[]).includes(l));
   return {
     ok: true,
     value: {
@@ -326,8 +326,8 @@ export function renderProfile(
       <input name="${id}" value="${esc(val(f, stored))}"${ph ? ` placeholder="${esc(ph)}"` : ''} />${errLine(f)}</label>`;
 
   const languages = `<div class="fld"><span class="muted">${esc(t(locale, 'settings.field.languages'))}</span>
-    <div class="langs">${LOCALES.map((l) =>
-      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> ${esc(LOCALE_LABEL[l])}</label>`).join('')}</div></div>`;
+    <div class="langs">${SERVED_LANGUAGES.map((l) =>
+      `<label class="chkbox"><input type="checkbox" name="lang_${l}"${(draft.languagesServed ?? p.languagesServed).includes(l) ? ' checked' : ''} /> <bdi lang="${l}">${esc(SERVED_LABEL[l])}</bdi></label>`).join('')}</div></div>`;
 
   const form = `<div class="block">
     <form method="post" action="/app/settings" class="pform">

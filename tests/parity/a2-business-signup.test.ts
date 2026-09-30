@@ -19,12 +19,14 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('A2 · the lists are one list', () => {
   const migration = readFileSync(`${root}migrations/0056_business_kind.sql`, 'utf8');
+  // 0093 (the positioning rewrite) redefined the kinds; the team sizes are still 0056's.
+  const kinds = readFileSync(`${root}migrations/0093_business_kinds.sql`, 'utf8');
 
   it('THE DATABASE ACCEPTS EXACTLY WHAT THE FORM OFFERS — kinds and team sizes', () => {
-    const inCheck = (column: string): string[] =>
-      [...(migration.match(new RegExp(`${column} is null or ${column} in\\s*\\(([^)]*)\\)`))?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]!);
-    expect(inCheck('kind')).toEqual([...BUSINESS_KINDS]);
-    expect(inCheck('team_size')).toEqual([...TEAM_SIZES]);
+    const inCheck = (sql: string, column: string): string[] =>
+      [...(sql.match(new RegExp(`${column} is null or ${column} in\\s*\\(([^)]*)\\)`))?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+    expect(inCheck(kinds, 'kind')).toEqual([...BUSINESS_KINDS]);
+    expect(inCheck(migration, 'team_size')).toEqual([...TEAM_SIZES]);
   });
 
   it('every choice has a name in every language', () => {

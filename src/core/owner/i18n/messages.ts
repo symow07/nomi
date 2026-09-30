@@ -1,3 +1,4 @@
+import { isCountryCode } from '../business.js';
 import { type Locale, DEFAULT_LOCALE } from './locale.js';
 
 /**
@@ -339,7 +340,7 @@ const EN = {
   'signup.pick': 'Choose…',
   'signup.kind': 'What kind of business is it?',
   'signup.sells': 'What do you sell or do?',
-  'signup.sells.placeholder': 'e.g. custom canvas bags for brands and events',
+  'signup.sells.placeholder': 'e.g. skincare, clothing, social media ads or custom canvas bags',
   'signup.country': 'Country',
   'signup.website': 'Website, if you have one',
   'signup.teamSize': 'How many people work with you?',
@@ -350,11 +351,13 @@ const EN = {
   'signup.problem.website_invalid': 'That does not look like a web address. Leave it empty if you have none.',
   'signup.problem.team_size_missing': 'Choose how many people work with you.',
   'business.kind.manufacturer': 'Manufacturer or factory',
-  'business.kind.trading': 'Trading company or exporter',
+  'business.kind.trading': 'Exporter or trading company',
   'business.kind.wholesale': 'Wholesaler or distributor',
-  'business.kind.brand': 'Brand or online shop',
+  'business.kind.brand': 'Brand (clothing, beauty, food…)',
+  'business.kind.online_shop': 'Online shop',
+  'business.kind.startup': 'Startup',
   'business.kind.retail': 'Retail shop',
-  'business.kind.agency': 'Agency',
+  'business.kind.agency': 'Agency or studio',
   'business.kind.services': 'Services company',
   'business.kind.other': 'Something else',
   'business.team.1': 'Just me',
@@ -1165,13 +1168,13 @@ const EN = {
   'settings.field.contactPhone': 'Contact phone',
   'settings.field.categories': 'Product categories',
   'settings.categories.empty': 'Add products and their categories appear here.',
-  'settings.workingHours.ph': '9:00–18:00, Mon–Sat',
+  'settings.workingHours.ph': '9:00–18:00 on working days',
   'settings.flash.profileSaved': 'Profile saved.',
   // M20.4 (F-07) — say WHICH field and WHY, in the owner's language.
   'settings.err.required': 'Please fill this in.',
   'settings.err.tooLong': 'Too long — keep it under {n} characters.',
   'settings.err.emailShape': "That does not look like an e-mail address — check for a missing @.",
-  'settings.err.phoneShape': 'Start with + and the country code, like +8657985001234.',
+  'settings.err.phoneShape': 'Start with + and the country code.',
   'settings.flash.profileFix': 'Nothing was lost — fix the marked field and save again.',
   'settings.flash.profileInvalid': 'Please check the fields and try again.',
   // guided onboarding (M11.2 — live-derived, deep links only)
@@ -2932,7 +2935,7 @@ const ZH: Record<MessageKey, string> = {
   'signup.pick': '请选择…',
   'signup.kind': '你的生意是哪一类？',
   'signup.sells': '你们卖什么，或做什么？',
-  'signup.sells.placeholder': '例如：为品牌和活动定制帆布袋',
+  'signup.sells.placeholder': '例如：护肤品、服装、社交媒体广告或定制帆布袋',
   'signup.country': '国家或地区',
   'signup.website': '网站（有的话）',
   'signup.teamSize': '和你一起工作的有多少人？',
@@ -2945,9 +2948,11 @@ const ZH: Record<MessageKey, string> = {
   'business.kind.manufacturer': '生产厂家或工厂',
   'business.kind.trading': '外贸公司或出口商',
   'business.kind.wholesale': '批发商或经销商',
-  'business.kind.brand': '品牌或网店',
-  'business.kind.retail': '零售店',
-  'business.kind.agency': '代理或代运营公司',
+  'business.kind.brand': '品牌（服装、美妆、食品…）',
+  'business.kind.online_shop': '网店',
+  'business.kind.startup': '创业公司',
+  'business.kind.retail': '实体零售店',
+  'business.kind.agency': '代理或工作室',
   'business.kind.services': '服务类公司',
   'business.kind.other': '其他',
   'business.team.1': '只有我自己',
@@ -3726,13 +3731,13 @@ const ZH: Record<MessageKey, string> = {
   'settings.field.contactPhone': '联系电话',
   'settings.field.categories': '产品类别',
   'settings.categories.empty': '先添加产品，类别就会出现在这里。',
-  'settings.workingHours.ph': '9:00-18:00 周一至周六',
+  'settings.workingHours.ph': '工作日 9:00-18:00',
   'settings.flash.profileSaved': '资料已保存。',
   // M20.4 (F-07)
   'settings.err.required': '这一项要填。',
   'settings.err.tooLong': '太长了，{n}个字以内。',
   'settings.err.emailShape': '这个不像邮箱地址，看看是不是少了@。',
-  'settings.err.phoneShape': '要以+和国家号开头，比如 +8657985001234。',
+  'settings.err.phoneShape': '要以+和国家号开头。',
   'settings.flash.profileFix': '你填的都还在——把标出来的那一项改好，再保存一次。',
   'settings.flash.profileInvalid': '请检查填写的内容后重试。',
   'conv.unnamed': '未命名产品',
@@ -5445,7 +5450,7 @@ const AR: Record<MessageKey, string> = {
   'signup.pick': 'اختيار…',
   'signup.kind': 'ما نوع نشاطك التجاري؟',
   'signup.sells': 'ما الذي يبيعه نشاطك التجاري أو يقدّمه؟',
-  'signup.sells.placeholder': 'مثال: حقائب قماشية مخصّصة للعلامات التجارية والفعاليات',
+  'signup.sells.placeholder': 'مثال: منتجات العناية بالبشرة أو الملابس أو إعلانات وسائل التواصل أو حقائب قماشية مخصّصة',
   'signup.country': 'البلد',
   'signup.website': 'الموقع الإلكتروني، إن وُجد',
   'signup.teamSize': 'كم شخصًا يعمل معك؟',
@@ -5458,9 +5463,11 @@ const AR: Record<MessageKey, string> = {
   'business.kind.manufacturer': 'مصنع أو جهة تصنيع',
   'business.kind.trading': 'شركة تجارية أو مصدّر',
   'business.kind.wholesale': 'تاجر جملة أو موزّع',
-  'business.kind.brand': 'علامة تجارية أو متجر إلكتروني',
+  'business.kind.brand': 'علامة تجارية (ملابس، تجميل، أغذية…)',
+  'business.kind.online_shop': 'متجر إلكتروني',
+  'business.kind.startup': 'شركة ناشئة',
   'business.kind.retail': 'متجر تجزئة',
-  'business.kind.agency': 'وكالة',
+  'business.kind.agency': 'وكالة أو استوديو',
   'business.kind.services': 'شركة خدمات',
   'business.kind.other': 'شيء آخر',
   'business.team.1': 'أنا فقط',
@@ -6239,13 +6246,13 @@ const AR: Record<MessageKey, string> = {
   'settings.field.contactPhone': 'هاتف التواصل',
   'settings.field.categories': 'فئات المنتجات',
   'settings.categories.empty': 'تظهر هنا فئات المنتجات بعد إضافتها.',
-  'settings.workingHours.ph': '9:00-18:00، الإثنين-السبت',
+  'settings.workingHours.ph': '9:00-18:00 في أيام العمل',
   'settings.flash.profileSaved': 'تم حفظ الملف.',
   // M20.4 (F-07)
   'settings.err.required': 'هذا الحقل مطلوب.',
   'settings.err.tooLong': 'طويل جدًا — الحد الأقصى {n} حرفًا.',
   'settings.err.emailShape': 'لا يبدو هذا بريدًا إلكترونيًا — يُرجى التأكد من وجود @.',
-  'settings.err.phoneShape': 'يلزم البدء بـ + ورمز الدولة، مثل \u200E+8657985001234.',
+  'settings.err.phoneShape': 'يلزم البدء بـ + ورمز الدولة.',
   'settings.flash.profileFix': 'لم يضِع شيء — يُرجى تصحيح الحقل المعلَّم والحفظ مرة أخرى.',
   'settings.flash.profileInvalid': 'يرجى مراجعة الحقول والمحاولة من جديد.',
   'conv.unnamed': 'منتج بلا اسم',
@@ -7695,8 +7702,20 @@ export function tn(locale: Locale, base: string, n: number, params?: Record<stri
 export function countryName(locale: Locale, code: string | null): string | null {
   if (!code) return null;
   const key = `country.${code}` as MessageKey;
-  return key in messages[DEFAULT_LOCALE] ? t(locale, key) : null;
+  if (key in messages[DEFAULT_LOCALE]) return t(locale, key);
+  // The positioning rewrite: the ten short names above were the export trade's
+  // markets; every other country is named too, in the reader's language
+  // (a customer from France had no country at all).
+  // Only a real country: Intl names anything two letters long ("Unknown Region").
+  if (!isCountryCode(code.toUpperCase())) return null;
+  try {
+    const name = new Intl.DisplayNames([REGION_TAG[locale]], { type: 'region' }).of(code.toUpperCase());
+    return name && name !== code.toUpperCase() ? name : null;
+  } catch {
+    return null;
+  }
 }
+const REGION_TAG: Record<Locale, string> = { en: 'en', zh: 'zh-CN', ar: 'ar' };
 
 /** Localized order-status label; the raw code if unknown. */
 export function orderStatusName(locale: Locale, status: string): string {

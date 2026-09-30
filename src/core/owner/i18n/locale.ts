@@ -12,6 +12,17 @@ export const DEFAULT_LOCALE: Locale = 'en';
 /** Endonyms — a locale's own name, invariant across the UI language. */
 export const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文', ar: 'العربية' };
 
+/**
+ * The positioning rewrite (0093): the languages a business may say it SERVES —
+ * the nine the safety checks read (rule 18), each in its own name. Informational:
+ * nothing gates on it. The owner's pages stay in the three locales above.
+ */
+export const SERVED_LANGUAGES = ['en', 'zh', 'ar', 'es', 'fr', 'pt', 'de', 'tr', 'ru'] as const;
+export type ServedLanguage = (typeof SERVED_LANGUAGES)[number];
+export const SERVED_LABEL: Record<ServedLanguage, string> = {
+  en: 'English', zh: '中文', ar: 'العربية', es: 'Español', fr: 'Français', pt: 'Português', de: 'Deutsch', tr: 'Türkçe', ru: 'Русский',
+};
+
 const RTL: ReadonlySet<Locale> = new Set<Locale>(['ar']);
 export const isRtl = (l: Locale): boolean => RTL.has(l);
 export const dirOf = (l: Locale): 'rtl' | 'ltr' => (isRtl(l) ? 'rtl' : 'ltr');

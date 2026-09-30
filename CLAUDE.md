@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 91 (deployed with #150, 2026-09-30 14:27 UTC merge); 92 with #153.
-  Last three: `0090 practice_alone`, `0091 practice_checklist`, `0092 workspace_currency`.
+- **Schema:** 92 (deployed with #153, 2026-09-30 16:38 UTC); 93 with #159.
+  Last three: `0091 practice_checklist`, `0092 workspace_currency`, `0093 business_kinds`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the

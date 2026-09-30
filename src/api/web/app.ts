@@ -174,7 +174,7 @@ import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
 import { validateSignup, normalizeEmail, isEmailShape, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
-import { type Locale, LOCALES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
+import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, makeNameCache, withAssistantName, withWorkspace, outreachShown, businessName } from './say.js';
 import type { ReportError } from '../../core/ops/appErrors.js';
@@ -3815,7 +3815,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       name: String(b['name'] ?? ''), description: String(b['description'] ?? ''),
       location: String(b['location'] ?? ''), workingHours: String(b['working_hours'] ?? ''),
       contactEmail: String(b['contact_email'] ?? ''), contactPhone: String(b['contact_phone'] ?? ''),
-      languagesServed: LOCALES.filter((l) => b[`lang_${l}`] !== undefined),
+      languagesServed: SERVED_LANGUAGES.filter((l) => b[`lang_${l}`] !== undefined),
     };
     const r = await saveBusinessProfile(deps.db, s.businessId, input, personOf(s).id);
     facts.evict(s.businessId);   // D — a complete profile is a setup step done

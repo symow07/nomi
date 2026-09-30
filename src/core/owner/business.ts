@@ -8,7 +8,12 @@
  * test holds the two together).
  */
 
-export const BUSINESS_KINDS = ['manufacturer', 'trading', 'wholesale', 'brand', 'retail', 'agency', 'services', 'other'] as const;
+/**
+ * The positioning rewrite (2026-09-30, 0093): the kinds Nomi is for come first
+ * — brands, online shops, shops, agencies, services, startups — then makers,
+ * exporters and wholesalers. The form offers them in this order.
+ */
+export const BUSINESS_KINDS = ['brand', 'online_shop', 'retail', 'agency', 'services', 'startup', 'manufacturer', 'trading', 'wholesale', 'other'] as const;
 export type BusinessKind = (typeof BUSINESS_KINDS)[number];
 
 export const TEAM_SIZES = ['1', '2-5', '6-20', '21-100', '100+'] as const;
