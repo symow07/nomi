@@ -30,7 +30,7 @@ pre-ticked.
 ## Step 1 — create the tenant (admin connection)
 
 ```bash
-MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh
+MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh --zone=Asia/Shanghai
 ```
 
 It generates the id itself, creates one `businesses` row, and prints the value

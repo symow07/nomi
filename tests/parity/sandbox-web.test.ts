@@ -191,7 +191,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
         { invariant: 'noFabricatedPrice' },
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified'] },
       ],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice, zone: 'Asia/Shanghai',
     });
     expect(out.scenarioTitle).toBeNull();
     expect(out.appliedMode).toBe('draft');
@@ -202,7 +202,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
     const r = await runFake({ text: 'I want to speak to a real person now', state: { phase: 'qualification' } });
     const out = evaluateTrust({
       expectations: [{ invariant: 'escalatesToHuman' }],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice, zone: 'Asia/Shanghai',
     });
     expect(out.handoff).toBe(true);
     expect(out.checks[0]!.pass).toBe(true);
@@ -224,7 +224,7 @@ describe('M12.2 · evaluateTrust — the same M12.1 checkers, live off a FakeTen
         { invariant: 'noUnsupportedClaim', forbidden: ['CE certified', 'FDA approved'] },
         { invariant: 'priceFloorRespected' },
       ],
-      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice,
+      result: r.result, effects: r.effects, grants: r.grants, now: new Date('2026-07-14T12:00:00Z'), floorPrice: r.floorPrice, zone: 'Asia/Shanghai',
     });
     expect(out.guardViolations).toBeGreaterThan(0);
     expect(out.checks.every((c) => c.pass)).toBe(true);   // claim stripped, floor respected

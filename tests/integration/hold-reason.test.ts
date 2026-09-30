@@ -122,7 +122,7 @@ d('G7a · the held draft names her rule (requires DATABASE_URL)', () => {
     const then = res.body.slice(at, res.body.indexOf('</form>', at));
     expect(then).toContain('$0.40');
     expect(then).toContain('$0.45');
-    expect(then).toContain(esc(formatDate('en', new Date('2026-03-04T10:00:00Z'))));
+    expect(then).toContain(esc(formatDate('en', new Date('2026-03-04T10:00:00Z'), 'Asia/Shanghai')));
     // 8,000 at a higher price than 5,000 — the worse of the two cases, named.
     expect(then).toContain(esc(t('en', 'inbox.draft.contradicts.larger')));
   });

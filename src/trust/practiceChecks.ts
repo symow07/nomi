@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import type { Tx } from '../db/client.js';
 import type { Money } from '../core/types/money.js';
 import { capabilityOf, resolveMode, type AutonomyGrant } from '../core/conversation/autonomy.js';
-import { BUSINESS_TZ, type TurnResult, type TurnEffects } from '../pipeline/turn.js';
+import type { TurnResult, TurnEffects } from '../pipeline/turn.js';
 import type { Tenant } from '../db/ports.js';
 import { runCheck, type CheckResult, type TurnOutcome } from './invariants.js';
 import type { Expectation, Scenario } from './scenarios.js';
@@ -55,12 +55,14 @@ export function evaluateTrust(input: {
   readonly grants: readonly AutonomyGrant[];
   readonly now: Date;
   readonly floorPrice: Money | null;
+  /** TZ — the workspace's zone, for a grant's night-shift window. */
+  readonly zone: string;
 }): PracticeTrust {
   const { result, effects } = input;
   const capability = capabilityOf(result.decision, result.quote !== null);
   // G7a — her hold rules narrow the grant; the same field commitTurn read.
   const requestedMode = result.hold ? 'draft'
-    : resolveMode({ capability, grants: input.grants, now: input.now, timeZone: BUSINESS_TZ });
+    : resolveMode({ capability, grants: input.grants, now: input.now, timeZone: input.zone });
   const appliedMode: PracticeTrust['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (pid: string): number | null =>
     result.quote && pid === (result.quote.productId as string) ? input.floorPrice?.amount ?? null : null;
@@ -90,7 +92,7 @@ export async function notePracticeChecks(
   const grants = await tenant.autonomy.grants();
   const policy = result.quote ? await tenant.catalog.pricingPolicy(result.quote.productId) : null;
   const trust = evaluateTrust({
-    expectations: PRACTICE_CHECKS, result, effects, grants, now, floorPrice: policy?.floorPrice ?? null,
+    expectations: PRACTICE_CHECKS, result, effects, grants, now, floorPrice: policy?.floorPrice ?? null, zone: await tenant.zone(),
   });
   await sql`
     insert into conversation_events (business_id, conversation_id, type, payload)

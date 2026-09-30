@@ -1,3 +1,4 @@
+import { withZone } from '../../src/api/web/zone.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -56,8 +57,9 @@ const PAGE: InboxList = {
   page: { from: 51, to: 56, total: 130, next: NEXT, prev: { cursor: PREV } },
 };
 
+// TZ — the fixtures' times are written in Shanghai time: the workspace's zone, stated.
 const html = (l: Locale, over: Partial<InboxList> = {}, people: readonly Person[] = []) =>
-  withoutIsolates(renderInboxList({ ...PAGE, ...over }, l, NOW, people));
+  withZone('Asia/Shanghai', () => withoutIsolates(renderInboxList({ ...PAGE, ...over }, l, NOW, people)));
 const shown = (l: Locale, key: string, params?: Record<string, string | number>) => withoutIsolates(esc(say(l, key as MessageKey, params)));
 
 describe('A · one list, with a search box', () => {

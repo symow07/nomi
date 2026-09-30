@@ -24,7 +24,8 @@ const good = {
   kind: 'manufacturer', sells: '  Custom   canvas bags ', country: 'ma', website: 'atlas.example', teamSize: '2-5',
   channels: ['whatsapp', 'carrier-pigeon', 'whatsapp', 'email'],
 };
-const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'] };
+// TZ — Morocco keeps one time zone, so sign-up gives it without asking.
+const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'], zone: 'Africa/Casablanca' };
 const INVITE = '0b6c2f3a-1d4e-4f5a-8b9c-0d1e2f3a4b5c';
 
 describe('A1 · a password is kept so that it cannot be read back', () => {

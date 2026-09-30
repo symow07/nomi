@@ -304,7 +304,7 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     // Shanghai on 2026-09-30), so the words are the formatter's for the row's
     // own instant, never a fixed "Today".
     const lastContact = async (conv: string) => formatRelative('en', await as(BIZ, (x) => sql<{ at: Date }>`
-      select max(sent_at) as at from messages where conversation_id = ${conv}::uuid`.execute(x).then((q) => q.rows[0]!.at)), new Date());
+      select max(sent_at) as at from messages where conversation_id = ${conv}::uuid`.execute(x).then((q) => q.rows[0]!.at)), new Date(), 'Asia/Shanghai');
     const r = await get('/app/inbox?q=zhang');
     const row = /<a class="buyer unanswered" href="\/app\/inbox\/[0-9a-f-]{36}#latest">([\s\S]*?)<\/a>/.exec(r.body)?.[1] ?? '';
     expect(row, 'Zhang wrote last and is still waiting').not.toBe('');

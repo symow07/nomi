@@ -1,3 +1,4 @@
+import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { summarizePaths, type AnswerPath } from '../../core/conversation/answerPath.js';
 import { type Money, moneyFromRow } from '../../core/types/money.js';
@@ -64,8 +65,10 @@ export async function loadAnalytics(db: Db, businessIdRaw: string, range: Range)
   const unit = RANGE_UNIT[range];
 
   return withTenantTx(db, bid.value, async (tx) => {
+    // TZ — the period starts in the workspace's own zone.
+    const zone = await zoneOf(tx, bid.value);
     const cutoff = (await sql<{ c: Date }>`
-      select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
+      select (date_trunc(${unit}, now() at time zone ${zone}) at time zone ${zone}) as c
     `.execute(tx)).rows[0]!.c;
 
     const c = (await sql<{

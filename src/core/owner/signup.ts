@@ -1,3 +1,4 @@
+import { zoneForSignup } from './zones.js';
 import {
   isBusinessKind, isTeamSize, isChannelUsed, isCountryCode, canonicalCountry, normalizeWebsite,
   type BusinessKind, type TeamSize, type ChannelUsed,
@@ -34,19 +35,24 @@ export type SignupInput = {
   /** A2 — about the business. `channels` is what the form posted: one value, several, or none. */
   readonly kind: string; readonly sells: string; readonly country: string;
   readonly website: string; readonly teamSize: string; readonly channels: readonly string[];
+  /** TZ — the zone picked, where the country has several; empty otherwise. */
+  readonly zone?: string;
 };
 
 export type SignupField = 'factory' | 'name' | 'email' | 'password' | 'invite'
-  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize';
+  | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone';
 export type SignupProblem =
   | 'factory_missing' | 'name_missing' | 'email_invalid'
   | 'password_short' | 'password_long' | 'password_is_email' | 'invite_missing'
-  | 'kind_missing' | 'sells_missing' | 'country_missing' | 'website_invalid' | 'team_size_missing';
+  | 'kind_missing' | 'sells_missing' | 'country_missing' | 'website_invalid' | 'team_size_missing'
+  | 'zone_missing';
 
 /** What sign-up learned about the business, in the shape `provision_workspace` takes. */
 export type BusinessProfile = {
   readonly kind: BusinessKind; readonly sells: string; readonly country: string;
   readonly website: string | null; readonly teamSize: TeamSize; readonly channels: readonly ChannelUsed[];
+  /** TZ — the workspace's own time zone: the country's only one, or the one picked. */
+  readonly zone: string;
 };
 
 export type ValidSignup = {
@@ -93,15 +99,19 @@ export function validateSignup(
   if (!isCountryCode(country)) problems.country = 'country_missing';
   if (!website.ok) problems.website = 'website_invalid';
   if (!isTeamSize(teamSize)) problems.teamSize = 'team_size_missing';
+  // TZ — a country with one zone gets it; one with several is asked which, the
+  // form coming back with the question like any answer still missing.
+  const zone = isCountryCode(country) ? zoneForSignup(canonicalCountry(country), (input.zone ?? '').trim()) : null;
+  if (isCountryCode(country) && !zone) problems.zone = 'zone_missing';
   // Channels are optional and cannot be wrong: what is not on the list is dropped.
   const channels = [...new Set(input.channels.map((c) => c.trim()).filter(isChannelUsed))];
 
-  if (Object.keys(problems).length > 0 || !isBusinessKind(kind) || !isTeamSize(teamSize) || !website.ok) return { ok: false, problems };
+  if (Object.keys(problems).length > 0 || !isBusinessKind(kind) || !isTeamSize(teamSize) || !website.ok || !zone) return { ok: false, problems };
   return {
     ok: true,
     value: {
       factory, name, email, password: input.password, invite: UUID.test(invite) ? invite.toLowerCase() : null,
-      profile: { kind, sells, country: canonicalCountry(country), website: website.value, teamSize, channels },
+      profile: { kind, sells, country: canonicalCountry(country), website: website.value, teamSize, channels, zone },
     },
   };
 }

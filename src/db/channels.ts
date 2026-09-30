@@ -1,3 +1,4 @@
+import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
 import { notePromises } from './promisedDates.js';
@@ -72,6 +73,7 @@ export function channelStore(
          order by seq
       `.execute(tx);
 
+      const zone = await zoneOf(tx, businessId);
       const ctxRes = await sql<{
         assigned_to: string | null; last_inbound_at: Date | null;
         daily_llm_calls: number | null; daily_tokens: string | null;
@@ -91,8 +93,9 @@ export function channelStore(
                (select count(*)::int from outbound_messages om
                  where om.business_id = c.business_id and om.origin = 'employee'
                    and om.status in ('sent','delivered','read')
-                   and om.sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai')
-                                       at time zone 'Asia/Shanghai')) as sent_today,
+                   -- TZ — the day is the workspace's own, in its zone.
+                   and om.sent_at >= (date_trunc('day', now() at time zone ${zone})
+                                       at time zone ${zone})) as sent_today,
                -- CEIL (0085) — this workspace's own ceiling: 50 for one made
                -- since, 200 for those that existed.
                (select bz.daily_send_ceiling from businesses bz where bz.id = c.business_id) as send_ceiling
@@ -323,7 +326,7 @@ export function channelStore(
           on conflict do nothing
         `.execute(tx);
         // 0083 — and what it promised, for when: read from the words that left.
-        await notePromises(tx, id, dayKey(new Date()));
+        await notePromises(tx, id, dayKey(new Date(), await zoneOf(tx, businessId)));
       }
     },
 

@@ -75,7 +75,7 @@ d('0083 · a sent reply\'s promises (requires DATABASE_URL)', () => {
     await drive();
     expect(sent).toHaveLength(1);
     const { dayKey, addDays } = await import('../../src/core/owner/i18n/format.js');
-    const today = dayKey(new Date());
+    const today = dayKey(new Date(), 'Asia/Shanghai');
     const found = await promises();
     expect(found).toEqual(expect.arrayContaining([
       { kind: 'follow_up', due_on: addDays(today, 1), said: 'I\'ll check the 100 ml and get back to you tomorrow.', said_by: 'assistant' },
@@ -100,7 +100,7 @@ d('0083 · a sent reply\'s promises (requires DATABASE_URL)', () => {
     const { renderCalendar, parseCalendarQuery } = await import('../../src/api/web/calendar.js');
     const { dayKey, addDays } = await import('../../src/core/owner/i18n/format.js');
     const now = new Date();
-    const q = parseCalendarQuery({ view: 'day', at: addDays(dayKey(now), 1) }, now);
+    const q = parseCalendarQuery({ view: 'day', at: addDays(dayKey(now, 'Asia/Shanghai'), 1) }, now);
     const html = renderCalendar(await loadCalendar(db, BIZ, { ...q, outreach: false }, now), 'en', { view: 'day', at: q.at, now });
     expect(html).toMatch(new RegExp(`<a class="wk-e solid" data-src="promised_dates:[0-9a-f-]{36}" data-col="due_on" title="“I'll check the 100 ml and get back to you tomorrow\\.”" href="/app/inbox/${cid}#latest">`));
     expect(html).toContain('<span class="as" aria-hidden="true">✦</span> Follow-up promised');

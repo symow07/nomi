@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 88 (deployed with #147); 89 with #148, 90 with #149. Last
-  three: `0088 practice_switch`, `0089 practice_erase`, `0090 practice_alone`.
+- **Schema:** 91 (deployed with #150, 2026-09-30 14:27 UTC merge). Last
+  three: `0089 practice_erase`, `0090 practice_alone`, `0091 practice_checklist`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -518,6 +518,13 @@ Recent PRs, newest first:
    - **The page (P4 part one, #149; 0090):** a waiting reply is drawn with the conversation page's own card (`approvalCard` with Practice's targets): why it waited, each figure's source, one Send; a hand-off shows its reason and that nothing was sent; "as if sending alone" (`practice_alone` on the copy) lifts the owner's level in Practice only, every other hold still applies and is named; Practice's own Stop (`practice_stopped_at`).
    - **The checklist and "your total first" (P4 part two, #150; 0091; `src/db/practiceChecklist.ts`):** items per kind of business (catalogue / shop — its retail-price item shows the gap until RT / no catalogue), read from the real turn's rows on the copy and stamped on the WORKSPACE (`practice_checks`) when the page is drawn and before Start over; the owner's expected total (`practice_totals`, numbers only) set beside the next quote, agreeing ticks "quoted", the rows measure disagreement; a practice order is tapped through the one order service (`orderCard` with Practice's targets).
    - **Not kept (P6, #148; 0089):** Start over ERASES the copy's practice conversations (and all that hangs off them), with a confirm; a daily job (03:40 UTC, `practice_expire`) erases any quiet for 30 days; the day's 50 are counted on the workspace row (`practice_day`/`practice_lines`) so Start over does not reset them; both workers drop a job whose conversation is gone. The shared sandbox tenant is read by nothing; its production row is the owner's to erase.
+
+41. **One time zone per workspace, chosen at sign-up** (TZ, the owner's decision 2026-09-30, #151; `src/core/owner/zones.ts`, `src/db/zone.ts`, `src/api/web/zone.ts`).
+   - `businesses.timezone`. Sign-up gives a one-zone country its zone and asks a several-zone country which (the form comes back with `zone_missing`; only that country's zones are an answer; a country the table has none for is offered every zone). Written in the sign-up's own transaction. The profile page (`/app/settings/profile#zone`, `POST /app/settings/zone`) changes it, and evicts the cached facts.
+   - Every date and time an owner reads, and every "today" the database decides, is in it: core formatters take a required `zone`; pages read `workspaceZone()` (set by `withWorkspace` from the facts; UTC outside a workspace, never someone else's); the database and the pipeline read `zoneOf(tx, business)` (`Tenant.zone()`), which reads an unformattable value as UTC. The send ceiling's day, outreach's daily cap, Today, insights' months and weeks, the calendar, promised dates and the operator alerts all use it.
+   - Not moved: the ledger and Practice's 50 a day count on one UTC clock (T7). The demo and the golden scenarios keep Shanghai (`SCENARIO_ZONE`).
+   - `tests/parity/workspace-zone.test.ts` fails any file in `src/` naming Shanghai outside the country table, the demo, the scenarios and one note; `provision-factory.mjs` requires `--zone=`.
+   - The 59 workspaces made before it all keep `Asia/Shanghai` (never asked); changing any is the owner's (PROGRESS, "Waiting on the owner").
 
 ## 6 · What's next
 

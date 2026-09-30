@@ -565,11 +565,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         // closed, and this question is in a new one.
         const order = await tenant.orders.latestForClient(state.clientId);
         if (order) {
+          const zone = await tenant.zone();
           const said = orderStatusReply({
             reference: order.reference,
             update: order.update,
-            // The business timezone, so "as of the 3rd" means her 3rd.
-            formatDate: (d) => formatDate('en', d),
+            // The workspace's own zone, so "as of the 3rd" means its 3rd.
+            formatDate: (d) => formatDate('en', d, zone),
           });
           const clean = guardForbidden({ reply: said.reply, ownerTerms: forbiddenTerms });
           const guarded = clean.ok
@@ -828,8 +829,6 @@ export type TurnEffects = {
   orderProposed: { proposalId: string; fresh: boolean } | null;
 };
 
-/** The product's single timezone (M1). Night-shift windows resolve against it. */
-export const BUSINESS_TZ = 'Asia/Shanghai';
 
 export async function commitTurn(
   ports: TurnPorts,
@@ -1024,7 +1023,8 @@ export async function commitTurn(
   if (reply) {
     const capability = capabilityOf(r.decision, r.quote !== null);
     const grants = await tenant.autonomy.grants();
-    const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: BUSINESS_TZ });
+    // TZ — night-shift windows are the workspace's own hours.
+    const policyMode = resolveMode({ capability, grants, now: ports.now(), timeZone: await tenant.zone() });
     // G7a — her hold rules (a quantity she HEARD, M34.5; a discount past her
     // ask-first line) do not auto-send however her autonomy is set. This
     // never widens permission: auto becomes draft, draft stays draft.

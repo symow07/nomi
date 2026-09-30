@@ -1,3 +1,4 @@
+import { zoneChoices, zoneLabel, isZone, ALL_ZONES } from '../../core/owner/zones.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
@@ -222,9 +223,43 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
 }
 
 /** The business profile, on its own page (it was inline among Setup's doors). */
+/** TZ — the workspace's zone and the country its choices come from. */
+export type ZoneChoice = { readonly zone: string; readonly country: string | null };
+
+export async function loadZoneChoice(db: Db, businessIdRaw: string): Promise<ZoneChoice | null> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return null;
+  return withTenantTx(db, bid.value, async (tx) => {
+    const r = (await sql<{ zone: string; country: string | null }>`
+      select timezone as zone, country from businesses where id = ${bid.value}`.execute(tx)).rows[0];
+    return r ? { zone: r.zone, country: r.country } : null;
+  });
+}
+
+/** TZ — the owner's zone, changed. Any zone this build knows; the page offers the country's. */
+export async function saveZone(db: Db, businessIdRaw: string, zone: string): Promise<'saved' | 'invalid'> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok || !isZone(zone)) return 'invalid';
+  await withTenantTx(db, bid.value, (tx) => sql`update businesses set timezone = ${zone} where id = ${bid.value}`.execute(tx));
+  return 'saved';
+}
+
+function zoneForm(c: ZoneChoice, locale: Locale): string {
+  const choices = zoneChoices(c.country ?? '').length ? zoneChoices(c.country ?? '') : ALL_ZONES;
+  const all = choices.includes(c.zone) ? choices : [c.zone, ...choices];
+  return `<div class="block" id="zone"><h2>${esc(t(locale, 'settings.zone.title'))}</h2>
+    <p class="muted">${esc(t(locale, 'settings.zone.why'))}</p>
+    <form method="post" action="/app/settings/zone" class="pform">
+      <label class="fld"><span class="muted">${esc(t(locale, 'settings.zone.label'))}</span>
+        <select name="zone">${all.map((z) => `<option value="${esc(z)}"${z === c.zone ? ' selected' : ''}>${esc(zoneLabel(locale, z))}</option>`).join('')}</select></label>
+      <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
+    </form></div>`;
+}
+
 export function renderProfile(
   p: BusinessProfile, locale: Locale, flash: Flash | null,
   draft: ProfileDraft = {}, errors: ProfileErrors = {},
+  zone: ZoneChoice | null = null,
 ): string {
   // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
   // owner typed is lost when one field is wrong.
@@ -266,7 +301,7 @@ export function renderProfile(
   return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
-    ${form}${categories}`;
+    ${form}${zone ? zoneForm(zone, locale) : ''}${categories}`;
 }
 
 

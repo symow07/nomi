@@ -85,7 +85,7 @@ describe('0076 · the conversation page keeps the request after the hand-off is 
     for (const l of LOCALES) {
       const html = withoutIsolates(renderConversationDetail(detail({ deletionAsk: { askedAt: ASKED } }), l, NOW, null, OWNER_VIEW));
       expect(html, l).toContain(esc(t(l, k('deletionAsked.title'))));
-      expect(html, l).toContain(esc(t(l, k('deletionAsked.noted'), { date: formatDate(l, ASKED) })));
+      expect(html, l).toContain(esc(t(l, k('deletionAsked.noted'), { date: formatDate(l, ASKED, 'Asia/Shanghai') })));
       expect(html, l).toContain('href="/app/conversations/conv-1#deletion"');
       // "sent nothing" belongs to the turn that handed over, not to later ones.
       expect(html, l).not.toContain(esc(t(l, k('deletionAsked.what'))));
@@ -96,7 +96,7 @@ describe('0076 · the conversation page keeps the request after the hand-off is 
     const html = withoutIsolates(renderConversationDetail(detail({
       handoffReasons: ['deletion_requested'], ownership: 'WAITING_HUMAN', deletionRecorded: { askedAt: ASKED },
     }), 'en', NOW, null, OWNER_VIEW));
-    expect(html).toContain(esc(t('en', k('deletionAsked.recorded'), { due: formatDate('en', deletionDueBy(ASKED)) })));
+    expect(html).toContain(esc(t('en', k('deletionAsked.recorded'), { due: formatDate('en', deletionDueBy(ASKED), 'Asia/Shanghai') })));
   });
 
   it('nothing noted and nothing handed over: no card', () => {
@@ -119,7 +119,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), l, NOW, null, OWNER_VIEW));
       const section = html.slice(html.indexOf('id="deletion"'));
-      expect(section, l).toContain(esc(t(l, k('conv.deletion.waiting'), { date: formatDate(l, ASKED) })));
+      expect(section, l).toContain(esc(t(l, k('conv.deletion.waiting'), { date: formatDate(l, ASKED, 'Asia/Shanghai') })));
       expect(section, l).toContain('<p class="voice"><bdi dir="auto">Please delete my data</bdi></p>');
       expect(section, l).toContain('action="/app/conversations/c1/deletion"');
       expect(section, l).toContain('action="/app/conversations/c1/deletion/dismiss"');
@@ -136,7 +136,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
   it('staff see that it waits, and whose decision it is — no form', () => {
     const html = withoutIsolates(renderCustomerFile(file({ deletionAsk: ask }), 'en', NOW, null, STAFF));
     const section = html.slice(html.indexOf('id="deletion"'));
-    expect(section).toContain(esc(t('en', k('conv.deletion.waiting'), { date: formatDate('en', ASKED) })));
+    expect(section).toContain(esc(t('en', k('conv.deletion.waiting'), { date: formatDate('en', ASKED, 'Asia/Shanghai') })));
     expect(section).toContain(esc(t('en', 'staff.ownerDecides')));
     expect(section).not.toContain('<form');
   });
@@ -151,7 +151,7 @@ describe('0076 · the buyer’s page asks only for the decision', () => {
     const html = withoutIsolates(renderCustomerFile(file({
       deletionAsk: null, deletion: { state: 'open', askedAt: ASKED, closedAt: null, closedNote: null },
     }), 'en', NOW, null, OWNER_VIEW));
-    expect(html).toContain(esc(t('en', 'conv.deletion.open', { asked: formatDate('en', ASKED), due: formatDate('en', deletionDueBy(ASKED)) })));
+    expect(html).toContain(esc(t('en', 'conv.deletion.open', { asked: formatDate('en', ASKED, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(ASKED), 'Asia/Shanghai') })));
     expect(html).not.toContain('/deletion/dismiss');
   });
 });
@@ -162,7 +162,7 @@ describe('0076 · Your data lists it the moment it is noted', () => {
       const html = withoutIsolates(renderDataRights({ requests: [], buyers: [], asks: [ask], businessName: 'B' }, l, null, OWNER_VIEW, 'Setup'));
       expect(html, l).toContain('id="buyers"');
       expect(html, l).toContain('href="/app/conversations/c1#deletion"');
-      expect(html, l).toContain(esc(t(l, k('data.buyers.waiting'), { asked: formatDate(l, ASKED) })));
+      expect(html, l).toContain(esc(t(l, k('data.buyers.waiting'), { asked: formatDate(l, ASKED, 'Asia/Shanghai') })));
       expect(html, l).toContain(esc(t(l, k('data.ask.state.waiting'))));
       expect(html, l).toContain(esc(t(l, k('data.buyers.fromChat'))));
       expect(html, l).not.toContain(esc(t(l, 'data.buyers.none')));

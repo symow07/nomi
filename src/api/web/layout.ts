@@ -1,4 +1,5 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
+import { zoneChoices, zoneLabel } from '../../core/owner/zones.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
@@ -1691,11 +1692,11 @@ export type SignupPageInput = {
   readonly values?: {
     readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string;
     readonly kind?: string; readonly sells?: string; readonly country?: string; readonly website?: string;
-    readonly teamSize?: string; readonly channels?: readonly string[];
+    readonly teamSize?: string; readonly channels?: readonly string[]; readonly zone?: string;
   };
   /** Sentences, already chosen by the route: one per field, plus one for the whole form. */
   readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
-    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize', string>>;
+    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone', string>>;
   readonly error?: string | null;
 };
 
@@ -1737,6 +1738,12 @@ export function signupPage(input: SignupPageInput): string {
       <select id="su-country" name="country" required autocomplete="country">${pick}${countryOptions(locale).map((c) =>
         option(c.code, c.name, v.country)).join('')}</select>
       ${fieldErr('country')}
+      ${/* TZ — asked only where the country has several zones; a country with one gets it. */
+        zoneChoices(v.country).length > 1 ? `
+      <label for="su-zone">${esc(t(locale, 'signup.zone'))}</label>
+      <select id="su-zone" name="zone" required>${pick}${zoneChoices(v.country).map((z) =>
+        option(z, zoneLabel(locale, z), v.zone)).join('')}</select>
+      ${fieldErr('zone')}` : ''}
       <label for="su-website">${esc(t(locale, 'signup.website'))}</label>
       <input id="su-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
         inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" placeholder="yourbusiness.com" />

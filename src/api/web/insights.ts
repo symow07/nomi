@@ -1,3 +1,4 @@
+import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -206,22 +207,23 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
      * it says it as two counts — never a rate, which is the whole reason its
      * first implementation was deleted rather than wired.
      *
-     * A month boundary in HER timezone: "this month" for a Yiwu factory is not
+     * A month boundary in the WORKSPACE's zone (TZ): "this month" for a shop is not
      * this month in UTC, and a driver that moved because of a date line is a
      * fact about our servers rather than about her business.
      */
+    const zone = await zoneOf(tx, bid.value);
     const months = (await sql<{
       driver: string; from_count: number; to_count: number;
     }>`
       with bounds as (
-        select date_trunc('month', (now() at time zone 'Asia/Shanghai')) as this_start,
-               date_trunc('month', (now() at time zone 'Asia/Shanghai') - interval '1 month') as last_start
+        select date_trunc('month', (now() at time zone ${zone})) as this_start,
+               date_trunc('month', (now() at time zone ${zone}) - interval '1 month') as last_start
       ),
       inquiries as (
         select 'inquiries' as driver,
-               count(*) filter (where m.sent_at >= (b.last_start at time zone 'Asia/Shanghai')
-                                  and m.sent_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
-               count(*) filter (where m.sent_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+               count(*) filter (where m.sent_at >= (b.last_start at time zone ${zone})
+                                  and m.sent_at <  (b.this_start at time zone ${zone}))::int as from_count,
+               count(*) filter (where m.sent_at >= (b.this_start at time zone ${zone}))::int as to_count
           from messages m
           join conversations c on c.id = m.conversation_id
           cross join bounds b
@@ -229,17 +231,17 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
       ),
       quoted as (
         select 'quotes' as driver,
-               count(*) filter (where q.created_at >= (b.last_start at time zone 'Asia/Shanghai')
-                                  and q.created_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
-               count(*) filter (where q.created_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+               count(*) filter (where q.created_at >= (b.last_start at time zone ${zone})
+                                  and q.created_at <  (b.this_start at time zone ${zone}))::int as from_count,
+               count(*) filter (where q.created_at >= (b.this_start at time zone ${zone}))::int as to_count
           from quotes q cross join bounds b
          where q.business_id = ${bid.value}
       ),
       ordered as (
         select 'orders' as driver,
-               count(*) filter (where o.created_at >= (b.last_start at time zone 'Asia/Shanghai')
-                                  and o.created_at <  (b.this_start at time zone 'Asia/Shanghai'))::int as from_count,
-               count(*) filter (where o.created_at >= (b.this_start at time zone 'Asia/Shanghai'))::int as to_count
+               count(*) filter (where o.created_at >= (b.last_start at time zone ${zone})
+                                  and o.created_at <  (b.this_start at time zone ${zone}))::int as from_count,
+               count(*) filter (where o.created_at >= (b.this_start at time zone ${zone}))::int as to_count
           from orders o cross join bounds b
          where o.business_id = ${bid.value}
       )

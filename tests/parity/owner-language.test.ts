@@ -270,9 +270,9 @@ describe('M1 · ￥, 万, GMT+8', () => {
     expect(formatQtyZh(200000)).toBe('20万');
   });
   it('dates and relative times in Beijing time', () => {
-    expect(formatDateZh(NOW)).toBe('7月17日 周五');
-    expect(formatWhenZh(new Date('2026-07-17T01:15:00Z'), NOW)).toBe('今天09:15');
-    expect(formatWhenZh(new Date('2026-07-16T15:40:00Z'), NOW)).toBe('昨晚23:40');
+    expect(formatDateZh(NOW, 'Asia/Shanghai')).toBe('7月17日 周五');
+    expect(formatWhenZh(new Date('2026-07-17T01:15:00Z'), NOW, 'Asia/Shanghai')).toBe('今天09:15');
+    expect(formatWhenZh(new Date('2026-07-16T15:40:00Z'), NOW, 'Asia/Shanghai')).toBe('昨晚23:40');
   });
   it('quantities render the way owners say them, wherever they appear', () => {
     // The 报价卡 assertions went with renderQuoteCard. formatQtyZh above is the

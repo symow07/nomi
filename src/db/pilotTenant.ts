@@ -142,7 +142,7 @@ export function enforcePilotTenant(
 export function describePilotTenantProblem(state: PilotTenantState, problem: PilotTenantProblem): string {
   const provision =
     'Provision one, then set PILOT_BUSINESS_ID to the id it prints:\n' +
-    '  MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "<Factory name>"';
+    '  MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "<Factory name>" --zone=<IANA zone>';
 
   switch (problem) {
     case 'unset':

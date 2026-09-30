@@ -1,3 +1,4 @@
+import { zoneOf } from '../../db/zone.js';
 import { loadAssistantStop } from '../../db/assistantStop.js';
 import { loadKillSwitches } from '../../db/opsFlags.js';
 import { sql } from 'kysely';
@@ -220,8 +221,10 @@ export async function loadOperationsSnapshot(
     // CC-26 — what needs her, from the one reader the live line asks too.
     readAttention(db, B),
     withTenantTx(db, B, async (tx) => {
-      const cutoff = (await sql<{ c: Date }>`
-        select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
+      // TZ — the period starts in the workspace's own zone.
+    const zone = await zoneOf(tx, B);
+    const cutoff = (await sql<{ c: Date }>`
+        select (date_trunc(${unit}, now() at time zone ${zone}) at time zone ${zone}) as c
       `.execute(tx)).rows[0]!.c;
       return (await sql<{ handled: number; drafts: number; corrections: number }>`
         select

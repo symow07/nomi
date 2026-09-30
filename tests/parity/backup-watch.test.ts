@@ -36,8 +36,8 @@ describe('the alert, in the owner’s words', () => {
     const when = new Date('2026-09-20T03:00:00Z');
     for (const l of LOCALES) {
       const dated = renderOwnerAlert(l, 'backup_stale', null, { lastBackupAt: when });
-      expect(dated, l).toContain(formatDate(l, when));
-      expect(dated, l).toBe(t(l, 'notify.backup_stale', { when: formatDate(l, when) }));
+      expect(dated, l).toContain(formatDate(l, when, 'Asia/Shanghai'));
+      expect(dated, l).toBe(t(l, 'notify.backup_stale', { when: formatDate(l, when, 'Asia/Shanghai') }));
       expect(renderOwnerAlert(l, 'backup_stale', null, { lastBackupAt: null }), l).toBe(t(l, 'notify.backup_stale.never'));
       expect(messages[l]['notify.backup_stale.subject'].length, l).toBeGreaterThan(0);
     }

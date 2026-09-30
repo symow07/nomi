@@ -369,7 +369,7 @@ describe('C4.b · the pages', () => {
       expect(html, locale).toContain('name="position" value="2"');
       expect(html, locale).toContain(esc(t(locale, 'seq.enrolment.confirm')));
       expect(html, locale).toContain(esc(t(locale, 'seq.enrolment.awaiting', {
-        n: '2', date: formatDate(locale, new Date(since.getTime() + MAX_HOLD_DAYS * DAY)),
+        n: '2', date: formatDate(locale, new Date(since.getTime() + MAX_HOLD_DAYS * DAY), 'Asia/Shanghai'),
       })));
       // Stopping stays offered beside it: "he did answer" is the other outcome.
       expect(html, locale).toContain('/enrollments/e4/stop');

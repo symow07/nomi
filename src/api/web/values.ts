@@ -2,6 +2,7 @@ import type { Locale } from '../../core/owner/i18n/locale.js';
 import type { Money } from '../../core/types/money.js';
 import * as f from '../../core/owner/i18n/format.js';
 import { formatMoneyCompact } from '../../core/owner/format.js';
+import { workspaceZone } from './zone.js';
 
 /**
  * RIGHT TO LEFT, BY DESIGN (the design pass §9, 2026-09-30).
@@ -103,22 +104,22 @@ export const count = (locale: Locale, n: number): string =>
   isolate(locale, new Intl.NumberFormat(rtl(locale) ? AR : locale).format(n));
 
 /** A date: "Tue, Sep 29", "9月29日周二", "الثلاثاء، 29 سبتمبر". */
-export const date = (locale: Locale, d: Date): string => isolate(locale, f.formatDate(locale, d));
+export const date = (locale: Locale, d: Date): string => isolate(locale, f.formatDate(locale, d, workspaceZone()));
 
 /** A day in full, for a page's title line. */
-export const dayLong = (locale: Locale, d: Date): string => isolate(locale, f.formatDayLong(locale, d));
+export const dayLong = (locale: Locale, d: Date): string => isolate(locale, f.formatDayLong(locale, d, workspaceZone()));
 
 /** A time of day: "14:02". */
-export const time = (locale: Locale, d: Date): string => isolate(locale, f.formatTime(locale, d));
+export const time = (locale: Locale, d: Date): string => isolate(locale, f.formatTime(locale, d, workspaceZone()));
 
 /** "Today 09:15", "Yesterday 23:40", "Jul 17 09:15". */
-export const when = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatRelative(locale, d, now));
+export const when = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatRelative(locale, d, now, workspaceZone()));
 
 /** "14:02", "Yesterday", "Sep 28" — a list's corner. */
-export const shortWhen = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatShortWhen(locale, d, now));
+export const shortWhen = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatShortWhen(locale, d, now, workspaceZone()));
 
 /** "16:04", "16:04 tomorrow", a date after that. */
-export const until = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatUntil(locale, d, now));
+export const until = (locale: Locale, d: Date, now: Date): string => isolate(locale, f.formatUntil(locale, d, now, workspaceZone()));
 
 /** "1 hour, 20 minutes". */
 export const timeLeft = (locale: Locale, ms: number): string => isolate(locale, f.formatTimeLeft(locale, ms));

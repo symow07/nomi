@@ -1,9 +1,8 @@
 import { type Money, currencySymbol } from '../types/money.js';
 /**
- * M1 — Chinese business formatting. ￥, 万, GMT+8. Pure; clock injected.
+ * M1 — Chinese business formatting. ￥, 万. Pure; clock and zone injected
+ * (TZ, 2026-09-30: the workspace's own zone, never a constant).
  */
-
-const TZ = 'Asia/Shanghai';
 
 /** ￥1,234.50 — RMB always with the sign the owner writes on paper. */
 export const formatRmb = (n: number): string =>
@@ -32,9 +31,9 @@ export function formatQtyZh(n: number): string {
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const;
 
-const partsIn = (d: Date) => {
+const partsIn = (d: Date, zone: string) => {
   const p = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric',
+    timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
   }).formatToParts(d);
   const get = (t: string) => p.find((x) => x.type === t)?.value ?? '';
@@ -42,28 +41,28 @@ const partsIn = (d: Date) => {
 };
 
 /** 7月17日 周四 */
-export function formatDateZh(d: Date): string {
-  const p = partsIn(d);
+export function formatDateZh(d: Date, zone: string): string {
+  const p = partsIn(d, zone);
   const wd = p.weekday || WEEKDAYS[new Date(d).getDay()] || '';
   return `${p.month}月${p.day}日 ${wd}`;
 }
 
-/** 09:15 （北京时间, implied — the owner has exactly one timezone） */
-export function formatTimeZh(d: Date): string {
-  const p = partsIn(d);
+/** 09:15 — in the workspace's zone. */
+export function formatTimeZh(d: Date, zone: string): string {
+  const p = partsIn(d, zone);
   return `${p.hour}:${p.minute}`;
 }
 
 /** 昨晚23:40 / 今天09:15 — relative day words the way people actually talk. */
-export function formatWhenZh(d: Date, now: Date): string {
+export function formatWhenZh(d: Date, now: Date, zone: string): string {
   const day = (x: Date) =>
-    new Intl.DateTimeFormat('zh-CN', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric' }).format(x);
-  const t = formatTimeZh(d);
+    new Intl.DateTimeFormat('zh-CN', { timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric' }).format(x);
+  const t = formatTimeZh(d, zone);
   if (day(d) === day(now)) return `今天${t}`;
   const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
   if (day(d) === day(yesterday)) {
-    const hour = Number(partsIn(d).hour);
+    const hour = Number(partsIn(d, zone).hour);
     return `${hour >= 18 || hour < 6 ? '昨晚' : '昨天'}${t}`;
   }
-  return `${formatDateZh(d)} ${t}`;
+  return `${formatDateZh(d, zone)} ${t}`;
 }

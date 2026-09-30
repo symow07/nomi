@@ -122,7 +122,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
         insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version, created_at)
         values (${BIZ}, ${id['convA']}::uuid, ${PROD}::uuid, ${qty}, ${'{}'}::jsonb, ${price}, ${qty * price}, 'test', ${at})
         returning id::text as id`);
-      const base = dayStart(addDays(dayKey(ago(2)), 0)).getTime() + 10 * 3_600_000;
+      const base = dayStart(addDays(dayKey(ago(2), 'Asia/Shanghai'), 0), 'Asia/Shanghai').getTime() + 10 * 3_600_000;
       id['quoteEarly'] = await quote(1000, 0.5, new Date(base));
       id['quoteLate'] = await quote(1000, 0.5, new Date(base + 60_000));
       id['quoteOther'] = await quote(3000, 0.45, new Date(base + 120_000));
@@ -151,7 +151,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
       const closure = (label: string, from: string, to: string, archived: boolean) => one(t, sql<{ id: string }>`
         insert into factory_closures (business_id, label, starts_on, ends_on, archived_at)
         values (${BIZ}, ${label}, ${from}::date, ${to}::date, ${archived ? new Date(now) : null}) returning id::text as id`);
-      const today = dayKey(new Date(now));
+      const today = dayKey(new Date(now), 'Asia/Shanghai');
       id['closure'] = await closure(`Mid-Autumn ${RUN}`, addDays(today, 5), addDays(today, 7), false);
       id['closureArchived'] = await closure(`Archived ${RUN}`, addDays(today, 2), addDays(today, 3), true);
       id['closureFar'] = await closure(`Spring ${RUN}`, addDays(today, 60), addDays(today, 70), false);
@@ -173,7 +173,7 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
         values (${OTHER}, ${id['convZ']}::uuid, 'sample?', ${new Date(Date.now() - DAY)}) returning id::text as id`);
       id['closureZ'] = await one(t, sql<{ id: string }>`
         insert into factory_closures (business_id, label, starts_on, ends_on)
-        values (${OTHER}, ${`Other closure ${RUN}`}, ${dayKey(new Date())}::date, ${dayKey(new Date())}::date) returning id::text as id`);
+        values (${OTHER}, ${`Other closure ${RUN}`}, ${dayKey(new Date(), 'Asia/Shanghai')}::date, ${dayKey(new Date(), 'Asia/Shanghai')}::date) returning id::text as id`);
     });
 
     process.env['PILOT_BUSINESS_ID'] = BIZ;
@@ -234,9 +234,9 @@ d('V2 · the calendar (requires DATABASE_URL)', () => {
 
   it('every entry is a real row, and its date really is in the window', async () => {
     const r = await get('/app/calendar?view=list');
-    const today = dayKey(new Date());
-    const start = dayStart(addDays(today, -7)).getTime();
-    const end = dayStart(addDays(today, 14)).getTime();
+    const today = dayKey(new Date(), 'Asia/Shanghai');
+    const start = dayStart(addDays(today, -7), 'Asia/Shanghai').getTime();
+    const end = dayStart(addDays(today, 14), 'Asia/Shanghai').getTime();
     const ALLOWED: Record<string, readonly string[]> = {
       sample_requests: ['requested_at', 'handled_at'], order_updates: ['at'], orders: ['confirmed_at'],
       quotes: ['created_at'], handoffs: ['sla_deadline_at'], factory_closures: ['starts_on'], conversations: ['closed_at'],

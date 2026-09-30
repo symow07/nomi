@@ -1,3 +1,4 @@
+import { isZone } from '../core/owner/zones.js';
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -68,16 +69,28 @@ export async function provisionAccount(db: Db, input: {
   readonly profile: {
     readonly kind: string; readonly sells: string; readonly country: string;
     readonly website: string | null; readonly teamSize: string; readonly channels: readonly string[];
+    /** TZ — the workspace's own zone; a pending sign-up from before TZ has none, and keeps the column's. */
+    readonly zone?: string;
   };
 }): Promise<ProvisionOutcome> {
   try {
-    const r = (await sql<{ business_id: string; person_id: string }>`
-      select business_id::text as business_id, person_id::text as person_id
-        from provision_workspace(${input.factory}, ${input.language}, ${input.ownerName},
-                                 ${input.email}, ${input.passwordHash},
-                                 ${input.invite}::uuid, ${input.inviteRequired},
-                                 ${JSON.stringify(input.profile)}::jsonb)`.execute(db)).rows[0];
-    return r ? { code: 'created', businessId: r.business_id, personId: r.person_id } : { code: 'failed' };
+    // TZ — the zone sign-up chose is written in the SAME transaction as the
+    // workspace: a zone that fails leaves no workspace behind an error page.
+    const r = await db.transaction().execute(async (tx) => {
+      const made = (await sql<{ business_id: string; person_id: string }>`
+        select business_id::text as business_id, person_id::text as person_id
+          from provision_workspace(${input.factory}, ${input.language}, ${input.ownerName},
+                                   ${input.email}, ${input.passwordHash},
+                                   ${input.invite}::uuid, ${input.inviteRequired},
+                                   ${JSON.stringify(input.profile)}::jsonb)`.execute(tx)).rows[0];
+      if (made && isZone(input.profile.zone)) {
+        await sql`select set_config('app.business_id', ${made.business_id}, true)`.execute(tx);
+        await sql`update businesses set timezone = ${input.profile.zone} where id = ${made.business_id}::uuid`.execute(tx);
+      }
+      return made;
+    });
+    if (!r) return { code: 'failed' };
+    return { code: 'created', businessId: r.business_id, personId: r.person_id };
   } catch (e) {
     const pg = e as { code?: string; message?: string };
     if (pg.code === '23505') return { code: 'email_taken' };

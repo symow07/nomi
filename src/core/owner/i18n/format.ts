@@ -7,7 +7,12 @@ import { type Money, currencySymbol } from '../../types/money.js';
  * Western (Arabic-Indic digits are avoided in a B2B trade UI). Only zh uses 万.
  */
 
-const BUSINESS_TZ = 'Asia/Shanghai';
+/**
+ * TZ (2026-09-30) — every date and time is said in the WORKSPACE's own zone
+ * (`businesses.timezone`, chosen at sign-up), passed in by the caller. It was a
+ * constant, Asia/Shanghai, for every workspace. The zone is a required
+ * argument on purpose: a caller that forgets it does not compile.
+ */
 const INTL_TAG: Record<Locale, string> = { en: 'en-US', zh: 'zh-CN', ar: 'ar' };
 
 /** Quantities: zh says 12000 → "1.2万" and small numbers ungrouped (5000);
@@ -33,33 +38,33 @@ export function formatQty(locale: Locale, n: number): string {
 export const formatMoney = (m: Money): string =>
   `${currencySymbol(m.currency)}${m.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** A localized calendar date in the business timezone. */
-export function formatDate(locale: Locale, d: Date): string {
+/** A localized calendar date in the workspace's zone. */
+export function formatDate(locale: Locale, d: Date, zone: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {
-    timeZone: BUSINESS_TZ, month: 'short', day: 'numeric', weekday: 'short',
+    timeZone: zone, month: 'short', day: 'numeric', weekday: 'short',
   }).format(d);
 }
 
 /** "Tuesday, September 29" / "9月29日星期二" / "الثلاثاء، 29 سبتمبر" — Today's own date, in the business timezone. */
-export function formatDayLong(locale: Locale, d: Date): string {
+export function formatDayLong(locale: Locale, d: Date, zone: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {
-    timeZone: BUSINESS_TZ, weekday: 'long', month: 'long', day: 'numeric',
+    timeZone: zone, weekday: 'long', month: 'long', day: 'numeric',
   }).format(d);
 }
 
-/** HH:MM in the business timezone (24h). */
-export function formatTime(locale: Locale, d: Date): string {
+/** HH:MM in the workspace's zone (24h). */
+export function formatTime(locale: Locale, d: Date, zone: string): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], {
-    timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(d);
 }
 
 const TODAY: Record<Locale, string> = { en: 'Today', zh: '今天', ar: 'اليوم' };
 const YESTERDAY: Record<Locale, string> = { en: 'Yesterday', zh: '昨天', ar: 'أمس' };
 const TOMORROW: Record<Locale, string> = { en: 'Tomorrow', zh: '明天', ar: 'غدًا' };
-/** The calendar day an instant falls on in the business timezone, as 'YYYY-MM-DD'. */
-export const dayKey = (d: Date): string =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+/** The calendar day an instant falls on in the workspace's zone, as 'YYYY-MM-DD'. */
+export const dayKey = (d: Date, zone: string): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 
 const ymdParts = (ymd: string): [number, number, number] => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -72,11 +77,11 @@ export function addDays(ymd: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/** How far the business timezone is ahead of UTC at an instant, in ms. */
-function zoneOffsetMs(at: Date): number {
+/** How far the zone is ahead of UTC at an instant, in ms. */
+function zoneOffsetMs(at: Date, zone: string): number {
   const p: Record<string, number> = {};
   for (const part of new Intl.DateTimeFormat('en-US', {
-    timeZone: BUSINESS_TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   }).formatToParts(at)) p[part.type] = Number(part.value);
   const wall = Date.UTC(p['year'] ?? 1970, (p['month'] ?? 1) - 1, p['day'] ?? 1, p['hour'] ?? 0, p['minute'] ?? 0, p['second'] ?? 0);
@@ -88,11 +93,11 @@ function zoneOffsetMs(at: Date): number {
  * inverse of `dayKey`: `dayKey(dayStart(x)) === x`. Computed from the zone
  * rather than assuming its offset, so it stays right if the zone ever changes.
  */
-export function dayStart(ymd: string): Date {
+export function dayStart(ymd: string, zone: string): Date {
   const [y, m, d] = ymdParts(ymd);
   const guess = Date.UTC(y, m - 1, d);
-  const first = guess - zoneOffsetMs(new Date(guess));
-  return new Date(guess - zoneOffsetMs(new Date(first)));
+  const first = guess - zoneOffsetMs(new Date(guess), zone);
+  return new Date(guess - zoneOffsetMs(new Date(first), zone));
 }
 
 /**
@@ -129,11 +134,11 @@ export const formatList = (locale: Locale, items: readonly string[]): string =>
   new Intl.ListFormat(INTL_TAG[locale], { type: 'conjunction' }).format(items);
 
 /** "Today 09:15" / "昨天 23:40" / "Jul 17 09:15" — relative day words + time. */
-export function formatRelative(locale: Locale, d: Date, now: Date): string {
-  const time = formatTime(locale, d);
-  if (dayKey(d) === dayKey(now)) return `${TODAY[locale]} ${time}`;
-  if (dayKey(d) === dayKey(new Date(now.getTime() - 86_400_000))) return `${YESTERDAY[locale]} ${time}`;
-  return `${formatDate(locale, d)} ${time}`;
+export function formatRelative(locale: Locale, d: Date, now: Date, zone: string): string {
+  const time = formatTime(locale, d, zone);
+  if (dayKey(d, zone) === dayKey(now, zone)) return `${TODAY[locale]} ${time}`;
+  if (dayKey(d, zone) === dayKey(new Date(now.getTime() - 86_400_000), zone)) return `${YESTERDAY[locale]} ${time}`;
+  return `${formatDate(locale, d, zone)} ${time}`;
 }
 
 /** CH5 — time left, in words: "1 hour, 20 minutes", "1小时20分钟", "ساعة واحدة و20 دقيقة". Whole minutes, never below one. */
@@ -148,9 +153,9 @@ export function formatTimeLeft(locale: Locale, ms: number): string {
   return new Intl.ListFormat(INTL_TAG[locale], { type: 'unit', style: locale === 'zh' ? 'narrow' : 'long' }).format(said);
 }
 
-/** The hour (0–23) an instant falls in, in the business timezone — the row it sits in on a calendar. */
-export function hourIn(d: Date): number {
-  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', hourCycle: 'h23' }).format(d));
+/** The hour (0–23) an instant falls in, in the workspace's zone — the row it sits in on a calendar. */
+export function hourIn(d: Date, zone: string): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', hourCycle: 'h23' }).format(d));
 }
 
 /** "September 2026", "2026年9月", "سبتمبر ٢٠٢٦" — the month a calendar page shows. */
@@ -169,10 +174,10 @@ export function formatWeekday(locale: Locale, ymd: string): string {
  * A moment in a list's corner, as short as it can be said: the hour today,
  * "Yesterday", then the day and month ("14:02" / "Yesterday" / "Sep 28").
  */
-export function formatShortWhen(locale: Locale, d: Date, now: Date): string {
-  if (dayKey(d) === dayKey(now)) return formatTime(locale, d);
-  if (dayKey(d) === dayKey(new Date(now.getTime() - 86_400_000))) return YESTERDAY[locale];
-  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: BUSINESS_TZ, month: 'short', day: 'numeric' }).format(d);
+export function formatShortWhen(locale: Locale, d: Date, now: Date, zone: string): string {
+  if (dayKey(d, zone) === dayKey(now, zone)) return formatTime(locale, d, zone);
+  if (dayKey(d, zone) === dayKey(new Date(now.getTime() - 86_400_000), zone)) return YESTERDAY[locale];
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { timeZone: zone, month: 'short', day: 'numeric' }).format(d);
 }
 
 /**
@@ -180,11 +185,11 @@ export function formatShortWhen(locale: Locale, d: Date, now: Date): string {
  * for tomorrow beside it, a date after that. "16:04" / "16:04 tomorrow" /
  * "明天 16:04" / "غدًا 16:04".
  */
-export function formatUntil(locale: Locale, d: Date, now: Date): string {
-  const time = formatTime(locale, d);
-  if (dayKey(d) === dayKey(now)) return time;
-  if (dayKey(d) === dayKey(new Date(now.getTime() + 86_400_000))) {
+export function formatUntil(locale: Locale, d: Date, now: Date, zone: string): string {
+  const time = formatTime(locale, d, zone);
+  if (dayKey(d, zone) === dayKey(now, zone)) return time;
+  if (dayKey(d, zone) === dayKey(new Date(now.getTime() + 86_400_000), zone)) {
     return locale === 'en' ? `${time} tomorrow` : `${TOMORROW[locale]} ${time}`;
   }
-  return `${formatDate(locale, d)} ${time}`;
+  return `${formatDate(locale, d, zone)} ${time}`;
 }

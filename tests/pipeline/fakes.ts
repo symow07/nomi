@@ -117,6 +117,10 @@ export class FakeTenant implements Tenant {
     },
   };
 
+  /** TZ — the workspace's zone. The fixtures' clocks are written in Shanghai time; a test may set another. */
+  timeZone = 'Asia/Shanghai';
+  zone = async (): Promise<string> => this.timeZone;
+
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
   forbidden: string[] = [];
   /** M44 — days the factory is shut, as the owner stated them. */

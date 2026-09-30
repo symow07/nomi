@@ -16,7 +16,8 @@ import { buttonsAndDoors } from './buttons-and-doors.js';
  */
 
 const NOW = new Date('2026-09-29T10:00:00Z');
-const SCOPE = { name: 'Lily', several: false, outreach: false, setup: null, business: 'Hana Skincare', needsYou: 3 };
+// TZ — the fixtures' times are written in Shanghai time: the workspace's zone, stated.
+const SCOPE = { name: 'Lily', several: false, outreach: false, setup: null, business: 'Hana Skincare', needsYou: 3, zone: 'Asia/Shanghai' };
 const page = (path: string, locale: 'en' | 'zh' | 'ar' = 'en') =>
   withWorkspace(SCOPE, () => shell({ title: 'Maya Rahman', active: 'inbox', locale, path, bodyHtml: '<p>x</p>' }));
 

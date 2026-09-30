@@ -1,3 +1,4 @@
+import { zoneOf } from './zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db, type Tx } from './client.js';
 import { parseBusinessId, type BusinessId } from '../core/types/ids.js';
@@ -132,12 +133,14 @@ const buyerOf = (r: BuyerCols): CalendarBuyer | null =>
   r.client_id ? { id: r.client_id, name: r.buyer, country: r.country } : null;
 
 async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promise<CalendarView> {
-  const start = dayStart(q.from);
-  const end = dayStart(q.to);
+  // TZ — the days are the workspace's own.
+  const zone = await zoneOf(tx, bid);
+  const start = dayStart(q.from, zone);
+  const end = dayStart(q.to, zone);
   const inWindow = (d: Date | null): d is Date => d !== null && d >= start && d < end;
   const out: CalendarEntry[] = [];
   const timed = (e: Omit<CalendarEntry, 'day' | 'allDay'>): void => {
-    out.push({ ...e, day: dayKey(e.at), allDay: false });
+    out.push({ ...e, day: dayKey(e.at, zone), allDay: false });
   };
 
   // ── Samples: when they asked, and when she dealt with it.
@@ -221,7 +224,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
   for (const r of quotes) {
     const price = moneyFromRow(Number(r.unit_price_usd), r.currency);
     if (price === null) continue;
-    const key = `${r.conv}|${dayKey(r.created_at)}|${r.quantity}|${r.unit_price_usd}|${r.currency}`;
+    const key = `${r.conv}|${dayKey(r.created_at, zone)}|${r.quantity}|${r.unit_price_usd}|${r.currency}`;
     if (seenQuote.has(key)) continue;
     seenQuote.add(key);
     timed({ category: 'negotiation', kind: 'price_worked_out', at: r.created_at, conversationId: r.conv, orderId: null,
@@ -281,7 +284,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
     const from = ymdOf(r.starts_on);
     const to = ymdOf(r.ends_on);
     const day = from < q.from ? q.from : from;
-    out.push({ category: 'closures', kind: 'closure', day, at: dayStart(day), allDay: true,
+    out.push({ category: 'closures', kind: 'closure', day, at: dayStart(day, zone), allDay: true,
       conversationId: null, orderId: null, buyer: null, identity: null,
       detail: { closureLabel: r.label, closureFrom: from, closureTo: to },
       source: { table: 'factory_closures', id: r.id, column: 'starts_on' } });
@@ -300,9 +303,9 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
      limit ${PER_SOURCE}`.execute(tx)).rows;
   for (const r of promised) {
     const day = ymdOf(r.due_on);
-    out.push({ category: 'promised', kind: `promise_${r.kind}` as CalendarKind, day, at: dayStart(day), allDay: true,
+    out.push({ category: 'promised', kind: `promise_${r.kind}` as CalendarKind, day, at: dayStart(day, zone), allDay: true,
       conversationId: r.conv, orderId: null, buyer: buyerOf(r), identity: null,
-      detail: { said: r.said, byAssistant: r.said_by === 'assistant', kept: r.kept_at !== null, overdue: r.kept_at === null && day < dayKey(now) },
+      detail: { said: r.said, byAssistant: r.said_by === 'assistant', kept: r.kept_at !== null, overdue: r.kept_at === null && day < dayKey(now, zone) },
       source: { table: 'promised_dates', id: r.id, column: 'due_on' } });
   }
 
@@ -315,7 +318,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
      order by e.starts_at
      limit ${PER_SOURCE}`.execute(tx)).rows;
   for (const r of own) {
-    out.push({ category: 'yours', kind: 'own', day: dayKey(r.starts_at), at: r.starts_at, allDay: r.all_day,
+    out.push({ category: 'yours', kind: 'own', day: dayKey(r.starts_at, zone), at: r.starts_at, allDay: r.all_day,
       conversationId: null, orderId: null, buyer: null, identity: null,
       detail: { title: r.title, ...(r.ends_at ? { endsAt: r.ends_at } : {}), entryId: r.id },
       source: { table: 'calendar_entries', id: r.id, column: 'starts_at' } });
@@ -359,7 +362,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
       || order(a) - order(b));
 
   return {
-    from: q.from, to: q.to, today: dayKey(now), category: q.category, buyer,
+    from: q.from, to: q.to, today: dayKey(now, zone), category: q.category, buyer,
     buyers: [...buyers.values()].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')),
     categories: CALENDAR_CATEGORIES.filter((c) => present.has(c)),
     entries,
@@ -369,7 +372,7 @@ async function read(tx: Tx, bid: BusinessId, q: CalendarQuery, now: Date): Promi
 export async function loadCalendar(db: Db, businessIdRaw: string, q: CalendarQuery, now: Date): Promise<CalendarView> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) {
-    return { from: q.from, to: q.to, today: dayKey(now), category: q.category, buyer: null, buyers: [], categories: [], entries: [] };
+    return { from: q.from, to: q.to, today: dayKey(now, 'UTC'), category: q.category, buyer: null, buyers: [], categories: [], entries: [] };
   }
   return withTenantTx(db, bid.value, (tx) => read(tx, bid.value, q, now));
 }
