@@ -27,6 +27,7 @@ const PILOT = `add10000-0000-4000-8000-${RUN}0001`;   // the environment's busin
 const OLD = `add10000-0000-4000-8000-${RUN}0002`;     // exists, has an owner on record, no login (Westlake's shape)
 const BARE = `add10000-0000-4000-8000-${RUN}0003`;    // made by provision-factory: no owner on record
 const OFF = `add10000-0000-4000-8000-${RUN}0004`;     // switched off
+const COPY = `add10000-0000-4000-8000-${RUN}0005`;    // OLD's practice copy (0086)
 const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
 const OWNER = { email: `owner-${RUN}@westlake.example`, password: `westlake-password-${RUN}` };
 const SIGNUP = { factory: `Signed Up ${RUN}`, name: 'Sara', email: `sara-${RUN}@signed.example`, password: `signed-password-${RUN}`,
@@ -77,6 +78,7 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
     await admin.query(`insert into businesses (id, name) values ($1, $2), ($3, $4), ($5, $6), ($7, $8) on conflict (id) do nothing`,
       [PILOT, `Pilot ${RUN}`, OLD, `Westlake ${RUN}`, BARE, `Bare ${RUN}`, OFF, `Off ${RUN}`]);
     await admin.query(`update businesses set is_active = false where id = $1`, [OFF]);
+    await admin.query(`insert into businesses (id, name, practice_of) values ($1, $2, $3) on conflict (id) do nothing`, [COPY, `Westlake ${RUN}`, OLD]);
     // What 0035 gave every business that existed then: an owner on record, named after it.
     await admin.query(`insert into people (business_id, name, is_owner) values ($1, $2, true)`, [OLD, `Westlake ${RUN}`]);
     const { buildProduction } = await import('../../src/main.js');
@@ -98,7 +100,7 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
     await prod?.close();
   });
 
-  it('refuses, and changes nothing: no such business, the sandbox, switched off, not an admin', async () => {
+  it('refuses, and changes nothing: no such business, the sandbox, a practice copy, switched off, not an admin', async () => {
     const before = await counts();
     const none = tool([randomUUID(), OWNER.email]);
     expect(none.code).toBe(1);
@@ -106,6 +108,9 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
     const sandbox = tool([SANDBOX, OWNER.email]);
     expect(sandbox.code).toBe(1);
     expect(sandbox.err).toMatch(/practice sandbox/);
+    const copy = tool([COPY, OWNER.email]);
+    expect(copy.code).toBe(1);
+    expect(copy.err).toContain(`the practice copy of ${OLD}`);
     const off = tool([OFF, OWNER.email]);
     expect(off.code).toBe(1);
     expect(off.err).toMatch(/switched off/);

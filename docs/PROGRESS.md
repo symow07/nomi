@@ -17,7 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #144 | **Stop pressed while a customer's lines are being grouped: recorded as "stopped"** (the owner's decision). The hold is a turn (`held`, the silent path, no model), the waiting lines are processed in it, the conversation handed over as stopped — it used to dead-letter and surface as "not answered". Pre-pilot 12/12 before and after; the new GROUPING test failed before the fix (no migration) | 85 |
+| 2026-09-30 | #144 | **Stop pressed while a customer's lines are being grouped: recorded as "stopped"** (the owner's decision). The hold is a turn (`held`, the silent path, no model), the waiting lines are processed in it, the conversation handed over as stopped — it used to dead-letter and surface as "not answered". Pre-pilot 12/12 before and after; the new GROUPING test failed before the fix. Merged 08:28 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #143 | **The disclosure gate, per language** (merged 08:1x UTC, deployed, `/health` ok) — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
 | 2026-09-30 | — | **Westlake's products made findable (T3 backfill, the owner's yes):** backup `~/nomi-backups/nomi-backup-20260930T064218Z` (schema 85, restore proven 4/4), dry run, then `tools/backfill-aliases.mjs --business 7dc89f42… --yes`: 5 names written for 5 products (each its own name, nothing removed); a second run adds nothing | 85 |
 | 2026-09-30 | #142 | **The owner's two questions answered** (below): the gate #124 closed as a side effect; zh signed off; the Arabic sentence changed after sign-off (#118); the backup ping unwired; the uptime ping verified (docs only) | 85 |
@@ -42,24 +42,33 @@ under "Decided" below.
 | 2026-09-29 | #123 | **A product may have no minimum** (0081): `products.moq` nullable, "no minimum" in every reply, page and export, in every language; the numeral guard refuses an invented minimum. **T4** parser honesty. **PRODUCT.md** description rewritten to the positioning. CLAUDE.md rule 24 | 81 |
 | 2026-09-29 | #122 | **T6/T6b — an order waits for the owner's tap** (0080). Deployed 07:03 UTC, `/health` ok, schema 80. A customer's "yes" writes `order_proposals`; nothing is confirmed or sent; the owner confirms (order made, then the customer told) or steps in (set aside). Pending question set only when its message leaves (`asks` on drafts and outbound rows). E-mail alert always; browser notification where the owner turned it on; the order leads Buyers and Today. CLAUDE.md rule 23 | 80 |
 
-**Next:** nothing in the plan's eight steps is left to build without the
-owner. The run is done: the single report to the owner (the decisions in
-"Waiting on the owner", the Westlake backfill yes, the es/fr consequence, and
-what the review pass left for taste — below).
+**Next (the owner's instruction of 2026-09-30, in its order):**
+1. **Practice, per workspace** — blocking before anyone outside signs up.
+   The design and the table-by-table classification are `docs/PRACTICE.md`
+   (P1). P2 (the copy, 0086) is in review; then P3 (the real ingress and worker,
+   a practice adapter with no network), P4 (the page), P5 (metering, 50 a day,
+   the platform flag), P6 (the shared sandbox retired, transcripts expire).
+2. **One time zone and one currency per workspace**, chosen during setup.
+3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
+   first, then model instructions, then the site, then owner-facing.
 
-**The review pass left these for the owner's eye, not fixed (taste, or parked
-scope):** the phone nav says "Buyers" where the rail says "Customers"; many
-older sentences still say "buyer" (the positioning rewrite is parked); the
-calendar's week is narrow on a phone (the plan: "the phone later"); the
-forbidden-words floor is a long list on its page. **Check the scheduled backup of 2026-09-30 03:00 UTC wrote a
-`backup_runs` row** (below).
+Done from that instruction: the status corrections and the two questions
+(#142), the gate per language (#143, Westlake's auto back for en/zh/ar), the
+approved backfill, Stop during grouping (#144). **Languages outside the five**
+were decided the same way as the gate and shipped in #143: a customer writing
+in a language with no signed-off disclosure is answered in their language, the
+reply stays a draft, and the card says why; no sentence is ever translated for
+the occasion.
 
-**Consequence the owner should know (since #124):** the disclosure gate is
-installation-wide by design (CLAUDE.md rule 1), and es/fr now wait for a
-native reader, so **nothing sends alone anywhere — Westlake's auto included —
-until the two sentences are read and the flags flipped.** Replies wait as
-drafts; the owner's page says why (`autonomy.notReleased`). Flipping them is
-the one step I may not take.
+**Left for the owner's eye by the review pass, and parked by the owner
+(2026-09-30):** the calendar's week on a phone; the forbidden-words floor's
+long list. The phone nav's "Buyers" and the older "buyer" sentences are part
+of the positioning rewrite (item 3 above).
+
+**The gate is per language since #143** (it was one answer for the whole
+installation, and #124's unread es/fr stopped every workspace sending alone —
+see "The owner's questions" below). Flipping a flag is the one step I may not
+take.
 
 ## The order of work
 
@@ -224,17 +233,19 @@ delivered or not answered 2xx).
 These items cannot be built without a decision the plan left open and the
 instruction did not answer. Collected here; asked once, at the end.
 
+**Answered by the owner on 2026-09-30 and taken off this list:** T9 (languages
+beyond the five: drafts, the owner told why, never a translated disclosure —
+built in #143), LG (the gate per language — #143), P1–P6 (Practice per
+workspace, blocking — in progress; Q1W decided "not yet" in
+`docs/PRACTICE.md`), TZ and CUR (one time zone and one currency per
+workspace, chosen during setup — next), Stop during grouping (#144).
+
 | Items | Decision (plan numbering) |
 |---|---|
-| T9 (languages beyond the five get what?) | 20 |
-| P1–P6, Q1W (per-workspace Practice) | 4, 5 |
-| TZ (business time zone) | 22 |
-| CUR (one currency per workspace) | 19 |
 | K1–K8 (learning the business from imports) | 10, 27, 28, 29, 30, 41 |
 | RT, HS, CK (retail-first, "how you sell", claims packs) | 18, 29, 41, 42 |
 | G1–G10, KS5, KS6 (self-serve sign-up and its protections) | 7, 8, 14, 15, 33, 34, 35, 36, 37, 38 |
 | R1–R3 (earning auto) | 9, 12, 23 |
-| LG (the per-language gate) | 16 |
 | VAR (variants) | 31 |
 | MAIL, BOT, BILL, SITE, UI-es, EXT, EU1 | 13, 15, 30, 32, 36, 39 (and accounts only the owner can create) |
 | T8 (price-list measurement) | needs the owner's 25–35 real catalogues |
@@ -350,9 +361,9 @@ instruction did not answer. Collected here; asked once, at the end.
   device's font for a moment and then Noto; matching the fallback's metrics
   needs per-face size and ascent overrides measured against each device
   font. Polish, not a gate; the files are cached for good after the first.
-- **Practice keeps the old card** (`sandbox.ts`, `/app/sandbox/act`): the
-  practice sandbox is P1–P6's to rebuild (decisions 4 and 5), and a second
-  copy of the new card there would have to be rebuilt again.
+- **Practice keeps the old card** (`sandbox.ts`, `/app/sandbox/act`) until
+  P4 draws the per-workspace Practice page; a second copy of the new card on
+  the shared sandbox would be thrown away with it in P6.
 - **The other cards on the conversation page** are drawn as states of the
   one card since #126 (a dot, the state's words, then why and what to do),
   but they are still separate cards under it, not lines inside it: moving

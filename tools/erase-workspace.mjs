@@ -162,10 +162,10 @@ async function plan() {
 }
 
 /** Jobs a worker is running for this business right now. */
-async function activeJobs() {
+async function activeJobs(id = business) {
   if (!(await client.query("select to_regclass('pgboss.job') is not null as ok")).rows[0]?.ok) return 0;
   return (await client.query(
-    "select count(*)::int as n from pgboss.job where data->>'businessId' = $1 and state = 'active'", [business])).rows[0]?.n ?? 0;
+    "select count(*)::int as n from pgboss.job where data->>'businessId' = $1 and state = 'active'", [id])).rows[0]?.n ?? 0;
 }
 
 try {
@@ -208,16 +208,24 @@ try {
   console.log('');
 
   const steps = await plan();
+  // Practice (0086): the workspace's practice copy is a business of its own,
+  // `practice_of` this one. It goes first, by the same steps — the cascade from
+  // this row alone would stop on the copy's own products and conversation.
+  const copies = (await client.query('select id::text as id from businesses where practice_of = $1', [business])).rows.map((r) => r.id);
+  const erased = [...copies, business];
   let total = 0;
-  for (const step of steps) {
-    const n = (await client.query(step.count, [business])).rows[0]?.n ?? 0;
-    if (n === 0) continue;
-    console.log(`  ${String(n).padStart(8)}  ${step.table}`);
-    total += n;
+  for (const id of erased) {
+    for (const step of steps) {
+      const n = (await client.query(step.count, [id])).rows[0]?.n ?? 0;
+      if (n === 0) continue;
+      console.log(`  ${String(n).padStart(8)}  ${step.table}${id === business ? '' : ' (its practice copy)'}`);
+      total += n;
+    }
   }
   console.log(`  ${String(total).padStart(8)}  rows in all\n`);
 
-  const busy = await activeJobs();
+  let busy = 0;
+  for (const id of erased) busy += await activeJobs(id);
   if (busy > 0) {
     console.error(`✗  A worker is running ${busy} job(s) for ${biz.name} right now. It must finish before its rows can go —`
       + ' try again in a minute. Nothing was deleted.\n');
@@ -237,7 +245,7 @@ try {
   // One transaction: a half-erased workspace is worse than either end of it.
   await client.query('begin');
   try {
-    for (const step of steps) await client.query(step.run, [business]);
+    for (const id of erased) for (const step of steps) await client.query(step.run, [id]);
     // The request row lives in `deletion_requests`, which the loop above has
     // just emptied for this business — so the record of what was done goes
     // where an operator will find it: the process log, and the line below.
