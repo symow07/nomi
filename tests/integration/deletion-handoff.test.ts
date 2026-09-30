@@ -287,7 +287,7 @@ d('0075 · a deletion request in chat goes to a person, and nothing is sent (req
     const data = (await get('/app/settings/data')).body;
     for (const r of REQUESTS) expect(data, r.lang).toContain(`href="/app/conversations/${convs[r.lang]}#deletion"`);
     expect((await get(`/app/inbox/${conv}`)).body)
-      .toContain(esc(t('en', 'deletionAsked.noted' as never, { date: formatDate('en', noted!.asked_at) })));
+      .toContain(esc(t('en', 'deletionAsked.noted' as never, { date: formatDate('en', noted!.asked_at, 'Asia/Shanghai') })));
     const buyerPage = (await get(`/app/conversations/${conv}`)).body;
     expect(buyerPage).toContain(`action="/app/conversations/${conv}/deletion/dismiss"`);
     expect(buyerPage.slice(buyerPage.indexOf('id="deletion"'))).not.toContain('name="note"');

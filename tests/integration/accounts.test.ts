@@ -178,6 +178,57 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     expect(never.body).not.toContain(' selected>');
   });
 
+  it('TZ · EACH WORKSPACE KEEPS ITS OWN TIME — given where the country has one zone, asked where it has several, changed on the profile', async () => {
+    const zoneOfName = async (name: string) =>
+      (await admin.query(`select timezone from businesses where name = $1`, [name])).rows[0]?.timezone as string | undefined;
+    // Morocco and the Emirates keep one zone each: nobody was asked.
+    expect(await zoneOfName(A.factory)).toBe('Africa/Casablanca');
+    expect(await zoneOfName(B.factory)).toBe('Asia/Dubai');
+
+    // The United States keeps several: the form comes back with the question,
+    // and nothing is made until it is answered.
+    const C = { ...ABOUT, factory: `Corner Shop ${RUN}`, name: 'Sam', email: `sam-${RUN}@corner.example`, password: `corner-password-${RUN}`, country: 'US', invite: await invite(`Corner ${RUN}`) };
+    // Its own visitor: sign-up allows five tries an hour from one address, and
+    // the tests above have used this file's share.
+    const signup = (fields: Record<string, string>) => prod.app.inject({
+      method: 'POST', url: '/signup', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `198.51.100.${RUN.charCodeAt(0) % 200}` },
+      payload: new URLSearchParams(fields).toString(),
+    });
+    const asked = await signup(C);
+    expect(asked.statusCode).toBe(400);
+    expect(asked.body).toContain(t('en', 'signup.problem.zone_missing'));
+    expect(asked.body).toContain('<select id="su-zone" name="zone" required>');
+    expect(asked.body).toContain('value="America/Chicago"');
+    expect(await zoneOfName(C.factory)).toBeUndefined();
+    // A zone of another country is not an answer.
+    expect((await signup({ ...C, zone: 'Europe/London' })).statusCode).toBe(400);
+    const made = await signup({ ...C, zone: 'America/Chicago' });
+    expect(made.statusCode, made.body.slice(0, 300)).toBe(302);
+    expect(await zoneOfName(C.factory)).toBe('America/Chicago');
+
+    // The owner changes it on the profile; a value that is not a zone changes nothing.
+    const cookieC = cookieOf(made);
+    const profile = await get('/app/settings/profile', cookieC);
+    expect(profile.body).toContain('<option value="America/Chicago" selected>');
+    const saved = await form('/app/settings/zone', { zone: 'America/Denver' }, cookieC);
+    expect(flashSaid(saved, WEB_SECRET)).toBe(t('en', 'settings.flash.zoneSaved'));
+    expect(await zoneOfName(C.factory)).toBe('America/Denver');
+    const bad = await form('/app/settings/zone', { zone: 'Mars/Olympus' }, cookieC);
+    expect(flashSaid(bad, WEB_SECRET)).toBe(t('en', 'settings.flash.zoneInvalid'));
+    expect(await zoneOfName(C.factory)).toBe('America/Denver');
+    // The cached facts were let go: the next page is drawn in the new zone.
+    expect((await get('/app/settings/profile', cookieC)).body).toContain('<option value="America/Denver" selected>');
+
+    // …and every "today" the database decides is the workspace's own.
+    const { zoneOf } = await import('../../src/db/zone.js');
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const { lookupLogin } = await import('../../src/db/accounts.js');
+    const c = parseBusinessId((await lookupLogin(prod.db, C.email))!.businessId);
+    if (!c.ok) throw new Error('fixture');
+    expect(await withTenantTx(prod.db, c.value, (x) => zoneOf(x, c.value))).toBe('America/Denver');
+  });
+
   it('the application role still cannot see or mint an invitation', async () => {
     await expect(sql`select count(*) from signup_invites`.execute(prod.db)).rejects.toThrow(/permission denied/);
     await expect(sql`insert into signup_invites (note) values ('mine')`.execute(prod.db)).rejects.toThrow(/permission denied/);

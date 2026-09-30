@@ -1,3 +1,4 @@
+import { workspaceZone } from './zone.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { addDays, dayKey, dayStart, hourIn, formatWeekday } from '../../core/owner/i18n/format.js';
@@ -78,7 +79,7 @@ export type CalendarAsk = {
  */
 export function parseCalendarQuery(query: unknown, now: Date, firstDay = 1): CalendarAsk {
   const q = (query && typeof query === 'object' ? query : {}) as Record<string, unknown>;
-  const today = dayKey(now);
+  const today = dayKey(now, workspaceZone());
   const view = VIEWS.find((v) => v === q['view']) ?? 'week';
   const cat = q['category'];
   const category = typeof cat === 'string' && (CALENDAR_CATEGORIES as readonly string[]).includes(cat)
@@ -140,8 +141,8 @@ export function line(locale: Locale, e: CalendarEntry): string {
     case 'closure':
       return t(locale, 'calendar.line.closure', {
         label: d.closureLabel ?? '',
-        from: show.date(locale, dayStart(d.closureFrom ?? e.day)),
-        to: show.date(locale, dayStart(d.closureTo ?? e.day)),
+        from: show.date(locale, dayStart(d.closureFrom ?? e.day, workspaceZone())),
+        to: show.date(locale, dayStart(d.closureTo ?? e.day, workspaceZone())),
       });
     case 'conversation_closed': return t(locale, 'calendar.line.closed');
     case 'own': return d.title ?? '';
@@ -198,13 +199,13 @@ function entry(locale: Locale, e: CalendarEntry, showKind: boolean): string {
  * owner's own can be taken off.
  */
 function chip(locale: Locale, e: CalendarEntry, now: Date, compact = false): string {
-  const past = e.allDay ? e.day < dayKey(now) : e.at.getTime() < now.getTime();
+  const past = e.allDay ? e.day < dayKey(now, workspaceZone()) : e.at.getTime() < now.getTime();
   const name = e.kind === 'own' ? e.detail.title ?? ''
     : e.kind === 'closure' ? e.detail.closureLabel ?? ''
     : e.buyer?.name ?? e.identity ?? t(locale, 'common.buyer');
   // A state: a reply owed; a promise not yet kept whose day has come.
   const promise = e.kind.startsWith('promise_');
-  const due = e.kind === 'reply_due' || (promise && !e.detail.kept && e.day <= dayKey(now));
+  const due = e.kind === 'reply_due' || (promise && !e.detail.kept && e.day <= dayKey(now, workspaceZone()));
   const state = due ? `<span class="dot ${e.detail.overdue ? 'bad' : 'warn'}" aria-hidden="true">●</span> ` : '';
   // The assistant's hand: a price it worked out, a promise it made.
   const mark = e.kind === 'price_worked_out' || (promise && e.detail.byAssistant)
@@ -227,7 +228,7 @@ const covers = (e: CalendarEntry, day: string): boolean => e.kind === 'closure'
 function grid(locale: Locale, v: CalendarView, days: readonly string[], now: Date): string {
   const allDay = v.entries.filter((e) => e.allDay);
   const timed = v.entries.filter((e) => !e.allDay);
-  const hours = timed.map((e) => hourIn(e.at));
+  const hours = timed.map((e) => hourIn(e.at, workspaceZone()));
   const first = Math.min(8, ...hours);
   const last = Math.max(18, ...hours);
   const head = `<tr><th scope="col" class="wk-corner"><span class="sr">${esc(t(locale, 'calendar.allDay'))}</span></th>${days.map((d) => {
@@ -242,7 +243,7 @@ function grid(locale: Locale, v: CalendarView, days: readonly string[], now: Dat
   const rows: string[] = [];
   for (let h = first; h <= last; h++) {
     rows.push(`<tr><th scope="row">${esc(show.isolate(locale, String(h).padStart(2, '0')))}</th>${days.map((d) =>
-      `<td>${timed.filter((e) => e.day === d && hourIn(e.at) === h).map((e) => chip(locale, e, now)).join('')}</td>`).join('')}</tr>`);
+      `<td>${timed.filter((e) => e.day === d && hourIn(e.at, workspaceZone()) === h).map((e) => chip(locale, e, now)).join('')}</td>`).join('')}</tr>`);
   }
   return `<div class="wk-scroll"><table class="wk"><thead>${head}</thead><tbody>${allRow}${rows.join('')}</tbody></table></div>`;
 }
@@ -290,7 +291,7 @@ export type CalendarPage = { readonly view?: CalendarViewKind; readonly at?: str
 
 export function renderCalendar(v: CalendarView, locale: Locale, page: CalendarPage = {}): string {
   const view = page.view ?? 'list';
-  return view === 'list' ? renderList(v, locale) : renderGrid(v, locale, view, page.at ?? v.from, page.now ?? dayStart(v.today));
+  return view === 'list' ? renderList(v, locale) : renderGrid(v, locale, view, page.at ?? v.from, page.now ?? dayStart(v.today, workspaceZone()));
 }
 
 /** Month · Week · Day · List, keeping the category and the buyer. */
@@ -342,8 +343,8 @@ function renderGrid(v: CalendarView, locale: Locale, view: Exclude<CalendarViewK
   const buyer = v.buyer?.id ?? null;
   const step = (n: number) => view === 'month' ? addMonths(at, n) : addDays(at, view === 'week' ? 7 * n : n);
   const span = view === 'month' ? show.month(locale, at)
-    : view === 'day' ? show.date(locale, dayStart(at))
-    : t(locale, 'calendar.range', { from: show.date(locale, dayStart(v.from)), to: show.date(locale, dayStart(addDays(v.to, -1))) });
+    : view === 'day' ? show.date(locale, dayStart(at, workspaceZone()))
+    : t(locale, 'calendar.range', { from: show.date(locale, dayStart(v.from, workspaceZone())), to: show.date(locale, dayStart(addDays(v.to, -1), workspaceZone())) });
   // ‹ Today › beside the dates: the arrows are doors, mirrored in Arabic by `.go`.
   const move = `<nav class="cal-move" aria-label="${esc(t(locale, 'calendar.move'))}">
       <a class="back" href="${esc(href({ view, at: step(-1), category: v.category, buyer }))}" aria-label="${esc(t(locale, 'calendar.prev'))}"><span class="go" aria-hidden="true">‹</span></a>
@@ -374,7 +375,7 @@ function renderList(v: CalendarView, locale: Locale): string {
 
   // The window, and the doors either side of it.
   const range = `<p class="small cal-span">${esc(t(locale, 'calendar.range', {
-    from: show.date(locale, dayStart(v.from)), to: show.date(locale, dayStart(last)),
+    from: show.date(locale, dayStart(v.from, workspaceZone())), to: show.date(locale, dayStart(last, workspaceZone())),
   }))}</p>`;
   const earlier = addDays(v.from, -WINDOW_DAYS);
   const later = addDays(v.from, WINDOW_DAYS);
@@ -406,7 +407,7 @@ function renderList(v: CalendarView, locale: Locale): string {
   if (todayIn && !days.has(v.today)) days.set(v.today, []);
   const sections = [...days.keys()].sort().map((day) => {
     const items = days.get(day) ?? [];
-    const date = show.date(locale, dayStart(day));
+    const date = show.date(locale, dayStart(day, workspaceZone()));
     const title = day === v.today ? t(locale, 'calendar.today', { date }) : date;
     return `<section>
       <h2 class="cal-day"${day === v.today ? ' aria-current="date"' : ''}>${esc(title)}</h2>

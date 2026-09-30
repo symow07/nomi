@@ -152,6 +152,14 @@ describe('M23 · the guard makes no decision it is not entitled to', () => {
       expect(src.includes(seeded), `provisioning seeds ${seeded}`).toBe(false);
   });
 
+  it('TZ — the tool asks where the business is; it never makes a Shanghai tenant by default', async () => {
+    const src = await readFile(new URL('../../tools/provision-factory.mjs', import.meta.url), 'utf8');
+    expect(src).toContain("find((a) => a.startsWith('--zone='))");
+    expect(src).toMatch(/if \(!isZone\(zone\)\) \{\s*die\(/);
+    expect(src).toContain('[id, name.trim(), zone, language]');
+    expect(src).not.toMatch(/values \([^)]*'Asia\/Shanghai'/);
+  });
+
   it('the sandbox id the tool refuses is the real one', async () => {
     const src = await readFile(new URL('../../tools/provision-factory.mjs', import.meta.url), 'utf8');
     expect(src).toContain(SANDBOX_BUSINESS_ID);

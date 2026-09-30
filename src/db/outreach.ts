@@ -1,3 +1,4 @@
+import { zoneOf } from './zone.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -118,8 +119,7 @@ export async function setOutreach(
  * not filtered — `sent_at` is written by `transition()` only on 'sent', so a
  * refused or canceled row has none and cannot consume a ceiling it never used.
  *
- * Shanghai, like `DAILY_OUTBOUND_CEILING`: one definition of "today" per
- * product, and hers is the one the factory works in.
+ * TZ — "today" is the workspace's own day, in its zone, like the send ceiling.
  */
 export async function outreachSentToday(
   tx: Tx, businessId: BusinessId, channel: OutreachChannel,
@@ -134,11 +134,12 @@ export async function outreachSentToday(
    */
   counting: 'sent' | 'sent_or_queued' = 'sent',
 ): Promise<number> {
+  const zone = await zoneOf(tx, businessId);
   const r = await sql<{ n: number }>`
     select count(*)::int as n from outbound_messages
      where business_id = ${businessId}::uuid
        and channel = ${channel} and origin = 'outreach'
-       and (sent_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')
+       and (sent_at >= (date_trunc('day', now() at time zone ${zone}) at time zone ${zone})
             -- In flight means queued in the last day. A row stuck in 'queued'
             -- since last week is not about to spend today's quota, and letting
             -- it count would lower her cap for good.

@@ -1,3 +1,4 @@
+import { workspaceZone } from './zone.js';
 import type { PendingQuestion } from '../../core/types/conversation.js';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
@@ -103,7 +104,7 @@ import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -1066,7 +1067,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       factory: String(b['factory'] ?? ''), name: String(b['name'] ?? ''), email: String(b['email'] ?? ''),
       password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
       kind: String(b['kind'] ?? ''), sells: String(b['sells'] ?? ''), country: String(b['country'] ?? ''),
-      website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''),
+      website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''), zone: String(b['zone'] ?? ''),
       channels: Object.keys(b).filter((k) => k.startsWith('channel_') && b[k] !== undefined).map((k) => k.slice('channel_'.length)).slice(0, 12),
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
@@ -1074,7 +1075,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
         values: {
           factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
-          country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels,
+          country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels, zone: raw.zone,
         }, ...extra,
       }));
     if (signupMode === 'closed') return again(403, {});
@@ -1688,7 +1689,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const everyone = await loadInboxList(deps.db, s.businessId, 'all', me);
     const list = everyone.waitingCount > 0 ? await loadInboxList(deps.db, s.businessId, 'pending', me) : everyone;
     const customer = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => loadCustomerPanel(tx, conversationId)) : null;
-    const today = dayKey(now);
+    const today = dayKey(now, workspaceZone());
     const dated = customer
       ? (await loadCalendar(deps.db, s.businessId, {
           from: today, to: addDays(today, 15), category: null, buyer: customer.clientId, outreach: outreachShown(),
@@ -2831,11 +2832,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = sessionOf(req); if (!s) return reply.redirect('/login');
     const bid = parseBusinessId(s.businessId);
     if (!bid.ok) return reply.redirect('/app/calendar');
-    const r = readEntry((req.body ?? {}) as Record<string, unknown>);
+    const r = readEntry((req.body ?? {}) as Record<string, unknown>, workspaceZone());
     if (!r.ok) return flashTo(reply, '/app/calendar', `calendar.flash.${r.problem}` as MessageKey);
     const entry = r.entry;
     await withTenantTx(deps.db, bid.value, (tx) => addEntry(tx, bid.value, entry, personOf(s).id));
-    return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt)}`, 'calendar.flash.added');
+    return flashTo(reply, `/app/calendar?at=${dayKey(entry.startsAt, workspaceZone())}`, 'calendar.flash.added');
   });
 
   app.post('/app/calendar/entries/:id/remove', async (req, reply) => {
@@ -2954,8 +2955,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The design pass (UI-PASS 7) — the business profile, on its own page.
   app.get('/app/settings/profile', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'settings.profile.title'),
-    bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply)),
+    bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},
+      await loadZoneChoice(deps.db, s.businessId)),
   })));
+  // TZ — the workspace's zone: every date on its pages, "today", the daily
+  // ceiling and night-shift windows follow it at once (the facts are evicted).
+  app.post('/app/settings/zone', async (req, reply) => {
+    const s = sessionOf(req);
+    if (!s) return reply.redirect('/login');
+    const r = await saveZone(deps.db, s.businessId, String((req.body as { zone?: string } | undefined)?.zone ?? ''));
+    facts.evict(s.businessId);
+    return flashTo(reply, '/app/settings/profile#zone', r === 'saved' ? 'settings.flash.zoneSaved' : 'settings.flash.zoneInvalid');
+  });
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
   // before sign-up asked gives the answer for the first time.

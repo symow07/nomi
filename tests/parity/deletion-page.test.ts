@@ -254,11 +254,11 @@ describe('CC-02a · the operator is told, by e-mail, once a day', () => {
       expect(s.split('\n')[0], l).toBe(t(l, 'notify.deletion_due', { n: 12 }));
       expect(s, l).toContain(t(l, 'notify.deletion_due.soon', {
         business: 'Shop 1', what: t(l, 'data.deletion.scope.workspace'),
-        asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)),
+        asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai'),
       }));
       expect(s, l).toContain(t(l, 'notify.deletion_due.late', {
         business: 'Shop 2', what: t(l, 'data.deletion.scope.buyer'),
-        asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)),
+        asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai'),
       }));
       expect(s, l).toContain('Shop 10');
       expect(s, l).not.toContain('Shop 11');
@@ -320,7 +320,7 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
   it('open: everyone sees when it was asked and the date it must be done by; no second form', () => {
     const open = { ...file, deletion: { state: 'open' as const, askedAt: asked, closedAt: null, closedNote: null } };
     for (const l of LOCALES) {
-      const line = esc(t(l, 'conv.deletion.open', { asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)) }));
+      const line = esc(t(l, 'conv.deletion.open', { asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai') }));
       for (const viewer of [OWNER_VIEW, STAFF]) {
         const html = withoutIsolates(renderCustomerFile(open, l, NOW, null, viewer));
         expect(html, l).toContain(line);
@@ -336,14 +336,14 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     const done = new Date('2026-09-25T09:00:00Z');
     const f = { ...file, deletion: { state: 'done' as const, askedAt: asked, closedAt: done, closedNote: null } };
     const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
-    expect(html).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done) })));
+    expect(html).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, 'Asia/Shanghai') })));
     expect(html).not.toContain('<form method="post" action="/app/conversations/c1/deletion"');
   });
 
   it('not carried out: says so with the operator\'s reason, and may be asked again', () => {
     const f = { ...file, deletion: { state: 'refused' as const, askedAt: asked, closedAt: NOW, closedNote: 'Could not be matched to anyone who wrote' } };
     const html = withoutIsolates(renderCustomerFile(f, 'en', NOW));
-    expect(html).toContain(esc(t('en', 'conv.deletion.refused', { date: formatDate('en', asked) })));
+    expect(html).toContain(esc(t('en', 'conv.deletion.refused', { date: formatDate('en', asked, 'Asia/Shanghai') })));
     expect(html).toContain('Could not be matched to anyone who wrote');
     expect(html).toContain('action="/app/conversations/c1/deletion"');
   });
@@ -364,8 +364,8 @@ describe('CC-02a · the buyer\'s page and Your data', () => {
     for (const l of LOCALES) {
       const html = withoutIsolates(renderDataRights({ businessName: 'Atlas', requests: [], buyers }, l, null, OWNER_VIEW, 'x'));
       expect(html, l).toContain(esc(t(l, 'data.buyers.title')));
-      expect(html, l).toContain(esc(t(l, 'data.buyers.due', { asked: formatDate(l, asked), due: formatDate(l, deletionDueBy(asked)) })));
-      expect(html, l).toContain(esc(t(l, 'data.buyers.done', { asked: formatDate(l, asked), done: formatDate(l, NOW) })));
+      expect(html, l).toContain(esc(t(l, 'data.buyers.due', { asked: formatDate(l, asked, 'Asia/Shanghai'), due: formatDate(l, deletionDueBy(asked), 'Asia/Shanghai') })));
+      expect(html, l).toContain(esc(t(l, 'data.buyers.done', { asked: formatDate(l, asked, 'Asia/Shanghai'), done: formatDate(l, NOW, 'Asia/Shanghai') })));
       expect(html, l).toContain('name="id" value="r-open"');
       expect(html, `${l}: a done request offered back`).not.toContain('name="id" value="r-done"');
       expect(html, l).toContain('Ahmed &lt;b&gt;');

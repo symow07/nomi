@@ -148,8 +148,8 @@ describe('ADR-0008 · localized formatting', () => {
   it('dates/times render per locale without throwing', () => {
     const d = new Date('2026-07-27T02:30:00Z');
     for (const l of LOCALES) {
-      expect(formatDate(l, d).length).toBeGreaterThan(0);
-      expect(formatTime(l, d)).toMatch(/\d/);
+      expect(formatDate(l, d, 'Asia/Shanghai').length).toBeGreaterThan(0);
+      expect(formatTime(l, d, 'Asia/Shanghai')).toMatch(/\d/);
     }
   });
 });

@@ -17,10 +17,10 @@ import type { CalendarEntry, CalendarView } from '../../src/db/calendar.js';
  */
 
 const NOW = new Date('2026-09-27T04:00:00Z');           // 12:00 in the business timezone
-const TODAY = dayKey(NOW);
+const TODAY = dayKey(NOW, 'Asia/Shanghai');
 const FROM = addDays(TODAY, -7);
 const TO = addDays(FROM, 21);
-const at = (ymd: string, hhmm: string): Date => new Date(dayStart(ymd).getTime()
+const at = (ymd: string, hhmm: string): Date => new Date(dayStart(ymd, 'Asia/Shanghai').getTime()
   + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3))) * 60_000);
 
 const AHMED = { id: '11111111-1111-4111-8111-111111111111', name: 'Ahmed', country: 'AE' };
@@ -29,11 +29,11 @@ const CONV = '33333333-3333-4333-8333-333333333333';
 const ORDER = '44444444-4444-4444-8444-444444444444';
 
 const e = (x: Partial<CalendarEntry> & Pick<CalendarEntry, 'category' | 'kind' | 'at' | 'source'>): CalendarEntry => ({
-  day: dayKey(x.at), allDay: false, conversationId: CONV, orderId: null, buyer: AHMED, identity: null, detail: {}, ...x,
+  day: dayKey(x.at, 'Asia/Shanghai'), allDay: false, conversationId: CONV, orderId: null, buyer: AHMED, identity: null, detail: {}, ...x,
 });
 
 const ENTRIES: CalendarEntry[] = [
-  e({ category: 'closures', kind: 'closure', at: dayStart(addDays(TODAY, 3)), day: addDays(TODAY, 3), allDay: true,
+  e({ category: 'closures', kind: 'closure', at: dayStart(addDays(TODAY, 3), 'Asia/Shanghai'), day: addDays(TODAY, 3), allDay: true,
     conversationId: null, buyer: null,
     detail: { closureLabel: 'Mid-Autumn', closureFrom: addDays(TODAY, 3), closureTo: addDays(TODAY, 5) },
     source: { table: 'factory_closures', id: 'c1', column: 'starts_on' } }),
@@ -215,8 +215,8 @@ describe('V2 · the query string is whitelisted', () => {
 
   it('a day and its start agree in the business timezone', () => {
     for (const d of ['2026-01-01', '2026-03-29', '2026-09-27', '2026-12-31']) {
-      expect(dayKey(dayStart(d))).toBe(d);
-      expect(dayKey(new Date(dayStart(d).getTime() - 1))).toBe(addDays(d, -1));
+      expect(dayKey(dayStart(d, 'Asia/Shanghai'), 'Asia/Shanghai')).toBe(d);
+      expect(dayKey(new Date(dayStart(d, 'Asia/Shanghai').getTime() - 1), 'Asia/Shanghai')).toBe(addDays(d, -1));
     }
   });
 });

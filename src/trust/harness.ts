@@ -1,4 +1,4 @@
-import { computeTurn, commitTurn, BUSINESS_TZ, type TurnPorts } from '../pipeline/turn.js';
+import { computeTurn, commitTurn, type TurnPorts } from '../pipeline/turn.js';
 import type { TradeTerms } from '../core/commerce/terms.js';
 import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
@@ -36,6 +36,8 @@ import {
  */
 
 const DEFAULT_NOW = '2026-07-14T12:00:00Z'; // noon UTC = 20:00 Asia/Shanghai
+/** TZ — the zone the golden scenarios are written in; a workspace's own is its `businesses.timezone`. */
+export const SCENARIO_ZONE = 'Asia/Shanghai';
 const brand = <T>(s: string): T => unsafeBrand<never>()(s) as unknown as T;
 const CONVERSATION = brand<ConversationId>('d0000000-0000-0000-0000-000000000001');
 const CLIENT = brand<ClientId>('c0000000-0000-0000-0000-000000000001');
@@ -127,6 +129,8 @@ class HarnessTenant implements Tenant {
   clients: ClientRepo = { saveEmail: async () => {}, touchLastSeen: async () => {}, savePreferredLanguage: async () => {} };
   /** G11 — the harness proves decisions, not links: no host, so no link. */
   proofs: import('../db/ports.js').ProofRepo = { issue: async () => null };
+  /** The golden scenarios' clocks are written in Shanghai time (INSIDE_NIGHT is 23:00 there): their zone, stated. */
+  zone = async (): Promise<string> => SCENARIO_ZONE;
   /** M37.5 — terms the owner forbade. Empty unless a test sets it. */
   forbidden: string[] = [];
   /** M44 — days the factory is shut, as the owner stated them. */
@@ -278,7 +282,7 @@ export async function evaluateScenario(
   // from the one field the pipeline decided. Re-deriving the mode from the
   // grant alone would call every held turn an escalation failure.
   const requestedMode = result.hold ? 'draft'
-    : resolveMode({ capability, grants: tenant.grantRows, now, timeZone: BUSINESS_TZ });
+    : resolveMode({ capability, grants: tenant.grantRows, now, timeZone: SCENARIO_ZONE });
   const appliedMode: TurnOutcome['appliedMode'] = effects.outbound ? 'auto' : effects.draftCreated ? 'draft' : 'none';
   const floorOf = (productId: string): number | null => tenant.floorFor(productId);
 

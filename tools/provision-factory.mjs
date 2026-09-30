@@ -2,7 +2,12 @@
 /**
  * M23 — provision ONE factory tenant.
  *
- *   MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" [zh]
+ *   MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" [zh] --zone=Asia/Shanghai
+ *
+ * TZ (2026-09-30) — the workspace's time zone is REQUIRED: every "today", every
+ * time the owner reads and the daily send ceiling are in it. It used to be
+ * Shanghai for every tenant, a leftover of the export positioning. The owner
+ * can change it later on the profile page.
  *
  * WHAT THIS IS. A transcription-error remover. The procedure it replaces was
  * hand-written SQL with a hand-generated UUID that then had to be copied
@@ -30,22 +35,36 @@ import { toolClient } from './lib/db.mjs';
 const SANDBOX_BUSINESS_ID = '5a4d0000-0000-4000-8000-0000000000b1';
 
 const url = process.env.MIGRATE_DATABASE_URL;
-const name = process.argv[2];
-const language = process.argv[3] ?? 'en';
+// Positional: the name, then the language. The zone is a named flag, so no
+// position can ever be read as an id (see below).
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const name = positional[0];
+const language = positional[1] ?? 'en';
+const zone = (process.argv.slice(2).find((a) => a.startsWith('--zone=')) ?? '').slice('--zone='.length);
+const USAGE = 'usage: MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory name" [en|zh|ar] --zone=<IANA zone, e.g. Europe/London>';
 
 const die = (msg) => { console.error(`\n  ${msg}\n`); process.exit(1); };
 
 if (!url) {
   die('MIGRATE_DATABASE_URL is required.\n' +
       '  Creating a tenant needs admin access — the application role is refused by RLS.\n' +
-      '  usage: MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory name" [en|zh|ar]');
+      `  ${USAGE}`);
 }
 if (!name || !name.trim()) {
   die('A factory name is required.\n' +
-      '  usage: MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory name" [en|zh|ar]');
+      `  ${USAGE}`);
 }
 if (!['en', 'zh', 'ar'].includes(language)) {
   die(`Language must be en, zh or ar (got "${language}"). The owner can change it later.`);
+}
+const isZone = (z) => {
+  if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(z)) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: z }); return true; } catch { return false; }
+};
+if (!isZone(zone)) {
+  die(`The business's time zone is required, as an IANA name (got "${zone}").\n` +
+      '  Every "today" and every time the owner reads is in it; the owner can change it later.\n' +
+      `  ${USAGE}`);
 }
 
 // The id is GENERATED here, never accepted as input: an operator who can pass
@@ -66,8 +85,8 @@ try {
 
   await client.query(
     `insert into businesses (id, name, timezone, default_language, engine)
-     values ($1, $2, 'Asia/Shanghai', $3, 'service')`,
-    [id, name.trim(), language],
+     values ($1, $2, $3, $4, 'service')`,
+    [id, name.trim(), zone, language],
   );
 
   // No channels row on purpose: "not connected" is the ABSENCE of a connected

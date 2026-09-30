@@ -1,3 +1,4 @@
+import { workspaceZone } from './zone.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { countryName, orderStatusName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { dayStart } from '../../core/owner/i18n/format.js';
@@ -116,7 +117,7 @@ export function renderCustomerPanel(
   ];
   const promises = p.promised.map((x) => li(
     `${x.byAssistant ? '<span class="as" aria-hidden="true">✦</span> ' : ''}<bdi dir="auto">${esc(t(locale, 'calendar.line.promise', { said: x.said }))}</bdi>`,
-    `${esc(show.date(locale, dayStart(x.dueOn)))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
+    `${esc(show.date(locale, dayStart(x.dueOn, workspaceZone())))} <a href="${conversationUrl(x.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(t(locale, 'panel.priceDoor'))}</span></a>`));
   const dated = calendar.map((e) => li(`${esc(show.date(locale, e.at))} · ${esc(calendarLine(locale, e))}`,
     e.conversationId ? `<a href="${conversationUrl(e.conversationId)}"><span class="go" aria-hidden="true">›</span><span class="sr">${esc(calendarLine(locale, e))}</span></a>` : ''));
   const act = p.activity.map((a) => {

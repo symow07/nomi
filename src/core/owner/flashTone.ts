@@ -38,6 +38,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'conv.deletion.flash.not_waiting',
   // P5 — a practice message Practice would not take: the day's are used, or the operator paused it.
   'practice.flash.daily_limit', 'practice.flash.switched_off',
+  // TZ — a zone this build does not know: nothing changed.
+  'settings.flash.zoneInvalid',
   'assistants.flash.channel_taken', 'assistants.flash.is_default', 'assistants.flash.name_long',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
@@ -128,6 +130,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'practice.sent',
   // P4 — Practice's two switches, done.
   'practice.flash.alone', 'practice.flash.levels', 'practice.flash.stopped', 'practice.flash.started',
+  // TZ — the workspace's zone, saved.
+  'settings.flash.zoneSaved',
 ]);
 
 /**

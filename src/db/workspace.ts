@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { zoneOf } from './zone.js';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { mainAssistant } from './assistants.js';
@@ -19,6 +20,8 @@ export type WorkspaceFacts = {
   /** The outreach area (sequences, prospects, writing first) exists for this workspace. */
   readonly outreach: boolean;
   readonly setup: SetupProgress;
+  /** TZ — the workspace's own time zone. */
+  readonly zone: string;
 };
 
 /**
@@ -40,5 +43,6 @@ export async function workspaceFacts(tx: Tx, businessId: BusinessId): Promise<Wo
   const who = await mainAssistant(tx, businessId);
   const outreach = await outreachAreaShown(tx, businessId);
   const setup = await setupProgress(tx, businessId);
-  return { name: who.name, several: who.several, outreach, setup };
+  const zone = await zoneOf(tx, businessId);
+  return { name: who.name, several: who.several, outreach, setup, zone };
 }

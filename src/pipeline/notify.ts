@@ -11,6 +11,7 @@ import { formatDate } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
+import { zoneOf } from '../db/zone.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -79,6 +80,8 @@ export type OperatorAlertDetail = {
   readonly appError?: AppErrorAlertJob | null;
   /** `meta_errors` (CEIL): the workspaces over the line, the worst first. */
   readonly metaErrors?: readonly { readonly business: string; readonly attempted: number; readonly failed: number; readonly errors: readonly string[] }[];
+  /** TZ — the zone the reader's dates are said in: the receiving workspace's. UTC when not given. */
+  readonly zone?: string;
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
@@ -113,7 +116,7 @@ export function renderOwnerAlert(
   // never been one — the two are different news, so they are two sentences.
   if (kind === 'backup_stale') {
     return detail.lastBackupAt
-      ? t(locale, 'notify.backup_stale', { when: formatDate(locale, detail.lastBackupAt) })
+      ? t(locale, 'notify.backup_stale', { when: formatDate(locale, detail.lastBackupAt, detail.zone ?? 'UTC') })
       : t(locale, 'notify.backup_stale.never');
   }
   // CC-02a — which requests, whose, asked when and due by when; a late one
@@ -124,8 +127,8 @@ export function renderOwnerAlert(
     const lines = shown.map((d) => t(locale, d.overdue ? 'notify.deletion_due.late' : 'notify.deletion_due.soon', {
       business: d.business,
       what: t(locale, d.scope === 'workspace' ? 'data.deletion.scope.workspace' : 'data.deletion.scope.buyer'),
-      asked: formatDate(locale, d.askedAt),
-      due: formatDate(locale, deletionDueBy(d.askedAt)),
+      asked: formatDate(locale, d.askedAt, detail.zone ?? 'UTC'),
+      due: formatDate(locale, deletionDueBy(d.askedAt), detail.zone ?? 'UTC'),
     }));
     const more = due.length > shown.length
       ? [t(locale, 'notify.deletion_due.more', { n: due.length - shown.length })] : [];
@@ -227,13 +230,14 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
       select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
     return {
       row,
+      zone: await zoneOf(tx, bid),
       email: await ownerLoginEmail(tx, bid),
       live: row?.owner_phone ? await channelIsLive(tx, bid) : false,
     };
   });
   if (!found.row) return 'skipped_no_destination';
   const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
-  const body = renderOwnerAlert(locale, job.kind, null, operatorDetailOf(job));
+  const body = renderOwnerAlert(locale, job.kind, null, { ...operatorDetailOf(job), zone: found.zone });
 
   let tried = 0; let sent = 0;
   if (deps.mail && found.email) {

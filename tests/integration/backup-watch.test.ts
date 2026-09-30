@@ -68,7 +68,7 @@ d('backup alert and backup runs (requires DATABASE_URL + MIGRATE_DATABASE_URL)',
     expect(mailbox).toHaveLength(1);
     expect(mailbox[0]!.to).toBe(EMAIL);
     expect(mailbox[0]!.subject).toBe(t('en', 'notify.backup_stale.subject'));
-    expect(mailbox[0]!.text).toBe(t('en', 'notify.backup_stale', { when: formatDate('en', when) }));
+    expect(mailbox[0]!.text).toBe(t('en', 'notify.backup_stale', { when: formatDate('en', when, 'Asia/Shanghai') }));
     expect(texts).toHaveLength(0);
   });
 

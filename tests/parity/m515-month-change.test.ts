@@ -107,12 +107,15 @@ describe('M51.5 · it obeys the insight rule', () => {
     }
   });
 
-  it('the month boundary is HERS, not the server’s', async () => {
-    // "This month" for a Yiwu factory is not this month in UTC, and a driver
-    // that moved because of a date line is a fact about our servers.
+  it('the month boundary is the workspace’s, not the server’s', async () => {
+    // "This month" for a shop is not this month in UTC, and a driver that moved
+    // because of a date line is a fact about our servers. TZ — the zone is the
+    // workspace's own, read before the query.
     const src = await readFile(new URL('../../src/api/web/insights.ts', import.meta.url), 'utf8');
     const block = src.slice(src.indexOf('with bounds as'), src.indexOf('select * from inquiries'));
-    expect(block).toContain("at time zone 'Asia/Shanghai'");
+    expect(block).toContain('at time zone ${zone}');
+    expect(block).not.toContain('Asia/Shanghai');
+    expect(src).toContain('const zone = await zoneOf(tx, bid.value);');
     expect(block).not.toMatch(/date_trunc\('month', now\(\)\)/);
   });
 

@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #150 | **Practice P4, part two — the checklist and "your total first"** (0091): what the owner has seen in Practice, from the list for their kind of business (a catalogue, a shop — whose "how much is this?" shows the gap until RT — or none), read from the real turn's rows on the copy and written on the workspace so Start over does not take a tick back; the total the owner expects, typed before the answer and set beside it, the rows also measuring how often the two disagree; an order in Practice tapped through the one order service | 91 |
+| 2026-09-30 | #151 | **TZ — one time zone per workspace, chosen at sign-up** (the owner's decision): a country with one zone gets it, a country with several is asked, a country the table has no zone for is offered every zone (a test draws the form for every country it lists), the profile page changes it; every date and time an owner reads, every "today" (the send ceiling, outreach's cap, Today, insights' months, the calendar, promised dates, the operator's alerts) is the workspace's own — no code outside the country table, the demo and the golden scenarios names Shanghai (a test). The zone is written in the sign-up's own transaction. `provision-factory.mjs` requires `--zone=`. Existing workspaces keep what they have (below). Pre-pilot 12/12 before and after (no migration) | 91 |
+| 2026-09-30 | #150 | **Practice P4, part two — the checklist and "your total first"** (0091): what the owner has seen in Practice, from the list for their kind of business (a catalogue, a shop — whose "how much is this?" shows the gap until RT — or none), read from the real turn's rows on the copy and written on the workspace so Start over does not take a tick back; the total the owner expects, typed before the answer and set beside it, the rows also measuring how often the two disagree; an order in Practice tapped through the one order service. Merged 14:27 UTC, deployed, `/health` ok, schema 91 | 91 |
 | 2026-09-30 | #149 | **Practice P4, part one — the card, the reasons, the two switches** (0090): a waiting practice reply is the conversation page's own card (why it waited, where each figure came from, one Send); a hand-off says why and that nothing was sent; the checks strip names the product's unit; "as if sending alone" lifts the owner's level in Practice only (the Spanish gate still holds, and says so); Practice's own Stop. Merged 13:43 UTC, deployed, `/health` ok, schema 90 | 90 |
 | 2026-09-30 | #148 | **Practice P6 — not kept** (0089): Start over erases the workspace's practice conversations and all that hangs off them (asks first); a daily job erases practice quiet for 30 days; the day's 50 counted on the workspace's row so Start over does not reset them; both workers drop a job whose conversation is gone; the shared sandbox is read by nothing and no longer seeded locally; plus two tests' ledger race, root-caused (CI's second pass). Merged 13:21 UTC, deployed, `/health` ok, schema 89 | 89 |
 | 2026-09-30 | #147 | **Practice P5 — every workspace practises, metered and capped** (0088): a practice turn is charged to the workspace's own ledger and allowance; 50 practice lines a day, refused before anything is recorded; the operator's `practice_off` switch (everyone or one workspace; `docs/INCIDENT-PLAYBOOK.md`); T1's pilot-only gate gone — the copy keeps workspaces apart (`practice-own.test.ts`). Merged 12:48 UTC, deployed, `/health` ok, schema 88 | 88 |
@@ -50,11 +51,12 @@ under "Decided" below.
 
 **Next (the owner's instruction of 2026-09-30, in its order):**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
-   **Done** once #150 merges: P1–P6 (`docs/PRACTICE.md`; #145–#150). Left
+   **Done**: P1–P6 (`docs/PRACTICE.md`; #145–#150, all deployed). Left
    out on purpose, with reasons there: photo and voice in Practice (needs an
    upload), the rehearsal findings' wider inputs, and the checklist feeding a
    "Ready for customers" page (G6) and funnel events (G9), neither built.
 2. **One time zone and one currency per workspace**, chosen during setup.
+   Time zone **done** (#151). Currency next (CUR).
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
 
@@ -258,6 +260,7 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 | RET (erase workspaces that never connected, after 90 days) | not a plan decision, but an automatic erasure: confirm before building |
 | **Re-read the Arabic disclosure** (it changed after your sign-off, #118 — both sentences above) and read the French one; find a reader for the Spanish one | not a plan decision: the flags are yours alone |
 | **Move `BACKUP_PING_URL` onto the `backup` service** (it sits on `nomi`, which never reads it) | one minute in Railway |
+| **The time zone of the 59 workspaces made before #151.** None was ever asked; every one keeps `Asia/Shanghai`, the old default. 58 have no country on record; one, from Morocco, would be `Africa/Casablanca`. Westlake's (live) decides its send ceiling's day: confirm or change it on its profile page (Setup → Profile → Time zone). I did not change any: a live workspace's day is on the send path | yours: one select per workspace, or say "set each from its country" and I write the backfill |
 | **Erase the old shared practice sandbox** (`5a4d0000-0000-4000-8000-0000000000b1`): nothing reads it since P3, but it still holds the pilot's practice from before — possibly customers' words pasted in through "Try it". After a backup: `tools/erase-workspace.mjs --business 5a4d0000-0000-4000-8000-0000000000b1` (dry run), then with `--confirm "Practice sandbox" --yes` | a permanent deletion: yours to run |
 
 ## Found on the way
@@ -392,6 +395,11 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   `product_aliases` (a migration); K1 (editable names in the import review)
   is where it belongs. If the new name was already one of the product's names,
   the old name's row stays, as a name customers may still use.
+- **The time zone does not move the metering day** (#151): the ledger and its
+  allowance, and Practice's 50 a day, count on one UTC clock (T7) — a
+  workspace's day decides what the owner reads and the send ceiling, not what
+  is billed. The demo workspace and the golden scenarios keep Shanghai as
+  their stated zone; their fixtures are written in it.
 - **The rail's number is read fresh on every page** (#126): one count query
   per page view, on purpose — a number that lags a minute behind is a number
   that lies.
@@ -406,8 +414,9 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   `~/.config/watch/.env` "to unlock Whisper fallback". Not done: no key is
   typed by me, and nothing here needs it.
 - Earlier in the session the Impeccable skill offered `npx impeccable update`,
-  and MCP servers (Amplitude, Atlassian, BigQuery, Hex) asked for sign-in; the
-  Definite server failed to connect. None is part of this work.
+  and MCP servers (Amplitude, Amplitude EU, Atlassian, BigQuery, Hex, Figma,
+  Riverside, Shopify) asked for sign-in, again at each resume; the Definite
+  and draw.io servers failed to connect. None is part of this work.
 
 ## How to resume
 

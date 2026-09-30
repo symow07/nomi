@@ -58,6 +58,8 @@ export interface Tenant {
   readonly drafts: DraftRepo;
   readonly knowledge: KnowledgeRepo;
   readonly proofs: ProofRepo;
+  /** TZ — the workspace's own time zone; night-shift windows and "today" resolve in it. */
+  zone(): Promise<string>;
 }
 
 /**

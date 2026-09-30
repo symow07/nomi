@@ -144,7 +144,7 @@ describe('G7a · the draft card says why it is waiting', () => {
       // Arabic money is the locale's own form (the design pass §9).
       expect(then, l).toContain(l === 'ar' ? '\u200F0.40\u00A0US$' : '$0.40');
       expect(then, l).toContain(l === 'ar' ? '\u200F0.45\u00A0US$' : '$0.45');
-      expect(then, l).toContain(esc(t(l, 'inbox.draft.contradicts.before', { date: formatDate(l, contradicts.before.at) })));
+      expect(then, l).toContain(esc(t(l, 'inbox.draft.contradicts.before', { date: formatDate(l, contradicts.before.at, 'Asia/Shanghai') })));
       expect(then, l).toContain(esc(t(l, 'inbox.draft.contradicts.larger')));
     }
     const same = withoutIsolates(renderConversationDetail({

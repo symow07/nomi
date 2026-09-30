@@ -28,10 +28,10 @@ const HM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 /**
  * What the form sent, checked and turned into instants — or why not. A time
- * is read in the business's day (`dayStart`), so "09:00" is nine in the
- * morning where the business is, whoever's browser sent it.
+ * is read in the workspace's own day (`dayStart` in its zone), so "09:00" is
+ * nine in the morning where the business is, whoever's browser sent it.
  */
-export function readEntry(form: Record<string, unknown>): { ok: true; entry: { title: string; startsAt: Date; endsAt: Date | null; allDay: boolean } } | { ok: false; problem: EntryProblem } {
+export function readEntry(form: Record<string, unknown>, zone: string): { ok: true; entry: { title: string; startsAt: Date; endsAt: Date | null; allDay: boolean } } | { ok: false; problem: EntryProblem } {
   const title = typeof form['title'] === 'string' ? form['title'].trim() : '';
   if (title.length < 1 || Array.from(title).length > 80) return { ok: false, problem: 'title' };
   const day = typeof form['day'] === 'string' ? form['day'] : '';
@@ -45,7 +45,7 @@ export function readEntry(form: Record<string, unknown>): { ok: true; entry: { t
   const from = time(form['from']);
   const to = time(form['to']);
   if (from === undefined || to === undefined || (from === null && to !== null)) return { ok: false, problem: 'time' };
-  const base = dayStart(day).getTime();
+  const base = dayStart(day, zone).getTime();
   if (from === null) return { ok: true, entry: { title, startsAt: new Date(base), endsAt: null, allDay: true } };
   if (to !== null && to < from) return { ok: false, problem: 'order' };
   return {

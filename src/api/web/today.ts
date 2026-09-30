@@ -1,3 +1,4 @@
+import { workspaceZone } from './zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -59,7 +60,7 @@ export async function loadToday(
 ): Promise<TodayData> {
   const bid = parseBusinessId(businessId);
   if (!bid.ok) return NOTHING_TODAY(now);
-  const today = dayKey(now);
+  const today = dayKey(now, workspaceZone());
   const [needs, counts, calendar] = await Promise.all([
     loadInboxList(db, businessId, 'pending', viewerId),
     withTenantTx(db, bid.value, async (tx) => ({
@@ -121,7 +122,7 @@ export function renderComingUp(d: TodayData, locale: Locale): string {
   if (d.comingUp.length === 0) return `<p class="muted">${esc(t(locale, 'today.coming.none'))}</p>`;
   return `<ul class="tlines">${d.comingUp.map((e) => {
     const when = e.allDay ? show.date(locale, e.at)
-      : dayKey(e.at) === dayKey(d.now) ? show.time(locale, e.at) : `${show.date(locale, e.at)} ${show.time(locale, e.at)}`;
+      : dayKey(e.at, workspaceZone()) === dayKey(d.now, workspaceZone()) ? show.time(locale, e.at) : `${show.date(locale, e.at)} ${show.time(locale, e.at)}`;
     const whose = e.buyer?.name ?? e.identity;
     const href = e.orderId ? `/app/orders/${encodeURIComponent(e.orderId)}`
       : e.conversationId ? conversationUrl(e.conversationId) : '/app/calendar';

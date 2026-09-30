@@ -218,7 +218,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     // The page says it was asked, and the date it must be carried out by.
     const page = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
     expect(page).toContain(t('en', 'conv.deletion.open', {
-      asked: formatDate('en', row.asked_at), due: formatDate('en', deletionDueBy(row.asked_at)),
+      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(row.asked_at), 'Asia/Shanghai'),
     }));
     expect(page, 'an open request is not asked for again').not.toContain(`action="/app/conversations/${CONV}/deletion"`);
 
@@ -263,7 +263,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     expect(page).toContain(t('en', 'data.buyers.title'));
     expect(page).toContain(BUYER);
     expect(page).toContain(t('en', 'data.buyers.due', {
-      asked: formatDate('en', row.asked_at), due: formatDate('en', deletionDueBy(row.asked_at)),
+      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(row.asked_at), 'Asia/Shanghai'),
     }));
     expect(page).toContain(`name="id" value="${row.id}"`);
 
@@ -286,11 +286,11 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
 
     const data = (await get(ownerCookie, '/app/settings/data')).body;
     expect(data).toContain(t('en', 'data.buyers.done', {
-      asked: formatDate('en', row.asked_at), done: formatDate('en', done),
+      asked: formatDate('en', row.asked_at, 'Asia/Shanghai'), done: formatDate('en', done, 'Asia/Shanghai'),
     }));
     expect(data, 'a done request is not offered back').not.toContain(`name="id" value="${row.id}"`);
     const file = (await get(ownerCookie, `/app/conversations/${CONV}`)).body;
-    expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done) })));
+    expect(file).toContain(esc(t('en', 'conv.deletion.done', { date: formatDate('en', done, 'Asia/Shanghai') })));
     expect(file).not.toContain(`action="/app/conversations/${CONV}/deletion"`);
   });
 
@@ -322,7 +322,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     expect(mailbox[0]!.text).toContain(OTHER_NAME);
     expect(mailbox[0]!.text).toContain(t('en', 'notify.deletion_due.soon', {
       business: OTHER_NAME, what: t('en', 'data.deletion.scope.buyer'),
-      asked: formatDate('en', asked), due: formatDate('en', deletionDueBy(asked)),
+      asked: formatDate('en', asked, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(asked), 'Asia/Shanghai'),
     }));
     // No channel is live here: e-mail only, as the backup alert.
     expect(texts).toHaveLength(0);
@@ -365,7 +365,7 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     });
     expect(text).toContain(t('en', 'notify.deletion_due.late', {
       business: OTHER_NAME, what: t('en', 'data.deletion.scope.workspace'),
-      asked: formatDate('en', asked), due: formatDate('en', deletionDueBy(asked)),
+      asked: formatDate('en', asked, 'Asia/Shanghai'), due: formatDate('en', deletionDueBy(asked), 'Asia/Shanghai'),
     }));
   });
 

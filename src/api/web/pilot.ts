@@ -1,3 +1,4 @@
+import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -302,8 +303,10 @@ export async function loadPilotFeedback(
   const unit = range === 'today' ? 'day' : range;
 
   return withTenantTx(db, B, async (tx) => {
+    // TZ — the period starts in the workspace's own zone.
+    const zone = await zoneOf(tx, B);
     const cutoff = (await sql<{ c: Date }>`
-      select (date_trunc(${unit}, now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai') as c
+      select (date_trunc(${unit}, now() at time zone ${zone}) at time zone ${zone}) as c
     `.execute(tx)).rows[0]!.c;
 
     // Recurring issues: the stored PROBLEM signals, grouped. No classifier.

@@ -1,3 +1,4 @@
+import { zoneOf } from './zone.js';
 import { sql } from 'kysely';
 /**
  * Q1 — one earlier message, at most this long, in the analyser's history: a
@@ -753,5 +754,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     waiting: async (conversationId) => (await pendingProposalOf(tx, conversationId)) !== null,
   };
 
-  return { businessId, conversations, clients, catalog, orders, samples, deletionAsks, orderProposals, signals, events, audit, autonomy, ops, drafts, knowledge, proofs };
+  return {
+    businessId, conversations, clients, catalog, orders, samples, deletionAsks, orderProposals, signals, events, audit, autonomy, ops, drafts, knowledge, proofs,
+    zone: () => zoneOf(tx, businessId),
+  };
 }
