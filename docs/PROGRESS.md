@@ -17,6 +17,9 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #143 | **The disclosure gate, per language** — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
+| 2026-09-30 | — | **Westlake's products made findable (T3 backfill, the owner's yes):** backup `~/nomi-backups/nomi-backup-20260930T064218Z` (schema 85, restore proven 4/4), dry run, then `tools/backfill-aliases.mjs --business 7dc89f42… --yes`: 5 names written for 5 products (each its own name, nothing removed); a second run adds nothing | 85 |
+| 2026-09-30 | #142 | **The owner's two questions answered** (below): the gate #124 closed as a side effect; zh signed off; the Arabic sentence changed after sign-off (#118); the backup ping unwired; the uptime ping verified (docs only) | 85 |
 | 2026-09-30 | #141 | **The review pass** (design pass, the last step): every owner page screenshotted in three languages, phone and desktop (180, none wider than its screen) and read. Found and fixed: seven Practice checks and one People line printed as raw catalogue keys (the Practice labels now typed against the checks; the surface walk fails any page showing a key); the customer file's History said "Buyer:". The zh/ar lines of the whole run (278 each) are in `docs/NATIVE-REVIEW-UI.md` for the native readers (no migration) | 85 |
 | 2026-09-30 | #140 | **Names, People, Setup, the door, the live line** (design pass, UI-PASS 5–8, 10): "You" in Hand to; a person named like the business asked for a name; speakers by name; People's pills only for states (and the owner-only line that printed a raw key); Setup as doors with their state, the profile its own page; the sign-in door e-mail first, the code a small door; the live line in the headers, never over controls. Merged 04:59 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #139 | **Right to left, by design** (design pass §9): one value layer (`src/api/web/values.ts`) — money, quantities, counts, dates, times, phone numbers, order numbers — isolated on Arabic pages; Arabic money in the locale's own form; every figure in a sentence isolated; the surface walk draws all 33 owner pages in Arabic and fails any figure outside an isolate. The symbol check reads namespace imports. Merged 21:48 UTC (no migration) | 85 |
@@ -236,7 +239,8 @@ instruction did not answer. Collected here; asked once, at the end.
 | MAIL, BOT, BILL, SITE, UI-es, EXT, EU1 | 13, 15, 30, 32, 36, 39 (and accounts only the owner can create) |
 | T8 (price-list measurement) | needs the owner's 25–35 real catalogues |
 | RET (erase workspaces that never connected, after 90 days) | not a plan decision, but an automatic erasure: confirm before building |
-| **T3 backfill on Westlake** — the dry run (2026-09-29, read-only) found **all 5 of its products findable by no name**: no customer's words reach any of them, so none can be quoted. The fix is `tools/backfill-aliases.mjs --business 7dc89f42-852e-465a-920f-8af170dc83cd --yes` (adds each product's own name, nothing else), after a backup | the plan: "Westlake only with your yes, backup first" |
+| **Re-read the Arabic disclosure** (it changed after your sign-off, #118 — both sentences above) and read the French one; find a reader for the Spanish one | not a plan decision: the flags are yours alone |
+| **Move `BACKUP_PING_URL` onto the `backup` service** (it sits on `nomi`, which never reads it) | one minute in Railway |
 
 ## Found on the way
 
