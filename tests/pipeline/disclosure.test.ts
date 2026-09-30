@@ -433,11 +433,77 @@ describe('nothing is sent alone until the disclosure has had native review', () 
     expect(drafts[0]!.replacedByDisclosure).toBe(false);   // nothing replaced it
   });
 
-  it('the real flag is DOWN again: Spanish and French await a native reader (2026-09-29); the rung above holds it', async () => {
-    const { disclosureAwaitingReview, autonomyReleased } = await import('../../src/core/conversation/disclosure.js');
+  it('the real flags: es and fr await a native reader (2026-09-29); en, zh and ar are read — per language', async () => {
+    const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, disclosureStanding } = await import('../../src/core/conversation/disclosure.js');
     // zh and ar were read by the owner on 2026-09-28; es and fr were added
     // on 2026-09-29 and wait for a reviewer. Flipping them is a person's act.
     expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
-    expect(autonomyReleased()).toBe(false);
+    // Per language since 2026-09-30 (the owner): the unread two hold their own
+    // customers' replies, not everyone's (#124 had stopped every workspace).
+    expect(autonomyReleased()).toBe(true);
+    for (const l of ['en', 'zh', 'zh-Hans', 'ar', 'ar-EG', null, '']) expect(autonomyReleasedFor(l), String(l)).toBe(true);
+    for (const l of ['es', 'fr', 'fr-CA']) expect(disclosureStanding(l), l).toBe('unreviewed');
+    for (const l of ['pt', 'de', 'ru', 'und']) expect(disclosureStanding(l), l).toBe('unwritten');
+    for (const l of ['es', 'fr', 'pt', 'de']) expect(autonomyReleasedFor(l), l).toBe(false);
+  });
+});
+
+describe('the gate is per language (the owner, 2026-09-30): each customer\'s own language decides', () => {
+  const real = async (p: ReturnType<typeof ports>) => {
+    const { autonomyReleasedFor } = await import('../../src/core/conversation/disclosure.js');
+    p.tenant.releasedFor = autonomyReleasedFor;   // the real gate, not a flag the test sets
+  };
+
+  for (const [detected, said] of [['en', "Yiwu Canvas Co's AI assistant"], ['zh', 'Yiwu Canvas Co的AI助手'], ['ar', 'مساعد آلي لدى Yiwu Canvas Co']] as const) {
+    it(`${detected} — signed off: auto sends alone, with the disclosure in ${detected}`, async () => {
+      const p = ports('auto');
+      await real(p);
+      seed(p);
+      p.analyzer.next = analysis(detected);
+      p.replyWriter.replies = ['We make canvas totes in several sizes.'];
+      const { sent, drafts, events } = await run(p, 'Hello');
+      expect(drafts).toHaveLength(0);
+      expect(sent).toContain(said);
+      expect(events.find((e) => e.type === 'autonomy_withheld')).toBeUndefined();
+    });
+  }
+
+  for (const detected of ['es', 'fr']) {
+    it(`${detected} — written, not yet read: the reply is a draft, and the card is told the language and why`, async () => {
+      const p = ports('auto');
+      await real(p);
+      seed(p);
+      p.analyzer.next = analysis(detected);
+      p.replyWriter.replies = ['Hacemos bolsas de lona.'];
+      const { sent, drafts, events } = await run(p, 'Hola');
+      expect(sent).toBeNull();
+      expect(drafts).toHaveLength(1);
+      expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'disclosure_not_reviewed', language: detected });
+      expect(events.find((e) => e.type === 'draft_pending')?.payload).toMatchObject({ withheld: { reason: 'disclosure_not_reviewed', language: detected } });
+    });
+  }
+
+  it('a language with no sentence at all (Portuguese): a draft — never an English sentence, never a translation made up for the occasion', async () => {
+    const p = ports('auto');
+    await real(p);
+    seed(p);
+    p.analyzer.next = analysis('pt');
+    p.replyWriter.replies = ['Fazemos sacolas de lona.'];
+    const { sent, drafts, events } = await run(p, 'Olá');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.draftText).not.toContain('AI assistant');
+    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'language_without_disclosure', language: 'pt' });
+  });
+
+  it('a capability in draft is untouched: nothing was going alone, nothing is withheld', async () => {
+    const p = ports('draft');
+    await real(p);
+    seed(p);
+    p.analyzer.next = analysis('es');
+    p.replyWriter.replies = ['Hacemos bolsas de lona.'];
+    const { events } = await run(p, 'Hola');
+    expect(events.find((e) => e.type === 'autonomy_withheld')).toBeUndefined();
+    expect((events.find((e) => e.type === 'draft_pending')?.payload as Record<string, unknown>)['withheld']).toBeUndefined();
   });
 });

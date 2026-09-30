@@ -5,7 +5,7 @@ import { findForbidden, effectiveForbidden } from '../../src/core/safety/forbidd
 import { detectClaims } from '../../src/core/safety/claims.js';
 import { extractNumerals } from '../../src/core/safety/numerals.js';
 import {
-  disclosureFor, disclosureLocale, carriesDisclosure, DISCLOSURE_LOCALES, DISCLOSURE_NATIVE_REVIEW, autonomyReleased,
+  disclosureFor, disclosureLocale, carriesDisclosure, DISCLOSURE_LOCALES, DISCLOSURE_NATIVE_REVIEW, autonomyReleased, autonomyReleasedFor,
 } from '../../src/core/conversation/disclosure.js';
 import { shopOpener } from '../../src/core/scoring/detect.js';
 
@@ -49,10 +49,13 @@ describe('the disclosure, in Spanish and French', () => {
     expect(carriesDisclosure('Hola, soy Yasmin. ¿En qué puedo ayudarte?')).toBe(false);
   });
 
-  it('both wait for a native reader: the gate is shut, and not by an assistant\'s hand', () => {
+  it('both wait for a native reader, and not by an assistant\'s hand — their own customers\' replies wait; nobody else\'s', () => {
     expect(DISCLOSURE_NATIVE_REVIEW.es).toBe(false);
     expect(DISCLOSURE_NATIVE_REVIEW.fr).toBe(false);
-    expect(autonomyReleased()).toBe(false);
+    expect(autonomyReleasedFor('es')).toBe(false);
+    expect(autonomyReleasedFor('fr')).toBe(false);
+    // Per language since 2026-09-30: the product may still be set to auto.
+    expect(autonomyReleased()).toBe(true);
   });
 });
 

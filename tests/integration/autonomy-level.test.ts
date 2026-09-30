@@ -161,14 +161,16 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
 
-  it('the real flag is down: es and fr await a native reader (2026-09-29); zh and ar were read 2026-09-28', async () => {
+  it('the real flags: es and fr await a native reader (2026-09-29); zh and ar were read 2026-09-28 — and the gate is per language', async () => {
     // Updated deliberately (CLAUDE.md rule 1): the owner's instruction added
     // Spanish and French as awaiting review. A reviewer flips them, named, in
-    // the same commit that updates this assertion.
-    const { disclosureAwaitingReview, autonomyReleased, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
+    // the same commit that updates this assertion. Since 2026-09-30 the gate
+    // is per language (the owner): es/fr customers' replies wait; en/zh/ar go.
+    const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
     expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false });
     expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
-    expect(autonomyReleased()).toBe(false);
+    expect(autonomyReleased()).toBe(true);
+    expect(['en', 'zh', 'ar', 'es', 'fr', 'pt'].map((l) => autonomyReleasedFor(l))).toEqual([true, true, true, false, false, false]);
   });
 
   it('"talks" and "sells" are REFUSED by the route, and nothing is written', async () => {
@@ -194,11 +196,12 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page says the sentence is being checked — it reads the real flag, which is down while es/fr wait', async () => {
+  it('and the page names the languages whose replies wait — it reads the real flags (es and fr, and any other language)', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('has not been read by a native speaker');
+    expect(page.body).toContain('English, Chinese, and Arabic');
+    expect(page.body).toContain('Spanish and French, or in any other language, wait for you');
   });
 });

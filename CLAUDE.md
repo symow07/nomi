@@ -280,16 +280,23 @@ Recent PRs, newest first:
 
 ## 5 · Open rules in force right now
 
-1. **The disclosure gate is SHUT again since 2026-09-29 (#124): Spanish and
-   French await a native reader.** The owner's instruction added es and fr to
-   the disclosure and to every safety check, "awaiting native review — do not
-   set them true yourself". `DISCLOSURE_NATIVE_REVIEW` = `{ en: true, zh: true,
-   ar: true, es: false, fr: false }`, and the gate is installation-wide by
-   design, so **nothing sends alone anywhere** (Westlake's auto included) until
-   a reviewer reads the two sentences and the flags flip — in one commit that
-   names the reviewer and updates `tests/integration/autonomy-level.test.ts`
-   and `tests/pipeline/disclosure.test.ts`. Everything else for es/fr is built
-   and tested. Before that, the gate was **OPEN from 2026-09-28** (#117): the owner read the
+1. **The disclosure gate is PER LANGUAGE (the owner, 2026-09-30; #143).** A
+   reply goes out alone only when the customer's own language has a disclosure
+   a native reader signed off (`autonomyReleasedFor`, read at the send decision
+   in `commitTurn`): en, zh and ar today. es and fr are written and wait for a
+   reader; every other language has no sentence and is never given one
+   translated for the occasion — in all of those, every reply is a draft and the
+   card says which language and why (`withheld` on the draft). Until
+   2026-09-30 it was one answer for the whole product, so adding es/fr unread
+   in #124 stopped every workspace sending alone, which nobody had decided
+   (PROGRESS, "The owner's questions"). `DISCLOSURE_NATIVE_REVIEW` = `{ en:
+   true, zh: true, ar: true, es: false, fr: false }`. **No assistant sets a flag,
+   either way.** The owner reads fr and ar himself; es needs an outside reader;
+   the Arabic sentence was rewritten in #118 after his sign-off and waits for
+   his re-read. A flag flips in one commit that names the reviewer and updates
+   `tests/integration/autonomy-level.test.ts` and
+   `tests/pipeline/disclosure.test.ts`. Everything else for es/fr is built and
+   tested. Before that, the gate was **OPEN from 2026-09-28** (#117): the owner read the
    zh and ar sentences; the Arabic now says «مساعد آلي» (an automated
    assistant) where it said «المساعد الذكي» ("the smart assistant"), and (#118)
    addresses the buyer in neither gender: «مرحبًا، أنا {name}، مساعد آلي لدى

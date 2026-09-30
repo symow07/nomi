@@ -4,7 +4,7 @@ import { sql } from 'kysely';
  * pasted catalogue in the history would otherwise cost more than the turn.
  */
 const HISTORY_MESSAGE_CHARS = 1000;
-import { autonomyReleased } from '../core/conversation/disclosure.js';
+import { autonomyReleasedFor } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel, chosenName } from './assistants.js';
 import type { AssistantRole } from '../core/owner/assistants.js';
 import { closureDate } from '../core/commerce/closures.js';
@@ -658,7 +658,7 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       const evidence = { ...base, policyViolations: base.policyViolations + violations };
       return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
     },
-    released: () => autonomyReleased(),
+    released: (language) => autonomyReleasedFor(language),
     async assistantNamed() {
       const r = await sql<{ named: boolean }>`
         select (assistant_named_at is not null) as named
