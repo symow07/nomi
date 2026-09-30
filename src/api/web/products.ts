@@ -583,6 +583,8 @@ export function renderAddForm(
   /** K1 — a list she started and did not finish checking. */
   open: { id: string; createdAt: Date; lines: number } | null = null,
   flash: Flash | null = null,
+  /** K5 — the owner chose "prices go to me". */
+  pricesToOwner = false,
 ): string {
   if (!viewer.isOwner) {
     return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
@@ -614,6 +616,24 @@ export function renderAddForm(
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
+    </div>
+    ${renderPricesToMe(locale, pricesToOwner)}`;
+}
+
+/**
+ * K5 — the fallback for an owner with no list (services, agencies, a shop that
+ * prices only in private messages): nothing is priced, and every price
+ * question comes to her. Its own form: one press either way.
+ */
+export function renderPricesToMe(locale: Locale, on: boolean): string {
+  const name = assistantName(locale);
+  return `<div class="block">
+      <h2>${esc(t(locale, 'product.pricesToMe.title'))}</h2>
+      <p>${esc(t(locale, on ? 'product.pricesToMe.on' : 'product.pricesToMe.intro', { name }))}</p>
+      <form method="post" action="/app/products/prices-to-me">
+        <input type="hidden" name="on" value="${on ? '0' : '1'}" />
+        <button class="btn" type="submit">${esc(t(locale, on ? 'product.pricesToMe.turnOff' : 'product.pricesToMe.turnOn', { name }))}</button>
+      </form>
     </div>`;
 }
 

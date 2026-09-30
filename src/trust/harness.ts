@@ -1,5 +1,6 @@
 import { computeTurn, commitTurn, type TurnPorts } from '../pipeline/turn.js';
 import type { TradeTerms } from '../core/commerce/terms.js';
+import type { SellingFacts } from '../db/ports.js';
 import type { OrderUpdate } from '../core/commerce/orderState.js';
 import type { SamplePolicy } from '../core/commerce/samples.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
@@ -139,6 +140,8 @@ class HarnessTenant implements Tenant {
   sample: SamplePolicy | null = null;
   /** G6 — her proforma terms. Null (she has stated none) unless a test sets them. */
   terms: TradeTerms | null = null;
+  /** K5 · RT — how the business sells; a test sets what it needs. */
+  selling: SellingFacts = { pricesToOwner: false, kind: null };
   catalog: CatalogRepo = {
     product: async (id) => this.products.get(id) ?? null,
     priceTiers: async (id) => this.tiers.get(id) ?? [],
@@ -149,6 +152,7 @@ class HarnessTenant implements Tenant {
     factoryClosures: async () => this.closures,
     samplePolicy: async () => this.sample,
     tradeTerms: async () => this.terms,
+    selling: async () => this.selling,
     claimsPolicy: async () => this.allowedClaims,
     bundleRules: async () => [],
     substitutions: async () => [],

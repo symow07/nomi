@@ -34,6 +34,7 @@ import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js'
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
+import { statesAPrice } from '../core/safety/statesPrice.js';
 import { computeQuote, selectTier } from '../core/commerce/quote.js';
 import { closureNote, withheldOf } from '../core/commerce/closures.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
@@ -240,6 +241,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   if (!state) throw new Error(`conversation not found: ${req.conversationId}`);
 
   const email = extractEmail(req.text);
+  // K5 · RT — how this business sells, read once for the turn.
+  const selling = await tenant.catalog.selling();
   // M45 — decided here, once, for every action kind. A buyer who asks for a
   // sample in the same message that triggers a handoff has still asked.
   const sampleRequested = asksForSample(req.text);
@@ -334,6 +337,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   const byKind = new Map<Signal['kind'], Signal>();
   for (const s of historic) byKind.set(s.kind, s);
   for (const s of fresh) byKind.set(s.kind, s); // fresh wins
+  /**
+   * K5 · LAYER 1 — "PRICES GO TO ME". The business states no price; the
+   * analysis says the customer asked one. The owner answers it: a hand-off
+   * with its own reason, before any reply is written or any quote worked out.
+   */
+  if (selling.pricesToOwner && analysis?.intent.primary === 'price_request') byKind.set('price_to_owner', { kind: 'price_to_owner' });
   let signals: readonly Signal[] = [...byKind.values()];
 
   // ── Decide. Pure. ───────────────────────────────────────────────────────────
@@ -352,7 +361,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let quoteInputs: unknown = null;
   let product: Product | null = null;
 
-  if (decision.product && decision.quantity) {
+  // K5 — a business whose prices go to the owner is quoted nothing, whatever it holds.
+  if (decision.product && decision.quantity && !selling.pricesToOwner) {
     product = await tenant.catalog.product(decision.product.productId);
     if (product) {
       const [tiers, policy, rules, closures] = await Promise.all([
@@ -738,6 +748,29 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
     reply = null;
     replyDeterministic = true;
     answerPath = 'silent';
+    knowledgeUsed = [];
+    quote = null;
+    quoteInputs = null;
+    quoteRefusal = null;
+  }
+
+  /**
+   * K5 · LAYER 2 — NO REPLY STATES A PRICE WHERE PRICES GO TO THE OWNER.
+   *
+   * Layer 1 read the analysis; a customer can ask in words it reads as
+   * something else, and the numeral guard passes a figure the customer wrote
+   * ("is it $20?" — "yes, $20"). So whatever produced this reply, if it states
+   * a price (`statesAPrice`), it is thrown away and the turn is re-decided as
+   * the owner's: the same hand-off as layer 1, its ordinary sentence and all.
+   */
+  if (selling.pricesToOwner && reply !== null && deletionPromiseWithheld === null
+      && decision.action.kind !== 'handoff' && statesAPrice(reply)) {
+    signals = [...signals.filter((s) => s.kind !== 'price_to_owner'), { kind: 'price_to_owner' }];
+    decision = decideTurn({ state, text: req.text, analysis, extractedEmail: email, signals, quote: null });
+    newState = stateAfter(decision);
+    reply = decision.action.kind === 'handoff' ? HANDOFF_REPLY : null;
+    replyDeterministic = true;
+    answerPath = 'handoff';
     knowledgeUsed = [];
     quote = null;
     quoteInputs = null;

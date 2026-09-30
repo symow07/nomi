@@ -81,6 +81,13 @@ export type Signal =
    * understood, so there is nothing true to say yet.
    */
   | { readonly kind: 'not_answered' }
+  /**
+   * K5 (0094) — "prices go to me": the business states no price, and the
+   * customer asked one. The owner answers it; the assistant's hand-off says
+   * only that someone will reply. Scored like a request for a person, so the
+   * conversation stays with the owner until handed back.
+   */
+  | { readonly kind: 'price_to_owner' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -118,6 +125,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'deletion_requested',
   // 0077 — nobody could tell what the message asked; a person answers.
   'not_answered',
+  // K5 (0094) — a price question, where prices go to the owner.
+  'price_to_owner',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -141,6 +150,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   ops_silenced: { kind: 'ops_silenced' },
   deletion_requested: { kind: 'deletion_requested' },
   not_answered: { kind: 'not_answered' },
+  price_to_owner: { kind: 'price_to_owner' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -176,6 +186,7 @@ export const TRIGGER_REASONS = [
   'ops_silenced',
   'deletion_requested',
   'not_answered',
+  'price_to_owner',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -206,6 +217,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'deletion_requested';
     case 'not_answered':
       return 'not_answered';
+    case 'price_to_owner':
+      return 'price_to_owner';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':
@@ -259,6 +272,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'not_answered':
         problem = 100; // absolute: nobody knows what it asked, so a person answers.
+        break;
+      case 'price_to_owner':
+        problem = 100; // absolute: her prices are hers to give.
         break;
       case 'complaint':
         problem += 40;

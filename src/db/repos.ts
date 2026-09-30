@@ -364,6 +364,13 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       };
     },
 
+    // K5 · RT — read on the business row, so a change on its page binds the next turn.
+    async selling() {
+      const r = (await sql<{ prices_to_owner: boolean; kind: string | null }>`
+        select prices_to_owner, kind from businesses where id = ${businessId}`.execute(tx)).rows[0];
+      return { pricesToOwner: r?.prices_to_owner ?? false, kind: r?.kind ?? null };
+    },
+
     async claimsPolicy() {
       const rows = await sql<{ kind: string; claim_key: string; allowed: boolean }>`
         select kind, claim_key, allowed from claims_policy`.execute(tx);

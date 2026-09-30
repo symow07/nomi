@@ -106,6 +106,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       select currency from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.currency)),
     // K1 — a kept import is money too: its rows become prices.
     imports: await rows('catalog_imports', 'x.id'),
+    pricesToOwner: await tx((t) => sql<{ on: boolean }>`
+      select prices_to_owner as on from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.on)),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -130,6 +132,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/settings/samples', 'price=0&credited=on'],
     // CUR — the workspace's one currency is money too.
     ['/app/settings/currency', 'currency=SAR'],
+    // K5 — whether the business states prices at all is money too.
+    ['/app/products/prices-to-me', 'on=1'],
   ];
 
   beforeAll(async () => {
