@@ -36,6 +36,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'conv.deletion.flash.already_open', 'conv.deletion.flash.note_missing', 'conv.deletion.flash.note_long',
   // 0076 — a noted request that was already decided: nothing changed.
   'conv.deletion.flash.not_waiting',
+  // P5 — a practice message Practice would not take: the day's are used, or the operator paused it.
+  'practice.flash.daily_limit', 'practice.flash.switched_off',
   'assistants.flash.channel_taken', 'assistants.flash.is_default', 'assistants.flash.name_long',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { withWorkspace } from '../../src/api/web/say.js';
 import {
   renderPilotReadiness, renderPilotRunbook, renderPilotTechnical,
   type PilotReadiness, type PilotRunbook, type PilotFeedback,
@@ -132,9 +131,8 @@ describe('M16.2d · pilot operations runbook (localized renderer)', () => {
     expect(html).toContain('Take-over practiced');   // done → ✓
     expect(html).toContain('✓'); expect(html).toContain('○');
     expect(html).toContain('2/5');                    // a fraction, not a percentage
-    // T1 — the door to the shared practice sandbox, for the pilot workspace only
-    expect(html).not.toContain('href="/app/sandbox"');
-    expect(withWorkspace({ name: null, several: false, outreach: false, setup: null, practice: true }, () => renderPilotRunbook(rb(), 'en', null))).toContain('href="/app/sandbox"');
+    // P5 — every workspace practises on its own copy: the door is always there
+    expect(html).toContain('href="/app/sandbox"');
   });
 
   it('after pilot: read-only review links, no new POST actions', () => {

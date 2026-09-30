@@ -13,7 +13,7 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { refreshPractice, practiceConversation, activePracticeConversation } from '../../db/practice.js';
+import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, type PracticeRefusal } from '../../db/practice.js';
 import { recordTypedMessage } from '../../pipeline/received.js';
 import type { InboundJob } from '../../queue/boss.js';
 import * as show from './values.js';
@@ -57,9 +57,12 @@ export const practiceUrl = (before?: string | null): string =>
 export async function sayInPractice(
   deps: { readonly db: Db; readonly enqueue: (job: InboundJob) => Promise<void> },
   live: BusinessId, text: string,
-): Promise<boolean> {
+): Promise<'sent' | 'empty' | PracticeRefusal> {
   const said = text.trim();
-  if (!said) return false;
+  if (!said) return 'empty';
+  // P5 — the operator's switch, and the day's fifty: refused before anything is made or queued.
+  const refused = await practiceRefusal(deps.db, live);
+  if (refused) return refused;
   const copy = await refreshPractice(deps.db, live);
   const messageId = `practice:${randomUUID()}`;
   const conversationId = await withTenantTx(deps.db, copy, async (tx) => {
@@ -68,7 +71,7 @@ export async function sayInPractice(
     return id;
   });
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
-  return true;
+  return 'sent';
 }
 
 /** Archive the practice conversation — never delete — with an event trace. The next message starts a new one. */

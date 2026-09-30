@@ -5,7 +5,7 @@ import { detectClaims } from '../../core/safety/claims.js';
 import type { KnowledgeKind, KnowledgeSource } from '../../core/types/knowledge.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, practiceShown } from './say.js';
+import { t } from './say.js';
 
 import { deeper, esc } from './layout.js';
 import * as show from './values.js';
@@ -216,7 +216,7 @@ export function renderKnowledgeOps(ops: KnowledgeOps, locale: Locale, now: Date)
       <div class="ki-meta"><span class="pill reason">${esc(reasonLabel(locale, g.reason))}</span>
         <span class="muted">${esc(show.when(locale, g.lastAt, now))}</span></div>
       <div class="gacts">${deeper(teachHref, t(locale, 'knowledge.gap.teach'))}
-        ${practiceShown() ? deeper(testHref, t(locale, 'knowledge.gap.test')) : ''}</div>
+        ${deeper(testHref, t(locale, 'knowledge.gap.test'))}</div>
     </div>`;
   };
   const gaps = `<div class="block"><h2>${esc(t(locale, 'knowledge.ops.gaps'))}</h2>

@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 86 (deployed with #145); 87 once #146 deploys. Last three:
-  `0085 send_ceiling`, `0086 practice`, `0087 practice_copy`.
+- **Schema:** 86 (deployed with #145); 87 with #146, 88 with #147. Last
+  three: `0086 practice`, `0087 practice_copy`, `0088 practice_switch`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -513,7 +513,8 @@ Recent PRs, newest first:
    - **What is copied and what is not:** `tests/integration/practice-tables.ts`, every business-scoped table named once; `practice-copy.test.ts` fails a new table nobody classified, and a copied table the refresh does not write.
    - **Nobody real, by construction:** a trigger refuses channels, credentials, channel sources, connectors, Meta and mail accounts, sending domains, people and logins on a copy. `add-login` refuses a copy by name.
    - **Not a workspace:** whole-installation readers skip copies (`meta_error_rates`; `live_business_ids` and `inboxes_to_read` cannot see one — no sequences, domains or mailboxes). Anything new that counts or scans workspaces must say `practice_of is null`. Fleet counts too.
-   - **Through the real pipeline (P3, #146):** a practice message is an inbound job on the copy (the worker, the turn, the Stop, batching); approvals and owner replies go through the real outbound worker, which hands a copy the practice adapter (`src/channels/practice.ts`, no network) and nothing else, in both modes; a practice send is recorded delivered at once (the page is the customer's phone); `deliverOwnerAlert` refuses a copy; `/app/live/practice`; the golden checks run per practice turn in the worker. No scripted/live choice. Still the pilot's alone (T1) until P5 caps and meters it.
+   - **Through the real pipeline (P3, #146):** a practice message is an inbound job on the copy (the worker, the turn, the Stop, batching); approvals and owner replies go through the real outbound worker, which hands a copy the practice adapter (`src/channels/practice.ts`, no network) and nothing else, in both modes; a practice send is recorded delivered at once (the page is the customer's phone); `deliverOwnerAlert` refuses a copy; `/app/live/practice`; the golden checks run per practice turn in the worker. No scripted/live choice.
+   - **Open to every workspace, metered and capped (P5, #147; 0088):** a copy's turn is charged to the workspace's own ledger and allowance; 50 practice lines a UTC day, refused on the page before anything is recorded; the operator's `practice_off` flag in `ops_flags` (everyone or one workspace) pauses it; T1's pilot gate is gone (`practice-own.test.ts` holds that nothing crosses between copies).
 
 ## 6 · What's next
 

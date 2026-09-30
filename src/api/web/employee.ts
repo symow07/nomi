@@ -8,7 +8,7 @@ import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName, practiceShown } from './say.js';
+import { t, assistantName } from './say.js';
 import { languageName } from './inbox.js';
 import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
@@ -359,7 +359,7 @@ export function renderEmployee(
     <div class="doors">
       ${deeper('/app/knowledge', t(locale, 'nav.knowledge'))}
       ${deeper('/app/settings/forbidden', t(locale, 'forbidden.title', { name }))}
-      ${practiceShown() ? deeper('/app/sandbox', t(locale, 'nav.sandbox')) : ''}
+      ${deeper('/app/sandbox', t(locale, 'nav.sandbox'))}
     </div></div>`;
 
   // Order answers "who is this today?": who → what it knows → what it is

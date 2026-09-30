@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #146 | **Practice P3 — through the real pipeline**: a practice message is an inbound job on the workspace's own copy; the worker's turn, Stop and batching apply; approvals and owner replies leave through the real outbound worker, which hands a copy the practice adapter (no network) and nothing else, with or without a channel configured; a practice send is recorded delivered at once; no owner alert from a copy; the golden checks per practice turn; the live line; one lane (live). `practice_copy` (0087). Still the pilot's alone until P5. Pre-pilot 12/12 before and after | 87 |
+| 2026-09-30 | #147 | **Practice P5 — every workspace practises, metered and capped** (0088): a practice turn is charged to the workspace's own ledger and allowance; 50 practice lines a day, refused before anything is recorded; the operator's `practice_off` switch (everyone or one workspace; `docs/INCIDENT-PLAYBOOK.md`); T1's pilot-only gate gone — the copy keeps workspaces apart (`practice-own.test.ts`) | 88 |
+| 2026-09-30 | #146 | **Practice P3 — through the real pipeline**: a practice message is an inbound job on the workspace's own copy; the worker's turn, Stop and batching apply; approvals and owner replies leave through the real outbound worker, which hands a copy the practice adapter (no network) and nothing else, with or without a channel configured; a practice send is recorded delivered at once; no owner alert from a copy; the golden checks per practice turn; the live line; one lane (live). `practice_copy` (0087). Pre-pilot 12/12 before and after. Merged 12:24 UTC, deployed, `/health` ok, schema 87 | 87 |
 | 2026-09-30 | #145 | **Practice P1 + P2 — the copy** (0086): `docs/PRACTICE.md`; `businesses.practice_of`, `practice_refresh`, the trigger refusing channels, credentials, people and logins on a copy; erase-workspace takes the copy; add-login refuses one; the Meta-errors check skips copies. Today's backup `nomi-backup-20260930T030201Z` (schema 85, drill passed) before it. Merged 08:53 UTC, deployed, `/health` ok, schema 86 | 86 |
 | 2026-09-30 | #144 | **Stop pressed while a customer's lines are being grouped: recorded as "stopped"** (the owner's decision). The hold is a turn (`held`, the silent path, no model), the waiting lines are processed in it, the conversation handed over as stopped — it used to dead-letter and surface as "not answered". Pre-pilot 12/12 before and after; the new GROUPING test failed before the fix. Merged 08:28 UTC, deployed, `/health` ok (no migration) | 85 |
 | 2026-09-30 | #143 | **The disclosure gate, per language** (merged 08:1x UTC, deployed, `/health` ok) — Westlake's auto restored: a reply goes alone only when the customer's language has a signed-off disclosure (en, zh, ar); es/fr (unread) and every language with no sentence stay drafts, and the card names the language and why; the autonomy page names both lists. Pre-pilot 12/12 before and after; integration with the REAL gate (the old whole-install rule put back fails it) (no migration) | 85 |
@@ -47,9 +48,9 @@ under "Decided" below.
 **Next (the owner's instruction of 2026-09-30, in its order):**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
    The design and the table-by-table classification are `docs/PRACTICE.md`
-   (P1). P2 (the copy, 0086, #145) and P3 (the real pipeline, #146) are in;
-   then P4 (the page), P5 (metering, 50 a day, the platform flag, and open to
-   every workspace), P6 (the shared sandbox retired, transcripts expire).
+   (P1). P2 (the copy, 0086, #145), P3 (the real pipeline, #146) and P5
+   (metered, capped, switchable, open to every workspace, #147) are in; then
+   P4 (the page) and P6 (the shared sandbox retired, transcripts expire).
 2. **One time zone and one currency per workspace**, chosen during setup.
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
