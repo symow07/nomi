@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../src/core/onboard/catalogDiff.js';
-import { reviewImport, renderReview, renderPhotoRefusal, importFlash, type PhotoRefusal } from '../../src/api/web/products.js';
+import { renderPhotoRefusal, importFlash, type PhotoRefusal } from '../../src/api/web/products.js';
+import { validateExtracted, parsePriceLines } from '../../src/core/onboard/catalogImport.js';
+import { reviewPage } from './reviewPage.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { t } from '../../src/core/owner/i18n/messages.js';
 import { formatMoney } from '../../src/core/owner/i18n/format.js';
@@ -26,7 +28,7 @@ const CUP = entry({ id: 'p-cup', sku: 'ZX-220', name: 'Vacuum cup', price: 2.6, 
 const MUG = entry({ id: 'p-mug', sku: 'NEW-k1-0', name: 'Enamel mug', nameZh: '搪瓷杯', price: 3, moq: 200 });
 const CATALOGUE = [TOTE, CUP, MUG];
 
-const lines = (text: string) => reviewImport(text, 'USD').accepted;
+const lines = (text: string) => validateExtracted(parsePriceLines(text, 'USD')).accepted;
 
 describe('G16 · which pile each line goes in', () => {
   it('THE DONE-WHEN: one changed price is one change, and the rest are shown as agreeing', () => {
@@ -106,13 +108,13 @@ describe('G16 · which pile each line goes in', () => {
 
 describe('G16 · the review shows the change, and lets her leave it out', () => {
   const text = 'ZX-100 Canvas tote $0.98 MOQ 500\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00';
-  const v = reviewImport(text, 'USD');
-  const d = diffAgainstCatalogue(v.accepted, CATALOGUE);
+  const page = (x: string, locale: 'en' | 'zh' | 'ar' = 'en', catalogue = CATALOGUE) => reviewPage(x, locale, { catalogue });
 
   it('the changed product is a tick of its own, on by default, inside the confirm form', () => {
-    const html = renderReview(v, text, 'en', d);
-    const form = html.slice(html.indexOf('<form'), html.indexOf('</form>'));
-    expect(form).toMatch(/<input type="checkbox" name="apply:p-tote" checked \/>/);
+    const html = page(text);
+    const form = html.slice(html.indexOf('<form class="imp-rows"'), html.indexOf('</form>', html.indexOf('<form class="imp-rows"')));
+    // K1 — the tick is on the line that changes it (its row), and it is the only one.
+    expect(form).toMatch(/<input type="checkbox" name="apply:l1" checked \/>/);
     expect(form.match(/name="apply:/g)).toHaveLength(1);           // only the one that changes
     expect(form).toContain(esc(t('en', 'product.review.change.price', { from: formatMoney(usd(1.05)), to: formatMoney(usd(0.98)) })));
     // the line it came from, beside it — the M37 rule, for a change too
@@ -120,58 +122,52 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
   });
 
   it('new, and already-as-the-page-says, are shown apart from the change', () => {
-    const html = renderReview(v, text, 'en', d);
+    const html = page(text);
     expect(html).toContain(esc(t('en', 'product.review.addedTitle', { count: 1 })));
     expect(html).toContain(esc(t('en', 'product.review.unchangedTitle', { count: 1 })));
     expect(html).toContain('Straw hat');
   });
 
   it('a page that changes nothing offers nothing to confirm — and says so', () => {
-    const same = 'ZX-220 Vacuum cup $2.60 MOQ 1000';
-    const html = renderReview(reviewImport(same, 'USD'), same, 'en', diffAgainstCatalogue(reviewImport(same, 'USD').accepted, CATALOGUE));
-    expect(html).not.toContain('<form');
+    const html = page('ZX-220 Vacuum cup $2.60 MOQ 1000');
+    expect(html).not.toContain('name="next" value="add"');
     expect(html).toContain(esc(t('en', 'product.review.nothingToChange')));
   });
 
   it('with only changes, the button says what it does', () => {
-    const only = 'ZX-100 Canvas tote $0.98';
-    const html = renderReview(reviewImport(only, 'USD'), only, 'en', diffAgainstCatalogue(reviewImport(only, 'USD').accepted, CATALOGUE));
+    const html = page('ZX-100 Canvas tote $0.98');
     expect(html).toContain(esc(t('en', 'product.review.confirmChanges')));
-    expect(html).not.toContain(esc(t('en', 'product.review.confirm')));
+    expect(html).not.toContain(esc(t('en', 'import.add')));
   });
 
   it('a held line says why, and links to the product when there is one', () => {
-    const floored = [{ ...TOTE, floor: 1 }];
-    const low = 'ZX-100 Canvas tote $0.90';
-    const html = renderReview(reviewImport(low, 'USD'), low, 'en', diffAgainstCatalogue(reviewImport(low, 'USD').accepted, floored));
+    const html = page('ZX-100 Canvas tote $0.90', 'en', [{ ...TOTE, floor: 1 }]);
     expect(html).toContain(esc(t('en', 'product.review.held.below_floor')));
     expect(html).toContain('href="/app/products/p-tote"');
-    // her floor is a number a buyer must never learn; the review names the rule, not the number
+    // her floor is a number a customer must never learn; the review names the rule, not the number
     expect(html).not.toContain('$1.00');
   });
 
   it('every pile renders in every locale, with no key left showing', () => {
     const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: 1.2 });
     const all = 'ZX-100 Canvas tote $0.98\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00\nCanvas tote $0.90';
-    const vv = reviewImport(all, 'USD');
-    const dd = diffAgainstCatalogue(vv.accepted, [TOTE, CUP, twin]);
     for (const locale of LOCALES) {
-      const html = renderReview(vv, all, locale, dd);
-      expect(html, locale).not.toMatch(/product\.review\.[a-z_.]+/);
+      const html = page(all, locale, [TOTE, CUP, twin]);
+      expect(html, locale).not.toMatch(/(product\.review|import)\.[a-z_.]+/);
       expect(html, locale).toContain(esc(t(locale, 'product.review.held.matches_several')));
     }
   });
 });
 
 describe('G16 · every line the page had is accounted for', () => {
-  it('rejected lines past the first eight are counted, not cut', () => {
-    // The same line twelve times: one product, eleven rejected as repeats.
-    const v = reviewImport(Array.from({ length: 12 }, () => 'Straw hat $4.00').join('\n'), 'USD');
+  it('every refused line is shown with its reason, and counted in the lines read', () => {
+    // The same line twelve times: one product, eleven refused as repeats.
+    const v = validateExtracted(parsePriceLines(Array.from({ length: 12 }, () => 'Straw hat $4.00').join('\n'), 'USD'));
     expect(v.rejected).toHaveLength(11);
-    const html = renderReview(v, '', 'en');
+    const html = reviewPage(Array.from({ length: 12 }, () => 'Straw hat $4.00').join('\n'), 'en');
     const block = html.slice(html.indexOf(esc(t('en', 'product.review.rejectedTitle'))));
-    expect(block.match(/<div class="muted">· /g)).toHaveLength(8);
-    expect(block).toContain(esc(t('en', 'activation.recipients.more', { n: 3 })));
+    expect(block.match(/<div class="rev muted"><bdi>Straw hat \$4\.00<\/bdi>/g)).toHaveLength(11);
+    expect(html).toContain('We read 12 lines.');
   });
 });
 

@@ -60,7 +60,10 @@ describe('0075 · the signal', () => {
     expect(Number(newest!.slice(0, 4))).toBeGreaterThanOrEqual(75);
     // The statements, not the comment that explains them.
     const sql = read(`migrations/${newest}`).split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
-    expect(sql.match(/'deletion_requested'/g)).toHaveLength(2);
+    // Counted inside the two CHECKs: a later migration may restate the audit
+    // verbs beside them (0094), where 'deletion_requested' is also a verb.
+    const checks = (sql.match(/add constraint (?:conversation_signals_kind_check|escalation_events_trigger_reason_check)[\s\S]*?\);/g) ?? []).join('\n');
+    expect(checks.match(/'deletion_requested'/g)).toHaveLength(2);
     // …and 0075 itself is the migration that recorded 75 (0077 restates the CHECKs since).
     expect(read('migrations/0075_deletion_handoff.sql')).toMatch(/insert into _migrations \(version, name\) values \(75, 'deletion_handoff'\)/);
     expect(REQUIRED_SCHEMA_VERSION).toBeGreaterThanOrEqual(75);

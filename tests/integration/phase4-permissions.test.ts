@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
+import { importAt, submitReview } from './importReview.js';
 import { seedRunTenant, flashSaid, flashWasRefusal, runDigits } from './tenant.js';
 
 /**
@@ -66,11 +67,13 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
   const photo = (cookie: string) => app.inject({
     method: 'POST', url: '/app/products/add/photo',
     headers: { cookie, 'content-type': `multipart/form-data; boundary=${BOUNDARY}` },
-    payload: `--${BOUNDARY}\r\nContent-Disposition: form-data; name="page"; filename="sheet.png"\r\n`
+    payload: `--${BOUNDARY}\r\nContent-Disposition: form-data; name="hand"\r\n\r\nprinted\r\n`
+      + `--${BOUNDARY}\r\nContent-Disposition: form-data; name="page"; filename="sheet.png"\r\n`
       + `Content-Type: image/png\r\n\r\n\x89PNG-not-really\r\n--${BOUNDARY}--\r\n`,
   });
 
   const get = (cookie: string, url: string) => app.inject({ method: 'GET', url, headers: { cookie } });
+  let openImport = '';
 
   const tx = async <T>(fn: (t: import('../../src/db/client.js').Tx) => Promise<T>): Promise<T> => {
     const { withTenantTx } = await import('../../src/db/client.js');
@@ -101,6 +104,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       select owner_phone from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.owner_phone)),
     currency: await tx((t) => sql<{ currency: string }>`
       select currency from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.currency)),
+    // K1 — a kept import is money too: its rows become prices.
+    imports: await rows('catalog_imports', 'x.id'),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -175,6 +180,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       .then((r) => r.rows[0]?.status))).toBe('connected');
     await post(ownerCookie, '/app/business/allowlist/add', `phone=${encodeURIComponent(LISTED)}&label=Buyer%20one`);
     expect((await rows('pilot_allowlist')).length).toBe(1);
+    // K1 — a list the owner started and left open: its review's forms are gated too.
+    openImport = importAt(await post(ownerCookie, '/app/products/add/review', `text=${encodeURIComponent('Open mug $3.10')}`));
   }, 60_000);
 
   afterAll(async () => { await app?.close(); await db?.destroy(); });
@@ -190,6 +197,20 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const shot = await photo(staffCookie);
     expect(shot.statusCode).toBe(302);
     expect(flashSaid(shot, SECRET)).toContain(OWNER_NOTICE);
+    // K1 — the kept review's own forms, on the owner's open list, and its pages.
+    for (const [url, payload] of [
+      [`${openImport}/save`, 'next=add'], [`${openImport}/confirm`, ''], [`${openImport}/reread`, 'text=Staff%20mug%20%240.20'],
+      [`${openImport}/drop`, ''],
+    ] as const) {
+      const res = await post(staffCookie, url, payload);
+      expect(res.statusCode, url).toBe(302);
+      expect(flashSaid(res, SECRET), url).toContain(OWNER_NOTICE);
+    }
+    for (const url of [openImport, `${openImport}/floors`, `${openImport}/photo/1`]) {
+      const res = await get(staffCookie, url);
+      expect(res.statusCode, url).toBe(302);
+      expect(flashSaid(res, SECRET), url).toContain(OWNER_NOTICE);
+    }
 
     expect(await snapshot()).toEqual(before);
   });
@@ -201,6 +222,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     expect(await where('/app/channels/whatsapp/disconnect')).toBe('/app/channels');
     expect(await where(`/app/products/${PID}/edit`, 'moq=1')).toBe(`/app/products/${PID}`);
     expect(await where('/app/products/add/confirm', 'text=x')).toBe('/app/products');
+    expect(await where(`${openImport}/save`, 'next=add')).toBe('/app/products');
     expect(await where('/app/settings/rate', 'rate=9')).toBe('/app/settings/rate');
     expect(await where('/app/settings/samples', 'price=1')).toBe('/app/settings/samples');
   });
@@ -305,13 +327,14 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       select moq from products where id = ${PID}`.execute(t).then((r) => r.rows[0]!.moq))).toBe(800);
 
     const text = 'Phase mug $2.60 MOQ 1000';
-    const review = await post(ownerCookie, '/app/products/add/review', `text=${encodeURIComponent(text)}`);
+    const at = importAt(await post(ownerCookie, '/app/products/add/review', `text=${encodeURIComponent(text)}`));
+    const review = await get(ownerCookie, at);
     expect(review.statusCode).toBe(200);
-    expect(review.body).toContain('action="/app/products/add/confirm"');
+    expect(review.body).toContain(`action="${at}/save"`);
     const shot = await photo(ownerCookie);
     expect(shot.statusCode).toBe(200);             // no page reader here: a sentence, not a refusal
     expect(flashSaid(shot, SECRET)).not.toContain(OWNER_NOTICE);
-    const confirm = await post(ownerCookie, '/app/products/add/confirm', `text=${encodeURIComponent(text)}`);
+    const { res: confirm } = await submitReview(app, ownerCookie, at, { tickAll: true });
     expect(flashSaid(confirm, SECRET)).not.toContain(OWNER_NOTICE);
     expect((await snapshot()).products.length).toBe(2);
 

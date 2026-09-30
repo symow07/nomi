@@ -819,6 +819,29 @@ const STYLE_PAGES = `
   .photo-in { display:block; width:100%; margin:var(--space-12) 0; font:inherit; color:var(--color-ink); min-height:44px; }
   textarea { width:100%; background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:12px; font:inherit; resize:vertical; margin:var(--space-12) 0; }
   @media (max-width:560px) { .imgs img { width:72px; height:72px; } }
+  /* The import review: the photos beside the rows from a wide screen, above them on a phone. */
+  .imp { display:block; }
+  .imp.with-photos { display:grid; gap:var(--space-16); }
+  @media (min-width:1100px) { .imp.with-photos { grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); align-items:start; }
+    .imp-photos { position:sticky; top:var(--space-16); } }
+  .imp-photo { margin:0 0 var(--space-16); }
+  .imp-photo img { display:block; width:100%; height:auto; border:1px solid var(--color-border); border-radius:10px; background:var(--color-paper); }
+  .imp-photo figcaption { font-size:var(--font-size-caption); color:var(--color-ink-secondary); margin-top:var(--space-4); }
+  .imp-row { padding:var(--space-12) 0; border-bottom:1px solid var(--color-border); font-size:var(--font-size-small); }
+  .imp-row:last-child { border-bottom:0; }
+  .imp-row.need { border-inline-start:3px solid var(--color-waiting); padding-inline-start:var(--space-12); }
+  .imp-row.out { opacity:0.6; }
+  .imp-h { display:flex; align-items:center; gap:var(--space-8); flex-wrap:wrap; }
+  .imp-warn { display:block; color:var(--color-waiting); font-size:var(--font-size-caption); margin-top:var(--space-4); }
+  .imp-typed, .imp-q { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-8); margin-top:var(--space-8); }
+  .imp-typed input, .imp-pct input, .imp-edit input, .imp-edit select { background:var(--color-surface); border:1px solid var(--color-ink-secondary); border-radius:10px; color:var(--color-ink); padding:9px 12px; font:inherit; min-height:44px; }
+  .imp-typed input, .imp-pct input { width:8em; }
+  .imp-edit { margin-top:var(--space-8); }
+  .imp-edit summary { cursor:pointer; color:var(--color-ink-secondary); min-height:44px; display:flex; align-items:center; }
+  .imp-edit label { display:flex; flex-direction:column; gap:var(--space-4); margin:var(--space-8) 0; }
+  .imp-edit label.pcheck { flex-direction:row; }
+  .imp-acts { display:flex; flex-wrap:wrap; gap:var(--space-12); align-items:center; margin:var(--space-16) 0; }
+  .imp-floor { align-items:flex-start; padding:var(--space-8) 0; border-bottom:1px solid var(--color-border); }
 
   /* ── channels.ts — moved here whole in step four: page-specific names, defined once. */
   .reach .reqs, .reach .instead ul { list-style:none; margin:var(--space-8) 0 0; padding:0; }

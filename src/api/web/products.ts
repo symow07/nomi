@@ -1,19 +1,21 @@
 import { sql } from 'kysely';
-import { type Money, type Currency, usd, parseCurrency, moneyFromRow, currencySymbol } from '../../core/types/money.js';
+import { type Money, type Currency, parseCurrency, moneyFromRow } from '../../core/types/money.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
 import { currencyOf } from '../../db/currency.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
-import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
-import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
+import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
+import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
+import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
+import { defaultUnitFor } from '../../core/owner/sellingStyle.js';
+import { savePriceRulesTx } from './priceRules.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
-import { t, assistantName } from './say.js';
+import { t, tn, assistantName } from './say.js';
 import { labelled } from '../../core/owner/i18n/format.js';
 import { generatedSku, ownSku } from '../../core/owner/sku.js';
 import { cleanName, parseCustomerNames, MAX_ALIAS_LENGTH } from '../../core/onboard/aliases.js';
 import { addAliases, renameAlias } from '../../db/productAliases.js';
-import type { PageTranscriber } from '../../llm/ports.js';
 import { esc, back, deeper } from './layout.js';
 import { flashBanner, type Flash, type FlashPart } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -37,8 +39,10 @@ const ownerDecides = (locale: Locale): string =>
 
 const displayName = (locale: Locale, name: string, nameZh: string | null): string =>
   locale === 'zh' ? (nameZh ?? name) : name;
+/** RT — the unit codes a price can be per, each in the reader's language; the owner's own word as she typed it. */
+const UNIT_CODES = new Set(['item', 'pcs', 'pair', 'set', 'pack', 'box', 'carton', 'dozen', 'bottle', 'kg', 'g', 'm', 'l', 'ml']);
 export const unitLabel = (locale: Locale, unit: string): string =>
-  unit === 'pcs' ? t(locale, 'product.unit.pcs') : unit;
+  UNIT_CODES.has(unit) ? t(locale, `product.unit.${unit}` as MessageKey) : unit;
 
 /** One figure (or a figure and its word), isolated so a right-to-left line cannot reorder it. */
 const iso = (x: string): string => `<bdi>${esc(x)}</bdi>`;
@@ -146,6 +150,8 @@ export type ProductDetail = {
   readonly recentQuotes: readonly { quantity: number; unitPrice: Money; total: Money }[];
   /** CUR — the workspace's one currency: a price typed on this page is in it. */
   readonly currency: Currency;
+  /** K3 — the line of her list it was added from, and the photo, when it came from one. */
+  readonly source?: { readonly line: string; readonly importId: string | null; readonly photo: number | null } | null;
 };
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
@@ -156,8 +162,10 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
       unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
+      source_line: string | null; source_import_id: string | null; photo: number | null;
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
-              price_usd_per_unit as price, currency,
+              price_usd_per_unit as price, currency, source_line, source_import_id,
+              (select ph.position from catalog_import_photos ph where ph.id = products.source_photo_id) as photo,
               exists (select 1 from pricing_policy pp where pp.business_id = products.business_id
                        and (pp.product_id = products.id or pp.product_id is null)) as has_limits
          from products where id = ${productId} limit 1`.execute(tx)).rows[0];
@@ -193,16 +201,12 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
       currency: await currencyOf(tx, bid.value),
+      source: p.source_line === null ? null : { line: p.source_line, importId: p.source_import_id, photo: p.photo },
     };
   });
 }
 
 /** ── Teach flow: paste → parse (reuse M6) → review → confirm → available ─── */
-
-/** CUR — the lines are read in the workspace's own currency: its marks are its price, anyone else's a refusal. */
-export function reviewImport(rawText: string, currency: Currency): ValidatedImport {
-  return validateExtracted(parsePriceLines(rawText, currency));
-}
 
 /**
  * G16 — her catalogue, as the comparison with a page needs to see it.
@@ -210,7 +214,7 @@ export function reviewImport(rawText: string, currency: Currency): ValidatedImpo
  * The floor is the product's own, the one `updateProduct` refuses below — the
  * review holds back exactly the change the save would refuse, by the same rule.
  */
-async function catalogueFor(tx: Tx, bid: BusinessId): Promise<readonly CatalogueEntry[]> {
+export async function catalogueForTx(tx: Tx, bid: BusinessId): Promise<readonly CatalogueEntry[]> {
   const rows = (await sql<{
     id: string; sku: string; name: string; name_zh: string | null;
     price: string | null; currency: string; moq: number | null; floor: string | null;
@@ -227,13 +231,6 @@ async function catalogueFor(tx: Tx, bid: BusinessId): Promise<readonly Catalogue
     currency: parseCurrency(r.currency), moq: r.moq,
     floor: r.floor === null ? null : Number(r.floor),
   }));
-}
-
-/** G16 — what the review shows: the lines she is about to confirm, against what she sells. */
-export async function diffImport(db: Db, businessIdRaw: string, v: ValidatedImport): Promise<CatalogueDiff> {
-  const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return diffAgainstCatalogue(v.accepted, []);
-  return withTenantTx(db, bid.value, async (tx) => diffAgainstCatalogue(v.accepted, await catalogueFor(tx, bid.value)));
 }
 
 /**
@@ -280,87 +277,128 @@ export async function confirmImport(
 ): Promise<ImportResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 0, ready: 0 };
-  let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0, ready = 0;
-
-  await withTenantTx(db, bid.value, async (tx) => {
+  return withTenantTx(db, bid.value, async (tx) => {
     // CUR — the same lines, read in the same currency the review read them in.
     const currency = await currencyOf(tx, bid.value);
-    const { accepted } = reviewImport(rawText, currency);
-    // The SAME diff the review showed, from the same staged lines — recomputed
-    // here rather than trusted from the form, so a posted product id can only
-    // choose among changes this business's own catalogue produced.
-    const diff = diffAgainstCatalogue(accepted, await catalogueFor(tx, bid.value));
-    // D1 — has she already answered FOR EVERYTHING? Then a priced line her floor
-    // does not exceed arrives sellable: M29's rule is that a human states the
-    // floor, and she has. Without that answer nothing changes — still off.
-    const general = (await sql<{ floor: string; currency: string }>`
-      select floor_price_usd as floor, currency from pricing_policy
-       where business_id = ${bid.value} and product_id is null limit 1`.execute(tx)).rows[0];
-    const coveredByGeneral = (price: { amount: number; currency: string } | null): boolean =>
-      price !== null && general !== undefined && price.currency === general.currency && price.amount >= Number(general.floor);
-    for (let i = 0; i < diff.added.length; i++) {
-      const p = diff.added[i]!;
-      // Her article number is who this product IS — to her, her buyers and her
-      // factory floor. A generated id in its place means she cannot find her own
-      // goods and every re-import silently duplicates her catalogue. One is
-      // generated ONLY when the line carried no number at all.
-      const sku = p.sku ?? generatedSku(Date.now(), i);
-      // 0081 — the minimum the line stated, or none. It was 100 for every line
-      // that stated nothing: a serum shop's customers "below the minimum".
-      const moq = p.moq;
-      // M29 — TRUST RULE, now applied to BOTH halves of a sellable product.
-      // A price with no owner-stated floor is not a product she can quote: the
-      // floor decides what she may never go below, and an import has no way to
-      // know it. So nothing imported is sellable on arrival. The owner answers
-      // three questions (savePriceRules) and that is what turns it on.
-      const ins = await sql<{ id: string }>`
-        insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, currency, is_active)
-        values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq},
-                ${p.price?.amount ?? null}, ${p.price?.currency ?? currency}, ${coveredByGeneral(p.price)})
-        on conflict (business_id, sku) do nothing returning id`.execute(tx);
-      const id = ins.rows[0]?.id;
-      if (!id) { alreadyHere++; continue; }        // written by someone else since the review
-      added++;
-      // T3 — the names it is found by. Without them no customer's words ever
-      // reach it, however it is priced: "ready" only when it can be found.
-      const findable = (await addAliases(tx, id, [p.name, p.nameZh])) > 0;
-      if (coveredByGeneral(p.price) && findable) ready++;
-      if (p.price !== null) {
-        withPrice++;
-        await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
-                  values (${id}, 1, ${p.price.amount}, ${p.price.currency}) on conflict do nothing`.execute(tx);
-        // NO pricing_policy row. This used to write
-        //   floor = the list price, maxDiscount = 0, askAbove = 0
-        // which is not a cautious default but a fabricated one: it asserts she
-        // will never take a cent off and has granted no authority, and she said
-        // neither. Every quote was then clamped against a rule she never wrote,
-        // under a product whose central claim is that it quotes within HER
-        // rules. Absence is the only honest representation of "not asked yet".
-      }
-    }
-    // G16 — a changed line goes through the ONE audited edit, the same as her
-    // typing the new price on the product's page: her floor still applies, and
-    // the trail says "0.45 → 0.38" and which line of the page said so.
-    for (const c of diff.changed) {
-      if (!approval || !approval.apply.has(c.product.id)) { alreadyHere++; continue; }
-      const r = await updateProductTx(tx, bid.value, c.product.id, approval.actor, {
-        price: c.price ? String(c.price.to) : null,
-        moq: c.moq ? String(c.moq.to) : null,
-      }, { via: 'import', line: c.line.sourceLine ?? c.line.name });
-      if (!r.ok) refused++;
-      else if (r.changed.length > 0) updated++;
-      else alreadyHere++;
-    }
-    alreadyHere += diff.unchanged.length;
-    // A change she ticked that her floor now forbids — raised between the
-    // review and this confirm — is a refusal she must hear about, not one more
-    // product "left as it is". The recomputed diff is what catches it.
-    for (const h of diff.held) {
-      if (h.reason === 'below_floor' && h.product && approval?.apply.has(h.product.id)) refused++;
-      else alreadyHere++;
-    }
+    const rows = rowsFromParsed(parsePriceLines(rawText, currency),
+      { photo: null, startAt: 1, defaultUnit: defaultUnitFor(await kindOf(tx, bid.value)), page: false });
+    return (await writeImportRows(tx, bid.value, rows, currency, approval ?? { actor: 'owner', apply: new Set() },
+      { importId: null, photoIds: new Map() }, null)).result;
   });
-  return { added, withPrice, updated, alreadyHere, refused, ready };
+}
+
+/** The business's kind (RT: it decides the unit a new product counts in). */
+async function kindOf(tx: Tx, bid: BusinessId): Promise<string | null> {
+  return (await sql<{ kind: string | null }>`select kind from businesses where id = ${bid}`.execute(tx)).rows[0]?.kind ?? null;
+}
+
+/**
+ * K1 — THE ONE WRITER. The rows as they stand when the owner confirms — her
+ * names, units, minimums and removals — become products, or change the ones
+ * she has; nothing is re-read from text on the way.
+ *
+ * Inside the caller's transaction. `floors` (K2) is the lowest price for each
+ * new priced row whose floor she ticked, keyed by row: each is written through
+ * the one price-rules save, so each carries its own `price_rules_set` audit row
+ * and switches its product on. Without one, a product arrives off — unless her
+ * answer for everything already covers it (D1).
+ */
+export async function writeImportRows(
+  tx: Tx, bid: BusinessId, rows: readonly ImportRow[], currency: Currency, approval: ImportApproval,
+  source: { readonly importId: string | null; readonly photoIds: ReadonlyMap<number, string> },
+  floors: { readonly byRow: ReadonlyMap<string, number>; readonly discountPct: number } | null,
+): Promise<{ readonly result: ImportResult & { readonly floors: number }; readonly rows: readonly ImportRow[] }> {
+  let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0, ready = 0, floorsSet = 0;
+  const live = liveRows(rows);
+  const byLine = new Map<ExtractedProduct, ImportRow>();
+  const lines = live.map((r) => { const e = asExtracted(r, currency); byLine.set(e, r); return e; });
+  const productOf = new Map<string, string>();
+  // The SAME diff the review showed, from the same rows — recomputed here rather
+  // than trusted from the form, so a posted product id can only choose among
+  // changes this business's own catalogue produced.
+  const diff = diffAgainstCatalogue(lines, await catalogueForTx(tx, bid));
+  // D1 — has she already answered FOR EVERYTHING? Then a priced line her floor
+  // does not exceed arrives sellable: M29's rule is that a human states the
+  // floor, and she has. Without that answer nothing changes — still off.
+  const general = (await sql<{ floor: string; currency: string }>`
+    select floor_price_usd as floor, currency from pricing_policy
+     where business_id = ${bid} and product_id is null limit 1`.execute(tx)).rows[0];
+  const coveredByGeneral = (price: { amount: number; currency: string } | null): boolean =>
+    price !== null && general !== undefined && price.currency === general.currency && price.amount >= Number(general.floor);
+  for (let i = 0; i < diff.added.length; i++) {
+    const p = diff.added[i]!;
+    const row = byLine.get(p)!;
+    // Her article number is who this product IS — to her, her customers and her
+    // stock. A generated id in its place means she cannot find her own goods and
+    // every re-import silently duplicates her catalogue. One is generated ONLY
+    // when the line carried no number at all.
+    const sku = p.sku ?? generatedSku(Date.now(), i);
+    // M29 — TRUST RULE, applied to BOTH halves of a sellable product. A price
+    // with no owner-stated floor is not a product she can quote: nothing
+    // imported is sellable on arrival unless she answered for it (D1, K2).
+    const ins = await sql<{ id: string }>`
+      insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, currency, is_active,
+                            source_line, source_import_id, source_photo_id)
+      values (${bid}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${p.moq},
+              ${p.price?.amount ?? null}, ${p.price?.currency ?? currency}, ${coveredByGeneral(p.price)},
+              ${row.line}, ${source.importId}, ${row.photo === null ? null : source.photoIds.get(row.photo) ?? null})
+      on conflict (business_id, sku) do nothing returning id`.execute(tx);
+    const id = ins.rows[0]?.id;
+    if (!id) { alreadyHere++; continue; }        // written by someone else since the review
+    added++;
+    productOf.set(row.key, id);
+    // T3 — the names it is found by: its own, and the ones she said customers use.
+    const findable = (await addAliases(tx, id, [p.name, p.nameZh, ...row.names])) > 0;
+    if (p.price !== null) {
+      withPrice++;
+      await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
+                values (${id}, 1, ${p.price.amount}, ${p.price.currency}) on conflict do nothing`.execute(tx);
+      // NO pricing_policy row unless she answered: absence is the only honest
+      // representation of "not asked yet" (M29).
+    }
+    // K3 — where it came from, on the audit trail: the line, the import, the photo.
+    await sql`
+      insert into channel_audit (business_id, channel_id, action, actor, detail)
+      values (${bid}, null, 'product_imported', ${approval.actor}, ${JSON.stringify({
+        productId: id, importId: source.importId, line: row.line, photo: row.photo,
+        name: p.name, price: p.price?.amount ?? null, currency: p.price?.currency ?? currency, unit: p.unit, moq: p.moq,
+        names: row.names, edited: row.edited,
+      })}::jsonb)`.execute(tx);
+    // K2 — her discount, as this product's lowest price, the one she ticked.
+    const floor = floors?.byRow.get(row.key);
+    let sellable = coveredByGeneral(p.price);
+    if (floors && floor !== undefined && p.price !== null) {
+      const pct = String(floors.discountPct);
+      const r = await savePriceRulesTx(tx, bid, approval.actor, { productId: id, floor: String(floor), maxDiscountPct: pct, askAbovePct: pct });
+      if (r.ok) { floorsSet++; sellable = true; }
+    }
+    if (sellable && findable) ready++;
+  }
+  // G16 — a changed line goes through the ONE audited edit, the same as her
+  // typing the new price on the product's page: her floor still applies, and
+  // the trail says "0.45 → 0.38" and which line of the page said so.
+  for (const c of diff.changed) {
+    if (!approval.apply.has(c.product.id)) { alreadyHere++; continue; }
+    const r = await updateProductTx(tx, bid, c.product.id, approval.actor, {
+      price: c.price ? String(c.price.to) : null,
+      moq: c.moq ? String(c.moq.to) : null,
+    }, { via: 'import', line: c.line.sourceLine ?? c.line.name });
+    if (!r.ok) refused++;
+    else if (r.changed.length > 0) { updated++; productOf.set(byLine.get(c.line)!.key, c.product.id); }
+    else alreadyHere++;
+  }
+  alreadyHere += diff.unchanged.length;
+  // A change she ticked that her floor now forbids — raised between the review
+  // and this confirm — is a refusal she must hear about, not one more product
+  // "left as it is". The recomputed diff is what catches it.
+  for (const h of diff.held) {
+    if (h.reason === 'below_floor' && h.product && approval.apply.has(h.product.id)) refused++;
+    else alreadyHere++;
+  }
+  return {
+    result: { added, withPrice, updated, alreadyHere, refused, ready, floors: floorsSet },
+    rows: rows.map((r) => (productOf.has(r.key) ? { ...r, productId: productOf.get(r.key)! } : r)),
+  };
 }
 
 /** Localized confirm flash — called by the route (has locale). */
@@ -517,6 +555,8 @@ export function renderProductDetail(
         <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>
         ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
+        ${d.source ? `<div><span class="muted">${esc(t(locale, 'product.detail.fromList'))}</span> <bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
+          ? ` <a href="/app/products/import/${encodeURIComponent(d.source.importId)}/photo/${d.source.photo}">${esc(t(locale, 'product.detail.fromPhoto', { n: d.source.photo }))}</a>` : ''}</div>` : ''}
       </div>
     </div>
     ${tiers}${editForm}${aliases}${images}${quotes}`;
@@ -538,13 +578,20 @@ const EXAMPLE_PRICES: Readonly<Record<Currency, readonly [string, string, string
   IDR: ['Rp 15.000', 'Rp 40.000', 'Rp 499.000'],
 };
 
-export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW, currency: Currency = 'USD'): string {
+export function renderAddForm(
+  locale: Locale, viewer: Viewer = OWNER_VIEW, currency: Currency = 'USD',
+  /** K1 — a list she started and did not finish checking. */
+  open: { id: string; createdAt: Date; lines: number } | null = null,
+  flash: Flash | null = null,
+): string {
   if (!viewer.isOwner) {
     return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="block">${ownerDecides(locale)}
       <p>${back('/app/products', t(locale, 'product.detail.back'))}</p></div>`;
   }
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
+    ${flashBanner(flash)}
+    ${renderOpenImport(locale, open)}
     <div class="block">
       <p>${esc(t(locale, 'product.add.intro'))}</p>
       <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
@@ -559,95 +606,22 @@ export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW, curre
       <h2>${esc(t(locale, 'product.add.photoTitle'))}</h2>
       <p>${esc(t(locale, 'product.add.photoIntro'))}</p>
       <form method="post" action="/app/products/add/photo" enctype="multipart/form-data">
-        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp" capture="environment" required />
+        <fieldset class="choices"><legend>${esc(t(locale, 'import.hand.q'))}</legend>
+          <label class="pcheck"><input type="radio" name="hand" value="printed" required /> ${esc(t(locale, 'import.hand.printed'))}</label>
+          <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
+        </fieldset>
+        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp" multiple required />
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
     </div>`;
 }
 
-/** Rejected lines shown one by one before the rest become "and N more". */
-const REJECTED_SHOWN = 8;
-
-export function renderReview(
-  v: ValidatedImport, rawText: string, locale: Locale,
-  diff: CatalogueDiff = diffAgainstCatalogue(v.accepted, []),
-  /** CUR — the workspace's one currency: a refusal names it, and says which sign marks a price. */
-  currency: Currency = 'USD',
-): string {
-  // M37 — THE SOURCE LINE, beside every product, in BOTH flows.
-  // What she confirms is a TRANSCRIPTION, not a list: the line she can compare
-  // against the page in her hand sits under the product it produced. A price
-  // that no line contains has nowhere to hide, because every price is shown
-  // next to the text it came out of.
-  const from = (p: ExtractedProduct): string => p.sourceLine
-    ? `<span class="rev-src muted">${esc(t(locale, 'product.review.fromLine'))} <bdi>${esc(p.sourceLine)}</bdi></span>` : '';
-  const known = (e: CatalogueEntry): string =>
-    `<b><bdi>${esc(displayName(locale, e.name, e.nameZh))}</bdi></b>${skuMark(e.sku)}`;
-
-  // G16 — what the page CHANGES, first: the one thing she must look at. Each
-  // change is its own tick, on by default, so a price the page does not really
-  // say can be left out without throwing away the rest of the sheet.
-  const changed = diff.changed.map((c) => {
-    const money = (n: number | null): string => n === null || c.product.currency === null
-      ? t(locale, 'product.list.priceTbd') : show.money(locale, { amount: n, currency: c.product.currency });
-    const moves = [
-      c.price ? t(locale, 'product.review.change.price', { from: money(c.price.from), to: money(c.price.to) }) : null,
-      c.moq ? t(locale, 'product.review.change.moq', {
-        from: c.moq.from === null ? t(locale, 'product.noMinimum') : show.quantity(locale, c.moq.from),
-        to: show.quantity(locale, c.moq.to) }) : null,
-    ].filter((m): m is string => m !== null).map((m) => `<span class="rev-move">${esc(m)}</span>`).join('');
-    return `
-    <label class="rev chg"><input type="checkbox" name="apply:${esc(c.product.id)}" checked /> ${known(c.product)}
-      ${moves}${from(c.line)}
-    </label>`;
-  }).join('');
-  const added = diff.added.map((p) => `
-    <div class="rev"><b><bdi>${esc(p.name)}</bdi></b>
-      <span class="muted">${p.price !== null ? esc(show.money(locale, p.price)) : esc(t(locale, 'product.list.priceTbd'))}${` · ${esc(p.moq !== null ? t(locale, 'product.review.moqSuffix', { qty: show.quantity(locale, p.moq) }) : t(locale, 'product.noMinimum'))}`}</span>
-      ${p.price === null ? `<span class="pill warn">${esc(t(locale, 'product.status.needsConfirm'))}</span>` : `<span class="pill ok">${esc(t(locale, 'product.review.canLearn'))}</span>`}
-      ${from(p)}
-    </div>`).join('');
-  const unchanged = diff.unchanged.map((u) => `<div class="rev">${known(u.product)}</div>`).join('');
-  const held = diff.held.map((h) => `
-    <div class="rev">${h.product ? known(h.product) : `<b><bdi>${esc(h.line.name)}</bdi></b>`}
-      <span class="rev-move">${esc(t(locale, `product.review.held.${h.reason}`))}</span>
-      ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}
-      ${from(h.line)}
-    </div>`).join('');
-
-  // Every line the page had and the catalogue will not get is accounted for:
-  // shown, or counted. A silent cut at eight was a page that seemed shorter.
-  const rest = v.rejected.length - REJECTED_SHOWN;
-  const rejected = v.rejected.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· <bdi>${esc((r.product.problem ? r.product.sourceLine : null) ?? (r.product.name || t(locale, 'product.review.emptyLine')))}</bdi> —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey, { currency, sign: currencySymbol(currency).trim() }))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
-    : '';
-
-  const everythingNew = diff.added.length === v.accepted.length;
-  const offered = diff.added.length + diff.changed.length;
-  const body = `
-    ${changed ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: diff.changed.length }))}</h2>
-      <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changed}</div>` : ''}
-    ${added ? `<div class="block"><h2>${esc(everythingNew
-      ? t(locale, 'product.review.recognized', { count: diff.added.length })
-      : t(locale, 'product.review.addedTitle', { count: diff.added.length }))}</h2>${added}</div>` : ''}
-    ${held ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${held}</div>` : ''}
-    ${unchanged ? `<div class="block"><h2>${esc(t(locale, 'product.review.unchangedTitle', { count: diff.unchanged.length }))}</h2>${unchanged}</div>` : ''}
-    ${v.accepted.length === 0
-      ? `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.noneRecognized'))} <a href="/app/products/add">${esc(t(locale, 'product.review.tryAgain'))}</a></div></div>`
-      : offered === 0
-        ? `<div class="block"><div class="empty muted">${esc(t(locale, 'product.review.nothingToChange'))} <a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div></div>`
-        : ''}
-    ${rejected}`;
-
-  return `<h1 class="page">${esc(t(locale, 'product.review.title'))}</h1>
-    ${offered > 0 ? `<form method="post" action="/app/products/add/confirm">
-      <input type="hidden" name="text" value="${esc(rawText)}" />
-      ${body}
-      <button class="btn send" type="submit">${esc(t(locale, diff.added.length > 0 ? 'product.review.confirm' : 'product.review.confirmChanges'))}</button>
-      ${back('/app/products/add', t(locale, 'product.review.repaste'))}
-    </form>` : body}
-    `;
+/** The add page's note about a list left open. */
+export function renderOpenImport(locale: Locale, open: { id: string; createdAt: Date; lines: number } | null): string {
+  if (!open) return '';
+  return `<div class="block imp-open"><p>${esc(tn(locale, 'import.waiting', open.lines, { n: show.count(locale, open.lines), date: show.date(locale, open.createdAt) }))}</p>
+    <a class="deeper" href="/app/products/import/${encodeURIComponent(open.id)}">${esc(t(locale, 'import.continue'))}<span class="go" aria-hidden="true">›</span></a></div>`;
 }
 
 
@@ -832,31 +806,6 @@ async function updateProductTx(
 /* ── M37 · photograph the price list ─────────────────────────────────────── */
 
 /**
- * The outcome of pointing a phone at a printed price sheet.
- *
- * REFUSED IS WHOLE. A page that cannot be read produces no products at all —
- * never "we got some of them". A half-read price sheet is worse than none,
- * because the owner cannot tell WHICH half is missing and will assume the
- * catalogue is complete.
- */
-export type PhotoImport =
-  | {
-      readonly kind: 'read';
-      /**
-       * THE STAGED TEXT — the lines that became products, not the whole page.
-       *
-       * It round-trips through the confirm form's hidden field, and `confirmImport`
-       * re-parses it. So it must contain exactly what the review showed as
-       * accepted: staging the whole page instead would let confirm write rows the
-       * review never displayed, which is this repo's recurring bug in its purest
-       * form — two paths deriving the same list by different rules.
-       */
-      readonly text: string;
-      readonly review: ValidatedImport;
-    }
-  | { readonly kind: 'refused'; readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' };
-
-/**
  * Every reason a photograph comes to nothing, each named for what it is — the
  * three above from reading it, and three from the upload itself, because each
  * asks her to do something different:
@@ -868,59 +817,9 @@ export type PhotoImport =
  * G16 — every upload failure used to read "too large", so a photo that broke
  * on the way told her to shrink a picture that was never too big.
  */
-export type PhotoRefusal = Extract<PhotoImport, { kind: 'refused' }>['reason'] | 'too_large' | 'not_a_photo' | 'upload_failed';
-
-/**
- * Vision DESCRIBES; the parser EXTRACTS. This joins them and does neither.
- *
- * The transcriber returns TEXT. `parsePriceLines` — deterministic, no model —
- * turns text into products. So a price the model invented cannot become a
- * product unless it also appears as a line, and the line is shown to the owner
- * beside the product it produced.
- */
-export async function importFromPhoto(
-  deps: {
-    transcriber?: PageTranscriber | undefined;
-    /** T7 — what reading the page cost, for the ledger. */
-    spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
-  },
-  input: {
-    imageBase64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
-    /** CUR — the workspace's one currency: the page is read in it. */
-    currency: Currency;
-  },
-): Promise<PhotoImport> {
-  // Absent is a legitimate state, like M34's transcriber: she is told the truth
-  // rather than shown an empty result she would read as "nothing on the page".
-  if (!deps.transcriber) return { kind: 'refused', reason: 'not_configured' };
-
-  const page = await deps.transcriber.transcribe(input);
-  await deps.spent?.({ llmCalls: 1, inputTokens: page.usage?.inputTokens ?? 0, outputTokens: page.usage?.outputTokens ?? 0 });
-  // T5 — a read that stopped before the page did is half a price sheet, and the
-  // owner could not tell which half: refused, with the way to send it whole.
-  if (page.cutOff) return { kind: 'refused', reason: 'cut_off' };
-  if (page.unreadable || !page.text.trim()) return { kind: 'refused', reason: 'unreadable' };
-
-  // The PAGE rule, not the paste rule: a photograph carries the letterhead and
-  // the column headings too, and under the paste rule every one of those would
-  // become a priceless product in her catalogue.
-  const review = validatePage(parsePriceLines(page.text, input.currency));
-  // Text came back, but nothing on the page parsed as a product. Refusing here
-  // rather than showing an empty review with reject codes is the same rule:
-  // she learns the page was not a price list, instead of reading a screenful of
-  // "not recognized" and concluding her products vanished.
-  //
-  // NOT a threshold. Lines that are not products — a letterhead, a phone
-  // number, a column heading — are on every real price sheet, and refusing a
-  // page because it has a header would make this useless. The rule is
-  // structural: nothing recognized is not an import.
-  if (review.accepted.length === 0) return { kind: 'refused', reason: 'no_lines' };
-  // Stage the lines that became products, so what confirm writes is what the
-  // review showed. Every accepted product has a source line, because the parser
-  // only produces one from a line.
-  const staged = review.accepted.map((p) => p.sourceLine ?? '').filter((l) => l !== '').join('\n');
-  return { kind: 'read', text: staged, review };
-}
+export type PhotoRefusal = 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'too_large' | 'not_a_photo' | 'upload_failed'
+  // K1 — several photos, and the question asked before any is read.
+  | 'too_many' | 'handwritten' | 'hand_unanswered';
 
 /**
  * The page she cannot read.
@@ -929,10 +828,13 @@ export async function importFromPhoto(
  * names the reason in her language and names the next action — take another
  * photo, or paste the text, which is the path that always works.
  */
-export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale): string {
+export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?: number): string {
+  // K1 — with several photos, the one to take again is named.
+  const key = photo !== undefined && (reason === 'unreadable' || reason === 'cut_off')
+    ? `product.photo.refused.${reason}_n` : `product.photo.refused.${reason}`;
   return `<h1 class="page">${esc(t(locale, 'product.photo.refusedTitle'))}</h1>
     <div class="block">
-      <p>${esc(t(locale, `product.photo.refused.${reason}` as MessageKey))}</p>
+      <p>${esc(t(locale, key as MessageKey, photo !== undefined ? { n: photo } : undefined))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
       ${deeper('/app/products/add', t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;

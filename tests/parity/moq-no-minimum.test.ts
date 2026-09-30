@@ -5,7 +5,8 @@ import { computeQuote, startingQuantity } from '../../src/core/commerce/quote.js
 import { toConfirmableOrder } from '../../src/core/commerce/confirmable.js';
 import { orderBlockedReply, quoteRefusalContext } from '../../src/core/conversation/templates.js';
 import { guardNumerals } from '../../src/core/safety/numerals.js';
-import { renderProductList, renderProductDetail, renderReview, type ProductListItem, type ProductDetail } from '../../src/api/web/products.js';
+import { renderProductList, renderProductDetail, type ProductListItem, type ProductDetail } from '../../src/api/web/products.js';
+import { reviewPage } from './reviewPage.js';
 import { renderProof, type ProofView } from '../../src/api/web/proof.js';
 import { parsePriceLines, validateExtracted } from '../../src/core/onboard/catalogImport.js';
 import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
@@ -142,8 +143,7 @@ describe('0081 · every page says "no minimum" where the minimum would go — in
     });
 
     it(`${locale} · the import review, for a line that states none`, () => {
-      const v = validateExtracted(parsePriceLines('Rose face serum 50 ml $34.90', 'USD'));
-      const html = renderReview(v, 'Rose face serum 50 ml $34.90', locale);
+      const html = reviewPage('Rose face serum 50 ml $34.90', locale as Locale);
       expect(html).toContain(said);
       neverSays(html, 'review');
     });
@@ -177,6 +177,7 @@ describe('0081 · the migration and the import', () => {
   it('an imported line that states no minimum is written with none — the old 100 is gone', () => {
     const src = read('src/api/web/products.ts');
     expect(src).not.toMatch(/p\.moq \?\? 100/);
-    expect(src).toMatch(/const moq = p\.moq;/);
+    // K1 — the one writer writes the row's own minimum: the line's, or the owner's edit, or none.
+    expect(src).toMatch(/\$\{p\.unit\}, \$\{p\.moq\},/);
   });
 });

@@ -1,9 +1,9 @@
 import { currencyOf } from '../../db/currency.js';
 import { sql } from 'kysely';
 import { type Money, type Currency, moneyFromRow } from '../../core/types/money.js';
-import type { Db } from '../../db/client.js';
+import type { Db, Tx } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
-import { parseBusinessId } from '../../core/types/ids.js';
+import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName } from './say.js';
@@ -214,8 +214,25 @@ export async function savePriceRules(
 ): Promise<SaveRulesResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { ok: false, errors: { floor: 'missing' } };
+  return withTenantTx(db, bid.value, (tx) => savePriceRulesTx(tx, bid.value, actor, input));
+}
 
-  return withTenantTx(db, bid.value, async (tx) => {
+/**
+ * The same, inside a caller's transaction — K2's import writes each new
+ * product's floor in the transaction that adds the product, each through this
+ * one save, so each carries its own `price_rules_set` audit row.
+ */
+export async function savePriceRulesTx(
+  tx: Tx, business: BusinessId, actor: string,
+  input: {
+    readonly productId: string | null;
+    readonly floor: string | null | undefined;
+    readonly maxDiscountPct: string | null | undefined;
+    readonly askAbovePct: string | null | undefined;
+  },
+): Promise<SaveRulesResult> {
+  const bid = { value: business } as const;
+  {
     // The list price is needed to reject a floor above it, so read it first.
     const product = input.productId
       ? (await sql<{ price: string | null; currency: string; is_active: boolean }>`
@@ -301,7 +318,7 @@ export async function savePriceRules(
     `.execute(tx);
 
     return { ok: true, changed: Object.keys(changes) as PriceRuleField[], activated, activatedCount };
-  });
+  }
 }
 
 /** ── Renderer (pure, mobile-first, localized, escaped) ────────────────────── */

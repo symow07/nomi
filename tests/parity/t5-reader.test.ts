@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import { anthropicPageTranscriber } from '../../src/llm/anthropic.js';
-import { importFromPhoto } from '../../src/api/web/products.js';
+import { readPhotos } from '../../src/api/web/importFlow.js';
 import type { PageTranscriber } from '../../src/llm/ports.js';
 import { t, messages } from '../../src/core/owner/i18n/messages.js';
 import { CHANNEL_REGISTRY, INSTEAD } from '../../src/core/channel/registry.js';
@@ -43,8 +43,8 @@ describe('T5 · the page reader', () => {
     const reader: PageTranscriber = {
       transcribe: async () => ({ text: 'Tote bag $2.40\nCanvas pouch $1.', unreadable: false, cutOff: true, promptVersion: 'p', modelId: 'm' }),
     } as unknown as PageTranscriber;
-    const out = await importFromPhoto({ transcriber: reader }, { imageBase64: 'x', mediaType: 'image/png', currency: 'USD' });
-    expect(out).toEqual({ kind: 'refused', reason: 'cut_off' });
+    const out = await readPhotos({ transcriber: reader }, [{ bytes: Buffer.from('x'), mediaType: 'image/png' }], 'USD', 'pcs');
+    expect(out).toEqual({ ok: false, reason: 'cut_off', photo: 1 });
     for (const l of ['en', 'zh', 'ar'] as const) expect(t(l, 'product.photo.refused.cut_off').length).toBeGreaterThan(10);
     expect(t('en', 'product.photo.refused.cut_off')).toContain('two photos');
   });

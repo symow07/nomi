@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { isRetailKind } from '../core/owner/sellingStyle.js';
 import { withTenantTx, type Db } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { asksAboutBeingAi } from '../core/safety/identity.js';
@@ -40,8 +41,6 @@ export const checklistFor = (kind: ChecklistKind): readonly ChecklistItem[] =>
  */
 export const NOT_YET: ReadonlySet<ChecklistItem> = new Set(['retail_price']);
 
-/** The kinds of business the plan calls retail: a price asked before any quantity. */
-const RETAIL_KINDS = new Set(['retail', 'brand', 'online_shop']);
 
 export async function checklistKind(db: Db, live: BusinessId): Promise<ChecklistKind> {
   const r = await withTenantTx(db, live, async (tx) => (await sql<{ kind: string | null; priced: boolean }>`
@@ -49,7 +48,7 @@ export async function checklistKind(db: Db, live: BusinessId): Promise<Checklist
            exists (select 1 from products p where p.business_id = b.id and p.is_active and p.price_usd_per_unit is not null) as priced
       from businesses b where b.id = ${live}::uuid`.execute(tx)).rows[0]);
   if (!r?.priced) return 'no_catalogue';
-  return r.kind && RETAIL_KINDS.has(r.kind) ? 'retail' : 'catalogue';
+  return isRetailKind(r.kind) ? 'retail' : 'catalogue';
 }
 
 /** What the copy shows was seen, read from the real turn's own rows. */

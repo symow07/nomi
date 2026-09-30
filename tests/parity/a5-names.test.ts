@@ -86,8 +86,9 @@ describe('A5.2 · remembered for a minute, forgotten on a rename', () => {
     // more, because any channel now completes the setup step: Instagram or
     // Messenger connected (C9), a mailbox connected, and a mailbox or a Page
     // disconnected (which can un-complete it). TZ — one more: the workspace's
-    // zone, which the same cached facts carry to every page.
-    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(14);
+    // zone, which the same cached facts carry to every page. K1 — the import
+    // is added from its review's save or from its floors page: one more.
+    expect(src.match(/facts\.evict\(s\.businessId\)/g)?.length).toBe(15);
   });
 });
 

@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { seedRunTenant } from './tenant.js';
 import type { PageTranscriber } from '../../src/llm/ports.js';
+import { postPhotos, importAt, submitReview, formFields } from './importReview.js';
 
 /**
  * M37 — the photograph path, through a real request and into real rows.
@@ -30,35 +31,30 @@ const PAGE = [
   'Thank you for your order',
 ].join('\n');
 
-const BOUNDARY = '----nomiPhotoTest';
-const multipart = (bytes: Buffer, mime = 'image/jpeg', filename = 'page.jpg') => Buffer.concat([
-  Buffer.from(`--${BOUNDARY}\r\nContent-Disposition: form-data; name="page"; filename="${filename}"\r\n`
-    + `Content-Type: ${mime}\r\n\r\n`),
-  bytes,
-  Buffer.from(`\r\n--${BOUNDARY}--\r\n`),
-]);
-
 d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => {
   let app: import('fastify').FastifyInstance;
   let db: import('../../src/db/client.js').Db;
   let cookie = '';
   let transcript = PAGE;
   let unreadable = false;
+  let reads = 0;
   const CODE = 'photo-import-code';
 
   const transcriber: PageTranscriber = {
-    transcribe: async () => ({
-      text: unreadable ? '' : transcript, unreadable,
-      promptVersion: 'test', modelId: 'test', usage: { inputTokens: 1, outputTokens: 1 },
-    }),
+    transcribe: async () => {
+      reads++;
+      return {
+        text: unreadable ? '' : transcript, unreadable,
+        promptVersion: 'test', modelId: 'test', usage: { inputTokens: 1, outputTokens: 1 },
+      };
+    },
   };
 
-  const shoot = (bytes = Buffer.from('not-really-a-jpeg'), mime = 'image/jpeg') =>
-    app.inject({
-      method: 'POST', url: '/app/products/add/photo',
-      headers: { cookie, 'content-type': `multipart/form-data; boundary=${BOUNDARY}` },
-      payload: multipart(bytes, mime),
-    });
+  const shoot = (bytes = Buffer.from('not-really-a-jpeg'), mime = 'image/jpeg', hand: 'printed' | 'handwritten' | null = 'printed') =>
+    postPhotos(app, cookie, [{ bytes, mime }], hand);
+  /** The page as the paper says it: what the owner types for each challenge row. */
+  const paper = (name: string): string | undefined =>
+    name.startsWith('Photo tote bag') ? '1.05' : name.startsWith('Photo cup') ? '2.60' : undefined;
 
   beforeAll(async () => {
     await seedRunTenant();
@@ -102,40 +98,53 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     `.execute(tx).then((r) => r.rows.map((x) => ({ sku: x.sku, name: x.name, price: x.price_usd_per_unit }))));
   };
 
-  /** The value the review staged for confirm, as the browser would repost it. */
-  const staged = (html: string): string => {
-    const m = /<input type="hidden" name="text" value="([\s\S]*?)" \/>/.exec(html);
-    expect(m, 'the review staged nothing for confirm').not.toBeNull();
-    return m![1]!.replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
-  };
-
-  it('THE PRODUCTION ROUTE: a photographed page comes back as a review', async () => {
-    const res = await shoot();
+  it('THE PRODUCTION ROUTE: a photographed page becomes an import, and its review shows the photo beside the rows', async () => {
+    const at = importAt(await shoot());
+    const res = await app.inject({ method: 'GET', url: at, headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Photo tote bag');
     expect(res.body).toContain('Photo cup');
-    // and each product carries the line it was read from
-    expect(res.body).toContain('Read from:');
-    expect(res.body).toContain('Photo tote bag  PT-100   $1.05   MOQ 500');
+    // The photo is kept and drawn beside the rows (K1), and served to its owner.
+    expect(res.body).toContain(`<img src="${at}/photo/1"`);
+    const img = await app.inject({ method: 'GET', url: `${at}/photo/1`, headers: { cookie } });
+    expect(img.statusCode).toBe(200);
+    expect(img.headers['content-type']).toBe('image/jpeg');
+    expect(img.headers['referrer-policy']).toBe('no-referrer');
+    expect(img.rawPayload.toString()).toBe('not-really-a-jpeg');
+    // The count is every line the page had, the letterhead and the footer too.
+    expect(res.body).toContain('We read 5 lines.');
   });
 
-  it('the letterhead is SHOWN as skipped, and is not staged for confirm', async () => {
-    const res = await shoot();
+  it('K7 · the price read from the paper stays hidden on the challenge rows until the owner types it', async () => {
+    const at = importAt(await shoot());
+    const res = await app.inject({ method: 'GET', url: at, headers: { cookie } });
+    // Two priced lines: both are challenge rows (the last priced one and another).
+    expect(res.body.match(/name="typed:/g)).toHaveLength(2);
+    expect(res.body).not.toContain('1.05');
+    expect(res.body).not.toContain('Photo tote bag  PT-100   $1.05   MOQ 500');
+    // Typed as on the paper: the rows open, with the line each was read from.
+    const { res: saved } = await submitReview(app, cookie, at, { typeFromPaper: paper, next: 'save' });
+    expect(saved.statusCode).toBe(302);
+    const after = await app.inject({ method: 'GET', url: at, headers: { cookie } });
+    expect(after.body).toContain('Read from:');
+    expect(after.body).toContain('Photo tote bag  PT-100   $1.05   MOQ 500');
+    expect(after.body).toContain('Typed the same as it was read.');
+  });
+
+  it('the letterhead is SHOWN as not added, and is not among the rows the form sends', async () => {
+    const at = importAt(await shoot());
+    const res = await app.inject({ method: 'GET', url: at, headers: { cookie } });
     expect(res.body).toContain('TIANHE TEXTILE CO., LTD');
     expect(res.body).toContain('no price on this line');
-    const text = staged(res.body);
-    expect(text).not.toContain('TIANHE TEXTILE');
-    expect(text).not.toContain('Thank you for your order');
+    const rows = formFields(res.body, `${at}/save`).get('rows') ?? '';
+    expect(rows.split(',')).toHaveLength(2);
   });
 
   it('CONFIRM WRITES EXACTLY WHAT THE REVIEW SHOWED — no letterhead in the catalogue', async () => {
-    const review = await shoot();
-    const confirm = await app.inject({
-      method: 'POST', url: '/app/products/add/confirm',
-      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-      payload: new URLSearchParams({ text: staged(review.body) }).toString(),
-    });
+    const at = importAt(await shoot());
+    const { res: confirm } = await submitReview(app, cookie, at, { typeFromPaper: paper, tickAll: true });
     expect(confirm.statusCode).toBe(302);
+    expect(confirm.headers['location']).toBe('/app/products');
     const rows = await products();
     // Two priced lines on the page, two rows in the catalogue. The article
     // number stays inside the name here because it sits mid-line rather than at
@@ -146,6 +155,17 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     expect(rows.every((r) => r.price !== null), 'a priceless row reached the catalogue').toBe(true);
     expect(rows.some((r) => r.name.includes('TIANHE')), 'the letterhead became a product').toBe(false);
     expect(rows.some((r) => r.name.includes('Thank you')), 'the footer became a product').toBe(false);
+    // K3 — each one says where it came from: the line, the import, the photo.
+    const { withTenantTx } = await import('../../src/db/client.js');
+    const { parseBusinessId } = await import('../../src/core/types/ids.js');
+    const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
+    const src = await withTenantTx(db, bid.value, (tx) => sql<{ line: string; imp: string; photo: number }>`
+      select p.source_line as line, p.source_import_id::text as imp, ph.position as photo
+        from products p join catalog_import_photos ph on ph.id = p.source_photo_id
+       where p.business_id = ${BIZ} order by p.sku`.execute(tx).then((r) => r.rows));
+    expect(src).toHaveLength(2);
+    expect(src.every((x) => at.endsWith(x.imp) && x.photo === 1)).toBe(true);
+    expect(src.map((x) => x.line).sort()).toEqual(['Photo cup       PC-220   $2.60   MOQ 1000', 'Photo tote bag  PT-100   $1.05   MOQ 500']);
   });
 
   it('AN UNREADABLE PAGE IMPORTS NOTHING — not even the lines that were clear', async () => {
@@ -156,10 +176,11 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     expect(res.statusCode).toBe(200);
     // the UNREADABLE sentence specifically, not the shared refusal title — a
     // page that fell through to "no product lines" would say something else,
-    // and the two ask her to do different things.
-    expect(res.body).toContain('Nothing on the page came out clearly enough to read');
-    // no review, no confirm form, no rows
-    expect(res.body).not.toContain('name="text"');
+    // and the two ask her to do different things. With photos numbered, it
+    // names the one to take again.
+    expect(res.body).toContain('Photo 1 could not be read, so nothing was added');
+    // no review, no form, no rows
+    expect(res.body).not.toContain('/app/products/import/');
     expect(await products()).toEqual(before);
   });
 
@@ -168,7 +189,32 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const res = await shoot();
     transcript = PAGE;
     expect(res.body).toContain('no line on it looks like a product with a price');
-    expect(res.body).not.toContain('name="text"');
+    expect(res.body).not.toContain('/app/products/import/');
+  });
+
+  it('K1 · a handwritten list is refused before any photo is read; an unanswered question is asked again', async () => {
+    const before = reads;
+    const hand = await shoot(undefined, undefined, 'handwritten');
+    expect(hand.statusCode).toBe(200);
+    expect(hand.body).toContain('Handwritten lists are not read yet');
+    const none = await shoot(undefined, undefined, null);
+    expect(none.body).toContain('Say whether the list is printed or handwritten');
+    expect(reads, 'a refused list reached the reader').toBe(before);
+  });
+
+  it('K1 · several photos are one import: rows from each, each photo kept', async () => {
+    transcript = 'Photo mug  $3.20';
+    const res = await postPhotos(app, cookie, [{ bytes: Buffer.from('first-page') }, { bytes: Buffer.from('second-page'), mime: 'image/png' }]);
+    transcript = PAGE;
+    const at = importAt(res);
+    const page = await app.inject({ method: 'GET', url: at, headers: { cookie } });
+    expect(page.body).toContain(`${at}/photo/1`);
+    expect(page.body).toContain(`${at}/photo/2`);
+    expect(page.body).toContain('We read 2 lines.');
+    const second = await app.inject({ method: 'GET', url: `${at}/photo/2`, headers: { cookie } });
+    expect(second.headers['content-type']).toBe('image/png');
+    expect(second.rawPayload.toString()).toBe('second-page');
+    expect((await app.inject({ method: 'GET', url: `${at}/photo/3`, headers: { cookie } })).statusCode).toBe(404);
   });
 
   it('THE FILE-SIZE LIMIT ACTUALLY BITES, IN BOTH DIRECTIONS', async () => {
@@ -180,14 +226,13 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
     const before = await products();
 
     const real = await shoot(Buffer.alloc(4 * 1024 * 1024, 0x41));   // a phone photo
-    expect(real.statusCode).toBe(200);
-    expect(real.body, 'a 4 MB photo — the ordinary case — was refused').not.toContain('too large to read');
+    expect(real.statusCode, 'a 4 MB photo — the ordinary case — was refused').toBe(303);
 
     const huge = await shoot(Buffer.alloc(9 * 1024 * 1024, 0x41));   // past the ceiling
     expect(huge.statusCode).toBe(200);
     expect(huge.body).toContain('too large to read');
 
-    expect(await products()).toEqual(before);
+    expect(await products(), 'an import is not a product until it is confirmed').toEqual(before);
   });
 
   it('a file that is not an image is refused, whatever it is named', async () => {
@@ -198,8 +243,8 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
   it('and the route needs a session, like every other owner surface', async () => {
     const res = await app.inject({
       method: 'POST', url: '/app/products/add/photo',
-      headers: { 'content-type': `multipart/form-data; boundary=${BOUNDARY}` },
-      payload: multipart(Buffer.from('x')),
+      headers: { 'content-type': 'multipart/form-data; boundary=----nomiListTest' },
+      payload: Buffer.from('------nomiListTest--\r\n'),
     });
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/login');

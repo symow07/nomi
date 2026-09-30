@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { sql } from 'kysely';
 import { randomUUID } from 'node:crypto';
 import { runDigits } from './tenant.js';
+import { postPhotos } from './importReview.js';
 import { FakeAnalyzer, FakeReplyWriter } from '../pipeline/fakes.js';
 import type { Transcriber } from '../../src/llm/transcribe.js';
 import type { VisionDescriber, PageTranscriber } from '../../src/llm/ports.js';
@@ -240,16 +241,7 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
       promptVersion: 'test', modelId: 'test', usage: { inputTokens: 900, outputTokens: 300 },
     }),
   };
-  const BOUNDARY = '----nomiMeterTest';
-  const shoot = () => app.inject({
-    method: 'POST', url: '/app/products/add/photo',
-    headers: { cookie, 'content-type': `multipart/form-data; boundary=${BOUNDARY}` },
-    payload: Buffer.concat([
-      Buffer.from(`--${BOUNDARY}\r\nContent-Disposition: form-data; name="page"; filename="p.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`),
-      Buffer.from('not-really-a-jpeg'),
-      Buffer.from(`\r\n--${BOUNDARY}--\r\n`),
-    ]),
-  });
+  const shoot = () => postPhotos(app, cookie, [{ bytes: Buffer.from('not-really-a-jpeg') }]);
 
   beforeAll(async () => {
     const { createDb } = await import('../../src/db/client.js');
@@ -278,7 +270,7 @@ d('T7 · every paid call is on the ledger — the owner\'s pages (requires DATAB
 
   it('a catalogue photo: the page read is a call with its tokens — and a read refused as cut off was paid for too', async () => {
     const before = await ledgerOf(db, SHOP);
-    expect((await shoot()).statusCode).toBe(200);
+    expect((await shoot()).statusCode).toBe(303);   // read, and kept as an import (K1)
     const once = await ledgerOf(db, SHOP);
     expect(minus(once, before)).toEqual({ turns: 0, calls: 1, input: 900, output: 300 });
     cutOff = true;

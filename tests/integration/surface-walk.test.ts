@@ -104,6 +104,26 @@ d('M36.0 · every surface answers on a POPULATED tenant (requires DATABASE_URL)'
     }
     expect(real['productId'], 'the seed produced no product').not.toBe('');
 
+    // K1 — a list being checked, from a photo, with a discount given: its
+    // review, its floors page and its photo are drawn on real rows.
+    real['importId'] = await withTenantTx(db, bid.value, async (tx) => {
+      const rows = [
+        { key: 'p1-1', line: 'Canvas tote $12.00', photo: 1, sku: null, name: 'Canvas tote', nameZh: null, price: 12, unit: 'item', moq: null,
+          names: [], refused: null, removed: false, ticked: false, challenge: 'ask', reopened: false, edited: false },
+        { key: 'p1-2', line: 'Hoodie S-M $40 / L-XL $45', photo: 1, sku: null, name: 'Hoodie S-M / L-XL', nameZh: null, price: 40, unit: 'item', moq: 5,
+          names: ['hoodie'], refused: null, removed: false, ticked: true, challenge: null, reopened: false, edited: true },
+        { key: 'p1-3', line: 'PRICE LIST', photo: 1, sku: null, name: 'PRICE LIST', nameZh: null, price: null, unit: 'item', moq: null,
+          names: [], refused: 'no_price_on_page', removed: false, ticked: false, challenge: null, reopened: false, edited: false },
+      ];
+      const id = (await sql<{ id: string }>`
+        insert into catalog_imports (business_id, kind, currency, rows, discount_pct, created_by)
+        values (${RUN_BIZ}, 'photo', 'USD', ${JSON.stringify(rows)}::jsonb, 10, 'owner') returning id::text as id`.execute(tx)).rows[0]!.id;
+      await sql`insert into catalog_import_photos (business_id, import_id, position, media_type, bytes, transcript)
+                values (${RUN_BIZ}, ${id}::uuid, 1, 'image/png', ${Buffer.from('walk-photo')}, 'Canvas tote $12.00')`.execute(tx);
+      return id;
+    });
+    real['n'] = '1';
+
     // THE DEMO SEED CREATES NO QUOTES. A "fully populated fake company" with no
     // quote cannot exercise the quote context, the proof link, or anything
     // downstream of a price — which is why the proof page had no walk covering

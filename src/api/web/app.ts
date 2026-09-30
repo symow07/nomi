@@ -41,9 +41,12 @@ import {
 } from './channels.js';
 import {
   loadProductList, loadProductDetail, renderProductList, renderProductDetail,
-  renderAddForm, renderReview, reviewImport, confirmImport, importFlash, updateProduct,
-  importFromPhoto, renderPhotoRefusal, diffImport, type PhotoRefusal,
+  renderAddForm, updateProduct, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
+import {
+  startPasteImport, startPhotoImport, loadReviewModel, saveReview, confirmWithFloors, rereadImport, dropStagedImport,
+  stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
+} from './importFlow.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -2391,76 +2394,164 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = takeFlash(req, reply);
     return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s));
   }));
-  app.get('/app/products/add', authed('products', async (s, _req, locale) =>
-    renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId))));
+  app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
+    renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
+      await openImportOf(deps.db, s.businessId), takeFlash(req, reply))));
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
     return d ? renderProductDetail(d, locale, takeFlash(req, reply), {}, {}, personOf(s))
       : `<h1 class="page">${esc(t(locale, 'product.notFound'))}</h1><div class="block"><a href="/app/products">${esc(t(locale, 'product.detail.back'))}</a></div>`;
   }));
+  /**
+   * K1 — a pasted list becomes an import that is KEPT (0094): the owner lands on
+   * its review, and every visit shows it as she left it. An empty paste goes
+   * back to the add page; nothing is kept for it.
+   */
   app.post('/app/products/add/review', async (req, reply) => {
     // Phase 4 — prices are the owner's (CC-07): a catalogue import sets them.
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
-    const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
-    const currency = await workspaceCurrency(deps.db, s.businessId);
-    const v = reviewImport(text, currency);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(v, text, locale, await diffImport(deps.db, s.businessId, v), currency),
-    }));
+    if (!text.trim()) return reply.redirect('/app/products/add');
+    const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
+    return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
   });
   /**
-   * M37 — she photographs the printed price sheet instead of typing it.
+   * M37 + K1 — she photographs the printed list instead of typing it: up to
+   * ten photos, one per page, and one question first — printed or handwritten.
+   * Each photo is read to TEXT; the same parser makes the rows; the photos are
+   * kept beside them on the review (K3: a product added from one points at it).
    *
-   * REUSES THE PASTE FLOW ENTIRELY. The transcriber turns a page into TEXT; the
-   * same `reviewImport` parser turns text into products; the same confirm form
-   * writes them. So the photo path has no second parser, no second writer, and
-   * no migration — the staged text round-trips through the hidden field exactly
-   * as a paste does.
-   *
-   * MULTIPART LIMITS ARE SET EXPLICITLY below, at registration.
+   * MULTIPART LIMITS: this route raises the file count to MAX_PHOTOS; the size
+   * of each stays the registration's 8 MB.
    */
   app.post('/app/products/add/photo', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const locale = localeOf(req);
-    const refuse = (reason: PhotoRefusal) =>
+    const refuse = (reason: PhotoRefusal, photo?: number) =>
       reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'product.photo.refusedTitle'), active: 'products',
-        bodyHtml: renderPhotoRefusal(reason, locale),
+        bodyHtml: renderPhotoRefusal(reason, locale, photo),
       }));
 
-    let imageBase64 = '';
-    let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg';
+    const photos: PhotoIn[] = [];
+    let hand: string | null = null;
     try {
-      const file = await req.file();
-      if (!file) return refuse('upload_failed');
-      const mt = file.mimetype;
-      if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('not_a_photo');
-      mediaType = mt;
-      imageBase64 = (await file.toBuffer()).toString('base64');
+      // Ten files, and the one question beside them: files and parts raised
+      // together, or the registration's 6 parts would cut a ten-photo list short.
+      for await (const part of req.parts({ limits: { files: MAX_PHOTOS, parts: MAX_PHOTOS + 4 } })) {
+        if (part.type === 'field') {
+          if (part.fieldname === 'hand') hand = String(part.value);
+          continue;
+        }
+        const mt = part.mimetype;
+        const bytes = await part.toBuffer();
+        // An empty file box sends a part with no bytes: not a photo, not an error.
+        if (bytes.length === 0) continue;
+        if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('not_a_photo');
+        photos.push({ bytes, mediaType: mt });
+      }
     } catch (err) {
-      // G16 — each failure is named for what it is. Only the parser's size
-      // limit is "too large"; a stream that broke off, a request that was not
-      // an upload, a limit on parts no form of ours sends — the photo did not
-      // arrive, and "take it smaller" would send her to fix the wrong thing.
-      return refuse((err as { code?: unknown } | null)?.code === 'FST_REQ_FILE_TOO_LARGE' ? 'too_large' : 'upload_failed');
+      // G16 — each failure is named for what it is: only the size limit is
+      // "too large", only the count limit is "too many".
+      const code = (err as { code?: unknown } | null)?.code;
+      return refuse(code === 'FST_REQ_FILE_TOO_LARGE' ? 'too_large'
+        : code === 'FST_FILES_LIMIT' || code === 'FST_PARTS_LIMIT' ? 'too_many' : 'upload_failed');
     }
-    if (!imageBase64) return refuse('upload_failed');
+    if (photos.length === 0 && hand !== 'handwritten') return refuse(hand === null ? 'hand_unanswered' : 'upload_failed');
 
-    const currency = await workspaceCurrency(deps.db, s.businessId);
-    const out = await importFromPhoto({
+    const out = await startPhotoImport(deps.db, s.businessId, personOf(s).id, {
       transcriber: deps.pageTranscriber,
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
-    }, { imageBase64, mediaType, currency });
-    if (out.kind === 'refused') return refuse(out.reason);
-    return reply.type('text/html; charset=utf-8').send(page(req, {
-      title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(out.review, out.text, locale, await diffImport(deps.db, s.businessId, out.review), currency),
+    }, { hand, photos });
+    if (!out.ok) return refuse(out.reason, out.photo);
+    return reply.redirect(`/app/products/import/${out.id}`, 303);
+  });
+
+  /** K1 — the review of one import, as she left it. */
+  app.get('/app/products/import/:importId', ownerPage('price_rules', 'products', '/app/products', async (s, req, reply, locale) => {
+    const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
+    if (!m) return notFoundImport(locale);
+    return renderImportReview(m, locale, { flash: takeFlash(req, reply), blockers: [] });
+  }));
+  app.post('/app/products/import/:importId/save', async (req, reply) => {
+    const id = (req.params as { importId: string }).importId;
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    facts.evict(s.businessId);   // D — products with prices are a setup step
+    const out = await saveReview(deps.db, s.businessId, id, personOf(s).id, b);
+    switch (out.kind) {
+      case 'gone': return reply.redirect('/app/products/add');
+      case 'saved': return reply.redirect(`/app/products/import/${encodeURIComponent(id)}`);
+      case 'floors': return reply.redirect(`/app/products/import/${encodeURIComponent(id)}/floors`);
+      case 'added': return flashTo(reply, '/app/products', stagedFlash(out.result));
+      case 'currency_changed':
+      case 'review': {
+        const m = await loadReviewModel(deps.db, s.businessId, id);
+        if (!m) return reply.redirect('/app/products/add');
+        return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+          title: t(locale, 'import.title'), active: 'products',
+          bodyHtml: out.kind === 'review'
+            ? renderImportReview(m, locale, { errors: out.errors, blockers: out.blockers, discountError: out.discountError, typed: out.typed })
+            : renderImportReview(m, locale),
+        }));
+      }
+    }
+  });
+  /** K2 — the floors the discount gives, each with its own tick. */
+  app.get('/app/products/import/:importId/floors', ownerPage('price_rules', 'products', '/app/products', async (s, req, _reply, locale) => {
+    const m = await loadReviewModel(deps.db, s.businessId, (req.params as { importId: string }).importId);
+    if (!m) return notFoundImport(locale);
+    if (m.imp.state !== 'open' || m.imp.discountPct === null) return renderImportReview(m, locale);
+    return renderFloors(m, locale);
+  }));
+  app.post('/app/products/import/:importId/confirm', async (req, reply) => {
+    const id = (req.params as { importId: string }).importId;
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const locale = localeOf(req);
+    facts.evict(s.businessId);
+    const out = await confirmWithFloors(deps.db, s.businessId, id, personOf(s).id, (req.body ?? {}) as Record<string, string | undefined>);
+    if (out.kind === 'added') return flashTo(reply, '/app/products', stagedFlash(out.result));
+    if (out.kind === 'gone') return reply.redirect('/app/products/add');
+    const m = await loadReviewModel(deps.db, s.businessId, id);
+    if (!m) return reply.redirect('/app/products/add');
+    return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'import.title'), active: 'products',
+      bodyHtml: renderImportReview(m, locale, out.kind === 'review' ? { blockers: out.blockers } : {}),
     }));
+  });
+  app.post('/app/products/import/:importId/reread', async (req, reply) => {
+    const id = (req.params as { importId: string }).importId;
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const r = await rereadImport(deps.db, s.businessId, id, (req.body ?? {}) as Record<string, string | undefined>);
+    return reply.redirect(r === 'ok' ? `/app/products/import/${encodeURIComponent(id)}` : '/app/products/add');
+  });
+  app.post('/app/products/import/:importId/drop', async (req, reply) => {
+    const id = (req.params as { importId: string }).importId;
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    await dropStagedImport(deps.db, s.businessId, id);
+    return flashTo(reply, '/app/products/add', 'import.flash.dropped');
+  });
+  /**
+   * K1 · K3 — a photo of her list, for the review and for the product it
+   * added. Owner-only, like the list itself (a price list is money); never
+   * cached by a shared cache, never sent on as a referrer.
+   */
+  app.get('/app/products/import/:importId/photo/:n', async (req, reply) => {
+    const { importId: id, n } = req.params as { importId: string; n: string };
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
+    if (!s) return reply;
+    const photo = await importPhoto(deps.db, s.businessId, id, Number(n));
+    if (!photo) return reply.code(404).send();
+    return reply.header('cache-control', 'private, max-age=3600').header('referrer-policy', 'no-referrer')
+      .header('x-content-type-options', 'nosniff').type(photo.mediaType).send(photo.bytes);
   });
 
   // M29 — the owner edits her own product. Archive-never-erase: "stop offering
@@ -2565,18 +2656,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : reply.redirect('/app/business/prices');
   });
 
+  /**
+   * The review form before K1 posted its lines here to be added at once. An
+   * open tab that still posts it lands on a kept review of those lines —
+   * nothing is added without the review's own ticks.
+   */
   app.post('/app/products/add/confirm', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
-    const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const text = String(b['text'] ?? '');
-    // G16 — each change the review offered is its own tick, `apply:<product>`.
-    // Only ids are read here; which changes EXIST is recomputed from her own
-    // catalogue inside confirmImport, so a posted id can choose, never invent.
-    const apply = new Set(Object.keys(b).filter((k) => k.startsWith('apply:') && b[k] === 'on').map((k) => k.slice('apply:'.length)));
-    facts.evict(s.businessId);   // D — products with prices are a setup step
-    const r = await confirmImport(deps.db, s.businessId, text, { actor: personOf(s).id, apply });
-    return flashTo(reply, '/app/products', importFlash(r));
+    const text = String(((req.body ?? {}) as Record<string, string | undefined>)['text'] ?? '');
+    if (!text.trim()) return reply.redirect('/app/products');
+    const id = await startPasteImport(deps.db, s.businessId, personOf(s).id, text);
+    return reply.redirect(id ? `/app/products/import/${id}` : '/app/products/add', 303);
   });
 
   // ── M9.6 Employee Profile: personnel file over the existing trust data ────
