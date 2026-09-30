@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { type Money, usd } from '../../core/types/money.js';
+import { type Money, type Currency, usd, parseCurrency } from '../../core/types/money.js';
+import { readTypedAmount } from '../../core/commerce/amount.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import type { BusinessId } from '../../core/types/ids.js';
 import { ownershipOf, type ConversationOwnership } from '../../core/conversation/ownership.js';
@@ -238,8 +239,10 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
  * answer comes, so a misread or shifted price is caught by the owner and not
  * by a customer. Only where there is a price list to quote from.
  */
-const parseTotal = (raw: unknown): number | null => {
-  const n = Number(String(raw ?? '').replace(/[\s,]/g, ''));
+const parseTotal = (raw: unknown, currency: Currency): number | null => {
+  // CUR — read the way the workspace's currency writes a figure: "1.250,00"
+  // is 1250 in reais, and was 1.25.
+  const n = readTypedAmount(String(raw ?? ''), currency) ?? NaN;
   return Number.isFinite(n) && n > 0 && n < 1e12 ? Math.round(n * 100) / 100 : null;
 };
 export { parseTotal };
@@ -353,6 +356,8 @@ export type PracticeChecklistView = {
   readonly items: readonly ChecklistItem[];
   readonly seen: ReadonlySet<ChecklistItem>;
   readonly totals: readonly PracticeTotal[];
+  /** CUR — the workspace's one currency: a total typed before its quote is in it. */
+  readonly currency?: Currency;
 };
 
 function checklistCard(c: PracticeChecklistView, locale: Locale): string {
@@ -365,7 +370,8 @@ function checklistCard(c: PracticeChecklistView, locale: Locale): string {
       <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span>${
       gap ? `<span class="dt muted">${esc(t(locale, 'practice.check.notYet'))}</span>` : ''}</li>`;
   }).join('');
-  const money = (n: number, currency: string | null) => show.money(locale, { amount: n, currency: (currency ?? 'USD') as Money['currency'] });
+  const money = (n: number, currency: string | null) =>
+    show.money(locale, { amount: n, currency: parseCurrency(currency ?? '') ?? c.currency ?? 'USD' });
   const totals = c.totals.map((x) => `<li class="chk ${x.agreed === true ? 'ok' : x.agreed === false ? 'bad' : ''}"><span class="mk" aria-hidden="true">${
     x.agreed === true ? '✓' : x.agreed === false ? '✗' : '○'}</span><span class="lbl">${esc(
       x.quoted === null

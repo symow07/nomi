@@ -1,4 +1,5 @@
 import { workspaceZone } from './zone.js';
+import { workspaceCurrency } from '../../db/currency.js';
 import type { PendingQuestion } from '../../core/types/conversation.js';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
@@ -104,7 +105,7 @@ import { loadCustomerPanel } from '../../db/customerPanel.js';
 import { recordSpendAlone } from '../../db/usage.js';
 import { loadCalendar } from '../../db/calendar.js';
 import { readEntry, addEntry, removeEntry, firstDayOfWeek, businessCountry } from '../../db/calendarEntries.js';
-import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
+import { loadBusinessProfile, renderSetup, renderProfile, saveBusinessProfile, loadZoneChoice, saveZone, loadCurrencyChoice, saveCurrency, loadForbidden, addForbidden, removeForbidden, renderForbidden, loadRates, setRate, renderRate, loadClosures, addClosure, removeClosure, renderClosures,
   loadSamples, saveSamplePolicy, saveSampleAddress, markSampleHandled, renderSamples,
   loadTerms, saveTerms, renderTerms } from './settings.js';
 import { loadFactory, loadFactoryRehearsal, renderFactory } from './factory.js';
@@ -1068,6 +1069,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       password: String(b['password'] ?? ''), invite: String(b['invite'] ?? ''),
       kind: String(b['kind'] ?? ''), sells: String(b['sells'] ?? ''), country: String(b['country'] ?? ''),
       website: String(b['website'] ?? ''), teamSize: String(b['teamSize'] ?? ''), zone: String(b['zone'] ?? ''),
+      currency: String(b['currency'] ?? ''),
       channels: Object.keys(b).filter((k) => k.startsWith('channel_') && b[k] !== undefined).map((k) => k.slice('channel_'.length)).slice(0, 12),
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
@@ -1076,6 +1078,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         values: {
           factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
           country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels, zone: raw.zone,
+          currency: raw.currency,
         }, ...extra,
       }));
     if (signupMode === 'closed') return again(403, {});
@@ -2372,7 +2375,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const flash = takeFlash(req, reply);
     return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s));
   }));
-  app.get('/app/products/add', authed('products', (s, _req, locale) => renderAddForm(locale, personOf(s))));
+  app.get('/app/products/add', authed('products', async (s, _req, locale) =>
+    renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId))));
   app.get('/app/products/:id', authed('products', async (s, req, locale, reply) => {
     const id = (req.params as { id: string }).id;
     const d = await loadProductDetail(deps.db, s.businessId, id);
@@ -2385,10 +2389,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply;
     const locale = localeOf(req);
     const text = String((req.body as { text?: string } | undefined)?.text ?? '');
-    const v = reviewImport(text);
+    const currency = await workspaceCurrency(deps.db, s.businessId);
+    const v = reviewImport(text, currency);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(v, text, locale, await diffImport(deps.db, s.businessId, v)),
+      bodyHtml: renderReview(v, text, locale, await diffImport(deps.db, s.businessId, v), currency),
     }));
   });
   /**
@@ -2430,14 +2435,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     if (!imageBase64) return refuse('upload_failed');
 
+    const currency = await workspaceCurrency(deps.db, s.businessId);
     const out = await importFromPhoto({
       transcriber: deps.pageTranscriber,
       spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
-    }, { imageBase64, mediaType });
+    }, { imageBase64, mediaType, currency });
     if (out.kind === 'refused') return refuse(out.reason);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'product.review.title'), active: 'products',
-      bodyHtml: renderReview(out.review, out.text, locale, await diffImport(deps.db, s.businessId, out.review)),
+      bodyHtml: renderReview(out.review, out.text, locale, await diffImport(deps.db, s.businessId, out.review), currency),
     }));
   });
 
@@ -2956,7 +2962,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.get('/app/settings/profile', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'settings.profile.title'),
     bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},
-      await loadZoneChoice(deps.db, s.businessId)),
+      await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
   })));
   // TZ — the workspace's zone: every date on its pages, "today", the daily
   // ceiling and night-shift windows follow it at once (the facts are evicted).
@@ -2966,6 +2972,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const r = await saveZone(deps.db, s.businessId, String((req.body as { zone?: string } | undefined)?.zone ?? ''));
     facts.evict(s.businessId);
     return flashTo(reply, '/app/settings/profile#zone', r === 'saved' ? 'settings.flash.zoneSaved' : 'settings.flash.zoneInvalid');
+  });
+  // CUR — the workspace's one currency: money, so the owner's (Phase 4); only
+  // until the first price is set.
+  app.post('/app/settings/currency', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/settings/profile#currency');
+    if (!s) return reply;
+    const r = await saveCurrency(deps.db, s.businessId, String((req.body as { currency?: string } | undefined)?.currency ?? ''));
+    return flashTo(reply, '/app/settings/profile#currency',
+      r === 'saved' ? 'settings.flash.currencySaved' : r === 'fixed' ? 'settings.flash.currencyFixed' : 'settings.flash.currencyInvalid');
   });
   // ── A2 · what kind of business this is ────────────────────────────────────
   // Sign-up asks once; this is where she changes it, and where a workspace made
@@ -3012,7 +3027,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const raw = (req.body as { rate?: string } | undefined)?.rate ?? null;
     const r = await setRate(deps.db, s.businessId, raw, new Date());
     return r.code === 'set'
-      ? flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate })
+      ? flashTo(reply, '/app/settings/rate', 'rate.flash.set', { rate: r.rate.rate, from: r.rate.from, to: r.rate.to })
       : flashTo(reply, '/app/settings/rate', `rate.flash.${r.code}` as MessageKey);
   });
 
@@ -3817,7 +3832,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         name: input.name, description: input.description, location: input.location,
         workingHours: input.workingHours, contactEmail: input.contactEmail,
         contactPhone: input.contactPhone, languagesServed: input.languagesServed,
-      }, r.errors),
+      }, r.errors, await loadZoneChoice(deps.db, s.businessId), await loadCurrencyChoice(deps.db, s.businessId), personOf(s)),
     }));
   });
 
@@ -3919,6 +3934,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         items: checklistFor(await checklistKind(deps.db, live.value)),
         totals: await settleTotals(deps.db, live.value, copy),
         seen: await observeChecklist(deps.db, live.value, copy),
+        currency: await workspaceCurrency(deps.db, live.value),
       } : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
@@ -3966,7 +3982,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       const b = (req.body ?? {}) as { text?: string; expected?: string };
-      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected)));
+      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected, await workspaceCurrency(deps.db, s0.businessId))));
     });
 
     // A situation from the golden set: its customer's words, answered live.

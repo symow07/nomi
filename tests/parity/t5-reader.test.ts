@@ -43,7 +43,7 @@ describe('T5 · the page reader', () => {
     const reader: PageTranscriber = {
       transcribe: async () => ({ text: 'Tote bag $2.40\nCanvas pouch $1.', unreadable: false, cutOff: true, promptVersion: 'p', modelId: 'm' }),
     } as unknown as PageTranscriber;
-    const out = await importFromPhoto({ transcriber: reader }, { imageBase64: 'x', mediaType: 'image/png' });
+    const out = await importFromPhoto({ transcriber: reader }, { imageBase64: 'x', mediaType: 'image/png', currency: 'USD' });
     expect(out).toEqual({ kind: 'refused', reason: 'cut_off' });
     for (const l of ['en', 'zh', 'ar'] as const) expect(t(l, 'product.photo.refused.cut_off').length).toBeGreaterThan(10);
     expect(t('en', 'product.photo.refused.cut_off')).toContain('two photos');

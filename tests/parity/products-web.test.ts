@@ -13,6 +13,7 @@ const items: ProductListItem[] = [
 ];
 
 const detail: ProductDetail = {
+  currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
   tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) }],
@@ -85,14 +86,14 @@ describe('M9.5 · product detail (localized)', () => {
 
 describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
   it('review reuses the M6 parser (product names are data, any UI locale)', () => {
-    const v = reviewImport('帆布袋 1.05美元 500个起\n保温杯 $2.60 MOQ 1000\n随便聊两句');
+    const v = reviewImport('帆布袋 1.05美元 500个起\n保温杯 $2.60 MOQ 1000\n随便聊两句', 'USD');
     expect(v.accepted.length).toBeGreaterThanOrEqual(2);
     expect(v.accepted[0]!.name).toContain('帆布袋');
     expect(v.accepted[0]!.price).toEqual(usd(1.05));
   });
 
   it('a price-less line is "Needs a price" in the review, never auto-priced', () => {
-    const v = reviewImport('新款化妆包');
+    const v = reviewImport('新款化妆包', 'USD');
     const en = renderReview(v, '新款化妆包', 'en');
     expect(en).toContain('Needs a price'); expect(en).toContain('Price to add');
     expect(en).toContain('action="/app/products/add/confirm"'); expect(en).toContain('name="text"');
@@ -100,7 +101,7 @@ describe('M9.5 · teach flow (parser reuse + trust rule)', () => {
   });
 
   it('rejected reasons localize from the reason code', () => {
-    const v = reviewImport('x\n帆布袋 $1\n帆布袋 $1'); // too-short name + duplicate
+    const v = reviewImport('x\n帆布袋 $1\n帆布袋 $1', 'USD'); // too-short name + duplicate
     expect(renderReview(v, 'x', 'en')).toMatch(/name unclear|duplicate/);
     expect(renderReview(v, 'x', 'zh')).toMatch(/名字没认出来|重复了/);
   });

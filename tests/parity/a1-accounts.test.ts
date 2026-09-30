@@ -23,9 +23,11 @@ const good = {
   factory: ' Atlas Canvas ', name: ' Mei ', email: ' Mei@Atlas.Example ', password: 'correct horse battery', invite: '',
   kind: 'manufacturer', sells: '  Custom   canvas bags ', country: 'ma', website: 'atlas.example', teamSize: '2-5',
   channels: ['whatsapp', 'carrier-pigeon', 'whatsapp', 'email'],
+  // CUR — Morocco's own money is not on the list, so the owner picks one.
+  currency: 'usd',
 };
 // TZ — Morocco keeps one time zone, so sign-up gives it without asking.
-const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'], zone: 'Africa/Casablanca' };
+const profile = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'https://atlas.example', teamSize: '2-5', channels: ['whatsapp', 'email'], zone: 'Africa/Casablanca', currency: 'USD' };
 const INVITE = '0b6c2f3a-1d4e-4f5a-8b9c-0d1e2f3a4b5c';
 
 describe('A1 · a password is kept so that it cannot be read back', () => {

@@ -57,8 +57,11 @@ describe('P4 · the checklist, per kind of business', () => {
   it('your total first: the box only where there is a price list; a total is read as a number or not at all', () => {
     expect(draw(checklistFor('catalogue'), [])).toContain('name="expected"');
     expect(draw(checklistFor('no_catalogue'), [])).not.toContain('name="expected"');
-    expect(parseTotal('1,250.50')).toBe(1250.5);
-    expect(parseTotal(' 500 ')).toBe(500);
-    for (const bad of ['', 'abc', '-3', '0', undefined, null]) expect(parseTotal(bad), String(bad)).toBeNull();
+    expect(parseTotal('1,250.50', 'USD')).toBe(1250.5);
+    // CUR — read the way the workspace's currency writes a figure.
+    expect(parseTotal('1.250,50', 'BRL')).toBe(1250.5);
+    expect(parseTotal('150.000', 'IDR')).toBe(150000);
+    expect(parseTotal(' 500 ', 'USD')).toBe(500);
+    for (const bad of ['', 'abc', '-3', '0', undefined, null]) expect(parseTotal(bad, 'USD'), String(bad)).toBeNull();
   });
 });

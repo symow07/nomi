@@ -1,5 +1,7 @@
 import { sql } from 'kysely';
-import { type Money, usd, parseCurrency, moneyFromRow } from '../../core/types/money.js';
+import { type Money, type Currency, usd, parseCurrency, moneyFromRow, currencySymbol } from '../../core/types/money.js';
+import { readTypedAmount } from '../../core/commerce/amount.js';
+import { currencyOf } from '../../db/currency.js';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, validateExtracted, validatePage, type ValidatedImport, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
@@ -142,6 +144,8 @@ export type ProductDetail = {
   readonly aliases: readonly string[];
   readonly images: readonly string[];
   readonly recentQuotes: readonly { quantity: number; unitPrice: Money; total: Money }[];
+  /** CUR — the workspace's one currency: a price typed on this page is in it. */
+  readonly currency: Currency;
 };
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
@@ -188,14 +192,16 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
       tiers, aliases, images, recentQuotes,
+      currency: await currencyOf(tx, bid.value),
     };
   });
 }
 
 /** ── Teach flow: paste → parse (reuse M6) → review → confirm → available ─── */
 
-export function reviewImport(rawText: string): ValidatedImport {
-  return validateExtracted(parsePriceLines(rawText));
+/** CUR — the lines are read in the workspace's own currency: its marks are its price, anyone else's a refusal. */
+export function reviewImport(rawText: string, currency: Currency): ValidatedImport {
+  return validateExtracted(parsePriceLines(rawText, currency));
 }
 
 /**
@@ -274,10 +280,12 @@ export async function confirmImport(
 ): Promise<ImportResult> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { added: 0, withPrice: 0, updated: 0, alreadyHere: 0, refused: 0, ready: 0 };
-  const { accepted } = reviewImport(rawText);
   let added = 0, withPrice = 0, updated = 0, alreadyHere = 0, refused = 0, ready = 0;
 
   await withTenantTx(db, bid.value, async (tx) => {
+    // CUR — the same lines, read in the same currency the review read them in.
+    const currency = await currencyOf(tx, bid.value);
+    const { accepted } = reviewImport(rawText, currency);
     // The SAME diff the review showed, from the same staged lines — recomputed
     // here rather than trusted from the form, so a posted product id can only
     // choose among changes this business's own catalogue produced.
@@ -308,7 +316,7 @@ export async function confirmImport(
       const ins = await sql<{ id: string }>`
         insert into products (business_id, sku, name, name_zh, unit, moq, price_usd_per_unit, currency, is_active)
         values (${bid.value}, ${sku}, ${p.name}, ${p.nameZh}, ${p.unit}, ${moq},
-                ${p.price?.amount ?? null}, ${p.price?.currency ?? 'USD'}, ${coveredByGeneral(p.price)})
+                ${p.price?.amount ?? null}, ${p.price?.currency ?? currency}, ${coveredByGeneral(p.price)})
         on conflict (business_id, sku) do nothing returning id`.execute(tx);
       const id = ins.rows[0]?.id;
       if (!id) { alreadyHere++; continue; }        // written by someone else since the review
@@ -461,7 +469,7 @@ export function renderProductDetail(
       <label class="pq"><span>${esc(t(locale, 'product.edit.customerNames'))}</span>
         <textarea name="customerNames" rows="3" dir="auto">${val('customerNames', '')}</textarea>${ferr('customerNames')}
         <span class="caption muted">${esc(t(locale, 'product.edit.customerNames.hint'))}</span></label>
-      <label class="pq"><span>${esc(t(locale, 'product.edit.price'))}</span>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.price', { currency: d.currency }))}</span>
         <input name="price" inputmode="decimal"
                value="${val('price', d.tiers[0] ? String(d.tiers[0].unitPrice.amount) : '')}" />${ferr('price')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.moq'))}</span>
@@ -514,7 +522,23 @@ export function renderProductDetail(
     ${tiers}${editForm}${aliases}${images}${quotes}`;
 }
 
-export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW): string {
+/**
+ * CUR — the three example lines, in the workspace's own currency and the way
+ * its people write a figure: "Rp 15.000", not "$1.05" for everyone. Round
+ * shop prices in each currency, not conversions of one another.
+ */
+const EXAMPLE_PRICES: Readonly<Record<Currency, readonly [string, string, string]>> = {
+  USD: ['$1.05', '$2.60', '$34.90'],
+  CNY: ['￥7.50', '￥18', '￥249'],
+  AED: ['AED 4', 'AED 9.50', 'AED 129'],
+  SAR: ['SAR 4', 'SAR 9.50', 'SAR 129'],
+  BRL: ['R$ 5,50', 'R$ 13,90', 'R$ 179,90'],
+  MXN: ['$19', '$45', '$599'],
+  INR: ['₹90', '₹220', '₹2,899'],
+  IDR: ['Rp 15.000', 'Rp 40.000', 'Rp 499.000'],
+};
+
+export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW, currency: Currency = 'USD'): string {
   if (!viewer.isOwner) {
     return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="block">${ownerDecides(locale)}
@@ -523,7 +547,8 @@ export function renderAddForm(locale: Locale, viewer: Viewer = OWNER_VIEW): stri
   return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
     <div class="block">
       <p>${esc(t(locale, 'product.add.intro'))}</p>
-      <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${esc(t(locale, 'product.add.example1'))}<br>${esc(t(locale, 'product.add.example2'))}<br>${esc(t(locale, 'product.add.example3'))}</p>
+      <p class="muted">${esc(t(locale, 'product.add.exampleLabel'))}<br>${[1, 2, 3].map((i) =>
+        esc(t(locale, `product.add.example${i}` as MessageKey, { price: EXAMPLE_PRICES[currency][i - 1]! }))).join('<br>')}</p>
       <form method="post" action="/app/products/add/review">
         <textarea name="text" rows="8" placeholder="${esc(t(locale, 'product.add.placeholder'))}" autofocus></textarea>
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.submit'))}</button>
@@ -547,6 +572,8 @@ const REJECTED_SHOWN = 8;
 export function renderReview(
   v: ValidatedImport, rawText: string, locale: Locale,
   diff: CatalogueDiff = diffAgainstCatalogue(v.accepted, []),
+  /** CUR — the workspace's one currency: a refusal names it, and says which sign marks a price. */
+  currency: Currency = 'USD',
 ): string {
   // M37 — THE SOURCE LINE, beside every product, in BOTH flows.
   // What she confirms is a TRANSCRIPTION, not a list: the line she can compare
@@ -593,7 +620,7 @@ export function renderReview(
   // shown, or counted. A silent cut at eight was a page that seemed shorter.
   const rest = v.rejected.length - REJECTED_SHOWN;
   const rejected = v.rejected.length
-    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· <bdi>${esc((r.product.problem ? r.product.sourceLine : null) ?? (r.product.name || t(locale, 'product.review.emptyLine')))}</bdi> —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
+    ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${v.rejected.slice(0, REJECTED_SHOWN).map((r) => `<div class="muted">· <bdi>${esc((r.product.problem ? r.product.sourceLine : null) ?? (r.product.name || t(locale, 'product.review.emptyLine')))}</bdi> —— ${esc(t(locale, `product.reject.${r.reason}` as MessageKey, { currency, sign: currencySymbol(currency).trim() }))}</div>`).join('')}${rest > 0 ? `<div class="muted">${esc(t(locale, 'activation.recipients.more', { n: rest }))}</div>` : ''}</div>`
     : '';
 
   const everythingNew = diff.added.length === v.accepted.length;
@@ -693,12 +720,14 @@ async function updateProductTx(
   if (!cur) return { ok: false, errors: {} };
 
   const errors: Partial<Record<ProductEditField, ProductEditError>> = {};
+  // CUR — the price box is in the workspace's one currency, read its way.
+  const currency = await currencyOf(tx, bid);
   let price: number | null = cur.price === null ? null : Number(cur.price);
   let moq: number | null = cur.moq;
   let unit = cur.unit;
 
   if (edit.price !== undefined && edit.price !== null && edit.price.trim() !== '') {
-    const n = Number(edit.price.trim());
+    const n = readTypedAmount(edit.price, currency) ?? NaN;
     if (!Number.isFinite(n)) errors.price = 'not_a_number';
     else if (!(n > 0)) errors.price = 'not_positive';
     // A new list price BELOW her own floor would make the product silently
@@ -762,7 +791,8 @@ async function updateProductTx(
   if (changed.length > 0) {
     await sql`
       update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
-                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, updated_at = now()
+                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, updated_at = now(),
+                          currency = case when ${detail['price'] !== undefined} then ${currency} else currency end
        where business_id = ${bid} and id = ${productId}
     `.execute(tx);
   }
@@ -780,12 +810,13 @@ async function updateProductTx(
   if (changed.length === 0) return { ok: true, changed: [] };
 
   // The entry tier is the same fact as the list price. Letting them drift is
-  // how a quote comes out at a number the owner never set.
+  // how a quote comes out at a number the owner never set. CUR — in the same
+  // currency: this insert once left it to the column's default, USD.
   if (detail['price'] && price !== null) {
     await sql`
-      insert into price_tiers (product_id, min_qty, unit_price_usd)
-      values (${productId}, 1, ${price})
-      on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd
+      insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
+      values (${productId}, 1, ${price}, ${currency})
+      on conflict (product_id, min_qty) do update set unit_price_usd = excluded.unit_price_usd, currency = excluded.currency
     `.execute(tx);
   }
 
@@ -853,7 +884,11 @@ export async function importFromPhoto(
     /** T7 — what reading the page cost, for the ledger. */
     spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
   },
-  input: { imageBase64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp' },
+  input: {
+    imageBase64: string; mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+    /** CUR — the workspace's one currency: the page is read in it. */
+    currency: Currency;
+  },
 ): Promise<PhotoImport> {
   // Absent is a legitimate state, like M34's transcriber: she is told the truth
   // rather than shown an empty result she would read as "nothing on the page".
@@ -869,7 +904,7 @@ export async function importFromPhoto(
   // The PAGE rule, not the paste rule: a photograph carries the letterhead and
   // the column headings too, and under the paste rule every one of those would
   // become a priceless product in her catalogue.
-  const review = validatePage(parsePriceLines(page.text));
+  const review = validatePage(parsePriceLines(page.text, input.currency));
   // Text came back, but nothing on the page parsed as a product. Refusing here
   // rather than showing an empty review with reject codes is the same rule:
   // she learns the page was not a price list, instead of reading a screenful of

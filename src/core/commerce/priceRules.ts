@@ -1,12 +1,13 @@
 import { type Money, type Currency } from '../types/money.js';
+import { readTypedAmount } from './amount.js';
 
-/**
- * The currency the owner's boxes are denominated in.
- *
- * ONE, today, and named rather than assumed: when a tenant can choose, this is
- * the line that becomes a lookup — and every caller already passes through it.
+/*
+ * The currency the owner's boxes are denominated in was a constant here,
+ * TENANT_CURRENCY = 'USD', "named rather than assumed: when a tenant can
+ * choose, this is the line that becomes a lookup". CUR is that day: the caller
+ * passes the workspace's own currency (`currencyOf`), and the boxes are read
+ * the way that currency writes a figure.
  */
-const TENANT_CURRENCY: Currency = 'USD';
 
 /**
  * M29 — the owner's own price rules. PURE: validation and nothing else.
@@ -70,6 +71,8 @@ export type PriceRulesInput = {
    *  floor-above-list check, which is the mistake that silently stops her
    *  quoting at all. */
   readonly listPrice?: Money | null;
+  /** CUR — the workspace's one currency: the floor is in it, and the boxes are read its way. */
+  readonly currency: Currency;
 };
 
 export type PriceRulesResult =
@@ -79,12 +82,11 @@ export type PriceRulesResult =
 /** Money to 4dp and percentages to 2dp — the precision the columns actually hold. */
 const round = (n: number, dp: number): number => Number(n.toFixed(dp));
 
-function num(raw: string | number | null | undefined): number | 'missing' | 'not_a_number' {
+function num(raw: string | number | null | undefined, currency: Currency): number | 'missing' | 'not_a_number' {
   if (raw === null || raw === undefined) return 'missing';
-  const s = typeof raw === 'number' ? String(raw) : raw.trim();
-  if (s === '') return 'missing';
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 'not_a_number';
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 'not_a_number';
+  if (raw.trim() === '') return 'missing';
+  return readTypedAmount(raw, currency) ?? 'not_a_number';
 }
 
 /**
@@ -96,9 +98,9 @@ function num(raw: string | number | null | undefined): number | 'missing' | 'not
 export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
   const errors: Partial<Record<PriceRuleField, PriceRuleError>> = {};
 
-  const floor = num(input.floor);
-  const max = num(input.maxDiscountPct);
-  const ask = num(input.askAbovePct);
+  const floor = num(input.floor, input.currency);
+  const max = num(input.maxDiscountPct, input.currency);
+  const ask = num(input.askAbovePct, input.currency);
 
   if (typeof floor === 'string') errors.floor = floor;
   else if (!(floor > 0)) errors.floor = 'floor_not_positive';
@@ -133,7 +135,7 @@ export function validatePriceRules(input: PriceRulesInput): PriceRulesResult {
       // She typed a number into a box that is denominated in the tenant's
       // currency; the pair is assembled HERE, once, rather than by whichever
       // caller happens to write the row.
-      floor: { amount: round(floor as number, 4), currency: TENANT_CURRENCY },
+      floor: { amount: round(floor as number, 4), currency: input.currency },
       maxDiscountPct: round(max as number, 2),
       askAbovePct: round(ask as number, 2),
     },

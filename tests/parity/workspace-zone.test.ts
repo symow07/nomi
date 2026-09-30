@@ -63,7 +63,7 @@ describe('TZ · sign-up asks only where the country has several', () => {
     expect(zoneForSignup('MA', '')).toBe('Africa/Casablanca');
     // Even a stray pick cannot move a one-zone country elsewhere.
     expect(zoneForSignup('MA', 'Asia/Tokyo')).toBe('Africa/Casablanca');
-    const v = validateSignup({ ...good, country: 'MA' }, opts);
+    const v = validateSignup({ ...good, country: 'MA', currency: 'USD' }, opts);
     expect(v.ok && v.value.profile.zone).toBe('Africa/Casablanca');
   });
 

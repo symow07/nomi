@@ -22,7 +22,8 @@ const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
 
 const RUN = randomUUID().slice(0, 8);
 const PILOT = `a1550000-0000-4000-8000-${RUN}0001`;
-const ABOUT = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', website: 'atlas.example', teamSize: '2-5' };
+// CUR — Morocco's dirham is not on the list, so its owner picks one: dollars.
+const ABOUT = { kind: 'manufacturer', sells: 'Custom canvas bags', country: 'MA', currency: 'USD', website: 'atlas.example', teamSize: '2-5' };
 const A = { factory: `Atlas Canvas ${RUN}`, name: 'Mei', email: `mei-${RUN}@atlas.example`, password: `atlas-password-${RUN}`, ...ABOUT };
 const B = { factory: `Bolt Tools ${RUN}`, name: 'Omar', email: `omar-${RUN}@bolt.example`, password: `bolt-password-${RUN}`, ...ABOUT, kind: 'agency', country: 'AE', website: '' };
 const PROFILE = { kind: 'other', sells: 'Things', country: 'CN', website: null, teamSize: '1', channels: [] as string[] };
@@ -239,9 +240,10 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     const { hashPassword } = await import('../../src/security/password.js');
     const passwordHash = await hashPassword('whatever-password');
     expect(await provisionAccount(prod.db, {
-      factory: 'Copycat', language: 'en', ownerName: 'X', email: A.email, passwordHash, invite: null, inviteRequired: false, profile: PROFILE,
+      factory: `Copycat ${RUN}`, language: 'en', ownerName: 'X', email: A.email, passwordHash, invite: null, inviteRequired: false, profile: PROFILE,
     })).toEqual({ code: 'email_taken' });
-    expect((await admin.query(`select 1 from businesses where name = 'Copycat'`)).rowCount, 'nothing half-made is left behind').toBe(0);
+    // Its own name per run: a fixed one counted whatever an earlier run left.
+    expect((await admin.query(`select 1 from businesses where name = $1`, [`Copycat ${RUN}`])).rowCount, 'nothing half-made is left behind').toBe(0);
 
     const open = await provisionAccount(prod.db, {
       factory: `Open ${RUN}`, language: 'xx', ownerName: 'Y', email: `open-${RUN}@open.example`, passwordHash, invite: null, inviteRequired: false, profile: PROFILE,

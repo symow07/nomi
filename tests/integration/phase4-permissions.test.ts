@@ -99,6 +99,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     samples: await rows('sample_policy', 'x.stated_at'),
     ownerPhone: await tx((t) => sql<{ owner_phone: string | null }>`
       select owner_phone from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.owner_phone)),
+    currency: await tx((t) => sql<{ currency: string }>`
+      select currency from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.currency)),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -121,6 +123,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/products/add/confirm', `text=${encodeURIComponent('Staff mug $0.20 MOQ 10')}`],
     ['/app/settings/rate', 'rate=9.99'],
     ['/app/settings/samples', 'price=0&credited=on'],
+    // CUR — the workspace's one currency is money too.
+    ['/app/settings/currency', 'currency=SAR'],
   ];
 
   beforeAll(async () => {
@@ -130,7 +134,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     const { hashCode } = await import('../../src/api/web/people.js');
     db = createDb(DATABASE_URL!);
     sampleId = await tx(async (t) => {
-      await sql`insert into businesses (id, name) values (${BIZ}, 'Phase Four Factory')
+      // CUR — a Chinese factory selling in dollars: the one pair the rate page converts here.
+      await sql`insert into businesses (id, name, country) values (${BIZ}, 'Phase Four Factory', 'CN')
                 on conflict (id) do nothing`.execute(t);
       await sql`insert into products (id, business_id, sku, name, unit, moq, is_active)
                 values (${PID}, ${BIZ}, 'P4-1', 'Canvas tote', 'pcs', 500, true)`.execute(t);

@@ -148,7 +148,7 @@ describe('M43a · no surface prints a symbol it did not read from the money', ()
 
 describe('M43a · the owner states her floor and it becomes money', () => {
   it('a typed number leaves validation as a pair', () => {
-    const r = validatePriceRules({ floor: '0.36', maxDiscountPct: '10', askAbovePct: '7' });
+    const r = validatePriceRules({ floor: '0.36', maxDiscountPct: '10', askAbovePct: '7', currency: 'USD' as const });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value.floor).toEqual(usd(0.36));
@@ -156,7 +156,7 @@ describe('M43a · the owner states her floor and it becomes money', () => {
 
   it('and it is still compared against the list price she actually has', () => {
     const r = validatePriceRules({
-      floor: '9.99', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(1.05),
+      floor: '9.99', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(1.05), currency: 'USD',
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.floor).toBe('floor_above_list');

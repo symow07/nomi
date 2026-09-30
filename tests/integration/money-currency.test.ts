@@ -106,6 +106,12 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
     const { withTenantTx } = await import('../../src/db/client.js');
     const bid = parseBusinessId(BIZ); if (!bid.ok) throw new Error('fixture');
     const admin = createDb(MIGRATE_URL);
+    // CUR — put back exactly the check that was there, whatever it holds: this
+    // re-added a USD-only check after 0092 had widened it, and every later
+    // test in the run met a database that refused dirhams.
+    const kept = (await sql<{ def: string }>`
+      select pg_get_constraintdef(oid) as def from pg_constraint
+       where conname = 'price_tiers_currency_known'`.execute(admin)).rows[0]!.def;
     try {
       await sql`alter table price_tiers drop constraint price_tiers_currency_known`.execute(admin);
       await sql`insert into price_tiers (product_id, min_qty, unit_price_usd, currency)
@@ -137,8 +143,7 @@ d('M43a · money carries its currency, in Postgres (requires DATABASE_URL)', () 
       if (r.ok) expect(r.value.unitPrice).toEqual({ amount: 0.45, currency: 'USD' });
     } finally {
       await sql`delete from price_tiers where product_id = ${PID}::uuid and min_qty = 3000`.execute(admin);
-      await sql`alter table price_tiers add constraint price_tiers_currency_known check (currency in ('USD'))`
-        .execute(admin);
+      await sql`alter table price_tiers add constraint price_tiers_currency_known ${sql.raw(kept)}`.execute(admin);
       await admin.destroy();
     }
   }, 60_000);

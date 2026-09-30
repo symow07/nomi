@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 91 (deployed with #150, 2026-09-30 14:27 UTC merge). Last
-  three: `0089 practice_erase`, `0090 practice_alone`, `0091 practice_checklist`.
+- **Schema:** 91 (deployed with #150, 2026-09-30 14:27 UTC merge); 92 with #153.
+  Last three: `0090 practice_alone`, `0091 practice_checklist`, `0092 workspace_currency`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -531,6 +531,7 @@ Recent PRs, newest first:
    - **The numeral guard sources a price only in the quote's currency** (`currencyBeside` in `src/core/safety/numerals.ts`): a figure the words beside it put in another currency ("$12" for AED 12, 合计2250元, €) is unsourced whatever its value, unless the customer wrote that figure. "$" is the dollar and the peso; a foreign ISO code counts in capitals only ("try", "mad", "won" are words). For a quote in BRL or IDR (`DOT_THOUSANDS`), "R$ 1.250,50" and "Rp 150.000" count as what they say; for any other, "$1.250" is still 1.25.
    - "₹500", "Rp 5000", "150 reais" are prices, never quantities (`extractQuantity`). "High value" is `HIGH_VALUE[currency]` in `src/core/scoring/signals.ts`: round figures per currency, never a conversion.
    - Tests: `tests/parity/currency-send-path.test.ts` (each guard switched off fails its own cases).
+   - **Part two (#153; 0092; `src/core/owner/currencies.ts`, `src/db/currency.ts`, `src/core/commerce/amount.ts`):** `businesses.currency`, chosen at sign-up — a country whose own money is on the list sells in it without the question (`currencyOfCountry`), any other is asked (`currency_missing`; only the eight answer). Written in the sign-up's transaction. The profile (`/app/settings/profile#currency`, `POST /app/settings/currency`, owner-only `price_rules`) changes it only until the first price (`hasPrices`: a product price, tier, floor, quote, order, sample price or rate), the check and the write under `for update`. Every box the owner types a price into reads it the currency's way (`readTypedAmount`: "15.000" rupiah is fifteen thousand; "12,50" is refused for dollars); floors (`validatePriceRules` takes `currency`), a product's price and its entry tier, samples and Practice's total are in it. The import (`parsePriceLines(text, currency)`) reads the workspace's own marks and notation and refuses anyone else's (`other_currency`); dollars read as before. The rate page converts the selling currency into the country's own (`ratePairOf`), only where they differ, and its door shows only then. Prices widened to numeric(14,4)/(16,2); `active_conversations_summary` rebuilt with its grants. Workspaces made before keep USD. Tests: `tests/parity/workspace-currency.test.ts`, `tests/integration/workspace-currency.test.ts` (a quote from the imported rows is in dirhams; the same figure in dollars does not leave).
 
 ## 6 · What's next
 

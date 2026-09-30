@@ -1,4 +1,5 @@
 import { type Money, type Currency, currencySymbol } from '../types/money.js';
+import { readTypedAmount } from './amount.js';
 
 /**
  * M45 — "Can you send a sample?"
@@ -101,7 +102,9 @@ export function validateSamplePolicy(input: {
   if (input.price === null || input.price === undefined) return { ok: false, error: 'price_missing' };
   const raw = typeof input.price === 'number' ? String(input.price) : input.price.trim();
   if (raw === '') return { ok: false, error: 'price_missing' };
-  const n = Number(raw);
+  // CUR — read the way the currency writes a figure ("15.000" is fifteen
+  // thousand rupiah).
+  const n = typeof input.price === 'number' ? input.price : readTypedAmount(raw, input.currency) ?? NaN;
   if (!Number.isFinite(n)) return { ok: false, error: 'not_a_number' };
   if (n < 0) return { ok: false, error: 'negative' };
   return {

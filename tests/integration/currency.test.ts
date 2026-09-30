@@ -10,11 +10,10 @@ import { seedRunTenant } from './tenant.js';
  * The renderers are pinned in tests/parity/g18-currency.test.ts. Two things
  * only Postgres can say:
  *
- *  a · the columns still REFUSE a second currency — five of the six tables that
- *      carry one accept 'USD' and nothing else. That is why G18 changes no
- *      screen today, and it is the tripwire for the day someone widens one:
- *      this test fails, and the surfaces that read that table are the list of
- *      what must be looked at.
+ *  a · the columns hold the eight currencies a workspace can sell in and
+ *      nothing else. It was the tripwire for the day one was widened ("five of
+ *      the six tables accept 'USD' and nothing else"); CUR (0092) is that day,
+ *      and the surfaces reading them were looked at.
  *
  *  b · her month's total is grouped BY currency in SQL, not summed across it.
  *      The old query added `total_value_usd` over every order and called the
@@ -66,22 +65,24 @@ d('G18 · money keeps its currency (requires DATABASE_URL)', () => {
 
   afterAll(async () => { await db?.destroy(); });
 
-  it('a · five tables still REFUSE a second currency — sample policy is the one exception', async () => {
+  it('a · every table that carries a currency holds the eight a workspace can sell in, and nothing else (CUR, 0092)', async () => {
     const rows = await tx((t) => sql<{ tbl: string; def: string }>`
       select conrelid::regclass::text as tbl, pg_get_constraintdef(oid) as def
         from pg_constraint where conname like '%currency_known%' or conname like '%currency%check%'
        order by 1
     `.execute(t).then((r) => r.rows));
     const byTable = new Map(rows.map((r) => [r.tbl, r.def]));
-    for (const tbl of ['orders', 'products', 'price_tiers', 'pricing_policy', 'quotes']) {
+    // The tripwire this was: "five tables refuse a second currency", and the
+    // day one was widened, every owner surface reading it (G18) was the list
+    // to look at. CUR is that day; the list was read (the owner's forms, the
+    // import, the guard). What stays true: the same eight everywhere, and a
+    // currency off the list refused.
+    for (const tbl of ['businesses', 'orders', 'products', 'price_tiers', 'pricing_policy', 'quotes', 'sample_policy']) {
       const def = byTable.get(tbl);
       expect(def, `${tbl} has no currency check at all`).toBeTruthy();
-      // If this fails, that column now accepts a second currency — and every
-      // owner surface reading it (G18) is the list of screens to look at first.
-      expect(def, `${tbl} now accepts more than USD`).toContain(`'USD'`);
-      expect(def, `${tbl} now accepts more than USD`).not.toContain(`'CNY'`);
+      for (const c of ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR']) expect(def, `${tbl} · ${c}`).toContain(`'${c}'`);
+      for (const c of ['EUR', 'GBP']) expect(def, `${tbl} · ${c}`).not.toContain(`'${c}'`);
     }
-    expect(byTable.get('sample_policy'), 'the sample policy is where a second currency already lives').toContain(`'CNY'`);
   });
 
   it('b · her total is grouped BY currency, and equals that currency’s own sum', async () => {

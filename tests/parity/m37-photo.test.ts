@@ -31,7 +31,7 @@ const reader = (over: Partial<Awaited<ReturnType<PageTranscriber['transcribe']>>
     usage: { inputTokens: 1, outputTokens: 1 }, ...over,
   }),
 });
-const shot = { imageBase64: 'aGk=', mediaType: 'image/jpeg' as const };
+const shot = { imageBase64: 'aGk=', mediaType: 'image/jpeg' as const, currency: 'USD' as const };
 
 describe('M37 · the model never produces a price the page does not contain', () => {
   it('every accepted price appears verbatim in the transcribed text', async () => {
@@ -50,7 +50,7 @@ describe('M37 · the model never produces a price the page does not contain', ()
     // so there is no second extraction path where a model could add a row.
     const out = await importFromPhoto({ transcriber: reader() }, shot);
     if (out.kind !== 'read') throw new Error('unreachable');
-    expect(out.review).toEqual(validatePage(parsePriceLines(PAGE)));
+    expect(out.review).toEqual(validatePage(parsePriceLines(PAGE, 'USD')));
   });
 
   it('WHAT CONFIRM WRITES IS WHAT THE REVIEW SHOWED', async () => {
@@ -61,7 +61,7 @@ describe('M37 · the model never produces a price the page does not contain', ()
     // this repo's recurring bug.
     const out = await importFromPhoto({ transcriber: reader({ text: `TIANHE TEXTILE CO., LTD\n${PAGE}\nThank you for your order` }) }, shot);
     if (out.kind !== 'read') throw new Error('unreachable');
-    expect(reviewImport(out.text).accepted).toEqual(out.review.accepted);
+    expect(reviewImport(out.text, 'USD').accepted).toEqual(out.review.accepted);
     expect(out.text).not.toContain('Thank you for your order');
   });
 
@@ -76,9 +76,9 @@ describe('M37 · the model never produces a price the page does not contain', ()
 
   it('and the paste flow is UNCHANGED — a priceless line she typed is still hers', () => {
     // Two inputs, two rules, on purpose: a paste is what she chose to paste.
-    const pasted = reviewImport('Canvas tote bag');
+    const pasted = reviewImport('Canvas tote bag', 'USD');
     expect(pasted.accepted.map((p) => p.name)).toEqual(['Canvas tote bag']);
-    expect(validatePage(parsePriceLines('Canvas tote bag')).accepted).toEqual([]);
+    expect(validatePage(parsePriceLines('Canvas tote bag', 'USD')).accepted).toEqual([]);
   });
 
   it('a reader that hallucinates a product still cannot price one — the line is shown', async () => {
@@ -96,12 +96,12 @@ describe('M37 · the model never produces a price the page does not contain', ()
 
 describe('M37 · the source line, beside every product', () => {
   it('the parser keeps the line it read each product out of', () => {
-    const [first] = parsePriceLines(PAGE);
+    const [first] = parsePriceLines(PAGE, 'USD');
     expect(first!.sourceLine).toBe('Canvas tote bag  A-100   $1.05   MOQ 500');
   });
 
   it('the review renders it — for a PASTE too, not only a photo', () => {
-    const html = renderReview(reviewImport(PAGE), PAGE, 'en');
+    const html = renderReview(reviewImport(PAGE, 'USD'), PAGE, 'en');
     expect(html).toContain('class="rev-src');
     expect(html).toContain('Canvas tote bag  A-100');
     // isolated for RTL: an English price line inside an Arabic page must not
@@ -111,7 +111,7 @@ describe('M37 · the source line, beside every product', () => {
 
   it('and the label exists in all three locales', () => {
     for (const locale of LOCALES) {
-      const html = renderReview(reviewImport(PAGE), PAGE, locale);
+      const html = renderReview(reviewImport(PAGE, 'USD'), PAGE, locale);
       expect(html, locale).toContain(t(locale, 'product.review.fromLine'));
     }
   });

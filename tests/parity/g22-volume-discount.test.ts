@@ -26,6 +26,7 @@ const BIZ = 'b1' as BusinessId;
 const PID = 'p1' as ProductId;
 
 const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
+  currency: 'USD',
   businessDefault: { floor: usd(0.30), maxDiscountPct: 8, askAbovePct: 5 },
   products: [{
     productId: 'p1', sku: 'ZX-100', name: 'Canvas tote', nameZh: '帆布袋',

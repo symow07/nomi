@@ -156,7 +156,10 @@ describe('M23 · the guard makes no decision it is not entitled to', () => {
     const src = await readFile(new URL('../../tools/provision-factory.mjs', import.meta.url), 'utf8');
     expect(src).toContain("find((a) => a.startsWith('--zone='))");
     expect(src).toMatch(/if \(!isZone\(zone\)\) \{\s*die\(/);
-    expect(src).toContain('[id, name.trim(), zone, language]');
+    expect(src).toContain('[id, name.trim(), zone, currency, language]');
+    // CUR — and its one currency, from the list, never USD by default.
+    expect(src).toContain("find((a) => a.startsWith('--currency='))");
+    expect(src).toMatch(/if \(!CURRENCIES\.includes\(currency\)\) \{\s*die\(/);
     expect(src).not.toMatch(/values \([^)]*'Asia\/Shanghai'/);
   });
 

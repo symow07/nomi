@@ -86,8 +86,8 @@ describe('M43b · staleness is HER judgement, not an invented threshold', () => 
   });
 
   it('so the DATE is shown wherever the rate is', () => {
-    const html = renderRate({ current: rate(7.15, august), previous: [] }, 'en', null);
-    expect(html).toContain(t('en', 'rate.current', { rate: 7.15 }));
+    const html = renderRate({ current: rate(7.15, august), previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
+    expect(html).toContain(t('en', 'rate.current', { rate: 7.15, from: 'USD', to: 'CNY' }));
     expect(html).toMatch(/You set this on/);
   });
 
@@ -132,18 +132,18 @@ describe('M43b · what she typed', () => {
 describe('M43b · the surface', () => {
   it('with no rate stated, it says so and names the next action, in every locale', () => {
     for (const locale of LOCALES) {
-      const html = renderRate({ current: null, previous: [] }, locale, null);
+      const html = renderRate({ current: null, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, locale, null);
       const visible = html.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
-      expect(visible, locale).toContain(t(locale, 'rate.empty'));
+      expect(visible, locale).toContain(t(locale, 'rate.empty', { to: 'CNY' }));
       expect(visible, locale).toContain(t(locale, 'rate.add.button'));
       expect(html).toContain('action="/app/settings/rate"');
     }
   });
 
   it('shows the rates she stated BEFORE — history, not state', () => {
-    const html = renderRate({ current: rate(7.15, august), previous: [rate(6.90, march)] }, 'en', null);
+    const html = renderRate({ current: rate(7.15, august), previous: [rate(6.90, march)], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null);
     expect(html).toContain(t('en', 'rate.history.title'));
-    expect(html).toContain(t('en', 'rate.current', { rate: 6.9 }));
+    expect(html).toContain(t('en', 'rate.current', { rate: 6.9, from: 'USD', to: 'CNY' }));
   });
 
   it('and NOTHING in ￥ appears until she has stated one', () => {
@@ -163,13 +163,13 @@ describe('M43b · the surface', () => {
   it('every string exists in all three locales', () => {
     const KEYS: MessageKey[] = [
       'rate.title', 'rate.intro', 'rate.current', 'rate.setOn', 'rate.empty',
-      'rate.add.label', 'rate.add.placeholder', 'rate.add.button', 'rate.history.title',
+      'rate.add.label', 'rate.add.button', 'rate.none', 'rate.flash.none', 'rate.history.title',
       'rate.at', 'rate.flash.set', 'rate.flash.missing', 'rate.flash.not_a_number',
       'rate.flash.not_positive', 'rate.flash.same_currency', 'rate.flash.failed',
     ];
     for (const locale of LOCALES) {
       for (const k of KEYS) {
-        const s = t(locale, k, { rate: 7.15, date: '12 Aug' });
+        const s = t(locale, k, { rate: 7.15, date: '12 Aug', from: 'USD', to: 'CNY' });
         expect(s.length, `${locale} ${k}`).toBeGreaterThan(1);
         expect(s, `${locale} ${k}`).not.toContain('{');
       }

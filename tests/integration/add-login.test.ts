@@ -31,7 +31,7 @@ const COPY = `add10000-0000-4000-8000-${RUN}0005`;    // OLD's practice copy (00
 const SANDBOX = '5a4d0000-0000-4000-8000-0000000000b1';
 const OWNER = { email: `owner-${RUN}@westlake.example`, password: `westlake-password-${RUN}` };
 const SIGNUP = { factory: `Signed Up ${RUN}`, name: 'Sara', email: `sara-${RUN}@signed.example`, password: `signed-password-${RUN}`,
-  kind: 'manufacturer', sells: 'Canvas bags', country: 'MA', website: '', teamSize: '2-5' };
+  kind: 'manufacturer', sells: 'Canvas bags', country: 'MA', currency: 'USD', website: '', teamSize: '2-5' };
 
 type Run = { code: number | null; out: string; err: string };
 const tool = (args: string[], url = MIGRATE_URL): Run => {

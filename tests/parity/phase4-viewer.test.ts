@@ -23,6 +23,7 @@ const items: ProductListItem[] = [
   { id: 'p1', name: 'Canvas bag', nameZh: '帆布袋', sku: 'ZX-100', moq: 1000, unit: 'pcs', entryQty: 5000, entryPrice: usd(0.92), learned: true, status: 'needs_limits', imageMatchable: true, isActive: true },
 ];
 const detail: ProductDetail = {
+  currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
   tiers: [{ minQty: 500, maxQty: null, unitPrice: usd(1.05) }], aliases: [], images: [], recentQuotes: [],
@@ -41,7 +42,7 @@ const PAGES: ReadonlyArray<readonly [string, (v: Viewer) => string, RegExp]> = [
   ['product detail', (v) => renderProductDetail(detail, 'en', null, {}, {}, v), /action="\/app\/products\/p1\/edit"/],
   ['product detail, no price', (v) => renderProductDetail({ ...detail, tiers: [] }, 'en', null, {}, {}, v), /action=|href="\/app\/products\/add"/],
   ['add products', (v) => renderAddForm('en', v), /action="\/app\/products\/add\/(review|photo)"/],
-  ['rate', (v) => renderRate({ current: { from: 'USD', to: 'CNY', rate: 7.15, statedAt: NOW }, previous: [] }, 'en', null, v), /action="\/app\/settings\/rate"/],
+  ['rate', (v) => renderRate({ current: { from: 'USD', to: 'CNY', rate: 7.15, statedAt: NOW }, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null, v), /action="\/app\/settings\/rate"/],
   ['terms', (v) => renderTerms({ terms: null }, 'en', null, v), /action="\/app\/settings\/terms"/],
   ['samples', (v) => renderSamples({ policy: null, waiting: [] }, 'en', null, NOW, v), /action="\/app\/settings\/samples"/],
   ['getting ready', (v) => renderPilotReadiness(pilot, 'en', null, v), /action="\/app\/onboarding\/|href="\/app\/factory\/prices"/],
@@ -64,7 +65,7 @@ describe('Phase 4a · staff see no form that would refuse them', () => {
 
   it('the values stay on the page to read', () => {
     expect(renderProductDetail(detail, 'en', null, {}, {}, STAFF)).toContain('$1.05');
-    expect(renderRate({ current: { from: 'USD', to: 'CNY', rate: 7.15, statedAt: NOW }, previous: [] }, 'en', null, STAFF)).toContain('7.15');
+    expect(renderRate({ current: { from: 'USD', to: 'CNY', rate: 7.15, statedAt: NOW }, previous: [], pair: { from: 'USD', to: 'CNY' }, currency: 'USD' }, 'en', null, STAFF)).toContain('7.15');
     expect(renderProductList(items, 'en', null, STAFF)).toContain('Canvas bag');
   });
 

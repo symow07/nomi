@@ -15,7 +15,9 @@ import {
 } from '../../core/commerce/terms.js';
 import { INCOTERM_KEYS } from '../../core/safety/claims.js';
 import { tenantRepos } from '../../db/repos.js';
-import { parseCurrency } from '../../core/types/money.js';
+import { type Currency, parseCurrency } from '../../core/types/money.js';
+import { currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
+import { currencyOf, hasPrices, ratePairOf } from '../../db/currency.js';
 
 import { switcher, deeper, back, esc, conversationUrl } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
@@ -256,10 +258,59 @@ function zoneForm(c: ZoneChoice, locale: Locale): string {
     </form></div>`;
 }
 
+/**
+ * CUR — the workspace's one currency, and whether it can still change: only
+ * until the first price is set (`hasPrices`). After that every figure in the
+ * workspace is in it, and nothing converts.
+ */
+export type CurrencyChoice = { readonly currency: Currency; readonly fixed: boolean };
+
+export async function loadCurrencyChoice(db: Db, businessIdRaw: string): Promise<CurrencyChoice | null> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return null;
+  return withTenantTx(db, bid.value, async (tx) =>
+    ({ currency: await currencyOf(tx, bid.value), fixed: await hasPrices(tx, bid.value) }));
+}
+
+/** CUR — the owner's currency, changed; refused once a price is set, in the same transaction that checks. */
+export async function saveCurrency(db: Db, businessIdRaw: string, raw: string): Promise<'saved' | 'invalid' | 'fixed'> {
+  const bid = parseBusinessId(businessIdRaw);
+  const c = parseCurrency(raw.trim().toUpperCase());
+  if (!bid.ok || !c) return 'invalid';
+  return withTenantTx(db, bid.value, async (tx) => {
+    // Held for the check and the write, so a price saved between them cannot
+    // leave the workspace in two currencies.
+    await sql`select 1 from businesses where id = ${bid.value} for update`.execute(tx);
+    if ((await currencyOf(tx, bid.value)) === c) return 'saved' as const;
+    if (await hasPrices(tx, bid.value)) return 'fixed' as const;
+    await sql`update businesses set currency = ${c} where id = ${bid.value}`.execute(tx);
+    return 'saved' as const;
+  });
+}
+
+function currencyForm(c: CurrencyChoice, locale: Locale, viewer: Viewer): string {
+  const head = `<h2>${esc(t(locale, 'settings.currency.title'))}</h2>`;
+  if (c.fixed || !viewer.isOwner) {
+    return `<div class="block" id="currency">${head}
+      <p><bdi>${esc(currencyLabel(locale, c.currency))}</bdi></p>
+      <p class="muted">${esc(t(locale, c.fixed ? 'settings.currency.fixed' : 'settings.currency.why'))}</p>
+      ${viewer.isOwner ? '' : ownerDecides(locale)}</div>`;
+  }
+  return `<div class="block" id="currency">${head}
+    <p class="muted">${esc(t(locale, 'settings.currency.why'))}</p>
+    <form method="post" action="/app/settings/currency" class="pform">
+      <label class="fld"><span class="muted">${esc(t(locale, 'settings.currency.label'))}</span>
+        <select name="currency">${CURRENCY_CHOICES.map((x) => `<option value="${x}"${x === c.currency ? ' selected' : ''}>${esc(currencyLabel(locale, x))}</option>`).join('')}</select></label>
+      <button class="btn send" type="submit">${esc(t(locale, 'settings.alerts.save'))}</button>
+    </form></div>`;
+}
+
 export function renderProfile(
   p: BusinessProfile, locale: Locale, flash: Flash | null,
   draft: ProfileDraft = {}, errors: ProfileErrors = {},
   zone: ZoneChoice | null = null,
+  currency: CurrencyChoice | null = null,
+  viewer: Viewer = OWNER_VIEW,
 ): string {
   // M20.4 (F-07) — the submitted value wins over the stored one, so nothing the
   // owner typed is lost when one field is wrong.
@@ -301,7 +352,7 @@ export function renderProfile(
   return `${back('/app/settings', t(locale, 'nav.settings'))}
     <h1 class="page">${esc(t(locale, 'settings.profile.title'))}</h1>
     ${flashBanner(flash)}
-    ${form}${zone ? zoneForm(zone, locale) : ''}${categories}`;
+    ${form}${zone ? zoneForm(zone, locale) : ''}${currency ? currencyForm(currency, locale, viewer) : ''}${categories}`;
 }
 
 
@@ -423,6 +474,15 @@ export type RateView = {
   readonly current: OwnerRate | null;
   /** Previously stated rates, newest first. History, never overwritten. */
   readonly previous: readonly OwnerRate[];
+  /**
+   * CUR — what converts into what: the currency the workspace sells in, into
+   * the one its country counts in (`ratePairOf`). It was dollars into ￥ for
+   * everyone. Null when the two are the same, or the country's is not on the
+   * list: then there is nothing to convert, and no rate to set.
+   */
+  readonly pair: { readonly from: Currency; readonly to: Currency } | null;
+  /** The workspace's one currency, for the sentence that says there is nothing to convert. */
+  readonly currency: Currency;
 };
 
 const toRate = (r: { from_currency: string; to_currency: string; rate: string; stated_at: Date }): OwnerRate | null => {
@@ -443,23 +503,28 @@ const toRate = (r: { from_currency: string; to_currency: string; rate: string; s
  * connection or arrive without the other.
  */
 export async function loadCurrentRate(tx: Tx, businessId: BusinessId): Promise<OwnerRate | null> {
+  const pair = await ratePairOf(tx, businessId);
+  if (!pair) return null;
   const r = await sql<{ from_currency: string; to_currency: string; rate: string; stated_at: Date }>`
     select from_currency, to_currency, rate, stated_at from owner_rates
-     where business_id = ${businessId}::uuid and from_currency = 'USD' and to_currency = 'CNY'
+     where business_id = ${businessId}::uuid and from_currency = ${pair.from} and to_currency = ${pair.to}
      order by stated_at desc limit 1`.execute(tx);
   return r.rows[0] ? toRate(r.rows[0]) : null;
 }
 
 export async function loadRates(db: Db, businessIdRaw: string): Promise<RateView> {
   const bid = parseBusinessId(businessIdRaw);
-  if (!bid.ok) return { current: null, previous: [] };
+  if (!bid.ok) return { current: null, previous: [], pair: null, currency: 'USD' };
   return withTenantTx(db, bid.value, async (tx) => {
+    const pair = await ratePairOf(tx, bid.value);
+    const currency = await currencyOf(tx, bid.value);
+    if (!pair) return { current: null, previous: [], pair: null, currency };
     const r = await sql<{ from_currency: string; to_currency: string; rate: string; stated_at: Date }>`
       select from_currency, to_currency, rate, stated_at from owner_rates
-       where business_id = ${bid.value}::uuid and from_currency = 'USD' and to_currency = 'CNY'
+       where business_id = ${bid.value}::uuid and from_currency = ${pair.from} and to_currency = ${pair.to}
        order by stated_at desc limit 20`.execute(tx);
     const all = r.rows.map(toRate).filter((x): x is OwnerRate => x !== null);
-    return { current: all[0] ?? null, previous: all.slice(1) };
+    return { current: all[0] ?? null, previous: all.slice(1), pair, currency };
   });
 }
 
@@ -467,33 +532,41 @@ export async function loadRates(db: Db, businessIdRaw: string): Promise<RateView
  *  converted at March's rate, and the row that did it stays to say so. */
 export async function setRate(
   db: Db, businessIdRaw: string, raw: string | null | undefined, now: Date,
-): Promise<{ code: 'set'; rate: OwnerRate } | { code: RateError | 'failed' }> {
+): Promise<{ code: 'set'; rate: OwnerRate } | { code: RateError | 'failed' | 'none' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
-  const v = validateRate({ from: 'USD', to: 'CNY', rate: raw, now });
-  if (!v.ok) return { code: v.error };
   return withTenantTx(db, bid.value, async (tx) => {
+    // CUR — the workspace's own pair, or nothing to convert.
+    const pair = await ratePairOf(tx, bid.value);
+    if (!pair) return { code: 'none' as const };
+    const v = validateRate({ from: pair.from, to: pair.to, rate: raw, now });
+    if (!v.ok) return { code: v.error };
     await sql`insert into owner_rates (business_id, from_currency, to_currency, rate, stated_at)
-              values (${bid.value}::uuid, 'USD', 'CNY', ${v.value.rate}, ${v.value.statedAt})`.execute(tx);
+              values (${bid.value}::uuid, ${pair.from}, ${pair.to}, ${v.value.rate}, ${v.value.statedAt})`.execute(tx);
     return { code: 'set' as const, rate: v.value };
   });
 }
 
 export function renderRate(v: RateView, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW): string {
   const name = assistantName(locale);
+  if (!v.pair) {
+    return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
+    ${flashBanner(flash)}
+    <section class="block"><p class="muted">${esc(t(locale, 'rate.none', { from: v.currency }))}</p></section>`;
+  }
+  const { from, to } = v.pair;
   const stated = (r: OwnerRate): string =>
-    `${esc(t(locale, 'rate.current', { rate: r.rate }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
+    `${esc(t(locale, 'rate.current', { rate: r.rate, from: r.from, to: r.to }))} <span class="muted">· ${esc(t(locale, 'rate.setOn', { date: show.date(locale, r.statedAt) }))}</span>`;
   return `<h1 class="page">${esc(t(locale, 'rate.title'))}</h1>
     ${flashBanner(flash)}
     <section class="block">
-      <p class="muted">${esc(t(locale, 'rate.intro', { name }))}</p>
+      <p class="muted">${esc(t(locale, 'rate.intro', { name, from, to }))}</p>
       ${v.current
         ? `<p class="stated-now"><bdi>${stated(v.current)}</bdi></p>`
-        : `<p class="muted empty-p">${esc(t(locale, 'rate.empty'))}</p>`}
+        : `<p class="muted empty-p">${esc(t(locale, 'rate.empty', { to }))}</p>`}
       ${viewer.isOwner ? `<form method="post" action="/app/settings/rate" class="fld">
-        <label><span class="muted">${esc(t(locale, 'rate.add.label'))}</span>
-          <input name="rate" inputmode="decimal" required
-            placeholder="${esc(t(locale, 'rate.add.placeholder'))}" /></label>
+        <label><span class="muted">${esc(t(locale, 'rate.add.label', { from, to }))}</span>
+          <input name="rate" inputmode="decimal" required /></label>
         <button class="btn send" type="submit">${esc(t(locale, 'rate.add.button'))}</button>
       </form>` : ownerDecides(locale)}
     </section>
@@ -653,14 +726,14 @@ export async function saveSamplePolicy(
 ): Promise<{ code: 'saved' | SamplePolicyError | 'failed' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
-  const v = validateSamplePolicy({
-    price: input.price, creditedOnFirstOrder: input.credited,
-    // One tenant currency today, named where the pair is assembled rather than
-    // assumed at the row.
-    currency: 'USD', now: input.now,
-  });
-  if (!v.ok) return { code: v.error };
   return withTenantTx(db, bid.value, async (tx) => {
+    // CUR — the workspace's one currency, named where the pair is assembled
+    // (it was 'USD' here, "one tenant currency today").
+    const v = validateSamplePolicy({
+      price: input.price, creditedOnFirstOrder: input.credited,
+      currency: await currencyOf(tx, bid.value), now: input.now,
+    });
+    if (!v.ok) return { code: v.error };
     await sql`insert into sample_policy (business_id, price_amount, currency, credited_on_first_order, stated_at)
               values (${bid.value}::uuid, ${v.value.price.amount}, ${v.value.price.currency},
                       ${v.value.creditedOnFirstOrder}, ${v.value.statedAt})`.execute(tx);

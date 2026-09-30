@@ -40,6 +40,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'practice.flash.daily_limit', 'practice.flash.switched_off',
   // TZ — a zone this build does not know: nothing changed.
   'settings.flash.zoneInvalid',
+  // CUR — a currency not on the list, or one fixed by prices already set: nothing changed.
+  'settings.flash.currencyInvalid', 'settings.flash.currencyFixed',
   'assistants.flash.channel_taken', 'assistants.flash.is_default', 'assistants.flash.name_long',
   'assistants.flash.name_missing', 'channel.flash.already_connected', 'channel.flash.failed',
   'channel.flash.no_credential', 'channel.flash.not_configured', 'channel.flash.nothing_to_connect',
@@ -66,7 +68,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'people.flash.name_too_long', 'product.flash.refused', 'proof.owner.flash.failed',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
   'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',
-  'rate.flash.not_positive', 'rate.flash.same_currency', 'reach.inbound.flash.already',
+  'rate.flash.not_positive', 'rate.flash.same_currency',
+  // CUR — the workspace sells in its country's own currency: nothing to convert.
+  'rate.flash.none', 'reach.inbound.flash.already',
   'reach.inbound.flash.notConfigured', 'reach.inbound.flash.taken', 'samples.flash.failed',
   'samples.flash.negative', 'samples.flash.not_a_number', 'samples.flash.price_missing',
   'seq.flash.already', 'seq.flash.changed', 'seq.flash.empty', 'seq.flash.failed', 'seq.flash.full',
@@ -132,6 +136,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'practice.flash.alone', 'practice.flash.levels', 'practice.flash.stopped', 'practice.flash.started',
   // TZ — the workspace's zone, saved.
   'settings.flash.zoneSaved',
+  // CUR — the workspace's currency, saved.
+  'settings.flash.currencySaved',
 ]);
 
 /**

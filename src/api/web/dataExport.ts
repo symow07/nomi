@@ -270,16 +270,18 @@ const priceRules: Loader = async (tx, businessId) => {
   const rows: Cell[][] = [];
 
   const floors = await sql<{
-    product: string | null; floor: string; max_discount_pct: string; human_required_above_pct: string;
+    product: string | null; floor: string; currency: string; max_discount_pct: string; human_required_above_pct: string;
   }>`
-    select p.name as product, pp.floor_price_usd as floor,
+    select p.name as product, pp.floor_price_usd as floor, pp.currency,
            pp.max_discount_pct, pp.human_required_above_pct
       from pricing_policy pp
       left join products p on p.id = pp.product_id
      where pp.business_id = ${businessId}
      order by p.name nulls first`.execute(tx);
   for (const x of floors.rows) {
-    rows.push(['Least you accept', x.product ?? 'everything', '', x.floor,
+    // CUR — with its currency, like the volume prices below: a bare number is
+    // no longer only ever dollars.
+    rows.push(['Least you accept', x.product ?? 'everything', '', `${x.floor} ${x.currency}`,
       `most you will come down: ${x.max_discount_pct}% · ask you above: ${x.human_required_above_pct}%`]);
   }
 

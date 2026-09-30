@@ -1,4 +1,5 @@
 import { isZone } from '../core/owner/zones.js';
+import { parseCurrency } from '../core/types/money.js';
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -71,11 +72,14 @@ export async function provisionAccount(db: Db, input: {
     readonly website: string | null; readonly teamSize: string; readonly channels: readonly string[];
     /** TZ — the workspace's own zone; a pending sign-up from before TZ has none, and keeps the column's. */
     readonly zone?: string;
+    /** CUR — the workspace's one currency; a pending sign-up from before CUR has none, and keeps the column's (USD). */
+    readonly currency?: string;
   };
 }): Promise<ProvisionOutcome> {
   try {
-    // TZ — the zone sign-up chose is written in the SAME transaction as the
-    // workspace: a zone that fails leaves no workspace behind an error page.
+    // TZ, CUR — the zone and the currency sign-up chose are written in the SAME
+    // transaction as the workspace: one that fails leaves no workspace behind
+    // an error page.
     const r = await db.transaction().execute(async (tx) => {
       const made = (await sql<{ business_id: string; person_id: string }>`
         select business_id::text as business_id, person_id::text as person_id
@@ -83,9 +87,15 @@ export async function provisionAccount(db: Db, input: {
                                    ${input.email}, ${input.passwordHash},
                                    ${input.invite}::uuid, ${input.inviteRequired},
                                    ${JSON.stringify(input.profile)}::jsonb)`.execute(tx)).rows[0];
-      if (made && isZone(input.profile.zone)) {
+      const currency = parseCurrency(input.profile.currency ?? '');
+      if (made && (isZone(input.profile.zone) || currency)) {
         await sql`select set_config('app.business_id', ${made.business_id}, true)`.execute(tx);
-        await sql`update businesses set timezone = ${input.profile.zone} where id = ${made.business_id}::uuid`.execute(tx);
+        if (isZone(input.profile.zone)) {
+          await sql`update businesses set timezone = ${input.profile.zone} where id = ${made.business_id}::uuid`.execute(tx);
+        }
+        if (currency) {
+          await sql`update businesses set currency = ${currency} where id = ${made.business_id}::uuid`.execute(tx);
+        }
       }
       return made;
     });
