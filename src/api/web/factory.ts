@@ -13,6 +13,7 @@
  * The deep surfaces (/app/settings, /app/products, /app/knowledge,
  * /app/channels) stay exactly as they are and are linked, not replaced.
  */
+import { currencyOfCountry } from '../../core/owner/currencies.js';
 import { sql } from 'kysely';
 import { type Money, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
@@ -831,11 +832,14 @@ export function renderFactory(
   // Settings, where an owner who edits a price every week had to go looking
   // for the payment terms next to the sign-in page. The pages did not move;
   // the doors did.
+  // CUR — the rate door only where there is something to convert: a workspace
+  // that sells in another currency than its country's own (`ratePairOf`).
+  const home = currencyOfCountry(f.connection.country);
   const sellHowBody = `<div class="doors">
     ${deeper('/app/settings/terms', t(locale, 'terms.title'))}
     ${deeper('/app/settings/samples', t(locale, 'samples.title'))}
     ${deeper('/app/settings/closures', t(locale, 'closures.title'))}
-    ${deeper('/app/settings/rate', t(locale, 'rate.title'))}
+    ${home !== null && home !== f.prices.currency ? deeper('/app/settings/rate', t(locale, 'rate.title')) : ''}
   </div>`;
 
   return `<h1 class="page">${esc(t(locale, 'nav.factory'))}</h1>

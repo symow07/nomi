@@ -284,8 +284,11 @@ import type { Db } from './client.js';
  *      and the refresh that reads it. Practice's page reads the column.
  * 91 = what the owner has seen in Practice (0091): `practice_checks`,
  *      `practice_totals`. The Practice page writes both on every view.
+ * 92 = one currency per workspace (0092): `businesses.currency`, the widened
+ *      currency checks and price precision. Sign-up writes the column and
+ *      every owner form reads it; against a 91 database sign-up fails.
  */
-export const REQUIRED_SCHEMA_VERSION = 91;
+export const REQUIRED_SCHEMA_VERSION = 92;
 
 export type SchemaState = {
   readonly required: number;

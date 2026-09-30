@@ -27,7 +27,7 @@ const RULES: PriceRules = { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7
 
 describe('M29 · nothing is inferred', () => {
   it('accepts a complete, coherent set of answers', () => {
-    const r = validatePriceRules({ floor: '0.35', maxDiscountPct: '10', askAbovePct: '7' });
+    const r = validatePriceRules({ floor: '0.35', maxDiscountPct: '10', askAbovePct: '7', currency: 'USD' as const });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value).toEqual(RULES);
   });
@@ -36,7 +36,7 @@ describe('M29 · nothing is inferred', () => {
     // The whole defect in one assertion: there is no "sensible default" for
     // what the owner would accept. Silence must not become a number.
     for (const field of ['floor', 'maxDiscountPct', 'askAbovePct'] as const) {
-      const input = { floor: '0.35', maxDiscountPct: '10', askAbovePct: '7', [field]: '' };
+      const input = { floor: '0.35', maxDiscountPct: '10', askAbovePct: '7', currency: 'USD' as const, [field]: '' };
       const r = validatePriceRules(input);
       expect(r.ok, field).toBe(false);
       if (!r.ok) expect(r.errors[field]).toBe('missing');
@@ -44,14 +44,14 @@ describe('M29 · nothing is inferred', () => {
   });
 
   it('rejects a floor of zero — "free" is not a price rule', () => {
-    const r = validatePriceRules({ floor: '0', maxDiscountPct: '10', askAbovePct: '7' });
+    const r = validatePriceRules({ floor: '0', maxDiscountPct: '10', askAbovePct: '7', currency: 'USD' as const });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.floor).toBe('floor_not_positive');
   });
 
   it('rejects percentages outside 0–100', () => {
     for (const bad of ['-1', '101']) {
-      const r = validatePriceRules({ floor: '0.35', maxDiscountPct: bad, askAbovePct: '7' });
+      const r = validatePriceRules({ floor: '0.35', maxDiscountPct: bad, askAbovePct: '7', currency: 'USD' as const });
       expect(r.ok, bad).toBe(false);
       if (!r.ok) expect(r.errors.maxDiscountPct).toBe('pct_out_of_range');
     }
@@ -61,7 +61,7 @@ describe('M29 · nothing is inferred', () => {
     // A question that can never be asked. My own M20.5 fixture carried exactly
     // this inversion (max 5 / ask 10), the sentence it produced read perfectly
     // plausibly, and it shipped green.
-    const r = validatePriceRules({ floor: '0.35', maxDiscountPct: '7', askAbovePct: '10' });
+    const r = validatePriceRules({ floor: '0.35', maxDiscountPct: '7', askAbovePct: '10', currency: 'USD' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.askAbovePct).toBe('ask_above_max');
   });
@@ -69,13 +69,13 @@ describe('M29 · nothing is inferred', () => {
   it('rejects a floor above the product’s own list price', () => {
     // quote.ts refuses `below_floor` rather than selling at a loss, so this
     // silently makes the product unquotable. Caught before she creates it.
-    const r = validatePriceRules({ floor: '0.90', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(0.45) });
+    const r = validatePriceRules({ floor: '0.90', maxDiscountPct: '10', askAbovePct: '7', listPrice: usd(0.45), currency: 'USD' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.floor).toBe('floor_above_list');
   });
 
   it('reports every problem at once, so she fixes the form in one pass', () => {
-    const r = validatePriceRules({ floor: 'abc', maxDiscountPct: '200', askAbovePct: '' });
+    const r = validatePriceRules({ floor: 'abc', maxDiscountPct: '200', askAbovePct: '', currency: 'USD' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(Object.keys(r.errors).sort()).toEqual(['askAbovePct', 'floor', 'maxDiscountPct']);
   });
@@ -174,6 +174,7 @@ describe('M29 · the same engine, before and after the owner grants authority', 
 // ── the owner's own words ────────────────────────────────────────────────────
 
 const view = (over: Partial<PriceRulesView> = {}): PriceRulesView => ({
+  currency: 'USD',
   volume: [],
   businessDefault: null,
   products: [{

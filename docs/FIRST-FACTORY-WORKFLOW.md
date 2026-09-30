@@ -14,7 +14,7 @@ Each stage has an exit condition. Do not move on until it is true.
 Before anything else, the deployment must know *whose factory it is*.
 
 ```bash
-MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh --zone=Asia/Shanghai
+MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" zh --zone=Asia/Shanghai --currency=CNY
 # → prints PILOT_BUSINESS_ID=<id>;  set it in the host environment
 ```
 

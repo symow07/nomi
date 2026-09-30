@@ -22,7 +22,7 @@ describe('M6 · tolerant catalog import', () => {
       '保温杯\t2.6\t1000',
       '随便聊两句，这行不是产品',
       '',
-    ].join('\n'));
+    ].join('\n'), 'USD');
     expect(parsed[0]).toMatchObject({ sku: null, name: '帆布袋', nameZh: '帆布袋', price: usd(1.05), moq: 500 });
     expect(parsed[1]).toMatchObject({ price: usd(2.6), moq: 1000 });
     expect(parsed[1]!.name).toContain('Thermos');
@@ -30,7 +30,7 @@ describe('M6 · tolerant catalog import', () => {
   });
 
   it('missing price/moq is allowed — the confirm card asks, import never blocks', () => {
-    const parsed = parsePriceLines('新款化妆包');
+    const parsed = parsePriceLines('新款化妆包', 'USD');
     expect(parsed[0]).toMatchObject({ sku: null, name: '新款化妆包', price: null, moq: null });
   });
 
@@ -55,7 +55,7 @@ describe('M6 · tolerant catalog import', () => {
  */
 
 describe('M22 (F-02) · product import preserves the owner’s own article number', () => {
-  const one = (line: string) => parsePriceLines(line)[0]!;
+  const one = (line: string) => parsePriceLines(line, 'USD')[0]!;
 
   it('keeps a dash-joined article number, and out of the name', () => {
     const p = one('ZX-200 Thermos 500ml  $2.60  MOQ 1000');
@@ -93,13 +93,13 @@ describe('M22 (F-02) · product import preserves the owner’s own article numbe
 
   it('two lines sharing an article number are one product, however differently written', () => {
     const r = validateExtracted(parsePriceLines(
-      'ZX-200 Thermos $2.60\nZX-200 Thermos flask 500ml $2.60'));
+      'ZX-200 Thermos $2.60\nZX-200 Thermos flask 500ml $2.60', 'USD'));
     expect(r.accepted).toHaveLength(1);
     expect(r.rejected[0]?.reason).toBe('duplicate');
   });
 
   it('products with no number are still deduplicated by name', () => {
-    const r = validateExtracted(parsePriceLines('Canvas tote $1.05\nCanvas tote $1.05'));
+    const r = validateExtracted(parsePriceLines('Canvas tote $1.05\nCanvas tote $1.05', 'USD'));
     expect(r.accepted).toHaveLength(1);
     expect(r.rejected[0]?.reason).toBe('duplicate');
   });

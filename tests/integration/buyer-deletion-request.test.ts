@@ -360,8 +360,12 @@ d('CC-02a · a buyer\'s deletion request, and its deadline (requires DATABASE_UR
     const late = job!.deletionsDue!.find((x) => x.business === OTHER_NAME && x.scope === 'workspace');
     expect(late).toEqual({ business: OTHER_NAME, scope: 'workspace', askedAt: asked.toISOString(), overdue: true });
     const { renderOwnerAlert } = await import('../../src/pipeline/notify.js');
+    // TZ — the dates are said in the reader's zone, handed in as the sender
+    // does; without it they were UTC against a Shanghai expectation, and the
+    // test failed every day from 16:00 UTC (found 2026-09-30).
     const text = renderOwnerAlert('en', 'deletion_due', null, {
       deletionsDue: [{ business: OTHER_NAME, scope: 'workspace', askedAt: asked, overdue: true }],
+      zone: 'Asia/Shanghai',
     });
     expect(text).toContain(t('en', 'notify.deletion_due.late', {
       business: OTHER_NAME, what: t('en', 'data.deletion.scope.workspace'),

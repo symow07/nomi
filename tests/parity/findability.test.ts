@@ -61,6 +61,7 @@ describe('T3 · the names a product is found by', () => {
 });
 
 const detail: ProductDetail = {
+  currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 500, leadTimeDays: null, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: true,
   tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(2.4) }],

@@ -2323,8 +2323,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       const { withTenantTx } = await import('../../src/db/client.js');
       const { parseBusinessId } = await import('../../src/core/types/ids.js');
       const bid = parseBusinessId(DEMO_BIZ); if (!bid.ok) throw new Error('fixture');
+      // CUR — and the rate page exists only where there is something to
+      // convert, so the demo is what it depicts: a Yiwu factory selling in dollars.
       await withTenantTx(prod.db, bid.value, (tx) =>
-        sql`update businesses set outreach_area = true where id = ${DEMO_BIZ}::uuid`.execute(tx));
+        sql`update businesses set outreach_area = true, country = 'CN' where id = ${DEMO_BIZ}::uuid`.execute(tx));
       const cookie = await login();
       // EVERY contextual route, against the page that declares it — not just
       // the My-factory ones with the rest named in an exclusion list. A route

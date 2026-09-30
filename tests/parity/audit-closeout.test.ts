@@ -66,6 +66,7 @@ const item = (over: Partial<ProductListItem> = {}): ProductListItem => ({
 });
 
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
+  currency: 'USD',
   id: 'p1', name: 'Canvas Tote Bag', nameZh: '帆布袋', sku: 'ZX-100', category: 'bags',
   unit: 'pcs', moq: 1000, leadTimeDays: 15, customizable: false, learned: true, status: 'learned', isActive: true, imageMatchable: false,
   tiers: [{ minQty: 500, maxQty: 2000, unitPrice: usd(1.05) }, { minQty: 2000, maxQty: null, unitPrice: usd(0.92) }],

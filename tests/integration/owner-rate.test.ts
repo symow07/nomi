@@ -41,7 +41,8 @@ d('M43b · the rate she stated (requires DATABASE_URL)', () => {
     const { registerWebApp } = await import('../../src/api/web/app.js');
     db = createDb(DATABASE_URL!);
     await tx(async (t) => {
-      await sql`insert into businesses (id, name) values (${BIZ}, 'Rate Test Factory')
+      // CUR — a Chinese factory selling in dollars: the pair the rate page converts.
+      await sql`insert into businesses (id, name, country) values (${BIZ}, 'Rate Test Factory', 'CN')
                 on conflict (id) do nothing`.execute(t);
     });
 

@@ -1,4 +1,4 @@
-import { type Money, usd } from '../types/money.js';
+import { type Money, type Currency, DOT_THOUSANDS } from '../types/money.js';
 /**
  * M6 — Tolerant catalog import. Messy Excel pastes, forwarded messages,
  * price-list photos (via the M4 vision path) — anything goes in; what comes
@@ -38,16 +38,17 @@ export type ExtractedProduct = {
   readonly unit: string;               // default 'pcs'
   /**
    * T4 — the line has a price this parser will not guess at: written two ways
-   * at once (`1.250,00`), in a currency other than US dollars (only dollars
-   * for now, until a workspace can have its own currency), or a spreadsheet
-   * row with several numbers and nothing saying which is the price. The line
-   * is refused with that reason, never priced wrongly without a word.
+   * at once (`1.250,00` in a dollar workspace), in a currency other than the
+   * workspace's own (CUR: one currency per workspace, nothing converted), or a
+   * spreadsheet row with several numbers and nothing saying which is the
+   * price. The line is refused with that reason, never priced wrongly without
+   * a word.
    */
   readonly problem?: ReadingProblem;
 };
 
 /** T4 — why a line's price was not read. Each is a reject reason the review names. */
-export type ReadingProblem = 'ambiguous_price' | 'not_usd' | 'several_numbers';
+export type ReadingProblem = 'ambiguous_price' | 'other_currency' | 'several_numbers';
 
 /** LLM port for messy input (photos of price lists, rambling messages). */
 export interface CatalogExtractor {
@@ -70,18 +71,73 @@ const MOQ_WORD = String.raw`(?:MOQ|起订|最低|(?:ال)?حد\s*(?:ال)?أدن
  * reading is a price a customer is quoted — so it is refused. Sentence
  * punctuation after the figure is not part of it.
  */
-function readAmount(raw: string): number | 'ambiguous' {
+function readAmount(raw: string, currency: Currency): number | 'ambiguous' {
   const s = raw.replace(/[.,]+$/, '');
-  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
+  // CUR — reais and rupiah group thousands with a dot and mark decimals with a
+  // comma ("R$ 1.250,50", "Rp 150.000"): there, one reading is the right one.
+  if (DOT_THOUSANDS.has(currency)) {
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'));
+    if (/^\d+,\d+$/.test(s)) return Number(s.replace(',', '.'));
+    if (/^\d+(?:\.\d{1,2})?$/.test(s)) return Number(s);
+    return 'ambiguous';
+  }
+  if (/^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''));
   if (/^[1-9]\d{0,2}\.\d{3}$/.test(s)) return 'ambiguous';
   if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
   return 'ambiguous';
 }
 
-/** Dollars that are not US dollars — HK$, A$, C$, NT$, S$ — written as a prefix. */
-const OTHER_DOLLAR = /(?<![A-Za-z])(?!US[$＄])[A-Z]{1,3}[$＄]/;
-/** Every other currency an owner is likely to write. Only US dollars are read for now (until CUR). */
-const OTHER_CURRENCY = /[€£¥￥₹₩₽]|(?<!美)元|人民币|\b(?:RMB|CNY|EUR|GBP|JPY|AED|SAR|HKD|AUD|CAD|SGD|TWD|INR)\b|د\.إ|ر\.س|درهم|ريال/i;
+/**
+ * CUR — the marks each currency is written with. `before` and `after` are the
+ * workspace's OWN (a figure beside them is its price); `tells` names that
+ * currency so unmistakably that a line carrying it, in another workspace, is in
+ * someone else's money. "$" is the dollar's and the peso's own, and no one's
+ * tell: in a dirham workspace a bare "$" is still another currency, by the
+ * rule below.
+ */
+const L = '(?<![A-Za-z])';
+const E = '(?![A-Za-z])';
+const MARKS: Readonly<Record<Currency, { readonly before: string; readonly after: string; readonly tells: string }>> = {
+  USD: { before: `(?:US)?[$＄]|${L}USD\\s*`, after: `美元|美金|USD${E}`, tells: `${L}US[$＄]|${L}USD${E}|美元|美金` },
+  MXN: { before: `(?:MX|MEX)?[$＄]|${L}MXN\\s*`, after: `MXN${E}|${L}pesos?${E}|比索`, tells: `${L}(?:MX|MEX)[$＄]|${L}MXN${E}|${L}pesos${E}|比索` },
+  BRL: { before: `${L}R[$＄]|${L}BRL\\s*`, after: `BRL${E}|${L}reais${E}|雷亚尔`, tells: `${L}R[$＄]|${L}BRL${E}|${L}reais${E}|雷亚尔` },
+  CNY: { before: `[¥￥]|${L}(?:RMB|CNY)\\s*`, after: `(?<![美欧港日韩澳加新台])元|块|人民币|${L}(?:RMB|CNY)${E}`, tells: `[¥￥]|(?<![美欧港日韩澳加新台])元|人民币|${L}(?:RMB|CNY)${E}` },
+  AED: { before: `${L}AED\\s*|د\\.إ\\.?\\s*|${L}Dhs?\\.?\\s*`, after: `AED${E}|درهم|دراهم|${L}dirhams?${E}|${L}Dhs?${E}`, tells: `${L}AED${E}|د\\.إ|درهم|دراهم|${L}dirhams?${E}` },
+  SAR: { before: `${L}SAR\\s*|ر\\.س\\.?\\s*|${L}SR\\s*`, after: `SAR${E}|ريال|${L}riyals?${E}|${L}SR${E}`, tells: `${L}SAR${E}|ر\\.س|ريال|${L}riyals?${E}` },
+  INR: { before: `₹|${L}Rs\\.?\\s*|${L}INR\\s*`, after: `INR${E}|${L}rupees?${E}|卢比`, tells: `₹|${L}INR${E}|${L}Rs\\.?\\s*\\d|${L}rupees?${E}|卢比` },
+  IDR: { before: `${L}Rp\\.?\\s*|${L}IDR\\s*`, after: `IDR${E}|${L}rupiah${E}|印尼盾`, tells: `${L}Rp\\.?\\s*\\d|${L}IDR${E}|${L}rupiah${E}|印尼盾` },
+};
+/** Money no workspace here sells in: the euro, the pound, the yen, other dollars. */
+const NO_ONES = /[€£₩₽₺₫₪]|欧元|港元|港币|日元|韩元|澳元|加元|新元|台币|英镑|\b(?:EUR|GBP|JPY|HKD|AUD|CAD|SGD|TWD)\b/i;
+const NO_ONES_CAPS = /(?<![A-Za-z])(?:CHF|NZD|QAR|KWD|OMR|BHD|EGP|MAD|TRY|KRW|RUB)(?![A-Za-z])/;
+/** Dollars that are nobody's here — HK$, A$, C$, NT$, S$ — written as a prefix. */
+const OTHER_DOLLAR = /(?<![A-Za-z])(?!(?:US|R|MX|MEX)[$＄])[A-Z]{1,3}[$＄]/;
+
+type Reading = {
+  readonly foreign: (line: string) => boolean;
+  readonly before: RegExp; readonly after: RegExp;
+  readonly beforeAll: RegExp; readonly afterAll: RegExp;
+};
+const READINGS = new Map<Currency, Reading>();
+/** How a workspace in `currency` reads a line: its own marks, and everyone else's. */
+function readingFor(currency: Currency): Reading {
+  const known = READINGS.get(currency);
+  if (known) return known;
+  const own = MARKS[currency];
+  const others = new RegExp((Object.keys(MARKS) as Currency[]).filter((c) => c !== currency).map((c) => MARKS[c].tells).join('|'), 'i');
+  // A bare "$" is the dollar's or the peso's; anywhere else it is someone else's.
+  const bareDollar = currency === 'USD' || currency === 'MXN' ? null : new RegExp(`${L}[$＄]\\s*\\d`);
+  const r: Reading = {
+    foreign: (line) => OTHER_DOLLAR.test(line) || NO_ONES.test(line) || NO_ONES_CAPS.test(line) || others.test(line)
+      || (bareDollar !== null && bareDollar.test(line)),
+    before: new RegExp(`(?:${own.before})\\s*(\\d[\\d.,]*)`, 'i'),
+    after: new RegExp(`(\\d[\\d.,]*)\\s*(?:${own.after})`, 'i'),
+    beforeAll: new RegExp(`(?:${own.before})\\s*\\d[\\d.,]*`, 'gi'),
+    afterAll: new RegExp(`\\d[\\d.,]*\\s*(?:${own.after})`, 'gi'),
+  };
+  READINGS.set(currency, r);
+  return r;
+}
 const NUMBER_CELL = /^\d[\d.,]*$/;
 
 /**
@@ -110,7 +166,8 @@ const ARTICLE_NO = /^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+|[A-Za-z]{1,6}\d{2,}
  * into the name. This is the shape the doc line above always showed and the
  * import always threw away.
  */
-export function parsePriceLines(text: string): readonly ExtractedProduct[] {
+export function parsePriceLines(text: string, currency: Currency): readonly ExtractedProduct[] {
+  const reading = readingFor(currency);
   const out: ExtractedProduct[] = [];
   for (const raw of text.split('\n')) {
     const line = raw.trim();
@@ -118,16 +175,13 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
 
     const article = line.match(ARTICLE_NO)?.[1] ?? null;
 
-    // T4 — a price in any currency but US dollars is refused, not ignored:
-    // today "18元" came in as a product with no price, and "HK$25" as $25.
-    let problem: ReadingProblem | null =
-      OTHER_DOLLAR.test(line) || OTHER_CURRENCY.test(line) ? 'not_usd' : null;
+    // T4 — a price in any currency but the workspace's is refused, not ignored:
+    // "18元" once came in as a product with no price, and "HK$25" as $25.
+    let problem: ReadingProblem | null = reading.foreign(line) ? 'other_currency' : null;
     let price: number | null = null;
-    const written =
-      line.match(/(?:US)?[$＄]\s*(\d[\d.,]*)/i)?.[1] ??
-      line.match(/(\d[\d.,]*)\s*(?:美元|美金|USD)/i)?.[1] ?? null;
+    const written = line.match(reading.before)?.[1] ?? line.match(reading.after)?.[1] ?? null;
     if (!problem && written !== null) {
-      const a = readAmount(written);
+      const a = readAmount(written, currency);
       if (a === 'ambiguous') problem = 'ambiguous_price';
       else price = a;
     }
@@ -140,7 +194,7 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
     if (!problem && price === null && line.includes('\t')) {
       const nums = line.split('\t').map((c) => c.trim()).filter(Boolean).slice(1).filter((c) => NUMBER_CELL.test(c));
       if (nums.length === 1 || (nums.length === 2 && /^\d{2,}$/.test(nums[1]!))) {
-        const a = readAmount(nums[0]!);
+        const a = readAmount(nums[0]!, currency);
         if (a === 'ambiguous') problem = 'ambiguous_price';
         else price = a;
         rowMoq = nums[1] ?? null;
@@ -157,8 +211,8 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
 
     // Name = the line minus the article number, price/moq/currency fragments.
     const name = (article ? line.slice(article.length) : line)
-      .replace(/(?:US)?[$＄]\s*\d[\d.,]*/gi, ' ')
-      .replace(/\d[\d.,]*\s*(?:美元|美金|USD)/gi, ' ')
+      .replace(reading.beforeAll, ' ')
+      .replace(reading.afterAll, ' ')
       .replace(new RegExp(`${MOQ_WORD}\\s*[:：]?\\s*\\d[\\d,]*`, 'gi'), ' ')
       .replace(/\d[\d,]*\s*(?:个|件|套|pcs)?\s*起/g, ' ')
       .replace(/\t\d[\d.,]*/g, ' ')
@@ -174,7 +228,7 @@ export function parsePriceLines(text: string): readonly ExtractedProduct[] {
       sku: article,
       name: finalName,
       nameZh: zh ? finalName : null,
-      price: price !== null ? usd(price) : null,
+      price: price !== null ? { amount: price, currency } : null,
       moq: moq ? Number(moq.replace(/,/g, '')) : null,
       unit: 'pcs',
       sourceLine: line,
@@ -189,7 +243,7 @@ export type RejectReason = 'bad_name' | 'duplicate' | 'bad_price' | 'bad_moq' | 
 
 const PROBLEM_ZH: Record<ReadingProblem, string> = {
   ambiguous_price: '价格有两种读法',
-  not_usd: '目前只认美元',
+  other_currency: '这行是别的货币',
   several_numbers: '这行数字太多，不知道哪个是价格',
 };
 
@@ -197,6 +251,15 @@ export type ValidatedImport = {
   readonly accepted: readonly ExtractedProduct[];
   /** Rejected with a reason the confirm card can show — a code plus zh text. */
   readonly rejected: readonly { readonly product: ExtractedProduct; readonly reason: RejectReason; readonly reasonZh: string }[];
+};
+
+/**
+ * CUR — a price past this is taken for a misread (a sku or a phone number read
+ * as the price), in each currency's own figures: 100,000 was the one line, and
+ * a phone in rupiah costs more than that. Round figures, never a conversion.
+ */
+const PRICE_CEILING: Readonly<Record<Currency, number>> = {
+  USD: 100_000, CNY: 700_000, AED: 400_000, SAR: 400_000, BRL: 500_000, MXN: 2_000_000, INR: 8_000_000, IDR: 1_500_000_000,
 };
 
 export function validateExtracted(products: readonly ExtractedProduct[]): ValidatedImport {
@@ -214,7 +277,7 @@ export function validateExtracted(products: readonly ExtractedProduct[]): Valida
       rejected.push({ product: p, reason: 'bad_name', reasonZh: '名字没认出来' });
     } else if (seen.has(key)) {
       rejected.push({ product: p, reason: 'duplicate', reasonZh: '重复了' });
-    } else if (p.price !== null && (p.price.amount <= 0 || p.price.amount > 100_000)) {
+    } else if (p.price !== null && (p.price.amount <= 0 || p.price.amount > PRICE_CEILING[p.price.currency])) {
       rejected.push({ product: p, reason: 'bad_price', reasonZh: '价格看着不对' });
     } else if (p.moq !== null && (!Number.isInteger(p.moq) || p.moq <= 0)) {
       rejected.push({ product: p, reason: 'bad_moq', reasonZh: '起订量看着不对' });

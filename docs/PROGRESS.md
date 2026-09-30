@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #152 | **CUR, part one — the send path knows every currency** (before any workspace can price in one): `Currency` is USD, CNY, AED, SAR, BRL, MXN, INR, IDR, each with its sign (a code where it has none: "AED 12.00"; the peso MX$); the numeral guard refuses a quoted figure written in another currency ("$12" for AED 12), unless the customer wrote it themselves, and reads "Rp 150.000" / "R$ 1.250,50" as they say for a quote in rupiah or reais only; "₹500", "Rp 5000" and "150 reais" are never quantities; "high value" sized in each currency's own figures, nothing converted; the stand-in reply no longer says "AED 12.00 AED". Plus a test-timing defect found on the way (below). Pre-pilot 12/12 before and after (no migration) | 91 |
+| 2026-09-30 | #153 | **CUR, part two — one currency per workspace, chosen at sign-up** (0092): `businesses.currency`; a country whose own money is on the list sells in it, any other is asked (only the eight answer); the profile changes it until the first price is set, owner only, the check and the write under one lock; the pasted or photographed price list is read in it (its marks, its notation — "Rp 150.000", "R$ 49,90" — anyone else's money refused; dollars read as before); floors, a product's price (its entry tier now carries the currency — the insert used to leave it to the column's USD), samples and Practice's typed total in it, each box read the currency's way; the paste page's examples in it; the rate page converts the selling currency into the country's own, and only where they differ (it was dollars into ￥ for everyone; no rate is stated in production); the price columns widened for rupiah; the export's floors carry their currency; `provision-factory.mjs` requires `--currency=`. Every workspace made before keeps USD. Pre-pilot 12/12 before and after | 92 |
+| 2026-09-30 | #152 | **CUR, part one — the send path knows every currency** (before any workspace can price in one): `Currency` is USD, CNY, AED, SAR, BRL, MXN, INR, IDR, each with its sign (a code where it has none: "AED 12.00"; the peso MX$); the numeral guard refuses a quoted figure written in another currency ("$12" for AED 12), unless the customer wrote it themselves, and reads "Rp 150.000" / "R$ 1.250,50" as they say for a quote in rupiah or reais only; "₹500", "Rp 5000" and "150 reais" are never quantities; "high value" sized in each currency's own figures, nothing converted; the stand-in reply no longer says "AED 12.00 AED". Plus a test-timing defect found on the way (below). Pre-pilot 12/12 before and after. Merged 15:41 UTC, deployed, `/health` ok (no migration) | 91 |
 | 2026-09-30 | #151 | **TZ — one time zone per workspace, chosen at sign-up** (the owner's decision): a country with one zone gets it, a country with several is asked, a country the table has no zone for is offered every zone (a test draws the form for every country it lists), the profile page changes it; every date and time an owner reads, every "today" (the send ceiling, outreach's cap, Today, insights' months, the calendar, promised dates, the operator's alerts) is the workspace's own — no code outside the country table, the demo and the golden scenarios names Shanghai (a test). The zone is written in the sign-up's own transaction. `provision-factory.mjs` requires `--zone=`. Existing workspaces keep what they have (below). Pre-pilot 12/12 before and after. Merged 15:01 UTC, deployed, `/health` ok (no migration) | 91 |
 | 2026-09-30 | #150 | **Practice P4, part two — the checklist and "your total first"** (0091): what the owner has seen in Practice, from the list for their kind of business (a catalogue, a shop — whose "how much is this?" shows the gap until RT — or none), read from the real turn's rows on the copy and written on the workspace so Start over does not take a tick back; the total the owner expects, typed before the answer and set beside it, the rows also measuring how often the two disagree; an order in Practice tapped through the one order service. Merged 14:27 UTC, deployed, `/health` ok, schema 91 | 91 |
 | 2026-09-30 | #149 | **Practice P4, part one — the card, the reasons, the two switches** (0090): a waiting practice reply is the conversation page's own card (why it waited, where each figure came from, one Send); a hand-off says why and that nothing was sent; the checks strip names the product's unit; "as if sending alone" lifts the owner's level in Practice only (the Spanish gate still holds, and says so); Practice's own Stop. Merged 13:43 UTC, deployed, `/health` ok, schema 90 | 90 |
@@ -57,9 +58,8 @@ under "Decided" below.
    upload), the rehearsal findings' wider inputs, and the checklist feeding a
    "Ready for customers" page (G6) and funnel events (G9), neither built.
 2. **One time zone and one currency per workspace**, chosen during setup.
-   Time zone **done** (#151, deployed). Currency: part one, the send path
-   (#152); part two next — the migration, the choice at sign-up, the owner's
-   forms and the import in the workspace's currency, the rate page.
+   **Done**: time zone (#151) and currency (#152 the send path, #153 the
+   choice, the forms, the import, the rate page; 0092).
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
 
@@ -263,10 +263,25 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 | RET (erase workspaces that never connected, after 90 days) | not a plan decision, but an automatic erasure: confirm before building |
 | **Re-read the Arabic disclosure** (it changed after your sign-off, #118 — both sentences above) and read the French one; find a reader for the Spanish one | not a plan decision: the flags are yours alone |
 | **Move `BACKUP_PING_URL` onto the `backup` service** (it sits on `nomi`, which never reads it) | one minute in Railway |
+| **The currency of the workspaces made before #153** keeps USD (every price they hold is in dollars; the check allowed nothing else). The one from Morocco, and any that sells in another, changes it on its profile page while it has no price yet; Westlake's is fixed by its prices | nothing to do unless a workspace sells in another currency — then CONV (two currencies) or its prices re-entered |
 | **The time zone of the 59 workspaces made before #151.** None was ever asked; every one keeps `Asia/Shanghai`, the old default. 58 have no country on record; one, from Morocco, would be `Africa/Casablanca`. Westlake's (live) decides its send ceiling's day: confirm or change it on its profile page (Setup → Profile → Time zone). I did not change any: a live workspace's day is on the send path | yours: one select per workspace, or say "set each from its country" and I write the backfill |
 | **Erase the old shared practice sandbox** (`5a4d0000-0000-4000-8000-0000000000b1`): nothing reads it since P3, but it still holds the pilot's practice from before — possibly customers' words pasted in through "Try it". After a backup: `tools/erase-workspace.mjs --business 5a4d0000-0000-4000-8000-0000000000b1` (dry run), then with `--confirm "Practice sandbox" --yes` | a permanent deletion: yours to run |
 
 ## Found on the way
+
+- **A test failed every day from 16:00 UTC, since #151** (found 2026-09-30 in
+  #153's run): `buyer-deletion-request.test.ts` rendered the deletion alert
+  with no zone — UTC since TZ — and expected its dates in Shanghai time. The
+  two dates differ only from 16:00 to midnight UTC, so #151 and #152 passed
+  CI earlier in the day. The test now hands the renderer the zone, as the
+  sender does. The whole unit suite and every integration file naming Shanghai
+  were run again at 16:10 UTC: nothing else depends on the hour.
+- **A test put back a USD-only check after 0092** (found in #153's run):
+  `money-currency.test.ts` drops `price_tiers_currency_known` to force an
+  unreadable row, then re-added it as `currency in ('USD')` — every later file
+  met a database that refused dirhams. It now re-adds the definition it found.
+  And `accounts.test.ts` counted businesses named `Copycat` across all runs;
+  the name is per run.
 
 - **A retention test failed the whole suite on time, not on logic** (found
   2026-09-30 in #152's check): `backup-retention.test.ts` runs bash, awk and
@@ -406,6 +421,7 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   `product_aliases` (a migration); K1 (editable names in the import review)
   is where it belongs. If the new name was already one of the product's names,
   the old name's row stays, as a name customers may still use.
+- **The model's own vocabulary about money** (`prompts/response.txt`'s "USD 0.38/pc" example, the stale `product_price_usd` line) is the positioning rewrite's (model instructions, the owner's second item); the writer is given the quote's ISO code with every price, and the guard refuses a figure in another currency (#152).
 - **The time zone does not move the metering day** (#151): the ledger and its
   allowance, and Practice's 50 a day, count on one UTC clock (T7) — a
   workspace's day decides what the owner reads and the send ceiling, not what

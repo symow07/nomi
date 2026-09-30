@@ -1,5 +1,6 @@
 import { BUSINESS_KINDS, TEAM_SIZES, CHANNELS_USED, countryOptions } from '../../core/owner/business.js';
 import { zoneChoices, zoneLabel } from '../../core/owner/zones.js';
+import { asksCurrency, currencyLabel, CURRENCY_CHOICES } from '../../core/owner/currencies.js';
 import { type Locale, dirOf, LOCALES, LOCALE_LABEL } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, assistantsAreSeveral, setupState, businessName, needsYouCount, tn } from './say.js';
@@ -1693,10 +1694,11 @@ export type SignupPageInput = {
     readonly factory?: string; readonly name?: string; readonly email?: string; readonly invite?: string;
     readonly kind?: string; readonly sells?: string; readonly country?: string; readonly website?: string;
     readonly teamSize?: string; readonly channels?: readonly string[]; readonly zone?: string;
+    readonly currency?: string;
   };
   /** Sentences, already chosen by the route: one per field, plus one for the whole form. */
   readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
-    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone', string>>;
+    | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency', string>>;
   readonly error?: string | null;
 };
 
@@ -1744,6 +1746,12 @@ export function signupPage(input: SignupPageInput): string {
       <select id="su-zone" name="zone" required>${pick}${zoneChoices(v.country).map((z) =>
         option(z, zoneLabel(locale, z), v.zone)).join('')}</select>
       ${fieldErr('zone')}` : ''}
+      ${/* CUR — asked only where the country's own money is not on the list; a country whose is sells in it. */
+        asksCurrency(v.country) ? `
+      <label for="su-currency">${esc(t(locale, 'signup.currency'))}</label>
+      <select id="su-currency" name="currency" required>${pick}${CURRENCY_CHOICES.map((c) =>
+        option(c, currencyLabel(locale, c), v.currency)).join('')}</select>
+      ${fieldErr('currency')}` : ''}
       <label for="su-website">${esc(t(locale, 'signup.website'))}</label>
       <input id="su-website" type="text" name="website" value="${esc(v.website ?? '')}" maxlength="200"
         inputmode="url" autocapitalize="none" spellcheck="false" autocomplete="url" placeholder="yourbusiness.com" />

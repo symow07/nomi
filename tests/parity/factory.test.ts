@@ -48,7 +48,7 @@ const complete: FactoryView = {
   readiness: { canActivate: true, blockers: [], lifecycle: 'ready', live: false, activatedAt: null, activatedBy: null,
     recipients: [{ phone: '971500001111', label: 'my phone' }, { phone: '971500002222', label: null }] },
   rehearsal: { findings: [], violations: [], probesRun: 26, productsChecked: 12, productsTotal: 12 },
-  prices: { businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 },
+  prices: { currency: 'USD', businessDefault: { floor: usd(0.35), maxDiscountPct: 10, askAbovePct: 7 },
     products: [], unanswered: 0, volume: [] },
 };
 
@@ -67,7 +67,7 @@ const fresh: FactoryView = {
   // Nothing to rehearse on day one — no products means no probes, so the whole
   // block is absent rather than reporting an empty success.
   rehearsal: { findings: [], violations: [], probesRun: 0, productsChecked: 0, productsTotal: 0 },
-  prices: { businessDefault: null, products: [], unanswered: 0, volume: [] },
+  prices: { businessDefault: null, products: [], unanswered: 0, volume: [], currency: 'USD' },
 };
 
 describe('Phase E · My factory answers the owner’s four questions', () => {

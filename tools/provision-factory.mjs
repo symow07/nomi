@@ -2,12 +2,17 @@
 /**
  * M23 — provision ONE factory tenant.
  *
- *   MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" [zh] --zone=Asia/Shanghai
+ *   MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory Co., Ltd" [zh] --zone=Asia/Shanghai --currency=CNY
  *
  * TZ (2026-09-30) — the workspace's time zone is REQUIRED: every "today", every
  * time the owner reads and the daily send ceiling are in it. It used to be
  * Shanghai for every tenant, a leftover of the export positioning. The owner
  * can change it later on the profile page.
+ *
+ * CUR (2026-09-30) — and its ONE currency, just as required: every price the
+ * owner sets and every figure a customer is quoted is in it, and nothing
+ * converts. It was USD for every tenant. The owner can change it on the
+ * profile page until the first price is set.
  *
  * WHAT THIS IS. A transcription-error remover. The procedure it replaces was
  * hand-written SQL with a hand-generated UUID that then had to be copied
@@ -41,7 +46,10 @@ const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const name = positional[0];
 const language = positional[1] ?? 'en';
 const zone = (process.argv.slice(2).find((a) => a.startsWith('--zone=')) ?? '').slice('--zone='.length);
-const USAGE = 'usage: MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory name" [en|zh|ar] --zone=<IANA zone, e.g. Europe/London>';
+const currency = (process.argv.slice(2).find((a) => a.startsWith('--currency=')) ?? '').slice('--currency='.length).toUpperCase();
+/** Must match CURRENCIES in src/core/types/money.ts (and 0092's check). */
+const CURRENCIES = ['USD', 'CNY', 'AED', 'SAR', 'BRL', 'MXN', 'INR', 'IDR'];
+const USAGE = 'usage: MIGRATE_DATABASE_URL=<admin url> node tools/provision-factory.mjs "Factory name" [en|zh|ar] --zone=<IANA zone, e.g. Europe/London> --currency=<USD|CNY|AED|SAR|BRL|MXN|INR|IDR>';
 
 const die = (msg) => { console.error(`\n  ${msg}\n`); process.exit(1); };
 
@@ -61,6 +69,11 @@ const isZone = (z) => {
   if (!/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(z)) return false;
   try { new Intl.DateTimeFormat('en-US', { timeZone: z }); return true; } catch { return false; }
 };
+if (!CURRENCIES.includes(currency)) {
+  die(`The business's currency is required, one of ${CURRENCIES.join(', ')} (got "${currency}").\n` +
+      '  Every price is in it and nothing converts; the owner can change it until the first price is set.\n' +
+      `  ${USAGE}`);
+}
 if (!isZone(zone)) {
   die(`The business's time zone is required, as an IANA name (got "${zone}").\n` +
       '  Every "today" and every time the owner reads is in it; the owner can change it later.\n' +
@@ -84,9 +97,9 @@ try {
   if (clash.rowCount > 0) die(`Refusing: ${id} already exists (${clash.rows[0].name}).`);
 
   await client.query(
-    `insert into businesses (id, name, timezone, default_language, engine)
-     values ($1, $2, $3, $4, 'service')`,
-    [id, name.trim(), zone, language],
+    `insert into businesses (id, name, timezone, currency, default_language, engine)
+     values ($1, $2, $3, $4, $5, 'service')`,
+    [id, name.trim(), zone, currency, language],
   );
 
   // No channels row on purpose: "not connected" is the ABSENCE of a connected

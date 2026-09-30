@@ -107,6 +107,7 @@ const listItem = (over: Partial<ProductListItem> = {}): ProductListItem => ({
   ...over,
 } as ProductListItem);
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
+  currency: 'USD',
   id: 'p1', name: 'Rose face serum', nameZh: null, sku: 'RS-50', category: null, unit: 'pcs', moq: null,
   leadTimeDays: null, customizable: false, learned: true, status: 'learned', imageMatchable: false, isActive: true,
   tiers: [{ minQty: 1, maxQty: null, unitPrice: usd(34.9) }], aliases: [], images: [], recentQuotes: [],
@@ -141,7 +142,7 @@ describe('0081 · every page says "no minimum" where the minimum would go — in
     });
 
     it(`${locale} · the import review, for a line that states none`, () => {
-      const v = validateExtracted(parsePriceLines('Rose face serum 50 ml $34.90'));
+      const v = validateExtracted(parsePriceLines('Rose face serum 50 ml $34.90', 'USD'));
       const html = renderReview(v, 'Rose face serum 50 ml $34.90', locale);
       expect(html).toContain(said);
       neverSays(html, 'review');

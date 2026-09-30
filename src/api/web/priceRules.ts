@@ -1,5 +1,6 @@
+import { currencyOf } from '../../db/currency.js';
 import { sql } from 'kysely';
-import { type Money, moneyFromRow } from '../../core/types/money.js';
+import { type Money, type Currency, moneyFromRow } from '../../core/types/money.js';
 import type { Db } from '../../db/client.js';
 import { withTenantTx } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -60,6 +61,8 @@ export type PriceRulesView = {
    * what her employee may do. These are the rows that make it reachable.
    */
   readonly volume: readonly VolumeDiscount[];
+  /** CUR — the workspace's one currency: the floors are in it, and its code is on the box. */
+  readonly currency: Currency;
 };
 
 /** "From 10,000 pieces, 8% off" — one row of `negotiation_rules`, in her words. */
@@ -85,7 +88,7 @@ const toRules = (
 };
 
 export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<PriceRulesView> {
-  const empty: PriceRulesView = { businessDefault: null, products: [], unanswered: 0, volume: [] };
+  const empty: PriceRulesView = { businessDefault: null, products: [], unanswered: 0, volume: [], currency: 'USD' };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
 
@@ -176,6 +179,7 @@ export async function loadPriceRules(db: Db, businessIdRaw: string): Promise<Pri
       // to fall back on. This is a real count of rows, not a score.
       unanswered: products.filter((p) => p.listPrice !== null && p.own === null && !p.inheritsDefault).length,
       volume,
+      currency: await currencyOf(tx, bid.value),
     };
   });
 }
@@ -225,6 +229,8 @@ export async function savePriceRules(
     const v = validatePriceRules({
       floor: input.floor, maxDiscountPct: input.maxDiscountPct, askAbovePct: input.askAbovePct,
       ...(input.productId ? { listPrice } : {}),
+      // CUR — the floor is in the workspace's currency, read its way.
+      currency: await currencyOf(tx, bid.value),
     });
     if (!v.ok) return v;
 
@@ -423,7 +429,7 @@ export function renderPriceRules(
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
       <h3 class="sub3">${esc(title)}</h3>
       <p class="fdesc">${esc(sub)}</p>
-      <label class="pq"><span>${esc(t(locale, 'prices.q.floor', { name }))}</span>
+      <label class="pq"><span>${esc(t(locale, 'prices.q.floor', { name, currency: v.currency }))}</span>
         <input name="floor" inputmode="decimal" required
                value="${current ? esc(String(current.floor.amount)) : ''}" />${err('floor')}</label>
       <label class="pq"><span>${esc(t(locale, 'prices.q.maxDiscount', { name }))}</span>

@@ -26,7 +26,7 @@ const CUP = entry({ id: 'p-cup', sku: 'ZX-220', name: 'Vacuum cup', price: 2.6, 
 const MUG = entry({ id: 'p-mug', sku: 'NEW-k1-0', name: 'Enamel mug', nameZh: '搪瓷杯', price: 3, moq: 200 });
 const CATALOGUE = [TOTE, CUP, MUG];
 
-const lines = (text: string) => reviewImport(text).accepted;
+const lines = (text: string) => reviewImport(text, 'USD').accepted;
 
 describe('G16 · which pile each line goes in', () => {
   it('THE DONE-WHEN: one changed price is one change, and the rest are shown as agreeing', () => {
@@ -106,7 +106,7 @@ describe('G16 · which pile each line goes in', () => {
 
 describe('G16 · the review shows the change, and lets her leave it out', () => {
   const text = 'ZX-100 Canvas tote $0.98 MOQ 500\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00';
-  const v = reviewImport(text);
+  const v = reviewImport(text, 'USD');
   const d = diffAgainstCatalogue(v.accepted, CATALOGUE);
 
   it('the changed product is a tick of its own, on by default, inside the confirm form', () => {
@@ -128,14 +128,14 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
 
   it('a page that changes nothing offers nothing to confirm — and says so', () => {
     const same = 'ZX-220 Vacuum cup $2.60 MOQ 1000';
-    const html = renderReview(reviewImport(same), same, 'en', diffAgainstCatalogue(reviewImport(same).accepted, CATALOGUE));
+    const html = renderReview(reviewImport(same, 'USD'), same, 'en', diffAgainstCatalogue(reviewImport(same, 'USD').accepted, CATALOGUE));
     expect(html).not.toContain('<form');
     expect(html).toContain(esc(t('en', 'product.review.nothingToChange')));
   });
 
   it('with only changes, the button says what it does', () => {
     const only = 'ZX-100 Canvas tote $0.98';
-    const html = renderReview(reviewImport(only), only, 'en', diffAgainstCatalogue(reviewImport(only).accepted, CATALOGUE));
+    const html = renderReview(reviewImport(only, 'USD'), only, 'en', diffAgainstCatalogue(reviewImport(only, 'USD').accepted, CATALOGUE));
     expect(html).toContain(esc(t('en', 'product.review.confirmChanges')));
     expect(html).not.toContain(esc(t('en', 'product.review.confirm')));
   });
@@ -143,7 +143,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
   it('a held line says why, and links to the product when there is one', () => {
     const floored = [{ ...TOTE, floor: 1 }];
     const low = 'ZX-100 Canvas tote $0.90';
-    const html = renderReview(reviewImport(low), low, 'en', diffAgainstCatalogue(reviewImport(low).accepted, floored));
+    const html = renderReview(reviewImport(low, 'USD'), low, 'en', diffAgainstCatalogue(reviewImport(low, 'USD').accepted, floored));
     expect(html).toContain(esc(t('en', 'product.review.held.below_floor')));
     expect(html).toContain('href="/app/products/p-tote"');
     // her floor is a number a buyer must never learn; the review names the rule, not the number
@@ -153,7 +153,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
   it('every pile renders in every locale, with no key left showing', () => {
     const twin = entry({ id: 'p-tote-2', sku: 'ZX-101', name: 'Canvas tote', price: 1.2 });
     const all = 'ZX-100 Canvas tote $0.98\nZX-220 Vacuum cup $2.60 MOQ 1000\nZX-777 Straw hat $4.00\nCanvas tote $0.90';
-    const vv = reviewImport(all);
+    const vv = reviewImport(all, 'USD');
     const dd = diffAgainstCatalogue(vv.accepted, [TOTE, CUP, twin]);
     for (const locale of LOCALES) {
       const html = renderReview(vv, all, locale, dd);
@@ -166,7 +166,7 @@ describe('G16 · the review shows the change, and lets her leave it out', () => 
 describe('G16 · every line the page had is accounted for', () => {
   it('rejected lines past the first eight are counted, not cut', () => {
     // The same line twelve times: one product, eleven rejected as repeats.
-    const v = reviewImport(Array.from({ length: 12 }, () => 'Straw hat $4.00').join('\n'));
+    const v = reviewImport(Array.from({ length: 12 }, () => 'Straw hat $4.00').join('\n'), 'USD');
     expect(v.rejected).toHaveLength(11);
     const html = renderReview(v, '', 'en');
     const block = html.slice(html.indexOf(esc(t('en', 'product.review.rejectedTitle'))));
