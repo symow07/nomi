@@ -121,6 +121,100 @@ the one step I may not take.
   their order (follow-up first, then price end, then delivery); all three
   ship together because one reader serves them.
 
+## The owner's questions of 2026-09-30, answered
+
+### 1 · Why nothing sends alone, Westlake's auto included: a side effect
+
+**What closed it:** #124 (commit `8bf0b53`, merged as `2c548eb`, 2026-09-29),
+`src/core/conversation/disclosure.ts`:
+
+    -export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar'] as const;
+    +export const DISCLOSURE_LOCALES = ['en', 'zh', 'ar', 'es', 'fr'] as const;
+    +  es: false,
+    +  fr: false,
+
+The gate is one answer for the whole installation,
+`export const autonomyReleased = (): boolean => disclosureAwaitingReview().length === 0;`
+(line 105). With two locales unread, it went false for every workspace.
+
+**Where it binds:**
+- The send decision in `commitTurn` (`src/pipeline/turn.ts`,
+  `const released = !speaksAlone || tenant.autonomy.released();`). An auto
+  reply becomes a draft and `autonomy_withheld: disclosure_not_reviewed` is
+  recorded.
+- The owner's routes that set a capability to auto (`src/api/web/app.ts`,
+  "promote" and the level form). They refuse.
+
+**Intended, or a side effect: a side effect.** The installation-wide rule is
+from 2026-09-22 (`84f8247`). Its comment says a locale added later "closes the
+gate again until it too has been read". The instruction for #124 was only that
+the es/fr flags stay false. Nobody decided to stop Westlake. I wrote the
+consequence into this file at the time and did not ask. That was the mistake.
+
+**Effect so far: none in practice.**
+- Westlake's six capabilities are still `auto` (set 2026-09-19).
+- No `autonomy_withheld` event has been recorded for it.
+- It received no customer message in the last 7 days.
+
+**Restored:** see the PR row "the disclosure gate, per language". The gate is
+now per language, as the owner decided today: a language becomes
+auto-capable only when a native reader has signed its disclosure off.
+- A reply goes out alone only when the customer's language has a signed-off
+  disclosure: en, zh and ar today.
+- es and fr, and every language outside the five, stay drafts. The owner's
+  page says why.
+
+### 2 · The Chinese flag: my report was wrong about Chinese, and the Arabic sentence changed after sign-off
+
+**zh:** `true` since #117 (commit `5aac46b`, merged as `9accd6a`, 2026-09-28).
+It has not changed since, and the sentence is character for character the one
+the owner signed off. My final report said every language except English
+waits for a reader. That was wrong: only es and fr are false.
+
+**ar:** `true` since #117. But #118 (commit `49acc93`, merged as `4f99be5`, the
+same day) rewrote its second clause after the sign-off, so as to address
+nobody in a gender (rule 6), and left the flag true. The owner has not read the
+sentence the product now sends:
+
+| | Arabic disclosure |
+|---|---|
+| Signed off in #117 | مرحبًا، أنا {name}، مساعد آلي لدى {business}. إذا أردت التحدث مع شخص من فريقنا فأخبرني، وسيرد عليك في أقرب وقت. |
+| Sent since #118 | مرحبًا، أنا {name}، مساعد آلي لدى {business}. للتحدث مع شخص من فريقنا يكفي طلب ذلك، ويصل الرد في أقرب وقت ممكن. |
+
+The code's comment calls both Arabic changes the owner's; only «مساعد آلي»
+was. The flag is untouched, because no assistant sets these. The owner re-reads
+the second line and either keeps `ar: true` or sets it false himself.
+
+**es and fr:** `false`. The owner reads fr and ar himself; es needs an outside
+native reader.
+
+### 3 · The same pattern elsewhere: checked, one more found
+
+**Found: the backup job pings nothing.** `BACKUP_PING_URL` is set on the
+`nomi` service, which never reads it. The backup cron reads it from its own
+service (`backup/run.sh`: `PING="${BACKUP_PING_URL:-}"`), and the `backup`
+service has none. The owner's fix takes a minute: on the `backup` service, add
+`BACKUP_PING_URL`, or the reference `${{nomi.BACKUP_PING_URL}}`. The backups
+themselves run and are recorded (`nomi-backup-20260930T030201Z`, drill passed).
+
+**Verified working: the uptime ping.** `HEALTH_PING_URL` is on `nomi` and in
+use: the deployment booted with "Uptime pings: every five minutes"; 12
+heartbeat jobs completed in the last hour, none failed; and there is no
+failed-ping line in the log (the heartbeat logs every ping that is not
+delivered or not answered 2xx).
+
+**Also caused by 1, restored with it:** the owner's autonomy page refused
+"promote" and the auto level while the gate was closed.
+
+**Checked, and still as it was opened:**
+- Westlake still has the outreach area on, its assistant's name confirmed
+  (2026-09-28) and WhatsApp activated; no Stop and no ops flag.
+- Westlake is still the pilot workspace: since #129, the only one that may use
+  Practice.
+- The access code still signs in (#140 put it behind a small door).
+- The daily send ceiling that #136 gave existing workspaces is 200, far above
+  Westlake's traffic.
+
 ## Waiting on the owner (the plan's open decisions)
 
 These items cannot be built without a decision the plan left open and the
@@ -168,8 +262,7 @@ instruction did not answer. Collected here; asked once, at the end.
   this machine's resolver invents (2406:cb42:…); public DNS publishes no
   IPv6 address for the domain (a CNAME to Railway, which has none). Over
   IPv4 `/health` answered throughout; no row in `app_errors`. Health checks
-  from here use `curl -4`. Still true: with `HEALTH_PING_URL` unset, nothing
-  outside Railway would notice a real outage (the owner's item, CLAUDE.md §4).
+  from here use `curl -4`.
 - **Railway made no deployment for one merge** (2026-09-29): #133 and #134
   merged at 18:00 UTC with CI green, and the `nomi` service got no deployment
   for `e56da0b` at all (the `backup` service did — skipped by its watch

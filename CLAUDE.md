@@ -152,9 +152,10 @@ footer.
   production `schema_version` = **79**; no business is stopped and no silence flag is on; exactly one business has `outreach_area` on (59 businesses). Backup before 0078 and 0079:
   `nomi-backup-20260928T030213Z` (drill passed; PITR on).
   `TRANSCRIBE_API_KEY` is unset in production — if it is ever set, the privacy
-  page must name that processor too. **`HEALTH_PING_URL` is unset** — the app
-  says so at boot; until the owner pastes a Healthchecks.io URL
-  (`docs/MONITORING.md`), nothing outside Railway notices if the app stops.
+  page must name that processor too. **`HEALTH_PING_URL` is set** (the owner,
+  by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
+  is on the `nomi` service, which never reads it; the `backup` service needs it
+  (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
 - **Schema:** 85. Last three: `0083 promised_dates`, `0084 login_recovery`,
   `0085 send_ceiling`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
@@ -164,8 +165,8 @@ footer.
   `backup_runs`. The app alerts the owner by e-mail (and WhatsApp where live)
   when no run completes for 36 h. **PITR is enabled** on Postgres (WAL to a
   Railway bucket; the window starts from the first base backup after
-  enabling). Still the owner's: paste a Healthchecks.io ping URL into the
-  service as `BACKUP_PING_URL`, and do the monthly laptop drill
+  enabling). Still the owner's: move `BACKUP_PING_URL` onto the `backup`
+  service (it sits on `nomi`), and do the monthly laptop drill
   (`tools/fetch-backup.sh` → `tools/verify-restore.sh`).
 - **Backup before this deploy:** `~/nomi-backups/nomi-backup-20260923T035402Z`
   (schema 67; dump 1.5 MB; roles 938 B), encrypted and uploaded to the
