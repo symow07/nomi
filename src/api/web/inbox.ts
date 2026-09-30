@@ -557,6 +557,12 @@ export type ConversationDetail = {
      * says so, and the approval path refuses to send this wording unchanged.
      */
     disclosureSent?: boolean;
+    /**
+     * 2026-09-30 — it would have gone alone, but the customer's language has
+     * no signed-off sentence saying who is answering: unread (es, fr) or none
+     * at all. The card names the language and why.
+     */
+    withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; readonly language: string } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
   } | null;
@@ -882,6 +888,7 @@ export async function loadConversationDetail(
             contradicts: contradictionOf(draft.pending?.['contradicts']),
             forbidden: stringsOf(draft.pending?.['forbidden']),
             disclosureSent: draft.pending?.['disclosureSent'] === true,
+            withheld: withheldOf(draft.pending?.['withheld']),
             ownerEdit: draft.owner_edit }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
@@ -967,6 +974,14 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
   }
   if (c.awaitingReview) return t(locale, 'buyers.badge.review', { name: c.answeredBy ?? assistantName(locale) });
   return t(locale, 'buyers.badge.yours');
+}
+
+/** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; language: string } | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const { reason, language } = v as { reason?: unknown; language?: unknown };
+  if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure') || typeof language !== 'string') return null;
+  return { reason, language: language.slice(0, 8) };
 }
 
 /**
@@ -1539,6 +1554,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
+    p.withheld ? waits(t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })) : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');
@@ -1636,7 +1652,7 @@ function approvalCard(d: ConversationDetail, locale: Locale, now: Date): string 
 }
 
 /** A language's name in the owner's language ("English", "英语", "الإنجليزية"); the code if unknown. */
-function languageName(locale: Locale, code: string): string {
+export function languageName(locale: Locale, code: string): string {
   try {
     return new Intl.DisplayNames([locale], { type: 'language' }).of(code) ?? code;
   } catch {

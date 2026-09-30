@@ -5,11 +5,12 @@ import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spo
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
 import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.js';
-import { autonomyReleased } from '../../core/conversation/disclosure.js';
+import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, assistantName, practiceShown } from './say.js';
-import { labelled } from '../../core/owner/i18n/format.js';
+import { languageName } from './inbox.js';
+import { labelled, formatList } from '../../core/owner/i18n/format.js';
 import { esc, deeper } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { OWNER_VIEW, type Viewer } from '../../core/conversation/people.js';
@@ -322,6 +323,11 @@ export function renderEmployee(
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
       </form>
       ${autonomyReleased() ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
+      ${/* 2026-09-30 — per language: which customers get replies sent alone, and which always wait. */ ''}${
+        autonomyReleased() && disclosureAwaitingReview().length ? `<p class="muted small">${esc(t(locale, 'autonomy.languages', {
+          ready: formatList(locale, disclosureReviewed().map((l) => languageName(locale, l))),
+          waiting: formatList(locale, disclosureAwaitingReview().map((l) => languageName(locale, l))),
+        }))}</p>` : ''}
       ${e.assistantNamed ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.needsName'))}
         <a href="/app/onboarding">${esc(t(locale, 'pilot.open'))}</a></p>`}
     </div>`;

@@ -118,12 +118,12 @@ export interface AutonomyRepo {
    */
   assistantNamed(): Promise<boolean>;
   /**
-   * Has the AI disclosure been read by a native speaker in every language it
-   * is written in? Installation-wide, not per business — see
-   * DISCLOSURE_NATIVE_REVIEW. False means nothing is sent alone ANYWHERE,
-   * including by capabilities that were switched on before the rule existed.
+   * May a reply to a customer writing in this language go out alone? Only
+   * when that language's disclosure has been read by a native speaker — see
+   * DISCLOSURE_NATIVE_REVIEW (per language since 2026-09-30). False binds
+   * capabilities switched on before the rule existed too: the reply drafts.
    */
-  released(): boolean;
+  released(language: string | null | undefined): boolean;
 }
 
 /**

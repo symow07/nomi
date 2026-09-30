@@ -76,6 +76,20 @@ describe('the card, drawn', () => {
   };
   const card = (html: string) => html.slice(html.indexOf('id="approve"'), html.indexOf('</section>', html.indexOf('id="approve"')));
 
+  it('2026-09-30 · a reply held for its language says which language, and why — in the owner\'s own words', () => {
+    const held = (reason: 'disclosure_not_reviewed' | 'language_without_disclosure', language: string) =>
+      ({ ...base, pendingDraft: { ...base.pendingDraft!, withheld: { reason, language } } });
+    const es = withoutIsolates(card(renderConversationDetail(held('disclosure_not_reviewed', 'es'), 'en', NOW, null)));
+    expect(es).toContain('<b>Waiting for you</b>');
+    expect(es).toContain('does not send alone to customers writing in Spanish yet');
+    const pt = withoutIsolates(card(renderConversationDetail(held('language_without_disclosure', 'pt'), 'zh', NOW, null)));
+    expect(pt).toContain('目前没有葡萄牙语版的身份说明');
+    const ar = withoutIsolates(card(renderConversationDetail(held('disclosure_not_reviewed', 'fr'), 'ar', NOW, null)));
+    expect(ar).toContain('لا تُرسَل الردود باللغة الفرنسية دون موافقتك بعد');
+    // a draft that waited only because its capability is in draft says nothing of the kind
+    expect(card(renderConversationDetail(base, 'en', NOW, null))).not.toContain('writing in');
+  });
+
   it('who asked, where and when; what was understood; how it was read, closed; the reply once; one Send', () => {
     const html = withoutIsolates(renderConversationDetail(base, 'en', NOW, null));
     const c = card(html);

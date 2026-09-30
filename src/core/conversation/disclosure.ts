@@ -69,16 +69,24 @@ const isDisclosureLocale = (v: string): v is DisclosureLocale =>
  * merely close is not good enough for it, and "we will check later" is how a
  * placeholder ships.
  *
- * So it is a gate, not a note. While any of these is false, no capability can
- * be turned on — `autonomyReleased()` below is what the owner's page and the
- * route that saves her choice both ask, and it is deliberately a single answer
- * for the whole product rather than per workspace: the text does not become
- * correct for one business and wrong for another.
+ * So it is a gate, not a note — and, since 2026-09-30, a gate PER LANGUAGE
+ * (the owner: "a language becomes auto-capable only when a native reader has
+ * signed its disclosure off"). A reply goes out alone only to a customer whose
+ * language has a signed-off sentence here; in any other language — one of
+ * these still unread, or one with no sentence at all — every reply waits for
+ * the owner, and the draft says why (`autonomyReleasedFor`). The same for
+ * every workspace: the text does not become correct for one business and
+ * wrong for another.
  *
- * LIFTED 2026-09-28: the owner read the `zh` and `ar` strings above, changed
- * one phrase in the Arabic, and the flags were set in the same commit. A
- * locale added to DISCLOSURE_LOCALES later starts false and closes the gate
- * again until it too has been read.
+ * Until 2026-09-30 it was ONE answer for the whole product: adding es and fr
+ * unread (#124) stopped every workspace sending alone, Westlake's included,
+ * which nobody had decided (docs/PROGRESS.md, "The owner's questions").
+ *
+ * LIFTED for zh and ar 2026-09-28: the owner read the `zh` and `ar` strings
+ * above, changed one phrase in the Arabic, and the flags were set in the same
+ * commit. The Arabic's second clause was rewritten the same day (#118) and the
+ * owner has not read that version — PROGRESS quotes both for him. A locale
+ * added to DISCLOSURE_LOCALES later starts false: its customers get drafts.
  */
 export const DISCLOSURE_NATIVE_REVIEW: Readonly<Record<DisclosureLocale, boolean>> = {
   en: true,
@@ -96,13 +104,35 @@ export const disclosureAwaitingReview = (): readonly DisclosureLocale[] =>
   DISCLOSURE_LOCALES.filter((l) => !DISCLOSURE_NATIVE_REVIEW[l]);
 
 /**
- * May ANY capability be set to auto anywhere in this installation?
- *
- * False while a disclosure locale is unreviewed. A buyer does not choose which
- * language the product was checked in, and a workspace that only ever writes
- * English today can take an Arabic message tomorrow.
+ * Where a customer's language stands, for sending alone:
+ *   · `reviewed`   — one of the five, and read by a native speaker: may go alone;
+ *   · `unreviewed` — one of the five, not read yet (es, fr today): drafts;
+ *   · `unwritten`  — none of the five: there is no sentence to say, and one is
+ *     never machine-translated for the occasion — that would defeat the
+ *     reading. Drafts, always, until a reviewed sentence is added here.
+ * No language detected reads as English, as the sentence itself falls back.
  */
-export const autonomyReleased = (): boolean => disclosureAwaitingReview().length === 0;
+export type DisclosureStanding = 'reviewed' | 'unreviewed' | 'unwritten';
+export function disclosureStanding(detected: string | null | undefined): DisclosureStanding {
+  const head = (detected ?? '').slice(0, 2).toLowerCase() || 'en';
+  if (!isDisclosureLocale(head)) return 'unwritten';
+  return DISCLOSURE_NATIVE_REVIEW[head] ? 'reviewed' : 'unreviewed';
+}
+
+/** May a reply to a customer writing in this language go out alone? */
+export const autonomyReleasedFor = (detected: string | null | undefined): boolean =>
+  disclosureStanding(detected) === 'reviewed';
+
+/**
+ * May a capability be SET to auto at all? While any language's sentence is
+ * signed off (English always is): what it may then do is decided per reply,
+ * by the customer's language, above.
+ */
+export const autonomyReleased = (): boolean => DISCLOSURE_LOCALES.some((l) => DISCLOSURE_NATIVE_REVIEW[l]);
+
+/** The languages whose customers get replies sent alone, in order. */
+export const disclosureReviewed = (): readonly DisclosureLocale[] =>
+  DISCLOSURE_LOCALES.filter((l) => DISCLOSURE_NATIVE_REVIEW[l]);
 
 /**
  * The buyer's language, from the conversation's detected language, falling

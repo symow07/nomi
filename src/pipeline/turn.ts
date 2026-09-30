@@ -23,7 +23,13 @@ import { guardClaims } from '../core/safety/claims.js';
 import { guardForbidden } from '../core/safety/forbiddenWords.js';
 import { guardIdentity, type IdentityViolation } from '../core/safety/identity.js';
 import { promisesDeletion } from '../core/safety/deletion.js';
-import { disclosureFor, withDisclosure } from '../core/conversation/disclosure.js';
+import { disclosureFor, withDisclosure, disclosureStanding } from '../core/conversation/disclosure.js';
+
+/** Why a reply that would have gone alone waits: its language's sentence is unread, or does not exist. */
+const withheldBecause = (language: string | null | undefined): 'disclosure_not_reviewed' | 'language_without_disclosure' =>
+  disclosureStanding(language) === 'unwritten' ? 'language_without_disclosure' : 'disclosure_not_reviewed';
+/** The two letters a language is known by here ("pt-BR" → "pt"); English when none was read. */
+const languageHead = (language: string | null | undefined): string => (language ?? '').slice(0, 2).toLowerCase() || 'en';
 import { ANSWER_KINDS, type KnowledgeSnippet } from '../core/types/knowledge.js';
 import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
@@ -1069,8 +1075,11 @@ export async function commitTurn(
     const speaksAlone = policyMode === 'auto';
     // The native-review gate, at the one place that decides whether a
     // message goes out alone — so it binds capabilities switched on BEFORE
-    // the rule existed, not only new choices made on the owner's page.
-    const released = !speaksAlone || tenant.autonomy.released();
+    // the rule existed, not only new choices made on the owner's page. Per
+    // language (2026-09-30): the customer's, read the way the sentence itself
+    // is chosen. One whose sentence is unread, or that has none, drafts.
+    const language = r.analysis?.language.detected ?? r.newState.preferredLanguage;
+    const released = !speaksAlone || tenant.autonomy.released(language);
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
     const mayDisclose = !speaksAlone || (released && named && sentence !== null);
@@ -1084,7 +1093,8 @@ export async function commitTurn(
       // owner set it is the kind of thing she should be able to find.
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
-        reason: !released ? 'disclosure_not_reviewed' : named ? 'no_assistant_name' : 'assistant_not_named',
+        reason: !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
+        ...(!released ? { language: languageHead(language) } : {}),
       });
     }
 
@@ -1188,6 +1198,9 @@ export async function commitTurn(
         ...(r.identityViolation
           ? { identity: { kind: r.identityViolation.kind, phrase: r.identityViolation.phrase } } : {}),
         ...(disclosureInstead ? { disclosureSent: true } : {}),
+        // 2026-09-30 — it would have gone alone, but the customer's language
+        // has no signed-off sentence saying who is answering: the card says so.
+        ...(speaksAlone && !released ? { withheld: { reason: withheldBecause(language), language: languageHead(language) } } : {}),
       });
 
       /*

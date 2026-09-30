@@ -256,6 +256,8 @@ export class FakeTenant implements Tenant {
   assistantNamedFlag = true;
   /** The native-review gate (DISCLOSURE_NATIVE_REVIEW). A test about it sets false. */
   releasedFlag = true;
+  /** Per language, when a test needs it (the real gate is per language since 2026-09-30). */
+  releasedFor: ((language?: string | null) => boolean) | null = null;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -265,7 +267,7 @@ export class FakeTenant implements Tenant {
     assistantNamed: async () => this.assistantNamedFlag,
     // Released by default: these fakes describe what she does once autonomy is
     // allowed at all. The gate itself is proved against the real flag.
-    released: () => this.releasedFlag,
+    released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do
