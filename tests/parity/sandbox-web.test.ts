@@ -363,10 +363,10 @@ describe('M20.4 · F-04 · scripted practice needs no tenant, and says what it p
   it('states what it proves AND what it does not', async () => {
     const { runScriptedPractice, renderPractice } = await import('../../src/api/web/sandbox.js');
     const html = renderPractice(await runScriptedPractice(), 'en');
-    expect(html).toContain('will not quote below your floor');
+    expect(html).toContain('will not give a price below your floor');
     expect(html).toContain('will not claim a certification you have not confirmed');
     expect(html).toContain('What it does not prove');
-    expect(html).toContain('whether WhatsApp delivers it');
+    expect(html).toContain('whether your channel delivers it');
   });
 
   it('shows a real count, never a score or a percentage', async () => {

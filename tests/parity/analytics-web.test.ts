@@ -41,7 +41,7 @@ describe('M9.8 · business review (localized)', () => {
     const html = renderAnalytics(active, 'en');
     expect(html).toContain('Results');
     expect(html).toContain('New customers'); expect(html).toContain('Activity');
-    expect(html).toContain('Customer inquiries'); expect(html).toContain(t('en', 'analytics.section.employee'));
+    expect(html).toContain('Customer messages'); expect(html).toContain(t('en', 'analytics.section.employee'));
     expect(html).toContain('Inquiries handled');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
@@ -55,11 +55,11 @@ describe('M9.8 · business review (localized)', () => {
 
   it('real order value only when orders exist — localized status + note', () => {
     expect(renderAnalytics(active, 'en')).toContain('Confirmed 1');
-    expect(renderAnalytics(active, 'en')).toContain('Deal value $4,600');
+    expect(renderAnalytics(active, 'en')).toContain('Sales value $4,600');
     expect(renderAnalytics(active, 'zh')).toContain('已成交 1');
     const noOrders = renderAnalytics({ ...active, commerce: { quotes: 2, orders: 0, deals: [], totals: [] } }, 'en');
-    expect(noOrders).not.toContain('Deal value');
-    expect(noOrders).toContain('No deals yet.');
+    expect(noOrders).not.toContain('Sales value');
+    expect(noOrders).toContain('No sales yet.');
   });
 
   it('empty range: honest data-collecting state per locale, no fake chart', () => {

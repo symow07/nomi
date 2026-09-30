@@ -43,7 +43,7 @@ export const DEMO_SPOT_CHECKS = [
   { id: sid(2), capability: 'greet', verdict: 'correct' as const, correction: null, daysAgo: 4 },
   { id: sid(3), capability: 'greet', verdict: 'correct' as const, correction: null, daysAgo: 2 },
   { id: sid(4), capability: 'quote', verdict: 'needs_improvement' as const,
-    correction: '付款条件要写 TT 30% 定金，不能只写 TT', daysAgo: 3 },
+    correction: '要写上免费退货期限', daysAgo: 3 },
 ];
 
 /** Buyer-specific preference remembered (only for Ahmed). */

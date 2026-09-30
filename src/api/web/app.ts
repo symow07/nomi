@@ -2760,7 +2760,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const day = (d: Date) => d.toISOString().slice(0, 10);
       void deps.systemMail.send({
         to: deps.legalContact,
-        subject: `Buyer deletion requested · ${s.businessId}`,
+        subject: `Customer deletion requested · ${s.businessId}`,
         text: `A business recorded a buyer's request to have their data deleted.\n\n`
           + `workspace: ${s.businessId}\nrequest: ${r.requestId}\nrecorded by: ${personOf(s).id}\n`
           + (r.fromChat ? `asked in a message on: ${day(r.askedAt)} (noted when it arrived)\n` : '')

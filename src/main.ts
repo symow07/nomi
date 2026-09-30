@@ -216,7 +216,7 @@ export function validateEnv(env: Record<string, string | undefined>):
   }
   // The public legal pages must have a working address on them.
   const legalContact = env['LEGAL_CONTACT_EMAIL'];
-  if (!legalContact) problems.push('LEGAL_CONTACT_EMAIL: missing (the privacy and data-deletion pages are public and must carry an address a buyer can write to)');
+  if (!legalContact) problems.push('LEGAL_CONTACT_EMAIL: missing (the privacy and data-deletion pages are public and must carry an address a customer can write to)');
   else if (!LEGAL_CONTACT_SHAPE(legalContact)) problems.push('LEGAL_CONTACT_EMAIL: invalid shape (a plain address, e.g. privacy@example.com — no display name, no mailto:)');
 
   // N6a — the model provider: Anthropic's key, or another provider's trio.
