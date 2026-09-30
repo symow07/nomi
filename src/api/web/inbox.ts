@@ -1309,10 +1309,14 @@ function headerPill(d: ConversationDetail, locale: Locale, viewer: Viewer): stri
  * step into the conversation and answer them in their own words. Both are
  * buttons in forms that post: each changes something.
  */
-function orderCard(d: ConversationDetail, locale: Locale): string {
+/** Where the order card's two forms post: the conversation's own routes, or Practice's (P4). */
+export type OrderTargets = { readonly confirm: string; readonly stepIn: string };
+
+export function orderCard(d: ConversationDetail, locale: Locale, targets?: OrderTargets): string {
   const p = d.orderProposal;
   if (!p) return '';
   const cid = encodeURIComponent(d.conversationId);
+  const to: OrderTargets = targets ?? { confirm: `/app/inbox/${cid}/order/confirm`, stepIn: `/app/inbox/${cid}/order/step-in` };
   const fields: readonly (readonly [MessageKey, string])[] = [
     ['order.field.product', p.productName],
     ['order.field.quantity', show.quantityOf(locale, p.quantity, p.unit)],
@@ -1331,11 +1335,11 @@ function orderCard(d: ConversationDetail, locale: Locale): string {
       <p class="muted">${esc(t(locale, 'order.card.willSend'))}</p>
       <div dir="auto" class="proposed"><bdi>${esc(willSend)}</bdi></div>
       <div class="acts">
-        <form method="post" action="/app/inbox/${cid}/order/confirm" class="inline">
+        <form method="post" action="${esc(to.confirm)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
           <button class="btn send" type="submit">${esc(t(locale, 'order.action.confirm'))}</button>
         </form>
-        <form method="post" action="/app/inbox/${cid}/order/step-in" class="inline">
+        <form method="post" action="${esc(to.stepIn)}" class="inline">
           <input type="hidden" name="proposalId" value="${esc(p.id)}" />
           <button class="btn" type="submit">${esc(t(locale, 'order.action.stepIn'))}</button>
         </form>

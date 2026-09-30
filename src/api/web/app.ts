@@ -127,10 +127,11 @@ import {
 import { loadKnowledgeOps, loadUsageFacts, renderKnowledgeOps, parseRange as parseKnowledgeRange } from './knowledge-insights.js';
 import { renderComponents } from './components.js';
 import {
-  loadPracticeView, renderSandbox, sayInPractice,
+  loadPracticeView, renderSandbox, sayInPractice, parseTotal,
   runScriptedPractice, renderPractice, practiceUrl,
 } from './sandbox.js';
 import { practiceCopyOf, refreshPractice, activePracticeConversation, startPracticeOver, setPractice, practiceSettings, PRACTICE_DAILY_LIMIT } from '../../db/practice.js';
+import { checklistFor, checklistKind, observeChecklist, settleTotals } from '../../db/practiceChecklist.js';
 import { SCENARIOS } from '../../trust/scenarios.js';
 import type { InboundJob } from '../../queue/boss.js';
 import { promoteCapability, revokeCapability, chooseAutonomyLevel } from '../../pipeline/capability.js';
@@ -3902,11 +3903,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const now = new Date();
       const view = await loadPracticeView(deps.db, copy, q.before, now);
       const settings = live.ok ? await practiceSettings(deps.db, live.value, copy) : null;
+      // P4 — the checklist: what the copy shows was seen, written on the workspace; the totals settled.
+      const checklist = live.ok ? {
+        items: checklistFor(await checklistKind(deps.db, live.value)),
+        totals: await settleTotals(deps.db, live.value, copy),
+        seen: await observeChecklist(deps.db, live.value, copy),
+      } : null;
       return reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'nav.sandbox'), active: 'sandbox',
         bodyHtml: `<h1 class="page">${esc(t(locale, 'nav.sandbox'))}</h1>` + renderPractice(practice, locale)
           + (deps.enqueueInbound
-            ? renderSandbox(view, locale, { flash, prefill, now, ...(settings ? { settings } : {}) })
+            ? renderSandbox(view, locale, { flash, prefill, now, ...(settings ? { settings } : {}), ...(checklist ? { checklist } : {}) })
             : `<div class="block"><p class="muted">${esc(t(locale, 'practice.live.unavailable'))}</p></div>`),
         ...(mark ? { live: liveRegion(locale, practiceWatch(mark)) } : {}),
       }));
@@ -3934,10 +3941,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     // CC-25 — every practice action returns through `practiceUrl`: onto its
     // notice under the newest line, the reply to approve under it.
-    const say = async (s: OwnerSession, text: string) => {
+    const say = async (s: OwnerSession, text: string, expected: number | null = null) => {
       const live = liveOf(s);
       if (!live.ok || !deps.enqueueInbound) return 'empty' as const;
-      return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text);
+      return sayInPractice({ db: deps.db, enqueue: deps.enqueueInbound }, live.value, text, expected);
     };
     /** Where a practice message lands: its notice — sent, or why Practice would not take it. */
     const said = (reply: FastifyReply, outcome: Awaited<ReturnType<typeof say>>) =>
@@ -3947,8 +3954,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post('/app/sandbox/message', async (req, reply) => {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
-      const b = (req.body ?? {}) as { text?: string };
-      return said(reply, await say(s0, String(b.text ?? '')));
+      const b = (req.body ?? {}) as { text?: string; expected?: string };
+      return said(reply, await say(s0, String(b.text ?? ''), parseTotal(b.expected)));
     });
 
     // A situation from the golden set: its customer's words, answered live.
@@ -4004,6 +4011,23 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         ? (on ? 'practice.flash.alone' : 'practice.flash.levels')
         : (on ? 'practice.flash.stopped' : 'practice.flash.started'));
     };
+    // P4 — an order in Practice: the owner's tap, through the ONE order service,
+    // on the copy; the confirmation leaves through the practice adapter.
+    const practiceOrder = (confirm: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
+      const s0 = sessionOf(req);
+      if (!s0) return reply.redirect('/login');
+      const proposalId = String((req.body as { proposalId?: string } | undefined)?.proposalId ?? '');
+      const copy = await copyFor(s0);
+      const cid = copy ? await withTenantTx(deps.db, copy, (tx) => activePracticeConversation(tx, copy)) : null;
+      if (!copy || !cid || !proposalId) return reply.redirect(practiceUrl());
+      const input = { businessId: copy, conversationId: cid, proposalId, decidedBy: personOf(s0).id };
+      const r = confirm
+        ? await confirmOrderProposal({ db: deps.db, now: () => new Date(), kickOutbound: deps.kickOutbound }, input)
+        : await stepIntoOrder({ db: deps.db, now: () => new Date() }, input);
+      return flashTo(reply, practiceUrl(), `order.flash.${r.outcome}` as MessageKey);
+    };
+    app.post('/app/sandbox/order/confirm', practiceOrder(true));
+    app.post('/app/sandbox/order/step-in', practiceOrder(false));
     app.post('/app/sandbox/alone', practiceSwitch('alone'));
     app.post('/app/sandbox/stop', practiceSwitch('stopped'));
 
@@ -4013,7 +4037,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const s0 = sessionOf(req);
       if (!s0) return reply.redirect('/login');
       const live = liveOf(s0);
-      if (live.ok) await startPracticeOver(deps.db, live.value);
+      if (live.ok) {
+        // What was seen stays seen: written on the workspace before the transcript goes.
+        const copy = await practiceCopyOf(deps.db, live.value);
+        await settleTotals(deps.db, live.value, copy);
+        await observeChecklist(deps.db, live.value, copy);
+        await startPracticeOver(deps.db, live.value);
+      }
       return flashTo(reply, practiceUrl(), 'sandbox.reset.done');
     });
 

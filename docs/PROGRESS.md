@@ -17,7 +17,8 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
-| 2026-09-30 | #149 | **Practice P4, part one — the card, the reasons, the two switches** (0090): a waiting practice reply is the conversation page's own card (why it waited, where each figure came from, one Send); a hand-off says why and that nothing was sent; the checks strip names the product's unit; "as if sending alone" lifts the owner's level in Practice only (the Spanish gate still holds, and says so); Practice's own Stop | 90 |
+| 2026-09-30 | #150 | **Practice P4, part two — the checklist and "your total first"** (0091): what the owner has seen in Practice, from the list for their kind of business (a catalogue, a shop — whose "how much is this?" shows the gap until RT — or none), read from the real turn's rows on the copy and written on the workspace so Start over does not take a tick back; the total the owner expects, typed before the answer and set beside it, the rows also measuring how often the two disagree; an order in Practice tapped through the one order service | 91 |
+| 2026-09-30 | #149 | **Practice P4, part one — the card, the reasons, the two switches** (0090): a waiting practice reply is the conversation page's own card (why it waited, where each figure came from, one Send); a hand-off says why and that nothing was sent; the checks strip names the product's unit; "as if sending alone" lifts the owner's level in Practice only (the Spanish gate still holds, and says so); Practice's own Stop. Merged 13:43 UTC, deployed, `/health` ok, schema 90 | 90 |
 | 2026-09-30 | #148 | **Practice P6 — not kept** (0089): Start over erases the workspace's practice conversations and all that hangs off them (asks first); a daily job erases practice quiet for 30 days; the day's 50 counted on the workspace's row so Start over does not reset them; both workers drop a job whose conversation is gone; the shared sandbox is read by nothing and no longer seeded locally; plus two tests' ledger race, root-caused (CI's second pass). Merged 13:21 UTC, deployed, `/health` ok, schema 89 | 89 |
 | 2026-09-30 | #147 | **Practice P5 — every workspace practises, metered and capped** (0088): a practice turn is charged to the workspace's own ledger and allowance; 50 practice lines a day, refused before anything is recorded; the operator's `practice_off` switch (everyone or one workspace; `docs/INCIDENT-PLAYBOOK.md`); T1's pilot-only gate gone — the copy keeps workspaces apart (`practice-own.test.ts`). Merged 12:48 UTC, deployed, `/health` ok, schema 88 | 88 |
 | 2026-09-30 | #146 | **Practice P3 — through the real pipeline**: a practice message is an inbound job on the workspace's own copy; the worker's turn, Stop and batching apply; approvals and owner replies leave through the real outbound worker, which hands a copy the practice adapter (no network) and nothing else, with or without a channel configured; a practice send is recorded delivered at once; no owner alert from a copy; the golden checks per practice turn; the live line; one lane (live). `practice_copy` (0087). Pre-pilot 12/12 before and after. Merged 12:24 UTC, deployed, `/health` ok, schema 87 | 87 |
@@ -49,12 +50,10 @@ under "Decided" below.
 
 **Next (the owner's instruction of 2026-09-30, in its order):**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
-   The design and the table-by-table classification are `docs/PRACTICE.md`
-   (P1). P2 (the copy, 0086, #145), P3 (the real pipeline, #146), P5
-   (metered, capped, switchable, open to every workspace, #147) and P6 (not
-   kept, #148) and P4 part one (#149: the card, the reasons, "as if sending
-   alone", Practice's own Stop) are in; then P4 part two (the checklist with
-   its retail and no-catalogue variants, "your total first").
+   **Done** once #150 merges: P1–P6 (`docs/PRACTICE.md`; #145–#150). Left
+   out on purpose, with reasons there: photo and voice in Practice (needs an
+   upload), the rehearsal findings' wider inputs, and the checklist feeding a
+   "Ready for customers" page (G6) and funnel events (G9), neither built.
 2. **One time zone and one currency per workspace**, chosen during setup.
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.

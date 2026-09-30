@@ -64,6 +64,8 @@ export const PRACTICE_SKIP = [
   'outreach_settings', 'sequences', 'sequence_steps', 'sequence_enrollments', 'sequence_sends',
   // Money and operations: the copy spends the owner's allowance (P5), not its own.
   'usage_ledger', 'tenant_budgets', 'subscriptions', 'app_errors',
+  // What the WORKSPACE has seen in Practice (0091): written on the workspace, never on a copy.
+  'practice_checks', 'practice_totals',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

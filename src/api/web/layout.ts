@@ -1198,6 +1198,7 @@ const STYLE_PAGES = `
   .sbx-intro { margin:0 0 var(--space-16); }
   .sbx-compose { display:flex; flex-direction:column; gap:var(--space-12); }
   .sbx-mode { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-8); }
+  .sbx-checklist .chk.gap .mk { color:var(--color-ink-secondary); }
   .modebar { display:flex; align-items:center; gap:var(--space-12); flex-wrap:wrap; font-size:var(--font-size-small); }
   .radio { display:inline-flex; align-items:center; gap:var(--space-4); cursor:pointer; }
   .radio.off { opacity:.5; cursor:not-allowed; }

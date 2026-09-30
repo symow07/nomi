@@ -312,6 +312,81 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     expect(copyStopped).toBe(false);
   }, 90_000);
 
+  /** The copy's product, the one that stands for the workspace's canvas tote. */
+  const copyProduct = () => inCopy((tx) => sql<{ id: string }>`select id::text as id from products
+    where business_id = ${copy}::uuid and source_id = ${PRODUCT}::uuid`.execute(tx).then((x) => x.rows[0]!.id));
+  /** A price the turn worked out, as its quotes row — the fixture stands for the turn's own quote. */
+  const quoted = async (conv: string, total: number) => {
+    const product = await copyProduct();
+    await inCopy((tx) => sql`insert into quotes (business_id, conversation_id, product_id, quantity, inputs, unit_price_usd, total_usd, engine_version)
+      values (${copy}::uuid, ${conv}::uuid, ${product}::uuid, 200, '{}'::jsonb, ${total / 200}, ${total}, 'practice-test')`.execute(tx));
+  };
+  const checks = () => inBiz(PILOT, (tx) => sql<{ item: string }>`select item from practice_checks where business_id = ${PILOT}::uuid`
+    .execute(tx).then((x) => x.rows.map((r) => r.item)));
+
+  it('P4 — your total first: the total the owner expected is kept, and set beside the answer\'s; agreeing ticks "quoted"', async () => {
+    await post('/app/sandbox/reset');
+    expect((await page()).body).toContain('name="expected"');
+    await post('/app/sandbox/message', `text=${encodeURIComponent('200 canvas totes, how much?')}&expected=${encodeURIComponent('500.00')}`);
+    const conv = (await practiceConv())!;
+    const kept = await inBiz(PILOT, (tx) => sql<{ expected: string; agreed: boolean | null }>`select expected::text as expected, agreed
+      from practice_totals where business_id = ${PILOT}::uuid order by created_at desc limit 1`.execute(tx).then((x) => x.rows[0]!));
+    expect(Number(kept.expected)).toBe(500);
+    expect(kept.agreed).toBeNull();                                         // no answer yet
+    await quoted(conv, 500);
+    const body = (await page()).body;
+    expect(body).toMatch(/You expected [^;]*500\.00[^;]*; the answer said [^.]*500\.00/);
+    expect(await checks()).toContain('quoted');
+
+    // …and one that does not agree is said so, and recorded as such.
+    await new Promise((r) => setTimeout(r, 20));
+    await post('/app/sandbox/message', `text=${encodeURIComponent('and 200 in black?')}&expected=450`);
+    await new Promise((r) => setTimeout(r, 20));
+    await quoted(conv, 500);
+    expect((await page()).body).toContain('Check that product');
+    const verdicts = await inBiz(PILOT, (tx) => sql<{ agreed: boolean }>`select agreed from practice_totals
+      where business_id = ${PILOT}::uuid and agreed is not null order by created_at`.execute(tx).then((x) => x.rows.map((r) => r.agreed)));
+    expect(verdicts.slice(-2)).toEqual([true, false]);
+  }, 90_000);
+
+  it('P4 — an order in Practice waits for the owner\'s tap, and the tap goes through the one order service', async () => {
+    await post('/app/sandbox/reset');
+    await say('I will take 200.');
+    const conv = (await practiceConv())!;
+    const product = await copyProduct();
+    const proposal = await inCopy((tx) => sql<{ id: string }>`
+      insert into order_proposals (business_id, conversation_id, client_id, product_id, quantity, unit, unit_price, total, currency, client_email)
+      select ${copy}::uuid, c.id, c.client_id, ${product}::uuid, 200, 'pcs', 2.5, 500, 'USD', 'buyer@example.com'
+        from conversations c where c.id = ${conv}::uuid
+      returning id::text as id`.execute(tx).then((x) => x.rows[0]!.id));
+    const shown = (await page()).body;
+    expect(shown).toContain('action="/app/sandbox/order/confirm"');
+    expect(shown).toContain(`name="proposalId" value="${proposal}"`);
+    expect(shown).not.toContain('/app/inbox/');                            // never the conversation page's routes
+    const r = await post('/app/sandbox/order/confirm', `proposalId=${proposal}`);
+    expect(r.statusCode).toBe(302);
+    const state = await inCopy((tx) => sql<{ state: string; order: string | null }>`select state, order_id::text as order
+      from order_proposals where id = ${proposal}::uuid`.execute(tx).then((x) => x.rows[0]!));
+    expect(state.state).toBe('confirmed');
+    expect(state.order).not.toBeNull();
+    // What the customer received: the confirmation, through the practice adapter.
+    const told = await until(async () => (await sentReplies(conv)).find((x) => x.provider?.startsWith('practice:') && x.origin === 'employee'), 'the confirmation, sent');
+    expect(told.body.length).toBeGreaterThan(0);
+    await page();
+    expect(await checks()).toContain('order_tapped');
+  }, 90_000);
+
+  it('P4 — what was seen stays seen: Start over erases the transcript, not the checklist', async () => {
+    await page();
+    const before = await checks();
+    expect(before).toEqual(expect.arrayContaining(['stop_handoff', 'quoted', 'order_tapped']));
+    expect((await post('/app/sandbox/reset')).statusCode).toBe(302);
+    const body = (await page()).body;
+    expect(await checks()).toEqual(expect.arrayContaining(before));
+    expect(body).toContain(t('en', 'practice.checklist.title'));
+    expect(body).toContain(t('en', 'practice.check.stop_handoff'));
+  }, 60_000);
+
   it('Practice alerts nobody: the notify consumer refuses a copy, whatever queued the alert', async () => {
     const { deliverOwnerAlert } = await import('../../src/pipeline/notify.js');
     const sent: string[] = [];
@@ -324,6 +399,8 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
   });
 
   it('take over, reply, hand back — the same lifecycle, on the copy; the owner\'s reply leaves through the outbound worker to the practice adapter', async () => {
+    // A conversation of its own: the test before it started over.
+    if (!(await practiceConv())) await say('Hello, is anyone there?');
     const conv = (await practiceConv())!;
     expect((await post('/app/sandbox/takeover')).statusCode).toBe(302);
     const holder = await inCopy((tx) => sql<{ a: string | null }>`select assigned_to as a from conversations where id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.a));
