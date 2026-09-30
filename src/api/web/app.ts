@@ -159,7 +159,7 @@ import { renderAccount } from './account.js';
 import { loadBusinessKind, saveBusinessKind, renderBusinessKind } from './businessKind.js';
 import { makeThrottle, callerKey } from './throttle.js';
 import { csvFile, csvFilename } from '../../core/owner/csv.js';
-import { isExportSubject, loadExport, recordExport } from './dataExport.js';
+import { exportSubjectOf, exportFileName, loadExport, recordExport } from './dataExport.js';
 import { askWorkspaceDeletion, loadDataRights, renderDataRights, withdrawDeletion } from './dataRights.js';
 import { askBuyerDeletion, buyerDeletionNote, BUYER_NOTE_MAX } from './dataRights.js';
 import { dismissDeletionAsk } from '../../db/deletionAsks.js';
@@ -394,6 +394,9 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
+/** My business's address before the positioning rewrite; it redirects (below). */
+export const LEGACY_BUSINESS = '/app/' + 'factory';
+
 export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const codec = makeSessionCodec(deps.sessionSecret);
 
@@ -588,6 +591,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const to = appAddress(deps.publicBaseUrl, req.url);
     if (!to) return;
     return reply.redirect(to, req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
+  });
+
+  /**
+   * The positioning rewrite (2026-09-30) — My business lives at /app/business;
+   * "factory" was the export trade's word. The old address answers for good: a
+   * page load moves (301), a form posted from a page open before the change is
+   * carried over with its body (308). Page addresses never move without this.
+   */
+  app.addHook('onRequest', async (req, reply) => {
+    const u = req.url;
+    if (u !== LEGACY_BUSINESS && !u.startsWith(`${LEGACY_BUSINESS}/`) && !u.startsWith(`${LEGACY_BUSINESS}?`)) return;
+    return reply.redirect(`/app/business${u.slice(LEGACY_BUSINESS.length)}`,
+      req.method === 'GET' || req.method === 'HEAD' ? 301 : 308);
   });
 
   /**
@@ -1116,7 +1132,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     noticeOnNextPage(reply, 'signup.welcome');
     return signIn(reply, made.businessId, { id: made.personId, name: v.value.name, isOwner: true },
-      '/app/factory', await passwordVersionOf(made.businessId, made.personId));
+      '/app/business', await passwordVersionOf(made.businessId, made.personId));
   });
 
   app.post('/login', async (req, reply) => {
@@ -1387,7 +1403,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (login) rememberDevice(reply, login.loginId);
       noticeOnNextPage(reply, 'signup.welcome');
       return signIn(reply, made.businessId, { id: made.personId, name: p.ownerName, isOwner: true },
-        '/app/factory', await passwordVersionOf(made.businessId, made.personId));
+        '/app/business', await passwordVersionOf(made.businessId, made.personId));
     }
     // A browser we had not seen, and now have.
     const login = await lookupLogin(deps.db, r.email).catch(() => null);
@@ -1464,8 +1480,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'data_rights', '/app/settings');
     if (!s) return reply;
     const file = (req.params as { file: string }).file;
-    const subject = file.endsWith('.csv') ? file.slice(0, -'.csv'.length) : file;
-    if (!isExportSubject(subject)) return reply.callNotFound();
+    const subject = exportSubjectOf(file.endsWith('.csv') ? file.slice(0, -'.csv'.length) : file);
+    if (!subject) return reply.callNotFound();
     if (!exportThrottle.allow(`export:${s.businessId}`, Date.now())) {
       return flashTo(reply, '/app/settings/data', 'data.export.flash.tooMany');
     }
@@ -1478,7 +1494,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // space, and `nomi-buyers-2026-09-21.csv` has none today but the next
       // subject might. `attachment` so a browser saves rather than renders —
       // a CSV rendered inline is a page of somebody's private messages.
-      .header('content-disposition', `attachment; filename="${csvFilename(subject, now)}"`)
+      .header('content-disposition', `attachment; filename="${csvFilename(exportFileName(subject), now)}"`)
       // It is her data, freshly read. Nothing between here and her laptop may
       // keep a copy to hand to the next person who asks.
       .header('cache-control', 'no-store')
@@ -2273,7 +2289,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // One calm page over the EXISTING profile / products / claims / channel read
   // models. Read-only by design: every change still happens on the surface that
   // owns it, so there is exactly one place that writes each thing.
-  app.get('/app/factory', authed('factory', async (s, req, locale, reply) => {
+  app.get('/app/business', authed('factory', async (s, req, locale, reply) => {
     const flash = takeFlash(req, reply);
     // Phase 4b (CC-11) — every channel this installation offers, as /app/channels states it.
     const offer = {
@@ -2289,15 +2305,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // Post/Redirect/Get, so a refresh never re-fires the most consequential
   // action in the product.
   const factoryFlash = (reply: FastifyReply, key: MessageKey, params?: Record<string, string | number>) =>
-    flashTo(reply, '/app/factory', key, params);
+    flashTo(reply, '/app/business', key, params);
 
-  app.post('/app/factory/activate', async (req, reply) => {
+  app.post('/app/business/activate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     const r = await activate(deps.db, bid.value, personOf(s).id, { providerConfigured: whatsappConfigured });
     // A refusal names the same blocker the page was already showing, so the
     // owner never sees a reason that contradicts what they just read.
@@ -2310,12 +2326,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // allowlist services (they normalise the number and write channel_audit); this
   // adds no model and no permission system. Every flash below is derived from
   // what the service actually persisted, never assumed.
-  app.post('/app/factory/allowlist/add', async (req, reply) => {
+  app.post('/app/business/allowlist/add', async (req, reply) => {
     // Phase 4 — who may be written to during the pilot is the owner's call.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     const b = (req.body ?? {}) as { phone?: string; label?: string };
     const label = String(b.label ?? '').trim() || null;
     const r = await addToAllowlist(deps.db, bid.value, String(b.phone ?? ''), label, personOf(s).id);
@@ -2324,11 +2340,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : factoryFlash(reply, 'allowlist.flash.invalid');
   });
 
-  app.post('/app/factory/allowlist/remove', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+  app.post('/app/business/allowlist/remove', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     const phone = String((req.body as { phone?: string } | undefined)?.phone ?? '');
     const r = await archiveFromAllowlist(deps.db, bid.value, phone, personOf(s).id);
     return r.ok
@@ -2336,13 +2352,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       : factoryFlash(reply, 'allowlist.flash.invalid');
   });
 
-  app.post('/app/factory/deactivate', async (req, reply) => {
+  app.post('/app/business/deactivate', async (req, reply) => {
     // OWNER ONLY: the one step that cannot be undone — a buyer who has been
     // written to has been written to.
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     await deactivate(deps.db, bid.value, personOf(s).id, 'owner stopped messaging');
     return factoryFlash(reply, 'activation.flash.deactivated');
   });
@@ -2352,19 +2368,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // writes can reach a buyer. Separate from WhatsApp's switch on purpose —
   // Start never skips WhatsApp's own checklist, and Stop binds the channels
   // that have no switch of their own.
-  app.post('/app/factory/stop-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+  app.post('/app/business/stop-assistant', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     const r = await stopAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'stopped' ? 'assistant.stop.flash.stopped' : 'assistant.stop.flash.already');
   });
-  app.post('/app/factory/start-assistant', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/factory');
+  app.post('/app/business/start-assistant', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/business');
     if (!s) return reply;
     const bid = parseBusinessId(s.businessId);
-    if (!bid.ok) return reply.redirect('/app/factory');
+    if (!bid.ok) return reply.redirect('/app/business');
     const r = await startAssistant(deps.db, bid.value, personOf(s).id);
     return factoryFlash(reply, r === 'started' ? 'assistant.stop.flash.started' : 'assistant.stop.flash.alreadyStarted');
   });
@@ -2480,7 +2496,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // ── M29 Price limits: the three questions, reached from My factory ────────
   // G9a — OWNER ONLY as a page: her floor is what a buyer must never learn,
   // and a sales assistant has no need to know it to negotiate inside it.
-  app.get('/app/factory/prices', ownerPage('price_rules', 'factory', '/app/factory', async (s, req, reply, locale) => {
+  app.get('/app/business/prices', ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
     const q = req.query as { product?: string };
     return renderPriceRules(
       await loadPriceRules(deps.db, s.businessId), locale,
@@ -2488,10 +2504,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       typeof q.product === 'string' ? { productId: q.product } : {},
     );
   }));
-  app.post('/app/factory/prices', async (req, reply) => {
+  app.post('/app/business/prices', async (req, reply) => {
     // OWNER ONLY: the floor, the discount authority, the ask-above threshold.
     // Staff negotiate INSIDE her rules; they do not move them.
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
     if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
@@ -2510,7 +2526,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
           r.errors, { productId }),
       }));
     }
-    return flashTo(reply, '/app/factory/prices',
+    return flashTo(reply, '/app/business/prices',
       r.activatedCount > 0 ? 'prices.flash.savedActivated'
         : r.activated ? 'prices.flash.savedAndLive'
         : r.changed.length ? 'prices.flash.saved' : 'prices.flash.unchanged',
@@ -2519,8 +2535,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // G22 — WHEN she comes down, and by how much. Owner-only for the same reason
   // the floor is: staff negotiate inside her rules and do not write them.
-  app.post('/app/factory/prices/volume', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+  app.post('/app/business/prices/volume', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
     if (!s) return reply;
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, string | undefined>;
@@ -2535,18 +2551,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         bodyHtml: renderPriceRules(await loadPriceRules(deps.db, s.businessId), locale, null, {}, {}, r.errors),
       }));
     }
-    return flashTo(reply, '/app/factory/prices', 'prices.flash.volumeAdded');
+    return flashTo(reply, '/app/business/prices', 'prices.flash.volumeAdded');
   });
 
-  app.post('/app/factory/prices/volume/:id/archive', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/factory/prices');
+  app.post('/app/business/prices/volume/:id/archive', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/prices');
     if (!s) return reply;
     const locale = localeOf(req);
     const id = (req.params as { id: string }).id;
     const r = await archiveVolumeDiscount(deps.db, s.businessId, personOf(s).id, id);
     return r.ok
-      ? flashTo(reply, '/app/factory/prices', 'prices.flash.volumeRemoved')
-      : reply.redirect('/app/factory/prices');
+      ? flashTo(reply, '/app/business/prices', 'prices.flash.volumeRemoved')
+      : reply.redirect('/app/business/prices');
   });
 
   app.post('/app/products/add/confirm', async (req, reply) => {

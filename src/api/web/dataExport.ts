@@ -57,6 +57,18 @@ export type ExportSubject = (typeof EXPORT_SUBJECTS)[number];
 export const isExportSubject = (v: string): v is ExportSubject =>
   (EXPORT_SUBJECTS as readonly string[]).includes(v);
 
+/**
+ * The positioning rewrite — the name a download carries: customers.csv and
+ * prices-given.csv (they were buyers.csv and quotes.csv; those names still
+ * download). The subject stays the internal name.
+ */
+const FILE_NAME: Partial<Record<ExportSubject, string>> = { buyers: 'customers', quotes: 'prices-given' };
+export const exportFileName = (s: ExportSubject): string => FILE_NAME[s] ?? s;
+export function exportSubjectOf(file: string): ExportSubject | null {
+  const found = EXPORT_SUBJECTS.find((s) => exportFileName(s) === file);
+  return found ?? (isExportSubject(file) ? file : null);
+}
+
 export type ExportSheet = { readonly header: readonly string[]; readonly rows: readonly (readonly Cell[])[] };
 
 /**

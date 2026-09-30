@@ -83,7 +83,7 @@ describe('B · every page knows which hub it belongs to', () => {
     expect(html).toMatch(new RegExp(`href="${setup.href}"[^>]*aria-current="page"`));
     // a page that MOVED lights its new entry: the payment terms are My business
     const terms = page('/app/settings/terms');
-    expect(terms).toMatch(/href="\/app\/factory"[^>]*aria-current="page"/);
+    expect(terms).toMatch(/href="\/app\/business"[^>]*aria-current="page"/);
   });
 });
 

@@ -41,7 +41,7 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
   { href: '/app',           id: 'home' },
   { href: '/app/inbox',     id: 'inbox' },
   { href: '/app/employee',  id: 'employee' },
-  { href: '/app/factory',   id: 'factory' },
+  { href: '/app/business',   id: 'factory' },
   // D (2026-09-21) — Setup: how this installation is wired. "What I sell" and
   // "how this is wired" are different questions asked at different times, and
   // they were one drawer. Five entries, no conditional sixth: while setup is
@@ -68,8 +68,8 @@ export const NAV: readonly { readonly href: string; readonly id: string }[] = [
 export const CONTEXTUAL_ROUTES_BY_HUB: readonly {
   readonly hub: string; readonly routes: readonly string[]; readonly outreach?: true;
 }[] = [
-  { hub: '/app/factory', routes: [
-    '/app/products', '/app/factory/prices',
+  { hub: '/app/business', routes: [
+    '/app/products', '/app/business/prices',
     '/app/settings/terms', '/app/settings/samples', '/app/settings/closures', '/app/settings/rate',
   ] },
   { hub: '/app/employee', routes: ['/app/knowledge', '/app/settings/forbidden', '/app/sandbox'] },

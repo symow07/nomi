@@ -131,11 +131,11 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('G9a · a sales assistant sees whether messaging is live — not the switch, and not a link to the floor', () => {
     const owner = withoutIsolates(renderFactory(complete, 'en'));
-    expect(owner).toContain('action="/app/factory/activate"');
-    expect(owner).toContain('href="/app/factory/prices"');
+    expect(owner).toContain('action="/app/business/activate"');
+    expect(owner).toContain('href="/app/business/prices"');
     const staff = withoutIsolates(renderFactory(complete, 'en', null, { isOwner: false }));
-    expect(staff).not.toMatch(/action="\/app\/factory\/(activate|deactivate)"/);
-    expect(staff).not.toContain('href="/app/factory/prices"');
+    expect(staff).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
+    expect(staff).not.toContain('href="/app/business/prices"');
     expect(staff).toContain('The owner decides this.');
   });
 
@@ -212,7 +212,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     // page collects input — every other edit happens on the surface that owns it.
     // 0070 — and the owner's Stop / Start on every channel: go-live decisions too.
     for (const f of html.match(/<form[^>]*action="([^"]*)"/g) ?? [])
-      expect(f).toMatch(/\/app\/factory\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove))/);
+      expect(f).toMatch(/\/app\/business\/(activate|deactivate|stop-assistant|start-assistant|allowlist\/(add|remove))/);
     expect(html).not.toContain('<textarea');
     expect(html).not.toContain('<table');
   });
@@ -531,7 +531,7 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
 
   it('ready: offers the decision, and says what it does before it is taken', () => {
     const html = view({ canActivate: true, blockers: [], live: false });
-    expect(html).toContain('action="/app/factory/activate"');
+    expect(html).toContain('action="/app/business/activate"');
     expect(html).toContain(shown('en', 'activation.action.activate'));
     expect(html).toContain(`data-confirm="${shown('en', 'activation.action.confirm')}"`);
     expect(html).toMatch(/data-confirm="[^"]*waits for your OK[^"]*"/);   // draft-first, in the question itself
@@ -542,20 +542,20 @@ describe('M20.3 · activate and deactivate as owner actions', () => {
 
   it('not ready: no way to activate — the decision is not offered at all', () => {
     const html = view({ canActivate: false, blockers: ['no_channel'], live: false });
-    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).not.toContain('action="/app/business/activate"');
     expect(html).toContain('Connect WhatsApp.');
   });
 
   it('live: the stop control is there, and explains what stopping does', () => {
     const html = view({ live: true, canActivate: true, blockers: [] });
-    expect(html).toContain('action="/app/factory/deactivate"');
+    expect(html).toContain('action="/app/business/deactivate"');
     // 2026-09-27 — Stop stops WhatsApp only (activation is WhatsApp's), and says so.
     expect(html).toContain(shown('en', 'activation.action.deactivate'));
     expect(shown('en', 'activation.action.deactivate')).toContain('WhatsApp');
     expect(html).toContain(shown('en', 'activation.stop.what'));
     expect(html).toContain('stay exactly as they are');          // nothing is deleted
     expect(html).toContain('start again whenever you want');     // rollback is possible
-    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).not.toContain('action="/app/business/activate"');
   });
 
   it('live: says when it started and who started it — from the stored row, as a NAME', () => {
@@ -619,7 +619,7 @@ describe('M20.3.1 · activation truth, localized', () => {
     const html = at('paused', 'en');
     expect(html).toContain('Paused');
     expect(html).not.toContain('whenever you say so');
-    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).not.toContain('action="/app/business/activate"');
     expect(html).toContain('Connect WhatsApp.');            // the blocker, stated
   });
 
@@ -629,9 +629,9 @@ describe('M20.3.1 · activation truth, localized', () => {
   });
 
   it('only READY offers the decision — the other three do not', () => {
-    expect(at('ready', 'en')).toContain('action="/app/factory/activate"');
+    expect(at('ready', 'en')).toContain('action="/app/business/activate"');
     for (const lc of ['not_connected', 'paused', 'active'] as const)
-      expect(at(lc, 'en'), lc).not.toContain('action="/app/factory/activate"');
+      expect(at(lc, 'en'), lc).not.toContain('action="/app/business/activate"');
   });
 
   it('all four states, all three locales, with nothing falling back to English', () => {
@@ -673,7 +673,7 @@ describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
 
   it('THE M21 REPRODUCTION: there is now a way to add a number', () => {
     const html = view([]);
-    expect(html).toContain('action="/app/factory/allowlist/add"');
+    expect(html).toContain('action="/app/business/allowlist/add"');
     expect(html).toContain('name="phone"');
   });
 
@@ -684,7 +684,7 @@ describe('M20.4 · F-06 · the owner manages who may be messaged', () => {
 
   it('each number can be removed, and removal confirms first', () => {
     const html = view([{ phone: '8613900001111', label: '老板本人' }]);
-    expect(html).toContain('action="/app/factory/allowlist/remove"');
+    expect(html).toContain('action="/app/business/allowlist/remove"');
     expect(html).toContain('value="8613900001111"');
     expect(html).toMatch(/data-confirm="[^"]*will stop answering them[^"]*"/);
   });

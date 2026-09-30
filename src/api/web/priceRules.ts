@@ -425,7 +425,7 @@ export function renderPriceRules(
   const form = (
     productId: string | null, current: PriceRules | null, title: string, sub: string,
   ): string => `
-    <form method="post" action="/app/factory/prices" class="pform">
+    <form method="post" action="/app/business/prices" class="pform">
       <input type="hidden" name="productId" value="${esc(productId ?? '')}" />
       <h3 class="sub3">${esc(title)}</h3>
       <p class="fdesc">${esc(sub)}</p>
@@ -469,7 +469,7 @@ export function renderPriceRules(
           : `<p class="fwarn">${esc(t(locale, 'prices.notStated', { name }))}</p>`}
       ${open || (p.own === null && !isCovered(p))
         ? form(p.productId, p.own, t(locale, 'prices.forProduct', { product: label }), '')
-        : `<a class="blink" href="/app/factory/prices?product=${encodeURIComponent(p.productId)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}</a>`}
+        : `<a class="blink" href="/app/business/prices?product=${encodeURIComponent(p.productId)}">${esc(t(locale, p.own ? 'prices.change' : 'prices.inherited.own'))}</a>`}
     </li>`;
   };
 
@@ -500,7 +500,7 @@ export function renderPriceRules(
 
     ${volumeSection(v, locale, volumeErrors)}
 
-    ${back('/app/factory', t(locale, 'nav.factory'))}
+    ${back('/app/business', t(locale, 'nav.factory'))}
     `;
 }
 
@@ -525,7 +525,7 @@ function volumeSection(
         product: d.productLabel ?? t(locale, 'prices.volume.everyProduct'),
       }))}</bdi></div>
       ${d.asksFirst ? `<p class="fdesc">${esc(t(locale, 'prices.volume.asksFirst', { name }))}</p>` : ''}
-      <form method="post" action="/app/factory/prices/volume/${esc(d.id)}/archive">
+      <form method="post" action="/app/business/prices/volume/${esc(d.id)}/archive">
         <button class="btn" type="submit" onclick="return confirm(this.dataset.confirm)"
           data-confirm="${esc(t(locale, 'prices.volume.removeConfirm'))}">${esc(t(locale, 'prices.volume.remove'))}</button>
       </form>
@@ -537,7 +537,7 @@ function volumeSection(
     ${v.volume.length
       ? `<ul class="rows">${rows}</ul>`
       : `<p class="fwarn">${esc(t(locale, 'prices.volume.none', { name }))}</p>`}
-    <form method="post" action="/app/factory/prices/volume" class="pform">
+    <form method="post" action="/app/business/prices/volume" class="pform">
       <label class="pq"><span>${esc(t(locale, 'prices.volume.q.product'))}</span>
         <select name="productId">
           <option value="">${esc(t(locale, 'prices.volume.everyProduct'))}</option>

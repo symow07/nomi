@@ -184,7 +184,8 @@ describe('V2 · the calendar page, by structure', () => {
     const html = renderCalendar(view({ buyer: OLGA }), 'en');
     expect(html).toContain('<details class="cal-buyer" open>');
     expect(html).toContain(`<option value="${OLGA.id}" selected>`);
-    expect(html).toContain(`buyer=${OLGA.id}`);
+    // The positioning rewrite: the calendar asks ?who= (an old ?buyer= link still works).
+    expect(html).toContain(`who=${OLGA.id}`);
   });
 });
 

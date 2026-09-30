@@ -268,18 +268,18 @@ d('Silence · DOOR — nothing takes a waiting buyer off Needs you during the si
   });
 
   it('DOOR · My business says sending is paused, and nothing says the assistant is answering', async () => {
-    const html = (await get('/app/factory')).body;
+    const html = (await get('/app/business')).body;
     expect(html).toContain('data-golive="silenced"');
     expect(html).toContain('this was not you');
     expect(html).not.toContain('replies go out as soon as they are sent');
     // The owner's own switch still works during the silence.
-    expect(html).toContain('action="/app/factory/stop-assistant"');
+    expect(html).toContain('action="/app/business/stop-assistant"');
   });
 
   it('DOOR · when both are set, the reason given is the one the owner did not choose', async () => {
-    await post('/app/factory/stop-assistant');
+    await post('/app/business/stop-assistant');
     const r = await post(`/app/inbox/${held}/resume`);
     expect(flashSaid(r, SECRET)).toContain('is paused while we check something');
-    await post('/app/factory/start-assistant');
+    await post('/app/business/start-assistant');
   });
 });

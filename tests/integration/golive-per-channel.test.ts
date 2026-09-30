@@ -57,7 +57,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(code)}`, headers: FORM,
     })).headers['set-cookie'] ?? '').split(';')[0] ?? '';
     expect(cookie).not.toBe('');
-    const page = async () => (await app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } })).body;
+    const page = async () => (await app.inject({ method: 'GET', url: '/app/business', headers: { cookie } })).body;
     return { app, cookie, page };
   };
   const connectInstagram = (biz: string) => tx(biz, (x) => sql`
@@ -93,7 +93,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     expect(html).toContain('data-golive="elsewhere"');
     expect(html).not.toContain('data-golive="whatsapp"');
     expect(html).not.toContain(noChannel());
-    expect(html).not.toContain('action="/app/factory/activate"');
+    expect(html).not.toContain('action="/app/business/activate"');
     expect(html).toContain(esc(t('en', 'golive.other.live', { channels: 'Instagram', name: 'your assistant' })));
     // the two ways those replies are stopped, each a real door
     expect(html).toMatch(/href="\/app\/employee"[^>]*>[\s\S]*?Make every reply wait for you/);
@@ -121,7 +121,7 @@ d('Going live, per channel (requires DATABASE_URL)', () => {
     const { page } = await open(BOTH_BIZ, { provider: 'meta', messagingEnabled: true, connectableNumber: digits(), instagramAccountId: digits() });
     const html = await page();
     expect(html).toContain('data-golive="whatsapp"');
-    expect(html).toContain('action="/app/factory/deactivate"');
+    expect(html).toContain('action="/app/business/deactivate"');
     expect(html).toContain(`>${esc(t('en', 'activation.action.deactivate'))}<`);
     expect(t('en', 'activation.action.deactivate')).toContain('WhatsApp');
     expect(html).toContain(esc(t('en', 'activation.stop.what')));

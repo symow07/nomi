@@ -167,7 +167,7 @@ describe('Today, by time (render)', () => {
   it('M22 (F-01) · a quiet day with messaging OFF says nobody can reach the assistant, with the way forward', () => {
     const html = renderOperationsHome(emptyFactory, 'en', NOTHING_TODAY(NOW));
     expect(html).toContain(t('en', 'today.calm.notLive.title'));
-    expect(html).toContain('href="/app/factory"');
+    expect(html).toContain('href="/app/business"');
     expect(html).toContain('Messaging is not active yet');
     expect(html).toMatch(/class="[^"]*\bnotlive\b[^"]*"/);
   });

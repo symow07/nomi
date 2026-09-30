@@ -304,7 +304,7 @@ export function renderOperationsHome(
     ? `<section class="block">
         <h2>${esc(t(locale, 'today.stopped.title', { name }))}</h2>
         <p class="muted">${esc(t(locale, 'today.stopped.body', { name }))}</p>
-        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/factory', t(locale, 'today.stopped.start', { name }))}</div>
+        <div class="doors">${deeper('/app/inbox?filter=pending', t(locale, 'today.stopped.waiting'))}${deeper('/app/business', t(locale, 'today.stopped.start', { name }))}</div>
       </section>`
     : '';
   // 0071 — ops paused sending: the same honesty, in the words ops uses.
@@ -343,7 +343,7 @@ export function renderOperationsHome(
     ${quietNow && !s.assistantStoppedAt && !s.opsSilenced && !live
       // M22 (F-01) — a quiet day with nobody able to reach her is not calm: nothing
       // has been achieved, and the way forward is stated rather than implied.
-      ? `<p class="muted">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>${deeper('/app/factory', t(locale, 'today.calm.notLive.go'))}`
+      ? `<p class="muted">${esc(t(locale, 'today.calm.notLive.title', { name }))}</p>${deeper('/app/business', t(locale, 'today.calm.notLive.go'))}`
       : ''}
   </section>`;
 

@@ -156,9 +156,9 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     for (const [url, payload] of [
       ['/app/employee/capability/quote/promote', undefined],
       ['/app/employee/capability/quote/revoke', undefined],
-      ['/app/factory/activate', 'confirm=yes'],
-      ['/app/factory/deactivate', 'confirm=yes'],
-      ['/app/factory/prices', 'floor=0.30&maxDiscountPct=10&askAbovePct=7'],
+      ['/app/business/activate', 'confirm=yes'],
+      ['/app/business/deactivate', 'confirm=yes'],
+      ['/app/business/prices', 'floor=0.30&maxDiscountPct=10&askAbovePct=7'],
       ['/app/settings/people', 'name=Someone%20Else'],
       [`/app/settings/people/${randomUUID()}/remove`, undefined],
       [`/app/settings/people/${randomUUID()}/name`, 'name=Someone'],
@@ -170,7 +170,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
       // Phase 4 — going live and money: every route is walked in
       // phase4-permissions.test.ts; one of each kind here keeps this list whole.
       ['/app/onboarding/attest', 'which=owner_ready'],
-      ['/app/factory/allowlist/add', 'phone=%2B971500009999&label=test'],
+      ['/app/business/allowlist/add', 'phone=%2B971500009999&label=test'],
       ['/app/channels/whatsapp/disconnect', undefined],
       ['/app/settings/rate', 'rate=7.1'],
       // CC-02a — recording a buyer's request to be deleted is the owner's.
@@ -182,7 +182,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     }
     // G9a — and the PAGES behind the two most sensitive forms: her floor, and
     // the form that hands someone a way in.
-    for (const url of ['/app/settings/people', '/app/factory/prices']) {
+    for (const url of ['/app/settings/people', '/app/business/prices']) {
       const res = await app.inject({ method: 'GET', url, headers: { cookie: staffCookie } });
       expect(res.statusCode, url).toBe(302);
       expect(flashSaid(res, SECRET), url).toContain('Only the owner');
@@ -196,19 +196,19 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
   it('staff are not SHOWN the controls that would only refuse them', async () => {
     const get = async (cookie: string, url: string) =>
       (await app.inject({ method: 'GET', url, headers: { cookie } })).body;
-    const owner = { factory: await get(ownerCookie, '/app/factory'), channels: await get(ownerCookie, '/app/channels') };
+    const owner = { factory: await get(ownerCookie, '/app/business'), channels: await get(ownerCookie, '/app/channels') };
     const staff = {
-      factory: await get(staffCookie, '/app/factory'),
+      factory: await get(staffCookie, '/app/business'),
       employee: await get(staffCookie, '/app/employee'),
       channels: await get(staffCookie, '/app/channels'),
     };
     // The owner's pages carry them, so their absence below is the viewer, not the data.
-    expect(owner.factory).toContain('href="/app/factory/prices"');
+    expect(owner.factory).toContain('href="/app/business/prices"');
     expect(owner.channels).toContain('action="/app/channels/outreach"');
     expect(owner.channels).toContain('action="/app/channels/domain"');
 
-    expect(staff.factory).not.toContain('href="/app/factory/prices"');
-    expect(staff.factory).not.toMatch(/action="\/app\/factory\/(activate|deactivate)"/);
+    expect(staff.factory).not.toContain('href="/app/business/prices"');
+    expect(staff.factory).not.toMatch(/action="\/app\/business\/(activate|deactivate)"/);
     expect(staff.employee).not.toContain('/app/employee/capability/');
     expect(staff.channels).not.toContain('action="/app/channels/outreach"');
     expect(staff.channels).not.toContain('action="/app/channels/domain"');
@@ -301,7 +301,7 @@ d('M47 · more than one human (requires DATABASE_URL)', () => {
     const ownerId = await tx((t) => sql<{ id: string }>`
       select id::text as id from people where business_id = ${BIZ} and is_owner limit 1
     `.execute(t).then((r) => r.rows[0]!.id));
-    await post(ownerCookie, '/app/factory/allowlist/add', 'phone=%2B971500009999&label=test');
+    await post(ownerCookie, '/app/business/allowlist/add', 'phone=%2B971500009999&label=test');
     const added = await tx((t) => sql<{ added_by: string | null }>`
       select added_by from pilot_allowlist where business_id = ${BIZ} order by added_at desc limit 1
     `.execute(t).then((r) => r.rows[0]?.added_by ?? null));

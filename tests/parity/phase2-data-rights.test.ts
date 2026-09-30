@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 import { messages, t, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 import { OWNER_ONLY, mayDo, OWNER_VIEW } from '../../src/core/conversation/people.js';
-import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, isExportSubject } from '../../src/api/web/dataExport.js';
+import { EXPORT_SUBJECTS, EXPORT_MAX_ROWS, isExportSubject, exportFileName, exportSubjectOf } from '../../src/api/web/dataExport.js';
 import { renderDataRights } from '../../src/api/web/dataRights.js';
 
 /**
@@ -30,8 +30,16 @@ describe('CC-12 · she can take her own data out', () => {
       'price-rules', 'selling-terms', 'teaching',
     ]);
     const html = renderDataRights(VIEW, 'en', null, OWNER_VIEW, 'Settings');
+    // The positioning rewrite: customers.csv and prices-given.csv; the subjects
+    // keep their names, and the old file names still download.
+    expect(exportFileName('buyers')).toBe('customers');
+    expect(exportFileName('quotes')).toBe('prices-given');
+    expect(exportSubjectOf('customers')).toBe('buyers');
+    expect(exportSubjectOf('buyers')).toBe('buyers');
+    expect(exportSubjectOf('prices-given')).toBe('quotes');
+    expect(exportSubjectOf('nothing')).toBeNull();
     for (const s of EXPORT_SUBJECTS) {
-      expect(html, `${s} has no link`).toContain(`/app/settings/data/${s}.csv`);
+      expect(html, `${s} has no link`).toContain(`/app/settings/data/${exportFileName(s)}.csv`);
       expect(html).toContain(t('en', `data.export.subject.${s}` as MessageKey));
     }
   });

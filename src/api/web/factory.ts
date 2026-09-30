@@ -650,14 +650,14 @@ export function renderFactory(
       ? `<p class="fempty">${esc(t(locale, 'allowlist.none', { name }))}</p>`
       : `<ul class="fsteps">${f.readiness.recipients.map((r) => `
           <li class="done">✓ <bdi>${esc(r.label ?? r.phone)}</bdi>${r.label ? ` <span class="muted">${esc(r.phone)}</span>` : ''}
-            ${viewer.isOwner ? `<form method="post" action="/app/factory/allowlist/remove" class="inline rm">
+            ${viewer.isOwner ? `<form method="post" action="/app/business/allowlist/remove" class="inline rm">
               <input type="hidden" name="phone" value="${esc(r.phone)}" />
               <button class="btn ghost" type="submit"
                       onclick="return confirm(this.dataset.confirm)"
                       data-confirm="${esc(t(locale, 'allowlist.remove.confirm', { who: r.label ?? r.phone, name }))}"
               >${esc(t(locale, 'allowlist.remove'))}</button>
             </form>` : ''}</li>`).join('')}</ul>`}
-    ${!viewer.isOwner ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>` : `<form method="post" action="/app/factory/allowlist/add" class="alform">
+    ${!viewer.isOwner ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>` : `<form method="post" action="/app/business/allowlist/add" class="alform">
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.phone'))}</span>
         <input name="phone" inputmode="tel" placeholder="${esc(phonePlaceholder(locale, f.connection.country))}" required /></label>
       <label class="fld"><span class="muted">${esc(t(locale, 'allowlist.label'))}</span>
@@ -738,7 +738,7 @@ export function renderFactory(
   // G9a — turning messaging on or off is hers: staff see the state, not the switch.
   const confirmBtn = (action: string, cls: string, label: string, question: string) => !viewer.isOwner
     ? `<p class="fdesc muted">${esc(t(locale, 'staff.ownerDecides'))}</p>`
-    : `<form method="post" action="/app/factory/${action}" class="inline">
+    : `<form method="post" action="/app/business/${action}" class="inline">
       <button class="btn ${cls}" type="submit"
               onclick="return confirm(this.dataset.confirm)"
               data-confirm="${esc(question)}">${esc(label)}</button>
@@ -851,7 +851,7 @@ export function renderFactory(
     ${section(t(locale, 'factory.promise.title'), t(locale, 'factory.promise.q', { name }), promiseBody, '/app/knowledge', t(locale, 'factory.promise.more'))}
     ${section(t(locale, 'factory.prices.title'), t(locale, 'factory.prices.q', { name }), pricesBody,
       // G9a — the price-rules page is the owner's; no link to a refusal.
-      viewer.isOwner ? '/app/factory/prices' : null, t(locale, 'factory.prices.more'))}
+      viewer.isOwner ? '/app/business/prices' : null, t(locale, 'factory.prices.more'))}
     ${section(t(locale, 'factory.sellhow.title'), t(locale, 'factory.sellhow.q'), sellHowBody, null, '')}
     ${section(t(locale, 'factory.reach.title'), t(locale, 'factory.reach.q'), reachBody, '/app/channels', t(locale, 'factory.reach.more'))}
     ${section(t(locale, 'factory.ready.title'), t(locale, 'factory.ready.q', { name }), readyBody + rehearsed, '/app/onboarding', t(locale, 'factory.ready.more'))}

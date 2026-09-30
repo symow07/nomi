@@ -6,7 +6,7 @@
  * query. Three things were wrong with that, and this module fixes all three
  * with one change of transport:
  *
- *   SPOOFABLE.  `…/app/factory?flash=Your%20card%20was%20declined` is a link
+ *   SPOOFABLE.  `…/app/business?flash=Your%20card%20was%20declined` is a link
  *               anyone can write, and the product renders it in its own voice.
  *               Nothing about the text said where it came from.
  *   STALE.      The sentence was translated by the route, in the locale of the

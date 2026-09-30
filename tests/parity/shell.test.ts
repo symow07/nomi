@@ -17,7 +17,7 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   // D (2026-09-21) — Setup joined as the fifth: how the installation is wired,
   // split out of the drawer that also held what you sell.
   it('the nav is exactly Today, Buyers, the assistant, My business, Setup', () => {
-    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/factory', '/app/settings']);
+    expect(NAV.map((n) => n.href)).toEqual(['/app', '/app/inbox', '/app/employee', '/app/business', '/app/settings']);
   });
 
   it('names them in the owner’s language, in every locale', () => {
@@ -66,11 +66,11 @@ describe('Phase F · five destinations, and nothing else competing', () => {
     // page that really is My business. The two used to be able to disagree,
     // and when they did the sidebar lit nothing at all on twenty pages.
     const html = shell({
-      title: 'T', active: 'factory', locale: 'en', path: '/app/factory',
+      title: 'T', active: 'factory', locale: 'en', path: '/app/business',
       avatar: '👩', bodyHtml: '<p>body</p>',
     });
     expect(html.split('navlink active').length - 1).toBe(1);
-    expect(html).toContain('href="/app/factory" class="navlink active"');
+    expect(html).toContain('href="/app/business" class="navlink active"');
   });
 });
 
@@ -134,7 +134,7 @@ describe('Phase F · the shell is usable with a thumb', () => {
    * paints text the colour of the thing behind it. This is not hypothetical:
    * converting the renderers to tokens sent `#d8e3db` — a pale green that was
    * TEXT on a dark panel — to `--color-jade-wash`, and `.fnext-t` rendered an
-   * invisible label on `/app/factory` in both light and dark. Every test still
+   * invisible label on `/app/business` in both light and dark. Every test still
    * passed; only a screenshot showed it.
    *
    * `--color-surface` is deliberately allowed: white on graphite is how the

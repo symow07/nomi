@@ -1500,7 +1500,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // factory where nothing could reach her at all.
       expect(html).toContain(esc(t('en', 'today.calm.notLive.title')));
       expect(html).not.toContain("You're all caught up");
-      expect(html).toContain('href="/app/factory"');
+      expect(html).toContain('href="/app/business"');
       expect(html).toContain(`<h2 id="today-now">${esc(t('en', 'today.needs.none'))}</h2>`);
       expect(html).not.toContain('class="tl-who"');
     });
@@ -2278,14 +2278,14 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       for (const provider of [false, true]) {
         const v = await loadFactory(prod.db, DEMO_BIZ, provider);
         const page = renderFactory(v, 'en');
-        const offersActivate = page.includes('action="/app/factory/activate"');
+        const offersActivate = page.includes('action="/app/business/activate"');
         const saysReady = page.includes('whenever you say so');
         // "you can start" may only appear when the channel is genuinely ready
         if (saysReady || offersActivate) expect(v.readiness.lifecycle, JSON.stringify(v.readiness)).toBe('ready');
         // and a channel that cannot carry a message never reads as ready
         if (v.readiness.lifecycle !== 'ready' && v.readiness.lifecycle !== 'active') {
           expect(page).not.toContain('whenever you say so');
-          expect(page).not.toContain('action="/app/factory/activate"');
+          expect(page).not.toContain('action="/app/business/activate"');
         }
       }
     });
@@ -2301,12 +2301,12 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('SECURITY: the page requires an owner session, and shows only that owner’s factory', async () => {
-      const anon = await prod.app.inject({ method: 'GET', url: '/app/factory' });
+      const anon = await prod.app.inject({ method: 'GET', url: '/app/business' });
       expect(anon.statusCode).toBe(302);
       expect(anon.headers['location']).toBe('/login');
 
       const cookie = await login();
-      const mine = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      const mine = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
       expect(mine.statusCode).toBe(200);
       const demoName = (await view()).profile.name;
       expect(mine.body).toContain(demoName);
@@ -2482,7 +2482,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     it('M20.3.1: an installation with NO messaging provider cannot be activated', async () => {
       // The route passes this app's real provider state, which is 'disabled'.
       const cookie = await login();
-      const r = await post('/app/factory/activate', cookie);
+      const r = await post('/app/business/activate', cookie);
       expect(r.statusCode).toBe(302);
       expect((await channel())!.activated_at, 'activated with no provider').toBeNull();
       expect(flashSaid(r, WEB_SECRET)).toContain('Connect WhatsApp');
@@ -2490,7 +2490,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
     it('SECURITY: both actions reject an anonymous caller and change nothing', async () => {
       const before = await channel();
-      for (const path of ['/app/factory/activate', '/app/factory/deactivate']) {
+      for (const path of ['/app/business/activate', '/app/business/deactivate']) {
         const r = await post(path);
         expect(r.statusCode, path).toBe(302);
         expect(r.headers['location'], path).toBe('/login');
@@ -2505,15 +2505,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       await archiveFromAllowlist(prod.db, bid, ph('971500007070'), 'owner');
 
       const cookie = await login();
-      const r = await post('/app/factory/activate', cookie);
+      const r = await post('/app/business/activate', cookie);
       expect(r.statusCode).toBe(302);
       expect((await channel())!.activated_at, 'activated despite a blocker').toBeNull();
       expect(flashSaid(r, WEB_SECRET)).toContain('start with your own');
 
       // the page and the refusal must say the SAME thing
-      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
       expect(page.body).toContain('start with your own');
-      expect(page.body).not.toContain('action="/app/factory/activate"');
+      expect(page.body).not.toContain('action="/app/business/activate"');
 
       await addToAllowlist(prod.db, bid, ph('971500007070'), 'my own phone', 'owner');
     });
@@ -2566,8 +2566,8 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // rendered as an installation that HAS a provider — this one has none
       const page = renderFactory(await loadFactory(prod.db, DEMO_BIZ, true), 'en');
       expect(page).toContain('is talking to real customers');
-      expect(page).toContain('action="/app/factory/deactivate"');
-      expect(page).not.toContain('action="/app/factory/activate"');
+      expect(page).toContain('action="/app/business/deactivate"');
+      expect(page).not.toContain('action="/app/business/activate"');
     });
 
     it('deactivates: back to not-live, audited, and the data is still there', async () => {
@@ -2576,7 +2576,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         select count(*)::int n from conversations`.execute(tx as never).then((x) => x.rows[0]!.n));
 
       const cookie = await login();
-      const r = await post('/app/factory/deactivate', cookie);
+      const r = await post('/app/business/deactivate', cookie);
       expect(r.statusCode).toBe(302);
       expect(cookie).toBeTruthy();
 
@@ -2593,7 +2593,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(await q((tx) => sql<{ n: number }>`select count(*)::int n from conversations`
         .execute(tx as never).then((x) => x.rows[0]!.n))).toBe(buyersBefore);
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
       expect(page.body).not.toContain('is talking to real buyers');
     });
 
@@ -2665,7 +2665,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // is what is under test. Same number as the assertions above.
       const N = ph('8613900002222');
       const typed = `+${N.slice(0, 2)} ${N.slice(2, 5)} ${N.slice(5, 9)} ${N.slice(9)}`;
-      const add = await post('/app/factory/allowlist/add',
+      const add = await post('/app/business/allowlist/add',
         'phone=' + encodeURIComponent(typed) + '&label=' + encodeURIComponent('my own phone'), cookie);
       expect(add.statusCode).toBe(302);
       // SUCCESS MESSAGE MAPS TO PERSISTED STATE
@@ -2677,10 +2677,10 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(stored.archived).toBeNull();
       expect(flashSaid(add, WEB_SECRET)).toContain('can now receive');
 
-      const page = await prod.app.inject({ method: 'GET', url: '/app/factory', headers: { cookie } });
+      const page = await prod.app.inject({ method: 'GET', url: '/app/business', headers: { cookie } });
       expect(page.body).toContain('my own phone');
 
-      const rm = await post('/app/factory/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);
+      const rm = await post('/app/business/allowlist/remove', `phone=${ph('861390000222')}2`, cookie);
       expect(rm.statusCode).toBe(302);
       const after = await q((tx) => sql<{ archived: Date | null }>`
         select archived_at as archived from pilot_allowlist where phone=${ph('8613900002222')}`
@@ -2694,7 +2694,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     });
 
     it('F-06 SECURITY: both allowlist actions reject an anonymous caller', async () => {
-      for (const p of ['/app/factory/allowlist/add', '/app/factory/allowlist/remove']) {
+      for (const p of ['/app/business/allowlist/add', '/app/business/allowlist/remove']) {
         const r = await prod.app.inject({ method: 'POST', url: p,
           headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: `phone=${ph('861390000333')}3` });
         expect(r.statusCode, p).toBe(302);

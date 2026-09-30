@@ -307,7 +307,7 @@ describe("CC-14 · the shell leads with the business's own name; the product's i
       expect(main, l).toMatch(/^<main id="main"><p class="business-name"><bdi>Westlake Canvas Co\.<\/bdi><\/p><h1 class="page">/);
       const nav = today.slice(today.indexOf('<nav class="side">'), today.indexOf('</nav>'));
       expect(nav, l).not.toContain('business-name');
-      for (const other of ['/app/inbox', '/app/settings', '/app/employee', '/app/factory', '/app/inbox/c1'])
+      for (const other of ['/app/inbox', '/app/settings', '/app/employee', '/app/business', '/app/inbox/c1'])
         expect(page(l, other), `${l} ${other}`).not.toContain('class="business-name"');
     }
     expect(page('en', '/app', null)).not.toContain('class="business-name"');
@@ -338,7 +338,7 @@ describe('CC-20 · a keyboard and a screen reader find their way', () => {
 
   it('where you are is said, not only shown: the nav, and every row of tabs', () => {
     for (const l of LOCALES) {
-      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/factory" class="navlink active" aria-current="page"/);
+      expect(shelled(l, '/app/products'), l).toMatch(/href="\/app\/business" class="navlink active" aria-current="page"/);
       expect(withoutIsolates(renderKnowledgeOps(ops(), l, NOW)), l).toContain('class="tab on" aria-current="page" href="/app/knowledge?range=week"');
     }
     const results: AnalyticsData = {
@@ -501,8 +501,8 @@ describe('CC-29 · everything that takes something away asks first, the one way 
     ['assistants.ts', /\/assistants\/\$\{[^}]+\}\/archive$/],
     // P6 — Practice's Start over erases (0089).
     ['sandbox.ts', /^\/app\/sandbox\/reset$/],
-    ['factory.ts', /^\/app\/factory\/allowlist\/remove$/],
-    ['factory.ts', /^\/app\/factory\/\$\{action\}$/],
+    ['factory.ts', /^\/app\/business\/allowlist\/remove$/],
+    ['factory.ts', /^\/app\/business\/\$\{action\}$/],
   ];
 
   it('each of them carries the confirm on its button, with a question from the catalogue in all three languages', () => {
