@@ -51,7 +51,7 @@ describe('M11.1 · settings renderer (localized)', () => {
   it('en: title, fields, derived categories, save', () => {
     const html = withoutIsolates(renderProfile(full, 'en', null));
     expect(html).toContain('Business profile');
-    expect(html).toContain('Company name'); expect(html).toContain('Yiwu Sunshine Trading');
+    expect(html).toContain('Business name'); expect(html).toContain('Yiwu Sunshine Trading');
     expect(html).toContain('Working hours'); expect(html).toContain('Languages served');
     expect(html).toContain('Product categories');
     expect(html).toContain('bags'); expect(html).toContain('drinkware');   // derived
@@ -79,10 +79,10 @@ describe('M11.1 · settings renderer (localized)', () => {
   });
 
   it('zh + ar render localized labels', () => {
-    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('企业资料');
-    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('公司名称');
+    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('商家资料');
+    expect(withoutIsolates(renderProfile(full, 'zh', null))).toContain('商家名称');
     const ar = withoutIsolates(renderProfile(full, 'ar', null));
-    expect(ar).toContain('ملف النشاط'); expect(ar).toContain('اسم الشركة');
+    expect(ar).toContain('ملف النشاط'); expect(ar).toContain('اسم النشاط التجاري');
   });
 
   it('escapes owner-entered values; no tables; no tech vocabulary (every locale)', () => {

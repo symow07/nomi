@@ -76,10 +76,10 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     const at = (s: string) => html.indexOf(s);
     expect(at('About your business')).toBeGreaterThan(-1);
     expect(at('What you sell')).toBeGreaterThan(at('About your business'));
-    expect(at('What you promise buyers')).toBeGreaterThan(at('What you sell'));
-    expect(at('Where buyers reach you')).toBeGreaterThan(at('What you promise buyers'));
+    expect(at('What you promise customers')).toBeGreaterThan(at('What you sell'));
+    expect(at('Where customers reach you')).toBeGreaterThan(at('What you promise customers'));
     // each section carries the owner's own question
-    for (const q of ['Who are we?', 'What do we sell?', 'Where can buyers reach us?',
+    for (const q of ['Who are we?', 'What do we sell?', 'Where can customers reach us?',
                      say('en', 'factory.promise.q')].map((q) => esc(q)))
       expect(html).toContain(q);
   });
@@ -177,7 +177,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
     expect(on).toContain('+971 50 ••• 4444');
     const off = withoutIsolates(renderFactory(fresh, 'en'));
     expect(off).toContain('Not connected');
-    expect(off).toContain('cannot receive or answer a buyer');
+    expect(off).toContain('cannot receive or answer a customer');
   });
 
   it('a finished factory shows no next step; a new one shows exactly one', () => {
@@ -192,7 +192,7 @@ describe('Phase E · My factory answers the owner’s four questions', () => {
 
   it('an empty factory is honest about being empty, never a wall of zeros', () => {
     const html = withoutIsolates(renderFactory(fresh, 'en'));
-    expect(html).toContain('nothing to tell buyers about you yet');
+    expect(html).toContain('nothing to tell customers about you yet');
     expect(html).toContain('nothing to quote yet');
     expect(html).not.toContain('>0<');
     expect(html.toLowerCase()).not.toContain('no data');
@@ -222,10 +222,10 @@ describe('Phase E · language (all locales, RTL-safe)', () => {
   it('renders fully in every locale and each keeps its own words', () => {
     for (const l of LOCALES) expect(withoutIsolates(renderFactory(complete, l)).length).toBeGreaterThan(800);
     const zh = withoutIsolates(renderFactory(complete, 'zh'));
-    expect(zh).toContain('我的公司'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对买家的承诺');
+    expect(zh).toContain('我的生意'); expect(zh).toContain('我们是谁？'); expect(zh).toContain('你对客户的承诺');
     expect(zh).not.toContain('About your business');
     const ar = withoutIsolates(renderFactory(complete, 'ar'));
-    expect(ar).toContain('شركتي'); expect(ar).toContain('من نحن؟'); expect(ar).toContain(shown('ar', 'factory.promise.title'));
+    expect(ar).toContain('نشاطي التجاري'); expect(ar).toContain('من نحن؟'); expect(ar).toContain(shown('ar', 'factory.promise.title'));
     expect(ar).not.toContain('About your business');
   });
 
@@ -451,7 +451,7 @@ describe('M20.2 · the activation readiness surface', () => {
 
   it('ready: says so, and names exactly who can receive a message', () => {
     const html = withReadiness({ canActivate: true, blockers: [], live: false });
-    expect(html).toContain('can start talking to real buyers whenever you say so');
+    expect(html).toContain('can start talking to real customers whenever you say so');
     expect(html).toContain(shown('en', 'activation.recipients.title'));
     expect(html).toContain('my phone');
     expect(html).toContain('971500002222');          // no label → the number itself
@@ -486,7 +486,7 @@ describe('M20.2 · the activation readiness surface', () => {
 
   it('live: reports that the assistant is talking to real buyers, and to whom', () => {
     const html = withReadiness({ live: true, canActivate: true, blockers: [] });
-    expect(html).toContain('is talking to real buyers');
+    expect(html).toContain('is talking to real customers');
     expect(html).toContain('my phone');
     expect(html).not.toContain('whenever you say so');   // already started
   });
@@ -608,7 +608,7 @@ describe('M20.3.1 · activation truth, localized', () => {
 
   it('each state reads as itself, and says what it means for the owner’s day', () => {
     expect(at('not_connected', 'en')).toContain('Not connected');
-    expect(at('not_connected', 'en')).toContain('cannot receive or answer a buyer');
+    expect(at('not_connected', 'en')).toContain('cannot receive or answer a customer');
     expect(at('ready', 'en')).toContain(shown('en', 'channel.state.ready.hint'));
     expect(at('active', 'en')).toContain(shown('en', 'channel.state.active.hint'));
     expect(at('paused', 'en')).toContain('Paused');

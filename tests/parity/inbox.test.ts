@@ -48,7 +48,7 @@ const detailIn = (ownership: ConversationOwnership, over: Partial<ConversationDe
 describe('M9.3 · inbox list (localized)', () => {
   it('zh: buyer, country, status, product, deep link', () => {
     const html = renderInboxList(listWithWork, 'zh', NOW);
-    expect(html).toContain('买家'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
+    expect(html).toContain('客户'); expect(html).toContain('Ahmed'); expect(html).toContain('🇦🇪');
     expect(html).toContain(shown('zh', 'buyers.badge.review'));
     expect(html).toContain('保温杯'); expect(html).toContain('5000个'); expect(html).toContain('$0.92');
     // CC-25 — a buyer opens on the newest message, with the reply waiting under it.
@@ -57,16 +57,16 @@ describe('M9.3 · inbox list (localized)', () => {
 
   it('en: localized chrome, latin product name', () => {
     const html = renderInboxList(listWithWork, 'en', NOW);
-    expect(html).toContain('Buyers'); expect(html).toContain(shown('en', 'buyers.badge.review'));
+    expect(html).toContain('Customers'); expect(html).toContain(shown('en', 'buyers.badge.review'));
     expect(html).toContain('Needs you'); expect(html).toContain('Vacuum cup');
     expect(html).toContain('5,000\u00a0pcs');   // CC-13 — a figure and its unit, spaced (no-break)
     expect(html).not.toContain('保温杯');
   });
 
   it('empty pending → all-good per locale, not "no data"', () => {
-    expect(renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'zh', NOW)).toContain('现在没有买家需要你');
+    expect(renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'zh', NOW)).toContain('现在没有客户需要你');
     const en = renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
-    expect(en).toContain('No buyer needs you right now');
+    expect(en).toContain('No customer needs you right now');
     expect(en.toLowerCase()).not.toContain('no data');
   });
 
@@ -87,7 +87,7 @@ describe('M9.3 · conversation detail (localized)', () => {
     const outbound = html.indexOf('Checking for you.');
     expect(outbound).toBeGreaterThan(inbound);
     expect(html).toContain('msg inbound'); expect(html).toContain('msg outbound');
-    expect(html).toContain('买家'); expect(html).toContain(esc(assistantName('zh')));
+    expect(html).toContain('客户'); expect(html).toContain(esc(assistantName('zh')));
     expect(renderConversationDetail(detailWithDraft, 'en', NOW, null)).toContain(esc(assistantName('en')));
     // a named assistant's lines carry the name the owner chose
     expect(withAssistantName('Lily', () => renderConversationDetail(detailWithDraft, 'en', NOW, null))).toContain('Lily');
@@ -179,7 +179,7 @@ describe('M16.2c · inbox human control surface (localized)', () => {
       detailIn('WAITING_HUMAN', { handoffReasons: ['human_requested', 'complaint'] }), 'en', NOW, null);
     expect(html).toContain('Waiting for you');
     expect(html).toContain('Handed to you because');
-    expect(html).toContain('the buyer asked for a person');   // stored reason, not a summary
+    expect(html).toContain('the customer asked for a person');   // stored reason, not a summary
     expect(html).toContain('a complaint');
     expect(html).toContain('action="/app/inbox/conv-1/takeover"');
     expect(html).not.toContain('action="/app/inbox/conv-1/reply"');
@@ -281,7 +281,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 
   it('badges name the human action, never an internal state', () => {
     const html = renderInboxList(mixed, 'en', NOW);
-    expect(html).toContain('the buyer asked for a person');   // the STORED reason
+    expect(html).toContain('the customer asked for a person');   // the STORED reason
     expect(html).toContain(shown('en', 'buyers.badge.review'));     // awaiting the owner's OK
     expect(html).toContain('You are replying');     // OWNER_CONTROLLED
     expect(html).not.toContain('unclaimed');
@@ -299,7 +299,7 @@ describe('Phase D · buyers list grouped by who is speaking', () => {
 
   it('calm empty state is about the buyers, not about missing data', () => {
     const en = renderInboxList({ filter: 'pending', waitingCount: 0, blockedCount: 0, conversations: [] }, 'en', NOW);
-    expect(en).toContain('No buyer needs you right now');
+    expect(en).toContain('No customer needs you right now');
     expect(en.toLowerCase()).not.toContain('no data');
     expect(en.toLowerCase()).not.toContain('0 conversations');
   });
@@ -451,11 +451,11 @@ describe('Release hardening · the product never claims a delivery it has not ma
       expect(s.length).toBeGreaterThan(10);
       expect(s).not.toBe(t(l, 'inbox.flash.sent'));
     }
-    expect(t('en', 'inbox.flash.sentNotLive')).toContain('nothing went to the buyer');
+    expect(t('en', 'inbox.flash.sentNotLive')).toContain('nothing went to the customer');
   });
 
   it('skipping is unambiguous about the buyer seeing nothing', () => {
-    expect(t('en', 'inbox.flash.skipped')).toContain('nothing goes to the buyer');
+    expect(t('en', 'inbox.flash.skipped')).toContain('nothing goes to the customer');
   });
 });
 
@@ -471,10 +471,10 @@ describe('Release hardening · the handoff badge states the stored reason', () =
   }, 'en', NOW);
 
   it('every stored reason renders as itself — none is reported as “asked for a person”', () => {
-    expect(waiting('human_requested')).toContain('the buyer asked for a person');
+    expect(waiting('human_requested')).toContain('the customer asked for a person');
     expect(waiting('complaint')).toContain('a complaint');
     expect(waiting('complaint')).not.toContain('asked for a person');
-    expect(waiting('repeated_ambiguity')).toContain("the buyer's need stayed unclear");
+    expect(waiting('repeated_ambiguity')).toContain("the customer's need stayed unclear");
     expect(waiting('repeated_ambiguity')).not.toContain('asked for a person');
     expect(waiting('low_confidence_image')).toContain('an unclear photo');
     expect(waiting('low_confidence_image')).not.toContain('asked for a person');

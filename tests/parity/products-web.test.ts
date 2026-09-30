@@ -65,7 +65,7 @@ describe('M9.5 · product detail (localized)', () => {
     expect(html).toContain('帆布袋');            // shown as the alternate name
     expect(html).toContain('Pricing');
     expect(html).toContain('$1.05'); expect(html).toContain('$0.92');
-    expect(html).toContain('What buyers call it');
+    expect(html).toContain('What customers call it');
     for (const a of detail.aliases) expect(html).toContain(a);
     expect(html).toContain('Recent quotes');
     expect(html).toContain('total $4,600.00');
@@ -74,7 +74,7 @@ describe('M9.5 · product detail (localized)', () => {
   it('zh: title=chinese name; ar: Arabic chrome', () => {
     expect(renderProductDetail(detail, 'zh')).toContain(t('zh', 'product.detail.aliasesTitle'));
     const ar = renderProductDetail(detail, 'ar');
-    expect(ar).toContain('الأسعار'); expect(ar).toContain('ما يسمّيه المشترون');
+    expect(ar).toContain('الأسعار'); expect(ar).toContain('ما يسمّيه العملاء');
   });
 
   it('escapes buyer-facing aliases (untrusted content)', () => {

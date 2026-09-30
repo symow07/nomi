@@ -195,7 +195,7 @@ d('A5 · more than one assistant (requires DATABASE_URL)', () => {
 
     const res = await post(ownerCookie, `/app/inbox/${wa.conversationId}/assistant`, `assistant=${noor.id}`);
     expect(res.statusCode).toBe(302);
-    expect(flashOf(res)).toContain('Noor answers this buyer from now on.');
+    expect(flashOf(res)).toContain('Noor answers this customer from now on.');
     const after = await app.inject({ method: 'GET', url: `/app/inbox/${wa.conversationId}`, headers: { cookie: ownerCookie } });
     expect(after.body).toContain('Answered by Noor');
 

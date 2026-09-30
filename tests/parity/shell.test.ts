@@ -21,10 +21,10 @@ describe('Phase F · five destinations, and nothing else competing', () => {
   });
 
   it('names them in the owner’s language, in every locale', () => {
-    expect(page('en')).toContain('Today'); expect(page('en')).toContain('Buyers');
-    expect(page('zh')).toContain('今天'); expect(page('zh')).toContain('买家');
+    expect(page('en')).toContain('Today'); expect(page('en')).toContain('Customers');
+    expect(page('zh')).toContain('今天'); expect(page('zh')).toContain('客户');
     expect(page('zh')).toContain(t('zh', 'nav.employee'));   // no name chosen: 你的助手
-    expect(page('ar')).toContain('اليوم'); expect(page('ar')).toContain('المشترون');
+    expect(page('ar')).toContain('اليوم'); expect(page('ar')).toContain('العملاء');
     // the retired name for the buyers surface is gone from the nav
     expect(page('en')).not.toContain('>Inbox<');
     expect(page('zh')).not.toContain('收件箱');

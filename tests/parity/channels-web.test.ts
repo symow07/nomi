@@ -47,7 +47,7 @@ describe('M9.4 · channel center (localized)', () => {
 
   it('not connected: description + connect entry, no fake credential form', () => {
     const html = renderChannels(notConnected, 'en', null);
-    expect(html).toContain('Buyers message this number');
+    expect(html).toContain('Customers message this number');
     expect(html).toContain('href="/app/channels/whatsapp/connect"');
     expect(html).not.toContain('action="/app/channels/whatsapp/reconnect"'); // never-set-up ≠ reconnect
     expect(html).not.toContain('type="password"');

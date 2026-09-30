@@ -95,7 +95,8 @@ export async function loadInsights(db: Db, businessIdRaw: string): Promise<Insig
     // 1. A buyer who was quoted and went quiet. The most expensive silence in
     //    the product: the work is done and the deal is dying of nothing.
     const quoted = (await sql<{ buyer: string; conversation_id: string; total_usd: string | null }>`
-      select coalesce(cl.display_name, 'Buyer') as buyer, c.id as conversation_id, q.total_usd
+      -- No name on record is said in the reader's language when drawn, not as an English word here.
+      select coalesce(cl.display_name, '') as buyer, c.id as conversation_id, q.total_usd
         from quotes q
         join conversations c on c.id = q.conversation_id
         join clients cl on cl.id = c.client_id
@@ -277,7 +278,9 @@ export function renderInsights(d: InsightsData, locale: Locale, o: {
   const name = assistantName(locale);
   const row = (i: Insight): string => {
     const params = { ...i.params, name, ...(i.params['cap'] !== undefined
-      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}) };
+      ? { cap: capabilityName(locale, String(i.params['cap'])) } : {}),
+      // A customer with no name on record: the word for one, in the reader's language.
+      ...(i.params['buyer'] === '' ? { buyer: t(locale, 'common.buyer') } : {}) };
     const line = isCounted(i.key) ? tn(locale, i.key, Number(i.params['count']), params) : t(locale, i.key, params);
     const label = t(locale, `insight.action.${i.action.kind}` as MessageKey);
     return `<div class="row">

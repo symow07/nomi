@@ -32,7 +32,7 @@ describe('M9.8 · business review (localized)', () => {
     const html = renderAnalytics(active, 'zh');
     expect(html).toContain('经营情况');
     expect(html).toContain('新增客户'); expect(html).toContain('客户沟通');
-    expect(html).toContain('沟通情况'); expect(html).toContain('买家咨询');
+    expect(html).toContain('沟通情况'); expect(html).toContain('客户咨询');
     expect(html).toContain('报价与订单'); expect(html).toContain(t('zh', 'analytics.section.employee'));
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });
@@ -41,7 +41,7 @@ describe('M9.8 · business review (localized)', () => {
     const html = renderAnalytics(active, 'en');
     expect(html).toContain('Results');
     expect(html).toContain('New customers'); expect(html).toContain('Activity');
-    expect(html).toContain('Buyer inquiries'); expect(html).toContain(t('en', 'analytics.section.employee'));
+    expect(html).toContain('Customer inquiries'); expect(html).toContain(t('en', 'analytics.section.employee'));
     expect(html).toContain('Inquiries handled');
     expect(html).toContain('>6<'); expect(html).toContain('>8<');
   });

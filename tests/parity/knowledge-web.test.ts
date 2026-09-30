@@ -90,9 +90,9 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
   it('and that taught facts do not — the two scopes read differently', () => {
     const html = renderProductKnowledge(d, 'en', null);
     expect(html).toContain(t('en', 'knowledge.taught.title'));
-    expect(html).toContain('used only when a buyer asks about Canvas tote');
+    expect(html).toContain('used only when a customer asks about Canvas tote');
     // Both scopes are named on the same screen, so neither can be assumed.
-    expect(html.indexOf('everything you sell')).toBeLessThan(html.indexOf('only when a buyer asks about'));
+    expect(html.indexOf('everything you sell')).toBeLessThan(html.indexOf('only when a customer asks about'));
   });
 
   it('a catalogue-wide change is confirmed, from a page showing one product', () => {
@@ -109,7 +109,7 @@ describe('M22 (F-03) · claims scope is stated, not implied', () => {
 
   it('states the default-deny rule without claiming a scope', () => {
     expect(renderProductKnowledge(d, 'en', null))
-      .toContain('Anything not turned on here is refused, however a buyer asks.');
+      .toContain('Anything not turned on here is refused, however a customer asks.');
   });
 
   it('reads in every locale', () => {

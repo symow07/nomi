@@ -287,14 +287,14 @@ d('A · Buyers is one list: searched, paged, nobody left behind (requires DATABA
     const page = await get(`/app/conversations/${zhang}`);
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Zhang Wei');
-    expect(page.body).toContain('About this buyer');
+    expect(page.body).toContain('About this customer');
     expect(page.body).toContain('<a class="back" href="/app/inbox">');
     expect(page.body).toMatch(/href="\/app\/inbox" class="navlink active" aria-current="page"/);
     const conversation = await get(`/app/inbox/${zhang}`);
     expect(conversation.body).toContain(`href="/app/conversations/${zhang}"`);
     const missing = await get(`/app/conversations/${randomUUID()}`);
     expect(missing.statusCode).toBe(404);
-    expect(missing.body).toContain('Buyer not found');
+    expect(missing.body).toContain('Customer not found');
   });
 
   it('the row carries what Customers did: the channel, who wrote last, the last contact', async () => {

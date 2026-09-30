@@ -366,7 +366,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(home.body).toContain('href="/app/analytics"');
     const inbox = await prod.app.inject({ method: 'GET', url: '/app/inbox', headers: { cookie } });
     expect(inbox.statusCode).toBe(200);
-    expect(inbox.body).toContain('Buyers');            // English default
+    expect(inbox.body).toContain('Customers');         // English default
   });
 
   it('ADR-0008 i18n: login/home localize by cookie & Accept-Language, /locale switches', async () => {
@@ -561,7 +561,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       url: `/app/products/${RUN_NS}-0000-4000-8000-000000000101`, headers: { cookie } });
     expect(detail.statusCode).toBe(200);
     expect(detail.body).toContain('Pricing');
-    expect(detail.body).toContain('What buyers call it');   // aliases
+    expect(detail.body).toContain('What customers call it');   // aliases
     expect(detail.body).toContain('canvas bag');
 
     const missing = await prod.app.inject({ method: 'GET',
@@ -698,11 +698,13 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(moved.headers['location']).toBe('/app/inbox?filter=all');
     const res = await prod.app.inject({ method: 'GET', url: '/app/inbox?filter=all', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('<h1 class="page">Buyers</h1>');   // English default, one word
-    // No second LIST called Customers: the page's words are Buyers'. (The rail's
-    // "Customers" heading over Conversations and Calendar is the design pass's.)
+    expect(res.body).toContain('<h1 class="page">Customers</h1>');   // English default, one word
+    // One list, one word. Since the positioning rewrite that word is "Customers":
+    // one heading says it, and "Buyers" is gone. (The rail's "Customers" heading
+    // over Conversations and Calendar is the design pass's, outside <main>.)
     const main = res.body.slice(res.body.indexOf('<main'));
-    expect(main).not.toContain('Customers');
+    expect(main.match(/<h1[^>]*>Customers<\/h1>/g)?.length).toBe(1);
+    expect(main).not.toMatch(/\bBuyers?\b/);
     expect(res.body).toContain('Ahmed Al-Rashid');
     expect(res.body).toContain('Ivan Petrov');
     expect(res.body).not.toContain('置信度');   // no invented score
@@ -726,7 +728,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-000000000301`, headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Ahmed Al-Rashid');
-    expect(res.body).toContain('About this buyer');   // A — one word: buyer
+    expect(res.body).toContain('About this customer');   // A — one word: customer (the positioning rewrite)
     expect(res.body).toContain('First contact');
     expect(res.body).toContain('History');
   });
@@ -736,7 +738,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     const res = await prod.app.inject({ method: 'GET',
       url: `/app/conversations/${RUN_NS}-0000-4000-8000-0000000009ff`, headers: { cookie } });
     expect(res.statusCode).toBe(404);
-    expect(res.body).toContain('Buyer not found');
+    expect(res.body).toContain('Customer not found');
   });
 
   it('M9.8 analytics: requires auth', async () => {
@@ -929,7 +931,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('Business profile');          // English default — its own page since UI-PASS 7
     expect(res.body).toContain('Yiwu Demo Factory');         // reused businesses.name
-    expect(res.body).toContain('Company name');
+    expect(res.body).toContain('Business name');
     expect(res.body).toContain('Product categories');
     // derived from the demo catalog (products.category): bags/drinkware/home/lighting
     expect(res.body).toMatch(/bags|drinkware|lighting/);
@@ -1978,7 +1980,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(pending.waitingCount).toBeGreaterThan(0);
       // the badge now states the SIGNAL that was stored, not a fixed sentence
       expect(row!.handoffReason).toBe('human_requested');
-      expect(renderInboxList(pending, 'en', new Date())).toContain('the buyer asked for a person');
+      expect(renderInboxList(pending, 'en', new Date())).toContain('the customer asked for a person');
     });
 
     it('every waiting handoff sorts above every conversation that is not waiting', async () => {
@@ -2295,7 +2297,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       expect(f.promises.certs).toEqual([]);
       expect(f.nextStep).toBe('profile');
       const page = await html('00000000-0000-0000-0000-000000000000');
-      expect(page).toContain('nothing to tell buyers about you yet');
+      expect(page).toContain('nothing to tell customers about you yet');
     });
 
     it('SECURITY: the page requires an owner session, and shows only that owner’s factory', async () => {
@@ -2563,7 +2565,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
 
       // rendered as an installation that HAS a provider — this one has none
       const page = renderFactory(await loadFactory(prod.db, DEMO_BIZ, true), 'en');
-      expect(page).toContain('is talking to real buyers');
+      expect(page).toContain('is talking to real customers');
       expect(page).toContain('action="/app/factory/deactivate"');
       expect(page).not.toContain('action="/app/factory/activate"');
     });
