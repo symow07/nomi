@@ -49,7 +49,8 @@ try {
   const r = await client.query(
     `select answer_path as path, model_id, coalesce(llm_calls, 0) as llm_calls,
             coalesce(input_tokens, 0) as input_tokens, coalesce(output_tokens, 0) as output_tokens,
-            coalesce(analyser_avoidable, false) as analyser_avoidable
+            coalesce(analyser_avoidable, false) as analyser_avoidable,
+            decision->'action'->>'kind' as kind
        from turns
       where created_at > now() - ($1 || ' days')::interval
         and ($2::uuid is null or business_id = $2::uuid)`,
@@ -59,16 +60,19 @@ try {
   // model 'scripted': no model was asked and no buyer wrote. Counted apart —
   // left in, their unlisted "price" would make every estimate unknown.
   const scripted = r.rows.filter((x) => x.model_id === 'scripted').length;
-  const measured = r.rows.filter((x) => x.path !== null && x.model_id !== 'scripted').map((x) => ({
+  // A message that arrived while the assistant was stopped or silenced is a
+  // turn too (2026-09-30), held: nobody answered it, so it is no path's.
+  const held = r.rows.filter((x) => x.kind === 'held').length;
+  const measured = r.rows.filter((x) => x.path !== null && x.model_id !== 'scripted' && x.kind !== 'held').map((x) => ({
     path: x.path, modelId: x.model_id, llmCalls: Number(x.llm_calls),
     inputTokens: Number(x.input_tokens), outputTokens: Number(x.output_tokens),
     analyserAvoidable: x.analyser_avoidable === true,
   }));
-  const unmeasured = r.rows.length - measured.length - scripted;
+  const unmeasured = r.rows.length - measured.length - scripted - held;
   const s = summarizePaths(measured);
 
   console.log(`\n  Who answered, last ${days} day${days === 1 ? '' : 's'}${business ? ` · business ${business}` : ' · every business'}`);
-  console.log(`  ${s.turns} measured turn${s.turns === 1 ? '' : 's'}${unmeasured ? ` · ${unmeasured} from before the measurement began (not counted)` : ''}${scripted ? ` · ${scripted} scripted Practice turn${scripted === 1 ? '' : 's'} (no model asked; not counted)` : ''}\n`);
+  console.log(`  ${s.turns} measured turn${s.turns === 1 ? '' : 's'}${unmeasured ? ` · ${unmeasured} from before the measurement began (not counted)` : ''}${scripted ? ` · ${scripted} scripted Practice turn${scripted === 1 ? '' : 's'} (no model asked; not counted)` : ''}${held ? ` · ${held} held while the assistant was stopped or silenced (not counted)` : ''}\n`);
   if (s.turns === 0) {
     console.log('  Nothing measured yet. Turns are measured from migration 0060 on.\n');
   } else {

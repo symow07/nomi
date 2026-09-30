@@ -342,6 +342,90 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * THE OWNER'S DECISION OF 2026-09-30 — Stop pressed while a customer's lines
+ * are still being grouped is recorded as "stopped", and the hold is a turn.
+ *
+ * The lines of a batch are marked processed IN a turn (`processed_in`
+ * references `turns`). The hold path wrote no turn, so this failed: the job
+ * retried, dead-lettered, and the customer reached "Needs you" as "not
+ * answered" minutes later — not as what happened. Found 2026-09-28, fixed here.
+ */
+d('Stop · GROUPING — Stop pressed while his lines wait to be grouped (requires DATABASE_URL)', { timeout: 120_000 }, () => {
+  const BIZ = `dd7a0000-0000-4000-8000-${RUN}0005`;
+  const C = `9715${runDigits(RUN, 6)}5`;
+  const WEB_SECRET = createHmac('sha256', 'b'.repeat(64)).update('yf-web-session').digest('hex');
+  let prod: import('../../src/main.js').Production;
+  let sim: import('../../src/channels/whatsapp/simulator.js').Simulator;
+  let cookie = '';
+  const analyzer = new FakeAnalyzer();
+  const replyWriter = new FakeReplyWriter();
+  const q = <T>(fn: (tx: Tx) => Promise<T>) => inTenant(prod.db, BIZ, fn);
+  const post = (w: { rawBody: string; headers: Record<string, string> }) =>
+    prod.app.inject({ method: 'POST', url: '/webhook/whatsapp', payload: w.rawBody,
+      headers: { 'content-type': 'application/json', ...w.headers } });
+
+  beforeAll(async () => {
+    const { buildProduction } = await import('../../src/main.js');
+    const { whatsappSimulator } = await import('../../src/channels/whatsapp/simulator.js');
+    const { createDb, withTenantTx } = await import('../../src/db/client.js');
+    sim = whatsappSimulator([], { tag: `grp${RUN}` });
+    const setup = createDb(DATABASE_URL!);
+    await withTenantTx(setup, await bidOf(BIZ), async (t) => {
+      await sql`insert into businesses (id, name, engine) values (${BIZ}, 'Stop Grouping', 'service') on conflict (id) do nothing`.execute(t);
+      // A long quiet time: his first line waits in its batch long enough to press Stop.
+      await sql`update businesses set batch_debounce_ms = 6000, batch_max_window_ms = 20000 where id = ${BIZ}`.execute(t);
+      await sql`insert into channels (business_id, kind, status, display_phone, connected_at)
+                values (${BIZ}, 'whatsapp', 'connected', '+86 579****0075', now())`.execute(t);
+      await sql`insert into channel_credentials (business_id, channel, external_ref, secret_ref, engine)
+                values (${BIZ}, 'whatsapp', ${sim.phoneNumberId}, 'sim-test', 'service')`.execute(t);
+    });
+    await setup.destroy();
+    process.env['PILOT_BUSINESS_ID'] = BIZ;
+    prod = await buildProduction({
+      provider: 'meta', DATABASE_URL: DATABASE_URL!, ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
+      META_WHATSAPP_ACCESS_TOKEN: 'meta-token-not-real-shape-ok', META_WHATSAPP_PHONE_NUMBER_ID: '123456789012345',
+      META_WHATSAPP_BUSINESS_ACCOUNT_ID: '987654321098765', META_APP_SECRET: 'meta-app-secret-not-real',
+      META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'grp-verify-token-xx', CREDENTIAL_KEY: 'b'.repeat(64), PORT: 0,
+    }, { adapter: sim.adapter, logger: false, models: { analyzer, replyWriter } });
+    const login = await prod.app.inject({ method: 'POST', url: '/login', headers: FORM,
+      payload: `code=${encodeURIComponent(prod.ownerAccessCode)}` });
+    cookie = String(login.headers['set-cookie'] ?? '').split(';')[0] ?? '';
+  }, 60_000);
+  afterAll(async () => { await prod?.close(); });
+
+  it('handed to a person as STOPPED — not "not answered" — and the hold is a turn his lines were processed in', async () => {
+    const w = sim.inboundText({ from: C, text: 'hi, do you make tote bags?' });
+    expect((await post(w)).statusCode).toBe(200);
+    // His line is recorded and waits in its batch.
+    const frag = await until(() => q((tx) => sql<{ id: string }>`
+      select f.id from message_fragments f join conversations c on c.id = f.conversation_id
+       where c.business_id = ${BIZ}::uuid and f.processed_in is null`.execute(tx).then((r) => r.rows[0])), 'his line waiting in its batch');
+    // The owner presses Stop while it waits.
+    const r = await prod.app.inject({ method: 'POST', url: '/app/factory/stop-assistant', headers: { cookie, ...FORM }, payload: '' });
+    expect(flashSaid(r, WEB_SECRET)).toContain('Stopped on every channel');
+    // The batch wakes, meets the Stop, and hands him over — as stopped.
+    const conv = await until(() => q((tx) => sql<{ conv: string; assigned: string | null }>`
+      select c.id::text as conv, c.assigned_to as assigned from conversations c
+        join message_fragments f on f.conversation_id = c.id where f.id = ${frag.id}`.execute(tx)
+      .then((x) => (x.rows[0]?.assigned ? x.rows[0] : undefined))), 'the handoff', 60_000);
+    const signals = await q((tx) => sql<{ kind: string }>`
+      select kind from conversation_signals where conversation_id = ${conv.conv}::uuid and resolved_at is null`
+      .execute(tx).then((x) => x.rows.map((y) => y.kind)));
+    expect(signals).toContain('assistant_stopped');
+    expect(signals).not.toContain('not_answered');
+    // The hold is a turn: nothing read, nothing written — and his line was processed in it.
+    const turn = await q((tx) => sql<{ kind: string; reason: string; analysis: unknown; processed: string | null }>`
+      select t.decision->'action'->>'kind' as kind, t.decision->'action'->>'reason' as reason, t.analysis,
+             (select processed_in from message_fragments where id = ${frag.id}) as processed
+        from turns t where t.message_id = ${frag.id}`.execute(tx).then((x) => x.rows[0]));
+    expect(turn).toMatchObject({ kind: 'held', reason: 'assistant_stopped', analysis: null, processed: frag.id });
+    expect(analyzer.texts).toEqual([]);   // no model was asked
+    expect(sim.sendCount()).toBe(0);      // nothing was sent
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 d('Stop · DOOR — nothing takes a waiting buyer off Needs you while stopped (requires DATABASE_URL)', () => {
   const BIZ = `dd7a0000-0000-4000-8000-${RUN}0003`;
   let db: Db;

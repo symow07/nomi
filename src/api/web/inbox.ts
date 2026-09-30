@@ -372,7 +372,8 @@ async function herWordsOf(tx: Tx, conversationId: string): Promise<NonNullable<C
     select e.payload->'hits' as hits from conversation_events e
      where e.conversation_id = ${conversationId} and e.type = 'forbidden_in_her_text'
        and e.created_at >= coalesce((select max(t.created_at) from turns t
-                                      where t.conversation_id = ${conversationId}), '-infinity'::timestamptz)
+                                      where t.conversation_id = ${conversationId}
+                                        and t.decision->'action'->>'kind' is distinct from 'held'), '-infinity'::timestamptz)
      order by e.id desc limit 1`.execute(tx)).rows[0];
   const hits = Array.isArray(row?.hits) ? row.hits as { term?: unknown; path?: unknown }[] : [];
   return (['taught_answer', 'order_status'] as const).flatMap((path) => {

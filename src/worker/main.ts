@@ -334,13 +334,35 @@ export async function startWorker(
           }
         }
         const waiting = await pendingFragments(tx, conversationId.value);
-        await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
         const d = inboundDisposition(type, job.data.received);
         if (d.kind === 'ignore' && waiting.length === 0) return null;   // a reaction asks nothing of anyone
+        const repos = tenantRepos(tx, businessId.value);
+        /*
+         * THE HOLD IS A TURN (the owner, 2026-09-30). The lines still waiting
+         * in his batch are marked processed IN a turn — `processed_in`
+         * references `turns` — and the hold wrote none, so Stop pressed while
+         * his lines were being grouped failed here: the job retried, died, and
+         * he reached "Needs you" as "not answered" minutes later instead of as
+         * what happened. The record says it now: held, and why; nothing read,
+         * nothing written, no model asked. Today's "handled" and the operator's
+         * answer-path report leave a held turn out.
+         */
+        await repos.audit.recordTurn({
+          messageId: job.data.messageId, conversationId: conversationId.value,
+          stateBefore: (await repos.conversations.loadState(conversationId.value)) ?? {},
+          input: {
+            text: waiting.length ? waiting.map((f) => f.text).join('\n') : (job.data.text ?? ''),
+            messageIds: waiting.length ? waiting.map((f) => f.id) : [job.data.messageId],
+          },
+          analysis: null, retrieved: null,
+          decision: { action: { kind: 'held', reason: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' } },
+          quoteId: null, promptVersion: null, modelId: null, latencyMs: Date.now() - started,
+        });
+        await markFragmentsProcessed(tx, waiting.map((f) => f.id), job.data.messageId);
         // 0076 — his words, and the lines still waiting in his batch: a
         // deletion request among them is written down now, not filed under
         // "stopped" for the owner to notice.
-        return handToPerson(tenantRepos(tx, businessId.value), conversationId.value,
+        return handToPerson(repos, conversationId.value,
           { kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' },
           [{ messageId: job.data.messageId, text: job.data.text || null },
            ...waiting.map((f) => ({ messageId: f.id, text: f.text }))]);

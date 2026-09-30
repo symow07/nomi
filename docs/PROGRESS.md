@@ -225,7 +225,6 @@ instruction did not answer. Collected here; asked once, at the end.
 
 | Items | Decision (plan numbering) |
 |---|---|
-| HF (the hold-path defect: Stop pressed while a batch waits) | 25 |
 | T9 (languages beyond the five get what?) | 20 |
 | P1–P6, Q1W (per-workspace Practice) | 4, 5 |
 | TZ (business time zone) | 22 |
