@@ -336,7 +336,9 @@ d('Stop · WAITING — silent while stopped, and a buyer who writes is still the
     await until(() => q((tx) => sql<{ n: number }>`
       select count(*)::int as n from drafts where conversation_id = ${convB}::uuid`
       .execute(tx).then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'a draft for the new buyer');
-    expect((await usage()).turns).toBeGreaterThan(0);
+    // The turn's cost lands in its own transaction just after the turn commits
+    // (T7), so the draft can be seen first: wait for it (ops-silence-handoff's twin failed on CI).
+    await until(async () => ((await usage()).turns > 0 ? true : undefined), 'the turn on the ledger');
     expect(await assigned(convA)).not.toBeNull();
   });
 });

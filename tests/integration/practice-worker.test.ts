@@ -293,34 +293,31 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
   }, 120_000);
 
   it('P5 — fifty a day: the fifty-first practice line is refused, and nothing is recorded, queued or asked', async () => {
-    const conv = (await practiceConv())!;
-    const today = () => inCopy((tx) => sql<{ n: number }>`
-      select count(*)::int as n from messages m join conversations c on c.id = m.conversation_id
-       where c.business_id = ${copy}::uuid and m.direction = 'inbound'
-         and m.sent_at >= ((now() at time zone 'UTC')::date)::timestamp at time zone 'UTC'`.execute(tx).then((x) => x.rows[0]!.n));
-    const have = await today();
-    await inCopy(async (tx) => {
-      for (let i = have; i < 50; i++) {
-        await sql`insert into messages (conversation_id, external_id, direction, input_type, text_content, sent_at)
-                  values (${conv}::uuid, ${`cap-${RUN}-${i}`}, 'inbound', 'text', ${`line ${i}`}, now())`.execute(tx);
-      }
-    });
-    expect(await today()).toBe(50);
+    const lines = () => inBiz(PILOT, (tx) => sql<{ day: string | null; n: number }>`
+      select practice_day::text as day, practice_lines as n from businesses where id = ${PILOT}::uuid`.execute(tx).then((x) => x.rows[0]!));
+    // every line so far was counted, on the workspace's own row
+    expect((await lines()).n).toBeGreaterThanOrEqual(5);
+    await inBiz(PILOT, (tx) => sql`update businesses set practice_day = (now() at time zone 'UTC')::date, practice_lines = 50
+      where id = ${PILOT}::uuid`.execute(tx));
+    const conv = await practiceConv();
+    const said0 = conv ? await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from messages
+      where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.n)) : 0;
     const asked = analyzer.calls;
     const r = await say('one more?');
     expect(r.statusCode).toBe(302);
     const { flashSaid } = await import('./tenant.js');
     expect(flashSaid(r, WEB_SECRET).replace(/[\u2066-\u2069]/g, '')).toContain('Practice takes 50 messages a day');
-    expect(await today()).toBe(50);
+    const said1 = conv ? await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from messages
+      where conversation_id = ${conv}::uuid`.execute(tx).then((x) => x.rows[0]!.n)) : 0;
+    expect(said1).toBe(said0);
+    expect((await lines()).n).toBe(50);
     await new Promise((res) => setTimeout(res, 2_000));
     expect(analyzer.calls).toBe(asked);
-    // Start over does not give the day back: the fifty are the day's, not the conversation's.
+    // Start over erases the transcript, and does not give the day back.
     await post('/app/sandbox/reset');
-    expect(await practiceConv()).toBeUndefined();
     expect(flashSaid(await say('and now?'), WEB_SECRET)).toContain('Practice takes');
-    // …tomorrow does. The filler lines move to yesterday, and Practice opens again.
-    await inCopy((tx) => sql`update messages set sent_at = sent_at - interval '1 day'
-      where external_id like ${`cap-${RUN}-%`} or conversation_id = ${conv}::uuid`.execute(tx));
+    // …tomorrow does.
+    await inBiz(PILOT, (tx) => sql`update businesses set practice_day = practice_day - 1 where id = ${PILOT}::uuid`.execute(tx));
     const { practiceRefusal } = await import('../../src/db/practice.js');
     const { parseBusinessId } = await import('../../src/core/types/ids.js');
     const live = parseBusinessId(PILOT); if (!live.ok) throw new Error('fixture');
@@ -360,16 +357,39 @@ d('Practice goes through the real pipeline, on the workspace\'s own copy (requir
     }
   });
 
-  it('Start over archives the practice conversation (never deletes) and the next message starts a new one', async () => {
+  it('P6 — Start over ERASES the practice conversation and all that hangs off it; the copy and its customer stay', async () => {
     await say('a line to start over from');
     const before = (await practiceConv())!;
-    const total0 = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
+    await until(() => pendingDraft(before), 'the reply to the line');
+    const count = (table: string) => inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from ${sql.table(table)}
+      where conversation_id = ${before}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
+    for (const t of ['messages', 'turns', 'drafts', 'conversation_events']) expect(await count(t), t).toBeGreaterThan(0);
     expect((await post('/app/sandbox/reset')).statusCode).toBe(302);
     expect(await practiceConv()).toBeUndefined();
-    const total1 = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversations where business_id = ${copy}::uuid`.execute(tx).then((x) => x.rows[0]!.n));
-    expect(total1).toBe(total0);
-    const evt = await inCopy((tx) => sql<{ n: number }>`select count(*)::int as n from conversation_events where conversation_id = ${before}::uuid and type = 'sandbox_reset'`.execute(tx).then((x) => x.rows[0]!.n));
-    expect(evt).toBe(1);
+    for (const t of ['messages', 'turns', 'drafts', 'conversation_events']) expect(await count(t), t).toBe(0);
+    const left = await inCopy((tx) => sql<{ convs: number; products: number; customer: number }>`
+      select (select count(*)::int from conversations where business_id = ${copy}::uuid) as convs,
+             (select count(*)::int from products where business_id = ${copy}::uuid) as products,
+             (select count(*)::int from client_channels where channel_user_id = ${`practice:${copy}`}) as customer`.execute(tx).then((x) => x.rows[0]!));
+    expect(left).toEqual({ convs: 0, products: 1, customer: 1 });
     expect((await page()).body).toContain('No messages yet');
-  });
+  }, 90_000);
+
+  it('P6 — a job whose conversation was erased while it waited is dropped: no turn, no model, no error', async () => {
+    const pg = (await import('pg')).default;
+    const admin = new pg.Client({ connectionString: MIGRATE_URL });
+    await admin.connect();
+    try {
+      const errorsNow = async () => (await admin.query('select coalesce(sum(count), 0)::int as n from app_errors')).rows[0].n as number;
+      const [asked, errors0] = [analyzer.calls, await errorsNow()];
+      const { QUEUES } = await import('../../src/queue/boss.js');
+      const id = await prod.boss.send(QUEUES.inbound, { businessId: copy, conversationId: randomUUID(), messageId: `practice:${randomUUID()}`, text: 'late line', messageType: 'text' });
+      const state = () => admin.query('select state from pgboss.job where id = $1', [id]).then((r) => r.rows[0]?.state as string | undefined);
+      await until(async () => ((await state()) === 'completed' ? true : undefined), 'the job, completed');
+      expect(analyzer.calls).toBe(asked);
+      expect(await errorsNow()).toBe(errors0);
+    } finally {
+      await admin.end();
+    }
+  }, 60_000);
 });

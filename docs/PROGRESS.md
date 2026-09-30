@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-09-30 | #148 | **Practice P6 — not kept** (0089): Start over erases the workspace's practice conversations and all that hangs off them (asks first); a daily job erases practice quiet for 30 days; the day's 50 counted on the workspace's row so Start over does not reset them; both workers drop a job whose conversation is gone; the shared sandbox is read by nothing and no longer seeded locally | 89 |
 | 2026-09-30 | #147 | **Practice P5 — every workspace practises, metered and capped** (0088): a practice turn is charged to the workspace's own ledger and allowance; 50 practice lines a day, refused before anything is recorded; the operator's `practice_off` switch (everyone or one workspace; `docs/INCIDENT-PLAYBOOK.md`); T1's pilot-only gate gone — the copy keeps workspaces apart (`practice-own.test.ts`) | 88 |
 | 2026-09-30 | #146 | **Practice P3 — through the real pipeline**: a practice message is an inbound job on the workspace's own copy; the worker's turn, Stop and batching apply; approvals and owner replies leave through the real outbound worker, which hands a copy the practice adapter (no network) and nothing else, with or without a channel configured; a practice send is recorded delivered at once; no owner alert from a copy; the golden checks per practice turn; the live line; one lane (live). `practice_copy` (0087). Pre-pilot 12/12 before and after. Merged 12:24 UTC, deployed, `/health` ok, schema 87 | 87 |
 | 2026-09-30 | #145 | **Practice P1 + P2 — the copy** (0086): `docs/PRACTICE.md`; `businesses.practice_of`, `practice_refresh`, the trigger refusing channels, credentials, people and logins on a copy; erase-workspace takes the copy; add-login refuses one; the Meta-errors check skips copies. Today's backup `nomi-backup-20260930T030201Z` (schema 85, drill passed) before it. Merged 08:53 UTC, deployed, `/health` ok, schema 86 | 86 |
@@ -48,9 +49,10 @@ under "Decided" below.
 **Next (the owner's instruction of 2026-09-30, in its order):**
 1. **Practice, per workspace** — blocking before anyone outside signs up.
    The design and the table-by-table classification are `docs/PRACTICE.md`
-   (P1). P2 (the copy, 0086, #145), P3 (the real pipeline, #146) and P5
-   (metered, capped, switchable, open to every workspace, #147) are in; then
-   P4 (the page) and P6 (the shared sandbox retired, transcripts expire).
+   (P1). P2 (the copy, 0086, #145), P3 (the real pipeline, #146), P5
+   (metered, capped, switchable, open to every workspace, #147) and P6 (not
+   kept, #148) are in; then P4 (the page: why a reply waited, where each figure
+   came from, "as if sending alone", the checklist, "your total first").
 2. **One time zone and one currency per workspace**, chosen during setup.
 3. **The positioning rewrite** (`docs/POSITIONING-INVENTORY.md`): customer-facing
    first, then model instructions, then the site, then owner-facing.
@@ -255,6 +257,7 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 | RET (erase workspaces that never connected, after 90 days) | not a plan decision, but an automatic erasure: confirm before building |
 | **Re-read the Arabic disclosure** (it changed after your sign-off, #118 — both sentences above) and read the French one; find a reader for the Spanish one | not a plan decision: the flags are yours alone |
 | **Move `BACKUP_PING_URL` onto the `backup` service** (it sits on `nomi`, which never reads it) | one minute in Railway |
+| **Erase the old shared practice sandbox** (`5a4d0000-0000-4000-8000-0000000000b1`): nothing reads it since P3, but it still holds the pilot's practice from before — possibly customers' words pasted in through "Try it". After a backup: `tools/erase-workspace.mjs --business 5a4d0000-0000-4000-8000-0000000000b1` (dry run), then with `--confirm "Practice sandbox" --yes` | a permanent deletion: yours to run |
 
 ## Found on the way
 
@@ -366,6 +369,11 @@ workspace, chosen during setup — next), Stop during grouping (#144).
   font. Polish, not a gate; the files are cached for good after the first.
 - **Practice keeps the old card** (`sandbox.ts`, `/app/sandbox/act`) until
   P4 draws the Practice page anew; the card is the one thing on it P4 replaces.
+- **The rehearsal findings' wider inputs** (P6's "extend" item: forbidden
+  words, closures, sample policy, terms, business-level knowledge in
+  `factoryRehearsal.ts`): not built. Practice now runs the real turn on the
+  workspace's own copy, which holds all of them, so what the in-memory
+  rehearsal leaves out, Practice shows.
 - **No photo or voice note in Practice yet** (P3, #146): the worker fetches
   media from the provider that received it, and a practice message has none.
   It needs an upload on the Practice page and a practice media port (P4).

@@ -18,7 +18,7 @@ import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
 import { pilotFactsFor } from '../db/channels.js';
 import { assistantHold } from '../db/assistantStop.js';
-import { practiceOf } from '../db/practice.js';
+import { practiceOf, conversationExists } from '../db/practice.js';
 import { notePracticeChecks } from '../trust/practiceChecks.js';
 import {
   handOverUnanswered, handToPerson, recordReceivedMessage, recordTypedMessage, unansweredIn,
@@ -309,6 +309,9 @@ export async function startWorker(
     const businessId = parseBusinessId(job.data.businessId);
     const conversationId = parseConversationId(job.data.conversationId);
     if (!businessId.ok || !conversationId.ok) return; // poison job: drop, don't retry
+    // P6 — a conversation erased while its job waited (Practice's Start over,
+    // the daily erasure — 0089): nobody is there to answer. Dropped, not retried.
+    if (!(await withTenantTx(db, businessId.value, (tx) => conversationExists(tx, conversationId.value)))) return;
 
     const started = Date.now();
 

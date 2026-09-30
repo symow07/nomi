@@ -277,8 +277,11 @@ import type { Db } from './client.js';
  * 88 = the platform's switch for Practice (0088): `practice_off` in
  *      `ops_flags`. No column is read, but the operator's row is refused by an
  *      87 database's check, so the switch this build reads could not be set.
+ * 89 = Practice is not kept (0089): `practice_start_over`, `practice_expire`.
+ *      Start over and the daily erasure call them; against an 88 database
+ *      Start over fails.
  */
-export const REQUIRED_SCHEMA_VERSION = 88;
+export const REQUIRED_SCHEMA_VERSION = 89;
 
 export type SchemaState = {
   readonly required: number;

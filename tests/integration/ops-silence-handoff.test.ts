@@ -187,7 +187,11 @@ d('Silence · WAITING — the emergency switch hides nobody (requires DATABASE_U
     await until(() => q((tx) => sql<{ n: number }>`
       select count(*)::int as n from drafts where conversation_id = ${convB}::uuid`
       .execute(tx).then((x) => (x.rows[0]!.n > 0 ? true : undefined))), 'a draft for the new buyer');
-    expect((await usage()).turns).toBeGreaterThan(0);
+    // The turn's cost is written in a transaction of its own, just AFTER the
+    // turn commits (T7: so a turn that fails after paying is still on the
+    // ledger) — the draft can be seen a moment before it. Asserted straight
+    // after the draft, this failed on CI's second pass (2026-09-30): wait for it.
+    await until(async () => ((await usage()).turns > 0 ? true : undefined), 'the turn on the ledger');
     expect(await assigned(convA)).not.toBeNull();
   });
 });

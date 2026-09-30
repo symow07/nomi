@@ -156,8 +156,8 @@ footer.
   by 2026-09-30) and verified pinging every five minutes. **`BACKUP_PING_URL`
   is on the `nomi` service, which never reads it; the `backup` service needs it
   (or `${{nomi.BACKUP_PING_URL}}`)** — the owner's (PROGRESS, 2026-09-30).
-- **Schema:** 86 (deployed with #145); 87 with #146, 88 with #147. Last
-  three: `0086 practice`, `0087 practice_copy`, `0088 practice_switch`.
+- **Schema:** 87 (deployed with #146); 88 with #147, 89 with #148. Last
+  three: `0087 practice_copy`, `0088 practice_switch`, `0089 practice_erase`.
 - **Scheduled backups are LIVE** (2026-09-23): Railway service `backup`
   (cron `0 3 * * *`, private network, `backup/README.md`). First proven run
   `nomi-backup-20260923T102036Z`: 1.6 MB, schema 69, drill 4/4 in the
@@ -515,6 +515,7 @@ Recent PRs, newest first:
    - **Not a workspace:** whole-installation readers skip copies (`meta_error_rates`; `live_business_ids` and `inboxes_to_read` cannot see one — no sequences, domains or mailboxes). Anything new that counts or scans workspaces must say `practice_of is null`. Fleet counts too.
    - **Through the real pipeline (P3, #146):** a practice message is an inbound job on the copy (the worker, the turn, the Stop, batching); approvals and owner replies go through the real outbound worker, which hands a copy the practice adapter (`src/channels/practice.ts`, no network) and nothing else, in both modes; a practice send is recorded delivered at once (the page is the customer's phone); `deliverOwnerAlert` refuses a copy; `/app/live/practice`; the golden checks run per practice turn in the worker. No scripted/live choice.
    - **Open to every workspace, metered and capped (P5, #147; 0088):** a copy's turn is charged to the workspace's own ledger and allowance; 50 practice lines a UTC day, refused on the page before anything is recorded; the operator's `practice_off` flag in `ops_flags` (everyone or one workspace) pauses it; T1's pilot gate is gone (`practice-own.test.ts` holds that nothing crosses between copies).
+   - **Not kept (P6, #148; 0089):** Start over ERASES the copy's practice conversations (and all that hangs off them), with a confirm; a daily job (03:40 UTC, `practice_expire`) erases any quiet for 30 days; the day's 50 are counted on the workspace row (`practice_day`/`practice_lines`) so Start over does not reset them; both workers drop a job whose conversation is gone. The shared sandbox tenant is read by nothing; its production row is the owner's to erase.
 
 ## 6 · What's next
 
