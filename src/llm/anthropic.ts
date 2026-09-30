@@ -313,7 +313,7 @@ export function anthropicVision(client: Anthropic, model: string = MODEL, extra:
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-            { type: 'text', text: caption ? `Buyer caption: ${caption}` : 'No caption.' },
+            { type: 'text', text: caption ? `Customer caption: ${caption}` : 'No caption.' },
           ],
         }],
       });

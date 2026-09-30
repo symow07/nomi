@@ -72,8 +72,9 @@ export const withheldOf = (b: LeadTimeBlocked): WithheldLeadTime =>
  * will restate.
  */
 export function closureNote(b: LeadTimeBlocked): string {
-  return `The factory is closed for ${b.closure.label}, so no delivery date can be promised `
-    + `for this order yet. Say so plainly and kindly. Do not state or estimate a lead time.`;
+  // The positioning rewrite: the writer repeated "our factory is closed" to customers.
+  return `We are closed for ${b.closure.label}, so no delivery date can be promised `
+    + `for this order yet. Say so plainly and kindly. Do not state or estimate how long it will take.`;
 }
 
 const DAY_MS = 86_400_000;

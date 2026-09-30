@@ -117,7 +117,8 @@ describe('the request — the question is asked, and a hung call gives up fast',
     const system = String(seen.req?.['system'] ?? '');
     expect(system).toContain('"wants_person": true or false');
     for (const example of ['Can I talk to someone?', '我要找你们经理', 'أريد التحدث مع مديركم',
-      'human hair wigs', '我们在找人工成本低的工厂', 'اريد احدث موديل', 'someone in my team', 'you can call me Ahmed']) {
+      // The positioning rewrite: the Chinese "人工 is not a person" example is a shop's (artificial fragrance), not a factory's.
+      'human hair wigs', '这款有没有人工香精？', 'اريد احدث موديل', 'someone in my team', 'you can call me Ahmed']) {
       expect(system, example).toContain(example);
     }
     expect(system).toMatch(/cannot tell whether they want a person[^.]*answer true/);

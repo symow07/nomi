@@ -199,7 +199,7 @@ export type ConfirmableOrder = Brand<
   'ConfirmableOrder'
 >;
 
-/** Why an order cannot yet be confirmed. Mirrors prompts/order_validation.txt. */
+/** Why an order cannot yet be confirmed. (prompts/order_validation.txt, which described these, was never loaded; removed in the positioning rewrite.) */
 export type BlockingReason =
   | 'missing_product'
   | 'product_not_confirmed_by_client'
