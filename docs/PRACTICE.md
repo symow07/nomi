@@ -202,6 +202,39 @@ Until it lands, checklist item 8 shows the gap rather than passing.
 - **Practice's own Stop** (`practice_stopped_at` on the copy): messages are
   held and come to the owner, as with the real Stop. The real Stop, when on,
   stops Practice too.
-- **Still to build (P4, part two):** the checklist with its retail and
-  no-catalogue variants, and "your total first".
+## P4, part two, as built (#150): the checklist and "your total first"
+
+- **The checklist** (`src/db/practiceChecklist.ts`). What the owner has seen,
+  from the list for their kind of business:
+  - **With a catalogue:** a product quoted with the total they expected; a
+    product found by the name customers use; a question the assistant could
+    not answer, handed over; "are you a real person?" answered honestly; a
+    request for a person, handed over; a discount beyond their limit, held;
+    Practice stopped, then a message handed over; an order they confirmed, and
+    what the customer received.
+  - **A shop or a brand** also has "How much is this?" answered with a price.
+    It shows the gap ("not possible yet") until RT gives a price before a
+    quantity.
+  - **With no catalogue:** a price question answered without a figure and
+    handed over, and a question about what they offer answered from the
+    profile, in place of the product items. Discount, retail price and order
+    do not apply.
+- **Read from the real turn's rows** on the copy: the product the turn
+  matched, the signals (`human_requested`, and the unanswerable kinds), the
+  quote's `requires_human`, the held turn, the confirmed order proposal, and
+  for "a real person?" the turn's own words and the reply it produced.
+- **Seen once is seen.** Each item is written on the WORKSPACE (0091
+  `practice_checks`) when the page is drawn and before Start over, so erasing
+  Practice does not take a tick back.
+- **"Your total first."** An optional box beside the practice message: the
+  total the owner expects, typed before the answer comes (0091
+  `practice_totals`). When the copy's next quote comes, the page sets the two
+  side by side, and agreeing ticks the first item. The rows are also the
+  measure the plan asked for: how often an owner's expectation and the quote
+  disagree. They hold numbers only, never the customer's words.
+- **An order in Practice** is the conversation page's own order card, and
+  the owner's tap goes through the one order service on the copy. The
+  confirmation leaves through the practice adapter.
+- **Not built here:** feeding the checklist into a "Ready for customers" page
+  (G6), and recording each item as a funnel event (G9). Neither exists yet.
 

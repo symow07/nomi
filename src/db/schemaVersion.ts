@@ -282,8 +282,10 @@ import type { Db } from './client.js';
  *      Start over fails.
  * 90 = Practice "as if sending alone" (0090): `businesses.practice_alone`,
  *      and the refresh that reads it. Practice's page reads the column.
+ * 91 = what the owner has seen in Practice (0091): `practice_checks`,
+ *      `practice_totals`. The Practice page writes both on every view.
  */
-export const REQUIRED_SCHEMA_VERSION = 90;
+export const REQUIRED_SCHEMA_VERSION = 91;
 
 export type SchemaState = {
   readonly required: number;

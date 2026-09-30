@@ -13,7 +13,8 @@ import type { PracticeTrust } from '../../trust/practiceChecks.js';
 import { esc, deeper, back, byAssistant } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
 import { loadTranscriptWindow } from '../../db/transcript.js';
-import { approvalCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
+import { approvalCard, orderCard, loadConversationDetail, type ConversationDetail } from './inbox.js';
+import { expectTotal, NOT_YET, type ChecklistItem, type PracticeTotal } from '../../db/practiceChecklist.js';
 import { unitLabel } from './products.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { refreshPractice, practiceConversation, activePracticeConversation, practiceRefusal, countPracticeLine, type PracticeRefusal, type PracticeSettings } from '../../db/practice.js';
@@ -60,6 +61,8 @@ export const practiceUrl = (before?: string | null): string =>
 export async function sayInPractice(
   deps: { readonly db: Db; readonly enqueue: (job: InboundJob) => Promise<void> },
   live: BusinessId, text: string,
+  /** P4 — "your total first": the total the owner expects the answer to give, typed before it comes. */
+  expected: number | null = null,
 ): Promise<'sent' | 'empty' | PracticeRefusal> {
   const said = text.trim();
   if (!said) return 'empty';
@@ -74,6 +77,7 @@ export async function sayInPractice(
     await recordTypedMessage(tx, id, messageId, said);
     return id;
   });
+  if (expected !== null && expected > 0) await expectTotal(deps.db, live, messageId, expected);
   await deps.enqueue({ businessId: copy, conversationId, messageId, text: said, messageType: 'text' });
   return 'sent';
 }
@@ -229,7 +233,18 @@ function renderTrust(trust: PracticeTrust | null, locale: Locale): string {
   </div>`;
 }
 
-function renderComposer(locale: Locale, prefill = ''): string {
+/**
+ * P4 — "your total first": a price the owner knows by heart, typed BEFORE the
+ * answer comes, so a misread or shifted price is caught by the owner and not
+ * by a customer. Only where there is a price list to quote from.
+ */
+const parseTotal = (raw: unknown): number | null => {
+  const n = Number(String(raw ?? '').replace(/[\s,]/g, ''));
+  return Number.isFinite(n) && n > 0 && n < 1e12 ? Math.round(n * 100) / 100 : null;
+};
+export { parseTotal };
+
+function renderComposer(locale: Locale, prefill = '', totals = true): string {
   // M16.4b: the owner reads an owner-facing name; the engineering title in
   // src/trust/scenarios.ts is unchanged and stays internal (tests, CI). A
   // situation sends its customer's words, and the assistant answers them live.
@@ -249,6 +264,9 @@ function renderComposer(locale: Locale, prefill = ''): string {
     <form method="post" action="/app/sandbox/message" class="msgbar">
       <label class="muted" for="buyer">${esc(t(locale, 'sandbox.composer.label'))}</label>
       <textarea id="buyer" name="text" rows="2" placeholder="${esc(t(locale, 'sandbox.composer.placeholder'))}" required>${esc(prefill)}</textarea>
+      ${totals ? `<label class="muted" for="expected">${esc(t(locale, 'practice.total.label'))}</label>
+      <input id="expected" name="expected" inputmode="decimal" dir="ltr" autocomplete="off" />
+      <p class="muted">${esc(t(locale, 'practice.total.hint'))}</p>` : ''}
       <div class="msgacts">
         <button class="btn send" type="submit">${esc(t(locale, 'sandbox.composer.send'))}</button>
       </div>
@@ -326,7 +344,42 @@ export function renderPractice(report: PracticeReport, locale: Locale): string {
   </div>`;
 }
 
-export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings }): string {
+/**
+ * P4 — THE CHECKLIST: what the owner has seen in Practice, from the list for
+ * this kind of business (a catalogue, a shop, or none). Seen once is seen:
+ * it is written on the workspace, so Start over does not take it back.
+ */
+export type PracticeChecklistView = {
+  readonly items: readonly ChecklistItem[];
+  readonly seen: ReadonlySet<ChecklistItem>;
+  readonly totals: readonly PracticeTotal[];
+};
+
+function checklistCard(c: PracticeChecklistView, locale: Locale): string {
+  const name = assistantName(locale);
+  const done = c.items.filter((i) => c.seen.has(i)).length;
+  const rows = c.items.map((i) => {
+    const gap = NOT_YET.has(i);
+    const ok = !gap && c.seen.has(i);
+    return `<li class="chk ${ok ? 'ok' : gap ? 'gap' : ''}"><span class="mk" aria-hidden="true">${ok ? '✓' : gap ? '—' : '○'}</span>
+      <span class="lbl">${esc(t(locale, `practice.check.${i}` as MessageKey, { name }))}</span>${
+      gap ? `<span class="dt muted">${esc(t(locale, 'practice.check.notYet'))}</span>` : ''}</li>`;
+  }).join('');
+  const money = (n: number, currency: string | null) => show.money(locale, { amount: n, currency: (currency ?? 'USD') as Money['currency'] });
+  const totals = c.totals.map((x) => `<li class="chk ${x.agreed === true ? 'ok' : x.agreed === false ? 'bad' : ''}"><span class="mk" aria-hidden="true">${
+    x.agreed === true ? '✓' : x.agreed === false ? '✗' : '○'}</span><span class="lbl">${esc(
+      x.quoted === null
+        ? t(locale, 'practice.total.waiting', { expected: money(x.expected, x.currency) })
+        : t(locale, x.agreed ? 'practice.total.agreed' : 'practice.total.differs',
+            { expected: money(x.expected, x.currency), quoted: money(x.quoted, x.currency) }))}</span></li>`).join('');
+  return `<div class="card sbx-checklist">
+    <h2>${esc(t(locale, 'practice.checklist.title'))} · <span class="count">${esc(show.isolate(locale, `${done}/${c.items.length}`))}</span></h2>
+    <ul class="checks">${rows}</ul>
+    ${totals ? `<h3>${esc(t(locale, 'practice.total.title'))}</h3><ul class="checks">${totals}</ul>` : ''}
+  </div>`;
+}
+
+export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: Flash | null; prefill?: string; now?: Date; settings?: PracticeSettings; checklist?: PracticeChecklistView }): string {
   const name = assistantName(locale);
   const banner = `<div class="sbx-banner" role="note">🧪 ${esc(t(locale, 'sandbox.banner'))}</div>`;
   const intro = `<p class="muted sbx-intro">${esc(t(locale, 'sandbox.intro', { name }))}</p>`;
@@ -359,6 +412,10 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
   const draftCard = view.detail?.pendingDraft
     ? approvalCard(view.detail, locale, opts.now ?? new Date(), { act: '/app/sandbox/act', handTo: '/app/sandbox/takeover' })
     : '';
+  // P4 — an order the customer said yes to waits for the owner's tap here too (T6b).
+  const order = view.detail?.orderProposal
+    ? orderCard(view.detail, locale, { confirm: '/app/sandbox/order/confirm', stepIn: '/app/sandbox/order/step-in' })
+    : '';
 
   /**
    * CC-25 — THE CONVERSATION PAGE'S ORDER. The transcript; the notice, where
@@ -372,10 +429,12 @@ export function renderSandbox(view: SandboxView, locale: Locale, opts: { flash: 
    * and the way home, and nothing to act on under a message from earlier.
    */
   const acts = older ? '' : `
+    ${order}
     ${view.ownership === 'OWNER_CONTROLLED' ? '' : draftCard}
     ${sandboxTakeoverCard(view, locale)}
     ${renderTrust(view.lastTurn, locale)}
-    ${renderComposer(locale, opts.prefill ?? '')}`;
+    ${renderComposer(locale, opts.prefill ?? '', opts.checklist ? !opts.checklist.items.includes('price_handed') : true)}
+    ${opts.checklist ? checklistCard(opts.checklist, locale) : ''}`;
 
   return `
     <div class="dhead spread">
