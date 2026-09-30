@@ -73,7 +73,8 @@ export function quoteRefusalContext(refusal: QuoteRefusal): { note: string; allo
       return { note: 'The requested price is below what we can offer.', allow: [] };
     case 'no_price_tier':
     case 'no_price_configured':
-      return { note: 'No price is configured for this quantity — a human must quote.', allow: [] };
+      // Passed as next_question, so it can reach the customer: said the way a customer may read it.
+      return { note: 'There is no price set for this yet. Do not give one; say someone from the team will confirm the price.', allow: [] };
   }
 }
 
