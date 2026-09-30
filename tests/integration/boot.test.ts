@@ -3736,11 +3736,19 @@ d('M22 · refusal visibility over real data (requires DATABASE_URL)', () => {
 
   it('a refused message is never delivered, however it was refused', () => {
     // The simulator IS the provider here: anything that reaches it would have
-    // reached a real buyer. Every message queued in this describe was refused
-    // for a different reason, so the strongest true statement is that the
-    // provider was never called at all.
-    expect(sim.sendCount()).toBe(0);
-    expect(sim.sentIds).toEqual([]);
+    // reached a real buyer. Every message queued in this describe was refused,
+    // each for a different reason, so none of them — to any of its four
+    // customers — may be among what reached it.
+    //
+    // It used to say "the provider was never called at all". But this
+    // production runs the real worker, and the worker also drains outbound
+    // jobs other tests left in the shared queue — one of this file's own
+    // tenant, left `active` when an earlier production closed mid-job — sent
+    // under their own conditions. CI's second pass caught one (2026-09-29 and
+    // 30); it was never a refused message. The claim is about these four.
+    const ours = ['971500007701', '971500007702', '971500007703', '971500007704'].map((p) => ph(p));
+    const toOurs = sim.requests.filter((r) => ours.some((p) => r.body.includes(p)));
+    expect(toOurs, 'a refused message reached the provider').toEqual([]);
   });
 
   it('activation refusals are their own event, not a send refusal (F-10)', async () => {

@@ -177,6 +177,17 @@ instruction did not answer. Collected here; asked once, at the end.
   both included. After a merge, read the deployment list for the merge
   commit itself, not only for a SUCCESS.
 
+- **M22's "never delivered" failed on CI's second pass** (main after #139,
+  and #141's first CI run): the simulator counted one call. The production
+  that test builds runs the real worker, which also drains outbound jobs other
+  tests left in the shared queue — after a local run: three `created` (the
+  day-one and uncertain-sends tenants) and one of boot.test's own tenant left
+  `active` when an earlier production closed mid-job — and sends them under
+  their own conditions. None was a refused message. Two local back-to-back
+  runs did not reproduce it (timing). The test now asserts its claim — none of
+  its four customers reached the provider — and the simulator keeps every
+  request, so a failure says what was sent. Not fixed: tests leave queued
+  work behind; a production's graceful stop can leave a job `active`.
 - **A unit test flaked once** (2026-09-29, before #124):
   `tests/parity/backup-retention.test.ts` › "manual pairs at the root older
   than 180 days go WHOLE" failed in one full run and passed in the next eight
