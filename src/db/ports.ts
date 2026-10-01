@@ -126,6 +126,12 @@ export interface AutonomyRepo {
    * capabilities switched on before the rule existed too: the reply drafts.
    */
   released(language: string | null | undefined): boolean;
+  /**
+   * G4 (0102) — has this workspace earned sending alone? Always for one the
+   * operator made; for one that signed itself up, only once the ramp (or the
+   * operator, for a pilot) says so. False: every reply drafts.
+   */
+  earned(): Promise<boolean>;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { sendingAloneEarned } from '../../db/earned.js';
 import { workspaceZone } from './zone.js';
 import { workspaceCurrency } from '../../db/currency.js';
 import type { PendingQuestion } from '../../core/types/conversation.js';
@@ -2898,6 +2899,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }, personOf(s)),
     }));
   });
+  // G4 — the workspace's own answer, in its own transaction; a failure reads as not earned.
+  const earnedFor = async (businessIdRaw: string): Promise<boolean> => {
+    const b = parseBusinessId(businessIdRaw);
+    if (!b.ok) return false;
+    return withTenantTx(deps.db, b.value, (tx) => sendingAloneEarned(tx)).catch(() => false);
+  };
   const capAction = (verb: string, run: (biz: string, cap: string, actor: string) => Promise<{ code: import('../../pipeline/capability.js').CapabilityFlash }>) =>
     app.post(`/app/employee/capability/:capability/${verb}`, async (req, reply) => {
       // OWNER ONLY: deciding what Nomi may do unsupervised is the trust ladder
@@ -2910,6 +2917,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       // held to the same gate. Taking one back is never refused.
       if (verb === 'promote' && !(deps.autonomyReleased ?? autonomyReleased)()) {
         return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+      }
+      // G4 — and a workspace that signed itself up grants nothing until it is earned.
+      if (verb === 'promote' && !(await earnedFor(s.businessId))) {
+        return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
       }
       const r = await run(s.businessId, cap, personOf(s).id);
       return flashTo(reply, '/app/employee', `employee.flash.${r.code}` as MessageKey);
@@ -2929,6 +2940,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // a buyer through it — and it is how she takes back what she gave.
     if (level !== 'waits' && !(deps.autonomyReleased ?? autonomyReleased)()) {
       return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notReleased');
+    }
+    // G4 (0102) — in a workspace that signed itself up, sending alone is earned,
+    // not chosen: refused where it is SAVED. `waits` is never refused.
+    if (level !== 'waits' && !(await earnedFor(s.businessId))) {
+      return flashTo(reply, '/app/employee#on-her-own', 'autonomy.flash.notEarned');
     }
     const r = await chooseAutonomyLevel(deps.db, s.businessId, level, personOf(s).id)
       .catch(() => ({ ok: false, changed: 0 }));

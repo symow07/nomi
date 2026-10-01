@@ -71,6 +71,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // Not a failure of hers — the product is not ready to offer it yet. Still
   // a refusal in tone: she asked for something and did not get it.
   'autonomy.flash.notReleased',
+  // G4 — a workspace that signed itself up has not earned sending alone yet.
+  'autonomy.flash.notEarned',
   'people.flash.name_too_long', 'product.flash.refused', 'proof.owner.flash.failed',
   'prospects.flash.exists', 'prospects.flash.failed', 'prospects.flash.invalid',
   'prospects.flash.not_found', 'rate.flash.failed', 'rate.flash.missing', 'rate.flash.not_a_number',
