@@ -451,10 +451,14 @@ export async function startWorker(
     // buyer behind one slow provider.
     // T7 — each transcription is a paid call: counted, whether it heard anything or not.
     let transcriptions = 0;
+    // WA (0120) — a business with its own WhatsApp number: its media are fetched with its own token.
+    const own = media.ownMedia && (job.data.messageType === 'audio' || job.data.messageType === 'image')
+      ? await media.ownMedia({ db, businessId: businessId.value })
+      : null;
     const heard = job.data.messageType === 'audio'
       ? await hearVoiceNote({
           transcriber: transcriber && ((a: Parameters<typeof transcriber>[0]) => { transcriptions++; return transcriber(a); }),
-          audio,
+          audio: own?.audio ?? audio,
         }, job.data.mediaId)
       : null;
     if (transcriptions > 0) await recordSpendAlone(db, businessId.value, { llmCalls: transcriptions, inputTokens: 0, outputTokens: 0 }, { turn: false });
@@ -462,8 +466,8 @@ export async function startWorker(
     // M4.5 — the same treatment for a photo, and for the same reason.
     const seen = job.data.messageType === 'image'
       ? await seeImage({
-          image: mediaFetcher
-            ? productionImageDeps({ media: mediaFetcher, vision, db, businessId: businessId.value })
+          image: (own?.image ?? mediaFetcher)
+            ? productionImageDeps({ media: (own?.image ?? mediaFetcher)!, vision, db, businessId: businessId.value })
             : undefined,
         }, {
           mediaId: job.data.mediaId, caption: job.data.text || null,

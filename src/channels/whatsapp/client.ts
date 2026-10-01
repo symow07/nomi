@@ -88,6 +88,23 @@ export function whatsappClient(cfg: {
         image: caption.trim() === '' ? { link: url } : { link: url, caption },
       });
     },
+    /**
+     * WA-S — an approved message template, the one way to write after the
+     * customer's 24 hours have passed. Its body's parameters fill {{1}}, {{2}}…
+     * in order; same `post`, same retry rules.
+     */
+    sendTemplate(to: string, t: { readonly name: string; readonly language: string; readonly params: readonly string[] }): Promise<WhatsAppSendResult> {
+      return post({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'template',
+        template: {
+          name: t.name, language: { code: t.language },
+          ...(t.params.length ? { components: [{ type: 'body', parameters: t.params.map((text) => ({ type: 'text', text })) }] } : {}),
+        },
+      });
+    },
     /** Typing indicator + read receipt: cheap humanity (TRUST docs). */
     markRead(messageId: string): Promise<WhatsAppSendResult> {
       return post({ messaging_product: 'whatsapp', status: 'read', message_id: messageId });

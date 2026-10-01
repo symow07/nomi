@@ -42,6 +42,8 @@ export function metaAdapter(cfg: MetaConfig): ChannelAdapter {
     // M26 — present, and never called while WHATSAPP_PROVIDER is disabled:
     // main.ts mounts no adapter and no outbound worker in that mode.
     sendMedia: (to, media) => client.sendImage(to, media.url, media.caption),
+    // WA-S — the approved template that reopens a customer's closed window.
+    sendTemplate: (to, t) => client.sendTemplate(to, t),
   };
 }
 

@@ -57,6 +57,8 @@ export const PRACTICE_SKIP = [
   // Where: every channel, credential and sending identity — a copy can reach nobody.
   'channels', 'channel_credentials', 'channel_audit', 'channel_events', 'channel_sources',
   'connector_credentials', 'meta_accounts', 'mail_accounts', 'sending_domains',
+  // WA (0120) — her own WhatsApp number and its token: a person's, never practised.
+  'whatsapp_accounts', 'whatsapp_templates',
   'pilot_allowlist', 'pilot_log', 'agents',
   // The people who work there, and how they sign in.
   'people', 'logins', 'login_setups',

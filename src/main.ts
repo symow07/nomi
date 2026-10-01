@@ -4,7 +4,7 @@ import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
-import { mediaPortsFor, type MediaPorts, type PostCaptionReader } from './worker/mediaPorts.js';
+import { mediaPortsFor, type MediaPorts, type PostCaptionReader, type OwnMediaReader } from './worker/mediaPorts.js';
 import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
@@ -51,7 +51,11 @@ import { oauthClientsFrom, type OAuthFetch } from './connectors/oauth.js';
 import { mintUnsubscribe, unsubscribeHeaders } from './outbound/unsubscribe.js';
 import { deriveKey, acceptRetiredKeys } from './security/credentials.js';
 import { apolloSource } from './connectors/apollo.js';
-import { metaAdapter } from './channels/whatsapp/meta.js';
+import { metaAdapter, metaMediaFetcher, metaAudioFetcher } from './channels/whatsapp/meta.js';
+import type { FetchLike } from './channels/whatsapp/client.js';
+import { waLoginFrom } from './channels/whatsapp/embeddedSignup.js';
+import { whatsAppAccountToken } from './channels/whatsapp/connect.js';
+import { liveWhatsAppAccount, markWhatsAppNeedsAttention, type WhatsAppAccount } from './db/whatsappAccounts.js';
 import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
@@ -433,6 +437,32 @@ function postCaptionReader(cfg: {
   };
 }
 
+/**
+ * WA — a business's own WhatsApp number fetches its own photos and voice
+ * notes, with its own token. Null when it has none, or the token needs
+ * attention: the installation's fetchers serve, as before.
+ */
+function ownMediaReader(cfg: {
+  readonly credentialKey: Buffer; readonly appSecret: string; readonly graphVersion: string;
+  readonly fetchImpl?: FetchLike | undefined;
+}): OwnMediaReader {
+  return async ({ db, businessId }) => {
+    try {
+      const account = await withTenantTx(db, businessId, (tx) => liveWhatsAppAccount(tx, businessId));
+      if (!account || account.needsAttention) return null;
+      const token = whatsAppAccountToken(account, cfg.credentialKey);
+      if (!token) return null;
+      const c = {
+        accessToken: token, phoneNumberId: account.phoneNumberId, appSecret: cfg.appSecret, graphVersion: cfg.graphVersion,
+        ...(cfg.fetchImpl ? { fetchImpl: cfg.fetchImpl } : {}),
+      };
+      return { image: metaMediaFetcher(c), audio: metaAudioFetcher(c) };
+    } catch {
+      return null;
+    }
+  };
+}
+
 export async function buildProduction(
   cfg: ProdConfig,
   overrides?: {
@@ -486,6 +516,8 @@ export async function buildProduction(
      * uses the platform fetch.
      */
     metaFetch?: MetaFetch;
+    /** WA — Meta's WhatsApp API as a test sees it: a business's own number sends and fetches through this. */
+    whatsappFetch?: FetchLike;
   },
 ): Promise<Production> {
   // Worker first: it owns the pool and pg-boss; ingress reuses both.
@@ -504,6 +536,11 @@ export async function buildProduction(
       envToken: process.env['META_PAGE_ACCESS_TOKEN']?.trim() || null,
       graphVersion: cfg.META_GRAPH_API_VERSION,
       fetchImpl: overrides?.metaFetch,
+    }),
+    // WA — a business's own number fetches its own media.
+    ownMedia: ownMediaReader({
+      credentialKey: deriveKey(cfg.CREDENTIAL_KEY), appSecret: cfg.META_APP_SECRET ?? '',
+      graphVersion: cfg.META_GRAPH_API_VERSION, fetchImpl: overrides?.whatsappFetch,
     }),
     ...(overrides?.media ?? mediaPortsFor(cfg)),
   };
@@ -676,6 +713,8 @@ export async function buildProduction(
    * the answer for a business that connected nothing: this one, today.
    */
   const metaLogin = metaLoginFrom(process.env, socialSecret);
+  // WA — Embedded Signup, through the WhatsApp app (its secret signs /webhook/whatsapp).
+  const waLogin = waLoginFrom(process.env, cfg.META_APP_SECRET);
   const metaFetch: MetaFetch = overrides?.metaFetch ?? (fetch as unknown as MetaFetch);
   const socialIngress: Partial<Record<'instagram' | 'messenger', ChannelAdapter>> =
     socialSecret && (metaLogin !== null || Object.keys(metaMessaging).length > 0)
@@ -806,6 +845,17 @@ export async function buildProduction(
     metaConnect: {
       db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: metaLogin,
       fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
+    },
+    // WA — a business connects its OWN WhatsApp number (Embedded Signup).
+    waLogin,
+    waConnect: {
+      db, credentialKey: deriveKey(cfg.CREDENTIAL_KEY), login: waLogin,
+      fetchImpl: metaFetch, graphVersion: cfg.META_GRAPH_API_VERSION,
+    },
+    // WA — and plays back a voice note with that number's own token.
+    audioFor: async (businessIdRaw: string) => {
+      const b = parseBusinessId(businessIdRaw);
+      return b.ok ? (await mediaPorts.ownMedia?.({ db, businessId: b.value }))?.audio : undefined;
     },
     // Her own mail server (SMTP), so the accounts page can say what actually sends.
     smtpFrom: smtpConfig?.from ?? null,
@@ -1045,7 +1095,39 @@ export async function buildProduction(
     };
   };
 
-  const adaptersFor = (businessId: BusinessId, metaAccount: MetaAccount | null = null) => {
+  /**
+   * WA (0120) — a business that connected its OWN WhatsApp number sends from
+   * it, with its own token. With none, the installation's number serves the
+   * business that holds it, as before. A token that needs attention sends
+   * nothing — `channel_unavailable`, never the installation's number, which
+   * would be someone else's. A 401 marks it, once, so the page asks the owner.
+   */
+  const waAdaptersFor = (businessId: BusinessId, account: WhatsAppAccount | null): Partial<Record<string, ChannelAdapter | undefined>> => {
+    if (!account) return {};
+    if (account.needsAttention) return { whatsapp: undefined };
+    const token = whatsAppAccountToken(account, credentialKey);
+    if (!token) return { whatsapp: undefined };
+    const base = metaAdapter({
+      accessToken: token, phoneNumberId: account.phoneNumberId, appSecret: cfg.META_APP_SECRET ?? '',
+      graphVersion: cfg.META_GRAPH_API_VERSION, ...(overrides?.whatsappFetch ? { fetchImpl: overrides.whatsappFetch } : {}),
+    });
+    const noted = async <R extends { ok: boolean; retryable?: boolean; error?: string }>(r: R): Promise<R> => {
+      if (!r.ok && r.retryable === false && (r.error ?? '').startsWith('401')) {
+        await withTenantTx(db, businessId, (tx) => markWhatsAppNeedsAttention(tx, account.id, 'revoked')).catch(() => undefined);
+      }
+      return r;
+    };
+    return {
+      whatsapp: {
+        ...base,
+        sendText: async (to, body) => noted(await base.sendText(to, body)),
+        ...(base.sendMedia ? { sendMedia: async (to: string, m: Parameters<NonNullable<ChannelAdapter['sendMedia']>>[1]) => noted(await base.sendMedia!(to, m)) } : {}),
+        ...(base.sendTemplate ? { sendTemplate: async (to: string, tpl: Parameters<NonNullable<ChannelAdapter['sendTemplate']>>[1]) => noted(await base.sendTemplate!(to, tpl)) } : {}),
+      },
+    };
+  };
+
+  const adaptersFor = (businessId: BusinessId, metaAccount: MetaAccount | null = null, waAccount: WhatsAppAccount | null = null) => {
     const email = emailAdapter({
       transport: overrides?.mailTransport ?? (smtpConfig
         ? smtpMailTransport({ db, businessId, config: smtpConfig })
@@ -1056,6 +1138,7 @@ export async function buildProduction(
     });
     const byChannel: Record<string, ChannelAdapter | undefined> = {
       ...(adapter ? { [adapter.kind]: adapter } : {}), email, ...metaAdaptersFor(businessId, metaAccount),
+      ...waAdaptersFor(businessId, waAccount),
     };
     return (channel: string): ChannelAdapter | undefined => byChannel[channel];
   };
@@ -1088,8 +1171,10 @@ export async function buildProduction(
     // C10 — read inside the same transaction as the send it authorises, so a
     // disconnect takes effect on the next reply, not the next boot.
     const metaAccount = await liveMetaAccount(tx, businessId);
+    // WA — and the business's own WhatsApp number, read the same way.
+    const waAccount = await liveWhatsAppAccount(tx, businessId);
     return {
-      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount),
+      ...(adapter ? { adapter } : {}), adapters: adaptersFor(businessId, metaAccount, waAccount),
       mailHeaders: mailHeadersFor(businessId),
     };
   }));

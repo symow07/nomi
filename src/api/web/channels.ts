@@ -96,7 +96,49 @@ export type ChannelsData = {
   readonly country?: string | null;
   /** A2 — where she said at sign-up that she talks to buyers today, in her order. */
   readonly channelsUsed?: readonly string[];
+  /**
+   * WA (0120) — Embedded Signup is set up on this installation: a business
+   * connects its OWN number, and the installation's number is not offered.
+   */
+  readonly waSelfServe?: boolean;
+  /** WA — the number this business connected itself, when it has one. */
+  readonly waOwn?: {
+    readonly display: string | null; readonly verifiedName: string | null;
+    readonly nameStatus: string | null; readonly needsAttention: boolean;
+  } | null;
+  /** WA-S — the reopening template's languages on her own number, with Meta's answer for each. */
+  readonly waTemplates?: readonly { readonly language: string; readonly status: string; readonly reason: string | null }[];
 };
+
+/** WA-S — a template language as the owner reads it: the language's own name. */
+const TEMPLATE_LANGUAGE: Readonly<Record<string, string>> = {
+  en: 'English', es: 'Español', pt_BR: 'Português', fr: 'Français', ar: 'العربية', zh_CN: '中文',
+};
+const TEMPLATE_STATUS = new Set(['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED']);
+const templateStatusKey = (s: string): MessageKey =>
+  `channel.wa.template.status.${TEMPLATE_STATUS.has(s) ? s : 'other'}` as MessageKey;
+
+/**
+ * WA-S — writing after the customer's 24 hours: what it takes (one message
+ * Meta approved), where each language stands, and the two things she can do —
+ * ask Meta, or ask Meta again where it stands.
+ */
+function reopenBlock(locale: Locale, rows: readonly { readonly language: string; readonly status: string; readonly reason: string | null }[], owner: boolean): string {
+  const open = rows.some((r) => r.status !== 'APPROVED' && r.status !== 'PENDING') || rows.length === 0;
+  return `<div class="ch-reopen">
+    <h3 class="sub3">${esc(t(locale, 'channel.wa.template.title'))}</h3>
+    <p class="muted ch-desc">${esc(t(locale, 'channel.wa.template.lede'))}</p>
+    ${rows.length ? `<ul class="rows">${rows.map((r) => `<li class="row"><bdi>${esc(TEMPLATE_LANGUAGE[r.language] ?? r.language)}</bdi>
+      <span class="muted"> · ${esc(t(locale, templateStatusKey(r.status)))}</span></li>`).join('')}</ul>` : ''}
+    ${!owner ? '' : `${open ? `<form method="post" action="/app/channels/whatsapp/templates/submit" style="display:inline"><button class="btn send" type="submit">${esc(t(locale, 'channel.wa.template.submit'))}</button></form>` : ''}
+    ${rows.length ? `<form method="post" action="/app/channels/whatsapp/templates/check" style="display:inline"><button class="btn" type="submit">${esc(t(locale, 'channel.wa.template.check'))}</button></form>` : ''}`}
+  </div>`;
+}
+
+/** WA — Meta's display-name review, as the owner reads it. */
+const NAME_STATUS = new Set(['APPROVED', 'PENDING_REVIEW', 'DECLINED', 'EXPIRED', 'NONE']);
+const nameStatusKey = (s: string | null): MessageKey =>
+  `channel.wa.nameStatus.${s && NAME_STATUS.has(s) ? s : 'other'}` as MessageKey;
 
 const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
 
@@ -665,8 +707,17 @@ export function renderChannels(
   approvalHtml = '',
 ): string {
   const w = data.whatsapp;
+  const own = data.waOwn ?? null;
+  // WA — her own number: connected through Meta's window, disconnected the same way, and connected again when Meta stopped accepting it.
+  const ownActions = own && viewer.isOwner
+    ? (own.needsAttention
+      ? `<p class="perr" role="alert">${esc(t(locale, 'channel.wa.needsAttention'))}</p>${deeper('/app/connect/whatsapp/start', t(locale, 'channel.wa.reconnect'))}`
+      : `<form method="post" action="/app/connect/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+           data-confirm="${esc(t(locale, 'channel.wa.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`)
+    : null;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
-  const actions = !viewer.isOwner && (w.connected || w.status === 'disconnected')
+  const actions = ownActions !== null ? ownActions
+    : !viewer.isOwner && (w.connected || w.status === 'disconnected')
     ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
     : w.connected
     ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
@@ -674,6 +725,13 @@ export function renderChannels(
          data-confirm="${esc(t(locale, 'channel.action.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
     : w.status === 'disconnected'
       ? `<form method="post" action="/app/channels/whatsapp/reconnect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.reconnect'))}</button></form>`
+      // WA — with Embedded Signup set up, every business connects its OWN
+      // number; the installation's is never offered to a stranger.
+      : data.waSelfServe && !viewer.isOwner
+        ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
+      : data.waSelfServe
+        ? `${deeper('/app/connect/whatsapp/start', t(locale, 'channel.wa.connectOwn'))}
+           <div class="muted ch-desc">${esc(t(locale, 'channel.wa.connectOwn.lede'))}</div>`
       // G3 — with a number configured, Connect DOES it; the guide is only for
       // an installation that has no number yet.
       : data.canConnect && !viewer.isOwner
@@ -691,12 +749,15 @@ export function renderChannels(
         <span class="pill ${w.connected ? 'ok' : 'warn'}">${pill}</span></div>
       <div class="muted ch-desc">${esc(t(locale, 'channel.whatsapp.desc'))}</div>
       ${w.connected ? `<div class="ch-info">
-        ${w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
+        ${own?.display ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> <bdi dir="ltr">${esc(own.display)}</bdi></div>`
+          : w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
+        ${own?.verifiedName ? `<div><span class="muted">${esc(t(locale, 'channel.wa.name'))}</span> <bdi>${esc(own.verifiedName)}</bdi> · ${esc(t(locale, nameStatusKey(own.nameStatus)))}</div>` : ''}
         ${w.lastActivityAt ? `<div><span class="muted">${esc(t(locale, 'channel.field.lastMessage'))}</span> ${esc(show.when(locale, w.lastActivityAt, new Date()))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'channel.field.health'))}</span> ${esc(w.healthOk ? t(locale, 'channel.health.ok') : t(locale, 'channel.health.attention'))}</div>
       </div>` : ''}
       ${w.problem ? problemBlock(locale, w.problem) : ''}
       <div class="ch-acts">${actions}</div>
+      ${own && !own.needsAttention && w.connected ? reopenBlock(locale, data.waTemplates ?? [], viewer.isOwner) : ''}
     </div>`;
 
   // M39 — what each channel allows, before she connects one.

@@ -82,6 +82,11 @@ export interface ChannelAdapter {
    */
   sendMedia?(to: string, media: OutboundMedia): Promise<SendResult>;
   /**
+   * WA-S — an approved WhatsApp message template (the only way to write after
+   * the 24-hour window closed). Optional: only WhatsApp has templates.
+   */
+  sendTemplate?(to: string, template: { readonly name: string; readonly language: string; readonly params: readonly string[] }): Promise<SendResult>;
+  /**
    * C4.a — optional for the same reason `sendMedia` is: an adapter that cannot
    * carry a subject says so by omission rather than by throwing, and the
    * worker refuses the row instead of silently sending something else. A

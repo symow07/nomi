@@ -170,6 +170,31 @@ export async function deactivate(
   return { ok: true };
 }
 
+/**
+ * WA (0120) — the end of pilot mode, the owner's own step. While WhatsApp is
+ * live and pilot mode is on, replies go only to the numbers on the owner's
+ * list (the send gate's `not_allowlisted`); this opens it to every customer
+ * who writes — and turns it back. Only a live WhatsApp has a pilot to end:
+ * before activation there is nothing to open, and activation always starts in
+ * pilot mode. Recorded on the audit trail either way.
+ */
+export async function setPilotMode(
+  db: Db, businessId: BusinessId, actor: string, on: boolean,
+): Promise<'done' | 'unchanged' | 'not_active'> {
+  return withTenantTx(db, businessId, async (tx) => {
+    const row = (await sql<{ pilot_mode: boolean; activated_at: Date | null }>`
+      select pilot_mode, activated_at from channels
+       where business_id = ${businessId} and kind = 'whatsapp' for update`.execute(tx)).rows[0];
+    if (!row?.activated_at) return 'not_active' as const;
+    if (row.pilot_mode === on) return 'unchanged' as const;
+    await sql`update channels set pilot_mode = ${on}, updated_at = now()
+               where business_id = ${businessId} and kind = 'whatsapp'`.execute(tx);
+    await sql`insert into channel_audit (business_id, action, actor, detail)
+              values (${businessId}, ${on ? 'pilot_resumed' : 'pilot_ended'}, ${actor}, ${JSON.stringify({ pilotMode: on })}::jsonb)`.execute(tx);
+    return 'done' as const;
+  });
+}
+
 /** Is this factory activated right now? (activation + connected channel) */
 export async function activationState(
   db: Db, businessId: BusinessId,

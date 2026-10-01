@@ -99,6 +99,12 @@ export type ConversationSendContext = {
    * written, which is every first mail.
    */
   readonly inReplyTo?: string;
+  /**
+   * WA-S — the business's APPROVED reopening template, chosen for this
+   * customer. Present only on a WhatsApp conversation of a business whose own
+   * number is live and has one approved; absent, a closed window stays closed.
+   */
+  readonly reopen?: { readonly name: string; readonly language: string; readonly params: readonly string[]; readonly text: string };
 };
 
 /** The store port — DB-backed in production, in-memory in tests. Every
@@ -129,6 +135,12 @@ export type OutboundStore = {
    * it; the database store does (db/pendingQuestion.ts).
    */
   markQuestionAsked?(conversationId: string, asks: PendingQuestion | null): Promise<void>;
+  /**
+   * WA-S — the row went as the reopening template: it records what the
+   * customer actually received, and the words it carried wait in the owner's
+   * reply box (CC-24) for the customer's answer. Optional: only WhatsApp.
+   */
+  reopenedWith?(id: string, conversationId: string, sentText: string, keptWords: string): Promise<void>;
 };
 
 /**
@@ -351,12 +363,32 @@ export async function driveConversationOutbound(
     return [...effects, { kind: 'canceled', id: candidate.id, reason: gate.reason }];
   }
   if (gate.viaTemplate) {
-    // The gate allows this, but ONLY through an approved template — and no
-    // template exists yet (M22 §B). The message therefore does not go, and it
-    // is recorded as a refusal rather than quietly dropped: "allowed" in the
-    // audit trail beside a buyer who heard nothing is exactly the silence this
-    // milestone removes. Meta template sending replaces this branch; nothing
-    // here fakes or bypasses it.
+    /*
+     * WA-S — the customer's 24 hours have passed, and the gate allows only an
+     * approved template. A reply someone approved (the owner's own, or a draft
+     * of the assistant's the owner approved) goes as the business's approved
+     * REOPENING template, and its words wait in the owner's reply box for the
+     * customer's answer, which opens the window again. Never an automated
+     * follow-up or a first message: no one approved those, and rule 3's
+     * disclosure cannot ride on a template. Never a picture: a template is not
+     * the photograph. Anything else is refused as before — recorded, never
+     * quietly dropped.
+     */
+    const tAdapter = adapterFor(deps, candidate.channel);
+    if (ctx.reopen && tAdapter?.sendTemplate && candidate.automated !== true
+        && candidate.origin !== 'outreach' && candidate.kind !== 'image') {
+      await deps.store.transition(candidate.id, 'sending', null);
+      const sent = await tAdapter.sendTemplate(candidate.to, { name: ctx.reopen.name, language: ctx.reopen.language, params: ctx.reopen.params });
+      if (sent.ok) {
+        await deps.store.recordProviderId(candidate.id, sent.providerMessageId);
+        await deps.store.reopenedWith?.(candidate.id, conversationId, ctx.reopen.text, candidate.body);
+        await deps.store.transition(candidate.id, 'sent', null);
+        // The template asks nothing Nomi can read.
+        await deps.store.markQuestionAsked?.(conversationId, null);
+        return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: sent.providerMessageId }];
+      }
+      return [...effects, await failedSend(deps, candidate, sent)];
+    }
     await refuse(deps, candidate, 'window_needs_owner');
     return [...effects, { kind: 'canceled', id: candidate.id, reason: 'window_needs_owner' }];
   }
@@ -438,6 +470,13 @@ export async function driveConversationOutbound(
     return [...effects, { kind: 'sent', id: candidate.id, providerMessageId: result.providerMessageId }];
   }
 
+  return [...effects, await failedSend(deps, candidate, result)];
+}
+
+/** A provider refusal or silence: retried, dead-lettered or failed by the one rule (`onSendFailure`). */
+async function failedSend(
+  deps: { store: OutboundStore }, candidate: OutboundWorkRow, result: { readonly retryable: boolean; readonly error: string },
+): Promise<DriveEffect> {
   const attempts = candidate.attempts + 1;
   const failure = onSendFailure({ retryable: result.retryable, error: result.error }, attempts);
   // Provider error text passes through redaction BEFORE any sink — persistence
@@ -446,12 +485,12 @@ export async function driveConversationOutbound(
   if (failure.kind === 'retry') {
     await deps.store.transition(candidate.id, 'queued', `retry ${attempts}: ${safeError}`);
     await deps.store.scheduleRetry(candidate.id, failure.delayMs, safeError);
-    return [...effects, { kind: 'retry_scheduled', id: candidate.id, delayMs: failure.delayMs }];
+    return { kind: 'retry_scheduled', id: candidate.id, delayMs: failure.delayMs };
   }
   await deps.store.transition(candidate.id, 'failed', safeError);
   if (failure.kind === 'dead_letter') {
     await deps.store.deadLetter(candidate.id, safeError);
-    return [...effects, { kind: 'dead_lettered', id: candidate.id }];
+    return { kind: 'dead_lettered', id: candidate.id };
   }
-  return [...effects, { kind: 'failed_permanent', id: candidate.id }];
+  return { kind: 'failed_permanent', id: candidate.id };
 }
