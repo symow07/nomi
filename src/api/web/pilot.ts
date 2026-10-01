@@ -571,6 +571,7 @@ export function renderPilotReadiness(
     <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
       ${validate}
       ${attests}
+      ${/* G6 — every workspace can read its own evidence; only a self-serve one is held to it here. */ ''}${deeper('/app/ready', t(locale, 'pilot.item.ready'))}
     </div>
     ${verdict}
     `;

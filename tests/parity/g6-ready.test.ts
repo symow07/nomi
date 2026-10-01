@@ -42,7 +42,9 @@ describe('G6 · Getting ready, for a workspace that signed itself up', () => {
   it('a workspace the operator made keeps every row it had', () => {
     const html = renderPilotReadiness(pr(), 'en', null);
     for (const k of ['pilot.attest.backup_tested', 'pilot.attest.secrets_rotated', 'pilot.item.sandbox'] as const) expect(html).toContain(esc(t('en', k)));
-    expect(html).not.toContain(esc(t('en', 'pilot.item.ready')));
+    // The page is everyone's to read; the row that counts it is a self-serve workspace's.
+    expect(html).toContain('href="/app/ready"');
+    expect(html).not.toContain(esc(t('en', 'pilot.ready.count', { done: 0, total: 8 })));
   });
   it('readiness: the checklist instead of backup, secrets and the old check — only for a self-serve workspace', () => {
     const p = src('src/api/web/pilot.ts');
