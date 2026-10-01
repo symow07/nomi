@@ -295,8 +295,11 @@ import type { Db } from './client.js';
  *      a 93 database no list can be added.
  * 95 = how a business sells (0095): `businesses.quantity_first`. Every turn
  *      reads it; against a 94 database no turn can run.
+ * 96 = "How you sell" (0096): `selling_answers`, and the audit verb
+ *      `how_you_sell_saved`. Its pages read and write both; against a 95
+ *      database none of its questions can be answered.
  */
-export const REQUIRED_SCHEMA_VERSION = 95;
+export const REQUIRED_SCHEMA_VERSION = 96;
 
 export type SchemaState = {
   readonly required: number;

@@ -51,7 +51,10 @@ import {
 import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
-import { loadSelling, saveSelling, saveShopPromises, renderSelling } from './selling.js';
+import {
+  HS_BASE, loadHub, loadQuestion, submitAnswer, confirmAnswer, skipAnswer, questionOf, renderHub, renderQuestion, renderConfirm,
+} from './howYouSell.js';
+import type { Question } from '../../core/owner/howYouSell.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
@@ -2673,26 +2676,66 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
   });
 
-  // ── RT (0095) How you sell: her answers over her kind's, owner-only ───────
-  app.get('/app/business/selling', ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
-    const v = await loadSelling(deps.db, s.businessId);
-    return v ? renderSelling(v, locale, takeFlash(req, reply)) : '';
+  // ── HS (0096) How you sell: one question a page, every line ticked ────────
+  // Money and going live are the owner's (rule 11): every route is `price_rules`.
+  app.get(HS_BASE, ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
+    const v = await loadHub(deps.db, s.businessId);
+    return v ? renderHub(v, locale, takeFlash(req, reply)) : '';
   }));
-  app.post('/app/business/selling', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/selling');
+  const hsQuestion = (req: FastifyRequest): Question | null => questionOf(String((req.params as { q?: string }).q ?? ''));
+  app.get(`${HS_BASE}/:q`, async (req, reply) => {
+    const q = hsQuestion(req);
+    const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
     if (!s) return reply;
-    const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const r = await saveSelling(deps.db, s.businessId, personOf(s).id, String(b['field'] ?? ''), String(b['value'] ?? ''));
-    return flashTo(reply, '/app/business/selling', r === 'saved' ? 'selling.flash.saved' : r === 'unchanged' ? 'selling.flash.unchanged' : 'selling.flash.invalid');
+    const v = q ? await loadQuestion(deps.db, s.businessId, q) : null;
+    if (!v) return reply.redirect(HS_BASE);
+    const locale = localeOf(req);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'hs.title'), active: 'factory', bodyHtml: renderQuestion(v, locale, takeFlash(req, reply)) }));
   });
-  /** RT — the shop promises she allows: the boxes as she leaves them. */
-  app.post('/app/business/selling/promises', async (req, reply) => {
-    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/selling');
+  app.post(`${HS_BASE}/:q`, async (req, reply) => {
+    const q = hsQuestion(req);
+    const s = await ownerOnly(req, reply, 'price_rules', q ? `${HS_BASE}/${q}` : HS_BASE);
     if (!s) return reply;
-    const b = (req.body ?? {}) as Record<string, string | undefined>;
-    const ticked = new Set(Object.keys(b).filter((k) => k.startsWith('promise:') && b[k] === 'on').map((k) => k.slice('promise:'.length)));
-    const n = await saveShopPromises(deps.db, s.businessId, personOf(s).id, ticked);
-    return flashTo(reply, '/app/business/selling', n > 0 ? 'selling.flash.saved' : 'selling.flash.unchanged');
+    if (!q) return reply.redirect(HS_BASE);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const r = await submitAnswer(deps.db, s.businessId, q, body, personOf(s).id);
+    if (r.kind === 'confirm') return reply.code(303).redirect(`${HS_BASE}/${q}/confirm`);
+    if (r.kind === 'gone') return reply.redirect(HS_BASE);
+    const v = await loadQuestion(deps.db, s.businessId, q);
+    const locale = localeOf(req);
+    return reply.code(400).type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'hs.title'), active: 'factory', bodyHtml: v ? renderQuestion(v, locale, null, r.errors, body) : '' }));
+  });
+  app.get(`${HS_BASE}/:q/confirm`, async (req, reply) => {
+    const q = hsQuestion(req);
+    const s = await ownerOnly(req, reply, 'price_rules', HS_BASE);
+    if (!s) return reply;
+    const v = q ? await loadQuestion(deps.db, s.businessId, q) : null;
+    if (!v) return reply.redirect(HS_BASE);
+    const locale = localeOf(req);
+    const html = renderConfirm(v, locale, takeFlash(req, reply));
+    if (html === null) return reply.redirect(`${HS_BASE}/${v.q}`);
+    return reply.type('text/html; charset=utf-8').send(page(req, { title: t(locale, 'hs.title'), active: 'factory', bodyHtml: html }));
+  });
+  app.post(`${HS_BASE}/:q/confirm`, async (req, reply) => {
+    const q = hsQuestion(req);
+    const s = await ownerOnly(req, reply, 'price_rules', q ? `${HS_BASE}/${q}/confirm` : HS_BASE);
+    if (!s) return reply;
+    if (!q) return reply.redirect(HS_BASE);
+    const r = await confirmAnswer(deps.db, s.businessId, q, (req.body ?? {}) as Record<string, unknown>, personOf(s).id, localeOf(req));
+    if (r.kind === 'none_ticked') return flashTo(reply, `${HS_BASE}/${q}/confirm`, 'hs.flash.noneTicked');
+    if (r.kind === 'no_draft') return reply.redirect(`${HS_BASE}/${q}`);
+    if (r.kind === 'gone') return reply.redirect(HS_BASE);
+    return flashTo(reply, r.next ? `${HS_BASE}/${r.next}` : HS_BASE, 'hs.flash.saved');
+  });
+  app.post(`${HS_BASE}/:q/skip`, async (req, reply) => {
+    const q = hsQuestion(req);
+    const s = await ownerOnly(req, reply, 'price_rules', q ? `${HS_BASE}/${q}` : HS_BASE);
+    if (!s) return reply;
+    const r = q ? await skipAnswer(deps.db, s.businessId, q, personOf(s).id) : null;
+    if (!r) return reply.redirect(HS_BASE);
+    return flashTo(reply, r.next ? `${HS_BASE}/${r.next}` : HS_BASE, 'hs.flash.skipped');
   });
 
   // ── M29 Price limits: the three questions, reached from My factory ────────
@@ -3168,11 +3211,13 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!s) return reply.redirect('/login');
     const locale = localeOf(req);
     const flash = takeFlash(req, reply);
-    const [kind, people] = await Promise.all([loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId)]);
+    const [kind, people, hub] = await Promise.all([loadBusinessKind(deps.db, s.businessId), loadPeople(deps.db, s.businessId),
+      personOf(s).isOwner ? loadHub(deps.db, s.businessId) : Promise.resolve(null)]);
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.settings'), active: 'settings',
       bodyHtml: renderSetup({
         kind: kind.kind ? t(locale, `business.kind.${kind.kind}` as MessageKey) : null, people: people.length,
+        howYouSell: hub ? { answered: hub.order.filter((x) => hub.progress[x]?.state === 'answered').length, total: hub.order.length } : null,
       }, locale, flash),
     }));
   });

@@ -69,6 +69,9 @@ export const PRACTICE_SKIP = [
   // K1 (0094) — the owner's lists being checked, and their photos: how the
   // catalogue was taught, not what Practice answers from (it copies the products).
   'catalog_imports', 'catalog_import_photos',
+  // HS (0096) — where the owner is in How you sell: what her answers wrote is
+  // copied already (claims, knowledge, closures, words, terms, the profile).
+  'selling_answers',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];
