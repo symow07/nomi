@@ -74,6 +74,8 @@ export const PRACTICE_SKIP = [
   'selling_answers',
   // G5b (0098) — the phones that asked for alerts: a person's, never practised.
   'push_subscriptions',
+  // G3 (0101) — the day's allowance alerts sent to the owner: the copy spends hers.
+  'allowance_alerts',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

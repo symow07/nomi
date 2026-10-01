@@ -88,6 +88,12 @@ export type Signal =
    * conversation stays with the owner until handed back.
    */
   | { readonly kind: 'price_to_owner' }
+  /**
+   * G3 (0101) — the day's allowance is used: no model is asked, so a person
+   * answers, and the customer is told nothing. The path Stop takes, under its
+   * own name; the allowance renews at midnight UTC.
+   */
+  | { readonly kind: 'allowance_used' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -127,6 +133,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'not_answered',
   // K5 (0094) — a price question, where prices go to the owner.
   'price_to_owner',
+  // G3 (0101) — the day's allowance is used; a person answers.
+  'allowance_used',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -151,6 +159,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   deletion_requested: { kind: 'deletion_requested' },
   not_answered: { kind: 'not_answered' },
   price_to_owner: { kind: 'price_to_owner' },
+  allowance_used: { kind: 'allowance_used' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -187,6 +196,7 @@ export const TRIGGER_REASONS = [
   'deletion_requested',
   'not_answered',
   'price_to_owner',
+  'allowance_used',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -219,6 +229,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'not_answered';
     case 'price_to_owner':
       return 'price_to_owner';
+    case 'allowance_used':
+      return 'allowance_used';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

@@ -64,6 +64,7 @@ import type { PgBoss } from 'pg-boss';
 import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { signupDigestAlert } from './pipeline/signupDigest.js';
+import { allowanceAlerts } from './pipeline/allowanceWatch.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -1189,6 +1190,13 @@ export async function buildProduction(
     const digest = await signupDigestAlert(db, PILOT_BUSINESS_ID, new Date());
     if (!digest) return;
     await boss.send(QUEUES.notify, digest satisfies NotifyJob, { singletonKey: 'signup_digest', singletonSeconds: 23 * 3600 });
+  });
+
+  // G3 — every five minutes: an owner whose workspace crossed 80% or 100% of
+  // today's allowance is told, once a day per line (the claim keeps the count).
+  await boss.schedule(QUEUES.allowance, '*/5 * * * *', {});
+  await boss.work(QUEUES.allowance, async () => {
+    for (const job of await allowanceAlerts(db, new Date())) await boss.send(QUEUES.notify, job satisfies NotifyJob);
   });
 
   // G5b — a reply waiting past the day its channel allows is marked expired:

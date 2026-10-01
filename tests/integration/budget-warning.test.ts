@@ -60,7 +60,8 @@ d('G19 · the budget warning reaches Today (requires DATABASE_URL)', () => {
 
   it('past her soft-warn line, Today carries the percentage and what her setting does', async () => {
     const s = await snapshot(BIZ);
-    expect(s.budget).toEqual({ pctUsed: 84, stops: true });
+    // G3 — and whether it is used up, and when it renews.
+    expect(s.budget).toMatchObject({ pctUsed: 84, stops: true, reached: false });
   });
 
   it('a tenant who set NO ceiling is told nothing — absence is not a default', async () => {
@@ -77,7 +78,7 @@ d('G19 · the budget warning reaches Today (requires DATABASE_URL)', () => {
   it('and past 100% it still speaks — the day she most needs to know', async () => {
     await tx(BIZ, (t) => sql`update usage_ledger set llm_calls = 140
                               where business_id = ${BIZ} and day = (now() at time zone 'UTC')::date`.execute(t));
-    expect((await snapshot(BIZ)).budget).toEqual({ pctUsed: 100, stops: true });
+    expect((await snapshot(BIZ)).budget).toMatchObject({ pctUsed: 100, stops: true, reached: true });
   });
 
   it('it is a notice, not attention: it never turns a quiet day into a work list', async () => {

@@ -1,3 +1,4 @@
+import { allowanceOf, allowanceUsed, PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { sql } from 'kysely';
 import { randomInt } from 'node:crypto';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
@@ -111,8 +112,12 @@ export type PhotoIn = { readonly bytes: Buffer; readonly mediaType: 'image/jpeg'
 
 /** Why photos came to nothing; `photo` names which one, when one is to blame. */
 export type PhotosRefused = {
-  readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'handwritten' | 'hand_unanswered' | 'too_many';
+  readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'handwritten' | 'hand_unanswered' | 'too_many'
+    // G3 — the day's photos, or the day's allowance, are used: nothing is read.
+    | 'daily_limit' | 'allowance_used';
   readonly photo?: number;
+  /** `daily_limit`: how many photos may still be read today. */
+  readonly left?: number;
 };
 
 /**
@@ -136,6 +141,12 @@ export async function startPhotoImport(
   if (input.hand === 'handwritten') return { ok: false, reason: 'handwritten' };
   if (input.hand !== 'printed') return { ok: false, reason: 'hand_unanswered' };
   if (input.photos.length > MAX_PHOTOS) return { ok: false, reason: 'too_many' };
+  // G3 — reading a page is a model call: never past the day's allowance, and
+  // never more than 20 photos a day. Asked before any photo is read.
+  const allowance = await withTenantTx(db, bid.value, (tx) => allowanceOf(tx));
+  if (allowanceUsed(allowance)) return { ok: false, reason: 'allowance_used' };
+  const left = Math.max(0, PHOTO_READS_A_DAY - allowance.photoReads);
+  if (input.photos.length > left) return { ok: false, reason: 'daily_limit', left };
   const currency = await withTenantTx(db, bid.value, (tx) => currencyOf(tx, bid.value));
   const unit = await withTenantTx(db, bid.value, async (tx) => (await contextFor(tx, bid.value, 'photo', currency)).defaultUnit);
   const read = await readPhotos(deps, input.photos, currency, unit);

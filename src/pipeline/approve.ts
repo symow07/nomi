@@ -3,7 +3,7 @@ import { withTenantTx, lockConversation, type Db } from '../db/client.js';
 import { parseOwnerReply } from '../core/conversation/cards.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { ensureSpotChecks } from './spotChecks.js';
-import { assistantHold } from '../db/assistantStop.js';
+import { assistantHold, HOLD_OUTCOME } from '../db/assistantStop.js';
 import { keepDraftEdit } from '../db/ownerWords.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 
@@ -38,6 +38,7 @@ export type ApplyOutcome =
   | 'needs_edit'      // a disclosure went to the buyer instead of this text
   | 'assistant_stopped' // 0070 — stopped on every channel: the draft stays pending
   | 'assistant_silenced' // 0071 — ops paused sending: the draft stays pending
+  | 'allowance_used'   // G3 — the day's allowance is used: the draft stays pending
   | 'already_resolved'; // draft already decided (idempotent no-op)
 
 export type ApplyResult = {
@@ -108,7 +109,7 @@ export async function applyOwnerCommand(
       // CC-24 — an edit is the owner's words: refused, it is kept on the draft,
       // and the edit box opens with it when the owner comes back.
       if (cmd.kind === 'edit') await keepDraftEdit(tx, input.businessId, draft.id, cmd.text);
-      return { outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped', conversationId: draft.conversation_id, sendText: null };
+      return { outcome: HOLD_OUTCOME[hold], conversationId: draft.conversation_id, sendText: null };
     }
 
     const resolve = async (status: string, sentText: string | null) => {
@@ -199,6 +200,7 @@ function messageFor(outcome: ApplyOutcome): string {
     case 'not_found': return '找不到这条待办。';
     case 'assistant_silenced': return '我们在查一件事，暂时停了助手的发送：这条草稿没有发出，仍留在待办里。你自己发的回复照常送达。';
     case 'assistant_stopped': return '你的助手已在所有渠道停下：这条草稿没有发出，仍留在待办里。你可以直接回复买家，或在「我的公司」让助手重新回复。';
+    case 'allowance_used': return '今天的额度已经用完：这条草稿没有发出，仍留在待办里。你自己发的回复照常送达；额度恢复后，这条也可以再发。';
     case 'needs_edit': return '这条不能照原样发送：买家问她是不是真人，这条没有回答，已经先发了说明。改一下再发。';
     case 'unknown': return '没听懂，回复「发送」照发、「改+内容」改一下、或「不回」跳过。';
   }

@@ -1,3 +1,4 @@
+import { PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { sql } from 'kysely';
 import { type Money, type Currency, parseCurrency, moneyFromRow } from '../../core/types/money.js';
 import { readTypedAmount } from '../../core/commerce/amount.js';
@@ -883,7 +884,9 @@ async function updateProductTx(
  */
 export type PhotoRefusal = 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'too_large' | 'not_a_photo' | 'upload_failed'
   // K1 — several photos, and the question asked before any is read.
-  | 'too_many' | 'handwritten' | 'hand_unanswered';
+  | 'too_many' | 'handwritten' | 'hand_unanswered'
+  // G3 — the day's 20 photos, or the day's allowance, are used.
+  | 'daily_limit' | 'allowance_used';
 
 /**
  * The page she cannot read.
@@ -892,14 +895,20 @@ export type PhotoRefusal = 'not_configured' | 'unreadable' | 'no_lines' | 'cut_o
  * names the reason in her language and names the next action — take another
  * photo, or paste the text, which is the path that always works.
  */
-export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?: number): string {
+export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?: number, left?: number): string {
   // K1 — with several photos, the one to take again is named.
   const key = photo !== undefined && (reason === 'unreadable' || reason === 'cut_off')
-    ? `product.photo.refused.${reason}_n` : `product.photo.refused.${reason}`;
+    ? `product.photo.refused.${reason}_n`
+    // G3 — how many photos are left today, or that none are.
+    : reason === 'daily_limit' && !left ? 'product.photo.refused.daily_limit_none'
+    : `product.photo.refused.${reason}`;
+  const params = reason === 'daily_limit' ? { n: left ?? 0, max: PHOTO_READS_A_DAY }
+    : photo !== undefined ? { n: photo } : undefined;
   return `<h1 class="page">${esc(t(locale, 'product.photo.refusedTitle'))}</h1>
     <div class="block">
-      <p>${esc(t(locale, key as MessageKey, photo !== undefined ? { n: photo } : undefined))}</p>
+      <p>${esc(t(locale, key as MessageKey, params))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-      ${deeper('/app/products/add', t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
+      ${deeper('/app/products/add', t(locale, reason === 'not_configured' || reason === 'daily_limit' || reason === 'allowance_used'
+        ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;
 }
