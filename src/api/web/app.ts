@@ -62,6 +62,7 @@ import {
   stagedFlash, renderImportReview, renderFloors, openImportOf, importPhoto, notFoundImport, MAX_PHOTOS, type PhotoIn,
   importedProducts, askAboutThree, renderAskAboutThree, renderAskedQuestions,
 } from './importFlow.js';
+import { looksLikeXlsx, xlsxRows, rowsAsCsv } from '../../net/xlsx.js';
 import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
@@ -2779,7 +2780,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     try {
       const file = await req.file();
       if (!file) return refuse();
-      text = (await file.toBuffer()).toString('utf8');
+      const bytes = await file.toBuffer();
+      // EXT — an Excel workbook is read as the table it is; its first sheet, as CSV.
+      if (looksLikeXlsx(bytes)) {
+        const rows = xlsxRows(bytes);
+        if (!rows) return refuse();
+        text = rowsAsCsv(rows);
+      } else {
+        text = bytes.toString('utf8');
+      }
     } catch {
       return refuse();
     }

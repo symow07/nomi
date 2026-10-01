@@ -224,7 +224,7 @@ export function renderStoreForms(locale: Locale, currency: string): string {
       <h2>${esc(t(locale, 'import.file.title'))}</h2>
       <p>${esc(t(locale, 'import.file.intro'))}</p>
       <form method="post" action="/app/products/add/file" enctype="multipart/form-data">
-        <input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" required />
+        <input class="photo-in" type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
         <button class="btn" type="submit">${esc(t(locale, 'import.file.read'))}</button>
       </form>
     </div>`;

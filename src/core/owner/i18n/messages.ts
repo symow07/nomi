@@ -1659,7 +1659,7 @@ const EN = {
   'import.store.refused.currency_unconfirmed': 'The store does not say its currency. Tick that its prices are in this business\'s currency, and read it again.',
   'import.store.refused.not_a_table': 'That file is not a table of products. Export it from your store as CSV, or paste the rows instead.',
   'import.file.title': 'Or add a file from your store',
-  'import.file.intro': 'A product export from Shopify, WooCommerce or Etsy, or any table saved as CSV: you say which column is which, then check the rows.',
+  'import.file.intro': 'A product export from Shopify, WooCommerce or Etsy, or any table saved as CSV or Excel (.xlsx, its first sheet): you say which column is which, then check the rows.',
   'import.file.read': 'Read the file',
   // K6 — ask about three of these, in Practice. Drafts for the native readers.
   'import.ask.intro': 'Check what {name} now knows: ask about three of these as a customer would, in Practice. Nothing reaches anyone.',
@@ -4774,7 +4774,7 @@ const ZH: Record<MessageKey, string> = {
   'import.store.refused.currency_unconfirmed': '网店没写货币。请勾选网店的价格用的是这门生意的货币，再读取一次。',
   'import.store.refused.not_a_table': '这个文件不是产品表格。请从网店导出 CSV 文件，或者把这些行贴进来。',
   'import.file.title': '或者添加网店导出的文件',
-  'import.file.intro': 'Shopify、WooCommerce 或 Etsy 导出的产品文件，或者任何存成 CSV 的表格：你指出哪一列是什么，再核对这些行。',
+  'import.file.intro': 'Shopify、WooCommerce 或 Etsy 导出的产品文件，或者任何存成 CSV 或 Excel（.xlsx，读第一个工作表）的表格：你指出哪一列是什么，再核对这些行。',
   'import.file.read': '读取文件',
   // K6 — ask about three of these, in Practice. Drafts for the native readers.
   'import.ask.intro': '看看{name}现在知道了什么：在练习里像客户一样问问其中三个。不会发给任何人。',
@@ -7843,7 +7843,7 @@ const AR: Record<MessageKey, string> = {
   'import.store.refused.currency_unconfirmed': 'لا يذكر المتجر عملته. يُرجى تأكيد أن أسعاره بعملة هذا النشاط، ثم القراءة من جديد.',
   'import.store.refused.not_a_table': 'هذا الملف ليس جدول منتجات. يُرجى تصديره من المتجر بصيغة CSV، أو لصق الصفوف بدلًا من ذلك.',
   'import.file.title': 'أو إضافة ملف من المتجر',
-  'import.file.intro': 'ملف منتجات مُصدَّر من Shopify أو WooCommerce أو Etsy، أو أي جدول محفوظ بصيغة CSV: يُحدَّد ما في كل عمود، ثم تُراجَع الصفوف.',
+  'import.file.intro': 'ملف منتجات مُصدَّر من Shopify أو WooCommerce أو Etsy، أو أي جدول محفوظ بصيغة CSV أو Excel (.xlsx، الورقة الأولى): يُحدَّد ما في كل عمود، ثم تُراجَع الصفوف.',
   'import.file.read': 'قراءة الملف',
   // K6 — ask about three of these, in Practice. Drafts for the native readers.
   'import.ask.intro': 'للتحقق من معرفة {name} الآن: أسئلة عن ثلاثة منها بصيغة أسئلة العملاء، في التدريب. لا يصل شيء إلى أحد.',
