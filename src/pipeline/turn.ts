@@ -1125,6 +1125,10 @@ export async function commitTurn(
     // R2 (0106) — and only as far as its rung: greet/qualify/recommend/follow_up
     // need rung 1 (talks), quote/negotiate rung 2 (sells).
     const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);
+    // R3 (0107) — a reply that states a product's price goes alone only after
+    // the owner has sent that product's first quote themselves.
+    const quotedProduct = r.quote && r.decision.product ? r.decision.product.productId : null;
+    const vetted = !speaksAlone || !quotedProduct || await tenant.autonomy.quoteVetted(quotedProduct);
     // The native-review gate, at the one place that decides whether a
     // message goes out alone — so it binds capabilities switched on BEFORE
     // the rule existed, not only new choices made on the owner's page. Per
@@ -1134,7 +1138,7 @@ export async function commitTurn(
     const released = !speaksAlone || tenant.autonomy.released(language);
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-    const mayDisclose = !speaksAlone || (earned && released && named && sentence !== null);
+    const mayDisclose = !speaksAlone || (earned && vetted && released && named && sentence !== null);
 
     const mode = effectiveMode(
       (r.hold || !mayDisclose) ? 'draft' : policyMode,
@@ -1145,8 +1149,8 @@ export async function commitTurn(
       // owner set it is the kind of thing she should be able to find.
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
-        reason: !earned ? 'not_earned' : !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
-        ...(earned && !released ? { language: languageHead(language) } : {}),
+        reason: !earned ? 'not_earned' : !vetted ? 'first_quote' : !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
+        ...(earned && vetted && !released ? { language: languageHead(language) } : {}),
       });
     }
 
@@ -1239,6 +1243,8 @@ export async function commitTurn(
       await tenant.events.append(req.conversationId, 'draft_pending', {
         draftId: d.draftId, capability,
         ...(replyLanguage ? { language: languageHead(replyLanguage) } : {}),
+        // R3 — the product it quotes, so the owner's approval vets that product.
+        ...(quotedProduct ? { productId: quotedProduct } : {}),
         // The audit trail says WHY this one waited, so a draft the owner did
         // not ask for is explicable rather than mysterious.
         // G7a — and the inbox reads it back, so the card says why too.
@@ -1259,6 +1265,7 @@ export async function commitTurn(
         // 2026-09-30 — it would have gone alone, but the customer's language
         // has no signed-off sentence saying who is answering: the card says so.
         ...(speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
+          : speaksAlone && !vetted ? { withheld: { reason: 'first_quote' } }
           : speaksAlone && !released ? { withheld: { reason: withheldBecause(language), language: languageHead(language) } } : {}),
       });
 

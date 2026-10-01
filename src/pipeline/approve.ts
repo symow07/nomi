@@ -125,6 +125,20 @@ export async function applyOwnerCommand(
         values (${input.businessId}, ${draft.conversation_id}, 'draft_resolved',
                 ${JSON.stringify({ draftId: draft.id, status, actor: input.decidedBy })}::jsonb)
       `.execute(tx);
+      // R3 (0107) — the owner sent a quote of this product: its price may go
+      // out alone from now on (until it changes). Staff do not vet a price.
+      if (status === 'approved' || status === 'edited') {
+        await sql`
+          update products set quote_vetted_at = now()
+           where quote_vetted_at is null
+             and id = (select (e.payload->>'productId')::uuid from conversation_events e
+                        where e.conversation_id = ${draft.conversation_id} and e.type = 'draft_pending'
+                          and e.payload->>'draftId' = ${draft.id}::text and e.payload ? 'productId'
+                        order by e.id desc limit 1)
+             and (${input.decidedBy} = 'owner'
+                  or exists (select 1 from people p where p.business_id = ${input.businessId}::uuid
+                                and p.is_owner and p.id::text = ${input.decidedBy}))`.execute(tx);
+      }
       // R2 (0106) — every decision counts toward the ramp: a rung earned by it is
       // stamped in this same transaction (a workspace that signed itself up only).
       await stampRungs(tx, input.businessId);

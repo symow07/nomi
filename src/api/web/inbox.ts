@@ -568,7 +568,7 @@ export type ConversationDetail = {
      */
     withheld?: { readonly reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; readonly language: string }
       // G4 — a workspace that signed itself up has not earned sending alone yet.
-      | { readonly reason: 'not_earned' } | null;
+      | { readonly reason: 'not_earned' | 'first_quote' } | null;
     /** CC-24 — the owner's edit of this draft, kept when its send was refused. */
     ownerEdit?: string | null;
     /** G10 — the language the reply is in (two letters), when the turn knew it. */
@@ -1006,10 +1006,10 @@ export function needsWhy(locale: Locale, c: ConversationSummary): string {
 }
 
 /** The `withheld` a turn wrote beside a draft, checked; anything else is none. */
-function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; language: string } | { reason: 'not_earned' } | null {
+function withheldOf(v: unknown): { reason: 'disclosure_not_reviewed' | 'language_without_disclosure'; language: string } | { reason: 'not_earned' | 'first_quote' } | null {
   if (typeof v !== 'object' || v === null) return null;
   const { reason, language } = v as { reason?: unknown; language?: unknown };
-  if (reason === 'not_earned') return { reason };
+  if (reason === 'not_earned' || reason === 'first_quote') return { reason };
   if ((reason !== 'disclosure_not_reviewed' && reason !== 'language_without_disclosure') || typeof language !== 'string') return null;
   return { reason, language: language.slice(0, 8) };
 }
@@ -1618,8 +1618,9 @@ export function approvalCard(d: ConversationDetail, locale: Locale, now: Date, t
   const state = [
     p.heldBecause ? waits(t(locale, `inbox.draft.held.${p.heldBecause}` as MessageKey, { name })) : '',
     p.disclosureSent ? waits(t(locale, 'inbox.draft.held.disclosure_sent', { name })) : '',
-    p.withheld ? waits(p.withheld.reason === 'not_earned' ? t(locale, 'inbox.draft.held.not_earned', { name })
-      : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })) : '',
+    p.withheld ? waits('language' in p.withheld
+      ? t(locale, `inbox.draft.held.${p.withheld.reason}`, { name, language: languageName(locale, p.withheld.language) })
+      : t(locale, `inbox.draft.held.${p.withheld.reason}`, { name })) : '',
     p.contradicts ? contradictionBlock(p.contradicts, locale) : '',
     p.forbidden?.length ? `<p class="held-why"><bdi>${esc(t(locale, 'inbox.draft.held.words', { terms: quoted(locale, p.forbidden) }))}</bdi></p>` : '',
   ].join('');

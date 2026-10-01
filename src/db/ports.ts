@@ -133,6 +133,12 @@ export interface AutonomyRepo {
    * reply whose capability needs more drafts.
    */
   earnedRung(): Promise<0 | 1 | 2>;
+  /**
+   * R3 (0107) — may this product's price go out alone? Only once the owner has
+   * sent one quote of it (a price change starts it again); always for a
+   * workspace the operator made.
+   */
+  quoteVetted(productId: string): Promise<boolean>;
 }
 
 /**

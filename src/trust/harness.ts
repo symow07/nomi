@@ -216,6 +216,8 @@ class HarnessTenant implements Tenant {
    * workspace the operator made; one about a self-serve workspace sets less.
    */
   earnedRungValue: 0 | 1 | 2 = 2;
+  /** R3 — every product's first quote already sent; a test about R3 sets false. */
+  quoteVettedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -227,6 +229,7 @@ class HarnessTenant implements Tenant {
     // allowed at all. The gate itself is proved against the real flag.
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
     earnedRung: async () => this.earnedRungValue,
+    quoteVetted: async () => this.quoteVettedFlag,
   };
   // M34.6 — the trust scenarios run an unsilenced employee; a scenario that
   // wants a switch thrown sets this and says so in its own name.
