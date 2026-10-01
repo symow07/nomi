@@ -168,16 +168,20 @@ when a customer refers to it, and keeps only the matched product's name.
 - Every reply in this workspace waits for the reviewer's approval (nothing is
   sent alone); on WhatsApp it also answers only the numbers on its list.
 
-### Making the reviewer's login (the operator, never committed)
+### Making the reviewer's login (the owner, by hand — never committed)
 
-1. Make an invitation: `node tools/invitations.mjs` (see its header), or sign
-   up the reviewer workspace at `/signup` while sign-up is open.
-2. Give the workspace a login the reviewer can use: `MIGRATE_DATABASE_URL=…
-   PUBLIC_BASE_URL=https://app.nomidoes.com node tools/add-login.mjs
-   <business-id> <reviewer e-mail>` — it prints a one-time link to choose the
-   password (72 hours). Choose it, then paste the e-mail and password into
-   Meta's credentials field.
-3. Import a few products (Products → Import) so drafts have something to say.
+1. Mint one invitation: `railway run --service nomi -- node
+   tools/invite-factory.mjs "Meta App Review"` — it prints the sign-up link.
+   (While sign-up is open, `/signup` needs no invitation.)
+2. Open the link and sign up a test business ("Nomi Review Shop") with the
+   reviewer e-mail and a password you choose. The workspace is made like any
+   other; nobody copies an id.
+3. In that workspace, import a few products (Products → Teach your assistant
+   your products) so drafts have something to say, and confirm the assistant's
+   name on Getting ready.
+4. Paste the e-mail and password into Meta's credentials field for each
+   submission. For a lost password, `tools/add-login.mjs <business-id>
+   <e-mail> --reset` prints a one-time link to choose a new one.
 
 ---
 
