@@ -20,7 +20,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The capabilities force_draft holds back, one row each (0014); confirm_order already always drafts. */
 export const FORCE_DRAFT_CAPABILITIES = ['greet', 'qualify', 'recommend', 'quote', 'negotiate', 'follow_up'];
-export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off'];
+export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections'];
+/** KS6 — flags that exist only for the whole installation (0115). */
+export const INSTALLATION_ONLY_FLAGS = ['approve_connections'];
 
 async function inTx(c, fn) {
   await c.query('begin');
@@ -145,6 +147,7 @@ export async function restoreWorkspace(c, graph, input) {
  */
 /** @param {Query} c @param {{ flag: string, businessId: string | null, reason: string, by: string }} input */
 export async function setOperatorFlag(c, input) {
+  if (input.businessId !== null && INSTALLATION_ONLY_FLAGS.includes(input.flag)) throw new Error(`${input.flag} is for the whole installation: use --all`);
   if (input.businessId !== null && !(await workspaceOf(c, input.businessId))) throw new Error('no such workspace');
   const caps = input.flag === 'force_draft' ? FORCE_DRAFT_CAPABILITIES : [null];
   return inTx(c, async () => {
@@ -253,4 +256,50 @@ export async function revokeInvitation(c, input) {
     update signup_invites set expires_at = least(expires_at, now()), revoked_at = now(), revoked_by = $2
      where id = $1 and used_at is null and expires_at > now()`, [found[0].id, String(input.by).trim().slice(0, 120)]);
   return r.rowCount === 1 ? 'revoked' : 'not_open';
+}
+
+/**
+ * KS6 (0115) — the asks to connect a first channel, and the operator's
+ * decision. The list is what the operator looks at: the business, what it
+ * sells, its website, where it can be seen. Waiting asks by default; --all is
+ * the KS6 log the step 4 → 5 criteria are measured by.
+ */
+export async function listConnectionAsks(c, { all = false } = {}) {
+  const r = await c.query(`
+    select a.business_id::text as id, b.name, b.kind, b.country, b.description as sells, b.website, a.page,
+           a.asked_at, a.asked_by, a.decision, a.decided_at, a.decided_by, a.note, a.told_at
+      from connection_approvals a join businesses b on b.id = a.business_id
+     where $1::boolean or a.decision is null
+     order by a.asked_at`, [all]);
+  return r.rows.map((x) => ({
+    id: x.id, name: x.name, kind: x.kind ?? null, country: x.country ?? null, sells: x.sells ?? null, website: x.website ?? null,
+    page: x.page, askedAt: x.asked_at, askedBy: x.asked_by, decision: x.decision ?? null, decidedAt: x.decided_at ?? null,
+    decidedBy: x.decided_by ?? null, note: x.note ?? null, told: x.told_at !== null,
+  }));
+}
+
+/**
+ * Approve or refuse. An approval needs no ask (a workspace the operator already
+ * knows); a refusal answers one. A decision changed later is told again.
+ */
+export async function decideConnection(c, input) {
+  if (!['approved', 'refused'].includes(input.decision) || !input.by || !String(input.by).trim()) return 'invalid';
+  const ws = await workspaceOf(c, String(input.businessId ?? ''));
+  if (!ws) return 'none';
+  if (ws.practiceOf) return 'practice';
+  const by = String(input.by).trim().slice(0, 120);
+  const note = input.note ? String(input.note).slice(0, 500) : null;
+  return inTx(c, async () => {
+    const ask = (await c.query(`select decision from connection_approvals where business_id = $1::uuid for update`, [ws.id])).rows[0];
+    if (!ask && input.decision === 'refused') return 'no_ask';
+    if (ask && ask.decision === input.decision) return 'unchanged';
+    if (!ask) {
+      await c.query(`insert into connection_approvals (business_id, page, asked_by, decision, decided_at, decided_by, note)
+                     values ($1::uuid, '(approved before asking)', $2, 'approved', now(), $2, $3)`, [ws.id, by, note]);
+    } else {
+      await c.query(`update connection_approvals set decision = $2, decided_at = now(), decided_by = $3, note = coalesce($4, note), told_at = null
+                      where business_id = $1::uuid`, [ws.id, input.decision, by, note]);
+    }
+    return input.decision;
+  });
 }

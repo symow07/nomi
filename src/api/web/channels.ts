@@ -661,6 +661,8 @@ export function renderChannels(
   yourAccountsHtml = '',
   /** CH4 — where Nomi stands with Meta, the same for every workspace. */
   metaReview: MetaReview | null = null,
+  /** KS6 — the operator's approval before the first connection, already rendered; first on the page. */
+  approvalHtml = '',
 ): string {
   const w = data.whatsapp;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
@@ -721,6 +723,7 @@ export function renderChannels(
 
   return `<h1 class="page">${esc(t(locale, 'nav.channels'))}</h1>
     ${flashBanner(flash)}
+    ${approvalHtml}
     ${whatsappCard}
     ${accountsHtml}
     ${reach}

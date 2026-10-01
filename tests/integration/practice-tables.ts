@@ -78,6 +78,8 @@ export const PRACTICE_SKIP = [
   'allowance_alerts',
   // G7 (0103) — what the operator did to a workspace: never the copy's.
   'workspace_suspensions',
+  // KS6 (0115) — the operator's approval of the first connection: a copy never connects.
+  'connection_approvals',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

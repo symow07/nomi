@@ -7,10 +7,13 @@
  *   railway run --service nomi -- node tools/ops-flags.mjs --set force_draft --business <uuid> --reason "<why>" --by "<you>" --yes
  *   railway run --service nomi -- node tools/ops-flags.mjs --set connections_off --all --reason "<why>" --by "<you>" --yes
  *   railway run --service nomi -- node tools/ops-flags.mjs --clear connections_off --all --yes
+ *   railway run --service nomi -- node tools/ops-flags.mjs --set approve_connections --all --reason "opening step 4" --by "<you>" --yes
  *
  * Flags: global_silence (the assistant says nothing; customers go to a person),
  * force_draft (six rows, one per capability: every reply waits), connections_off
- * (no Page or WhatsApp can be connected), practice_off. --all is everyone;
+ * (no Page or WhatsApp can be connected), practice_off, approve_connections
+ * (KS6, --all only: a workspace that signed itself up connects its first channel
+ * only after tools/connections.mjs approves it — opening step 4). --all is everyone;
  * --business one workspace. Dry run unless --yes. Reads MIGRATE_DATABASE_URL.
  */
 import { toolClient } from './lib/db.mjs';

@@ -1,6 +1,9 @@
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
-import { connectionsPaused } from '../../db/opsFlags.js';
+import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
+import { whereSeenFrom } from '../../core/owner/whereSeen.js';
+import { renderApprovalCard } from './connectionApproval.js';
+import { notifyOperatorOfConnectionAsk } from '../../pipeline/notify.js';
 import { loadReady, renderReady } from './ready.js';
 import { earnedRung } from '../../db/ramp.js';
 import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
@@ -2340,6 +2343,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
       const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
       if (!s) return reply;
+      // G7 / KS6 — the same one question as the other connect routes (found 2026-10-01: this one never asked).
+      const refused = await connectionRefusal(s.businessId);
+      if (refused) return flashTo(reply, '/app/channels', refused);
       const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
       facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
@@ -2355,8 +2361,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/channels/whatsapp/connect', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
     if (!s) return reply;
-    // G7 — the operator stopped new connections.
-    if (await connectionsStopped(s.businessId)) return flashTo(reply, '/app/channels', 'connect.flash.paused');
+    // G7 — the operator stopped new connections; KS6 — or the first one waits for approval.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return flashTo(reply, '/app/channels', refused);
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
     facts.evict(s.businessId);   // D — a channel connected is a setup step done
     return flashTo(reply, '/app/channels', channelFlash(r.code));
@@ -2364,6 +2371,30 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   channelAction('/app/channels/whatsapp/disconnect', (b, actor) => disconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/reconnect', (b, actor) => reconnectChannel(deps.db, b, actor));
   channelAction('/app/channels/whatsapp/test', (b, actor) => testChannel(deps.db, b, actor, whatsappConfigured));
+
+  /**
+   * KS6 (0115) — the owner asks the operator to look at the business before
+   * its first channel connects, naming where it can be seen. Once: a second
+   * ask changes nothing. The operator hears at once, by the installation's own
+   * mail; the decision comes back to the owner by e-mail (the five-minute sweep).
+   */
+  app.post('/app/channels/approval', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    const raw = (req.body as { page?: unknown } | undefined)?.page;
+    const page = whereSeenFrom(typeof raw === 'string' ? raw : '');
+    if (!page) return flashTo(reply, '/app/channels#approval', 'approval.flash.bad_page');
+    const r = await withTenantTx(deps.db, bid.value, async (tx) =>
+      (await approvalState(tx, bid.value)).needed ? askApproval(tx, page, personOf(s).name) : 'not_needed' as const)
+      .catch(() => null);
+    if (r === null) return flashTo(reply, '/app/channels', 'approval.flash.failed');
+    if (r === 'asked' && deps.systemMail) {
+      void notifyOperatorOfConnectionAsk({ db: deps.db, mail: deps.systemMail }, deps.businessId, s.businessId).catch(() => undefined);
+    }
+    return flashTo(reply, '/app/channels#approval', r === 'asked' ? 'approval.flash.asked' : r === 'not_needed' ? 'approval.flash.not_needed' : 'approval.flash.already');
+  });
 
   // P3 follow-up: owner alert destination (minimal action, validated + audited).
   app.post('/app/settings/owner-phone', async (req, reply) => {
@@ -2450,11 +2481,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const inbound = await inboundLinks(s.businessId);
     const yours = await yourAccountsFor(s.businessId);
     const liveMark = bid.ok ? await channelsMark(deps.db, bid.value) : null;
+    // KS6 — before the first channel connects, the operator looks at the business.
+    const approval = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => approvalState(tx, bid.value)).catch(() => null) : null;
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash, personOf(s),
         accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound,
-        yours ? renderYourAccounts(yours, locale) : '', deps.metaReview ?? null),
+        yours ? renderYourAccounts(yours, locale) : '', deps.metaReview ?? null,
+        approval ? renderApprovalCard(approval, locale, personOf(s), deps.legalContact ?? null) : ''),
       // CH1 — the page says when a first message arrives, or a connection changes.
       ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
     }));
@@ -3014,11 +3048,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }, personOf(s)),
     }));
   });
-  // G7 — new connections stopped by the operator (`connections_off`); a failure to read it reads as stopped.
-  const connectionsStopped = async (businessIdRaw: string): Promise<boolean> => {
+  /**
+   * G7 — new connections stopped by the operator (`connections_off`); KS6 —
+   * or this workspace's first connection waits for the operator's approval
+   * (0115). Both connect routes ask this one question; a failure to read it
+   * reads as stopped. Null: nothing stands in the way.
+   */
+  const connectionRefusal = async (businessIdRaw: string): Promise<MessageKey | null> => {
     const b = parseBusinessId(businessIdRaw);
-    if (!b.ok) return true;
-    return withTenantTx(deps.db, b.value, (tx) => connectionsPaused(tx, b.value)).catch(() => true);
+    if (!b.ok) return 'connect.flash.paused';
+    const gate = await withTenantTx(deps.db, b.value, (tx) => connectionGate(tx, b.value)).catch(() => 'stopped' as const);
+    return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval' : null;
   };
   // G4 / R2 — the workspace's own rung, in its own transaction; a failure reads as none.
   const rungFor = async (businessIdRaw: string): Promise<0 | 1 | 2> => {
@@ -3857,8 +3897,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/connect/meta/start', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
-    // G7 — the operator stopped new connections: nothing is asked of Meta.
-    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
+    // G7 — the operator stopped new connections, or (KS6) the first one waits for approval: nothing is asked of Meta.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return channelsFlash(reply, refused);
     const locale = localeOf(req);
     const mc = metaReady();
     if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured');
@@ -3876,8 +3917,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cookie = parseCookies(req.headers.cookie)[META_COOKIE];
     // Used once, whatever happens next.
     writeCookie(reply, META_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
-    // G7 — stopped while she was on Meta's page: nothing is connected.
-    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
+    // G7 — stopped while she was on Meta's page (or, KS6, not approved): nothing is connected.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return channelsFlash(reply, refused);
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
       return channelsFlash(reply, 'connect.flash.expired');
@@ -3902,8 +3944,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/app/connect/meta/choose', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
-    // G7 — the last step of connecting a Page: refused while connections are stopped.
-    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
+    // G7 — the last step of connecting a Page: refused while connections are stopped, or (KS6) not yet approved.
+    const refused = await connectionRefusal(s.businessId);
+    if (refused) return channelsFlash(reply, refused);
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());

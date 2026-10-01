@@ -66,7 +66,12 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
 export const goesByMail = (kind: AlertKind): boolean =>
   isOperatorAlert(kind) || isAllowanceAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed'
   // R5 — the assistant stepped back on its own: the owner hears of it, by e-mail always.
-  || kind === 'self_demoted';
+  || kind === 'self_demoted'
+  // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
+  || kind === 'connection_approved' || kind === 'connection_refused';
+
+/** KS6 — where the decision's e-mail opens: the Channels page, at the approval card. */
+export const CONNECTION_APPROVAL_PAGE = '/app/channels';
 
 /** R5 — the reasons a self-demotion can give (`DemotionReason`), each with its words in `notify.self_demoted.why.*`. */
 export const SELF_DEMOTION_REASONS = ['policy_violation', 'hallucination', 'serious_spot_check', 'failed_spot_check',
@@ -135,6 +140,8 @@ export type OperatorAlertDetail = {
   readonly cohort?: { readonly workspaces: number; readonly practised: number; readonly replied: number };
   /** `signup_digest` (MAIL): the last day's codes and alerts, and what the caps held back. */
   readonly mail?: { readonly codes: number; readonly alerts: number; readonly refused: number };
+  /** `signup_digest` (KS6): how many workspaces wait for the operator's approval to connect. */
+  readonly approvals?: number;
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
@@ -207,6 +214,8 @@ export function renderOwnerAlert(
     const n = (x: number) => new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(x);
     return t(locale, 'notify.spend_breaker', { tokens: n(s.tokens), calls: n(s.calls), maxTokens: n(s.maxTokens), maxCalls: n(s.maxCalls) });
   }
+  // KS6 — the operator's decision on the first connection.
+  if (kind === 'connection_approved' || kind === 'connection_refused') return t(locale, `notify.${kind}`);
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
@@ -236,9 +245,11 @@ export function renderOwnerAlert(
     const forms = detail.forms ? [t(locale, 'notify.signup_digest.forms', { forms: detail.forms.forms, used: detail.forms.codesUsed })] : [];
     const cohort = detail.cohort ? [t(locale, 'notify.signup_digest.cohort', detail.cohort)] : [];
     const mail = detail.mail ? [t(locale, detail.mail.refused ? 'notify.signup_digest.mail.capped' : 'notify.signup_digest.mail', detail.mail)] : [];
+    // KS6 — asks to connect a first channel, waiting for the operator.
+    const approvals = detail.approvals ? [t(locale, 'notify.signup_digest.approvals', { n: detail.approvals })] : [];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...cohort, ...mail, ...flags].join('\n');
+      ...forms, ...cohort, ...mail, ...approvals, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -353,8 +364,10 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
   const words = renderOwnerAlert(locale, job.kind, null, { ...operatorDetailOf(job), zone: found.zone });
   // R5 — the self-demotion opens the level on the assistant's page, when the installation knows its address.
-  const body = job.kind === 'self_demoted' && deps.publicBaseUrl
-    ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${SELF_DEMOTION_PAGE}` })}` : words;
+  // KS6 — an approval opens Channels, where the first channel can now connect.
+  const opens = job.kind === 'self_demoted' ? SELF_DEMOTION_PAGE : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE : null;
+  const body = opens && deps.publicBaseUrl
+    ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
 
   let tried = 0; let sent = 0;
   // MAIL — the operator's alerts by the operator's mailbox; an owner's by the sender strangers' mail uses.
@@ -446,6 +459,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.forms ? { forms: job.forms } : {}),
     ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.mail ? { mail: job.mail } : {}),
+    ...(job.approvals ? { approvals: job.approvals } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),
@@ -459,6 +473,44 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
  * installation's business), in the operator's language. Nothing a customer
  * said; never the new owner's password or code.
  */
+/**
+ * KS6 (0115) — a workspace asks to connect its first channel: the operator
+ * hears at once, by the installation's own mail, with what to look at — the
+ * business, what it sells, its website, where it can be seen — and the
+ * command that decides.
+ */
+export async function notifyOperatorOfConnectionAsk(
+  deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, askingBusinessIdRaw: string,
+): Promise<'sent' | 'skipped' | 'failed'> {
+  const op = parseBusinessId(operatorBusinessIdRaw);
+  const asking = parseBusinessId(askingBusinessIdRaw);
+  if (!op.ok || !asking.ok || op.value === asking.value) return 'skipped';
+  const b = await withTenantTx(deps.db, asking.value, (tx) => sql<{
+    name: string; kind: string | null; country: string | null; sells: string | null; website: string | null; page: string | null;
+  }>`select b.name, b.kind, b.country, b.description as sells, b.website, a.page
+       from businesses b left join connection_approvals a on a.business_id = b.id
+      where b.id = ${asking.value}`.execute(tx).then((r) => r.rows[0]));
+  const to = await withTenantTx(deps.db, op.value, async (tx) => ({
+    locale: (await sql<{ owner_locale: string }>`select owner_locale from businesses where id = ${op.value}`.execute(tx)).rows[0]?.owner_locale ?? 'en',
+    email: await ownerLoginEmail(tx, op.value),
+  }));
+  if (!b || !to.email) return 'skipped';
+  const locale: Locale = parseLocale(to.locale) ?? 'en';
+  const r = await deps.mail.send({
+    to: to.email, subject: t(locale, 'notify.connection_asked.subject', { business: b.name }),
+    text: [
+      t(locale, 'notify.connection_asked', {
+        business: b.name, kind: b.kind ? t(locale, `business.kind.${b.kind}` as MessageKey) : '—', country: b.country ?? '—',
+      }),
+      t(locale, 'notify.signup_new.sells', { sells: b.sells ?? '—' }),
+      t(locale, 'notify.signup_new.website', { website: b.website ?? '—' }),
+      t(locale, 'notify.connection_asked.page', { page: b.page ?? '—' }),
+      t(locale, 'notify.connection_asked.how', { id: asking.value }),
+    ].join('\n'),
+  });
+  return r.ok ? 'sent' : 'failed';
+}
+
 export async function notifyOperatorOfSignup(
   deps: { readonly db: Db; readonly mail: OwnerMailer }, operatorBusinessIdRaw: string, newBusinessIdRaw: string,
 ): Promise<'sent' | 'skipped' | 'failed'> {
