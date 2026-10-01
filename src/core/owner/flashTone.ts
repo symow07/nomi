@@ -94,6 +94,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
   // G3 — the day's allowance is used: refused the same way.
   'takeover.flash.allowance_used', 'inbox.flash.allowance_used',
+  // G10 — a translation that did not happen.
+  'inbox.flash.translate.gone', 'inbox.flash.translate.unavailable', 'inbox.flash.translate.allowance', 'inbox.flash.translate.failed',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
   'terms.flash.payment_too_long', 'unsure.flash.gone',
 ]);

@@ -141,3 +141,16 @@ export interface PageTranscriber {
     usage: { inputTokens: number; outputTokens: number };
   }>;
 }
+
+/**
+ * G10 (decision 38) — a reply the business is about to send, translated so its
+ * owner can check what it says. For the owner's eyes only: never sent, never
+ * offered as the reply. Absent is a legitimate state: the card says so.
+ */
+export interface DraftTranslator {
+  translate(input: { text: string; toLanguage: string }): Promise<{
+    text: string;
+    modelId: string;
+    usage: { inputTokens: number; outputTokens: number };
+  } | null>;
+}

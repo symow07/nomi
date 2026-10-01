@@ -225,10 +225,41 @@ also installation-wide; leave it unset on an installation with more than one
 factory, because a domain's DNS records are public and would let one factory
 "verify" another's domain.
 
-**Not built yet:** a forgotten password is reset by the operator, with
-`tools/add-login.mjs --reset` (below) — the product does not yet e-mail a reset
-link itself, although since A3 it has a sender that could — and staff still
-sign in with the access codes their owner hands them.
+**A forgotten password** is answered by the product since PWR (#133): "Forgot
+your password?" e-mails a one-time link. The operator's `tools/add-login.mjs
+--reset` (below) remains for an owner who cannot reach that mailbox. Staff
+still sign in with the access codes their owner hands them.
+
+## The first cohort: strangers who sign themselves up (G1–G10)
+
+What changes when the people signing up are strangers, and what the operator
+does about it. `docs/GO-LIVE.md` has the opening sequence; CLAUDE.md rules
+54–61 the detail.
+
+- **Sign-up (G1).** `SIGNUP_MODE=invite` and `SIGNUP_CAP=20` for cohort 1;
+  `open` needs the installation's sender (it reads as closed without one).
+  Every sign-up agrees to the terms in so many words (their version recorded)
+  and confirms the e-mail code. The operator gets an e-mail for each sign-up
+  (name, kind, country, what it sells, website) and a daily list at 07:15 UTC
+  (sign-up forms and codes, and every operator switch still on).
+- **What a new workspace starts with (G2).** Its zone and currency, the seven
+  capabilities in draft, and a daily allowance: 1,000,000 tokens and 1,000
+  model calls, a hard cap.
+- **The allowance (G3).** Used up, the customer is handed to the owner in
+  silence and no model is asked until midnight UTC; the owner is e-mailed at
+  80% and 100%; 20 photos of a list a day.
+- **Drafts until earned (G4).** Every reply waits for the owner until the ramp
+  (or the operator, for a pilot: `tools/workspaces.mjs --earn`) opens sending
+  alone.
+- **Ready for customers (G6).** The owner's own Practice checklist stands where
+  the installation's facts did; the machine room is the installation's only.
+- **The operator's controls (G7).** `tools/suspend-workspace.mjs`,
+  `tools/ops-flags.mjs` (silence, force drafts, stop new connections),
+  `tools/workspaces.mjs` — each a dry run until `--yes`.
+- **The funnel (G9).** `tools/workspaces.mjs --funnel`: each workspace's steps
+  and decision 33's exit criteria.
+- **A reply the owner may not read (G10).** Said so on the card, its figures
+  listed, a translation on request (never sent).
 
 ## A workspace that exists gets a login (0078)
 

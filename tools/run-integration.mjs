@@ -107,6 +107,21 @@ const schemaBefore = await constraints();
  */
 const HOOK_TIMEOUT_MS = 45_000;
 
+/**
+ * THE OPERATOR TOOLS RUN FROM `dist/`, AS THEY DO IN PRODUCTION (found
+ * 2026-10-01). A few files run a tool for real (`workspaces.mjs --funnel`,
+ * `acceptance-check.mjs`), and those import the compiled app. CI's integration
+ * job never built it, so they failed there with "Cannot find module
+ * dist/db/client.js"; here, an old `dist/` would have let them pass against
+ * code that is no longer the code under test. Built once, before the suite,
+ * every run: a build that fails is a failed run.
+ */
+const built = spawnSync('npm', ['run', 'build'], { stdio: 'inherit', encoding: 'utf8' });
+if (built.status !== 0) {
+  console.error('\n  ✗ integration: the build failed, so the tools the suite runs have nothing to run');
+  process.exit(1);
+}
+
 const run = spawnSync(
   'npx',
   ['vitest', 'run', 'tests/integration/', '--no-file-parallelism', `--hookTimeout=${HOOK_TIMEOUT_MS}`,
