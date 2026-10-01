@@ -119,6 +119,8 @@ export type OperatorAlertDetail = {
   readonly zone?: string;
   /** `signup_digest` (G1): who signed up in the last day. */
   readonly signups?: readonly { readonly business: string; readonly kind: string | null; readonly country: string | null }[];
+  /** `signup_digest` (G7): the operator switches still on. */
+  readonly flags?: readonly { readonly flag: string; readonly business: string | null; readonly since: Date }[];
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
@@ -193,8 +195,13 @@ export function renderOwnerAlert(
     const list = detail.signups ?? [];
     const shown = list.slice(0, SIGNUP_DIGEST_LINES);
     const more = list.length > shown.length ? [t(locale, 'notify.signup_digest.more', { n: list.length - shown.length })] : [];
+    // G7 (KS4) — every operator switch still on, so none is forgotten.
+    const flags = (detail.flags ?? []).map((f) => t(locale, 'notify.signup_digest.flag', {
+      flag: f.flag, who: f.business ?? t(locale, 'notify.signup_digest.everyone'), since: formatDate(locale, f.since, detail.zone ?? 'UTC'),
+    }));
     return [t(locale, 'notify.signup_digest', { n: list.length }),
-      ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more].join('\n');
+      ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
+      ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -388,6 +395,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     appError: job.appError ?? null,
     metaErrors: job.metaErrors ?? [],
     signups: (job.signups ?? []).map((s) => ({ business: s.business, kind: s.kind, country: s.country })),
+    flags: (job.flags ?? []).map((f) => ({ flag: f.flag, business: f.business, since: new Date(f.since) })),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
   };

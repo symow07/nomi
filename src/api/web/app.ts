@@ -1,3 +1,4 @@
+import { connectionsPaused } from '../../db/opsFlags.js';
 import { loadReady, renderReady } from './ready.js';
 import { sendingAloneEarned } from '../../db/earned.js';
 import { workspaceZone } from './zone.js';
@@ -2244,6 +2245,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   app.post('/app/channels/whatsapp/connect', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
     if (!s) return reply;
+    // G7 — the operator stopped new connections.
+    if (await connectionsStopped(s.businessId)) return flashTo(reply, '/app/channels', 'connect.flash.paused');
     const r = await connectConfiguredNumber(deps.db, s.businessId, personOf(s).id, deps.connectableNumber ?? null);
     facts.evict(s.businessId);   // D — a channel connected is a setup step done
     return flashTo(reply, '/app/channels', channelFlash(r.code));
@@ -2900,6 +2903,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }, personOf(s)),
     }));
   });
+  // G7 — new connections stopped by the operator (`connections_off`); a failure to read it reads as stopped.
+  const connectionsStopped = async (businessIdRaw: string): Promise<boolean> => {
+    const b = parseBusinessId(businessIdRaw);
+    if (!b.ok) return true;
+    return withTenantTx(deps.db, b.value, (tx) => connectionsPaused(tx, b.value)).catch(() => true);
+  };
   // G4 — the workspace's own answer, in its own transaction; a failure reads as not earned.
   const earnedFor = async (businessIdRaw: string): Promise<boolean> => {
     const b = parseBusinessId(businessIdRaw);
@@ -3735,6 +3744,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.get('/app/connect/meta/start', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    // G7 — the operator stopped new connections: nothing is asked of Meta.
+    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
     const locale = localeOf(req);
     const mc = metaReady();
     if (!mc || !deps.metaLogin) return channelsFlash(reply, 'connect.flash.not_configured');
@@ -3752,6 +3763,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const cookie = parseCookies(req.headers.cookie)[META_COOKIE];
     // Used once, whatever happens next.
     writeCookie(reply, META_COOKIE, '', { path: '/app/connect', maxAgeSec: 0 });
+    // G7 — stopped while she was on Meta's page: nothing is connected.
+    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
     const state = readMetaState(deps.sessionSecret, cookie, Date.now());
     if (!state || state.personId !== personOf(s).id || typeof q.state !== 'string' || !sameMetaNonce(q.state, state.nonce)) {
       return channelsFlash(reply, 'connect.flash.expired');
@@ -3776,6 +3789,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/app/connect/meta/choose', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    // G7 — the last step of connecting a Page: refused while connections are stopped.
+    if (await connectionsStopped(s.businessId)) return channelsFlash(reply, 'connect.flash.paused');
     const locale = localeOf(req);
     const b = (req.body ?? {}) as Record<string, unknown>;
     const state = readMetaState(deps.sessionSecret, typeof b['state'] === 'string' ? b['state'] : undefined, Date.now());
