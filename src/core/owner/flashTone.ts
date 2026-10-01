@@ -35,7 +35,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'order.flash.not_found', 'order.flash.already_decided', 'order.flash.incomplete',
   'order.flash.assistant_stopped', 'order.flash.assistant_silenced', 'order.flash.confirmedNotLive',
   // G3 — the day's allowance is used: the order still waits.
-  'order.flash.allowance_used',
+  'order.flash.allowance_used', 'order.flash.billing_lapsed',
   'data.export.flash.tooMany', 'data.flash.already_open', 'data.flash.failed',
   'data.flash.name_wrong', 'data.flash.not_open',
   // CC-02a — a buyer's deletion request that was not recorded.
@@ -59,6 +59,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.flash.no_address', 'connect.flash.no_refresh_token', 'connect.flash.not_configured',
   // G7 — the operator stopped new connections.
   'connect.flash.paused',
+  // BILL — no card yet; the plan's seats or assistants used; Billing refused or unreachable.
+  'connect.flash.card', 'people.flash.seat_limit', 'assistants.flash.assistant_limit',
+  'billing.flash.notConfigured', 'billing.flash.failed', 'billing.flash.noPlan', 'billing.flash.notBilled',
   // KS6 — the first connection waits for the operator; an address that is not one; an ask that did not go.
   'connect.flash.approval', 'approval.flash.bad_page', 'approval.flash.failed',
   'connect.flash.rejected', 'connect.flash.unavailable', 'connect.meta.flash.no_pages',
@@ -96,6 +99,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'takeover.flash.assistant_silenced', 'inbox.flash.assistant_silenced',
   // G3 — the day's allowance is used: refused the same way.
   'takeover.flash.allowance_used', 'inbox.flash.allowance_used',
+  // BILL — the payment lapsed: the same refusals, under their own name.
+  'takeover.flash.billing_lapsed', 'inbox.flash.billing_lapsed',
   // G10 — a translation that did not happen.
   'inbox.flash.translate.gone', 'inbox.flash.translate.unavailable', 'inbox.flash.translate.allowance', 'inbox.flash.translate.failed',
   'terms.flash.failed', 'terms.flash.incoterm_invalid', 'terms.flash.payment_missing',
@@ -104,6 +109,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  // BILL — a plan saved.
+  'billing.flash.plan',
   // KS6 — asked; asked before; or nothing to ask.
   'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed',
   // R2 — a conversation marked as the owner testing, or as a real customer again.

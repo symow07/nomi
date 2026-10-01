@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
+import { planLimits } from '../../db/billing.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { type Person, type PersonError, validatePerson, OWNER_ONLY } from '../../core/conversation/people.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -214,13 +215,19 @@ export async function ownerPerson(db: Db, businessIdRaw: string): Promise<Person
 
 export async function addPerson(
   db: Db, businessIdRaw: string, secret: string, name: string | null,
-): Promise<{ code: 'added'; name: string; accessCode: string } | { code: PersonError | 'failed' }> {
+): Promise<{ code: 'added'; name: string; accessCode: string } | { code: PersonError | 'failed' | 'seat_limit' }> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return { code: 'failed' };
   const v = validatePerson(name);
   if (!v.ok) return { code: v.error };
   const accessCode = newAccessCode();
   return withTenantTx(db, bid.value, async (tx) => {
+    // BILL (0117) — the plan's seats, the owner among them; no plan, no limit.
+    const { seats } = await planLimits(tx);
+    if (seats !== null) {
+      const n = Number((await sql<{ n: number }>`select count(*)::int as n from people where business_id = ${bid.value}::uuid and archived_at is null`.execute(tx)).rows[0]?.n ?? 0);
+      if (n >= seats) return { code: 'seat_limit' as const };
+    }
     await sql`insert into people (business_id, name, code_hash)
               values (${bid.value}::uuid, ${v.value}, ${hashCode(secret, accessCode)})`.execute(tx);
     return { code: 'added' as const, name: v.value, accessCode };

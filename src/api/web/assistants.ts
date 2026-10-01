@@ -88,7 +88,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** A1 — the KEY the notice says, for the page that will write it out. */
 export function assistantFlash(outcome: AssistantOutcome, verb: 'added' | 'saved' | 'archived'): MessageKey {
   if (outcome === 'saved') return `assistants.flash.${verb}` as MessageKey;
-  if (outcome === 'channel_taken' || outcome === 'name_missing' || outcome === 'name_long' || outcome === 'is_default') {
+  if (outcome === 'channel_taken' || outcome === 'name_missing' || outcome === 'name_long' || outcome === 'is_default' || outcome === 'assistant_limit') {
     return `assistants.flash.${outcome}` as MessageKey;
   }
   return 'people.flash.failed';

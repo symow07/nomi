@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { connectionsPaused } from './opsFlags.js';
+import { cardNeeded } from './billing.js';
 
 /**
  * KS6 (0115) — THE OPERATOR APPROVES EACH WORKSPACE'S FIRST CONNECTION, while
@@ -35,9 +36,12 @@ export async function askApproval(tx: Tx, page: string, by: string): Promise<'as
  * operator's stop (G7, `connections_off`), or the approval it has not had yet.
  * Both connect routes — the Page and WhatsApp — ask this one question.
  */
-export type ConnectionGate = 'open' | 'stopped' | 'approval';
+export type ConnectionGate = 'open' | 'stopped' | 'approval' | 'card';
 export async function connectionGate(tx: Tx, businessId: string): Promise<ConnectionGate> {
   if (await connectionsPaused(tx, businessId)) return 'stopped';
   const n = (await sql<{ n: boolean }>`select connection_approval_needed() as n`.execute(tx)).rows[0]?.n === true;
-  return n ? 'approval' : 'open';
+  if (n) return 'approval';
+  // BILL (0117) — card upfront: while the installation requires it, a billed
+  // workspace connects a channel once a card is saved (Billing).
+  return (await cardNeeded(tx)) ? 'card' : 'open';
 }

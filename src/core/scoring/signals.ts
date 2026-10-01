@@ -100,6 +100,17 @@ export type Signal =
    * own name; the allowance renews at midnight UTC.
    */
   | { readonly kind: 'allowance_used' }
+  /**
+   * BILL (0117) — the payment lapsed: the hold the allowance takes, under its
+   * own name, until a payment goes through.
+   */
+  | { readonly kind: 'billing_lapsed' }
+  /**
+   * BILL (0117) — a new customer this month, and the plan's month already holds
+   * as many as it allows: a person answers; customers already answered this
+   * month are answered as before.
+   */
+  | { readonly kind: 'plan_limit' }
   // --- lead signals: the client is BUYING. These never gate anything. ---
   | { readonly kind: 'high_value'; readonly total: Money }
   | { readonly kind: 'customization_requested' }
@@ -143,6 +154,9 @@ export const PROBLEM_SIGNAL_KINDS = [
   'stock_asked',
   // G3 (0101) — the day's allowance is used; a person answers.
   'allowance_used',
+  // BILL (0117) — the payment lapsed; a plan's month used for a new customer.
+  'billing_lapsed',
+  'plan_limit',
 ] as const satisfies readonly SignalKind[];
 
 const PROBLEM_KINDS = new Set<SignalKind>(PROBLEM_SIGNAL_KINDS);
@@ -169,6 +183,8 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   price_to_owner: { kind: 'price_to_owner' },
   stock_asked: { kind: 'stock_asked' },
   allowance_used: { kind: 'allowance_used' },
+  billing_lapsed: { kind: 'billing_lapsed' },
+  plan_limit: { kind: 'plan_limit' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
   logistics_discussed: { kind: 'logistics_discussed' },
@@ -207,6 +223,8 @@ export const TRIGGER_REASONS = [
   'price_to_owner',
   'allowance_used',
   'stock_asked',
+  'billing_lapsed',
+  'plan_limit',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -243,6 +261,10 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'stock_asked';
     case 'allowance_used':
       return 'allowance_used';
+    case 'billing_lapsed':
+      return 'billing_lapsed';
+    case 'plan_limit':
+      return 'plan_limit';
     case 'high_value':
       return 'high_value';
     case 'customization_requested':

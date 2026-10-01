@@ -72,6 +72,8 @@ describe('M47 · one distinction, and it is named in code', () => {
     expect([...OWNER_ONLY]).toEqual([
       'capability_grant', 'messaging_activation', 'price_rules', 'people',
       'outreach', 'data_rights',
+      // BILL (0117) — money is the owner's: the plan, the card, the invoices.
+      'billing',
     ]);
   });
 

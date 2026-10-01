@@ -1,6 +1,11 @@
 import { CAPABILITIES, type Capability } from '../../core/conversation/autonomy.js';
 import { allowanceOf, allowanceUsed } from '../../db/allowance.js';
 import { connectionGate, approvalState, askApproval } from '../../db/connectionApproval.js';
+import { verifyStripeEvent, type StripeClient } from '../../billing/stripe.js';
+import { billingState, plansOnOffer, chooseBilling, setStripeCustomer } from '../../db/billing.js';
+import { renderBilling } from './billing.js';
+import { handleStripeEvent } from '../../pipeline/billing.js';
+import { ownerLoginEmail } from '../../db/backups.js';
 import { whereSeenFrom } from '../../core/owner/whereSeen.js';
 import { renderApprovalCard } from './connectionApproval.js';
 import { notifyOperatorOfConnectionAsk } from '../../pipeline/notify.js';
@@ -319,6 +324,12 @@ export type WebDeps = {
    * anyone to remove her buyers one address at a time.
    */
   readonly emailWebhookSecret?: string | null;
+  /**
+   * BILL (0117) — the payment provider: Stripe's client and its webhook secret,
+   * from STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET. Absent: Billing says so,
+   * no card can be saved, and /hooks/stripe does not exist.
+   */
+  readonly stripe?: { readonly client: StripeClient; readonly webhookSecret: string } | null;
   /**
    * G3 — the WhatsApp number this installation is configured with (Meta's
    * phone number id), or null when there is none. It is what "Connect this
@@ -1579,6 +1590,101 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // the six business actions, and a page of buttons is not one of them.
   app.get('/app/settings/components', authed('settings', (s, req, locale) => renderComponents(locale)));
 
+  /**
+   * BILL (0117) — Billing: where the workspace stands, the plans, the doors to
+   * Stripe. Saving a card charges nothing; the subscription is made when the
+   * first channel connects (the five-minute sweep), its trial running from
+   * there. Owner-only: money is the owner's (rule 11).
+   */
+  const billingBase = (deps.publicBaseUrl ?? '').replace(/\/+$/, '');
+  app.get('/app/settings/billing', ownerPage('billing', 'settings', '/app/settings', async (s, req, reply, locale) => {
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return '';
+    const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
+      state: await billingState(tx), plans: await plansOnOffer(tx),
+      counts: (await sql<{ people: number; assistants: number }>`
+        select (select count(*)::int from people where business_id = ${bid.value}::uuid and archived_at is null) as people,
+               (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
+    }));
+    const card = (req.query as { card?: string }).card;
+    return renderBilling({
+      configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
+      people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
+      returned: card === 'saved' || card === 'cancelled' ? card : null,
+    }, locale, takeFlash(req, reply), t(locale, 'nav.settings'));
+  }));
+
+  /** The plan, then Stripe's page to save a card — or, with one saved, only the plan. */
+  app.post('/app/settings/billing/card', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'billing', '/app/settings/billing');
+    if (!s) return reply;
+    const stripe = deps.stripe;
+    const bid = parseBusinessId(s.businessId);
+    if (!stripe || !bid.ok) return flashTo(reply, '/app/settings/billing', 'billing.flash.notConfigured');
+    const plan = String((req.body as { plan?: unknown } | undefined)?.plan ?? '').slice(0, 40);
+    const r = await withTenantTx(deps.db, bid.value, async (tx) => {
+      const chosen = await chooseBilling(tx, plan);
+      if (chosen !== 'chosen') return { chosen } as const;
+      const row = (await sql<{ customer: string | null; card: Date | null; name: string }>`
+        select w.stripe_customer_id as customer, w.card_saved_at as card, b.name
+          from workspace_billing w join businesses b on b.id = w.business_id where w.business_id = ${bid.value}::uuid`.execute(tx)).rows[0];
+      return { chosen, customer: row?.customer ?? null, card: row?.card ?? null, name: row?.name ?? '', email: await ownerLoginEmail(tx, bid.value) } as const;
+    }).catch(() => null);
+    if (!r) return flashTo(reply, '/app/settings/billing', 'billing.flash.failed');
+    if (r.chosen !== 'chosen') return flashTo(reply, '/app/settings/billing', r.chosen === 'no_plan' ? 'billing.flash.noPlan' : 'billing.flash.notBilled');
+    if (r.card) return flashTo(reply, '/app/settings/billing', 'billing.flash.plan');
+    let customer = r.customer;
+    if (!customer) {
+      const made = await stripe.client.createCustomer({ businessId: bid.value, email: r.email, name: r.name });
+      if (!made.ok) { req.log.warn({ reason: made.error }, 'stripe customer not made'); return flashTo(reply, '/app/settings/billing', 'billing.flash.failed'); }
+      customer = made.value.id;
+      await withTenantTx(deps.db, bid.value, (tx) => setStripeCustomer(tx, customer!));
+    }
+    const session = await stripe.client.setupCheckout({
+      customerId: customer, businessId: bid.value, locale: localeOf(req),
+      successUrl: `${billingBase}/app/settings/billing?card=saved`, cancelUrl: `${billingBase}/app/settings/billing?card=cancelled`,
+    });
+    if (!session.ok) { req.log.warn({ reason: session.error }, 'stripe checkout not made'); return flashTo(reply, '/app/settings/billing', 'billing.flash.failed'); }
+    return reply.redirect(session.value.url);
+  });
+
+  /** Stripe's own page for the card and the invoices. */
+  app.post('/app/settings/billing/portal', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'billing', '/app/settings/billing');
+    if (!s) return reply;
+    const bid = parseBusinessId(s.businessId);
+    if (!deps.stripe || !bid.ok) return flashTo(reply, '/app/settings/billing', 'billing.flash.notConfigured');
+    const customer = await withTenantTx(deps.db, bid.value, async (tx) => (await sql<{ c: string | null }>`
+      select stripe_customer_id as c from workspace_billing where business_id = ${bid.value}::uuid`.execute(tx)).rows[0]?.c ?? null).catch(() => null);
+    if (!customer) return flashTo(reply, '/app/settings/billing', 'billing.flash.failed');
+    const p = await deps.stripe.client.portal({ customerId: customer, returnUrl: `${billingBase}/app/settings/billing`, locale: localeOf(req) });
+    if (!p.ok) { req.log.warn({ reason: p.error }, 'stripe portal not made'); return flashTo(reply, '/app/settings/billing', 'billing.flash.failed'); }
+    return reply.redirect(p.value.url);
+  });
+
+  /**
+   * Stripe's word, signed (`Stripe-Signature`, verified over the raw body; a
+   * bad or old signature is 400 and changes nothing). 500 asks Stripe to send
+   * it again: a step that needed Stripe failed half-way.
+   */
+  if (deps.stripe) {
+    const stripe = deps.stripe;
+    void app.register(async (scope) => {
+      scope.removeContentTypeParser('application/json');
+      scope.addContentTypeParser('application/json', { parseAs: 'string' }, (_r, body, done) => done(null, body));
+      scope.post('/hooks/stripe', async (req, reply) => {
+        const raw = typeof req.body === 'string' ? req.body : '';
+        const e = verifyStripeEvent(raw, String(req.headers['stripe-signature'] ?? '') || undefined, stripe.webhookSecret, Math.floor(Date.now() / 1000));
+        if (!e) return reply.code(400).send({ error: 'signature' });
+        const outcome = await handleStripeEvent(deps.db, stripe.client, e).catch((err: unknown) => {
+          req.log.warn({ reason: err instanceof Error ? err.message : String(err) }, 'stripe event failed');
+          return 'retry' as const;
+        });
+        return outcome === 'retry' ? reply.code(500).send({ error: 'retry' }) : reply.code(200).send({ received: true });
+      });
+    });
+  }
+
   app.get('/app/settings/account', authed('settings', async (s, req, locale, reply) => {
     const bid = parseBusinessId(s.businessId);
     const mine = bid.ok ? await loginOfPerson(deps.db, bid.value, personOf(s).id).catch(() => null) : null;
@@ -2239,7 +2345,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     // 0070 — stopped: nothing asks the assistant for an answer, and the
     // conversation stays with its person, on "Needs you".
-    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced' || handedBack.outcome === 'allowance_used') {
+    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced' || handedBack.outcome === 'allowance_used' || handedBack.outcome === 'billing_lapsed') {
       return flashTo(reply, back0, `takeover.flash.${handedBack.outcome}`);
     }
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
@@ -3058,7 +3164,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = parseBusinessId(businessIdRaw);
     if (!b.ok) return 'connect.flash.paused';
     const gate = await withTenantTx(deps.db, b.value, (tx) => connectionGate(tx, b.value)).catch(() => 'stopped' as const);
-    return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval' : null;
+    return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval'
+      : gate === 'card' ? 'connect.flash.card' : null;
   };
   // G4 / R2 — the workspace's own rung, in its own transaction; a failure reads as none.
   const rungFor = async (businessIdRaw: string): Promise<0 | 1 | 2> => {

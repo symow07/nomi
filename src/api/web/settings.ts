@@ -220,6 +220,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       ${door('/app/settings/alerts', t(locale, 'alerts.phone.title'))}
       ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
       ${door('/app/settings/account', t(locale, 'account.title'))}
+      ${door('/app/settings/billing', t(locale, 'billing.title'))}
       ${door('/app/settings/data', t(locale, 'data.title'))}
       ${door('/app/settings/components', t(locale, 'components.title'))}
     </ul>

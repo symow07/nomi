@@ -80,6 +80,8 @@ export const OWNER_ONLY = [
   // sales assistant needs to do their job. The deletion request is the one
   // action in the product that cannot be undone from inside it.
   'data_rights',
+  // BILL (0117) — money is the owner's (rule 11): the plan, the card, the invoices.
+  'billing',
 ] as const;
 export type OwnerOnlyAction = (typeof OWNER_ONLY)[number];
 

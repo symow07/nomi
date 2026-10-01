@@ -7,6 +7,7 @@ import { isAllowlisted } from '../channels/allowlist.js';
 import { carriesDisclosure } from '../core/conversation/disclosure.js';
 import { assistantIdForChannel } from './assistants.js';
 import { allowanceOf, allowanceUsed } from './allowance.js';
+import { billingHeld } from './billing.js';
 import { loadKillSwitches } from './opsFlags.js';
 import { assistantStopped } from './assistantStop.js';
 import { outreachFacts } from './outreach.js';
@@ -223,7 +224,9 @@ export function channelStore(
         // paused: absence is "she has set no ceiling", never "stop". G3 — the
         // numbers from the one reader, which charges a practice copy's sends to
         // the workspace that pays (P5).
-        paused: allowanceUsed(await allowanceOf(tx)),
+        // BILL (0117) — a lapsed payment pauses as the allowance does: queued
+        // replies wait for a person; one already sending finishes.
+        paused: allowanceUsed(await allowanceOf(tx)) || await billingHeld(tx),
         lastInboundAt: c?.last_inbound_at ?? null,
         // M25 — THE template entry point (TEMPLATE_ENTRY_POINT in
         // core/channel/templateReadiness.ts names it). No longer a literal: it

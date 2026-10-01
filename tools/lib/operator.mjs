@@ -20,9 +20,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The capabilities force_draft holds back, one row each (0014); confirm_order already always drafts. */
 export const FORCE_DRAFT_CAPABILITIES = ['greet', 'qualify', 'recommend', 'quote', 'negotiate', 'follow_up'];
-export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections', 'retention'];
-/** KS6, RET — flags that exist only for the whole installation (0115, 0116). */
-export const INSTALLATION_ONLY_FLAGS = ['approve_connections', 'retention'];
+export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections', 'retention', 'billing_required'];
+/** KS6, RET, BILL — flags that exist only for the whole installation (0115, 0116, 0117). */
+export const INSTALLATION_ONLY_FLAGS = ['approve_connections', 'retention', 'billing_required'];
 
 async function inTx(c, fn) {
   await c.query('begin');
@@ -335,4 +335,77 @@ export async function recordRetentionRequest(c, { businessId, by }) {
       [businessId, `retention: ${String(by).trim().slice(0, 100)}`, `RET: no channel connected in 90 days; erase date ${due.erase_on}; warned ${warned}`]);
     return r.rows[0].id;
   });
+}
+
+/**
+ * BILL (0117) — the operator's side of billing. A plan is defined from a
+ * Stripe price READ from Stripe (tools/billing.mjs passes what Stripe said),
+ * never typed; a trial is granted on request, by name, before the
+ * subscription exists; a workspace can be exempted (a pilot that signed itself
+ * up); the installation's self-serve trial is one number, or none.
+ */
+export async function listBilling(c) {
+  const r = await c.query(`
+    select b.id::text as id, b.name, w.plan_id, coalesce(w.status, 'none') as status, w.card_saved_at, w.trial_days,
+           w.trial_granted_by, w.trial_ends_at, w.current_period_end, w.exempt_by,
+           (select count(*)::int from customers_answered a where a.business_id = b.id
+               and a.month = date_trunc('month', now() at time zone 'UTC')::date) as customers
+      from businesses b left join workspace_billing w on w.business_id = b.id
+     where b.signed_up_at is not null and b.practice_of is null
+     order by b.signed_up_at desc`);
+  return r.rows;
+}
+export async function listPlans(c) {
+  return (await c.query(`select id, name, stripe_price_id, amount_minor, currency, period, customers_a_month, seats, assistants, active, position
+                           from plans order by position, amount_minor, id`)).rows;
+}
+const positive = (n) => n === null || n === undefined || (Number.isInteger(n) && n > 0);
+export async function setPlan(c, input) {
+  const p = input.price;
+  if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(String(input.id ?? '')) || !String(input.name ?? '').trim() || !input.by || !String(input.by).trim()) return 'invalid';
+  if (!p || !/^price_[A-Za-z0-9]{6,}$/.test(p.id) || !Number.isInteger(p.amountMinor) || !/^[a-z]{3}$/.test(p.currency) || !['month', 'year'].includes(p.interval) || !p.active) return 'invalid';
+  if (!Number.isInteger(input.customers) || input.customers < 1 || !positive(input.seats) || !positive(input.assistants)) return 'invalid';
+  await c.query(`
+    insert into plans (id, name, stripe_price_id, amount_minor, currency, period, customers_a_month, seats, assistants, active, position, set_by)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11)
+    on conflict (id) do update set name = excluded.name, stripe_price_id = excluded.stripe_price_id, amount_minor = excluded.amount_minor,
+      currency = excluded.currency, period = excluded.period, customers_a_month = excluded.customers_a_month, seats = excluded.seats,
+      assistants = excluded.assistants, active = true, position = excluded.position, set_at = now(), set_by = excluded.set_by`,
+    [input.id, String(input.name).trim().slice(0, 80), p.id, p.amountMinor, p.currency, p.interval, input.customers,
+     input.seats ?? null, input.assistants ?? null, Number.isInteger(input.position) ? input.position : 0, String(input.by).trim().slice(0, 120)]);
+  return 'set';
+}
+export async function planOff(c, { id, by }) {
+  if (!by || !String(by).trim()) return 'invalid';
+  const r = await c.query(`update plans set active = false, set_at = now(), set_by = $2 where id = $1 and active`, [id, String(by).trim().slice(0, 120)]);
+  return r.rowCount === 1 ? 'off' : 'none';
+}
+export async function grantTrial(c, { businessId, days, by }) {
+  if (!Number.isInteger(days) || days < 1 || days > 90 || !by || !String(by).trim()) return 'invalid';
+  const ws = await workspaceOf(c, String(businessId ?? ''));
+  if (!ws) return 'none';
+  const b = (await c.query(`select signed_up_at is not null as self_serve from businesses where id = $1::uuid`, [ws.id])).rows[0];
+  if (ws.practiceOf || !b.self_serve) return 'not_self_serve';
+  const r = await c.query(`
+    insert into workspace_billing as w (business_id, trial_days, trial_granted_by, trial_granted_at)
+    values ($1::uuid, $2, $3, now())
+    on conflict (business_id) do update set trial_days = excluded.trial_days, trial_granted_by = excluded.trial_granted_by,
+      trial_granted_at = now(), updated_at = now()
+     where w.stripe_subscription_id is null
+    returning 1`, [ws.id, days, String(by).trim().slice(0, 120)]);
+  return r.rowCount === 1 ? 'granted' : 'subscribed';
+}
+export async function setExempt(c, { businessId, by, exempt }) {
+  if (!by || !String(by).trim()) return 'invalid';
+  const ws = await workspaceOf(c, String(businessId ?? ''));
+  if (!ws || ws.practiceOf) return 'none';
+  await c.query(`insert into workspace_billing as w (business_id, exempt_by) values ($1::uuid, $2)
+                 on conflict (business_id) do update set exempt_by = excluded.exempt_by, updated_at = now()`,
+    [ws.id, exempt ? String(by).trim().slice(0, 120) : null]);
+  return exempt ? 'exempt' : 'billed';
+}
+export async function setTrialDefault(c, { days, by }) {
+  if ((days !== null && (!Number.isInteger(days) || days < 1 || days > 90)) || !by || !String(by).trim()) return 'invalid';
+  await c.query(`update billing_settings set self_serve_trial_days = $1, set_at = now(), set_by = $2 where id`, [days, String(by).trim().slice(0, 120)]);
+  return 'set';
 }
