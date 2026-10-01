@@ -609,6 +609,8 @@ d('CC-02b · tools/erase-buyer.mjs carries out one buyer\'s deletion request (re
       `pilot_allowlist:${k(A.pl)}`,
       ...[W_IN, `${W_OUT}#delivered`, `mid.ig.${RUN}`].map((x) => `channel_events:${k(x)}`),
       ...[A.jobIn, A.jobDone].map((x) => `pgboss.job:${k(x)}`),
+      // BILL (0117) — their drafts counted them among the month's customers answered: that goes too.
+      `customers_answered:${k(B1, `${new Date().toISOString().slice(0, 7)}-01`, A.client)}`,
     ].sort());
     expect(change.changed).toEqual([
       `clients:${k(A.client)}`,
