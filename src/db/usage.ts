@@ -37,15 +37,13 @@ export type SpendOpts = { readonly turn: boolean; readonly photoReads?: number }
 export async function recordSpend(tx: Tx, businessId: string, spent: Spent, opts: SpendOpts): Promise<void> {
   if (spent.llmCalls <= 0 && !opts.turn) return;
   await sql`
-    insert into usage_ledger (business_id, day, llm_calls, input_tokens, output_tokens, turns, photo_reads)
+    insert into usage_ledger as u (business_id, day, llm_calls, input_tokens, output_tokens, turns, photo_reads)
     values (${businessId}::uuid, ${LEDGER_DAY}, ${Math.max(0, spent.llmCalls)}, ${Math.max(0, spent.inputTokens)},
             ${Math.max(0, spent.outputTokens)}, ${opts.turn ? 1 : 0}, ${Math.max(0, opts.photoReads ?? 0)})
     on conflict (business_id, day) do update set
-      llm_calls = usage_ledger.llm_calls + excluded.llm_calls,
-      input_tokens = usage_ledger.input_tokens + excluded.input_tokens,
-      output_tokens = usage_ledger.output_tokens + excluded.output_tokens,
-      turns = usage_ledger.turns + excluded.turns,
-      photo_reads = usage_ledger.photo_reads + excluded.photo_reads`.execute(tx);
+      llm_calls = u.llm_calls + excluded.llm_calls, input_tokens = u.input_tokens + excluded.input_tokens,
+      output_tokens = u.output_tokens + excluded.output_tokens, turns = u.turns + excluded.turns,
+      photo_reads = u.photo_reads + excluded.photo_reads`.execute(tx);
 }
 
 /**

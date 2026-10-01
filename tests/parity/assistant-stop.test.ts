@@ -1,3 +1,4 @@
+import { HOLD_OUTCOME, HOLD_REASON } from '../../src/db/assistantStop.js';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -83,10 +84,12 @@ describe('where Stop is asked', () => {
   it('the one hand-back and the one approval path both ask it, inside their own transaction', () => {
     const takeover = src('src/conversations/takeover.ts');
     expect(takeover).toContain('const hold = await assistantHold(tx, input.businessId);');
-    expect(takeover).toContain("outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped'");
+    expect(takeover).toContain('outcome: HOLD_OUTCOME[hold]');
     const approve = src('src/pipeline/approve.ts');
     expect(approve).toContain("cmd.kind === 'approve' || cmd.kind === 'edit' ? await assistantHold(tx, input.businessId) : null");
-    expect(approve).toContain("outcome: hold === 'silenced' ? 'assistant_silenced' : 'assistant_stopped'");
+    expect(approve).toContain('outcome: HOLD_OUTCOME[hold]');
+    // G3 — one map from the hold to what the owner is told; the allowance has its own.
+    expect(HOLD_OUTCOME).toEqual({ silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used' });
   });
 
   it('0071 — the ops switch hands the buyer to a person under its own reason, in every language', () => {
@@ -99,6 +102,7 @@ describe('where Stop is asked', () => {
         expect(t(l, k as MessageKey, { name: 'X' }), `${l} ${k}`).not.toBe(k);
       }
     }
-    expect(src('src/worker/main.ts')).toContain("{ kind: hold === 'silenced' ? 'ops_silenced' : 'assistant_stopped' }");
+    expect(src('src/worker/main.ts')).toContain('{ kind: HOLD_REASON[hold] }');
+    expect(HOLD_REASON).toEqual({ silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used' });
   });
 });

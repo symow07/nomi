@@ -79,7 +79,9 @@ describe('G19 · the ceiling she set is said before it stops her', () => {
 
   it('Today reads that verdict rather than re-deciding it', async () => {
     const src = await readFile(new URL('../../src/api/web/operations.ts', import.meta.url), 'utf8');
-    expect(src).toContain("import { checkBudget }");
+    // G3 — through the one reader, which asks core: the hold and the send gate read the same.
+    expect(src).toContain("import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';");
+    expect(await readFile(new URL('../../src/db/allowance.ts', import.meta.url), 'utf8')).toContain('verdict: checkBudget(usage, budget)');
     // No second threshold: the only percentages here come from core.
     expect(src).not.toMatch(/pctUsed\s*[><]=?\s*\d/);
   });
