@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { validateSignup, signupCapFrom } from '../../src/core/owner/signup.js';
+import { validateSignup, signupCapFrom, signupModeInForce } from '../../src/core/owner/signup.js';
 import { TERMS_KEYS } from '../../src/core/legal/terms.js';
 import { renderLegalTerms, TERMS_VERSION } from '../../src/api/web/legal.js';
 import { signupPage } from '../../src/api/web/layout.js';
@@ -52,8 +52,11 @@ describe('G1 · the cap, the mode, the operator', () => {
   it('open sign-up without the installation\'s sender reads as closed, and /verify asks the mode again', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
     // MAIL — "a sender" is the one codes leave by: the dedicated one, or the installation's own.
-    expect(app).toContain("const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !codeMail ? 'closed' : (deps.signupMode ?? 'invite');");
+    // BOT — the mode is asked on every request (the operator's switch in the database).
+    expect(app).toContain("return signupModeInForce(set, deps.signupMode ?? 'invite', { mail: Boolean(codeMail), botCheck: Boolean(botCheck) });");
+    expect(signupModeInForce(null, 'open', { mail: false, botCheck: true })).toBe('closed');
     const verify = app.slice(app.indexOf("app.post('/verify'"));
+    expect(verify.indexOf('const signupMode = await signupModeNow();')).toBeLessThan(verify.indexOf("if (signupMode === 'closed')"));
     expect(verify.indexOf("if (signupMode === 'closed')")).toBeLessThan(verify.indexOf('provisionAccount('));
   });
   it('the day\'s sign-ups, by name, kind and country', () => {

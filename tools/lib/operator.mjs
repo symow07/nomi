@@ -206,3 +206,51 @@ export async function setSpendCeiling(c, input) {
                   where id`, [input.tokens ?? null, input.calls ?? null, String(input.by).trim().slice(0, 120)]);
   return 'set';
 }
+
+/**
+ * BOT (0114) — the operator's sign-up switch: open, invite or closed, read by
+ * the app on every request; null follows the deployment's SIGNUP_MODE.
+ */
+export const SIGNUP_SWITCH = ['open', 'invite', 'closed', 'deployment'];
+export async function readSignupSwitch(c) {
+  const r = (await c.query(`select mode, set_at, set_by from signup_settings where id`)).rows[0];
+  return { mode: r?.mode ?? null, setAt: r?.set_at ?? null, setBy: r?.set_by ?? null };
+}
+export async function setSignupSwitch(c, input) {
+  if (!SIGNUP_SWITCH.includes(input.mode)) return 'invalid';
+  if (!input.by || !String(input.by).trim()) return 'invalid';
+  await c.query(`update signup_settings set mode = $1, set_at = now(), set_by = $2 where id`,
+    [input.mode === 'deployment' ? null : input.mode, String(input.by).trim().slice(0, 120)]);
+  return 'set';
+}
+
+/**
+ * BOT (0114) — the invitations, listed and taken back. An invitation's id IS
+ * the ticket, so a list shows only its first eight characters, and a revoke
+ * names it by at least those eight: enough to choose one, never the ticket
+ * whole on a screen someone else can read.
+ */
+export async function listInvitations(c, { all = false } = {}) {
+  const rows = (await c.query(`
+    select left(id::text, 8) as ref, note, created_at, expires_at, used_at, revoked_at, revoked_by,
+           (used_at is null and expires_at > now()) as open
+      from signup_invites
+     where $1::boolean or (used_at is null and expires_at > now())
+     order by created_at desc limit 200`, [all])).rows;
+  return rows.map((r) => ({
+    ref: r.ref, note: r.note, createdAt: r.created_at, expiresAt: r.expires_at, open: r.open,
+    state: r.open ? 'open' : r.revoked_at ? 'revoked' : r.used_at ? 'used' : 'lapsed', revokedBy: r.revoked_by,
+  }));
+}
+export async function revokeInvitation(c, input) {
+  const ref = String(input.ref ?? '').trim().toLowerCase();
+  if (!/^[0-9a-f-]{8,36}$/.test(ref) || !input.by || !String(input.by).trim()) return 'invalid';
+  const found = (await c.query(`select id from signup_invites where id::text like $1 || '%'`, [ref])).rows;
+  if (found.length === 0) return 'none';
+  if (found.length > 1) return 'ambiguous';
+  // Lapses at once: 0055's and 0100's checks already refuse a lapsed invitation.
+  const r = await c.query(`
+    update signup_invites set expires_at = least(expires_at, now()), revoked_at = now(), revoked_by = $2
+     where id = $1 and used_at is null and expires_at > now()`, [found[0].id, String(input.by).trim().slice(0, 120)]);
+  return r.rowCount === 1 ? 'revoked' : 'not_open';
+}

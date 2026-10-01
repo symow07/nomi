@@ -17,6 +17,7 @@ import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
 import { httpsMailConfigFrom, httpsSystemMailer, cappedMail } from './channels/email/httpsMail.js';
+import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { backupFreshness } from './core/ops/backups.js';
@@ -410,6 +411,15 @@ export async function buildProduction(
     logger?: boolean;
     /** A3 — tests read the code out of what would have been mailed. */
     systemMail?: SystemMail;
+    /** BOT — tests only: a check that answers without calling a provider. */
+    botCheck?: BotCheck;
+    /**
+     * BOT — tests only: the database's limits on the door. Absent is
+     * production's (SIGNUP_GUARD); null, none — for a file that signs many
+     * workspaces up from one address within the hour. The limits themselves
+     * are held by tests/integration/bot-check.test.ts, on production's.
+     */
+    signupGuard?: SignupGuard | null;
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -555,6 +565,15 @@ export async function buildProduction(
   const alertMail: SystemMail | null = overrides?.systemMail
     ?? (strangerMail ? cappedMail(strangerMail, (to) => claimMailSend(db, 'alert', to, mailCaps.alert)) : null);
   /**
+   * BOT (decision 36) — a bot check before any sign-up code is sent, from three
+   * variables or none. Without one, open sign-up reads as invite (in the app,
+   * on every request, whichever switch asked for open); the boot says so.
+   */
+  const botCheck = overrides?.botCheck ?? (() => { const c = botCheckConfigFrom(process.env); return c ? botCheckFrom(c) : null; })();
+  if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
+    console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
+  }
+  /**
    * C9 — Instagram and Messenger, when this installation has a Page.
    *
    * Both ride the Meta app that WhatsApp already uses: the same app secret
@@ -680,6 +699,9 @@ export async function buildProduction(
       systemMail,
       // MAIL — codes and reset links by the sender strangers' mail uses.
       codeMail,
+      // BOT — the check before a sign-up code, and the database's limits on the door (0114).
+      botCheck,
+      signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.

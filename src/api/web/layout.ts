@@ -1719,6 +1719,11 @@ export type SignupPageInput = {
   readonly problems?: Partial<Record<'factory' | 'name' | 'email' | 'password' | 'invite'
     | 'kind' | 'sells' | 'country' | 'website' | 'teamSize' | 'zone' | 'currency' | 'terms', string>>;
   readonly error?: string | null;
+  /**
+   * BOT — the provider's widget, drawn just above the button with its own
+   * script; the token it makes arrives in `field`. Absent: no check.
+   */
+  readonly botCheck?: { readonly script: string; readonly className: string; readonly siteKey: string } | null;
 };
 
 export function signupPage(input: SignupPageInput): string {
@@ -1804,6 +1809,9 @@ export function signupPage(input: SignupPageInput): string {
       <label class="check"><input type="checkbox" name="terms" required${v.terms ? ' checked' : ''} />
         <span>${esc(t(locale, 'signup.terms', { terms: '\u0000' })).replace('\u0000', `<a href="/terms" target="_blank" rel="noopener">${esc(t(locale, 'signup.termsLink'))}</a>`)}</span></label>
       ${fieldErr('terms')}
+      ${input.botCheck ? `<div class="${esc(input.botCheck.className)}" data-sitekey="${esc(input.botCheck.siteKey)}"></div>
+      <noscript><div class="hint">${esc(t(locale, 'signup.botcheck.noscript'))}</div></noscript>
+      <script src="${esc(input.botCheck.script)}" async defer></script>` : ''}
       <button type="submit">${esc(t(locale, 'signup.submit'))}</button>
     </form>`;
   return doorFrame(locale, input.path, t(locale, 'signup.title'), card, other);

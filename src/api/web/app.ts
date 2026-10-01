@@ -196,7 +196,9 @@ import {
 } from '../../db/accounts.js';
 import { SETUP_TOKEN, setupTokenHash } from '../../security/setupLink.js';
 import { hashPassword, verifyPassword, spendAVerification, PASSWORD_MIN, PASSWORD_MAX } from '../../security/password.js';
-import { validateSignup, normalizeEmail, isEmailShape, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
+import { validateSignup, normalizeEmail, isEmailShape, signupModeInForce, type SignupMode, type SignupProblem, type SignupField } from '../../core/owner/signup.js';
+import { BOT_CHECK_WIDGET, limitedDomainOf, type BotCheck, type SignupGuard } from './botCheck.js';
+import { signupModeSet, claimSignupThrottle } from '../../db/signupGuard.js';
 import { makeSessionCodec, codeMatches, parseCookies, SESSION_TTL_MS, type OwnerSession } from './session.js';
 import { type Locale, LOCALES, SERVED_LANGUAGES, resolveLocale, parseLocale } from '../../core/owner/i18n/locale.js';
 import { type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -239,6 +241,13 @@ export type WebDeps = {
    * and the legal contact's mail always stay on `systemMail`.
    */
   readonly codeMail?: SystemMail | null;
+  /**
+   * BOT (decision 36) — the check the sign-up page draws and the route asks
+   * before anything is spent. Absent: none, and open sign-up reads as invite.
+   */
+  readonly botCheck?: BotCheck | null;
+  /** BOT (0114) — the database's limits on the door; absent (a test's app), only the process's own. */
+  readonly signupGuard?: SignupGuard | null;
   readonly employeeName: string;
   /** Ignored since V1 step three (the assistant is named, never drawn); kept so callers need not change. */
   readonly avatar?: string;
@@ -1085,9 +1094,21 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     reply.type('text/html; charset=utf-8').send(site(req, '/site', true)));
 
   // G1 — open sign-up asks every new address for a code, so it needs the
-  // installation's own sender: without one, open reads as closed.
+  // installation's own sender: without one, open reads as closed. BOT — and a
+  // bot check before the code: without one, invite.
   const codeMail = deps.codeMail ?? deps.systemMail ?? null;
-  const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !codeMail ? 'closed' : (deps.signupMode ?? 'invite');
+  const botCheck = deps.botCheck ?? null;
+  /**
+   * BOT (0114) — the operator's switch in the database, read on every request,
+   * so closing sign-up takes effect at once, without a deploy. A read that
+   * fails leaves the deployment's SIGNUP_MODE: it opens nothing the database
+   * would not also have to write (a code, a workspace).
+   */
+  const signupModeNow = async (): Promise<SignupMode> => {
+    const set = await signupModeSet(deps.db).catch(() => null);
+    return signupModeInForce(set, deps.signupMode ?? 'invite', { mail: Boolean(codeMail), botCheck: Boolean(botCheck) });
+  };
+  const botWidget = botCheck ? { ...BOT_CHECK_WIDGET[botCheck.provider], siteKey: botCheck.siteKey } : null;
   /** G1 — the operator hears of each sign-up at once (the daily digest is the worker's). */
   const toldOfSignup = (businessId: string) => {
     if (!deps.systemMail) return;
@@ -1121,7 +1142,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     sessionOf(req)
       ? reply.redirect('/app')
       : reply.type('text/html; charset=utf-8').send(
-        loginPage({ locale: localeOf(req), path: req.url, signupOpen: signupMode !== 'closed', recoveryOn,
+        loginPage({ locale: localeOf(req), path: req.url, signupOpen: (await signupModeNow()) !== 'closed', recoveryOn,
           withCode: (req.query as { with?: string }).with === 'code' })));
 
   /**
@@ -1134,15 +1155,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   app.get('/signup', async (req, reply) => {
     if (sessionOf(req)) return reply.redirect('/app');
+    const signupMode = await signupModeNow();
     const invite = String((req.query as { invite?: string }).invite ?? '').trim().slice(0, 64);
     return html(reply, 200, signupPage({
       locale: localeOf(req), path: req.url, mode: signupMode, passwordMin: PASSWORD_MIN,
-      contact: deps.legalContact ?? null, values: { invite },
+      contact: deps.legalContact ?? null, values: { invite }, botCheck: botWidget,
     }));
   });
 
   app.post('/signup', async (req, reply) => {
     const locale = localeOf(req);
+    const signupMode = await signupModeNow();
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     // One name per box (`channel_whatsapp`), like the languages on her profile:
     // this app's form reader keeps the LAST of a repeated name, so a shared
@@ -1157,7 +1180,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     };
     const again = (code: number, extra: { problems?: Partial<Record<SignupField, string>>; error?: string }) =>
       html(reply, code, signupPage({
-        locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
+        locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, botCheck: botWidget,
         values: {
           factory: raw.factory, name: raw.name, email: raw.email, invite: raw.invite, kind: raw.kind, sells: raw.sells,
           country: raw.country.toUpperCase(), website: raw.website, teamSize: raw.teamSize, channels: raw.channels, zone: raw.zone,
@@ -1166,6 +1189,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       }));
     if (signupMode === 'closed') return again(403, {});
     if (!signupThrottle.allow(callerOf(req), Date.now())) return again(429, { error: t(locale, 'signup.error.slow') });
+    // BOT (0114) — the same limit in the database: it survives a deploy and is
+    // shared by every process. A database that cannot count refuses the try.
+    if (deps.signupGuard && !(await claimSignupThrottle(deps.db, 'caller', callerOf(req), deps.signupGuard.attemptsPerCaller).catch(() => false))) {
+      return again(429, { error: t(locale, 'signup.error.slow') });
+    }
 
     const v = validateSignup(raw, { mode: signupMode, passwordMin: PASSWORD_MIN, passwordMax: PASSWORD_MAX });
     if (!v.ok) {
@@ -1173,6 +1201,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const problems: Partial<Record<SignupField, string>> = {};
       for (const [field, p] of Object.entries(v.problems) as [SignupField, SignupProblem][]) problems[field] = sentence(p);
       return again(400, { problems });
+    }
+    // BOT — a person, not a script, before anything is spent: the provider's
+    // answer for the token the widget put in the form. Every mode, when the
+    // installation has a check; a provider that does not answer is a refusal.
+    if (botCheck && !(await botCheck.verify(String(b[BOT_CHECK_WIDGET[botCheck.provider].field] ?? ''), callerOf(req)))) {
+      return again(400, { error: t(locale, 'signup.error.botcheck') });
     }
     // Checked BEFORE the slow hash is spent, so a bad ticket costs nothing.
     if (signupMode === 'invite' && !(await inviteIsOpen(deps.db, v.value.invite!).catch(() => false))) {
@@ -1193,6 +1227,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // trying to sign in, and a code sent to it would only confuse its owner.
     if (otpOn) {
       if (await lookupLogin(deps.db, wanted.email).catch(() => null)) return again(400, { error: t(locale, 'signup.error.email_taken') });
+      // BOT (0114) — codes to one company's domain, by the hour.
+      if (!(await domainAllows(wanted.email))) return again(429, { error: t(locale, 'verify.error.slow') });
       const sent = await sendCode(reply, locale, wanted.email, 'signup', wanted, null);
       if (sent !== 'sent') return again(sent === 'slow' ? 429 : 502, { error: t(locale, sent === 'slow' ? 'verify.error.slow' : 'verify.error.mail') });
       return reply.redirect('/verify');
@@ -1209,6 +1245,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/login', async (req, reply) => {
     const body = (req.body ?? {}) as { code?: string; email?: string; password?: string };
+    const signupMode = await signupModeNow();
     const code = String(body.code ?? '');
 
     /**
@@ -1330,6 +1367,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/login/set-password', quietDoor, async (req, reply) => {
     const b = (req.body ?? {}) as { t?: unknown; password?: unknown; repeat?: unknown };
+    const signupMode = await signupModeNow();
     if (!loginThrottle.allow(callerOf(req), Date.now())) {
       return html(reply, 429, loginPage({ locale: localeOf(req), path: '/login', problem: 'slow', signupOpen: signupMode !== 'closed', recoveryOn }));
     }
@@ -1402,6 +1440,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   const DEVICE_COOKIE = 'yf_dev';
   const otpOn = Boolean(codeMail);
   const verifyThrottle = makeThrottle({ max: 30, windowMs: 10 * 60_000 });
+  /**
+   * BOT (0114) — a sign-up code to a company's own domain counts against that
+   * domain's hour; a public provider's address (one person each) does not.
+   * Without the composition's guard (a test's app), nothing is counted.
+   */
+  const domainAllows = async (email: string): Promise<boolean> => {
+    const domain = limitedDomainOf(email);
+    if (!deps.signupGuard || !domain) return true;
+    return claimSignupThrottle(deps.db, 'domain', domain, deps.signupGuard.codesPerDomain).catch(() => false);
+  };
 
   type PendingSignup = {
     readonly factory: string; readonly language: string; readonly ownerName: string; readonly email: string;
@@ -1452,6 +1500,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   app.post('/verify', async (req, reply) => {
     const locale = localeOf(req);
+    const signupMode = await signupModeNow();
     const pending = pendingOf(req);
     if (!pending) return reply.redirect('/login');
     const again = (status: number, key: MessageKey) => html(reply, status, verifyPage({
@@ -1475,7 +1524,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       if (made.code !== 'created') {
         // The address was taken, or the invitation spent, while the code was in her inbox.
         return html(reply, 400, signupPage({
-          locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null,
+          locale, path: '/signup', mode: signupMode, passwordMin: PASSWORD_MIN, contact: deps.legalContact ?? null, botCheck: botWidget,
           values: { factory: p.factory, name: p.ownerName, email: p.email, invite: p.invite ?? '' },
           error: t(locale, `signup.error.${made.code}` as MessageKey),
         }));
@@ -1502,6 +1551,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       locale, path: '/verify', maskedEmail: maskEmail(pending.email), purpose: pending.purpose, error: t(locale, key),
     }));
     if (!verifyThrottle.allow(callerOf(req), Date.now())) return fail(429, 'verify.error.slow');
+    if (pending.purpose === 'signup' && !(await domainAllows(pending.email))) return fail(429, 'verify.error.slow');
     const code = newOtpCode();
     const next = await reissueOtp(deps.db, pending.id, otpHash(deps.sessionSecret, pending.email, pending.purpose, code), OTP_TTL_SECONDS)
       .catch(() => null);

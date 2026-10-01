@@ -31,6 +31,23 @@ export function signupModeFrom(raw: string | undefined): SignupMode {
   return v === 'open' || v === 'closed' ? v : 'invite';
 }
 
+/**
+ * BOT (0114) — the mode in force on this request. The operator's switch in the
+ * database (`signup_settings`, null when unset) wins over the deployment's
+ * SIGNUP_MODE. Open needs two things the installation may lack: its own sender
+ * for the code (G1 — without one, closed) and a bot check before any code is
+ * sent (BOT — without one, invite: only someone holding an invitation can make
+ * Nomi mail a code).
+ */
+export function signupModeInForce(
+  set: SignupMode | null, deployment: SignupMode, has: { readonly mail: boolean; readonly botCheck: boolean },
+): SignupMode {
+  const mode = set ?? deployment;
+  if (mode !== 'open') return mode;
+  if (!has.mail) return 'closed';
+  return has.botCheck ? 'open' : 'invite';
+}
+
 /** G1 — `SIGNUP_CAP`: how many self-serve workspaces may exist; a whole number above zero, else no cap. */
 export function signupCapFrom(raw: string | undefined): number | null {
   const n = Number((raw ?? '').trim());
