@@ -147,6 +147,13 @@ export function renderSite(v: SiteInput): string {
     <p class="site-prose">${k('site.who.languages')}</p>
   </section>
 
+  <section class="site-sec" aria-labelledby="site-first">
+    <h2 id="site-first">${k('site.first.title')}</h2>
+    <p class="site-prose">${k('site.first.invite')}</p>
+    <p class="site-prose">${k('site.first.drafts')}</p>
+    <p class="site-prose">${k('site.first.assisted')}</p>
+  </section>
+
   ${mail ? `<section class="site-sec site-invite" aria-labelledby="site-invite">
     <h2 id="site-invite">${k('site.invite.title')}</h2>
     <p class="site-prose">${k('site.invite.body')}</p>

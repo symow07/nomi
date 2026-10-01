@@ -532,6 +532,8 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 
 ## Deferred, and why
 
+- **G8's "free" is not on the site.** The plan's G8 row says the cohort copy is "invitation only, drafts only, free". Rule 12 (and its test) forbids the site naming a price, and your instruction of 2026-10-01 (a trial on request, then a card upfront) would make "free" untrue once BILL lands. The site says the rest; BILL will say what is true about money.
+
 - The order confirmation sentence is still the English template ("…The factory
   will send you the proforma invoice."). Localising fixed sentences is LG
   (decision 16) and its wording is part of the positioning rewrite; the owner
@@ -593,6 +595,8 @@ once, in this order, and tick it here.
 | "Nomi and Meta": set `META_APP_REVIEW=approved:<date>` in Railway the day App Review approves | CH4 | Every workspace's Channels page says Meta approved Nomi on that date; a stranger's Page receives a customer's message |
 | Phone alerts on real phones: an Android phone in Chrome and an iPhone with Nomi added to its Home Screen turn alerts on, receive a waiting-reply alert from FCM and Apple's push service, and a tap opens the conversation (`VAPID_*` pasted first; not Meta, but never run against the real push services either) | G5b | The alert arrives with Nomi closed, inside a minute; the tap lands on the conversation; turning alerts off stops them |
 | Echoes: `message_echoes` on the Page subscription and in the app's webhook; a reply typed in Messenger's and Instagram's own apps recorded as the owner's; Nomi's own sends recognised by `app_id` (`META_SOCIAL_APP_ID`) or their recorded id; `tools/meta-resubscribe.mjs --yes` for Pages connected before | CH3 | The owner replies from the Business Suite inbox and from the Instagram app: the reply shows on the transcript as theirs, the waiting draft is superseded, nothing of Nomi's own is taken for theirs. Confirm which `app_id` Meta's inbox echoes carry (the code needs only that it is not ours) |
+| The launch acceptance test (`docs/LAUNCH-ACCEPTANCE.md`): a stranger signs up, imports, names, practises, connects their Page and Instagram; a second stranger writes; the draft is sent and arrives | G8 | `tools/acceptance-check.mjs --business <id>` exits 0, and the owner's stopwatch is under 30 minutes. Cohort 1b opens when it passes |
+| Suspending a workspace: its Page unsubscribed at Meta, and resubscribed on restore | G7 | `tools/suspend-workspace.mjs` on a test workspace with a real Page: the Page's subscribed apps no longer list Nomi, then do again |
 
 ## Tool output that asked for something (ignored, as instructed)
 
