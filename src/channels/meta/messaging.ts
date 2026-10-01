@@ -59,23 +59,39 @@ const at = (v: unknown): Date => {
  * What kind of thing the buyer sent. Only text can be answered by the employee;
  * everything else is recorded and handed over, which is what `received` carries.
  */
-function describe(message: J): { readonly received: string; readonly text: string | null; readonly ref: string | null } {
+function describe(message: J): {
+  readonly received: string; readonly text: string | null; readonly ref: string | null; readonly postId: string | null;
+} {
   // CH7a — a reply to the shop's story carries the story's link; a shared
   // post, its own. Kept as the provider gave them, so the owner can open what
-  // the customer meant — nothing here fetches or reads them.
-  const storyRef = str(obj(obj(message['reply_to'])['story'])['url']);
+  // the customer meant.
+  // CH7 — and the media's own id where Meta gives one (the story replied to;
+  // a post or a reel shared in), so the worker can read the shop's caption.
+  const story = obj(obj(message['reply_to'])['story']);
+  const storyRef = str(story['url']);
+  const storyId = mediaIdOf(story['id']);
   const text = str(message['text']);
-  if (text !== null && text !== '') return { received: 'text', text, ref: storyRef };
+  if (text !== null && text !== '') return { received: 'text', text, ref: storyRef, postId: storyId };
   const attachments = arr(message['attachments']);
   const first = obj(attachments[0] ?? {});
   const kind = str(first['type']);
   if (attachments.length > 0) {
-    return { received: (kind ?? 'attachment').toLowerCase(), text: null, ref: str(obj(first['payload'])['url']) ?? storyRef };
+    const payload = obj(first['payload']);
+    return {
+      received: (kind ?? 'attachment').toLowerCase(), text: null, ref: str(payload['url']) ?? storyRef,
+      postId: mediaIdOf(payload['ig_post_media_id']) ?? mediaIdOf(payload['reel_video_id']) ?? storyId,
+    };
   }
-  if (storyRef) return { received: 'story_reply', text: null, ref: storyRef };
+  if (storyRef || storyId) return { received: 'story_reply', text: null, ref: storyRef, postId: storyId };
   // A reaction, an edit, a read receipt in the same envelope: nothing to answer.
-  return { received: 'unsupported', text: null, ref: null };
+  return { received: 'unsupported', text: null, ref: null, postId: null };
 }
+
+/** A media id as Meta writes it — digits, sometimes a string, sometimes a number. Anything else is none. */
+const mediaIdOf = (v: unknown): string | null => {
+  const s = typeof v === 'number' && Number.isSafeInteger(v) ? String(v) : typeof v === 'string' ? v.trim() : '';
+  return /^[0-9A-Za-z_]{1,64}$/.test(s) ? s : null;
+};
 
 /**
  * Webhook → canonical events. Pure, like WhatsApp's parser, and it drops
@@ -112,7 +128,7 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
         continue;
       }
 
-      const { received, text, ref } = describe(message);
+      const { received, text, ref, postId } = describe(message);
       const event: InboundMessageEvent = {
         kind: 'message',
         eventId: mid,
@@ -126,6 +142,7 @@ export function parseMetaMessaging(channel: MetaMessagingChannel, payload: unkno
         text,
         mediaId: null,
         ...(ref ? { ref } : {}),
+        ...(postId ? { postId } : {}),
       };
       events.push(event);
     }

@@ -50,13 +50,15 @@ export async function recordReceivedMessage(
   messageId: string,
   caption: string | null,
   received: string,
+  /** CH7 — the catalogue product a shared post or story was matched to. */
+  about?: string | null,
 ): Promise<void> {
   await sql`
     insert into messages
       (conversation_id, external_id, direction, input_type, text_content, ai_analysis, sent_at)
     values
       (${conversationId}, ${messageId}, 'inbound', 'unknown', ${caption},
-       ${JSON.stringify({ received })}::jsonb, clock_timestamp())
+       ${JSON.stringify(about ? { received, about } : { received })}::jsonb, clock_timestamp())
     on conflict do nothing
   `.execute(tx);
 }

@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import { aliasRow, aliasRowsFor, cleanName, MAX_ALIAS_LENGTH } from '../core/onboard/aliases.js';
+import type { CatalogueEntry } from '../core/conversation/sharedPost.js';
 
 /**
  * T3 — the names a product is found by, written where a product gets or
@@ -50,4 +51,19 @@ export async function renameAlias(tx: Tx, productId: string, from: string | null
     update product_aliases set alias = ${row.alias}, language = ${row.language}, alias_type = ${row.aliasType}
      where product_id = ${productId}::uuid and lower(alias) = lower(${prev})`.execute(tx)).numAffectedRows ?? 0);
   if (moved === 0) await addAliases(tx, productId, [next]);
+}
+
+/**
+ * CH7 — every active product with the names it is found by: its name, its
+ * Chinese name, its aliases. Read inside the tenant's transaction (aliases
+ * reach the tenant through their product).
+ */
+export async function catalogueNames(tx: Tx, businessId: string): Promise<CatalogueEntry[]> {
+  const rows = (await sql<{ id: string; name: string; name_zh: string | null; aliases: string[] | null }>`
+    select p.id::text as id, p.name, p.name_zh,
+           array_agg(a.alias) filter (where a.alias is not null) as aliases
+      from products p left join product_aliases a on a.product_id = p.id
+     where p.business_id = ${businessId}::uuid and p.is_active
+     group by p.id, p.name, p.name_zh`.execute(tx)).rows;
+  return rows.map((r) => ({ productId: r.id, name: r.name, names: [...(r.name_zh ? [r.name_zh] : []), ...(r.aliases ?? [])] }));
 }

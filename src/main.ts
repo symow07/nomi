@@ -4,7 +4,8 @@ import { randomBytes, createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sql } from 'kysely';
 import { startWorker } from './worker/main.js';
-import { mediaPortsFor, type MediaPorts } from './worker/mediaPorts.js';
+import { mediaPortsFor, type MediaPorts, type PostCaptionReader } from './worker/mediaPorts.js';
+import { metaPostCaption } from './channels/meta/posts.js';
 import { buildIngressApp } from './api/ingress.js';
 import { registerWebApp } from './api/web/app.js';
 import { parseSiteHosts, SITE_HOSTS_SHAPE } from './api/web/site.js';
@@ -408,6 +409,30 @@ export type Production = {
  */
 const DEMO_PILOT_BUSINESS_ID = 'de300000-0000-4000-8000-0000000000b1';
 
+/**
+ * CH7 — the caption of the shop's own post, with the token a customer's name
+ * is looked up with: the workspace's OWN Page token when it connected one, the
+ * installation's otherwise (only the pilot's accounts route there). A token
+ * that needs attention reads nothing.
+ */
+function postCaptionReader(cfg: {
+  readonly credentialKey: Buffer;
+  readonly envToken: string | null;
+  readonly graphVersion: string;
+  readonly fetchImpl?: MetaFetch | undefined;
+}): PostCaptionReader {
+  return async ({ db, businessId, postId }) => {
+    try {
+      const account = await withTenantTx(db, businessId, (tx) => liveMetaAccount(tx, businessId));
+      const token = account ? (account.needsAttention ? null : metaAccountToken(account, cfg.credentialKey)) : cfg.envToken;
+      if (!token) return null;
+      return await metaPostCaption({ accessToken: token, graphVersion: cfg.graphVersion, fetchImpl: cfg.fetchImpl })(postId);
+    } catch {
+      return null;
+    }
+  };
+}
+
 export async function buildProduction(
   cfg: ProdConfig,
   overrides?: {
@@ -470,7 +495,18 @@ export async function buildProduction(
   // G13 — ONE set of media ports for this process: the worker hears with them
   // and the Command Center plays back through the same fetcher. Built once, so
   // a test that injects its own cannot end up with the web app using another.
-  const mediaPorts = overrides?.media ?? mediaPortsFor(cfg);
+  const mediaPorts: MediaPorts = {
+    // CH7 — the shop's own post, read with its own Page token: before the
+    // given ports, so a test's own media ports still have it, and a test's
+    // own `postCaption` wins.
+    postCaption: postCaptionReader({
+      credentialKey: deriveKey(cfg.CREDENTIAL_KEY),
+      envToken: process.env['META_PAGE_ACCESS_TOKEN']?.trim() || null,
+      graphVersion: cfg.META_GRAPH_API_VERSION,
+      fetchImpl: overrides?.metaFetch,
+    }),
+    ...(overrides?.media ?? mediaPortsFor(cfg)),
+  };
   // REKEY — a rotation in progress: tokens sealed with the key this one
   // replaced are still opened (never sealed) until tools/rekey.mjs re-seals them.
   const retired = process.env['CREDENTIAL_KEY_PREVIOUS'];
@@ -1406,6 +1442,8 @@ export async function buildProduction(
           received: e.received,
           // CH7a — and what it points at, so the owner can open it.
           ...(e.ref ? { ref: e.ref } : {}),
+          // CH7 — and the shop's own post it is about, so its caption can be read.
+          ...(e.postId ? { postId: e.postId } : {}),
         });
       } else if (e.kind === 'echo') {
         // CH3 — read a little later, so a send of ours has written its id first.

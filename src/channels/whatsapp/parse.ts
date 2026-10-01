@@ -34,6 +34,12 @@ export type InboundMessageEvent = {
    * the story's own link. Kept so the owner can open it; nothing fetches it.
    */
   readonly ref?: string | null;
+  /**
+   * CH7 — the shop's own post, reel or story the message is about, by Meta's
+   * media id, when the provider says: read (its caption) by the worker with the
+   * Page's own token, and matched to a product.
+   */
+  readonly postId?: string | null;
 };
 
 export type StatusEvent = {

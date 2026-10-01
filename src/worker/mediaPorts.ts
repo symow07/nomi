@@ -43,7 +43,19 @@ export type MediaPorts = {
   readonly transcriber?: Transcriber | undefined;
   readonly audio?: AudioFetcher | undefined;
   readonly image?: MediaFetcher | undefined;
+  /**
+   * CH7 — the caption of the shop's own post, reel or story a message is
+   * about, read with the workspace's own Page token. Never throws; null when
+   * there is none to read. Absent: no post is read, exactly as before CH7.
+   */
+  readonly postCaption?: PostCaptionReader | undefined;
 };
+
+export type PostCaptionReader = (input: {
+  readonly db: import('../db/client.js').Db;
+  readonly businessId: import('../core/types/ids.js').BusinessId;
+  readonly postId: string;
+}) => Promise<string | null>;
 
 /** The fields of the production config this reads. `ProdConfig` satisfies it. */
 export type MediaSource = {

@@ -326,6 +326,8 @@ export function defaultFilter(waitingCount: number): InboxFilter {
 function receivedBubble(locale: Locale, m: TimelineMessage): string {
   return `<div dir="auto" class="bubble voiced">`
     + `<div class="heard-label muted">📎 ${esc(t(locale, `received.${m.received ?? 'other'}` as MessageKey))}</div>`
+    // CH7 — matched to a product of hers: the turn answered about it, and she sees which.
+    + (m.about ? `<div class="muted small">${esc(t(locale, 'received.about', { name: m.about }))}</div>` : '')
     + (m.text.trim() ? `<div class="said"><bdi>${esc(m.text)}</bdi></div>` : '')
     + `</div>`;
 }
@@ -479,6 +481,8 @@ export type TimelineMessage = {
    * never reads as a line he typed.
    */
   received?: ReceivedKind | undefined;
+  /** CH7 — the catalogue product a shared post or story was matched to. */
+  about?: string | undefined;
   /** G13 — the provider still has a handle for this audio, so it can be played. */
   playable?: boolean | undefined;
 };
@@ -621,6 +625,8 @@ export type ConversationDetail = {
   readonly unreadable?: UnreadableKind | null;
   /** CH7a — the link of what arrived (a shared post, a story), when the provider gave one. */
   readonly unreadableRef?: string | null;
+  /** CH7 — the caption of the shop's own post or story it was about, when one was read and named no product. */
+  readonly unreadableCaption?: string | null;
   readonly lastHumanAction: LastHumanAction | null;
   /**
    * G9b — who works here, so an actor id is read as a NAME. Actor columns
@@ -784,6 +790,7 @@ export async function loadConversationDetail(
           ...(spoken ? { heard: corrected ? 'voice_corrected' as const : 'voice' as const, id: m.id } : {}),
           ...(corrected ? { originalTranscript: m.transcription } : {}),
           ...(received ? { received } : {}),
+          ...(received && m.about ? { about: m.about } : {}),
           // G13 — a note recorded before 0043 has no handle, and says so.
           ...(spoken && m.media ? { playable: true } : {}),
         };
@@ -863,6 +870,9 @@ export async function loadConversationDetail(
     // CH7a — the post's or story's own link, when the provider gave one: only
     // an https address on Meta's own hosts is ever made a door.
     const unreadableRef = refOf((unreadableRow?.payload ?? {})['ref']);
+    // CH7 — and what the shop's own post says, when it was read and named no one product.
+    const capRaw = (unreadableRow?.payload ?? {})['caption'];
+    const unreadableCaption = typeof capRaw === 'string' && capRaw.trim() ? capRaw.slice(0, 600) : null;
 
     // M16.2c "what happened last?": the latest human action — kind + actor + time
     // only. payload->>'actor' is a human/agent id, never buyer data; no body read.
@@ -945,6 +955,7 @@ export async function loadConversationDetail(
       unheardReason,
       unreadable,
       unreadableRef,
+      unreadableCaption,
       rate: await loadCurrentRate(tx, bid.value),
       leadTimeBlocked: withheldFrom(q?.lead_time_withheld ?? null),
       herWords: await herWordsOf(tx, conversationId),
@@ -1852,6 +1863,7 @@ export function renderConversationDetail(
           }))}</div>
           <div class="rf-y muted">${esc(t(locale, 'unreadable.why'))}</div>
           <div class="rf-d">${esc(t(locale, 'unreadable.do'))}</div>
+          ${d.unreadableCaption ? `<div class="rf-d muted" dir="auto">${esc(t(locale, 'unreadable.caption', { caption: d.unreadableCaption }))}</div>` : ''}
           ${d.unreadableRef ? deeper(esc(d.unreadableRef), t(locale, 'unreadable.open'), '', 'rel="noopener noreferrer" target="_blank"') : ''}
         </div>
       </div>`
