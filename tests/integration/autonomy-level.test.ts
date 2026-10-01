@@ -197,12 +197,12 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page names the languages whose replies wait — it reads the real flags (es and fr, and any other language)', async () => {
+  it('and the page names the languages whose replies wait — it reads the real flags (es, fr and pt, and any other language)', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('English, Chinese, and Arabic');
-    expect(page.body).toContain('Spanish and French, or in any other language, wait for you');
+    expect(page.body).toContain('Spanish, French, and Portuguese, or in any other language, wait for you');
   });
 });

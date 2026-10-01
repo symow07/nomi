@@ -134,15 +134,25 @@ d('the disclosure gate is per language, with the real flags (requires DATABASE_U
     expect(page.body).toContain('does not send alone to customers writing in Spanish yet');
   }, 120_000);
 
-  it('Portuguese — no sentence at all: a draft, and no English sentence put in front of it', async () => {
-    speaks('pt');
-    replyWriter.replies = ['Fazemos sacolas de lona em três tamanhos.'];
-    const r = await writes(`9716${runDigits(RUN, 6)}3`, 'Olá, vocês fazem sacolas de lona?');
+  // German since the pt pack (2026-10-01): Portuguese has a sentence now, unread.
+  it('German — no sentence at all: a draft, and no English sentence put in front of it', async () => {
+    speaks('de');
+    replyWriter.replies = ['Wir machen Taschen aus Segeltuch in drei Größen.'];
+    const r = await writes(`9716${runDigits(RUN, 6)}3`, 'Hallo, machen Sie Taschen aus Segeltuch?');
     expect(r.outbound).toBe(0);
     const draft = await q((tx) => sql<{ text: string }>`select draft_text as text from drafts where conversation_id = ${r.conv}::uuid`
       .execute(tx).then((x) => x.rows[0]!.text));
     expect(draft).not.toContain('AI assistant');
     const page = await prod.app.inject({ method: 'GET', url: `/app/inbox/${r.conv}`, headers: { cookie } });
-    expect(page.body).toContain('There is no line in Portuguese');
+    expect(page.body).toContain('There is no line in German');
+  }, 120_000);
+
+  it('Portuguese — its sentence is written and unread: a draft, and the card says it awaits a native reader', async () => {
+    speaks('pt');
+    replyWriter.replies = ['Fazemos sacolas de lona em três tamanhos.'];
+    const r = await writes(`9716${runDigits(RUN, 6)}4`, 'Olá, vocês fazem sacolas de lona?');
+    expect(r.outbound).toBe(0);
+    const page = await prod.app.inject({ method: 'GET', url: `/app/inbox/${r.conv}`, headers: { cookie } });
+    expect(page.body).toContain('customers writing in Portuguese yet');
   }, 120_000);
 });
