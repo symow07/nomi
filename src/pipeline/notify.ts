@@ -68,7 +68,9 @@ export const goesByMail = (kind: AlertKind): boolean =>
   // R5 — the assistant stepped back on its own: the owner hears of it, by e-mail always.
   || kind === 'self_demoted'
   // KS6 — the operator decided on the first connection: the owner may have no channel at all yet.
-  || kind === 'connection_approved' || kind === 'connection_refused';
+  || kind === 'connection_approved' || kind === 'connection_refused'
+  // RET — the workspace will be erased: the warning cannot wait for a channel it does not have.
+  || kind === 'retention_warning';
 
 /** KS6 — where the decision's e-mail opens: the Channels page, at the approval card. */
 export const CONNECTION_APPROVAL_PAGE = '/app/channels';
@@ -142,6 +144,10 @@ export type OperatorAlertDetail = {
   readonly mail?: { readonly codes: number; readonly alerts: number; readonly refused: number };
   /** `signup_digest` (KS6): how many workspaces wait for the operator's approval to connect. */
   readonly approvals?: number;
+  /** `signup_digest` (RET): workspaces due for erasure, waiting for the operator's command. */
+  readonly retentionDue?: number;
+  /** `retention_warning` (RET): the day the workspace will be erased, `YYYY-MM-DD`. */
+  readonly eraseOn?: string;
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
@@ -216,6 +222,10 @@ export function renderOwnerAlert(
   }
   // KS6 — the operator's decision on the first connection.
   if (kind === 'connection_approved' || kind === 'connection_refused') return t(locale, `notify.${kind}`);
+  // RET — the day it goes, in the workspace's own zone, and what keeps it.
+  if (kind === 'retention_warning') {
+    return t(locale, 'notify.retention_warning', { date: formatDate(locale, new Date(`${detail.eraseOn ?? '1970-01-01'}T12:00:00Z`), detail.zone ?? 'UTC') });
+  }
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
@@ -247,9 +257,11 @@ export function renderOwnerAlert(
     const mail = detail.mail ? [t(locale, detail.mail.refused ? 'notify.signup_digest.mail.capped' : 'notify.signup_digest.mail', detail.mail)] : [];
     // KS6 — asks to connect a first channel, waiting for the operator.
     const approvals = detail.approvals ? [t(locale, 'notify.signup_digest.approvals', { n: detail.approvals })] : [];
+    // RET — workspaces past their date, warned twice: the operator's command erases them.
+    const retention = detail.retentionDue ? [t(locale, 'notify.signup_digest.retention', { n: detail.retentionDue })] : [];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...cohort, ...mail, ...approvals, ...flags].join('\n');
+      ...forms, ...cohort, ...mail, ...approvals, ...retention, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -365,7 +377,8 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   const words = renderOwnerAlert(locale, job.kind, null, { ...operatorDetailOf(job), zone: found.zone });
   // R5 — the self-demotion opens the level on the assistant's page, when the installation knows its address.
   // KS6 — an approval opens Channels, where the first channel can now connect.
-  const opens = job.kind === 'self_demoted' ? SELF_DEMOTION_PAGE : job.kind === 'connection_approved' ? CONNECTION_APPROVAL_PAGE : null;
+  const opens = job.kind === 'self_demoted' ? SELF_DEMOTION_PAGE
+    : job.kind === 'connection_approved' || job.kind === 'retention_warning' ? CONNECTION_APPROVAL_PAGE : null;
   const body = opens && deps.publicBaseUrl
     ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${opens}` })}` : words;
 
@@ -460,6 +473,8 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.mail ? { mail: job.mail } : {}),
     ...(job.approvals ? { approvals: job.approvals } : {}),
+    ...(job.retentionDue ? { retentionDue: job.retentionDue } : {}),
+    ...(job.eraseOn ? { eraseOn: job.eraseOn } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),

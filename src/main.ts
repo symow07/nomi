@@ -70,6 +70,7 @@ import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
 import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { connectionDecisionAlerts } from './pipeline/approvalWatch.js';
+import { retentionWarnings } from './pipeline/retention.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -1251,6 +1252,14 @@ export async function buildProduction(
     for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db)]) {
       await boss.send(QUEUES.notify, job satisfies NotifyJob);
     }
+  });
+
+  // RET (0116) — once a day, while the operator's switch is on: the warnings
+  // before a workspace that never connected a channel is erased. Nothing is
+  // erased here: the operator runs tools/retention.mjs.
+  await boss.schedule(QUEUES.retention, '50 6 * * *', {});
+  await boss.work(QUEUES.retention, async () => {
+    for (const job of await retentionWarnings(db)) await boss.send(QUEUES.notify, job satisfies NotifyJob);
   });
 
   // R5 — once a day: spot checks offered on work that went out alone.

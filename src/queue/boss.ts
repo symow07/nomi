@@ -82,6 +82,8 @@ export const QUEUES = {
   allowance: 'ops.allowance',
   /** R5 — once a day: spot checks offered on work that went out alone. */
   spotChecks: 'trust.spot_checks',
+  /** RET (0116) — once a day: the warnings before a never-connected workspace is erased. */
+  retention: 'ops.retention',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
@@ -188,7 +190,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused';
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker' | 'connection_approved' | 'connection_refused' | 'retention_warning';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -217,6 +219,10 @@ export type NotifyJob = {
   mail?: { codes: number; alerts: number; refused: number };
   /** `signup_digest` (KS6): asks to connect a first channel waiting for the operator. */
   approvals?: number;
+  /** `signup_digest` (RET): workspaces past their date, warned twice, waiting for the operator's command. */
+  retentionDue?: number;
+  /** `retention_warning` (RET): the day the workspace will be erased, `YYYY-MM-DD`. */
+  eraseOn?: string;
   /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */
   spend?: { tokens: number; calls: number; maxTokens: number; maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back on their own, and why (`DemotionReason` codes). */
