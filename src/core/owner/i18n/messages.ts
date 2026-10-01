@@ -6205,7 +6205,7 @@ const ZH: Record<MessageKey, string> = {
   'guide.products.cap.3': '逐行核对，勾选正确的行，然后添加。',
   'guide.name.cap.1': '打开「准备上线」。',
   'guide.name.cap.2': '选一个客户会看到的名字。',
-  'guide.name.cap.3': '确认它。在你确认之前，没有你的同意什么都不会发出。',
+  'guide.name.cap.3': '确认这个名字。在你确认之前，没有你的同意什么都不会发出。',
   'guide.channels.cap.1': '打开「客户在哪里找你」。',
   'guide.channels.cap.2': '连接你的 Facebook 主页和 Instagram，或者你自己的 WhatsApp 号码。',
   'guide.channels.cap.3': '会打开 Meta 的窗口：登录并选择你的账号。完成后会回到这里。',

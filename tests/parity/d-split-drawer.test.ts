@@ -158,7 +158,9 @@ describe('D · the doors moved, the pages did not', () => {
     const html = withWorkspace(facts(), () => renderSetup({ kind: null, people: 1 }, 'en', null));
     const doorTo = (href: string) => /<a class="tline" href="([^"]+)">[\s\S]*?<\/a>/g;
     const doors = Object.fromEntries([...html.matchAll(doorTo(''))].map((m) => [m[1], m[0]]));
-    expect(doors['/app/onboarding']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    // The guided path (/app/guide) is Setup's first door now, and carries where setup stands.
+    expect(doors['/app/guide']).toContain(t('en', 'nav.setup.progress', { done: 3, total: 5 }));
+    expect(doors['/app/onboarding']).toBeDefined();
     expect(doors['/app/settings/business']).toContain(t('en', 'setup.state.notAnswered'));
     expect(doors['/app/settings/people']).toContain('1 person');
     expect(html).not.toContain('action="/app/settings"');   // the form lives on its own page

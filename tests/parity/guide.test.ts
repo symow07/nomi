@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { renderGuide, guideFileAt, captionKeys, CAPTIONS_PER_STEP } from '../../src/api/web/guide.js';
-import { SETUP_STEPS } from '../../src/db/setup.js';
+import { SETUP_STEPS, type SetupStep } from '../../src/db/setup.js';
 import { STEP_LINK } from '../../src/api/web/onboarding.js';
 import { messages, t } from '../../src/core/owner/i18n/messages.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { LOCALES, type Locale } from '../../src/core/owner/i18n/locale.js';
 import { esc } from '../../src/api/web/layout.js';
 
 /**
@@ -62,6 +62,11 @@ describe('Guide · the files', () => {
       expect(guideFileAt(f)?.type).toBe('video/webm');
       const vtt = readFileSync(new URL(`../../assets/guide/${f.replace(/\.webm$/, '.vtt')}`, import.meta.url), 'utf8');
       expect(vtt.startsWith('WEBVTT'), f).toBe(true);
+      // The captions say exactly what the catalogue says (the page prints the same words): a
+      // changed line means a re-recording (tools/record-guide.mjs), never two versions.
+      const [step, locale] = f.split('.') as [SetupStep, Locale];
+      const cues = vtt.split('\n\n').slice(1).map((b) => b.trim().split('\n').slice(2).join('\n')).filter(Boolean);
+      expect(cues, f).toEqual(captionKeys(step).map((k) => t(locale, k)));
     }
   });
 });
