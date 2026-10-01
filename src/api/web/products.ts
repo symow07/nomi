@@ -7,7 +7,7 @@ import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
 import { diffAgainstCatalogue, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import { rowsFromParsed, asExtracted, liveRows, type ImportRow } from '../../core/onboard/importReview.js';
-import { defaultUnitFor } from '../../core/owner/sellingStyle.js';
+import { defaultUnitFor, sellsByQuantity } from '../../core/owner/sellingStyle.js';
 import { renderStoreForms } from './storeImport.js';
 import { savePriceRulesTx } from './priceRules.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -94,6 +94,13 @@ export const productStatus = (p: {
   : p.isActive ? (p.findable ? 'learned' : 'not_findable')
   : p.hasLimits ? 'not_offered' : 'needs_limits';
 
+/** RT — the business's kind, for what its product pages state (`sellsByQuantity`). */
+export async function businessKind(db: Db, businessIdRaw: string): Promise<string | null> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return null;
+  return withTenantTx(db, bid.value, (tx) => kindOf(tx, bid.value));
+}
+
 export async function loadProductList(db: Db, businessIdRaw: string): Promise<readonly ProductListItem[]> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return [];
@@ -140,6 +147,8 @@ export type ProductDetail = {
   readonly moq: number | null;
   readonly leadTimeDays: number | null;
   readonly customizable: boolean;
+  /** RT — the business's kind: a shop's page shows a minimum only where one is set. Absent: bulk. */
+  readonly businessKind?: string | null;
   readonly learned: boolean;
   readonly status: ProductStatus;
   readonly imageMatchable: boolean;
@@ -163,9 +172,10 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       id: string; name: string; name_zh: string | null; sku: string; category: string | null;
       unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
-      source_line: string | null; source_import_id: string | null; photo: number | null;
+      source_line: string | null; source_import_id: string | null; photo: number | null; kind: string | null;
     }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
               price_usd_per_unit as price, currency, source_line, source_import_id,
+              (select b.kind from businesses b where b.id = products.business_id) as kind,
               (select ph.position from catalog_import_photos ph where ph.id = products.source_photo_id) as photo,
               exists (select 1 from pricing_policy pp where pp.business_id = products.business_id
                        and (pp.product_id = products.id or pp.product_id is null)) as has_limits
@@ -196,7 +206,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
     const learned = p.is_active && (tiers.length > 0 || p.price !== null);
     return {
       id: p.id, name: p.name, nameZh: p.name_zh, sku: p.sku,
-      category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days,
+      category: p.category, unit: p.unit, moq: p.moq, leadTimeDays: p.lead_time_days, businessKind: p.kind,
       customizable: p.customizable, learned, isActive: p.is_active,
       status: productStatus({ isActive: p.is_active, hasPrice: tiers.length > 0 || p.price !== null, hasLimits: p.has_limits, findable: aliases.length > 0 }),
       imageMatchable: p.is_active && aliases.length + images.length > 0,
@@ -453,7 +463,9 @@ const statusPill = (locale: Locale, status: ProductStatus): string =>
 
 export function renderProductList(
   items: readonly ProductListItem[], locale: Locale, flash: Flash | null = null, viewer: Viewer = OWNER_VIEW,
+  kind: string | null = null,
 ): string {
+  const byQuantity = sellsByQuantity(kind);
   const waiting = items.filter((p) => p.status === 'needs_limits').length;
   const head = `<div class="phead"><h1 class="page">${esc(t(locale, 'nav.products'))}</h1>${viewer.isOwner ? deeper('/app/products/add', t(locale, 'product.teach')) : ''}</div>
     ${flashBanner(flash)}
@@ -469,15 +481,17 @@ export function renderProductList(
     // CC-13 — each locale's own colon and gap: "500 pcs: $2.10 · Min. order: 500 pcs",
     // "500个：$2.10　最低起订：500个". The full-width colon and space were in every language.
     // Each figure isolated: after an Arabic word a bare "$2.10" is drawn "2.10$".
+    // RT — a shop's price of one is the price; a quantity is named only where the price starts above one.
     const price = p.entryPrice !== null && p.entryQty !== null
-      ? labelled(locale, iso(show.quantityOf(locale, p.entryQty, u)), iso(show.money(locale, p.entryPrice)))
+      ? (!byQuantity && p.entryQty <= 1 ? iso(show.money(locale, p.entryPrice))
+        : labelled(locale, iso(show.quantityOf(locale, p.entryQty, u)), iso(show.money(locale, p.entryPrice))))
       : esc(t(locale, 'product.list.priceTbd'));
-    const moq = labelled(locale, esc(t(locale, 'product.list.moq')),
+    const moq = !byQuantity && p.moq === null ? null : labelled(locale, esc(t(locale, 'product.list.moq')),
       p.moq === null ? esc(t(locale, 'product.noMinimum')) : iso(show.quantityOf(locale, p.moq, u)));
     return `
     <a class="prod" href="/app/products/${encodeURIComponent(p.id)}">
       <div class="prod-h"><b><bdi>${esc(displayName(locale, p.name, p.nameZh))}</bdi></b>${skuMark(p.sku)}${statusPill(locale, p.status)}</div>
-      <div class="prod-b muted">${price}${locale === 'zh' ? '　' : ' · '}${moq}</div>
+      <div class="prod-b muted">${price}${moq === null ? '' : `${locale === 'zh' ? '　' : ' · '}${moq}`}</div>
       ${p.imageMatchable ? '' : `<div class="p-tag">${esc(t(locale, 'product.list.noImageMatch'))}</div>`}
     </a>`;
   }).join('');
@@ -525,6 +539,9 @@ export function renderProductDetail(
         <span class="caption muted">${esc(t(locale, 'product.edit.moq.hint'))}</span></label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.unit'))}</span>
         <input name="unit" value="${val('unit', d.unit)}" />${ferr('unit')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.leadTime'))}</span>
+        <input name="leadTime" inputmode="numeric" value="${val('leadTime', d.leadTimeDays === null ? '' : String(d.leadTimeDays))}" />${ferr('leadTime')}
+        <span class="caption muted">${esc(t(locale, 'product.edit.leadTime.hint', { name }))}</span></label>
       <label class="pcheck"><input type="checkbox" name="isActive" ${d.isActive ? 'checked' : ''} />
         <span>${esc(t(locale, 'product.edit.active'))}</span></label>
       <button class="btn send" type="submit">${esc(t(locale, 'product.edit.save'))}</button>
@@ -561,7 +578,7 @@ export function renderProductDetail(
     <div class="block"><h2>${esc(t(locale, 'product.detail.infoTitle'))}</h2>
       <div class="info">
         ${d.category ? `<div><span class="muted">${esc(t(locale, 'product.detail.category'))}</span> ${esc(d.category)}</div>` : ''}
-        <div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>
+        ${d.moq === null && !sellsByQuantity(d.businessKind) ? '' : `<div><span class="muted">${esc(t(locale, 'product.list.moq'))}</span> ${esc(d.moq === null ? t(locale, 'product.noMinimum') : show.quantityOf(locale, d.moq, u))}</div>`}
         ${d.leadTimeDays !== null ? `<div><span class="muted">${esc(t(locale, 'product.detail.leadTime'))}</span> ${esc(t(locale, 'product.detail.leadTimeDays', { days: d.leadTimeDays }))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'product.detail.customizable'))}</span> ${esc(d.customizable ? t(locale, 'product.detail.yes') : t(locale, 'product.detail.no'))}</div>
         ${d.source ? `<div><span class="muted">${esc(t(locale, 'product.detail.fromList'))}</span> <bdi>${esc(d.source.line)}</bdi>${viewer.isOwner && d.source.importId && d.source.photo !== null
@@ -682,10 +699,15 @@ export type ProductEdit = {
   readonly name?: string | null;
   readonly nameZh?: string | null;
   readonly customerNames?: string | null;
+  /** RT — the days until it is ready to send; an empty box is "not said". Null leaves it as it is. */
+  readonly leadTime?: string | null;
 };
 
-export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames';
-export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many';
+export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime';
+export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far';
+
+/** RT — the longest lead time a product may state: a year. */
+export const MAX_LEAD_TIME_DAYS = 365;
 
 export type EditResult =
   | { readonly ok: true; readonly changed: readonly ProductEditField[] }
@@ -712,9 +734,9 @@ async function updateProductTx(
 ): Promise<EditResult> {
   const cur = (await sql<{
     price: string | null; moq: number | null; unit: string; is_active: boolean; floor: string | null;
-    name: string; name_zh: string | null;
+    name: string; name_zh: string | null; lead_time_days: number | null;
   }>`
-    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active, p.name, p.name_zh,
+    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active, p.name, p.name_zh, p.lead_time_days,
            pp.floor_price_usd as floor
       from products p
       left join pricing_policy pp
@@ -748,6 +770,17 @@ async function updateProductTx(
     else if (!Number.isFinite(n)) errors.moq = 'not_a_number';
     else if (!(n > 0) || !Number.isInteger(n)) errors.moq = 'not_positive';
     else moq = n;
+  }
+  // RT — the lead-time writer. Until now only the demo ever wrote one.
+  let leadTime: number | null = cur.lead_time_days;
+  if (edit.leadTime !== undefined && edit.leadTime !== null) {
+    const raw = edit.leadTime.trim();
+    const n = Number(raw);
+    if (raw === '') leadTime = null;
+    else if (!Number.isFinite(n)) errors.leadTime = 'not_a_number';
+    else if (!(n > 0) || !Number.isInteger(n)) errors.leadTime = 'not_positive';
+    else if (n > MAX_LEAD_TIME_DAYS) errors.leadTime = 'too_far';
+    else leadTime = n;
   }
   if (edit.unit !== undefined && edit.unit !== null) {
     const u = edit.unit.trim();
@@ -789,13 +822,14 @@ async function updateProductTx(
   note('isActive', cur.is_active, isActive);
   note('name', cur.name, name);
   note('nameZh', cur.name_zh, nameZh);
+  note('leadTime', cur.lead_time_days, leadTime);
 
   if (changed.length === 0 && customerNames.length === 0) return { ok: true, changed: [] };
 
   if (changed.length > 0) {
     await sql`
       update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
-                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, updated_at = now(),
+                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, lead_time_days = ${leadTime}, updated_at = now(),
                           currency = case when ${detail['price'] !== undefined} then ${currency} else currency end
        where business_id = ${bid} and id = ${productId}
     `.execute(tx);

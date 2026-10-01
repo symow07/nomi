@@ -104,6 +104,41 @@ const PATTERNS: readonly Pattern[] = [
   { kind: 'delivery_promise', key: 'event_deadline',
     re: /\b(?:antes\s+de|para)\s+(?:navidad|ramad[aá]n|el\s+a[ñn]o\s+nuevo\s+chino|black\s+friday|semana\s+santa)\b|\b(?:avant|pour)\s+(?:no[ëe]l|le\s+ramadan|le\s+nouvel\s+an\s+chinois|le\s+black\s+friday|p[âa]ques)\b/i },
   { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bentrega\s+garantizada\b|\blivraison\s+garantie\b/i },
+
+  // RT (2026-10-01) — what a shop promises: returns, free shipping, and the
+  // refund, warranty and replacement words in Chinese and Arabic, under the
+  // same keys, so what the owner allows on How you sell is allowed in every
+  // language and nothing else is. A "free returns" promise was caught in no
+  // language before this. Precision is held by tests/parity/rt-claims.test.ts
+  // (each pattern both ways); a new phrasing goes there with its reason.
+  { kind: 'guarantee', key: 'returns', re: /\b(?:free|easy|hassle[- ]free)\s+returns?\b|\breturns?\s+(?:are\s+|is\s+)?(?:accepted|free|welcome)\b|\b(?:return|exchange)\s+(?:it|them|any\s+item)?\s*(?:within|in)\s+\d+\s+days\b|\b\d+[- ]day\s+returns?\b|\byou\s+(?:can|may)\s+(?:return|exchange)\s+(?:it|them)\b/i },
+  { kind: 'guarantee', key: 'returns', re: /包退|退货|无理由退|退换|可以退回/ },
+  { kind: 'guarantee', key: 'returns', re: /إرجاع|استرجاع|الاسترجاع|ترجيع/ },
+  { kind: 'guarantee', key: 'returns', re: /\bdevoluci[oó]n(?:es)?\b|\bpuedes?\s+devolverl[oa]s?\b|\bretours?\s+(?:gratuits?|offerts?)\b|\bretour\s+gratuit\b|\bvous\s+pouvez\s+(?:le\s+|la\s+|les\s+)?retourner\b/i },
+  { kind: 'guarantee', key: 'refund', re: /退款|退钱|全额退/ },
+  { kind: 'guarantee', key: 'refund', re: /استرداد\s+(?:المبلغ|الأموال|المال|النقود)|(?:إعادة|رد)\s+المبلغ/ },
+  { kind: 'guarantee', key: 'warranty', re: /保修|质保|包换/ },
+  // Whole words, with و/ب and the article: «بضمان سنة» is a warranty, «لضمان» ("to make sure") is not.
+  { kind: 'guarantee', key: 'warranty', re: /(?<![\u0621-\u064a])(?:[وب]?(?:ال)?ضمان|مضمون[ةه]?|(?:ال)?كفالة)(?![\u0621-\u064a])/ },
+  { kind: 'guarantee', key: 'free_replacement', re: /免费换|免费更换/ },
+  { kind: 'guarantee', key: 'free_replacement', re: /استبدال\s+مجاني|الاستبدال\s+مجان/ },
+  { kind: 'shipping_method', key: 'free_shipping', re: /\bfree\s+(?:shipping|delivery)\b|\benv[ií]o\s+(?:gratis|gratuito)\b|\blivraison\s+(?:gratuite|offerte)\b/i },
+  { kind: 'shipping_method', key: 'free_shipping', re: /包邮|免运费|免费配送|免费送货/ },
+  { kind: 'shipping_method', key: 'free_shipping', re: /(?:الشحن|شحن|التوصيل|توصيل)\s+مجان/ },
+  { kind: 'shipping_method', key: 'express', re: /顺丰|特快|加急快递|شحن\s+سريع|توصيل\s+سريع/ },
+];
+
+/**
+ * RT — the promises a shop makes that the owner may allow on How you sell:
+ * one switch each, in every language the patterns above read.
+ */
+export const SHOP_PROMISES: readonly { readonly kind: ClaimKind; readonly key: string }[] = [
+  { kind: 'guarantee', key: 'refund' },
+  { kind: 'guarantee', key: 'returns' },
+  { kind: 'guarantee', key: 'warranty' },
+  { kind: 'guarantee', key: 'free_replacement' },
+  { kind: 'shipping_method', key: 'free_shipping' },
+  { kind: 'shipping_method', key: 'express' },
 ];
 
 /**

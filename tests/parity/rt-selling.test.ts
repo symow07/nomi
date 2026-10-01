@@ -35,7 +35,7 @@ describe('RT · the profiles', () => {
 describe('RT · the page', () => {
   const view = (kind: string | null, quantityFirst: boolean | null): SellingView => {
     const own = { quantityFirst };
-    return { kind, profile: profileOf(kind), own, answers: sellingAnswers(kind, own) };
+    return { kind, profile: profileOf(kind), own, answers: sellingAnswers(kind, own), promises: new Set<string>() };
   };
   it('asks in every language, marks what is usual for her kind, and shows what is in force', () => {
     for (const l of LOCALES) {
