@@ -104,11 +104,12 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     const review = (await get(app, cookie, at)).body;
     expect(review).toContain(t('en', 'import.flag.low_confidence'));
     expect(review).toContain(t('en', 'import.lessSure', { fields: t('en', 'import.field.price') }));
-    // Not added until its own tick.
-    const blocked = await submitReview(app, cookie, at);
-    expect(blocked.res.statusCode).toBe(400);
+    // Not added until its own tick: every other row checked, this one not — refused.
     const tote = rowKey(review, 'Tote bag');
-    const ok = await submitReview(app, cookie, at, { set: { [`tick:${tote}`]: 'on' } });
+    const apron = rowKey(review, 'Linen apron — 18 each, pack of 6');
+    const blocked = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on' } });
+    expect(blocked.res.statusCode).toBe(400);
+    const ok = await submitReview(app, cookie, at, { set: { [`tick:${apron}`]: 'on', [`tick:${tote}`]: 'on' } });
     expect(ok.res.statusCode).toBe(302);
     const p = (await admin.query(`select price_usd_per_unit::float as price from products where business_id = $1 and name = 'Tote bag'`, [BIZ])).rows[0];
     expect(p.price).toBe(39);
