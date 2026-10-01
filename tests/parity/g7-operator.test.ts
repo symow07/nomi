@@ -16,8 +16,10 @@ const src = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), 
 describe('G7 · stop new connections (KS6\'s flag)', () => {
   it('every step of connecting asks it first: Meta\'s start, its callback, the Page choice, and WhatsApp', () => {
     const app = src('src/api/web/app.ts');
-    expect(app.match(/if \(await connectionsStopped\(s\.businessId\)\) return channelsFlash\(reply, 'connect\.flash\.paused'\);/g)).toHaveLength(3);
-    expect(app).toContain("if (await connectionsStopped(s.businessId)) return flashTo(reply, '/app/channels', 'connect.flash.paused');");
+    // KS6 (0115) — the same question now also asks for the operator's approval of a first connection.
+    expect(app.match(/const refused = await connectionRefusal\(s\.businessId\);\n    if \(refused\) return channelsFlash\(reply, refused\);/g)).toHaveLength(3);
+    expect(app).toContain("if (refused) return flashTo(reply, '/app/channels', refused);");
+    expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused'");
   });
   for (const l of LOCALES) {
     it(`${l} · the refusal says nothing was connected and that what is connected keeps working`, () => {
@@ -44,7 +46,7 @@ describe('G7 · suspend (KS2, KS3)', () => {
 describe('G7 · the flags (KS4)', () => {
   it('force_draft is one row per capability but confirm_order, which always drafts', () => {
     expect([...(FORCE_DRAFT_CAPABILITIES as string[])].sort()).toEqual(['follow_up', 'greet', 'negotiate', 'qualify', 'quote', 'recommend']);
-    expect(OPERATOR_FLAGS).toEqual(['global_silence', 'force_draft', 'connections_off', 'practice_off']);
+    expect(OPERATOR_FLAGS).toEqual(['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections']);
   });
   for (const l of LOCALES) {
     it(`${l} · the daily list says which switch is still on, for whom, since when`, () => {

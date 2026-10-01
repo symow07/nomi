@@ -42,7 +42,9 @@ export async function signupDigestAlert(db: Db, operatorBusinessId: string, now:
     alerts: sends.find((s) => s.kind === 'alert')?.sent ?? 0,
     refused: sends.reduce((n, s) => n + s.refused, 0),
   };
-  if (rows.length === 0 && flags.length === 0 && forms.forms === 0 && mail.refused === 0) return null;
+  // KS6 — asks to connect a first channel, waiting for the operator's decision.
+  const approvals = (await sql<{ n: number }>`select connection_asks_waiting() as n`.execute(db)).rows[0]?.n ?? 0;
+  if (rows.length === 0 && flags.length === 0 && forms.forms === 0 && mail.refused === 0 && approvals === 0) return null;
   return {
     businessId: operatorBusinessId, kind: 'signup_digest', conversationId: null,
     signups: rows.map((r) => ({ business: r.name, kind: r.kind, country: r.country, at: r.signed_up_at.toISOString() })),
@@ -50,5 +52,6 @@ export async function signupDigestAlert(db: Db, operatorBusinessId: string, now:
     forms,
     ...(cohort.workspaces ? { cohort } : {}),
     ...(mail.codes || mail.alerts || mail.refused ? { mail } : {}),
+    ...(approvals ? { approvals } : {}),
   };
 }

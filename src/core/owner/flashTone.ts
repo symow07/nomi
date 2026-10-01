@@ -59,6 +59,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.flash.no_address', 'connect.flash.no_refresh_token', 'connect.flash.not_configured',
   // G7 — the operator stopped new connections.
   'connect.flash.paused',
+  // KS6 — the first connection waits for the operator; an address that is not one; an ask that did not go.
+  'connect.flash.approval', 'approval.flash.bad_page', 'approval.flash.failed',
   'connect.flash.rejected', 'connect.flash.unavailable', 'connect.meta.flash.no_pages',
   'connect.meta.flash.page_taken', 'connect.meta.flash.subscribe_failed', 'connect.meta.flash.unavailable',
   'contacts.flash.empty', 'contacts.flash.failed', 'contacts.flash.missing', 'contacts.flash.no_channel',
@@ -102,6 +104,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  // KS6 — asked; asked before; or nothing to ask.
+  'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed',
   // R2 — a conversation marked as the owner testing, or as a real customer again.
   'conv.testing.flash.on', 'conv.testing.flash.off',
   // 0082 — a date of the owner's own, put on the calendar or taken off it.

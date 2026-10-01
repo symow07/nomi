@@ -238,7 +238,9 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       // MAIL — yesterday's mail on the operator's list.
       codes: 12, alerts: 40, refused: 3,
       // KS5 — the installation's day against its ceiling.
-      tokens: '20,400,000', calls: '9,120', maxTokens: '20,000,000', maxCalls: '20,000' };
+      tokens: '20,400,000', calls: '9,120', maxTokens: '20,000,000', maxCalls: '20,000',
+      // KS6 — an ask to connect a first channel, and the daily count.
+      page: 'https://facebook.com/oudhouse', id: 'b0000000-0000-4000-8000-000000000001' };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

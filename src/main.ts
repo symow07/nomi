@@ -69,6 +69,7 @@ import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { signupDigestAlert } from './pipeline/signupDigest.js';
 import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
 import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
+import { connectionDecisionAlerts } from './pipeline/approvalWatch.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
 import { installCrashReporting } from './worker/appErrors.js';
@@ -1246,7 +1247,8 @@ export async function buildProduction(
   await boss.work(QUEUES.allowance, async () => {
     // KS5 — and the operator, once a day, when the installation passes its ceiling.
     const breaker = await spendBreakerAlert(db, PILOT_BUSINESS_ID);
-    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : [])]) {
+    // KS6 — and each decision on a first connection, told to its owner once.
+    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db)]) {
       await boss.send(QUEUES.notify, job satisfies NotifyJob);
     }
   });
