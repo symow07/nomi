@@ -12,6 +12,7 @@ import type { BusinessId } from '../core/types/ids.js';
 import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
+import { conversationUrl } from '../core/owner/addresses.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -63,6 +64,28 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
 export const goesByMail = (kind: AlertKind): boolean =>
   isOperatorAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed';
 
+/**
+ * G5 — the alerts about a customer that a stranger running Nomi must hear of:
+ * a hand-off, a customer who looks ready to buy, and a reply waiting for the
+ * owner (which had no alert at all). Each goes by E-MAIL to the owner's
+ * sign-in address, and by WhatsApp to the alert number where one is set — as
+ * these two always went. Most owners who sign up have no number set, and
+ * until now heard of nothing. Each needs `notify.<kind>.subject`.
+ */
+export const CUSTOMER_ALERT_KINDS = ['handoff', 'hot_lead', 'draft_waiting'] as const satisfies readonly AlertKind[];
+export const mailsToo = (kind: AlertKind): boolean => (CUSTOMER_ALERT_KINDS as readonly AlertKind[]).includes(kind);
+
+/**
+ * G5 — a reply waiting for the owner is told at most once an hour for a
+ * conversation: a customer who writes five lines makes five drafts, and the
+ * owner needs one e-mail to open it, not five.
+ */
+export const DRAFT_ALERT_EVERY_SECONDS = 3600;
+
+/** Where the alert's link opens: the conversation, at its newest message — the one address (CC-25). */
+export const alertLink = (base: string, conversationId: string): string =>
+  `${base.replace(/\/$/, '')}${conversationUrl(conversationId)}`;
+
 /** One open deletion request the operator must carry out soon, as the alert names it. */
 export type DeletionDueLine = {
   readonly business: string;
@@ -99,11 +122,14 @@ const DELETION_ALERT_LINES = 10;
 export function alertKindFor(effects: {
   readonly hotLeadAlert: boolean; readonly handoffAlert: boolean; readonly deletionAlert?: boolean;
   readonly orderProposed?: { readonly fresh: boolean } | null;
+  /** G5 — a reply now waits for the owner. The least of the alerts: any other one says it too. */
+  readonly draftCreated?: unknown;
 }): AlertKind | null {
   if (effects.deletionAlert) return 'deletion_requested';
   if (effects.orderProposed?.fresh) return 'order_proposed';
   if (effects.handoffAlert) return 'handoff';
   if (effects.hotLeadAlert) return 'hot_lead';
+  if (effects.draftCreated) return 'draft_waiting';
   return null;
 }
 
@@ -166,6 +192,8 @@ export type NotifyDeps = {
   readonly adapter: { sendText(to: string, body: string): Promise<SendResult> };
   /** The installation's own sender (A3). Null: no e-mail leaves this installation. */
   readonly mail?: OwnerMailer | null;
+  /** G5 — where the app is served (`PUBLIC_BASE_URL`): an alert links to its conversation. */
+  readonly publicBaseUrl?: string | null;
 };
 
 /**
@@ -190,6 +218,7 @@ export async function deliverOwnerAlert(deps: NotifyDeps, job: NotifyJob): Promi
   // queued it. The owner is on the Practice page, watching it happen.
   if (await withTenantTx(deps.db, bid.value, (tx) => isPracticeCopy(tx, bid.value))) return 'skipped_practice';
   if (goesByMail(job.kind)) return deliverOperatorAlert(deps, bid.value, job);
+  if (mailsToo(job.kind)) return deliverCustomerAlert(deps, bid.value, job);
 
   const found = await withTenantTx(deps.db, bid.value, async (tx) => {
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
@@ -252,6 +281,49 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     else if (r.retryable && sent === 0) throw new Error(`owner alert send failed (retryable): ${r.error}`);
   }
   if (tried === 0) { console.warn(`[notify] ${job.kind} alert has nowhere to go: no login e-mail or sender, and no live number`); return 'skipped_no_destination'; }
+  return sent > 0 ? 'sent' : 'failed_permanent';
+}
+
+/**
+ * G5 — an alert about a customer: by e-mail to the owner's sign-in address,
+ * and by WhatsApp to the alert number where one is set (as hand-offs and hot
+ * leads always went). The words name the assistant this conversation is with,
+ * and end with a link to it when the installation knows its own address.
+ *
+ * `sent` when one way delivered; a retryable WhatsApp failure throws for
+ * pg-boss to retry only when nothing was delivered — a retry after the e-mail
+ * left would send the e-mail twice.
+ */
+async function deliverCustomerAlert(deps: NotifyDeps, bid: BusinessId, job: NotifyJob): Promise<AlertOutcome> {
+  const conversationId = job.conversationId && UUID.test(job.conversationId) ? job.conversationId : null;
+  const found = await withTenantTx(deps.db, bid, async (tx) => {
+    const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
+      select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
+    const email = deps.mail ? await ownerLoginEmail(tx, bid) : null;
+    const name = row && (row.owner_phone || email)
+      ? (conversationId ? await assistantNameOfConversation(tx, bid, conversationId) : await mainAssistantName(tx, bid))
+      : null;
+    return { row, email, name };
+  });
+  if (!found.row) return 'skipped_no_destination';
+  const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
+  const words = renderOwnerAlert(locale, job.kind, found.name);
+  const body = deps.publicBaseUrl && conversationId
+    ? `${words}\n\n${t(locale, 'notify.open', { url: alertLink(deps.publicBaseUrl, conversationId) })}` : words;
+
+  let tried = 0; let sent = 0;
+  if (deps.mail && found.email) {
+    tried++;
+    const r = await deps.mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
+    if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
+  }
+  if (found.row.owner_phone) {
+    tried++;
+    const r = await deps.adapter.sendText(found.row.owner_phone, body);
+    if (r.ok) sent++;
+    else if (r.retryable && sent === 0) throw new Error(`owner alert send failed (retryable): ${r.error}`);
+  }
+  if (tried === 0) return 'skipped_no_destination';
   return sent > 0 ? 'sent' : 'failed_permanent';
 }
 

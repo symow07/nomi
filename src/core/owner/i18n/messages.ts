@@ -1106,6 +1106,12 @@ const EN = {
   // owner WhatsApp alerts (notify.team — reachable kinds only)
   'notify.hot_lead': 'A customer looks ready to buy — {name} is following up.',
   'notify.handoff': '{name} paused — a customer wants to talk to a person. The conversation is waiting for you.',
+  // G5 — a reply waiting, a hand-off, a hot lead: by e-mail too, with a link.
+  'notify.draft_waiting': '{name} wrote a reply for a customer. It waits for you to send it, change it or leave it.',
+  'notify.draft_waiting.subject': 'A reply is waiting for you',
+  'notify.handoff.subject': 'A customer is waiting for you',
+  'notify.hot_lead.subject': 'A customer looks ready to buy',
+  'notify.open': 'Open the conversation: {url}',
   'notify.deletion_requested': "A customer asked for their data to be deleted. Nothing was sent to them, and it needs an answer from you. The request is noted on the customer's page, where you decide what happens next.",
   'notify.deletion_requested.subject': 'A customer asked for their data to be deleted',
   // 0080 — an order waits for the owner's tap.
@@ -3956,6 +3962,12 @@ const ZH: Record<MessageKey, string> = {
   'conv.notFound': '找不到这位客户',
   'notify.hot_lead': '有位客户看起来准备下单，{name}正在跟进。',
   'notify.handoff': '客户想找真人谈，{name}已暂停回复，等你接手。',
+  // G5 — a reply waiting, a hand-off, a hot lead: by e-mail too, with a link.
+  'notify.draft_waiting': '{name}给一位客户写好了回复，等你发送、修改或不发。',
+  'notify.draft_waiting.subject': '有一条回复在等你',
+  'notify.handoff.subject': '有客户在等你',
+  'notify.hot_lead.subject': '有客户看起来准备下单',
+  'notify.open': '打开对话：{url}',
   'notify.deletion_requested': '有客户要求删除自己的数据。没有给对方发任何东西，这需要你来答复。这条要求已记在客户的页面上，下一步在那里决定。',
   'notify.deletion_requested.subject': '有客户要求删除自己的数据',
   // 0080 — an order waits for the owner's tap.
@@ -6755,6 +6767,12 @@ const AR: Record<MessageKey, string> = {
   'conv.notFound': 'العميل غير موجود',
   'notify.hot_lead': 'إشارة استعداد للشراء لدى أحد العملاء — والمتابعة في عهدة {name}.',
   'notify.handoff': 'توقّف ردّ {name} — عميل يطلب التحدث مع شخص. الأمر بانتظارك.',
+  // G5 — a reply waiting, a hand-off, a hot lead: by e-mail too, with a link.
+  'notify.draft_waiting': 'رد جاهز لأحد العملاء من {name}، بانتظار قرارك: الإرسال أو التعديل أو الترك.',
+  'notify.draft_waiting.subject': 'رد بانتظارك',
+  'notify.handoff.subject': 'أحد العملاء بانتظارك',
+  'notify.hot_lead.subject': 'إشارة استعداد للشراء لدى أحد العملاء',
+  'notify.open': 'فتح المحادثة: {url}',
   'notify.deletion_requested': 'وصل طلب من أحد العملاء بحذف البيانات. لم يُرسَل أي شيء إلى العميل، والأمر يحتاج إلى ردّ منك. الطلب مسجَّل في صفحة العميل، وهناك يُتَّخذ القرار التالي.',
   'notify.deletion_requested.subject': 'طلب حذف بيانات من أحد العملاء',
   // 0080 — an order waits for the owner's tap.

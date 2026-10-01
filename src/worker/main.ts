@@ -25,7 +25,7 @@ import {
 } from '../pipeline/received.js';
 import { parseBusinessId, parseConversationId } from '../core/types/ids.js';
 import { QUEUES, startBoss, INBOUND_WORK, inboundGroup, type InboundJob, type NotifyJob } from '../queue/boss.js';
-import { alertKindFor } from '../pipeline/notify.js';
+import { alertKindFor, DRAFT_ALERT_EVERY_SECONDS } from '../pipeline/notify.js';
 import { redactSecrets } from '../security/credentials.js';
 import {
   appErrorAlertsTo, deadLetter, isAppErrorAlertJob, makeErrorReporter, reportJobFailures, secretValuesIn,
@@ -230,7 +230,11 @@ export async function startWorker(
     if (alertKind) {
       await boss.send(QUEUES.notify, {
         businessId: input.businessId, kind: alertKind, conversationId: input.conversationId,
-      } satisfies NotifyJob, { singletonKey: `${input.businessId}:${alertKind}:${input.conversationId}` });
+      } satisfies NotifyJob, {
+        singletonKey: `${input.businessId}:${alertKind}:${input.conversationId}`,
+        // G5 — a waiting reply is told once an hour per conversation, however many drafts it makes.
+        ...(alertKind === 'draft_waiting' ? { singletonSeconds: DRAFT_ALERT_EVERY_SECONDS } : {}),
+      });
     }
     // NOTE: an `order.effects` job used to be enqueued here. Nothing ever
     // consumed it, so every confirmed order left a job to sit until pg-boss

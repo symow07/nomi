@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { alertKindFor, renderOwnerAlert, validateOwnerPhone, type AlertKind } from '../../src/pipeline/notify.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
-import { ASSISTANT_FALLBACK } from '../../src/core/owner/i18n/messages.js';
+import { ASSISTANT_FALLBACK, type MessageKey } from '../../src/core/owner/i18n/messages.js';
 
 describe('P3 · owner alerts (pure)', () => {
   it('alertKindFor maps events to neutral codes (no strings)', () => {
@@ -62,5 +63,35 @@ describe('P3 · owner alerts (pure)', () => {
         for (const zh of ['模型', '人工智能', '队列']) expect(s.includes(zh), `${l}/${k}:${zh}`).toBe(false);
       }
     }
+  });
+});
+
+describe('G5 · a waiting reply, a hand-off and a hot lead, by e-mail too', () => {
+  it('a waiting reply has its own alert, the least of them', async () => {
+    const { alertKindFor } = await import('../../src/pipeline/notify.js');
+    expect(alertKindFor({ handoffAlert: false, hotLeadAlert: false, draftCreated: { draftId: 'd' } })).toBe('draft_waiting');
+    expect(alertKindFor({ handoffAlert: true, hotLeadAlert: false, draftCreated: { draftId: 'd' } })).toBe('handoff');
+    expect(alertKindFor({ handoffAlert: false, hotLeadAlert: true, draftCreated: { draftId: 'd' } })).toBe('hot_lead');
+    expect(alertKindFor({ handoffAlert: false, hotLeadAlert: false, draftCreated: null })).toBeNull();
+  });
+  it('each has its words and an e-mail subject in every language, naming the assistant', async () => {
+    const { CUSTOMER_ALERT_KINDS, mailsToo } = await import('../../src/pipeline/notify.js');
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    for (const l of LOCALES) for (const k of CUSTOMER_ALERT_KINDS) {
+      expect(mailsToo(k)).toBe(true);
+      expect(t(l, `notify.${k}.subject` as MessageKey), `${l}:${k}`).not.toMatch(/^notify\./);
+      expect(renderOwnerAlert(l, k, 'Lily'), `${l}:${k}`).toContain('Lily');
+    }
+    expect(renderOwnerAlert('en', 'draft_waiting', 'Lily')).toBe('Lily wrote a reply for a customer. It waits for you to send it, change it or leave it.');
+  });
+  it('the link opens the conversation where the web app does', async () => {
+    const { alertLink } = await import('../../src/pipeline/notify.js');
+    const { conversationUrl } = await import('../../src/api/web/layout.js');
+    const id = '0b1e5c2a-6f1d-4c8e-9a3b-2d4f6a8b0c1d';
+    expect(alertLink('https://app.nomidoes.com/', id)).toBe(`https://app.nomidoes.com${conversationUrl(id)}`);
+  });
+  it('the worker tells a waiting reply once an hour per conversation', () => {
+    const src = readFileSync(new URL('../../src/worker/main.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/alertKind === 'draft_waiting' \? \{ singletonSeconds: DRAFT_ALERT_EVERY_SECONDS \}/);
   });
 });
