@@ -908,6 +908,7 @@ export function renderPhotoRefusal(reason: PhotoRefusal, locale: Locale, photo?:
     <div class="block">
       <p>${esc(t(locale, key as MessageKey, params))}</p>
       <p class="muted">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
-      ${deeper('/app/products/add', t(locale, reason === 'not_configured' ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
+      ${deeper('/app/products/add', t(locale, reason === 'not_configured' || reason === 'daily_limit' || reason === 'allowance_used'
+        ? 'product.photo.pasteInstead' : 'product.photo.retake'))}
     </div>`;
 }
