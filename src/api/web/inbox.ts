@@ -579,6 +579,8 @@ export type ConversationDetail = {
   /** CC-24 — the owner's own reply, kept when it was refused before it could be queued. */
   readonly ownerUnsentReply?: string | null;
   readonly ownership: ConversationOwnership;
+  /** R2 (0106) — the owner marked this conversation "this is me testing": it counts toward nothing. */
+  readonly ownerTesting?: boolean;
   /** M47/G12 — WHICH human holds it, raw. The ownership model reads it; this names it. */
   readonly heldBy?: string | null;
   /**
@@ -734,10 +736,10 @@ export async function loadConversationDetail(
       id: string; buyer: string | null; country: string | null;
       name_zh: string | null; name: string | null; qty: number | null;
       assigned_to: string | null; closed_at: Date | null; pending: number;
-      answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string;
+      answered_by: string | null; assistants: number; owner_unsent_reply: string | null; channel: string; owner_testing: boolean;
     }>`
       select c.id, c.channel, cl.display_name as buyer, cl.country, p.name_zh, p.name,
-             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply,
+             cs.inquiry_quantity as qty, c.assigned_to, c.closed_at, c.owner_unsent_reply, c.owner_testing,
              -- A5: the conversation's own assistant; one that started before
              -- there was a second belongs to the main one.
              coalesce(
@@ -918,6 +920,7 @@ export async function loadConversationDetail(
             translation: draft.translation && draft.translation_locale ? { text: draft.translation, locale: draft.translation_locale } : null }
         : null,
       ownerUnsentReply: head.owner_unsent_reply,
+      ownerTesting: head.owner_testing === true,
       ownership: ownershipOf(head.assigned_to),
       heldBy: head.assigned_to,
       answeredBy: head.assistants > 1 ? head.answered_by : null,
@@ -2001,6 +2004,11 @@ export function renderConversationDetail(
     ].filter(Boolean).join(' · ')}</div>` : ''}
     ${/* A — the buyer's own page (name, history, the deletion control) was reached from Customers; it is one door from here now. */ ''}${
       deeper(`/app/conversations/${encodeURIComponent(d.conversationId)}`, t(locale, 'conv.file.title'), 'file-door')}
+    ${/* R2 — "this is me testing": the owner's own messages to the shop count toward nothing on the ramp. */ ''}${
+      viewer.isOwner ? `<form method="post" action="/app/inbox/${esc(encodeURIComponent(d.conversationId))}/testing" class="inline testing">
+      ${d.ownerTesting ? `<span class="muted small">${esc(t(locale, 'conv.testing.on'))}</span>` : ''}
+      <input type="hidden" name="testing" value="${d.ownerTesting ? 'off' : 'on'}" />
+      <button class="btn ghost quiet" type="submit">${esc(t(locale, d.ownerTesting ? 'conv.testing.unmark' : 'conv.testing.mark'))}</button></form>` : ''}
     ${log}
     ${flashHtml}
     ${acts}`;
