@@ -17,6 +17,7 @@ under "Decided" below.
 
 | When | PR | What | Schema |
 |---|---|---|---|
+| 2026-10-01 | #167 | **RT, part one — a shop gives the price first** (0095, `businesses.quantity_first`; NULL follows the kind): three profiles (bulk = manufacturer, trading, wholesale and a workspace with no kind — Westlake's behaviour unchanged; services = agency, services; retail = everyone else). Price first (retail and services): the product known and no quantity, the turn quotes at the smallest quantity sold (`startingQuantity`) and tells the writer and the analyser; a quantity the customer never named is never refused to them. A brand on "sells" sends its price alone; at "talks" it waits (the test that holds "retail reaches sells"). A new product's unit is `item` for retail, `pcs` otherwise; no import has written a default minimum since 0081, so nothing else was needed there. The owner's own answer on How you sell (owner-only, audited). Samples and the proforma were in the first draft and taken out before 0095 ran anywhere but locally (the plan: "no incoterm item"). Live check before/after (deepseek-flash): all four shops (en/zh/ar/es) asked "how many?" before, all four priced after, the factory control none; `check-person-model` unchanged. Pre-pilot 12/12 before and after. Merged 00:39 UTC, deployed, `/health` ok, schema 95 | 95 |
 | 2026-10-01 | #166 | **K8 — store import**: a shop's address (https, a public name; the fetcher's own lookup refuses private, loopback and link-local answers at connect time; 3 redirects re-checked; 10 s; 5 MB) read as Shopify's `/products.json` or WooCommerce's Store API; or a file or pasted table through a columns page (presets for Shopify, WooCommerce, Etsy; a compare-at column never offered as the price). Each price of a product is a row, variants sharing a price stay one, options become the product's knowledge; a stated other currency adds nothing, none stated needs the owner's tick; every row through K1's review. Merged 00:01 UTC (no migration) | 94 |
 | 2026-09-30 | #165 | **K6 — ask about three of these**: after a list is added, the products list offers "Ask {name} about three of these"; Practice opens with up to three questions about that import's products (a price question for a priced one, "do you have …" otherwise), each a door that fills the box, the first already in it; only this business's confirmed import asks. Merged 23:41 UTC (no migration) | 94 |
 | 2026-09-30 | #164 | **K5 — prices go to the owner**: the owner's choice on the add page (owner-only, audited; completes Setup's products step; copied to Practice); layer 1 — a price question (the analysis's `price_request`) is handed to her (`price_to_owner`) with the ordinary sentence, no writer, and no quote ever worked out; layer 2 — any reply that states a price (`statesAPrice`: a currency mark beside a figure, a price word) is thrown away and the turn is the same hand-off. Corpus both ways; each layer switched off fails its own tests. Pre-pilot 12/12 before and after. Merged 23:18 UTC, deployed (no migration) | 94 |
@@ -84,8 +85,9 @@ as the plan recommends, unless the instruction says otherwise. The order:
    RT **in full**, HS. **Corrected by the owner the same day:** "do not
    touch price-after-quantity" was scoped to the positioning pass only. RT
    makes three things one piece of work, conditional on the kind of
-   business: retail and brand businesses (retail, brand, online shop — the
-   plan's retail kinds, the same set Practice already uses) quote a unit
+   business: retail and brand businesses (brand, online shop, retail — and,
+   my call, a startup and "something else" with them; agencies and services
+   give the price first too) quote a unit
    price without asking the quantity first, count in whatever unit fits the
    goods, and import without a minimum; factories, exporters and wholesalers
    keep quantity first, "pcs" and minimums. Retail and brand businesses must

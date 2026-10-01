@@ -40,7 +40,7 @@ import {
   disconnectChannel, reconnectChannel, testChannel, saveOwnerPhone, connectConfiguredNumber,
 } from './channels.js';
 import {
-  loadProductList, loadProductDetail, renderProductList, renderProductDetail,
+  loadProductList, loadProductDetail, renderProductList, renderProductDetail, businessKind,
   renderAddForm, updateProduct, renderPhotoRefusal, type PhotoRefusal,
 } from './products.js';
 import {
@@ -51,7 +51,7 @@ import {
 import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
-import { loadSelling, saveSelling, renderSelling } from './selling.js';
+import { loadSelling, saveSelling, saveShopPromises, renderSelling } from './selling.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
@@ -2404,7 +2404,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const imported = (req.query as { import?: unknown }).import;
     const ask = typeof imported === 'string'
       ? renderAskAboutThree(locale, imported, (await importedProducts(deps.db, s.businessId, imported)).length) : '';
-    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s)) + ask;
+    return renderProductList(await loadProductList(deps.db, s.businessId), locale, flash, personOf(s),
+      await businessKind(deps.db, s.businessId)) + ask;
   }));
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
@@ -2658,6 +2659,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       name: b['name'] ?? null,
       nameZh: b['nameZh'] ?? null,
       customerNames: b['customerNames'] ?? null,
+      leadTime: b['leadTime'] ?? null,
     });
     const locale = localeOf(req);
     if (!r.ok) {
@@ -2682,6 +2684,15 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const b = (req.body ?? {}) as Record<string, string | undefined>;
     const r = await saveSelling(deps.db, s.businessId, personOf(s).id, String(b['field'] ?? ''), String(b['value'] ?? ''));
     return flashTo(reply, '/app/business/selling', r === 'saved' ? 'selling.flash.saved' : r === 'unchanged' ? 'selling.flash.unchanged' : 'selling.flash.invalid');
+  });
+  /** RT — the shop promises she allows: the boxes as she leaves them. */
+  app.post('/app/business/selling/promises', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/selling');
+    if (!s) return reply;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const ticked = new Set(Object.keys(b).filter((k) => k.startsWith('promise:') && b[k] === 'on').map((k) => k.slice('promise:'.length)));
+    const n = await saveShopPromises(deps.db, s.businessId, personOf(s).id, ticked);
+    return flashTo(reply, '/app/business/selling', n > 0 ? 'selling.flash.saved' : 'selling.flash.unchanged');
   });
 
   // ── M29 Price limits: the three questions, reached from My factory ────────

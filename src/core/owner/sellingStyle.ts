@@ -17,6 +17,15 @@
 /** A shop or a brand: a customer asks "how much?" before "how many?" (the retail profile, below). */
 export const isRetailKind = (kind: string | null | undefined): boolean => profileOf(kind) === 'retail';
 
+/**
+ * RT — a business that sells by quantity (bulk) states the minimum on every
+ * product, "no minimum" included, and the quantity each price starts at. A
+ * shop, a brand or an agency shows a minimum only where one is set, and a
+ * single price as the price: "$12.00", not "1 item: $12.00 · Min. order: No
+ * minimum".
+ */
+export const sellsByQuantity = (kind: string | null | undefined): boolean => profileOf(kind) === 'bulk';
+
 /** The unit a new product counts in, until the owner says otherwise. */
 export const defaultUnitFor = (kind: string | null | undefined): string => (isRetailKind(kind) ? 'item' : 'pcs');
 

@@ -110,6 +110,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       select prices_to_owner as on from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.on)),
     quantityFirst: await tx((t) => sql<{ v: boolean | null }>`
       select quantity_first as v from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.v)),
+    // RT — what she allows the assistant to promise.
+    claims: await rows('claims_policy', 'x.kind, x.claim_key'),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -127,7 +129,7 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/channels/whatsapp/disconnect', ''],
     ['/app/channels/whatsapp/reconnect', ''],
     ['/app/settings/owner-phone', 'phone=%2B971500002222'],
-    [`/app/products/${PID}/edit`, 'price=0.10&moq=1&unit=pcs'],
+    [`/app/products/${PID}/edit`, 'price=0.10&moq=1&unit=pcs&leadTime=9'],
     ['/app/products/add/review', `text=${encodeURIComponent('Staff mug $0.20 MOQ 10')}`],
     ['/app/products/add/confirm', `text=${encodeURIComponent('Staff mug $0.20 MOQ 10')}`],
     ['/app/settings/rate', 'rate=9.99'],
@@ -138,6 +140,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/products/prices-to-me', 'on=1'],
     // RT — whether a price comes before the quantity is money too.
     ['/app/business/selling', 'field=quantityFirst&value=no'],
+    // RT — a refund, a return or free shipping promised is money too.
+    ['/app/business/selling/promises', 'promise:returns=on&promise:free_shipping=on'],
   ];
 
   beforeAll(async () => {

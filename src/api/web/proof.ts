@@ -11,6 +11,7 @@ import { t, assistantName } from './say.js';
 import { publicDocument, esc } from './layout.js';
 import { ownSku } from '../../core/owner/sku.js';
 import * as show from './values.js';
+import { sellsByQuantity } from '../../core/owner/sellingStyle.js';
 
 /**
  * M35 — the proof link. The FIRST buyer-facing surface this product has.
@@ -65,6 +66,11 @@ export type ProofView = {
   readonly tier: { readonly minQty: number; readonly maxQty: number | null } | null;
   /** 0081 — null: the product has no minimum, and the page says so. */
   readonly moq: number | null;
+  /**
+   * RT — the seller's kind. A shop's page states a minimum only where one is
+   * set, and no price band for a single price. Absent: bulk, as before.
+   */
+  readonly sellerKind?: string | null;
   /** G5 — the lead time the QUOTE stated, never the product's. */
   readonly leadTimeDays: number | null;
   /**
@@ -155,11 +161,12 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       product_id: string; name: string; name_zh: string | null; sku: string;
       unit: string; moq: number | null; lead_time_days: number | null;
       lead_time_withheld: { label?: unknown; from?: unknown; to?: unknown } | null; seller: string;
+      seller_kind: string | null;
     }>`
       select q.quantity, q.unit_price_usd, q.total_usd, q.currency, q.created_at,
              p.id as product_id, p.name, p.name_zh, p.sku, p.unit, p.moq,
              q.lead_time_days, q.lead_time_withheld,
-             b.name as seller
+             b.name as seller, b.kind as seller_kind
         from quotes q
         join products p on p.id = q.product_id
         join businesses b on b.id = q.business_id
@@ -231,6 +238,7 @@ export async function loadProof(db: Db, token: string): Promise<ProofView | null
       total,
       tier: tier ? { minQty: tier.min_qty, maxQty: tier.max_qty } : null,
       moq: q.moq,
+      sellerKind: q.seller_kind,
       leadTimeDays: q.lead_time_days,
       leadTimeWithheld: q.lead_time_withheld && typeof q.lead_time_withheld.label === 'string'
         ? { label: q.lead_time_withheld.label,
@@ -298,6 +306,7 @@ export function renderProof(v: ProofView): string {
     </div>`;
 
   const qty = `${v.quantity.toLocaleString('en-US')} ${v.unit}`;
+  const byQuantity = sellsByQuantity(v.sellerKind);
   const tierText = v.tier
     ? (v.tier.maxQty === null
         ? t(l, 'proof.tier.from', { min: v.tier.minQty.toLocaleString('en-US'), unit: v.unit })
@@ -314,8 +323,10 @@ export function renderProof(v: ProofView): string {
     fact(t(l, 'proof.fact.quantity'), qty),
     fact(t(l, 'proof.fact.unitPrice'), show.money(l, v.unitPrice)),
     fact(t(l, 'proof.fact.total'), show.money(l, v.total)),
-    ...(tierText ? [fact(t(l, 'proof.fact.tier'), tierText)] : []),
-    fact(t(l, 'proof.fact.moq'), v.moq === null ? t(l, 'product.noMinimum') : `${v.moq.toLocaleString('en-US')} ${v.unit}`),
+    // RT — a single price ("from 1") is no band, and no minimum is nothing to state, for a shop.
+    ...(tierText && (byQuantity || !(v.tier!.minQty <= 1 && v.tier!.maxQty === null)) ? [fact(t(l, 'proof.fact.tier'), tierText)] : []),
+    ...(v.moq === null && !byQuantity ? []
+      : [fact(t(l, 'proof.fact.moq'), v.moq === null ? t(l, 'product.noMinimum') : `${v.moq.toLocaleString('en-US')} ${v.unit}`)]),
     ...(v.leadTimeDays !== null
       ? [fact(t(l, 'proof.fact.leadTime'), t(l, 'proof.days', { n: v.leadTimeDays }))]
       // G5 — no date, and the page says WHY: her closure, in her words, with
