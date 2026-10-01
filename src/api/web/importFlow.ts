@@ -254,7 +254,7 @@ function editsFrom(b: Body, rows: readonly ImportRow[]): ReadonlyMap<string, Row
     if (!drawn.has(r.key)) continue;
     const f = (name: string) => b[`${name}:${r.key}`];
     out.set(r.key, {
-      name: f('name'), price: f('price'), unit: f('unit'), moq: f('moq'), names: f('names'),
+      name: f('name'), price: f('price'), unit: f('unit'), moq: f('moq'), names: f('names'), options: f('options'),
       noMinimum: f('moq') !== undefined ? f('nomin') === 'on' : undefined,
       removed: f('remove') === 'on',
       ticked: ticks.has(r.key) ? f('tick') === 'on' : undefined,
@@ -488,7 +488,7 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
   // K7 — a challenge row keeps what was read hidden: its price, its line, its price box.
   const summary = asking
     ? `<b dir="auto">${esc(r.name)}</b> <span class="muted">${esc(t(locale, 'import.row.challengeHidden'))}</span>`
-    : `<b dir="auto">${esc(r.name)}</b> <span class="muted">${price} · ${esc(unitLabel(locale, r.unit))} · ${esc(minimum)}</span>`;
+    : `<b dir="auto">${esc(r.name)}</b> <span class="muted">${price} · ${esc(unitLabel(locale, r.unit))} · ${esc(minimum)}</span>${r.options ? ` <span class="muted small" dir="auto">${esc(r.options)}</span>` : ''}`;
   return `
     <div class="imp-row${open ? ' need' : ''}${r.removed ? ' out' : ''}" id="row-${esc(r.key)}">
       <div class="imp-h">
@@ -508,6 +508,7 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
         <label>${esc(t(locale, 'import.row.moq'))} <input type="text" inputmode="numeric" name="moq:${esc(r.key)}" value="${esc(v('moq', r.moq === null ? '' : String(r.moq)))}" /></label>
         <label class="pcheck"><input type="checkbox" name="nomin:${esc(r.key)}"${r.moq === null ? ' checked' : ''} /> ${esc(t(locale, 'product.noMinimum'))}</label>
         <label>${esc(t(locale, 'import.row.names'))} <input type="text" name="names:${esc(r.key)}" value="${esc(v('names', r.names.join(', ')))}" dir="auto" /></label>
+        ${r.options !== undefined || m.imp.kind === 'store' || m.imp.kind === 'file' ? `<label>${esc(t(locale, 'import.row.options'))} <input type="text" name="options:${esc(r.key)}" value="${esc(v('options', r.options ?? ''))}" dir="auto" maxlength="600" /></label>` : ''}
         <span class="muted small">${esc(t(locale, 'import.row.namesHint'))}</span>
         <label class="pcheck"><input type="checkbox" name="remove:${esc(r.key)}"${r.removed ? ' checked' : ''} /> ${esc(t(locale, 'import.row.remove'))}</label>
       </details>

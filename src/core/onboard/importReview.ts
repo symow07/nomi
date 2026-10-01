@@ -77,6 +77,8 @@ export type ImportRow = {
   readonly productId?: string;
   /** G16 — a row that changes a product she has: false once she unticked the change (on until then). */
   readonly apply?: boolean;
+  /** K8 — the options a store gave (sizes, colours, shades): the product's knowledge, never a price. */
+  readonly options?: string;
 };
 
 /** What the review needs to know about the business to read its rows. */
@@ -201,6 +203,8 @@ export type RowEdit = {
   readonly moq?: string | undefined;
   readonly noMinimum?: boolean | undefined;
   readonly names?: string | undefined;
+  /** K8 — the options line; empty clears it. */
+  readonly options?: string | undefined;
   readonly removed?: boolean | undefined;
   readonly ticked?: boolean | undefined;
 };
@@ -256,6 +260,11 @@ export function editRow(row: ImportRow, e: RowEdit): { readonly row: ImportRow; 
     if (m === '') set('moq', null);
     else if (!/^\d+$/.test(m) || Number(m) < 1) errors.push('moq_not_whole');
     else set('moq', Number(m) === 1 ? null : Number(m));
+  }
+  if (e.options !== undefined) {
+    const o = e.options.replace(/\s+/g, ' ').trim().slice(0, 600);
+    if (o === '') { if (next.options !== undefined) { const { options: _gone, ...rest } = next; next = rest; edited = true; } }
+    else set('options', o);
   }
   if (e.names !== undefined) {
     // The product page's own rule (T3): one per line or comma, refused whole, never cut.

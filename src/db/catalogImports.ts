@@ -65,6 +65,7 @@ function rowOf(x: unknown): ImportRow | null {
     edited: o['edited'] === true,
     ...(str(o['productId']) ? { productId: str(o['productId'])! } : {}),
     ...(typeof o['apply'] === 'boolean' ? { apply: o['apply'] } : {}),
+    ...(str(o['options']) ? { options: str(o['options'])! } : {}),
   };
 }
 
