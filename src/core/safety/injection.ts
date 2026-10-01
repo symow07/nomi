@@ -1,3 +1,4 @@
+import type { FixedLanguage } from '../conversation/gateLanguage.js';
 /**
  * Prompt-injection screen. Runs BEFORE any AI call.
  *
@@ -40,6 +41,14 @@ const PATTERNS: readonly RegExp[] = [
   /\b(?:fais|faites)\s+semblant\s+d['’][êe]tre\b/i,
   /\b(?:r[ée]v[èe]le|r[ée]v[ée]lez|montre|montrez)[-\s](?:moi\s+)?(?:tes|vos)\s+(?:instructions|r[èe]gles|consignes|prompt)\b/i,
   /prompt\s+(?:del\s+)?sistema|prompt\s+syst[èe]me/i,
+  // Portuguese (the pt pack, 2026-10-01). "Você é um robô?" is a question
+  // about what answers (the identity guard's), never an attempt: a new role
+  // needs «agora» or «a partir de agora».
+  /\b(?:ignore|ignora|ignorem|esque[çc]a|esquece|esque[çc]am)\s+(?:todas\s+)?(?:as\s+)?(?:suas\s+)?(?:instru[çc][õo]es|regras)(?:\s+(?:anteriores|acima))?\b/i,
+  /\b(?:agora\s+voc[eê]\s+[eé]|a\s+partir\s+de\s+agora\s+voc[eê]\s+[eé])\s+(?:um|uma|outro|outra)\b/i,
+  /\b(?:finja|finge|fa[çc]a\s+de\s+conta)\s+(?:ser|que\s+(?:[eé]|voc[eê]\s+[eé]))\b/i,
+  /\b(?:revele|mostre|me\s+mostre|me\s+diga)\s+(?:as\s+)?(?:suas|tuas)\s+(?:instru[çc][õo]es|regras|prompt)\b/i,
+  /prompt\s+do\s+sistema/i,
 ];
 
 export type InjectionVerdict =
@@ -58,8 +67,11 @@ export function detectInjection(text: string): InjectionVerdict {
  * Returned instead of an AI reply. Costs nothing and reveals nothing. LG — in
  * the customer's language where it is one of Nomi's three (`fixedLanguage`).
  */
-export const SAFE_FALLBACK_REPLIES: Readonly<Record<'en' | 'zh' | 'ar', string>> = {
+export const SAFE_FALLBACK_REPLIES: Readonly<Record<FixedLanguage, string>> = {
   en: 'Thanks for your message — what are you looking for today?',
   zh: '谢谢你的消息——今天想找什么呢？',
   ar: 'شكرًا على الرسالة — ما المطلوب اليوم؟',
+  es: 'Gracias por tu mensaje. ¿Qué estás buscando hoy?',
+  fr: "Merci pour votre message. Que recherchez-vous aujourd'hui ?",
+  pt: 'Agradecemos a mensagem. O que você procura hoje?',
 };

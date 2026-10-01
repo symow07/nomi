@@ -437,13 +437,14 @@ describe('nothing is sent alone until the disclosure has had native review', () 
     const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, disclosureStanding } = await import('../../src/core/conversation/disclosure.js');
     // zh and ar were read by the owner on 2026-09-28; es and fr were added
     // on 2026-09-29 and wait for a reviewer. Flipping them is a person's act.
-    expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
-    // Per language since 2026-09-30 (the owner): the unread two hold their own
+    // pt joined them with its pack (2026-10-01), unread too.
+    expect(disclosureAwaitingReview()).toEqual(['es', 'fr', 'pt']);
+    // Per language since 2026-09-30 (the owner): the unread ones hold their own
     // customers' replies, not everyone's (#124 had stopped every workspace).
     expect(autonomyReleased()).toBe(true);
     for (const l of ['en', 'zh', 'zh-Hans', 'ar', 'ar-EG', null, '']) expect(autonomyReleasedFor(l), String(l)).toBe(true);
-    for (const l of ['es', 'fr', 'fr-CA']) expect(disclosureStanding(l), l).toBe('unreviewed');
-    for (const l of ['pt', 'de', 'ru', 'und']) expect(disclosureStanding(l), l).toBe('unwritten');
+    for (const l of ['es', 'fr', 'fr-CA', 'pt', 'pt-BR']) expect(disclosureStanding(l), l).toBe('unreviewed');
+    for (const l of ['de', 'ru', 'und']) expect(disclosureStanding(l), l).toBe('unwritten');
     for (const l of ['es', 'fr', 'pt', 'de']) expect(autonomyReleasedFor(l), l).toBe(false);
   });
 });
@@ -484,17 +485,29 @@ describe('the gate is per language (the owner, 2026-09-30): each customer\'s own
     });
   }
 
-  it('a language with no sentence at all (Portuguese): a draft — never an English sentence, never a translation made up for the occasion', async () => {
+  // German since the pt pack (2026-10-01) gave Portuguese a sentence of its own (unread, so its replies still wait).
+  it('a language with no sentence at all (German): a draft — never an English sentence, never a translation made up for the occasion', async () => {
+    const p = ports('auto');
+    await real(p);
+    seed(p);
+    p.analyzer.next = analysis('de');
+    p.replyWriter.replies = ['Wir machen Taschen aus Segeltuch.'];
+    const { sent, drafts, events } = await run(p, 'Hallo, haben Sie Taschen?');
+    expect(sent).toBeNull();
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.draftText).not.toContain('AI assistant');
+    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'language_without_disclosure', language: 'de' });
+  });
+
+  it('Portuguese has its sentence now, unread: a draft, and the card says it awaits a native reader', async () => {
     const p = ports('auto');
     await real(p);
     seed(p);
     p.analyzer.next = analysis('pt');
     p.replyWriter.replies = ['Fazemos sacolas de lona.'];
-    const { sent, drafts, events } = await run(p, 'Olá');
+    const { sent, events } = await run(p, 'Olá, vocês têm sacolas?');
     expect(sent).toBeNull();
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0]!.draftText).not.toContain('AI assistant');
-    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'language_without_disclosure', language: 'pt' });
+    expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'disclosure_not_reviewed', language: 'pt' });
   });
 
   it('a capability in draft is untouched: nothing was going alone, nothing is withheld', async () => {

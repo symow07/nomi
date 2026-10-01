@@ -32,6 +32,7 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
   const outbox: { to: string; subject: string; text: string }[] = [];
+  const errorAlerts: { to: string; subject: string; text: string }[] = [];
   const form = (url: string, fields: Record<string, string>, cookie = '') => prod.app.inject({
     method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `203.0.113.${RUN.charCodeAt(1) % 200}`, ...(cookie ? { cookie } : {}) },
     payload: new URLSearchParams(fields).toString(),
@@ -65,7 +66,13 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     }, {
       adapter: whatsappSimulator([], { tag: `g1${RUN}` }).adapter, media: {},
       models: offlineModels(), logger: false,
-      systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } },
+      // The installation's own error alerts go to the same operator by the same
+      // sender: the suite fails on purpose elsewhere, and a held one can be
+      // released while this file runs (found 2026-10-01 on CI's second pass).
+      // They are kept apart — this file is about sign-up mail.
+      systemMail: { from: 'no-reply@nomi.test', send: async (m) => {
+        (m.subject === t('en', 'notify.app_error.subject') ? errorAlerts : outbox).push(m); return { ok: true };
+      } },
     } as Parameters<typeof buildProduction>[1]);
   }, 90_000);
   afterAll(async () => {

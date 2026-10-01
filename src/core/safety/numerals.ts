@@ -52,9 +52,9 @@ const COMMERCIAL_CONTEXT = new RegExp(
     /(?:\brp\.?|\brs\.?|د\.إ|ر\.س)\s*\d[\d.,]*/.source,
     /\d[\d.,]*\s*(?:rupiah|rupees?|reais|pesos?|riyals?|dirhams?)\b/.source,
     /\d[\d,]*(?:\.\d+)?\s*%/.source,                             // 12%, 5 %
-    /\d[\d,]*(?:\.\d+)?\s*(?:percent|dollars?|usd|rmb|yuan|euros?|por\s+ciento|pour\s+cent|d[oó]lares|dollars?\s+am[ée]ricains?)/.source,
-    // Spanish and French: "descuento del 3", "une remise de 5".
-    /(?:descuento|rebaja|dep[oó]sito|anticipo|remise|r[ée]duction|acompte|frais)\s+(?:de(?:l)?\s+|d['’])?\d[\d,]*(?:\.\d+)?/.source,
+    /\d[\d,]*(?:\.\d+)?\s*(?:percent|dollars?|usd|rmb|yuan|euros?|por\s+ciento|por\s+cento|pour\s+cent|d[oó]lares|dollars?\s+am[ée]ricains?)/.source,
+    // Spanish, French and Portuguese: "descuento del 3", "une remise de 5", "desconto de 10".
+    /(?:descuento|rebaja|dep[oó]sito|anticipo|remise|r[ée]duction|acompte|frais|desconto|abatimento|sinal|entrada)\s+(?:de(?:l)?\s+|d['’])?\d[\d,]*(?:\.\d+)?/.source,
     /(?:discount|off|deposit|surcharge|fee)\s+(?:of\s+)?\d[\d,]*(?:\.\d+)?/.source,
     // 0081 — a MINIMUM ORDER is a commitment like a price: "minimum order is
     // 1" for a product with no minimum is as invented as "$1". A figure after

@@ -50,6 +50,8 @@ export const FORBIDDEN_FLOOR: readonly string[] = [
   'mierda', 'estúpido', 'estúpida', 'imbécil', 'mentiroso', 'mentirosa', 'cabrón', 'gilipollas', 'pendejo',
   // Français. 'imbécile' is caught by 'imbécil'; 'idiote' by 'idiot'.
   'merde', 'putain', 'connard', 'connasse', 'menteur', 'menteuse', 'crétin', 'salaud',
+  // Português (the pt pack, 2026-10-01). 'idiota' is caught by 'idiot'; 'mentiroso' and 'mentirosa' are Spanish's too, above.
+  'merda', 'porra', 'caralho', 'babaca', 'otário', 'otária', 'imbecil', 'cretino', 'cretina', 'vagabundo', 'vagabunda',
 ];
 
 export type ForbiddenTerm = {

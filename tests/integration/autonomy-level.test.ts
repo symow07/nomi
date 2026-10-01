@@ -167,8 +167,9 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     // the same commit that updates this assertion. Since 2026-09-30 the gate
     // is per language (the owner): es/fr customers' replies wait; en/zh/ar go.
     const { disclosureAwaitingReview, autonomyReleased, autonomyReleasedFor, DISCLOSURE_NATIVE_REVIEW } = await import('../../src/core/conversation/disclosure.js');
-    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false });
-    expect(disclosureAwaitingReview()).toEqual(['es', 'fr']);
+    // Updated deliberately again (rule 1): the pt pack (2026-10-01) added Portuguese, awaiting review like es and fr.
+    expect(DISCLOSURE_NATIVE_REVIEW).toEqual({ en: true, zh: true, ar: true, es: false, fr: false, pt: false });
+    expect(disclosureAwaitingReview()).toEqual(['es', 'fr', 'pt']);
     expect(autonomyReleased()).toBe(true);
     expect(['en', 'zh', 'ar', 'es', 'fr', 'pt'].map((l) => autonomyReleasedFor(l))).toEqual([true, true, true, false, false, false]);
   });
@@ -196,12 +197,12 @@ d('T1 · no autonomy until the disclosure has been read (requires DATABASE_URL)'
     expect(flashSaid(res, SECRET)).not.toContain('still being checked');
   });
 
-  it('and the page names the languages whose replies wait — it reads the real flags (es and fr, and any other language)', async () => {
+  it('and the page names the languages whose replies wait — it reads the real flags (es, fr and pt, and any other language)', async () => {
     const res0 = await app.inject({ method: 'POST', url: '/login', payload: `code=${GATE_CODE}`, headers: FORM });
     const cookie = String(res0.headers['set-cookie'] ?? '').split(';')[0] ?? '';
     const page = await app.inject({ method: 'GET', url: '/app/employee', headers: { cookie } });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('English, Chinese, and Arabic');
-    expect(page.body).toContain('Spanish and French, or in any other language, wait for you');
+    expect(page.body).toContain('Spanish, French, and Portuguese, or in any other language, wait for you');
   });
 });

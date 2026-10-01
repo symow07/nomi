@@ -74,7 +74,18 @@ export const REQUESTS: Record<string, readonly string[]> = {
     'Eliminen todos mis datos personales',
     'Borra mi historial',
   ],
-  pt: ['Por favor apaguem os meus dados'],
+  // The pt pack (2026-10-01).
+  pt: [
+    'Por favor apaguem os meus dados',
+    'Quero que meus dados sejam apagados',
+    'Me tire da sua lista de contatos',
+    'Exclua minha conta e minhas mensagens',
+    'Quero exercer meu direito ao esquecimento',
+    'Apaguem meu número da sua lista, por favor',
+    'Excluam todos os meus dados pessoais',
+    'Apague meu histórico',
+    'Delete meu cadastro, por favor',
+  ],
   de: ['Bitte löschen Sie meine Daten'],
   ru: ['Удалите мои данные, пожалуйста'],
   tr: ['Lütfen kişisel verilerimi silin', 'LÜTFEN KİŞİSEL VERİLERİMİ SİLİN'],
@@ -82,6 +93,17 @@ export const REQUESTS: Record<string, readonly string[]> = {
 
 /** Passing mentions: a deletion word, and nothing about the buyer's own data. */
 export const NOT_REQUESTS: Record<string, readonly string[]> = {
+  pt: [
+    'Apaga a linha do orçamento',                               // a line of the quote
+    'Remova o logo da bolsa',
+    'Exclua o item 3',
+    'Apaguei meu e-mail sem querer, te mando de novo',          // the buyer's own act
+    'Exclua meu pedido anterior e faça um novo',                // an order, not their data
+    'Tire as alças e coloque um zíper',
+    'Não esqueça de me avisar quando chegarem as cores',        // "don't forget"
+    'Vocês apagam os dados depois do pedido?',                  // a question about practice
+    'Remova meu nome da estampa da bolsa',                      // their name on the print
+  ],
   fr: [
     'Supprimez la ligne du devis',                               // a line of the quote
     'Retirez le logo du sac',
@@ -179,6 +201,9 @@ export const PROMISES: readonly string[] = [
   'Wir werden Ihre Daten löschen.',
   'Мы удалили ваши данные.',
   'Verilerinizi sildik.',
+  'Apagamos os seus dados.',
+  'Seus dados foram excluídos.',
+  'Vamos apagar o seu número.',
 ];
 
 export const NOT_PROMISES: readonly string[] = [
@@ -199,4 +224,6 @@ export const NOT_PROMISES: readonly string[] = [
   'Nous avons retiré le logo de la maquette.',
   'He borrado la línea duplicada del presupuesto.',
   'Hemos eliminado el logo del diseño.',
+  'Apaguei a linha duplicada do orçamento.',
+  'Removemos o logo do layout.',
 ];

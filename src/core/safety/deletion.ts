@@ -137,9 +137,13 @@ const OTHER: readonly RegExp[] = [
   /\b(?:b[oó]rrame|b[oó]rrenme|elim[ií]name|elim[ií]nenme|s[aá]came|s[aá]quenme)\s+de\s+(?:tu|su|vuestra|vuestras|sus|tus)\s+(?:base(?:\s+de\s+datos)?|lista|sistema|registros?|contactos?|archivos?)\b/,
   /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+(?:todos\s+)?(?:mi|mis)\s+(?:cuenta|historial|mensajes|conversaci[oó]n(?:es)?|perfil|registros?)\b/,
   /\b(?:borra|borre|borren|borrar|elimina|elimine|eliminen|eliminar|suprime|suprima|supriman|suprimir)\s+mi\s+(?:n[uú]mero(?:\s+de\s+tel[ée]fono)?|correo(?:\s+electr[oó]nico)?|e-?mail|tel[ée]fono)(?=\s*(?:$|[.!?,;]|de\s+(?:tu|su|vuestra)\s+(?:base|lista|sistema)|por\s+favor))/,
-  // Portuguese
-  /\b(?:apagar|apaguem|apague|excluir|excluam|exclua|eliminar|deletar|delete|remover|removam|remova)\s+(?:todos\s+)?(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\b/,
+  // Portuguese (completed by the pt pack, 2026-10-01)
+  /\b(?:apagar|apaguem|apague|apaga|excluir|excluam|exclua|exclui|eliminar|eliminem|elimine|deletar|deletem|delete|deleta|remover|removam|remova|remove)\s+(?:todos\s+)?(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\b/,
   /\bdireito\s+ao\s+esquecimento\b/,
+  /\b(?:os\s+)?meus\s+(?:dados|informa[çc][õo]es)(?:\s+pessoais)?\s+(?:sejam\s+|ser\s+)?(?:apagad|exclu[íi]d|eliminad|removid|deletad)\w*/,
+  /\b(?:me\s+(?:apague|apaga|exclua|exclui|remova|remove|tire|tira|delete|deleta)|apague-me|exclua-me|remova-me|tire-me)\s+(?:da|do|de)\s+(?:sua\s+|seu\s+|vossa\s+|vosso\s+|tua\s+|teu\s+)?(?:base(?:\s+de\s+dados)?|lista|sistema|cadastro|registros?|contatos?)\b/,
+  /\b(?:apaga|apague|apaguem|apagar|exclui|exclua|excluam|excluir|deleta|delete|deletem|deletar|remove|remova|removam|remover)\s+(?:a\s+|o\s+|as\s+|os\s+)?(?:minha|meu|minhas|meus)\s+(?:conta|hist[óo]rico|mensagens|conversas?|perfil|cadastro|registros?)\b/,
+  /\b(?:apaga|apague|apaguem|apagar|exclui|exclua|excluam|excluir|deleta|delete|deletem|deletar|remove|remova|removam|remover)\s+(?:o\s+)?meu\s+(?:n[úu]mero(?:\s+de\s+telefone)?|e-?mail|telefone)(?=\s*(?:$|[.!?,;]|d[ao]\s+(?:sua|seu|vossa|vosso)\s+(?:base|lista|sistema|cadastro)|por\s+favor))/,
   // German
   /\b(?:l[öo]schen|l[öo]sche|entfernen|entfernt)(?:\s+sie)?\s+(?:alle\s+)?meine\s+(?:pers[öo]nlichen\s+)?(?:daten|informationen|angaben)\b/,
   /\bmeine\s+(?:pers[öo]nlichen\s+)?(?:daten|informationen|angaben)\s+(?:bitte\s+)?(?:l[öo]schen|entfernen|gel[öo]scht)\b/,
@@ -201,6 +205,8 @@ const PROMISE_PATTERNS: readonly RegExp[] = [
   // Their number or e-mail only where the clause ends there, or names the list.
   /\b(?:vamos\s+a|voy\s+a|ya\s+hemos|hemos|he)\s+(?:borrar|eliminar|suprimir|borrado|eliminado|suprimido)\s+(?:tu|su)\s+(?:n[uú]mero|correo|e-?mail)(?=\s*(?:$|[.!?,;]|de\s+(?:nuestra|la)\s+(?:lista|base|sistema)))/,
   /\b(?:vamos|vou|iremos|irei)\s+(?:apagar|excluir|remover|deletar)\s+(?:todos\s+)?(?:os\s+)?(?:seus|teus)\s+dados|\b(?:apagamos|exclu[íi]mos|removemos|deletamos)\s+(?:os\s+)?(?:seus\s+)?dados/,
+  /\b(?:seus|teus)\s+(?:dados|mensagens|informa[çc][õo]es)\s+(?:foram|ser[ãa]o|est[ãa]o|j[áa]\s+foram)\s+(?:apagad|exclu[íi]d|removid|deletad|eliminad)\w*/,
+  /\b(?:vamos|vou|iremos|irei)\s+(?:apagar|excluir|remover|deletar)\s+(?:a\s+|o\s+)?(?:sua|seu|tua|teu)\s+(?:conta|cadastro|hist[óo]rico|n[úu]mero|e-?mail)(?=\s*(?:$|[.!?,;]|d[ao]\s+(?:nossa|nosso|lista|base|sistema)))/,
   /\b(?:wir|ich)\s+(?:werden|haben|habe|werde)\s+(?:ihre|deine)\s+daten\s+(?:l[öo]schen|gel[öo]scht|entfernen|entfernt)/,
   /\b(?:ihre|deine)\s+daten\s+(?:wurden|werden|sind)\s+(?:gel[öo]scht|entfernt)/,
   /(?:мы|я)\s+(?:удалим|удалили|удалю|удалил|удалила)\s+(?:все\s+)?(?:ваши|твои)\s+(?:данные|сведения|информацию)|(?:ваши|твои)\s+данные\s+(?:были\s+|будут\s+)?удален/,

@@ -27,7 +27,8 @@ import { shopOpener } from '../../src/core/scoring/detect.js';
 
 describe('the disclosure, in Spanish and French', () => {
   it('each is written, names the assistant and the business, and genders nobody', () => {
-    expect(DISCLOSURE_LOCALES).toEqual(['en', 'zh', 'ar', 'es', 'fr']);
+    // The pt pack (2026-10-01) added Portuguese, its gate shut like these two (pt-safety.test.ts).
+    expect(DISCLOSURE_LOCALES).toEqual(['en', 'zh', 'ar', 'es', 'fr', 'pt']);
     const es = disclosureFor({ detected: 'es', name: 'Lily', business: 'Rosa y Barro' })!;
     const fr = disclosureFor({ detected: 'fr-FR', name: 'Lily', business: 'Rose et Argile' })!;
     expect(es).toContain('Lily');
@@ -38,7 +39,8 @@ describe('the disclosure, in Spanish and French', () => {
     expect(fr).toMatch(/l'IA de/);
     expect(fr).not.toMatch(/\b(?:un|une|le|la)\s+assistante?\b/);
     expect(disclosureLocale('es-MX')).toBe('es');
-    expect(disclosureLocale('pt')).toBe('en');
+    expect(disclosureLocale('pt')).toBe('pt');
+    expect(disclosureLocale('de')).toBe('en');
   });
 
   it('the send path recognises each once it leaves, with any name in it', () => {

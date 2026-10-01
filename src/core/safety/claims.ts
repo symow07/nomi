@@ -105,6 +105,21 @@ const PATTERNS: readonly Pattern[] = [
     re: /\b(?:antes\s+de|para)\s+(?:navidad|ramad[aá]n|el\s+a[ñn]o\s+nuevo\s+chino|black\s+friday|semana\s+santa)\b|\b(?:avant|pour)\s+(?:no[ëe]l|le\s+ramadan|le\s+nouvel\s+an\s+chinois|le\s+black\s+friday|p[âa]ques)\b/i },
   { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bentrega\s+garantizada\b|\blivraison\s+garantie\b/i },
 
+  // Portuguese (the pt pack, 2026-10-01): the same claims, under the same keys.
+  // «garantia» and «reembolso» are already caught by the Spanish patterns above.
+  { kind: 'certification', key: 'CE', re: /\b(?:certifica[çc][ãa]o|marca[çc][ãa]o)\s+CE\b|\bCE\s+certificad[oa]\b/i },
+  { kind: 'certification', key: 'FDA', re: /\b(?:aprovad[oa]|certificad[oa]|registrad[oa])\s+pela\s+FDA\b/i },
+  { kind: 'certification', key: 'food_grade', re: /\b(?:grau|uso)\s+aliment(?:[íi]cio|ar)\b|\b(?:pr[óo]prio|seguro)\s+para\s+alimentos\b/i },
+  { kind: 'certification', key: 'BPA_free', re: /\b(?:sem|livre\s+de)\s+BPA\b/i },
+  { kind: 'guarantee', key: 'refund', re: /\bdevolu[çc][ãa]o\s+do\s+dinheiro\b|\bdinheiro\s+de\s+volta\b/i },
+  { kind: 'guarantee', key: 'warranty', re: /\bgarantid[oa]s?\b/i },
+  { kind: 'guarantee', key: 'free_replacement', re: /\b(?:troca|substitui[çc][ãa]o|reposi[çc][ãa]o)\s+(?:gr[áa]tis|gratuita)\b/i },
+  { kind: 'shipping_method', key: 'air_freight', re: /\b(?:envio|frete|transporte)\s+a[ée]reo\b/i },
+  { kind: 'shipping_method', key: 'sea_freight', re: /\b(?:envio|frete|transporte)\s+mar[íi]timo\b/i },
+  { kind: 'delivery_promise', key: 'event_deadline',
+    re: /\b(?:antes\s+d[oa]|para\s+o)\s+(?:natal|ramad[ãa]|ano\s+novo\s+chin[êe]s|black\s+friday|p[áa]scoa|dia\s+das\s+m[ãa]es)\b/i },
+  { kind: 'delivery_promise', key: 'guaranteed_delivery', re: /\bentrega\s+garantida\b/i },
+
   // RT (2026-10-01) — what a shop promises: returns, free shipping, and the
   // refund, warranty and replacement words in Chinese and Arabic, under the
   // same keys, so what the owner allows on How you sell is allowed in every
@@ -123,6 +138,8 @@ const PATTERNS: readonly Pattern[] = [
   { kind: 'guarantee', key: 'free_replacement', re: /免费换|免费更换/ },
   { kind: 'guarantee', key: 'free_replacement', re: /استبدال\s+مجاني|الاستبدال\s+مجان/ },
   { kind: 'shipping_method', key: 'free_shipping', re: /\bfree\s+(?:shipping|delivery)\b|\benv[ií]o\s+(?:gratis|gratuito)\b|\blivraison\s+(?:gratuite|offerte)\b/i },
+  { kind: 'shipping_method', key: 'free_shipping', re: /\b(?:frete|envio|entrega)\s+(?:gr[áa]tis|gratuit[oa])\b/i },
+  { kind: 'guarantee', key: 'returns', re: /\b(?:devolu[çc][ãa]o|troca)\s+(?:gr[áa]tis|gratuita)\b|\bpode\s+(?:devolver|trocar)\b|\bdevolu[çc][õo]es\s+(?:aceitas|gratuitas)\b/i },
   { kind: 'shipping_method', key: 'free_shipping', re: /包邮|免运费|免费配送|免费送货/ },
   { kind: 'shipping_method', key: 'free_shipping', re: /(?:الشحن|شحن|التوصيل|توصيل)\s+مجان/ },
   { kind: 'shipping_method', key: 'express', re: /顺丰|特快|加急快递|شحن\s+سريع|توصيل\s+سريع/ },

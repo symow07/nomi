@@ -168,14 +168,13 @@ describe('LG · the fixed sentences, in English, Chinese and Arabic', () => {
   const one: Quote = { ...base, quantity: { value: 1, unit: 'item' }, unitPrice: usd(12), total: usd(12), leadTimeDays: null, moq: null };
   const reasons: readonly BlockingReason[] = ['email_missing', 'product_not_confirmed_by_client', 'quantity_missing', 'quantity_below_moq',
     'pending_question_unresolved', 'conversation_handed_off', 'missing_product', 'price_missing'];
-  it('a customer\'s language picks one of the three; any other is English (and its reply drafts)', () => {
-    expect(fixedLanguage('zh')).toBe('zh');
-    expect(fixedLanguage('ar')).toBe('ar');
-    expect(fixedLanguage('en')).toBe('en');
-    for (const l of ['es', 'fr', 'ja', UNDETERMINED, null]) expect(fixedLanguage(l)).toBe('en');
+  it('a customer\'s language picks one of the six; any other is English (and its reply drafts)', () => {
+    for (const l of ['en', 'zh', 'ar', 'es', 'fr', 'pt']) expect(fixedLanguage(l)).toBe(l);
+    expect(fixedLanguage('pt-BR')).toBe('pt');
+    for (const l of ['de', 'ja', UNDETERMINED, null]) expect(fixedLanguage(l)).toBe('en');
   });
   it('every sentence exists in each, and differs from the English', () => {
-    for (const lang of ['zh', 'ar'] as const) {
+    for (const lang of ['zh', 'ar', 'es', 'fr', 'pt'] as const) {
       expect(HANDOFF_REPLIES[lang]).not.toBe(HANDOFF_REPLIES.en);
       expect(SAFE_REPLIES[lang]).not.toBe(SAFE_REPLIES.en);
       expect(SAFE_FALLBACK_REPLIES[lang]).not.toBe(SAFE_FALLBACK_REPLIES.en);

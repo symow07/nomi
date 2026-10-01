@@ -368,7 +368,40 @@ const FR: readonly Framed[] = [
   { re: /\bje\s+(?:ne\s+)?veux\s+pas\s+(?:parler|discuter)\s+(?:[àa]|avec)\s+(?:un\s+|une\s+|le\s+|la\s+)?(?:bot|robot|machine|ia|r[ée]pondeur)\b/g, own: null },
 ];
 
-const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES, ...ES, ...FR];
+// ── Português (2026-10-01, the pt pack) ──────────────────────────────────────
+// The same care as Spanish: a person the buyer asks the seller for, never
+// their own ("alguém da minha equipe"); never a negation ("não quero falar com
+// ninguém"); never "humano" as a product ("cabelo humano"); a call is a call
+// ("me liga"), never a name ("me chama de Ana" uses another verb).
+const PT_LETTERS = 'a-zçãõáéíóúâêôàü';
+const PT_TALK = String.raw`(?:falar|conversar|bater\s+um\s+papo)\s+com`;
+const PT_THEIRS = String.raw`(?:(?:um|uma|o|a|algum|alguma)\s+)?(?:(?:pessoa|humano|humana|ser\s+humano)(?:\s+(?:real|de\s+verdade))?|atendente|agente|assessora?|representante|operadora?|vendedora?|consultora?|respons[aá]vel|gerente|dono|dona|chefe|suporte|atendimento(?:\s+(?:ao\s+cliente|humano))?|servi[cç]o\s+ao\s+cliente)(?![${PT_LETTERS}])`
+  + String.raw`|algu[eé]m(?:\s+(?:real|de\s+verdade|da\s+(?:sua|tua|vossa)\s+(?:equipe|equipa|empresa|loja)))?(?![${PT_LETTERS}])`;
+const PT_OWN = new RegExp(String.raw`^(?:\s+[${PT_LETTERS}]+){0,3}?\s+(?:da|do|de|na|no|em)\s+(?:minha|meu|minhas|meus|nossa|nosso|nossas|nossos)(?![${PT_LETTERS}])`);
+const PT_WANT = String.raw`(?<!\bn[aã]o\s)(?<![${PT_LETTERS}])(?:quero|queria|gostaria\s+de|preciso|precisava|prefiro|desejo|queremos|precisamos|posso|podemos|poderia|d[aá]\s+(?:para|pra)|tem\s+como)`;
+const PT_CALL_TAIL = String.raw`(?=\s*(?:$|[.!?,;:)]|por\s+favor|pfv|pf|\+?\d|agora|j[aá]|amanh[aã]|hoje|quando|o\s+quanto\s+antes|urgente))`;
+
+const PT: readonly Framed[] = [
+  // "quero falar com uma pessoa", "posso falar com alguém da sua equipe?", "preciso falar com o responsável"
+  { re: new RegExp(String.raw`${PT_WANT}\s+${PT_TALK}\s+(?:${PT_THEIRS})`, 'g'), own: PT_OWN },
+  // "quero atendimento humano", "preciso de um atendente"
+  { re: new RegExp(String.raw`${PT_WANT}\s+(?:de\s+)?(?:um\s+|uma\s+)?(?:atendente|atendimento\s+humano|pessoa\s+real)(?![${PT_LETTERS}])`, 'g'), own: PT_OWN },
+  // "me passa para um atendente", "me transfere pro atendimento"
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])(?:me\s+(?:passa|passe|transfere|transfira|coloca|coloque|encaminha|encaminhe)|passa[-\s]me|transfere[-\s]me)\s+(?:para|pra|pro|com)\s+(?:${PT_THEIRS})`, 'g'), own: PT_OWN },
+  // A call: "me liga", "liga-me", "me telefona"
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])(?:me\s+(?:liga|ligue|telefona|telefone)|liga[-\s]me|ligue[-\s]me)${PT_CALL_TAIL}`, 'g'), own: null },
+  // "pode me ligar?" — asked; "pode me ligar quando quiser" is said, not asked: the question mark says which.
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])(?:voc[eê]s?\s+)?(?:pode|podem|poderia|poderiam)\s+me\s+(?:ligar|telefonar)(?![${PT_LETTERS}])(?=[^.!\n]{0,24}\?)`, 'g'), own: null },
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])(?:posso|podemos)\s+(?:te\s+ligar|lhe\s+ligar|ligar\s+para\s+voc[eê]s?)(?![${PT_LETTERS}])`, 'g'), own: null },
+  // "tem alguém com quem eu possa falar?"
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])(?:tem|h[aá])\s+(?:algu[eé]m|uma\s+pessoa)\s+com\s+quem\s+(?:eu\s+)?(?:possa|posso|possamos)\s+falar(?![${PT_LETTERS}])`, 'g'), own: null },
+  // The whole message: "pessoa real por favor", "atendente", "atendimento humano"
+  { re: /^(?:por\s+favor\s+)?(?:uma?\s+)?(?:pessoa\s+real|humano|atendente|atendimento\s+humano)(?:\s+por\s+favor)?\s*[.!?]*$/g, own: null },
+  // "não quero falar com um robô"
+  { re: new RegExp(String.raw`(?<![${PT_LETTERS}])n[aã]o\s+quero\s+(?:falar|conversar)\s+com\s+(?:um\s+|uma\s+|o\s+|a\s+)?(?:bot|rob[oô]|m[aá]quina|ia)(?![${PT_LETTERS}])`, 'g'), own: null },
+];
+
+const LAYER_ONE: readonly Framed[] = [...EN, ...ZH, ...AR_FRAMES, ...ES, ...FR, ...PT];
 
 /**
  * Layer 1: does the buyer's own text ask, unmistakably, for a person on the
@@ -386,10 +419,10 @@ export function asksForPerson(text: string): boolean {
  * in the language of the pattern that caught it — a layer-1 frame, the
  * seller's manager (English), or a shop's opener. Null when none did.
  */
-export function personRequestLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' | 'fr' | null {
+export function personRequestLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' | 'fr' | 'pt' | null {
   const t = readable(text ?? '');
   if (!t) return null;
-  for (const [lang, frames] of [['en', EN], ['zh', ZH], ['ar', AR_FRAMES], ['es', ES], ['fr', FR]] as const) {
+  for (const [lang, frames] of [['en', EN], ['zh', ZH], ['ar', AR_FRAMES], ['es', ES], ['fr', FR], ['pt', PT]] as const) {
     if (frames.some((f) => firesIn(t, f))) return lang;
   }
   if (namesSellersManager(t)) return 'en';
@@ -426,7 +459,7 @@ export function personRequestLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' |
  * OPENERS).
  */
 /** A greeting that may stand around an opener: 你好, 请问, "hello there", «السلام عليكم». */
-const OPENER_GREETING = String.raw`(?<![a-z${AR}])(?:你好|您好|哈喽|哈囉|嗨|亲亲|亲|親|请问|請問|在吗|在嗎|早上好|下午好|晚上好|(?:hi|hello|hey|hallo)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|excuse\s+me|السلام\s+عليكم(?:\s+ورحم[هة]\s+الله(?:\s+وبركاته)?)?|سلام|مرحبا|اهلا|هلا|مساء\s+الخير|صباح\s+الخير|لو\s+سمحت|من\s+فضلك|hola|buenas(?:\s+(?:tardes|noches))?|buenos\s+d[ií]as|disculpe|perd[oó]n|bonjour|bonsoir|salut|coucou|excusez[-\s]moi|pardon)(?![a-z${AR}])`;
+const OPENER_GREETING = String.raw`(?<![a-z${AR}])(?:你好|您好|哈喽|哈囉|嗨|亲亲|亲|親|请问|請問|在吗|在嗎|早上好|下午好|晚上好|(?:hi|hello|hey|hallo)(?:\s+there)?|good\s+(?:morning|afternoon|evening)|excuse\s+me|السلام\s+عليكم(?:\s+ورحم[هة]\s+الله(?:\s+وبركاته)?)?|سلام|مرحبا|اهلا|هلا|مساء\s+الخير|صباح\s+الخير|لو\s+سمحت|من\s+فضلك|hola|buenas(?:\s+(?:tardes|noches))?|buenos\s+d[ií]as|disculpe|perd[oó]n|bonjour|bonsoir|salut|coucou|excusez[-\s]moi|pardon|ol[aá]|oi|bom\s+dia|boa\s+(?:tarde|noite)|com\s+licen[cç]a)(?![a-z${AR}])`;
 /** A clause's end: the end, a stop, or a greeting after it. Never a word: "anyone there knows…". */
 const OPENER_PUNCT = String.raw`[,，、.。!！?？;；:：~～…)）،؟؛]`;
 const OPENER_END = String.raw`(?=\s*(?:$|${OPENER_PUNCT}|${OPENER_GREETING}))`;
@@ -436,7 +469,7 @@ const OPENER_START = String.raw`(^|${OPENER_PUNCT})(?:[\s,，、!！.。،¿¡]*
 const ZH_Q = String.raw`(?:吗|嗎|么|麼|嘛|呢|呀|啊)`;
 
 /** Each clause with its language (LG: a hand-off before any model is said in it). */
-const OPENER_CLAUSES: readonly (readonly ['en' | 'zh' | 'ar' | 'es' | 'fr', string])[] = [
+const OPENER_CLAUSES: readonly (readonly ['en' | 'zh' | 'ar' | 'es' | 'fr' | 'pt', string])[] = [
   // 客服在吗 / 你们客服在不在 / 老板在吗 / 掌柜在线吗 — the shop, or its service, asked whether it is
   // there. The question word ends the clause; without one (客服在？) a stop must — 客服在哪里 is a question.
   ['zh', String.raw`(?:(?:你们|你們|您们|您們|贵店|貴店|贵司|貴司)的?)?(?:客服|老板|老闆|掌柜|掌櫃|店家|店主|卖家|賣家|商家)(?:在(?:线|線)?(?:${ZH_Q}|不在|没有?|沒有?)|在(?:线|線)?${OPENER_END})`],
@@ -451,6 +484,7 @@ const OPENER_CLAUSES: readonly (readonly ['en' | 'zh' | 'ar' | 'es' | 'fr', stri
   // Spanish and French: "¿hay alguien?", "¿alguien disponible?", "il y a quelqu'un ?", "vous êtes là ?"
   ['es', String.raw`(?:hay\s+alguien(?:\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea))?|alguien\s+(?:ah[ií]|disponible|atendiendo|en\s+l[ií]nea)|(?:est[aá]\s+)?(?:el\s+)?(?:encargado|vendedor|due[ñn]o)\s+(?:ah[ií]|disponible))${OPENER_END}`],
   ['fr', String.raw`(?:(?:il\s+)?y\s+a(?:[-\s]t[-\s]il)?\s+quelqu'un(?:\s+(?:l[àa]|de\s+disponible|en\s+ligne))?|quelqu'un\s+(?:est\s+)?(?:l[àa]|disponible|en\s+ligne))${OPENER_END}`],
+  ['pt', String.raw`(?:tem\s+algu[eé]m(?:\s+(?:a[ií]|online|dispon[ií]vel|atendendo))?|algu[eé]m\s+(?:a[ií]|online|dispon[ií]vel|atendendo)|(?:o\s+|a\s+)?(?:atendente|vendedora?|dono|dona)\s+(?:est[aá]\s+)?(?:a[ií]|dispon[ií]vel))${OPENER_END}`],
   ['ar', String.raw`(?:(?:(?:هل\s+)?(?:فيه|في|يوجد|هناك|من)\s+(?:احد|حد)(?:\s+(?:موجود|هنا|يرد(?:\s+(?:علي|عليا))?|يجاوب|فاضي))?|(?:احد|حد)\s+(?:موجود|هنا)|(?:هل\s+)?خدم[هة]\s+العملاء\s+موجود[هة]?))${OPENER_END}`],
 ];
 const OPENER_RES: readonly RegExp[] = OPENER_CLAUSES.map(([, c]) => new RegExp(`${OPENER_START}(?:${c})`, 'g'));
