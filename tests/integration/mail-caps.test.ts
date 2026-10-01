@@ -55,6 +55,14 @@ d('MAIL · the daily caps (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () =>
     expect(await claimMailSend(db, 'code', `fresh-${RUN}@mail.example`, { perAddress: 100, installation: today + 1 })).toBe('ok');
   });
 
+  it('A WEEK, then the day goes: a hashed address is not kept longer than the list needs it', async () => {
+    const old = createHash('sha256').update(`old-${RUN}@mail.example`).digest('hex');
+    await admin.query(`insert into mail_sends (day, kind, recipient_hash, sent) values ((now() at time zone 'UTC')::date - 8, 'code', $1, 1)`, [old]);
+    const { claimMailSend } = await import('../../src/db/mailCaps.js');
+    await claimMailSend(db, 'code', `prune-${RUN}@mail.example`, { perAddress: 100, installation: 1_000_000 });
+    expect((await admin.query(`select 1 from mail_sends where recipient_hash = $1`, [old])).rowCount).toBe(0);
+  });
+
   it('THE APP cannot read or write the table: only the two functions', async () => {
     const { sql } = await import('kysely');
     await expect(sql`select * from mail_sends`.execute(db)).rejects.toThrow(/permission denied/);

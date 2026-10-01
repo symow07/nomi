@@ -13,6 +13,8 @@
 --   · claim_mail_send(kind, recipient, per_address, installation) — asked
 --     before each send: 'ok' (and counted), 'address_cap' or
 --     'installation_cap' (and counted as refused). One at a time per kind.
+--     Days older than a week go as it runs: the operator's list reads only
+--     yesterday, and a hashed address is not kept longer than it is needed.
 
 create table if not exists mail_sends (
   day date not null,
@@ -38,6 +40,7 @@ declare
   v_why text := null;
 begin
   perform pg_advisory_xact_lock(hashtext('mail_sends:' || p_kind));
+  delete from mail_sends where day < v_day - 7;
   select coalesce(sum(sent), 0) into v_all from mail_sends where day = v_day and kind = p_kind;
   select coalesce(sum(sent), 0) into v_mine from mail_sends where day = v_day and kind = p_kind and recipient_hash = v_hash;
   if v_all >= p_installation then v_why := 'installation_cap';
