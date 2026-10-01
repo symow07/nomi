@@ -243,8 +243,9 @@ export async function answerSpotCheck(
        for update of s`.execute(tx)).rows[0];
   if (!open) return { answered: false, verdict: null, demoted: false };
   // R5 — a wrong price found this way is serious, whatever words said it: the
-  // workspace goes back to rung 1 (below), and the capability to drafts.
-  const priceWrong = wrongPrice(open.capability, parsed.verdict, correction, open.reply ?? '');
+  // workspace goes back to rung 1 (below), and the capability to drafts. Only
+  // against the reply itself: work that cannot be shown is never judged.
+  const priceWrong = open.reply !== null && wrongPrice(open.capability, parsed.verdict, correction, open.reply);
   const verdict: SpotCheckVerdict = priceWrong ? 'serious' : parsed.verdict;
   const base = await loadCapabilityEvidence(tx, open.capability);
   const r = await sql<{ id: string; capability: string }>`
