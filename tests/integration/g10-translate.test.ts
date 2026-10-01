@@ -65,7 +65,7 @@ d('G10 · a reply the owner may not read (requires DATABASE_URL + MIGRATE_DATABA
   const translate = () => app.inject({ method: 'POST', url: `/app/inbox/${conv}/translate`, payload: `draftId=${draft}`, headers: { cookie, ...FORM } });
 
   it('the card says the reply is in Chinese, lists its figures, and offers the translation', async () => {
-    const body = (await page()).body.replace(/[⁦-⁩]/g, '');
+    const body = (await page()).body.replace(/[\u2066-\u2069]/g, '');
     expect(body).toContain(t('en', 'card.foreign', { language: 'Chinese' }));
     expect(body).toContain('<bdi dir="ltr">34.90</bdi>, <bdi dir="ltr">10</bdi>, <bdi dir="ltr">349</bdi>');
     expect(body).toContain(`action="/app/inbox/${conv}/translate"`);

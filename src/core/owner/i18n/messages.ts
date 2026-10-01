@@ -6540,7 +6540,7 @@ const AR: Record<MessageKey, string> = {
   'card.waiting': 'بانتظارك',
   'card.understood': 'ما فُهم',
   'card.foreign': 'هذا الرد باللغة {language}، وقد يتعذّر التحقق منه.',
-  'card.foreign.figures': 'الأرقام الواردة فيه:',
+  'card.foreign.figures': 'الأرقام في هذا الرد:',
   'card.foreign.translate': 'الترجمة إلى {language}',
   'card.foreign.translation': 'بلغة {language} للتحقق فقط — وليس هذا ما يُرسَل:',
   'card.reasons': 'أساس فهم {name} للرسالة',
