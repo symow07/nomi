@@ -90,17 +90,19 @@ describe('CK · How you sell asks what the shop sells, and which claims are true
     closures: [], words: new Set(), told: {}, productCategory: null,
   };
   const ctx = { profile: 'retail' as const, pricesToOwner: false };
+  const answerOf = (r: ReturnType<typeof parseAnswer>) => { if (!r.ok) throw new Error(JSON.stringify(r.errors)); return r.answer; };
+  const errorsOf = (r: ReturnType<typeof parseAnswer>) => (r.ok ? {} : r.errors);
   it('a question of the catalogue, after certifications', () => {
     expect(CATALOGUE_QUESTIONS.indexOf('product_claims')).toBe(CATALOGUE_QUESTIONS.indexOf('certifications') + 1);
   });
   it('the category is required; only the chosen category\'s ticks are kept', () => {
-    expect(parseAnswer('product_claims', {}, ctx).errors['category']).toBe('required');
+    expect(errorsOf(parseAnswer('product_claims', {}, ctx))['category']).toBe('required');
     const r = parseAnswer('product_claims', { category: 'apparel', 'attr:waterproof': 'on', 'attr:halal': 'on' }, ctx);
-    expect(r.answer).toEqual({ q: 'product_claims', category: 'apparel', keys: ['waterproof'] });
+    expect(answerOf(r)).toEqual({ q: 'product_claims', category: 'apparel', keys: ['waterproof'] });
   });
   it('the lines: the category, then each of its claims that would change', () => {
     const r = parseAnswer('product_claims', { category: 'cosmetics', 'attr:halal': 'on' }, ctx);
-    const lines = linesFor(r.answer!, state);
+    const lines = linesFor(answerOf(r), state);
     expect(lines.map((l) => l.key)).toEqual(['category', 'attr:vegan', 'attr:halal']);
     expect(lines.find((l) => l.key === 'attr:vegan')).toMatchObject({ kind: 'attr', claimKind: 'product_attribute', to: false });
   });
