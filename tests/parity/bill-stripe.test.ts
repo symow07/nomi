@@ -90,11 +90,11 @@ describe('BILL · the requests', () => {
 });
 
 describe('BILL · a webhook is Stripe\'s only when its signature says so', () => {
-  const body = JSON.stringify({ id: 'evt_1', type: 'invoice.paid', data: { object: { id: 'in_1', customer: 'cus_1' } } });
+  const body = JSON.stringify({ id: 'evt_1', type: 'invoice.paid', created: 1_799_999_990, data: { object: { id: 'in_1', customer: 'cus_1' } } });
   const sign = (t: number, b = body, secret = WHSEC) => `t=${t},v1=${createHmac('sha256', secret).update(`${t}.${b}`).digest('hex')}`;
   const now = 1_800_000_000;
   it('a good signature, within five minutes: the event', () => {
-    expect(verifyStripeEvent(body, sign(now), WHSEC, now)).toEqual({ id: 'evt_1', type: 'invoice.paid', object: { id: 'in_1', customer: 'cus_1' } });
+    expect(verifyStripeEvent(body, sign(now), WHSEC, now)).toEqual({ id: 'evt_1', type: 'invoice.paid', created: 1_799_999_990, object: { id: 'in_1', customer: 'cus_1' } });
     expect(verifyStripeEvent(body, `${sign(now)},v1=${'0'.repeat(64)}`, WHSEC, now + 10)).not.toBeNull();
   });
   it('anything else is refused: no header, another secret, a changed body, an old one, a malformed header', () => {
