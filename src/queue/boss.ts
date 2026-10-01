@@ -188,7 +188,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted';
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors' | 'self_demoted' | 'spend_breaker';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -215,6 +215,8 @@ export type NotifyJob = {
   cohort?: { workspaces: number; practised: number; replied: number };
   /** `signup_digest` (MAIL): the last UTC day's codes and alerts, sent and held back by the daily caps. Counts only. */
   mail?: { codes: number; alerts: number; refused: number };
+  /** `spend_breaker` (KS5): the installation's day so far, and its ceiling. */
+  spend?: { tokens: number; calls: number; maxTokens: number; maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back on their own, and why (`DemotionReason` codes). */
   demoted?: { capabilities: string[]; reasons: string[] };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */

@@ -50,7 +50,7 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -138,6 +138,8 @@ export type OperatorAlertDetail = {
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
+  /** `spend_breaker` (KS5): the installation's day so far, against its ceiling. */
+  readonly spend?: { readonly tokens: number; readonly calls: number; readonly maxTokens: number; readonly maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back, and the reason codes. */
   readonly demoted?: { readonly capabilities: readonly string[]; readonly reasons: readonly string[] };
 };
@@ -199,6 +201,12 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // KS5 — how much the installation used today, against what; the beta waits, the pilots run.
+  if (kind === 'spend_breaker') {
+    const s = detail.spend ?? { tokens: 0, calls: 0, maxTokens: 0, maxCalls: 0 };
+    const n = (x: number) => new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(x);
+    return t(locale, 'notify.spend_breaker', { tokens: n(s.tokens), calls: n(s.calls), maxTokens: n(s.maxTokens), maxCalls: n(s.maxCalls) });
+  }
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
@@ -441,6 +449,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),
+    ...(job.spend ? { spend: job.spend } : {}),
   };
 }
 

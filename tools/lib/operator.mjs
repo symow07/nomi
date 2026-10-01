@@ -185,3 +185,24 @@ export async function setEarned(c, input) {
   if (!r.rowCount) return 'not_self_serve';
   return input.earned ? 'earned' : 'unearned';
 }
+
+/**
+ * KS5 (0113) — the installation's spend ceiling: today's use against it, and
+ * the operator's change of it. Positive whole numbers only; who and when are
+ * kept on the row.
+ */
+export async function readSpendCeiling(c) {
+  const r = (await c.query(`select tokens::text as tokens, calls::text as calls, max_tokens::text as max_tokens, max_calls
+                              from installation_usage_today()`)).rows[0];
+  return { tokens: Number(r.tokens), calls: Number(r.calls), maxTokens: Number(r.max_tokens), maxCalls: Number(r.max_calls) };
+}
+export async function setSpendCeiling(c, input) {
+  const ok = (n) => n === undefined || (Number.isInteger(n) && n > 0);
+  if (!ok(input.tokens) || !ok(input.calls) || (input.tokens === undefined && input.calls === undefined)) return 'invalid';
+  if (!input.by || !String(input.by).trim()) return 'invalid';
+  await c.query(`update installation_limits
+                    set daily_tokens = coalesce($1::bigint, daily_tokens), daily_calls = coalesce($2::int, daily_calls),
+                        set_at = now(), set_by = $3
+                  where id`, [input.tokens ?? null, input.calls ?? null, String(input.by).trim().slice(0, 120)]);
+  return 'set';
+}

@@ -66,7 +66,7 @@ import type { PgBoss } from 'pg-boss';
 import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
 import { signupDigestAlert } from './pipeline/signupDigest.js';
-import { allowanceAlerts } from './pipeline/allowanceWatch.js';
+import { allowanceAlerts, spendBreakerAlert } from './pipeline/allowanceWatch.js';
 import { demotionAlerts, spotCheckSweep } from './pipeline/supervision.js';
 import { META_ERROR_ALERT_EVERY_HOURS } from './core/ops/metaErrors.js';
 import type { ReportError } from './core/ops/appErrors.js';
@@ -1222,7 +1222,9 @@ export async function buildProduction(
   // R5 — and an owner whose assistant stepped back on its own is told, once.
   await boss.schedule(QUEUES.allowance, '*/5 * * * *', {});
   await boss.work(QUEUES.allowance, async () => {
-    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db)]) {
+    // KS5 — and the operator, once a day, when the installation passes its ceiling.
+    const breaker = await spendBreakerAlert(db, PILOT_BUSINESS_ID);
+    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : [])]) {
       await boss.send(QUEUES.notify, job satisfies NotifyJob);
     }
   });
