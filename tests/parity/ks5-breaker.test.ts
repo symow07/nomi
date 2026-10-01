@@ -26,7 +26,7 @@ describe('KS5 · the hold', () => {
   it('only the beta: a workspace the operator made, or opened by hand, is never held', () => {
     const m = src('migrations/0113_spend_breaker.sql');
     expect(m).toContain('select p.signed_up_at is not null');
-    expect(m).toContain("and coalesce(p.auto_earned_by, 'ramp') = 'ramp'");
+    expect(m).toContain("and not (p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp')");
   });
   it('Today says so, with when it ends — as for its own cap', () => {
     expect(src('src/api/web/operations.ts')).toContain('if (a.breaker) return { pctUsed: 100, stops: true, reached: true, renewsAt: allowanceRenewsAt(now) };');
