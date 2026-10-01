@@ -76,6 +76,8 @@ export const PRACTICE_SKIP = [
   'push_subscriptions',
   // G3 (0101) — the day's allowance alerts sent to the owner: the copy spends hers.
   'allowance_alerts',
+  // G7 (0103) — what the operator did to a workspace: never the copy's.
+  'workspace_suspensions',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

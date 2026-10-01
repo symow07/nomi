@@ -226,7 +226,9 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
     const base = { name: '小雅', buyer: 'Ahmed', when: '20 Sep', count: 3, url: 'https://app.nomidoes.com/app/inbox/x#latest',
       business: 'Atlas Trading', kind: 'Brand', country: 'AE', n: 1, sells: 'Leather bags', website: 'https://atlas.example',
       // G3 — the allowance alerts: how much is used, and when it renews.
-      pct: 80, time: '08:00' };
+      pct: 80, time: '08:00',
+      // G7 — a switch still on, on the daily list.
+      flag: 'connections_off', who: 'everyone', since: '1 Oct' };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };

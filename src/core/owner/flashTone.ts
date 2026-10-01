@@ -57,6 +57,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'closures.flash.not_a_date', 'closures.flash.to_missing', 'connect.flash.app_refused',
   'connect.flash.denied', 'connect.flash.expired', 'connect.flash.missing_scope',
   'connect.flash.no_address', 'connect.flash.no_refresh_token', 'connect.flash.not_configured',
+  // G7 — the operator stopped new connections.
+  'connect.flash.paused',
   'connect.flash.rejected', 'connect.flash.unavailable', 'connect.meta.flash.no_pages',
   'connect.meta.flash.page_taken', 'connect.meta.flash.subscribe_failed', 'connect.meta.flash.unavailable',
   'contacts.flash.empty', 'contacts.flash.failed', 'contacts.flash.missing', 'contacts.flash.no_channel',

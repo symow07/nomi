@@ -204,6 +204,8 @@ export type NotifyJob = {
   metaErrors?: { business: string; attempted: number; failed: number; errors: string[] }[];
   /** `signup_digest` only (G1): who signed up in the last day. Dates as ISO strings. */
   signups?: { business: string; kind: string | null; country: string | null; at: string }[];
+  /** `signup_digest` (G7, KS4): every operator switch still on — which, for whom (null: everyone), since when (ISO). */
+  flags?: { flag: string; business: string | null; since: string }[];
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
   allowancePct?: number;
   renewsAt?: string;

@@ -10,13 +10,27 @@ import type { NotifyJob } from '../queue/boss.js';
  */
 export const SIGNUP_DIGEST_HOURS = 24;
 
+/** force_draft is one row per capability: the digest says it once per workspace. */
+const flagLines = (rows: readonly { flag: string; capability: string | null; business: string | null; set_at: Date }[]) => {
+  const seen = new Map<string, { flag: string; business: string | null; since: string }>();
+  for (const r of rows) {
+    const key = `${r.flag}\u0000${r.business ?? ''}`;
+    if (!seen.has(key)) seen.set(key, { flag: r.flag, business: r.business, since: r.set_at.toISOString() });
+  }
+  return [...seen.values()];
+};
+
 export async function signupDigestAlert(db: Db, operatorBusinessId: string, now: Date): Promise<NotifyJob | null> {
   const since = new Date(now.getTime() - SIGNUP_DIGEST_HOURS * 3_600_000);
   const rows = (await sql<{ name: string; kind: string | null; country: string | null; signed_up_at: Date }>`
     select name, kind, country, signed_up_at from signups_since(${since})`.execute(db)).rows;
-  if (rows.length === 0) return null;
+  // G7 (KS4) — and a line for every operator switch still on, so none is forgotten.
+  const flags = (await sql<{ flag: string; capability: string | null; business: string | null; set_at: Date }>`
+    select flag, capability, business, set_at from active_ops_flags()`.execute(db)).rows;
+  if (rows.length === 0 && flags.length === 0) return null;
   return {
     businessId: operatorBusinessId, kind: 'signup_digest', conversationId: null,
     signups: rows.map((r) => ({ business: r.name, kind: r.kind, country: r.country, at: r.signed_up_at.toISOString() })),
+    ...(flags.length ? { flags: flagLines(flags) } : {}),
   };
 }

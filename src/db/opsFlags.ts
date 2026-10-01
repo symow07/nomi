@@ -27,3 +27,18 @@ export async function loadKillSwitches(tx: Tx, businessId: string): Promise<Kill
   `.execute(tx);
   return switchesFrom(res.rows);
 }
+
+/**
+ * G7 (0103, the plan's KS6 stop flag) — are new connections stopped, for
+ * everyone or for this workspace? The operator's `connections_off` row
+ * (tools/ops-flags.mjs); the app only reads it. While on, connecting a Page
+ * or WhatsApp is refused before anything is asked of Meta; a channel already
+ * connected keeps working.
+ */
+export async function connectionsPaused(tx: Tx, businessId: string): Promise<boolean> {
+  const r = await sql<{ on: boolean }>`
+    select exists (select 1 from ops_flags
+                    where flag = 'connections_off' and cleared_at is null
+                      and (business_id is null or business_id = ${businessId}::uuid)) as on`.execute(tx);
+  return r.rows[0]?.on === true;
+}
