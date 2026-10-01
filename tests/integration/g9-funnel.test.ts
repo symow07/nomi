@@ -37,7 +37,7 @@ d('G9 · the funnel (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     BIZ = made.businessId;
     const q = (text: string, args: unknown[]) => admin.query(text, args);
     await q(`update businesses set signed_up_at = $2 where id = $1`, [BIZ, ts(0)]);
-    await q(`insert into catalog_imports (business_id, kind, currency, created_at, confirmed_at) values ($1, 'paste', 'AED', $2, $3)`, [BIZ, ts(1), ts(2)]);
+    await q(`insert into catalog_imports (business_id, kind, currency, state, created_at, confirmed_at) values ($1, 'paste', 'AED', 'confirmed', $2, $3)`, [BIZ, ts(1), ts(2)]);
     // No priced product: the no-catalogue checklist, six items, the last seen at hour 3.
     for (const [item, h] of [['price_handed', 2], ['offer_answered', 2], ['handed_over', 2], ['bot_answered', 3], ['person_handoff', 3], ['stop_handoff', 3]] as const) {
       await q(`insert into practice_checks (business_id, item, seen_at) values ($1, $2, $3)`, [BIZ, item, ts(h)]);
