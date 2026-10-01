@@ -228,7 +228,15 @@ d('BILL · billing (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     const answered = (business: string, c: string) => admin.query(`insert into conversation_events (business_id, conversation_id, type, payload) values ($1, $2, 'auto_sent', '{}')`, [business, c]);
     const { planLimitReached } = await import('../../src/db/billing.js');
     const [c1, c2, c3] = [await conv(shops.a.id), await conv(shops.a.id), await conv(shops.a.id)];
-    await answered(shops.a.id, c1); await answered(shops.a.id, c1); await answered(shops.a.id, c2);
+    // A reply sent alone counts its customer; so does a draft (found 2026-10-01: the drafts trigger failed every insert).
+    const drafted = async (business: string, c: string) => {
+      const m = `bill-${randomUUID()}`;
+      await admin.query(`insert into turns (message_id, business_id, conversation_id, state_before, input, decision, engine, engine_version)
+                         values ($1, $2, $3, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, 'service', 'test')`, [m, business, c]);
+      await admin.query(`insert into drafts (business_id, conversation_id, capability, draft_text, turn_message_id, status)
+                         values ($1, $2, 'quote', 'A reply', $3, 'pending')`, [business, c, m]);
+    };
+    await answered(shops.a.id, c1); await drafted(shops.a.id, c1); await drafted(shops.a.id, c2);
     expect((await admin.query(`select count(*)::int as n from customers_answered where business_id = $1`, [shops.a.id])).rows[0].n, 'once a month each').toBe(2);
     expect(await inTenant(shops.a.id, (tx) => planLimitReached(tx, c3))).toBe(true);
     expect(await inTenant(shops.a.id, (tx) => planLimitReached(tx, c1))).toBe(false);

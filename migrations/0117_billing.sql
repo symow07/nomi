@@ -124,10 +124,13 @@ create table if not exists customers_answered (
 alter table customers_answered enable row level security;
 revoke all on customers_answered from public, nomi_app;
 
+-- Both triggers carry `conversation_id`; which events count is the trigger's
+-- WHEN clause, never read here: a draft row has no `type`, and PL/pgSQL does
+-- not promise to stop at the first false of an `and` (found 2026-10-01: every
+-- draft insert failed).
 create or replace function count_customer_answered() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if tg_table_name = 'conversation_events' and new.type <> 'auto_sent' then return new; end if;
   insert into customers_answered (business_id, month, client_id)
   select c.business_id, date_trunc('month', now() at time zone 'UTC')::date, c.client_id
     from conversations c join businesses b on b.id = c.business_id
