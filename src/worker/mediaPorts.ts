@@ -49,7 +49,18 @@ export type MediaPorts = {
    * there is none to read. Absent: no post is read, exactly as before CH7.
    */
   readonly postCaption?: PostCaptionReader | undefined;
+  /**
+   * WA (0120) — a business that connected its OWN WhatsApp number: its photos
+   * and voice notes are fetched with its own token. Null when it has none (or
+   * the token needs attention): the installation's fetchers serve, as before.
+   */
+  readonly ownMedia?: OwnMediaReader | undefined;
 };
+
+export type OwnMediaReader = (input: {
+  readonly db: import('../db/client.js').Db;
+  readonly businessId: import('../core/types/ids.js').BusinessId;
+}) => Promise<{ readonly image: MediaFetcher; readonly audio: AudioFetcher } | null>;
 
 export type PostCaptionReader = (input: {
   readonly db: import('../db/client.js').Db;

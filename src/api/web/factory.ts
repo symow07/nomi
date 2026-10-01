@@ -154,6 +154,8 @@ export type FactoryReadiness = {
   /** Who turned it on and when — straight from the row activate() wrote. */
   readonly activatedAt: Date | null;
   readonly activatedBy: string | null;
+  /** WA (0120) — replies only to the numbers on the list. Absent reads as on (fail-closed). */
+  readonly pilotMode?: boolean;
   /** 0070 — the owner's Stop, on every channel. Absent reads as answering. */
   readonly assistantStop?: AssistantStop;
   /** 0071 — ops has paused sending (the kill switch). Absent reads as not paused. */
@@ -435,6 +437,7 @@ export async function loadFactory(
       live: pre?.lifecycle === 'active',
       activatedAt: state?.activatedAt ?? null,
       activatedBy: state?.activatedBy ?? null,
+      pilotMode: state?.pilotMode ?? true,
       assistantStop: stop ?? { stoppedAt: null, stoppedBy: null },
       opsSilenced,
       ...(allowance ? { allowance: {
@@ -681,12 +684,23 @@ export function renderFactory(
       lc === 'active' ? 'factory.reach.nextConnected'
       : lc === 'ready' ? 'factory.reach.nextReady'
       : 'factory.reach.nextNot', { name }))}</p>`;
+  // WA (0120) — once WhatsApp is live, who may get a reply: the list only
+  // (pilot mode, how going live always starts), or every customer who writes.
+  const pilotOn = f.readiness.pilotMode ?? true;
+  const pilotBlock = lc !== 'active' ? '' : `
+    <h3 class="sub3">${esc(t(locale, 'pilot.mode.title'))}</h3>
+    <p class="fdesc">${esc(t(locale, pilotOn ? 'pilot.mode.on' : 'pilot.mode.off', { name }))}</p>
+    ${!viewer.isOwner ? '' : pilotOn
+      ? `<form method="post" action="/app/business/pilot/end" class="inline"><button class="btn send" type="submit"
+           onclick="return confirm(this.dataset.confirm)" data-confirm="${esc(t(locale, 'pilot.mode.endConfirm', { name }))}">${esc(t(locale, 'pilot.mode.end'))}</button></form>`
+      : `<form method="post" action="/app/business/pilot/resume" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.mode.resume'))}</button></form>`}`;
   const whatsappBlock = `
     ${lc === 'active' || lc === 'ready'
       ? `<div class="fconn on">${conn}</div>`
       : `<a class="fconn off" href="/app/channels">${conn}<span class="go" aria-hidden="true">›</span></a>`}
     ${lc !== 'not_connected' && c.displayId ? `<div class="facts">${fact(t(locale, 'channel.field.number'), c.displayId)}</div>` : ''}
-    ${allowlist}`;
+    ${allowlist}
+    ${pilotBlock}`;
 
   // The other places she can be reached, each as the same card: tappable to the
   // Channels page while it still needs her, still once it is connected.

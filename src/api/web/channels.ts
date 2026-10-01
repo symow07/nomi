@@ -96,7 +96,22 @@ export type ChannelsData = {
   readonly country?: string | null;
   /** A2 — where she said at sign-up that she talks to buyers today, in her order. */
   readonly channelsUsed?: readonly string[];
+  /**
+   * WA (0120) — Embedded Signup is set up on this installation: a business
+   * connects its OWN number, and the installation's number is not offered.
+   */
+  readonly waSelfServe?: boolean;
+  /** WA — the number this business connected itself, when it has one. */
+  readonly waOwn?: {
+    readonly display: string | null; readonly verifiedName: string | null;
+    readonly nameStatus: string | null; readonly needsAttention: boolean;
+  } | null;
 };
+
+/** WA — Meta's display-name review, as the owner reads it. */
+const NAME_STATUS = new Set(['APPROVED', 'PENDING_REVIEW', 'DECLINED', 'EXPIRED', 'NONE']);
+const nameStatusKey = (s: string | null): MessageKey =>
+  `channel.wa.nameStatus.${s && NAME_STATUS.has(s) ? s : 'other'}` as MessageKey;
 
 const NO_OUTREACH: ReadonlyMap<OutreachChannel, boolean> = new Map();
 
@@ -665,8 +680,17 @@ export function renderChannels(
   approvalHtml = '',
 ): string {
   const w = data.whatsapp;
+  const own = data.waOwn ?? null;
+  // WA — her own number: connected through Meta's window, disconnected the same way, and connected again when Meta stopped accepting it.
+  const ownActions = own && viewer.isOwner
+    ? (own.needsAttention
+      ? `<p class="perr" role="alert">${esc(t(locale, 'channel.wa.needsAttention'))}</p>${deeper('/app/connect/whatsapp/start', t(locale, 'channel.wa.reconnect'))}`
+      : `<form method="post" action="/app/connect/whatsapp/disconnect" style="display:inline"><button class="btn danger" type="submit" onclick="return confirm(this.dataset.confirm)"
+           data-confirm="${esc(t(locale, 'channel.wa.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`)
+    : null;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
-  const actions = !viewer.isOwner && (w.connected || w.status === 'disconnected')
+  const actions = ownActions !== null ? ownActions
+    : !viewer.isOwner && (w.connected || w.status === 'disconnected')
     ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
     : w.connected
     ? `<form method="post" action="/app/channels/whatsapp/test" style="display:inline"><button class="btn">${esc(t(locale, 'channel.action.test'))}</button></form>
@@ -674,6 +698,13 @@ export function renderChannels(
          data-confirm="${esc(t(locale, 'channel.action.disconnectConfirm'))}">${esc(t(locale, 'channel.action.disconnect'))}</button></form>`
     : w.status === 'disconnected'
       ? `<form method="post" action="/app/channels/whatsapp/reconnect" style="display:inline"><button class="btn send">${esc(t(locale, 'channel.action.reconnect'))}</button></form>`
+      // WA — with Embedded Signup set up, every business connects its OWN
+      // number; the installation's is never offered to a stranger.
+      : data.waSelfServe && !viewer.isOwner
+        ? `<div class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</div>`
+      : data.waSelfServe
+        ? `${deeper('/app/connect/whatsapp/start', t(locale, 'channel.wa.connectOwn'))}
+           <div class="muted ch-desc">${esc(t(locale, 'channel.wa.connectOwn.lede'))}</div>`
       // G3 — with a number configured, Connect DOES it; the guide is only for
       // an installation that has no number yet.
       : data.canConnect && !viewer.isOwner
@@ -691,7 +722,9 @@ export function renderChannels(
         <span class="pill ${w.connected ? 'ok' : 'warn'}">${pill}</span></div>
       <div class="muted ch-desc">${esc(t(locale, 'channel.whatsapp.desc'))}</div>
       ${w.connected ? `<div class="ch-info">
-        ${w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
+        ${own?.display ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> <bdi dir="ltr">${esc(own.display)}</bdi></div>`
+          : w.displayId ? `<div><span class="muted">${esc(t(locale, 'channel.field.number'))}</span> ${esc(w.displayId)}</div>` : ''}
+        ${own?.verifiedName ? `<div><span class="muted">${esc(t(locale, 'channel.wa.name'))}</span> <bdi>${esc(own.verifiedName)}</bdi> · ${esc(t(locale, nameStatusKey(own.nameStatus)))}</div>` : ''}
         ${w.lastActivityAt ? `<div><span class="muted">${esc(t(locale, 'channel.field.lastMessage'))}</span> ${esc(show.when(locale, w.lastActivityAt, new Date()))}</div>` : ''}
         <div><span class="muted">${esc(t(locale, 'channel.field.health'))}</span> ${esc(w.healthOk ? t(locale, 'channel.health.ok') : t(locale, 'channel.health.attention'))}</div>
       </div>` : ''}
