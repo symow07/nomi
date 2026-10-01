@@ -168,6 +168,15 @@ export async function answerSpotCheck(
   tx: Tx, businessId: string, spotCheckId: string, rawReply: string,
 ): Promise<{ answered: boolean; verdict: SpotCheckVerdict | null; demoted: boolean }> {
   const { verdict, correction } = parseSpotCheckReply(rawReply);
+  // R1 (fix 5) — the evidence is read BEFORE the verdict is written, and the
+  // verdict folded in once below. Read after, it already held the verdict and
+  // `applySpotCheck` added it a second time: one correction demoted at once.
+  const open = (await sql<{ capability: string }>`
+    select capability from spot_checks
+     where id = ${spotCheckId}::uuid and business_id = ${businessId}::uuid and answered_at is null
+       for update`.execute(tx)).rows[0];
+  if (!open) return { answered: false, verdict: null, demoted: false };
+  const base = await loadCapabilityEvidence(tx, open.capability);
   const r = await sql<{ id: string; capability: string }>`
     update spot_checks
        set verdict = ${verdict}, correction = ${correction}, answered_at = now()
@@ -189,7 +198,6 @@ export async function answerSpotCheck(
   // Only ever downward: `autoDemote` writes the literal 'draft' and refuses a
   // capability that is not currently in auto, so a "correct" verdict cannot
   // promote anything. Promotion stays the owner's tap.
-  const base = await loadCapabilityEvidence(tx, row.capability);
   const evidence = applySpotCheck(base, verdict);
   const d = await autoDemote(tx, businessId, row.capability, demotionDecision(evidence), evidence);
   return { answered: true, verdict, demoted: d.demoted };

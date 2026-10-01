@@ -41,9 +41,13 @@ export async function draftTextOf(tx: Tx, businessId: BusinessId, draftId: strin
   return row ? row.draft_text : null;
 }
 
-/** The same words, as the card compares them. */
-export const sameWords = (a: string, b: string): boolean =>
-  a.replace(/\r\n/g, '\n').trim() === b.replace(/\r\n/g, '\n').trim();
+/**
+ * The same words, as the card and the approval path compare them — after
+ * whitespace normalisation (R1, the ramp's "sent as written"): spaces, tabs
+ * and line breaks are spacing, not an edit.
+ */
+const spacing = (x: string): string => x.replace(/\s+/g, ' ').trim();
+export const sameWords = (a: string, b: string): boolean => spacing(a) === spacing(b);
 
 /** Keep the owner's own reply that was refused before it could be queued. */
 export async function keepUnsentReply(tx: Tx, businessId: BusinessId, conversationId: string, text: string): Promise<void> {
