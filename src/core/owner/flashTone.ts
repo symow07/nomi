@@ -59,6 +59,9 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   'connect.flash.no_address', 'connect.flash.no_refresh_token', 'connect.flash.not_configured',
   // G7 — the operator stopped new connections.
   'connect.flash.paused',
+  // BILL — no card yet; the plan's seats or assistants used; Billing refused or unreachable.
+  'connect.flash.card', 'people.flash.seat_limit', 'assistants.flash.assistant_limit',
+  'billing.flash.notConfigured', 'billing.flash.failed', 'billing.flash.noPlan', 'billing.flash.notBilled',
   // KS6 — the first connection waits for the operator; an address that is not one; an ask that did not go.
   'connect.flash.approval', 'approval.flash.bad_page', 'approval.flash.failed',
   'connect.flash.rejected', 'connect.flash.unavailable', 'connect.meta.flash.no_pages',
@@ -106,6 +109,8 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
 
 /** It happened. The jade banner, announced as a passing status. */
 export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
+  // BILL — a plan saved.
+  'billing.flash.plan',
   // KS6 — asked; asked before; or nothing to ask.
   'approval.flash.asked', 'approval.flash.already', 'approval.flash.not_needed',
   // R2 — a conversation marked as the owner testing, or as a real customer again.

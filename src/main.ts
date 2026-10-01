@@ -18,6 +18,8 @@ import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
 import { httpsMailConfigFrom, httpsSystemMailer, cappedMail } from './channels/email/httpsMail.js';
 import { botCheckConfigFrom, botCheckFrom, SIGNUP_GUARD, type BotCheck, type SignupGuard } from './api/web/botCheck.js';
+import { stripeConfigFrom, stripeClient, type StripeClient } from './billing/stripe.js';
+import { subscribeSweep, billingAlerts } from './pipeline/billing.js';
 import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { backupFreshness } from './core/ops/backups.js';
@@ -422,6 +424,8 @@ export async function buildProduction(
      * are held by tests/integration/bot-check.test.ts, on production's.
      */
     signupGuard?: SignupGuard | null;
+    /** BILL — tests only: Stripe's client with the network a recorder, and its webhook secret. */
+    stripe?: { readonly client: StripeClient; readonly webhookSecret: string };
     /**
      * G2b — the transcriber and media fetchers, beside `adapter` and for the
      * same reason: a test that swaps the provider must also swap where media
@@ -572,6 +576,15 @@ export async function buildProduction(
    * on every request, whichever switch asked for open); the boot says so.
    */
   const botCheck = overrides?.botCheck ?? (() => { const c = botCheckConfigFrom(process.env); return c ? botCheckFrom(c) : null; })();
+  /**
+   * BILL (0117) — Stripe, from STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, both
+   * or none. Unset (today): Billing says payments are not set up, no card is
+   * taken, nothing is charged, and nobody is held for it.
+   */
+  const stripe = overrides?.stripe ?? (() => {
+    const c = stripeConfigFrom(process.env);
+    return c ? { client: stripeClient(c), webhookSecret: c.webhookSecret } : null;
+  })();
   if (!botCheck && signupModeFrom(process.env['SIGNUP_MODE']) === 'open') {
     console.warn('SIGNUP_MODE=open needs a bot check (BOT_CHECK_PROVIDER, BOT_CHECK_SITE_KEY, BOT_CHECK_SECRET): until one is set, sign-up reads as invite.');
   }
@@ -704,6 +717,8 @@ export async function buildProduction(
       // BOT — the check before a sign-up code, and the database's limits on the door (0114).
       botCheck,
       signupGuard: overrides?.signupGuard === undefined ? SIGNUP_GUARD : overrides.signupGuard,
+      // BILL — the payment provider; null until the owner pastes its keys.
+      stripe,
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1248,8 +1263,10 @@ export async function buildProduction(
   await boss.work(QUEUES.allowance, async () => {
     // KS5 — and the operator, once a day, when the installation passes its ceiling.
     const breaker = await spendBreakerAlert(db, PILOT_BUSINESS_ID);
+    // BILL — a subscription for each workspace whose first channel connected with a card saved; then its e-mails, each once.
+    if (stripe) await subscribeSweep(db, stripe.client, new Date()).catch((e: unknown) => console.warn(`[billing] sweep: ${e instanceof Error ? e.message : String(e)}`));
     // KS6 — and each decision on a first connection, told to its owner once.
-    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db)]) {
+    for (const job of [...await allowanceAlerts(db, new Date()), ...await demotionAlerts(db), ...(breaker ? [breaker] : []), ...await connectionDecisionAlerts(db), ...await billingAlerts(db)]) {
       await boss.send(QUEUES.notify, job satisfies NotifyJob);
     }
   });

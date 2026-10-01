@@ -133,7 +133,7 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
  * minutes (a replay of an old one is refused). Pure but for the clock passed in.
  */
 export const STRIPE_SIGNATURE_TOLERANCE_S = 300;
-export type StripeEvent = { readonly id: string; readonly type: string; readonly object: Record<string, unknown> };
+export type StripeEvent = { readonly id: string; readonly type: string; readonly created: number; readonly object: Record<string, unknown> };
 
 export function verifyStripeEvent(rawBody: string, header: string | undefined, secret: string, nowSeconds: number): StripeEvent | null {
   if (!header) return null;
@@ -144,9 +144,9 @@ export function verifyStripeEvent(rawBody: string, header: string | undefined, s
   const expected = Buffer.from(createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex'), 'utf8');
   if (!signatures.some((s) => { const b = Buffer.from(s, 'utf8'); return b.length === expected.length && timingSafeEqual(b, expected); })) return null;
   try {
-    const e = JSON.parse(rawBody) as { id?: unknown; type?: unknown; data?: { object?: unknown } };
+    const e = JSON.parse(rawBody) as { id?: unknown; type?: unknown; created?: unknown; data?: { object?: unknown } };
     if (typeof e.id !== 'string' || typeof e.type !== 'string' || typeof e.data?.object !== 'object' || e.data.object === null) return null;
-    return { id: e.id, type: e.type, object: e.data.object as Record<string, unknown> };
+    return { id: e.id, type: e.type, created: typeof e.created === 'number' ? e.created : t, object: e.data.object as Record<string, unknown> };
   } catch {
     return null;
   }

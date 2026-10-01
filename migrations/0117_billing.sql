@@ -83,6 +83,8 @@ create table if not exists workspace_billing (
   told_trial_ending_at    timestamptz,
   told_payment_failed_at  timestamptz,
   told_lapsed_at          timestamptz,
+  -- When Stripe made the last subscription event applied: an older one, delivered late, changes nothing.
+  stripe_event_at         timestamptz,
   updated_at              timestamptz not null default now(),
   check ((trial_days is null) = (trial_granted_at is null))
 );
@@ -299,6 +301,13 @@ $$;
 revoke all on function billing_business_for_customer(text) from public;
 grant execute on function billing_business_for_customer(text) to nomi_app;
 
+create or replace function stripe_event_seen(p_id text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from stripe_events where id = p_id)
+$$;
+revoke all on function stripe_event_seen(text) from public;
+grant execute on function stripe_event_seen(text) to nomi_app;
+
 -- An event handled once: true the first time its id is seen.
 create or replace function claim_stripe_event(p_id text, p_type text, p_business uuid) returns boolean
 language sql volatile security definer set search_path = public as $$
@@ -322,7 +331,8 @@ grant execute on function billing_card_saved(uuid, text) to nomi_app;
 -- by its price. Moving into 'lapsed' stamps when; leaving it clears the stamp
 -- and the told mark, so a later lapse is told again.
 create or replace function billing_subscription(p_customer text, p_subscription text, p_status text,
-                                                p_period_end timestamptz, p_trial_end timestamptz, p_price text)
+                                                p_period_end timestamptz, p_trial_end timestamptz, p_price text,
+                                                p_event_at timestamptz)
 returns uuid
 language sql volatile security definer set search_path = public as $$
   update workspace_billing w set
@@ -333,12 +343,14 @@ language sql volatile security definer set search_path = public as $$
     plan_id = coalesce((select id from plans where stripe_price_id = p_price), w.plan_id),
     lapsed_at = case when p_status = 'lapsed' then coalesce(w.lapsed_at, now()) else null end,
     told_lapsed_at = case when p_status = 'lapsed' then w.told_lapsed_at else null end,
+    stripe_event_at = p_event_at,
     updated_at = now()
    where w.stripe_customer_id = p_customer
+     and (w.stripe_event_at is null or w.stripe_event_at <= p_event_at)
   returning w.business_id
 $$;
-revoke all on function billing_subscription(text, text, text, timestamptz, timestamptz, text) from public;
-grant execute on function billing_subscription(text, text, text, timestamptz, timestamptz, text) to nomi_app;
+revoke all on function billing_subscription(text, text, text, timestamptz, timestamptz, text, timestamptz) from public;
+grant execute on function billing_subscription(text, text, text, timestamptz, timestamptz, text, timestamptz) to nomi_app;
 
 create or replace function billing_payment_failed(p_customer text) returns uuid
 language sql volatile security definer set search_path = public as $$

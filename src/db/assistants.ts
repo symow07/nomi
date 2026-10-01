@@ -3,6 +3,7 @@ import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { defaultAssistantName } from '../core/owner/assistants.js';
 import { parseLocale } from '../core/owner/i18n/locale.js';
+import { planLimits } from './billing.js';
 import { assistantFor, type Assistant, type AssistantChannel, type AssistantRole, type ValidAssistant } from '../core/owner/assistants.js';
 
 /**
@@ -63,7 +64,7 @@ export async function assistantIdForChannel(tx: Tx, businessId: BusinessId, chan
   return assistantFor(await listAssistants(tx, businessId), channel)?.id ?? null;
 }
 
-export type AssistantWrite = 'saved' | 'channel_taken' | 'not_found' | 'is_default';
+export type AssistantWrite = 'saved' | 'channel_taken' | 'not_found' | 'is_default' | 'assistant_limit';
 
 /** A channel belongs to at most one live assistant; the default claims none. */
 async function channelTaken(tx: Tx, businessId: BusinessId, channels: readonly string[], exceptId: string | null): Promise<boolean> {
@@ -85,6 +86,12 @@ export async function addAssistant(tx: Tx, businessId: BusinessId, v: ValidAssis
   // can never become the default by being first.
   await ensureDefaultAssistant(tx, businessId, mainNameIfNew);
   if (await channelTaken(tx, businessId, v.channels, null)) return 'channel_taken';
+  // BILL (0117) — the plan's assistants, the main one among them; no plan, no limit.
+  const { assistants } = await planLimits(tx);
+  if (assistants !== null) {
+    const n = Number((await sql<{ n: number }>`select count(*)::int as n from assistants where business_id = ${businessId}::uuid and archived_at is null`.execute(tx)).rows[0]?.n ?? 0);
+    if (n >= assistants) return 'assistant_limit';
+  }
   const r = await sql<{ id: string }>`
     insert into assistants (business_id, name, role, note, channels, created_by)
     values (${businessId}::uuid, ${v.name}, ${v.role}, ${v.note}, ${v.channels as string[]}, ${actor})

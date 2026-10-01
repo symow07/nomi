@@ -105,9 +105,11 @@ export async function markCardSaved(db: Db, businessId: string, customerId: stri
 export async function recordSubscription(db: Db, s: {
   readonly customerId: string; readonly subscriptionId: string; readonly status: BillingStatus;
   readonly periodEnd: Date | null; readonly trialEnd: Date | null; readonly priceId: string | null;
+  /** When Stripe made the event: an older one, delivered late, changes nothing (null: not applied). */
+  readonly eventAt: Date;
 }): Promise<string | null> {
   return (await sql<{ b: string | null }>`
-    select billing_subscription(${s.customerId}, ${s.subscriptionId}, ${s.status}, ${s.periodEnd}, ${s.trialEnd}, ${s.priceId})::text as b`
+    select billing_subscription(${s.customerId}, ${s.subscriptionId}, ${s.status}, ${s.periodEnd}, ${s.trialEnd}, ${s.priceId}, ${s.eventAt})::text as b`
     .execute(db)).rows[0]?.b ?? null;
 }
 
