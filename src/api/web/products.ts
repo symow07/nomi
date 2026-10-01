@@ -627,6 +627,8 @@ export function renderAddForm(
   flash: Flash | null = null,
   /** K5 — the owner chose "prices go to me". */
   pricesToOwner = false,
+  /** EXT — the page reader can read a PDF on this installation (its model provider takes documents). */
+  pdfReadable = false,
 ): string {
   if (!viewer.isOwner) {
     return `<h1 class="page">${esc(t(locale, 'product.teach'))}</h1>
@@ -654,7 +656,7 @@ export function renderAddForm(
           <label class="pcheck"><input type="radio" name="hand" value="printed" required /> ${esc(t(locale, 'import.hand.printed'))}</label>
           <label class="pcheck"><input type="radio" name="hand" value="handwritten" /> ${esc(t(locale, 'import.hand.handwritten'))}</label>
         </fieldset>
-        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp,application/pdf" multiple required />
+        <input class="photo-in" type="file" name="page" accept="image/jpeg,image/png,image/webp${pdfReadable ? ',application/pdf' : ''}" multiple required />
         <button class="btn send" type="submit">${esc(t(locale, 'product.add.photoButton'))}</button>
       </form>
       <p class="muted" style="font-size:var(--font-size-caption)">${esc(t(locale, 'product.photo.allOrNothing'))}</p>
@@ -915,6 +917,8 @@ export type PhotoRefusal = 'not_configured' | 'unreadable' | 'no_lines' | 'cut_o
   | 'too_many' | 'handwritten' | 'hand_unanswered'
   // EXT — the reader failed or did not answer in time.
   | 'reader_failed'
+  // EXT — a PDF, where the model provider cannot read one (its live check, 2026-10-01).
+  | 'pdf_unreadable'
   // G3 — the day's 20 photos, or the day's allowance, are used.
   | 'daily_limit' | 'allowance_used';
 

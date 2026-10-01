@@ -781,6 +781,9 @@ export async function buildProduction(
     registerWebApp(a, {
       db,
       pageTranscriber,
+      // EXT — a PDF is offered only where the provider reads documents (Anthropic's does;
+      // this installation's custom provider answered one with nothing, 2026-10-01).
+      pdfReadable: llm.name === 'anthropic',
       catalogExtractor,
       pageFactsReader,
       draftTranslator,

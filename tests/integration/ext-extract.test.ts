@@ -77,7 +77,7 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
       secureCookie: false, messagingEnabled: false, pageTranscriber: transcriber, kickOutbound: async () => {}, kickDrive: async () => {}, enqueueInbound: async () => {},
     };
     app = Fastify({ logger: false });
-    registerWebApp(app, { ...base, catalogExtractor: extractor } as unknown as Parameters<typeof registerWebApp>[1]);
+    registerWebApp(app, { ...base, catalogExtractor: extractor, pdfReadable: true } as unknown as Parameters<typeof registerWebApp>[1]);
     await app.ready();
     bare = Fastify({ logger: false });
     registerWebApp(bare, base as unknown as Parameters<typeof registerWebApp>[1]);
@@ -149,6 +149,15 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     readerDown = false;
     expect(down.statusCode).toBe(200);
     expect(down.body).toContain(t('en', 'product.photo.refused.reader_failed'));
+  });
+
+  it('WHERE THE PROVIDER CANNOT READ A PDF, none is offered, and one sent is refused in plain words — nothing read', async () => {
+    expect((await get(app, cookie, '/app/products/add')).body).toContain('accept="image/jpeg,image/png,image/webp,application/pdf"');
+    expect((await get(bare, bareCookie, '/app/products/add')).body).toContain('accept="image/jpeg,image/png,image/webp"');
+    const before = read.length;
+    const r = await postPhotos(bare, bareCookie, [{ bytes: Buffer.from('%PDF-1.4\n% a price list\n'), mime: 'application/pdf' }]);
+    expect(r.body).toContain(t('en', 'product.photo.refused.pdf_unreadable'));
+    expect(read.length).toBe(before);
   });
 
   it('AN EXCEL WORKBOOK goes to the column mapping, as a CSV would', async () => {

@@ -384,6 +384,8 @@ export type WebDeps = {
   readonly metaConnect?: MetaConnectDeps;
   /** WA — Embedded Signup: a business connects its own WhatsApp number. Absent: not offered. */
   readonly waLogin?: WaLogin | null;
+  /** EXT — the page reader can read a PDF (the model provider takes documents: Anthropic's does). Absent: it cannot. */
+  readonly pdfReadable?: boolean;
   readonly waConnect?: WaConnectDeps;
   /** C6 — how the code exchange reaches the provider (tests pass a recording one). */
   readonly oauthFetch?: OAuthFetch;
@@ -2774,7 +2776,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   }));
   app.get('/app/products/add', authed('products', async (s, req, locale, reply) =>
     renderAddForm(locale, personOf(s), await workspaceCurrency(deps.db, s.businessId),
-      await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId))));
+      await openImportOf(deps.db, s.businessId), takeFlash(req, reply), await pricesGoToOwner(deps.db, s.businessId),
+      deps.pdfReadable === true)));
   /** K5 — "prices go to me", on or off. Money is the owner's (rule 11). */
   app.post('/app/products/prices-to-me', async (req, reply) => {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products/add');
@@ -2886,7 +2889,12 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
         // An empty file box sends a part with no bytes: not a photo, not an error.
         if (bytes.length === 0) continue;
         // EXT — a PDF price list is a page too: its own bytes must say so, not only its label.
-        if (mt === 'application/pdf' && bytes.subarray(0, 5).toString('latin1') === '%PDF-') { photos.push({ bytes, mediaType: mt }); continue; }
+        if (mt === 'application/pdf' && bytes.subarray(0, 5).toString('latin1') === '%PDF-') {
+          // Only where the model provider reads documents: this installation's custom
+          // provider answered a PDF with nothing (EXT's live check), so it is said, not tried.
+          if (!deps.pdfReadable) return refuse('pdf_unreadable');
+          photos.push({ bytes, mediaType: mt }); continue;
+        }
         if (mt !== 'image/jpeg' && mt !== 'image/png' && mt !== 'image/webp') return refuse('not_a_photo');
         photos.push({ bytes, mediaType: mt });
       }
