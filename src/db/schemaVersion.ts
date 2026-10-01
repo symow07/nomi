@@ -293,8 +293,11 @@ import type { Db } from './client.js';
  *      `catalog_import_photos`, the product's source columns and
  *      `businesses.prices_to_owner`. Every import writes the first two; against
  *      a 93 database no list can be added.
+ * 95 = how a business sells (0095): `businesses.quantity_first`,
+ *      `offers_samples`, `uses_proforma`, `sells_with_minimum`. Every turn
+ *      reads the first; against a 94 database no turn can run.
  */
-export const REQUIRED_SCHEMA_VERSION = 94;
+export const REQUIRED_SCHEMA_VERSION = 95;
 
 export type SchemaState = {
   readonly required: number;

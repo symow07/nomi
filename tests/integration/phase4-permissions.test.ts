@@ -108,6 +108,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     imports: await rows('catalog_imports', 'x.id'),
     pricesToOwner: await tx((t) => sql<{ on: boolean }>`
       select prices_to_owner as on from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.on)),
+    quantityFirst: await tx((t) => sql<{ v: boolean | null }>`
+      select quantity_first as v from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.v)),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -134,6 +136,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/settings/currency', 'currency=SAR'],
     // K5 — whether the business states prices at all is money too.
     ['/app/products/prices-to-me', 'on=1'],
+    // RT — whether a price comes before the quantity is money too.
+    ['/app/business/selling', 'field=quantityFirst&value=no'],
   ];
 
   beforeAll(async () => {

@@ -25,6 +25,8 @@ import type { MessageKey } from './i18n/messages.js';
 
 /** What she asked for did not happen. Drawn in the warning tone, announced as an alert. */
 export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
+  // RT — an answer that is not one of the choices.
+  'selling.flash.invalid',
   'account.flash.failed', 'account.flash.short', 'account.flash.wrong', 'allowlist.flash.invalid',
   // 0080 — the order still waits, or was already decided; and like
   // `inbox.flash.sentNotLive`, recorded but nothing sent.
@@ -118,6 +120,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   'import.flash.floorsSet', 'import.flash.dropped',
   // K5 — prices go to the owner, or back to the list: both what she asked.
   'product.pricesToMe.flash.on', 'product.pricesToMe.flash.off',
+  // RT — her answer on How you sell, saved or already so.
+  'selling.flash.saved', 'selling.flash.unchanged',
   'product.flash.alreadyHere', 'product.flash.updated', 'proof.owner.flash.issued',
   'proof.owner.flash.revoked', 'prospects.flash.added', 'prospects.flash.removed', 'prospects.flash.saved',
   'rate.flash.set', 'reach.inbound.flash.connected', 'samples.flash.address', 'samples.flash.done',

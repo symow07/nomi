@@ -287,6 +287,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
       recentMessages: await tenant.conversations.recentMessages(req.conversationId, {
         limit: HISTORY_TURNS, excluding: [req.messageId, ...(req.answering ?? [])],
       }),
+      ...(selling.quantityFirst ? {} : { priceFirst: true }),
     });
     timings.analyzerMs = Date.now() - ta;
     usage.llmCalls++;
@@ -361,10 +362,15 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let quoteInputs: unknown = null;
   let product: Product | null = null;
 
+  // RT — a shop or a brand gives the price first: with the product known and no
+  // quantity yet, the price of one (or of its minimum, where it has one). A
+  // business that asks how many first (a factory, an exporter) waits for it.
+  const priceFirst = !selling.quantityFirst;
   // K5 — a business whose prices go to the owner is quoted nothing, whatever it holds.
-  if (decision.product && decision.quantity && !selling.pricesToOwner) {
+  if (decision.product && (decision.quantity || priceFirst) && !selling.pricesToOwner) {
     product = await tenant.catalog.product(decision.product.productId);
     if (product) {
+      const quantity = decision.quantity?.value ?? Math.max(1, product.moq ?? 1);
       const [tiers, policy, rules, closures] = await Promise.all([
         tenant.catalog.priceTiers(product.id),
         tenant.catalog.pricingPolicy(product.id),
@@ -372,12 +378,12 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         // M44 — the days she said her factory is shut.
         tenant.catalog.factoryClosures(),
       ]);
-      quoteInputs = { tiers, policy, rules, quantity: decision.quantity.value };
+      quoteInputs = { tiers, policy, rules, quantity, ...(decision.quantity ? {} : { priceFirst: true }) };
       // M36 — what she already told THIS buyer about THIS product. Empty for a
       // new buyer, which is why a first quote is never refused by this guard.
       const priorQuotes = await tenant.audit.priorQuotesForClient(state.clientId, product.id);
       const q = computeQuote({
-        product, tiers, policy, rules, quantity: decision.quantity.value, priorQuotes,
+        product, tiers, policy, rules, quantity, priorQuotes,
         closures, now: ports.now(),
       });
       if (q.ok) quote = q.value;
@@ -647,6 +653,8 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
           ...(sampleCtx?.ok ? { sampleNote: sampleCtx.note } : {}),
           ...(closureCtx ? { closureNote: closureCtx.note } : {}),
           ...(speaker ? { speaker } : {}),
+          // RT — a price-first business: the writer gives the price as soon as the product is known.
+          ...(priceFirst ? { priceFirst: true } : {}),
         });
         usage.llmCalls++;
         usage.inputTokens += w.usage.inputTokens;

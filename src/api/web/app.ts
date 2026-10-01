@@ -51,6 +51,7 @@ import {
 import { startStoreImport, startTableImport, looksLikeTable, applyColumns, mappingFrom, renderColumns, renderStoreRefusal } from './storeImport.js';
 import { publicFetcher, type StoreFetcher } from '../../net/publicFetch.js';
 import { parseTable } from '../../core/onboard/csvTable.js';
+import { loadSelling, saveSelling, renderSelling } from './selling.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
@@ -2668,6 +2669,19 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }
     return flashTo(reply, `/app/products/${encodeURIComponent(id)}`,
       r.changed.length ? 'product.edit.flash.saved' : 'product.edit.flash.unchanged');
+  });
+
+  // ── RT (0095) How you sell: her answers over her kind's, owner-only ───────
+  app.get('/app/business/selling', ownerPage('price_rules', 'factory', '/app/business', async (s, req, reply, locale) => {
+    const v = await loadSelling(deps.db, s.businessId);
+    return v ? renderSelling(v, locale, takeFlash(req, reply)) : '';
+  }));
+  app.post('/app/business/selling', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'price_rules', '/app/business/selling');
+    if (!s) return reply;
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const r = await saveSelling(deps.db, s.businessId, personOf(s).id, String(b['field'] ?? ''), String(b['value'] ?? ''));
+    return flashTo(reply, '/app/business/selling', r === 'saved' ? 'selling.flash.saved' : r === 'unchanged' ? 'selling.flash.unchanged' : 'selling.flash.invalid');
   });
 
   // ── M29 Price limits: the three questions, reached from My factory ────────

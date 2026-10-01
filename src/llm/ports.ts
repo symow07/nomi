@@ -17,6 +17,8 @@ export interface Analyzer {
     state: ConversationState;
     candidates: readonly RetrievedProduct[];   // top-k retrieval, NEVER the catalog
     recentMessages: readonly { direction: string; text: string }[];
+    /** RT — the business gives its price first: a known product with a price question needs no quantity. */
+    priceFirst?: boolean;
   }): Promise<{
     analysis: Analysis;
     promptVersion: string;   // provenance for the turns table (ADR-0010 Q1)
@@ -84,6 +86,12 @@ export interface ReplyWriter {
      * is already null on the quote, and `guardNumerals` refuses any date.
      */
     closureNote?: string;
+    /**
+     * RT — the business gives its price first (a shop, a brand): the reply
+     * gives CONTEXT.quote's price as soon as the product is known, and never
+     * asks how many first. ABSENT for a business that asks how many first.
+     */
+    priceFirst?: boolean;
   }): Promise<{ reply: string; promptVersion: string; modelId: string;
     usage: { inputTokens: number; outputTokens: number } }>;
 }
