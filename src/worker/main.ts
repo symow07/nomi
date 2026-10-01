@@ -16,6 +16,8 @@ import { recordSpendAlone } from '../db/usage.js';
 import { seeImage, recordImageMessage, productionImageDeps } from '../pipeline/imageIntake.js';
 import { mediaPortsFor, type MediaPorts } from './mediaPorts.js';
 import { inboundDisposition, unlistedDuringPilot } from '../core/conversation/inbound.js';
+import { matchCaption, postLine, captionShown, type PostMatch } from '../core/conversation/sharedPost.js';
+import { catalogueNames } from '../db/productAliases.js';
 import { pilotFactsFor } from '../db/channels.js';
 import { turnHold, HOLD_REASON } from '../db/assistantStop.js';
 import { practiceOf, conversationExists } from '../db/practice.js';
@@ -97,7 +99,7 @@ export async function startWorker(
   const llm = llmProviderFrom(process.env, env.ANTHROPIC_API_KEY);
   const anthropic = llmClient(llm);
 
-  const { transcriber, audio, image: mediaFetcher } = media;
+  const { transcriber, audio, image: mediaFetcher, postCaption } = media;
   const extras = requestExtrasFor(llm);
   const analyzer = models.analyzer ?? anthropicAnalyzer(anthropic, llm.model, extras);
   const replyWriter = models.replyWriter ?? anthropicReplyWriter(anthropic, llm.model, extras);
@@ -471,6 +473,28 @@ export async function startWorker(
     if (seen?.usage) await recordSpendAlone(db, businessId.value, seen.usage, { turn: false });
 
     /**
+     * ── CH7 · THE SHOP'S OWN POST, MATCHED TO A PRODUCT ─────────────────
+     *
+     * "price?" on a story, or a post shared with no words: the caption of the
+     * shop's OWN post (Meta answers only for media its token's account owns)
+     * is read with the workspace's Page token — outside any transaction, five
+     * seconds at most — and looked at for one product's name or alias. One
+     * product named: the turn runs with it named, on a line marked as what the
+     * customer did. None, or several: nothing is guessed — words are answered
+     * as before, and a post with no words goes to a person with its caption.
+     * No model is asked; reading costs nothing on the ledger.
+     */
+    let post: { readonly caption: string | null; readonly match: PostMatch } | null = null;
+    if (job.data.postId && postCaption) {
+      const caption = await postCaption({ db, businessId: businessId.value, postId: job.data.postId });
+      const match = caption
+        ? matchCaption(caption, await withTenantTx(db, businessId.value, (tx) => catalogueNames(tx, businessId.value)))
+        : { kind: 'none' as const };
+      post = { caption, match };
+    }
+    const named = post?.match.kind === 'matched' ? post.match : null;
+
+    /**
      * ── G2c · SOMETHING SHE CANNOT ANSWER FROM TEXT ─────────────────────
      *
      * A reaction, a sticker, a document, a video, a location. Each used to
@@ -480,6 +504,21 @@ export async function startWorker(
      * for what arrived. Text, photos and voice notes carry on as before.
      */
     const disposition = inboundDisposition(job.data.messageType ?? 'text', job.data.received);
+    if (disposition.kind === 'owner' && named
+        && (disposition.received === 'shared_post' || disposition.received === 'story_reply')) {
+      // CH7 — what he did, named: on the timeline as what arrived (and which
+      // product of hers it was), and to the turn as a marked line, never as
+      // words of his. Text he sent first goes first.
+      await flushPendingText(businessId.value, conversationId.value, started);
+      await withTenantTx(db, businessId.value, (tx) => recordReceivedMessage(tx, conversationId.value, job.data.messageId,
+        job.data.text || null, disposition.received, named.name));
+      await runTurn({
+        businessId: businessId.value, conversationId: conversationId.value,
+        messageId: job.data.messageId, text: postLine(disposition.received, named.name), caption: null,
+        provenance: 'typed', heard: null, seen: null, mediaId: null, fragmentIds: [], started,
+      });
+      return;
+    }
     if (disposition.kind !== 'answer') {
       await flushPendingText(businessId.value, conversationId.value, started);
       const effects = await withTenantTx(db, businessId.value, async (tx) => {
@@ -491,6 +530,8 @@ export async function startWorker(
           kind: 'media_unreadable', received: disposition.received,
           // CH7a — what it points at, when the provider said.
           ...(job.data.ref ? { ref: job.data.ref } : {}),
+          // CH7 — and what the shop's own post says, read and matched to no one product.
+          ...(captionShown(post?.caption) ? { caption: captionShown(post?.caption) } : {}),
         }, [{ messageId: job.data.messageId, text: job.data.text || null }]);
       });
       await alertHandoff(businessId.value, conversationId.value, effects);
@@ -513,7 +554,11 @@ export async function startWorker(
     if (heard === null && seen === null) {
       const decision = await withTenantTx(db, businessId.value, async (tx) => {
         await recordFragment(tx, businessId.value, conversationId.value, {
-          id: job.data.messageId, text: job.data.text, receivedAt: new Date(),
+          id: job.data.messageId,
+          // CH7 — "price?" on a story of hers that names one product: the turn
+          // reads which, on its own marked line. The timeline keeps his words alone.
+          text: named ? `${job.data.text}\n${postLine('story_reply', named.name)}` : job.data.text,
+          receivedAt: new Date(),
         });
         // G10a — and on the timeline, as he sent it, whatever batching does next.
         await recordTypedMessage(tx, conversationId.value, job.data.messageId, job.data.text);

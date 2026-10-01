@@ -169,6 +169,8 @@ export type InboundJob = {
   received?: string;
   /** CH7a — the shared post's or story's link, when the provider gave one. */
   ref?: string;
+  /** CH7 — the shop's own post, reel or story it is about, by Meta's media id. */
+  postId?: string;
   /** Provider media id for audio/image — short-lived, fetch promptly. */
   mediaId?: string | null;
   /**
