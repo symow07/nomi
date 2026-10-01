@@ -1,3 +1,4 @@
+import { clearRungFor } from '../db/ramp.js';
 import { sql } from 'kysely';
 import { modesFor, type AutonomyLevel } from '../core/conversation/autonomyLevel.js';
 import { withTenantTx, type Db, type Tx } from '../db/client.js';
@@ -198,5 +199,8 @@ export async function autoDemote(
     values (${businessId}::uuid, ${capability}, ${decision.action}, 'auto', 'draft',
             ${sql.raw(`array[${decision.reasons.map((r) => `'${r}'`).join(',') || `''`}]::text[]`)},
             ${JSON.stringify(evidence)}::jsonb, 'system_self_demoted')`.execute(tx);
+  // R2 (0106) — the rung this capability belongs to is earned again, from
+  // fresh evidence, on a workspace that signed itself up.
+  await clearRungFor(tx, businessId, capability);
   return { demoted: true, action: decision.action };
 }

@@ -1,3 +1,4 @@
+import { rungOf } from '../core/trust/ramp.js';
 import type { Tenant } from '../db/ports.js';
 import { asksForSample, sampleAnswerContext } from '../core/commerce/samples.js';
 import { asksOrderStatus, orderStatusReply } from '../core/commerce/orderState.js';
@@ -1121,7 +1122,9 @@ export async function commitTurn(
     // it has earned it (the ramp, or the operator for a pilot); a practice
     // copy answers as its workspace does. Monotone like the rest: it can only
     // take authority away.
-    const earned = !speaksAlone || await tenant.autonomy.earned();
+    // R2 (0106) — and only as far as its rung: greet/qualify/recommend/follow_up
+    // need rung 1 (talks), quote/negotiate rung 2 (sells).
+    const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);
     // The native-review gate, at the one place that decides whether a
     // message goes out alone — so it binds capabilities switched on BEFORE
     // the rule existed, not only new choices made on the owner's page. Per

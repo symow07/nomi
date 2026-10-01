@@ -127,11 +127,12 @@ export interface AutonomyRepo {
    */
   released(language: string | null | undefined): boolean;
   /**
-   * G4 (0102) — has this workspace earned sending alone? Always for one the
-   * operator made; for one that signed itself up, only once the ramp (or the
-   * operator, for a pilot) says so. False: every reply drafts.
+   * G4 (0102) / R2 (0106) — how far this workspace's switch may go: 2 for one
+   * the operator made (or a pilot the operator opened); for one that signed
+   * itself up, the rung it has earned (0 nothing alone, 1 talks, 2 sells). A
+   * reply whose capability needs more drafts.
    */
-  earned(): Promise<boolean>;
+  earnedRung(): Promise<0 | 1 | 2>;
 }
 
 /**
