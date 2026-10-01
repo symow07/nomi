@@ -64,12 +64,12 @@ describe('KS6 · the two connect routes ask one question', () => {
     expect(app).not.toContain('connectionsStopped(');
     expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval' : null;");
   });
-  for (const route of ["app.post('/app/channels/whatsapp/connect'", "app.get('/app/connect/meta/start'", "app.get('/app/connect/meta/callback'", "app.post('/app/connect/meta/choose'"]) {
+  for (const route of ["app.post('/app/channels/whatsapp/connect'", "app.post(`/app/channels/${kind}/connect`", "app.get('/app/connect/meta/start'", "app.get('/app/connect/meta/callback'", "app.post('/app/connect/meta/choose'"]) {
     it(`${route} refuses before it connects anything`, () => {
       const body = app.slice(app.indexOf(route), app.indexOf(route) + 1500);
       const asked = body.indexOf('await connectionRefusal(s.businessId)');
       expect(asked, route).toBeGreaterThan(0);
-      for (const later of ['connectConfiguredNumber(', 'metaDialogUrl(', 'completeMetaConnection(', 'chooseMetaPage(']) {
+      for (const later of ['connectConfiguredNumber(', 'connectMetaChannel(', 'metaDialogUrl(', 'completeMetaConnection(', 'chooseMetaPage(']) {
         if (body.includes(later)) expect(asked, `${route} · ${later}`).toBeLessThan(body.indexOf(later));
       }
     });

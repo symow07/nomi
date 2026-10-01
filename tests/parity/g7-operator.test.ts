@@ -18,7 +18,7 @@ describe('G7 · stop new connections (KS6\'s flag)', () => {
     const app = src('src/api/web/app.ts');
     // KS6 (0115) — the same question now also asks for the operator's approval of a first connection.
     expect(app.match(/const refused = await connectionRefusal\(s\.businessId\);\n    if \(refused\) return channelsFlash\(reply, refused\);/g)).toHaveLength(3);
-    expect(app).toContain("if (refused) return flashTo(reply, '/app/channels', refused);");
+    expect(app.match(/if \(refused\) return flashTo\(reply, '\/app\/channels', refused\);/g)).toHaveLength(2);
     expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused'");
   });
   for (const l of LOCALES) {

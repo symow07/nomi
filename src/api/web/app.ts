@@ -2343,6 +2343,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     app.post(`/app/channels/${kind}/connect`, async (req, reply) => {
       const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels');
       if (!s) return reply;
+      // G7 / KS6 — the same one question as the other connect routes (found 2026-10-01: this one never asked).
+      const refused = await connectionRefusal(s.businessId);
+      if (refused) return flashTo(reply, '/app/channels', refused);
       const configured = kind === 'instagram' ? deps.instagramAccountId : deps.messengerPageId;
       const r = await connectMetaChannel(deps.db, s.businessId, kind, configured ?? null, personOf(s).id);
       facts.evict(s.businessId);   // Phase 4b — any connected channel completes the setup step
