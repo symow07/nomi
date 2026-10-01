@@ -1,5 +1,3 @@
-import { isZone } from '../core/owner/zones.js';
-import { parseCurrency } from '../core/types/money.js';
 import { sql } from 'kysely';
 import { type Db, withTenantTx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -78,7 +76,7 @@ export async function provisionAccount(db: Db, input: {
   readonly profile: {
     readonly kind: string; readonly sells: string; readonly country: string;
     readonly website: string | null; readonly teamSize: string; readonly channels: readonly string[];
-    /** TZ — the workspace's own zone; a pending sign-up from before TZ has none, and keeps the column's. */
+    /** TZ — the workspace's own zone; a pending sign-up from before TZ has none, and gets UTC (0100). */
     readonly zone?: string;
     /** CUR — the workspace's one currency; a pending sign-up from before CUR has none, and keeps the column's (USD). */
     readonly currency?: string;
@@ -89,9 +87,10 @@ export async function provisionAccount(db: Db, input: {
   readonly cap?: number | null;
 }): Promise<ProvisionOutcome> {
   try {
-    // TZ, CUR — the zone and the currency sign-up chose are written in the SAME
-    // transaction as the workspace: one that fails leaves no workspace behind
-    // an error page.
+    // TZ, CUR, G2 — provision_workspace (0100) writes the zone and the currency
+    // sign-up chose, the seven capabilities in draft and the budget's hard cap,
+    // in the insert that makes the workspace: one that fails leaves nothing
+    // half-made behind an error page.
     const r = await db.transaction().execute(async (tx) => {
       if (input.cap != null) {
         const n = (await sql<{ n: number }>`select self_serve_count() as n`.execute(tx)).rows[0]?.n ?? 0;
@@ -103,7 +102,6 @@ export async function provisionAccount(db: Db, input: {
                                    ${input.email}, ${input.passwordHash},
                                    ${input.invite}::uuid, ${input.inviteRequired},
                                    ${JSON.stringify(input.profile)}::jsonb)`.execute(tx)).rows[0];
-      const currency = parseCurrency(input.profile.currency ?? '');
       if (made) {
         // G1 — made by sign-up, and under which terms.
         await sql`select set_config('app.business_id', ${made.business_id}, true)`.execute(tx);
@@ -111,14 +109,6 @@ export async function provisionAccount(db: Db, input: {
         await sql`update businesses set signed_up_at = now(), terms_version = ${terms},
                     terms_accepted_at = case when ${terms}::text is null then null else now() end
                    where id = ${made.business_id}::uuid`.execute(tx);
-      }
-      if (made && (isZone(input.profile.zone) || currency)) {
-        if (isZone(input.profile.zone)) {
-          await sql`update businesses set timezone = ${input.profile.zone} where id = ${made.business_id}::uuid`.execute(tx);
-        }
-        if (currency) {
-          await sql`update businesses set currency = ${currency} where id = ${made.business_id}::uuid`.execute(tx);
-        }
       }
       return made;
     });

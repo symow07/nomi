@@ -3137,8 +3137,15 @@ d('production deployment mode (requires DATABASE_URL)', () => {
        * records off it, on every run, for exactly the migration a branch is
        * adding. It stranded 0065 at version -35 here, and that is how it was
        * found. A shift is reversible; a delete is not.
+       *
+       * AND BY NEGATING, NEVER BY A FIXED OFFSET (found 2026-10-01, at
+       * schema 100). It subtracted 100: migration 100 became version 0, which
+       * the restore (`version < 0`) never touched, so the run lost 0100's
+       * record and every later file failed on a stale schema; at 101 the shift
+       * would have collided with migration 1. A negated version is below zero
+       * for every migration there will ever be, and negating it again is exact.
        */
-      await q((tx) => sql`update _migrations set version = version - 100
+      await q((tx) => sql`update _migrations set version = -version
                            where version >= ${REQUIRED_SCHEMA_VERSION}`.execute(tx as never));
 
       const pre = await activationPreconditions(prod.db, bid, { providerConfigured: true });
@@ -3152,7 +3159,7 @@ d('production deployment mode (requires DATABASE_URL)', () => {
       // inverse of the shift — `version < 0` is every row this test moved and
       // nothing else, where the old bound (`<= REQUIRED - 100`) silently left
       // behind anything that had been above the required version.
-      await q((tx) => sql`update _migrations set version = version + 100
+      await q((tx) => sql`update _migrations set version = -version
                            where version < 0`.execute(tx as never));
       expect((await activationPreconditions(prod.db, bid, { providerConfigured: true })).schema.ok).toBe(true);
       // …and the record this test borrowed is whole again. Without this, the
@@ -3161,6 +3168,9 @@ d('production deployment mode (requires DATABASE_URL)', () => {
         select count(*)::int as n from _migrations where version < 0`
         .execute(tx as never).then((r2) => r2.rows[0]!.n));
       expect(stranded, 'this test left migration rows shifted').toBe(0);
+      const newest = await q((tx) => sql<{ v: number }>`select max(version)::int as v from _migrations`
+        .execute(tx as never).then((r2) => r2.rows[0]!.v));
+      expect(newest, 'the migration it borrowed is back under its own number').toBe(REQUIRED_SCHEMA_VERSION);
     });
 
     it('DRILL 1 — enable: activation succeeds, is audited, and keeps pilot mode ON', async () => {
