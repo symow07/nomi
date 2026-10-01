@@ -70,6 +70,11 @@ export const QUEUES = {
    * recorded the id Meta gave it and is recognised as ours (src/pipeline/echo.ts).
    */
   echo: 'message.echo',
+  /**
+   * G5b — every ten minutes: a reply waiting past the day its channel allows
+   * an answer is marked expired (0098, `expire_waiting_drafts`).
+   */
+  draftExpiry: 'ops.draft_expiry',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */

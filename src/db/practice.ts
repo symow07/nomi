@@ -144,6 +144,14 @@ export async function startPracticeOver(db: Db, live: BusinessId): Promise<numbe
 }
 
 /** P6 — the daily erasure: every copy's practice conversations quiet for thirty days (0089). The number erased. */
+/**
+ * G5b — every waiting reply whose channel's day has passed, marked expired
+ * (0098): a Send the channel would refuse is never offered.
+ */
+export async function expireWaitingDrafts(db: Db): Promise<number> {
+  return (await sql<{ n: number }>`select expire_waiting_drafts() as n`.execute(db)).rows[0]?.n ?? 0;
+}
+
 export async function expirePractice(db: Db): Promise<number> {
   return (await sql<{ n: number }>`select practice_expire() as n`.execute(db)).rows[0]?.n ?? 0;
 }

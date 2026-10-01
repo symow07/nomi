@@ -51,13 +51,14 @@ import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName }
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
 import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
+import { vapidFrom, type PushFetch } from './net/webPush.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
 import type { Locale } from './core/owner/i18n/locale.js';
 import type { ChannelAdapter } from './channels/contract.js';
 import { practiceAdapter } from './channels/practice.js';
-import { isPracticeCopy, expirePractice, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
+import { isPracticeCopy, expirePractice, expireWaitingDrafts, conversationExists, PRACTICE_CHANNEL } from './db/practice.js';
 import type { PgBoss } from 'pg-boss';
 import type { ErrorSweepJob, MetaErrorWatchJob, PracticeExpiryJob } from './queue/boss.js';
 import { metaErrorAlert } from './pipeline/metaErrorWatch.js';
@@ -413,6 +414,8 @@ export async function buildProduction(
     models?: Parameters<typeof startWorker>[2];
     /** CH3 — tests only: how long an echo waits before it is read (production: ECHO_SETTLE_SECONDS). */
     echoSettleSeconds?: number;
+    /** G5b — tests only: the push service, instead of the network. */
+    pushFetch?: PushFetch;
     /**
      * The pre-pilot walkthrough only: as if the AI disclosure had passed native
      * review. Production never passes it — there is no environment variable
@@ -628,6 +631,14 @@ export async function buildProduction(
   // tests pass is not built; a feature a route reaches is. Absent key → absent
   // port → the photo path refuses and says so, which is the designed state.
   const pageTranscriber = anthropicPageTranscriber(llmClient(llm), llm.model, requestExtrasFor(llm));
+  // G5b — phone alerts: the installation's VAPID pair (pasted by the operator),
+  // and the way out to a push service. Unset: no phone alerts, and the page says so.
+  const vapid = vapidFrom(process.env);
+  if (!vapid) console.warn('Phone alerts are off: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT are not all set (docs/env-checklist.md).');
+  const pushOut = vapid ? {
+    keys: vapid,
+    fetch: overrides?.pushFetch ?? ((url: string, init: { method: string; headers: Record<string, string>; body: Buffer; signal?: AbortSignal }) => fetch(url, init)),
+  } : null;
   const mountCommandCenter = (a: FastifyInstance) => {
     registerWebApp(a, {
       db,
@@ -649,6 +660,8 @@ export async function buildProduction(
       ...(mediaPorts.audio ? { audio: mediaPorts.audio } : {}),
       // CC-10 — a crashed page is written down, and the operator hears of it.
       reportError: errors.report,
+      // G5b — the phone alerts' keys, for the page that turns them on and its test.
+      push: pushOut,
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
@@ -1085,7 +1098,7 @@ export async function buildProduction(
     if (!job) return;
     // The backup alert also travels by the installation's own mail (A3), so
     // it reaches the owner with no channel connected at all.
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
   // CH3 — a reply the owner typed in Instagram's or Messenger's own app. Our
@@ -1163,6 +1176,14 @@ export async function buildProduction(
    * was owed, once the hour has room (src/db/appErrors.ts).
    */
   await erasePracticeDaily();
+
+  // G5b — a reply waiting past the day its channel allows is marked expired:
+  // the owner sees why it was never sent, not a Send the channel refuses.
+  await boss.schedule(QUEUES.draftExpiry, '*/10 * * * *', {});
+  await boss.work(QUEUES.draftExpiry, async () => {
+    const n = await expireWaitingDrafts(db);
+    if (n > 0) console.log(`[drafts] ${n} waiting repl${n === 1 ? 'y' : 'ies'} past the channel's day marked expired`);
+  });
 
   await boss.schedule(QUEUES.errors, '*/5 * * * *', { businessId: PILOT_BUSINESS_ID } satisfies ErrorSweepJob);
   await boss.work<ErrorSweepJob>(QUEUES.errors, async ([job]: { data: ErrorSweepJob }[]) => {

@@ -96,13 +96,17 @@ describe('CC-26 · the shell links the one script, and nothing else does', () =>
   });
 
   it('the script is small, parses, and says nothing the owner surface bans', () => {
-    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(9_000);
+    // G5b — turning on alerts on this phone lives here too (the page's one
+    // script; the phone's worker is the second, `/sw.js`): 9,000 became 10,500.
+    expect(LIVE_SCRIPT.length, 'small: one file an owner fetches once per build').toBeLessThan(10_500);
     expect(() => new vm.Script(LIVE_SCRIPT)).not.toThrow();
     // It ships to the owner's browser like the stylesheet, and is held to the same list.
     // The exceptions are the browser's own two names for the answer's format — the
-    // `.json()` method and the `application/json` type it asks for — never words she reads.
-    expect(LIVE_SCRIPT.match(/\.json\(\)|application\/json/g)).toHaveLength(2);
-    const text = LIVE_SCRIPT.replace(/\.json\(\)|application\/json/g, '').toLowerCase();
+    // `.json()` method and the `application/json` type it asks for — and (G5b) the
+    // browser's own way to hand over a push subscription, `JSON.stringify(sub)`:
+    // never words she reads.
+    expect(LIVE_SCRIPT.match(/\.json\(\)|application\/json|JSON\.stringify\(sub\)/g)).toHaveLength(3);
+    const text = LIVE_SCRIPT.replace(/\.json\(\)|application\/json|JSON\.stringify\(sub\)/g, '').toLowerCase();
     for (const banned of [...BANNED_OWNER_TERMS, 'stack']) {
       const b = banned.toLowerCase();
       const hit = /^[a-z ]+$/.test(b) ? new RegExp(`(?<![a-z-])${b}(?![a-z-])`).test(text) : text.includes(b);

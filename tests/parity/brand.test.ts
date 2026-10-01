@@ -82,7 +82,10 @@ describe('M30 · the favicon', () => {
 
   it('is a data URI, so no static route is added', () => {
     expect(href()).toMatch(/^data:image\/svg\+xml;base64,/);
-    expect(page()).not.toContain('apple-touch-icon');   // no manifest, nothing installable
+    // G5b — the app is installable now (alerts on the phone need it): the
+    // home-screen icon is its own static route; the favicon stays a data URI.
+    expect(page()).toContain('<link rel="apple-touch-icon" href="/assets/icon-192.png">');
+    expect(page()).toContain('<link rel="manifest" href="/manifest.webmanifest">');
   });
 
   it('the login page carries it too — it has its own head, which is how it got missed', () => {

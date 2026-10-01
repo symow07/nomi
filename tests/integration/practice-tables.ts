@@ -72,6 +72,8 @@ export const PRACTICE_SKIP = [
   // HS (0096) — where the owner is in How you sell: what her answers wrote is
   // copied already (claims, knowledge, closures, words, terms, the profile).
   'selling_answers',
+  // G5b (0098) — the phones that asked for alerts: a person's, never practised.
+  'push_subscriptions',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];

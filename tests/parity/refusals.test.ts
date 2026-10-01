@@ -101,7 +101,8 @@ describe('M22 · every refusal the gate can produce reaches the owner', () => {
     for (const locale of LOCALES) {
       for (const reason of REFUSAL_REASONS) {
         for (const part of ['what', 'why', 'do'] as const) {
-          const s = t(locale, `refused.${part}.${reason}` as MessageKey, { name: 'Lily' });
+          // G5b — the window is the conversation's own channel's, named.
+          const s = t(locale, `refused.${part}.${reason}` as MessageKey, { name: 'Lily', channel: 'Instagram' });
           expect(s.length, `${locale}/${part}/${reason} is empty`).toBeGreaterThan(4);
           expect(s, `${locale}/${part}/${reason} left a placeholder`).not.toContain('{');
         }

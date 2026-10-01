@@ -658,6 +658,11 @@ export type ConversationDetail = {
   /** The design pass — the conversation's channel, for the card's "goes on …". Optional so fixtures still type. */
   readonly channel?: string;
   /**
+   * G5b — the newest reply, when it waited past the day its channel allows and
+   * was marked expired: shown for what it was, never offered to send.
+   */
+  readonly expiredDraft?: { readonly text: string } | null;
+  /**
    * The design pass — what the newest turn read, for the approval card's
    * "Understood" and "How … read this". Read from the turn's own replay row
    * (`turns.analysis`, `turns.own_understanding`) and the quote it priced.
@@ -812,6 +817,11 @@ export async function loadConversationDetail(
        order by d.created_at desc, d.id desc limit 1
     `.execute(tx)).rows[0];
 
+    // G5b — the newest reply, if the day its channel allows ran out while it waited.
+    const expired = (await sql<{ status: string; draft_text: string }>`
+      select status, draft_text from drafts where conversation_id = ${conversationId}
+       order by created_at desc, id desc limit 1`.execute(tx)).rows[0];
+
     // M22 — what did not reach this buyer. Read through the shared loader, so
     // the conversation, the inbox tab and Today can never disagree. Its own
     // tenant transaction (it is a read model, not a fragment of this query).
@@ -885,6 +895,7 @@ export async function loadConversationDetail(
       } : null,
       messages,
       transcript: { earlier: transcript.earlier, older: transcript.older },
+      expiredDraft: expired?.status === 'expired' ? { text: expired.draft_text } : null,
       pendingDraft: draft
         ? { draftId: draft.id, draftText: draft.draft_text, capability: draft.capability,
             heldBecause: isHoldReason(draft.pending?.['heldBecause']) ? draft.pending['heldBecause'] : null,
@@ -1255,15 +1266,17 @@ function uncertainCard(us: readonly UncertainSend[], locale: Locale, now: Date):
   </div>`;
 }
 
-function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date): string {
+function refusalCard(rs: readonly Refusal[], locale: Locale, now: Date, channel = 'whatsapp'): string {
   if (rs.length === 0) return '';
+  // G5b — the window that closed is the conversation's own channel's, named.
   const name = assistantName(locale);
+  const say = { name, channel: channelName(locale, channel) };
   return `<div class="card refused">
     ${stateHead('bad', t(locale, 'refused.title'))}
     ${rs.map((r) => `<div class="rf">
-      <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, { name }))}</div>
-      <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, { name }))}</div>
-      <div class="rf-d">${esc(t(locale, `refused.do.${r.reason}` as MessageKey, { name }))}</div>
+      <div class="rf-w">${esc(t(locale, `refused.what.${r.reason}` as MessageKey, say))}</div>
+      <div class="rf-y muted">${esc(t(locale, `refused.why.${r.reason}` as MessageKey, say))}</div>
+      <div class="rf-d">${esc(t(locale, `refused.do.${r.reason}` as MessageKey, say))}</div>
       <div class="rf-t muted">${esc(show.when(locale, r.at, now))}</div>
     </div>`).join('')}
   </div>`;
@@ -1512,6 +1525,22 @@ function assistantControl(d: ConversationDetail, locale: Locale, viewer: Viewer)
  */
 const stateHead = (tone: 'warn' | 'bad', title: string): string =>
   `<p class="stateline rf-h"><span class="dot ${tone}" aria-hidden="true">●</span> <b>${esc(title)}</b></p>`;
+
+/**
+ * G5b — a reply that waited past the day its channel allows. It was never
+ * sent and cannot be now: the card says so and where the owner can still
+ * answer (the channel's own app), instead of a Send the channel would refuse.
+ */
+function expiredCard(d: ConversationDetail, locale: Locale): string {
+  if (!d.expiredDraft || d.pendingDraft) return '';
+  const say = { name: assistantName(locale), channel: channelName(locale, d.channel ?? 'whatsapp') };
+  return `<div class="card refused">
+    ${stateHead('bad', t(locale, 'expired.title'))}
+    <blockquote class="unsure-q" dir="auto">${esc(d.expiredDraft.text)}</blockquote>
+    <div class="rf-y muted">${esc(t(locale, 'expired.why', say))}</div>
+    <div class="rf-d">${esc(t(locale, 'expired.do', say))}</div>
+  </div>`;
+}
 
 /**
  * THE APPROVAL CARD (the design pass, 2026-09-29; the plan's §1). One card,
@@ -1916,7 +1945,8 @@ export function renderConversationDetail(
     ${herWordsCard}
     ${sampleCard}
     ${uncertainCard(d.uncertainSends, locale, now)}
-    ${refusalCard(d.refusals, locale, now)}
+    ${refusalCard(d.refusals, locale, now, d.channel)}
+    ${expiredCard(d, locale)}
     ${knew}
     ${context}`;
 

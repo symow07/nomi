@@ -217,6 +217,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
       ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}
       ${v.howYouSell ? door('/app/business/selling', t(locale, 'hs.title'), t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total })) : ''}
+      ${door('/app/settings/alerts', t(locale, 'alerts.phone.title'))}
       ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
       ${door('/app/settings/account', t(locale, 'account.title'))}
       ${door('/app/settings/data', t(locale, 'data.title'))}
