@@ -49,6 +49,24 @@ or the problem spans tenants. **Wired in M34.6** — until then this table was
 written by the runbook and read by nothing, so the rows committed and the
 employee kept sending. It is read now, on every send, by `db/opsFlags.ts`.
 
+**Since G7, with the tools — no raw SQL** (each a dry run until `--yes`; the
+admin URL comes from `railway run --service nomi`, never the command line):
+
+```bash
+node tools/ops-flags.mjs                                                    # what is on
+node tools/ops-flags.mjs --set global_silence --business <uuid> --reason "..." --by "<you>" --yes
+node tools/ops-flags.mjs --set force_draft --all --reason "..." --by "<you>" --yes   # six rows, one per capability
+node tools/ops-flags.mjs --set connections_off --all --reason "..." --by "<you>" --yes # no Page or WhatsApp can be connected
+node tools/ops-flags.mjs --clear global_silence --business <uuid> --yes
+node tools/suspend-workspace.mjs --business <uuid> --reason "..." --by "<you>" --yes  # KS2: silenced, Page refused + unsubscribed, switched off
+node tools/suspend-workspace.mjs --all-self-serve --reason "..." --by "<you>" --yes    # KS3
+node tools/suspend-workspace.mjs --business <uuid> --restore --by "<you>" --yes      # undoes exactly what the suspension did
+node tools/workspaces.mjs [--self-serve]                                          # the list the operator reads
+```
+
+The daily sign-up list names every flag still on. The SQL below is what the
+tools write, kept for when the tools themselves cannot run:
+
 ```sql
 -- silence one tenant's employee entirely (business_id null = platform-wide)
 insert into ops_flags (business_id, flag, reason, set_by) values ($biz, 'global_silence', '...', 'simo');
