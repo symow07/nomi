@@ -98,6 +98,13 @@ const PHASES_SET = new Set<Phase>([
  * (src/worker/main.ts).
  */
 const ANALYSIS_REQUEST = { timeout: 30_000, maxRetries: 1 } as const;
+/**
+ * EXT — a page read or a closer reading the owner waits for on a page: never
+ * longer than ninety seconds, one retry. Found 2026-10-01, when the provider
+ * stopped answering: without a limit the owner's request waited the SDK's ten
+ * minutes. A read that times out is refused as unreadable / failed.
+ */
+const OWNER_READ_REQUEST = { timeout: 90_000, maxRetries: 1 } as const;
 
 export function anthropicAnalyzer(client: Anthropic, model: string = MODEL, extra: RequestExtras = {}): Analyzer {
   const prompt = loadPrompt('analysis.txt');
@@ -394,7 +401,7 @@ export function anthropicPageTranscriber(client: Anthropic, model: string = MODE
             { type: 'text', text: pdf ? 'Transcribe every page of this document, in order.' : 'Transcribe this page.' },
           ],
         }],
-      });
+      }, OWNER_READ_REQUEST);
       const block = firstText(res.content);
       const text = block?.type === 'text' ? block.text.trim() : '';
       return {
@@ -459,7 +466,7 @@ export function anthropicCatalogExtractor(client: Anthropic, model: string = MOD
           'Give your confidence from 0 to 1 for each field. Reply with JSON only: ' +
           '{"products":[{"line":"","name":"","price":"","unit":"","moq":null,"confidence":{"name":0,"price":0,"unit":0,"moq":0}}]}',
         messages: [{ role: 'user', content: [{ type: 'text', text: JSON.stringify({ currency, lines }) }] }],
-      });
+      }, OWNER_READ_REQUEST);
       const block = firstText(res.content);
       return {
         items: parseExtractorAnswer(block?.type === 'text' ? block.text : ''),

@@ -39,8 +39,9 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
   let bareCookie = '';
   const asked: { lines: readonly string[] }[] = [];
   const read: { mediaType: string }[] = [];
+  let readerDown = false;
   const transcriber: PageTranscriber = {
-    transcribe: async (i) => { read.push({ mediaType: i.mediaType }); return { text: 'Wool hat $15.00\nGloves $9.00', unreadable: false, promptVersion: 'test', modelId: 'test', usage: { inputTokens: 1, outputTokens: 1 } }; },
+    transcribe: async (i) => { if (readerDown) throw new Error('Request timed out.'); read.push({ mediaType: i.mediaType }); return { text: 'Wool hat $15.00\nGloves $9.00', unreadable: false, promptVersion: 'test', modelId: 'test', usage: { inputTokens: 1, outputTokens: 1 } }; },
   };
   const extractor: CatalogExtractor = {
     extract: async (i) => {
@@ -142,6 +143,12 @@ d('EXT · the closer reading, PDF and Excel (requires DATABASE_URL + MIGRATE_DAT
     expect(file.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
     const fake = await postPhotos(app, cookie, [{ bytes: Buffer.from('not a pdf'), mime: 'application/pdf' }]);
     expect(fake.body).toContain(t('en', 'product.photo.refused.not_a_photo'));
+    // A reader that fails or never answers is said as that — never as a bad page, never a crash.
+    readerDown = true;
+    const down = await postPhotos(app, cookie, [{ bytes: pdf, mime: 'application/pdf' }]);
+    readerDown = false;
+    expect(down.statusCode).toBe(200);
+    expect(down.body).toContain(t('en', 'product.photo.refused.reader_failed'));
   });
 
   it('AN EXCEL WORKBOOK goes to the column mapping, as a CSV would', async () => {

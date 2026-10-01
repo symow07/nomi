@@ -913,6 +913,8 @@ async function updateProductTx(
 export type PhotoRefusal = 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'too_large' | 'not_a_photo' | 'upload_failed'
   // K1 — several photos, and the question asked before any is read.
   | 'too_many' | 'handwritten' | 'hand_unanswered'
+  // EXT — the reader failed or did not answer in time.
+  | 'reader_failed'
   // G3 — the day's 20 photos, or the day's allowance, are used.
   | 'daily_limit' | 'allowance_used';
 

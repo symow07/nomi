@@ -116,7 +116,9 @@ export type PhotoIn = { readonly bytes: Buffer; readonly mediaType: 'image/jpeg'
 export type PhotosRefused = {
   readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'handwritten' | 'hand_unanswered' | 'too_many'
     // G3 — the day's photos, or the day's allowance, are used: nothing is read.
-    | 'daily_limit' | 'allowance_used';
+    | 'daily_limit' | 'allowance_used'
+    // EXT — the reader did not answer (or failed): nothing was added; not the page's fault.
+    | 'reader_failed';
   readonly photo?: number;
   /** `daily_limit`: how many photos may still be read today. */
   readonly left?: number;
@@ -187,7 +189,13 @@ export async function readPhotos(
   const transcripts: string[] = [];
   let rows: ImportRow[] = [];
   for (const [i, photo] of photos.entries()) {
-    const page = await deps.transcriber.transcribe({ imageBase64: photo.bytes.toString('base64'), mediaType: photo.mediaType });
+    let page: Awaited<ReturnType<PageTranscriber['transcribe']>>;
+    try {
+      page = await deps.transcriber.transcribe({ imageBase64: photo.bytes.toString('base64'), mediaType: photo.mediaType });
+    } catch {
+      // EXT — the provider failed or did not answer in time: said as that, never as a bad photo.
+      return { ok: false, reason: 'reader_failed', photo: i + 1 };
+    }
     // T7 — what reading the page cost is on the ledger, a refused read too.
     await deps.spent?.({ llmCalls: 1, inputTokens: page.usage?.inputTokens ?? 0, outputTokens: page.usage?.outputTokens ?? 0 });
     if (page.cutOff) return { ok: false, reason: 'cut_off', photo: i + 1 };
