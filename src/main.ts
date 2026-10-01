@@ -49,7 +49,8 @@ import { metaAdapter } from './channels/whatsapp/meta.js';
 import { withTenantTx, lockConversation, type Db, type Tx } from './db/client.js';
 import { channelStore, ensureConversation, enqueueOutboundRow, knownClientName } from './db/channels.js';
 import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type MailHeadersFor } from './outbound/worker.js';
-import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob } from './queue/boss.js';
+import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
+import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
@@ -410,6 +411,8 @@ export async function buildProduction(
     media?: MediaPorts;
     /** G2b — model ports, tests only; production builds them from the key. */
     models?: Parameters<typeof startWorker>[2];
+    /** CH3 — tests only: how long an echo waits before it is read (production: ECHO_SETTLE_SECONDS). */
+    echoSettleSeconds?: number;
     /**
      * The pre-pilot walkthrough only: as if the AI disclosure had passed native
      * review. Production never passes it — there is no environment variable
@@ -1085,6 +1088,17 @@ export async function buildProduction(
     await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
+  // CH3 — a reply the owner typed in Instagram's or Messenger's own app. Our
+  // own echoes are recognised by Nomi's Meta app id, or by the id our send
+  // recorded (src/pipeline/echo.ts).
+  const ourMetaAppIds = [...new Set([metaLogin?.appId, process.env['META_SOCIAL_APP_ID']?.trim()]
+    .filter((x): x is string => !!x))];
+  await boss.work<EchoJob>(QUEUES.echo, async ([job]: { data: EchoJob }[]) => {
+    if (!job) return;
+    const outcome = await handleEcho(db, job.data, ourMetaAppIds);
+    if (outcome === 'recorded') console.log(`[echo] the owner replied in ${job.data.channel}'s own app; the conversation is theirs`);
+  });
+
   /**
    * Has the scheduled backup completed lately? Once a day, after the 03:00 UTC
    * job has had its turn: read the newest row it left in `backup_runs`, and if
@@ -1209,8 +1223,8 @@ export async function buildProduction(
             (id, business_id, channel, provider, event_type, conversation_external_id, payload, occurred_at)
           values
             (${e.dedupKey}, ${bid}, ${channel}, ${providerOf[channel] ?? 'unknown'},
-             ${e.kind === 'message' ? 'message.inbound' : 'status'},
-             ${e.kind === 'message' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
+             ${e.kind === 'message' ? 'message.inbound' : e.kind === 'echo' ? 'message.echo' : 'status'},
+             ${e.kind === 'message' || e.kind === 'echo' ? `${channel}:${e.waId}:${e.phoneNumberId}` : null},
              ${JSON.stringify(rawPayload)}::jsonb, ${e.occurredAt})
           on conflict (id) do nothing
           returning id
@@ -1257,6 +1271,13 @@ export async function buildProduction(
           // CH7a — and what it points at, so the owner can open it.
           ...(e.ref ? { ref: e.ref } : {}),
         });
+      } else if (e.kind === 'echo') {
+        // CH3 — read a little later, so a send of ours has written its id first.
+        if (channel !== 'instagram' && channel !== 'messenger') return;
+        await boss.send(QUEUES.echo, {
+          businessId: bid, channel, mid: e.eventId, customer: e.waId, account: e.phoneNumberId,
+          text: e.text, received: e.received, appId: e.appId, occurredAt: e.occurredAt.toISOString(),
+        } satisfies EchoJob, { startAfter: overrides?.echoSettleSeconds ?? ECHO_SETTLE_SECONDS, singletonKey: e.dedupKey });
       } else {
         const r = await withTenantTx(db, bid, (tx) =>
           channelStore(tx, bid).reconcileStatus(e.eventId, e.status, e.errorDetail));

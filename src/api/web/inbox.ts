@@ -223,9 +223,11 @@ export async function loadInboxList(
              c.assigned_to, c.closed_at,
              lm.text_content as last_text, lm.direction as last_dir, lm.sent_at as last_at,
              -- D4 — who wrote an outbound message: the sent row it was copied from.
+             -- CH3 — a reply the owner typed in Meta's own app is the owner's.
+             case when lm.direction = 'outbound' and lm.external_id like 'echo:%' then 'owner' else
              (select o.origin from outbound_messages o
                where o.id = (case when lm.direction = 'outbound' and lm.external_id ~ '^out:[0-9a-f-]{36}$'
-                                  then substr(lm.external_id, 5)::uuid end)) as last_origin,
+                                  then substr(lm.external_id, 5)::uuid end)) end as last_origin,
              (select count(*)::int from drafts d where d.conversation_id = c.id and d.status = 'pending') as pending,
              q.unit_price_usd as unit_price, q.currency as quote_currency,
              sig.kind as handoff_reason,

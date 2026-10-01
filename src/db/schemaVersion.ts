@@ -298,8 +298,11 @@ import type { Db } from './client.js';
  * 96 = "How you sell" (0096): `selling_answers`, and the audit verb
  *      `how_you_sell_saved`. Its pages read and write both; against a 95
  *      database none of its questions can be answered.
+ * 97 = a reply the owner typed in Meta's own app (0097): `drafts.status`
+ *      'superseded'. The echo it comes from supersedes the waiting reply;
+ *      against a 96 database that write is refused.
  */
-export const REQUIRED_SCHEMA_VERSION = 96;
+export const REQUIRED_SCHEMA_VERSION = 97;
 
 export type SchemaState = {
   readonly required: number;

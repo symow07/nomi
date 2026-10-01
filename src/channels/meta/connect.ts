@@ -198,12 +198,19 @@ export async function listMetaPages(
   return { ok: true, pages };
 }
 
+/**
+ * The webhook fields a Page is subscribed to. CH3 — `message_echoes`: what the
+ * owner types in Messenger's own app, so Nomi knows the customer was answered.
+ * A Page connected before CH3 is re-subscribed by `tools/meta-resubscribe.mjs`.
+ */
+export const META_PAGE_FIELDS = 'messages,messaging_postbacks,message_echoes';
+
 /** Subscribe the Page to this app's webhook fields, with the Page's own token. */
 export async function subscribeMetaPage(page: { readonly pageId: string; readonly token: string }, graphVersion: string, fetchImpl: MetaFetch): Promise<boolean> {
   try {
     const res = await fetchImpl(
       `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.pageId)}/subscribed_apps?${new URLSearchParams({
-        subscribed_fields: 'messages,messaging_postbacks', access_token: page.token,
+        subscribed_fields: META_PAGE_FIELDS, access_token: page.token,
       }).toString()}`,
       { method: 'POST', headers: {}, body: '', signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS) },
     );
