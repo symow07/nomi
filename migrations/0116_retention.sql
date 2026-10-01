@@ -81,6 +81,8 @@ grant execute on function retention_workspaces() to nomi_app;
 create or replace function claim_retention_warnings()
 returns table (business_id uuid, stage text, erase_on date)
 language plpgsql volatile security definer set search_path = public as $$
+-- The table's columns, not the names this function returns.
+#variable_conflict use_column
 begin
   return query
   with w as (select * from retention_workspaces()),

@@ -80,6 +80,8 @@ export const PRACTICE_SKIP = [
   'workspace_suspensions',
   // KS6 (0115) — the operator's approval of the first connection: a copy never connects.
   'connection_approvals',
+  // RET (0116) — the warnings before a never-connected workspace goes: the workspace's, never a copy's.
+  'retention_notices',
 ] as const;
 
 export type PracticeTable = (typeof PRACTICE_COPY)[number] | (typeof PRACTICE_SKIP)[number];
