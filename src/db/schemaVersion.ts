@@ -301,8 +301,11 @@ import type { Db } from './client.js';
  * 97 = a reply the owner typed in Meta's own app (0097): `drafts.status`
  *      'superseded'. The echo it comes from supersedes the waiting reply;
  *      against a 96 database that write is refused.
+ * 98 = the owner's phone and a reply that waited too long (0098):
+ *      `push_subscriptions`, `expire_waiting_drafts()`. The alerts page and
+ *      the ten-minute sweep read them; against a 97 database both fail.
  */
-export const REQUIRED_SCHEMA_VERSION = 97;
+export const REQUIRED_SCHEMA_VERSION = 98;
 
 export type SchemaState = {
   readonly required: number;

@@ -13,6 +13,8 @@ import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
 import { zoneOf } from '../db/zone.js';
 import { conversationUrl } from '../core/owner/addresses.js';
+import { sendPush, type VapidKeys, type PushFetch } from '../net/webPush.js';
+import { livePhones, archivePhone, markPhoneSent } from '../db/pushSubscriptions.js';
 
 /**
  * The installation's own sender, as this module needs it — the shape of
@@ -194,6 +196,8 @@ export type NotifyDeps = {
   readonly mail?: OwnerMailer | null;
   /** G5 — where the app is served (`PUBLIC_BASE_URL`): an alert links to its conversation. */
   readonly publicBaseUrl?: string | null;
+  /** G5b — the installation's push keys and the way out to a push service; null: no phone alerts. */
+  readonly push?: { readonly keys: VapidKeys; readonly fetch: PushFetch } | null;
 };
 
 /**
@@ -300,7 +304,7 @@ async function deliverCustomerAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     const row = (await sql<{ owner_locale: string; owner_phone: string | null }>`
       select owner_locale, owner_phone from businesses where id = ${bid}`.execute(tx)).rows[0] ?? null;
     const email = deps.mail ? await ownerLoginEmail(tx, bid) : null;
-    const name = row && (row.owner_phone || email)
+    const name = row
       ? (conversationId ? await assistantNameOfConversation(tx, bid, conversationId) : await mainAssistantName(tx, bid))
       : null;
     return { row, email, name };
@@ -316,6 +320,21 @@ async function deliverCustomerAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     tried++;
     const r = await deps.mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
     if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
+  }
+  // G5b — every phone that turned alerts on: the words, and the conversation it opens.
+  if (deps.push) {
+    const phones = await withTenantTx(deps.db, bid, (tx) => livePhones(tx, bid));
+    const message = {
+      title: t(locale, `notify.${job.kind}.subject` as MessageKey), body: words,
+      url: deps.publicBaseUrl && conversationId ? alertLink(deps.publicBaseUrl, conversationId) : null,
+    };
+    for (const phone of phones) {
+      tried++;
+      const r = await sendPush(phone, message, deps.push.keys, deps.push.fetch);
+      if (r.kind === 'sent') { sent++; await withTenantTx(deps.db, bid, (tx) => markPhoneSent(tx, phone.id)); }
+      else if (r.kind === 'gone') await withTenantTx(deps.db, bid, (tx) => archivePhone(tx, bid, phone.id, 'gone'));
+      else console.warn(`[notify] ${job.kind} phone alert failed (${r.status ?? 'no answer'})`);
+    }
   }
   if (found.row.owner_phone) {
     tried++;

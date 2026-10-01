@@ -39,7 +39,9 @@
  * runs it against a small stand-in for the page). It ships to the owner's
  * browser like the stylesheet, so it is held to the owner vocabulary the same
  * way (the exceptions are the browser's own two names for the answer's
- * format: the `.json()` method and the `application/json` type it asks for).
+ * format: the `.json()` method and the `application/json` type it asks for;
+ * and G5b's `JSON.stringify(sub)`, the browser's way to hand over a push
+ * subscription).
  */
 export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new arrives (CC-26).
    One small script, linked once by the shell. Every page works without it. */
@@ -194,6 +196,36 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
     });
   }
 
+  /* G5b: alerts on this phone. The browser's push service gives an address
+     and two keys; Nomi keeps them, and the phone's own worker shows the alert. */
+  function phone() {
+    var on = doc.querySelector('[data-push-key]');
+    var bad = doc.querySelector('[data-push-failed]');
+    if (!on) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      var no = doc.querySelector('[data-push-cannot]');
+      if (no) no.hidden = false;
+      return;
+    }
+    on.hidden = false;
+    on.addEventListener('click', function () {
+      on.disabled = true;
+      var raw = atob(on.getAttribute('data-push-key').replace(/-/g, '+').replace(/_/g, '/'));
+      var key = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
+      navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; })
+        .then(function (reg) { return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }); })
+        .then(function (sub) {
+          var form = new URLSearchParams();
+          form.set('subscription', JSON.stringify(sub));
+          form.set('device', String(navigator.userAgent).slice(0, 120));
+          return fetch(on.getAttribute('data-push-save'), { method: 'POST', credentials: 'same-origin', body: form });
+        })
+        .then(function (r) { if (!r.ok) throw new Error('not kept'); location.reload(); })
+        .catch(function () { on.disabled = false; if (bad) bad.hidden = false; });
+    });
+  }
+
   function watch() {
     var region = doc.querySelector('[data-live]');
     if (!region || !window.fetch) return;
@@ -255,6 +287,7 @@ export const LIVE_SCRIPT = `/* Nomi: the line a page shows when something new ar
 
   keepWords();
   askToTell();
+  phone();
   watch();
   window.addEventListener('pagehide', keepNow);
   window.addEventListener('load', function () {

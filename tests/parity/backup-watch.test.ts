@@ -61,7 +61,7 @@ describe('the daily check is wired, and the alert can leave by e-mail', () => {
   it('schedules the backups queue after the job’s hour and hands the notify worker the installation’s sender', () => {
     expect(QUEUES.backups).toBe('ops.backups');
     expect(main).toMatch(/boss\.schedule\(QUEUES\.backups, '30 6 \* \* \*'/);
-    expect(main).toMatch(/deliverOwnerAlert\(\{ db, adapter: adapter \?\? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg\.PUBLIC_BASE_URL \?\? null \}/);
+    expect(main).toMatch(/deliverOwnerAlert\(\{ db, adapter: adapter \?\? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg\.PUBLIC_BASE_URL \?\? null, push: pushOut \}/);
     expect(main).toMatch(/kind: 'backup_stale'/);
   });
 });

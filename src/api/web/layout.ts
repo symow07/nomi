@@ -7,6 +7,7 @@ import { t, assistantName, assistantsAreSeveral, setupState, businessName, needs
 import { cssVariables } from '../../core/owner/css.js';
 import { isolate } from './values.js';
 import { markDetail, markSmall, faviconDataUri } from '../../core/owner/brand.js';
+import { INSTALL_LINKS } from './phone.js';
 import { createHash } from 'node:crypto';
 import { LIVE_SCRIPT } from './liveScript.js';
 import { TYPE_CSS, TYPE_ZH_CSS, typeSetFor, fontAt } from './type.js';
@@ -1558,6 +1559,7 @@ export function shell(input: {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · ${esc(business ?? 'Nomi')}</title>
 <link rel="icon" href="${faviconDataUri()}">
+${INSTALL_LINKS}
 ${linkTo(APP_SHEET)}
 ${typeLink(locale)}
 ${scriptTo(LIVE_JS)}</head>

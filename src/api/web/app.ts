@@ -56,6 +56,9 @@ import {
 } from './howYouSell.js';
 import type { Question } from '../../core/owner/howYouSell.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
+import { SERVICE_WORKER, appManifest } from './phone.js';
+import { APP_ICONS } from './appIcons.js';
+import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, type PushOut } from './phoneAlerts.js';
 import {
   loadPriceRules, savePriceRules, renderPriceRules, countUnauthoredPriceRules,
   saveVolumeDiscount, archiveVolumeDiscount,
@@ -357,6 +360,8 @@ export type WebDeps = {
   readonly pageTranscriber?: PageTranscriber;
   /** K8 — how a store's public product list is read; the public-internet-only fetcher unless a test gives a fake store. */
   readonly storeFetcher?: StoreFetcher;
+  /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
+  readonly push?: PushOut | null;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -405,6 +410,10 @@ export const PUBLIC_ROUTES: readonly {
   { method: 'GET', url: '/privacy', why: 'what is kept about the people who write in — Meta reads it before the app may go live; names no tenant' },
   { method: 'GET', url: '/data-deletion', why: 'how they have it removed — the page Meta requires beside the privacy one; names no tenant' },
   { method: 'GET', url: '/terms', why: 'the terms a business accepts by using this — Meta\'s Terms of Service URL; names no tenant' },
+  { method: 'GET', url: '/sw.js', why: 'G5b — the phone\'s own worker: shows an alert Nomi sent and opens the app when it is tapped. The same text for everyone; names no tenant' },
+  { method: 'GET', url: '/manifest.webmanifest', why: 'G5b — what a phone needs to install the app on its home screen; names no tenant' },
+  { method: 'GET', url: '/assets/icon-192.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
+  { method: 'GET', url: '/assets/icon-512.png', why: 'G5b — the app\'s home-screen icon; names no tenant' },
   { method: 'GET', url: '/assets/:file', why: 'V1 close-out — the stylesheets, and (CC-26) the one script, addressed by their content. The door and the public pages are drawn before anyone signs in; the same text for everyone, read from the build, never from the database; names no tenant' },
 ];
 
@@ -1015,6 +1024,17 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // for good; an address from an earlier build gets this build's text, not
   // kept. Anything else is not found. Public: the door needs its rules before
   // anyone has signed in, and they are the same text for everyone.
+  // G5b — what a phone needs to hold Nomi: its worker (never cached, so a new
+  // build's replaces it), the install manifest, and the home-screen icons.
+  app.get('/sw.js', async (_req, reply) => reply
+    .header('cache-control', 'no-cache').header('x-content-type-options', 'nosniff')
+    .header('service-worker-allowed', '/').type('text/javascript; charset=utf-8').send(SERVICE_WORKER));
+  app.get('/manifest.webmanifest', async (_req, reply) => reply
+    .header('cache-control', 'public, max-age=3600').type('application/manifest+json').send(appManifest()));
+  for (const size of ['192', '512'] as const) {
+    app.get(`/assets/icon-${size}.png`, async (_req, reply) => reply
+      .header('cache-control', 'public, max-age=86400').header('x-content-type-options', 'nosniff').type('image/png').send(APP_ICONS[size]));
+  }
   app.get('/assets/:file', async (req, reply) => {
     const found = assetAt((req.params as { file: string }).file);
     if (!found) return reply.callNotFound();
@@ -3222,6 +3242,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     }));
   });
   // The design pass (UI-PASS 7) — the business profile, on its own page.
+  // ── G5b Alerts on your phone: anyone signed in turns them on for their own phone ──
+  const phonePerson = (s: OwnerSession): string | null => {
+    const id = personOf(s).id;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
+  };
+  app.get('/app/settings/alerts', authed('settings', async (s, req, locale, reply) => ({
+    title: t(locale, 'alerts.phone.title'),
+    bodyHtml: renderPhoneAlerts(await loadPhoneAlerts(deps.db, s.businessId, phonePerson(s), deps.push ?? null), locale, takeFlash(req, reply)),
+  })));
+  app.post('/app/settings/alerts/phone', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const b = (req.body ?? {}) as Record<string, string | undefined>;
+    const ok = deps.push ? await addPhone(deps.db, s.businessId, phonePerson(s), String(b['subscription'] ?? ''), String(b['device'] ?? '')) : false;
+    return flashTo(reply, '/app/settings/alerts', ok ? 'alerts.flash.on' : 'alerts.flash.bad');
+  });
+  app.post('/app/settings/alerts/phone/:id/remove', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const ok = await removePhone(deps.db, s.businessId, phonePerson(s), (req.params as { id: string }).id);
+    return flashTo(reply, '/app/settings/alerts', ok ? 'alerts.flash.removed' : 'alerts.flash.bad');
+  });
+  app.post('/app/settings/alerts/test', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const n = deps.push ? await testPhones(deps.db, s.businessId, phonePerson(s), deps.push, localeOf(req)) : 0;
+    return flashTo(reply, '/app/settings/alerts', n > 0 ? 'alerts.flash.tested' : 'alerts.flash.testNone');
+  });
+
   app.get('/app/settings/profile', authed('settings', async (s, req, locale, reply) => ({
     title: t(locale, 'settings.profile.title'),
     bodyHtml: renderProfile(await loadBusinessProfile(deps.db, s.businessId), locale, takeFlash(req, reply), {}, {},

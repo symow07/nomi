@@ -41,7 +41,9 @@ describe('V1 step three · the collapse is CSS, and cannot be stuck', () => {
       expect(scripts[0]![0], l).toMatch(/^<script src="\/assets\/live\.[0-9a-f]{16}\.js" defer><\/script>$/);
       expect(scripts[0]![1], l).toBe('');
     }
-    for (const touch of ['nav', 'scroll(', 'animation', 'navlink', 'classList']) expect(LIVE_SCRIPT, touch).not.toContain(touch);
+    // G5b — `navigator` (the browser's own object, for alerts on the phone) is not the shell's nav.
+    const script = LIVE_SCRIPT.replace(/\bnavigator\b/g, '');
+    for (const touch of ['nav', 'scroll(', 'animation', 'navlink', 'classList']) expect(script, touch).not.toContain(touch);
   });
 
   it('on a phone the nav is sticky at full size, outside any @supports', () => {
