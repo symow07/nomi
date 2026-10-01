@@ -13,7 +13,9 @@
  * force_draft (six rows, one per capability: every reply waits), connections_off
  * (no Page or WhatsApp can be connected), practice_off, approve_connections
  * (KS6, --all only: a workspace that signed itself up connects its first channel
- * only after tools/connections.mjs approves it — opening step 4). --all is everyone;
+ * only after tools/connections.mjs approves it — opening step 4), retention (RET,
+ * --all only: warnings, then tools/retention.mjs erases workspaces that never
+ * connected a channel in 90 days — off until the owner decides). --all is everyone;
  * --business one workspace. Dry run unless --yes. Reads MIGRATE_DATABASE_URL.
  */
 import { toolClient } from './lib/db.mjs';

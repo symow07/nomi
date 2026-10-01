@@ -46,7 +46,7 @@ describe('G7 · suspend (KS2, KS3)', () => {
 describe('G7 · the flags (KS4)', () => {
   it('force_draft is one row per capability but confirm_order, which always drafts', () => {
     expect([...(FORCE_DRAFT_CAPABILITIES as string[])].sort()).toEqual(['follow_up', 'greet', 'negotiate', 'qualify', 'quote', 'recommend']);
-    expect(OPERATOR_FLAGS).toEqual(['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections']);
+    expect(OPERATOR_FLAGS).toEqual(['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections', 'retention']);
   });
   for (const l of LOCALES) {
     it(`${l} · the daily list says which switch is still on, for whom, since when`, () => {

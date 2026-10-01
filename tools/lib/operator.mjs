@@ -20,9 +20,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The capabilities force_draft holds back, one row each (0014); confirm_order already always drafts. */
 export const FORCE_DRAFT_CAPABILITIES = ['greet', 'qualify', 'recommend', 'quote', 'negotiate', 'follow_up'];
-export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections'];
-/** KS6 — flags that exist only for the whole installation (0115). */
-export const INSTALLATION_ONLY_FLAGS = ['approve_connections'];
+export const OPERATOR_FLAGS = ['global_silence', 'force_draft', 'connections_off', 'practice_off', 'approve_connections', 'retention'];
+/** KS6, RET — flags that exist only for the whole installation (0115, 0116). */
+export const INSTALLATION_ONLY_FLAGS = ['approve_connections', 'retention'];
 
 async function inTx(c, fn) {
   await c.query('begin');
@@ -301,5 +301,38 @@ export async function decideConnection(c, input) {
                       where business_id = $1::uuid`, [ws.id, input.decision, by, note]);
     }
     return input.decision;
+  });
+}
+
+/**
+ * RET (0116) — the workspaces that never connected a channel, while the
+ * installation's `retention` switch is on: each with its erase date, the
+ * warnings it has had, and whether it is due (past the date, warned twice).
+ */
+export async function listRetention(c) {
+  const r = await c.query(`select business_id::text as id, name, signed_up_at, erase_on::text as erase_on, warned_14d, warned_3d, due
+                             from retention_workspaces()`);
+  return r.rows.map((x) => ({
+    id: x.id, name: x.name, signedUpAt: x.signed_up_at, eraseOn: x.erase_on,
+    warned14d: x.warned_14d === true, warned3d: x.warned_3d === true, due: x.due === true,
+  }));
+}
+
+/**
+ * The authorisation tools/erase-workspace.mjs asks for: an open workspace
+ * deletion request, recorded by the operator's name, saying why. Only for a
+ * workspace that is due right now. Returns the request's id, or null.
+ */
+export async function recordRetentionRequest(c, { businessId, by }) {
+  if (!by || !String(by).trim()) return null;
+  return inTx(c, async () => {
+    const due = (await c.query(`select name, erase_on::text as erase_on from retention_workspaces() where business_id = $1::uuid and due`, [businessId])).rows[0];
+    if (!due) return null;
+    const warned = (await c.query(`select stage, sent_at from retention_notices where business_id = $1::uuid order by sent_at`, [businessId])).rows
+      .map((n) => `${n.stage} ${new Date(n.sent_at).toISOString().slice(0, 10)}`).join(', ');
+    const r = await c.query(`insert into deletion_requests (business_id, scope, asked_by, subject_note)
+                             values ($1::uuid, 'workspace', $2, $3) returning id::text as id`,
+      [businessId, `retention: ${String(by).trim().slice(0, 100)}`, `RET: no channel connected in 90 days; erase date ${due.erase_on}; warned ${warned}`]);
+    return r.rows[0].id;
   });
 }
