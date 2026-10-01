@@ -29,7 +29,7 @@ import { AR_BANNED_FORMS, AR_NAME_ADJACENT_NOUNS, AR_HUWA_HIYA_THINGS, ZH_IT_THI
  */
 
 const strip = (s: string) => s.replace(/\{[a-zA-Z_]+\}/g, ' ');
-const entries = (l: 'en' | 'zh' | 'ar') => Object.entries(messages[l]) as [MessageKey, string][];
+const entries = (l: 'en' | 'zh' | 'ar' | 'es') => Object.entries(messages[l]) as [MessageKey, string][];
 
 const AR_W = '[\\u0621-\\u064A\\u064B-\\u0652]';
 
@@ -92,6 +92,34 @@ describe('Arabic: nothing agrees with her, and nobody is addressed in a gender',
     const banned = new Set(AR_BANNED_FORMS);
     const bad = entries('ar').flatMap(([k, v]) => words(v).filter((w) => banned.has(w)).map((w) => `${k}: ${w}`));
     expect(bad).toEqual([]);
+  });
+});
+
+// UI-es (0119) — Spanish carries gender in adjectives and participles, not
+// only in pronouns. What a regex can hold: the pronouns themselves; an
+// adjective or participle right after {name} and a linking verb ("{name} está
+// lista"); and the owner addressed with one ("¿Estás seguro?", "Bienvenido").
+// The rest is the native read's (docs/NATIVE-REVIEW-UI.md).
+describe('Spanish: nobody is gendered', () => {
+  it('no él / ella / ellos / ellas', () => {
+    const bad = entries('es').filter(([, v]) => /(?<![\p{L}])(él|ella|ellos|ellas)(?![\p{L}])/iu.test(strip(v)));
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('no adjective or participle agreeing with {name} after a linking verb (a gerund is not one)', () => {
+    const re = /\{name\}\s+(?:ya\s+|no\s+|también\s+)?(?:está|estará|estaba|estuvo|fue|será|era|queda|quedó|quedará|sigue|parece|anda)\s+(\p{L}+)/iu;
+    const bad = entries('es').filter(([, v]) => {
+      const m = v.match(re);
+      return m !== null && /[oa]s?$/i.test(m[1]!) && !/(ando|iendo|endo)$/i.test(m[1]!) && !['en', 'a', 'para', 'sin', 'con', 'fuera', 'ahora', 'otra'].includes(m[1]!.toLowerCase());
+    });
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('the owner is never addressed with a gendered word', () => {
+    const bad = entries('es').filter(([, v]) => /(?<![\p{L}])(bienvenid[oa]s?|est[áa]s\s+(segur|list|conectad|registrad|suscrit)[oa]s?)(?![\p{L}])/iu.test(v));
+    expect(bad.map(([k, v]) => `${k}: ${v}`)).toEqual([]);
+  });
+  it('the checks fire on the sentences they exist for', () => {
+    expect(/(?<![\p{L}])(él|ella|ellos|ellas)(?![\p{L}])/iu.test('Ella responde')).toBe(true);
+    expect(/(?<![\p{L}])(bienvenid[oa]s?|est[áa]s\s+(segur|list|conectad|registrad|suscrit)[oa]s?)(?![\p{L}])/iu.test('¿Estás seguro?')).toBe(true);
   });
 });
 

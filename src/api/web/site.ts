@@ -99,6 +99,7 @@ export function renderSite(v: SiteInput): string {
     en: { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger' },
     zh: { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger' },
     ar: { whatsapp: 'واتساب', instagram: 'إنستغرام', messenger: 'ماسنجر' },
+    es: { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger' },
   };
   const channel = (c: 'whatsapp' | 'instagram' | 'messenger' | 'email') =>
     `<li><strong>${c === 'email' ? k('site.channels.email') : esc(CHANNEL_NAME[l][c])}</strong><span>${k(`site.channels.${c}.how`)}</span></li>`;

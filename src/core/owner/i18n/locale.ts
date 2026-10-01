@@ -4,13 +4,14 @@
  * cookie + Accept-Language header and calls resolveLocale.
  */
 
-export type Locale = 'en' | 'zh' | 'ar';
+// UI-es (0119, decision 39) — Spanish, the fourth.
+export type Locale = 'en' | 'zh' | 'ar' | 'es';
 
-export const LOCALES: readonly Locale[] = ['en', 'zh', 'ar'];
+export const LOCALES: readonly Locale[] = ['en', 'zh', 'ar', 'es'];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Endonyms — a locale's own name, invariant across the UI language. */
-export const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文', ar: 'العربية' };
+export const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文', ar: 'العربية', es: 'Español' };
 
 /**
  * The positioning rewrite (0093): the languages a business may say it SERVES —
@@ -29,7 +30,7 @@ export const dirOf = (l: Locale): 'rtl' | 'ltr' => (isRtl(l) ? 'rtl' : 'ltr');
 
 /** A value is a supported Locale, else null. */
 export function parseLocale(raw: string | null | undefined): Locale | null {
-  return raw === 'en' || raw === 'zh' || raw === 'ar' ? raw : null;
+  return raw === 'en' || raw === 'zh' || raw === 'ar' || raw === 'es' ? raw : null;
 }
 
 /** First supported locale named in an Accept-Language header, else null. */
@@ -38,7 +39,7 @@ export function fromAcceptLanguage(header: string | null | undefined): Locale | 
   for (const part of header.split(',')) {
     const tag = (part.split(';')[0] ?? '').trim().toLowerCase();
     const primary = tag.split('-')[0];
-    if (primary === 'en' || primary === 'zh' || primary === 'ar') return primary;
+    if (primary === 'en' || primary === 'zh' || primary === 'ar' || primary === 'es') return primary;
   }
   return null;
 }

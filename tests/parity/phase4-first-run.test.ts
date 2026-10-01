@@ -25,6 +25,7 @@ describe('F3 · one word for practising: the nav word, in every locale', () => {
     en: /sandbox/i,
     zh: /沙盒|沙箱/,
     ar: /بيئة التجربة/,
+    es: /sandbox|entorno de pruebas/i,
   };
 
   it('no owner sentence names it anything else', () => {

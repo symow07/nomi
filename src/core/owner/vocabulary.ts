@@ -86,6 +86,8 @@ export const BANNED_OWNER_TERMS: readonly string[] = [
   '升级',   // use 晋升
   '机器人', // it is an employee, never a bot
   '系统',   // "the system" is software talk; the employee has a name
+  // es technical equivalents (UI-es, 0119)
+  'ia', 'inteligencia artificial', 'modelo', 'base de datos', 'servidor', 'robot',
 ];
 
 /**
