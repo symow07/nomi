@@ -4,7 +4,7 @@ import pg from 'pg';
 import { flashSaid } from './tenant.js';
 import { importAt, submitReview } from './importReview.js';
 import { offlineModels } from '../pipeline/fakes.js';
-import { signUpWithCode, type Outbox } from './signUpWithCode.js';
+import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'a'.repeat(64)).update('yf-web-session').digest('hex');
@@ -63,7 +63,7 @@ d('CUR · one currency per workspace (requires DATABASE_URL + MIGRATE_DATABASE_U
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'cur-verify-token-0001',
       CREDENTIAL_KEY: 'a'.repeat(64), PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { models: offlineModels(), logger: false, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
+    }, { models: offlineModels(), logger: false, botCheck: PASSING_BOT_CHECK, signupGuard: null, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
   }, 90_000);
 
   afterAll(async () => {

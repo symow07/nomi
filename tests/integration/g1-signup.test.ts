@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import Fastify from 'fastify';
 import { offlineModels } from '../pipeline/fakes.js';
+import { PASSING_BOT_CHECK } from './signUpWithCode.js';
 
 /**
  * G1 — A STRANGER SIGNS UP, end to end: the real composition, real Postgres,
@@ -70,6 +71,8 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
       // sender: the suite fails on purpose elsewhere, and a held one can be
       // released while this file runs (found 2026-10-01 on CI's second pass).
       // They are kept apart — this file is about sign-up mail.
+      // BOT — a passing check, and no database limits: this file signs many up within the hour.
+      botCheck: PASSING_BOT_CHECK, signupGuard: null,
       systemMail: { from: 'no-reply@nomi.test', send: async (m) => {
         (m.subject === t('en', 'notify.app_error.subject') ? errorAlerts : outbox).push(m); return { ok: true };
       } },

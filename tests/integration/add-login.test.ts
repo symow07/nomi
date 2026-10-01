@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { offlineModels } from '../pipeline/fakes.js';
-import { signUpWithCode, type Outbox } from './signUpWithCode.js';
+import { signUpWithCode, type Outbox, PASSING_BOT_CHECK } from './signUpWithCode.js';
 
 /**
  * 0078 — tools/add-login.mjs, run for real against Postgres, and the login it
@@ -98,7 +98,7 @@ d('0078 · add-login gives a workspace that exists a login (requires DATABASE_UR
       ANTHROPIC_API_KEY: 'test-key-not-real-just-shape-valid',
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'add-login-verify-01',
       CREDENTIAL_KEY: 'a'.repeat(64), PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
-    }, { models: offlineModels(), logger: false, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
+    }, { models: offlineModels(), logger: false, botCheck: PASSING_BOT_CHECK, signupGuard: null, systemMail: { from: 'no-reply@nomi.test', send: async (m) => { outbox.push(m); return { ok: true }; } } });
     // A workspace made by signing up, for the comparison and the clash.
     const made = await signUpWithCode(form, outbox, SIGNUP);
     expect(made.statusCode, made.body.slice(0, 300)).toBe(302);

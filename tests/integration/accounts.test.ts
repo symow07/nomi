@@ -33,8 +33,11 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
   let t: typeof import('../../src/core/owner/i18n/messages.js')['t'];
   let admin: pg.Client;
 
+  // BOT (0114) — each request comes from its own caller: the per-caller limit
+  // lives in the database and outlives a run, and this file is not about it.
+  let caller = 0;
   const form = (url: string, fields: Record<string, string>, cookie = '', channels: readonly string[] = []) => prod.app.inject({
-    method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', ...(cookie ? { cookie } : {}) },
+    method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `2001:db8:a2::${RUN.slice(0, 4)}:${(++caller).toString(16)}`, ...(cookie ? { cookie } : {}) },
     // Each ticked box posts its own name, as the page renders them.
     payload: new URLSearchParams({ ...fields, ...Object.fromEntries(channels.map((c) => [`channel_${c}`, 'on'])) }).toString(),
   });
@@ -192,7 +195,10 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     // Its own visitor: sign-up allows five tries an hour from one address, and
     // the tests above have used this file's share.
     const signup = (fields: Record<string, string>) => prod.app.inject({
-      method: 'POST', url: '/signup', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `198.51.100.${RUN.charCodeAt(0) % 200}` },
+      // BOT (0114) — the caller is this run's own: the per-caller limit is in the
+      // database now, so it outlives a run, and one of sixteen fixed addresses
+      // was shared with the run before it within the hour (found 2026-10-01).
+      method: 'POST', url: '/signup', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `2001:db8:a1::${RUN.slice(0, 4)}:${RUN.slice(4)}` },
       payload: new URLSearchParams(fields).toString(),
     });
     const asked = await signup(C);

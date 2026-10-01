@@ -4,6 +4,7 @@ import pg from 'pg';
 import { createHmac } from 'node:crypto';
 import { flashSaid } from './tenant.js';
 import { offlineModels } from '../pipeline/fakes.js';
+import { PASSING_BOT_CHECK } from './signUpWithCode.js';
 
 /** The same derivation main.ts makes, so a notice this app minted can be read. */
 const WEB_SECRET = createHmac('sha256', 'b'.repeat(64)).update('yf-web-session').digest('hex');
@@ -58,6 +59,8 @@ d('A3 · a code by e-mail at sign-up and on a new browser (requires DATABASE_URL
     }, {
       models: offlineModels(),
       logger: false,
+      // BOT — a passing check, and no database limits: this file signs many up within the hour.
+      botCheck: PASSING_BOT_CHECK, signupGuard: null,
       systemMail: { from: 'no-reply@nomi.test', send: async (m) => { if (!mailUp) return { ok: false, error: 'down' }; outbox.push(m); return { ok: true }; } },
     });
   }, 90_000);

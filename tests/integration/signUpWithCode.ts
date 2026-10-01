@@ -5,6 +5,9 @@ import { expect } from 'vitest';
  * six digits from the mail the installation's sender recorded. Answers the
  * /verify response (302 to /app/business, the session cookie set).
  */
+/** BOT — a check that always finds a person: no provider is called in a test. */
+export const PASSING_BOT_CHECK = { provider: 'turnstile' as const, siteKey: 'test-site-key-0001', verify: async () => true };
+
 type Res = { statusCode: number; headers: Record<string, unknown>; body: string };
 export type Outbox = { to: string; subject: string; text: string }[];
 
