@@ -1,3 +1,4 @@
+import { parseOptions, formatOptions, optionsOf, type ProductOption } from '../../core/commerce/options.js';
 import { PHOTO_READS_A_DAY } from '../../db/allowance.js';
 import { sql } from 'kysely';
 import { type Money, type Currency, parseCurrency, moneyFromRow } from '../../core/types/money.js';
@@ -163,6 +164,8 @@ export type ProductDetail = {
   readonly currency: Currency;
   /** K3 — the line of her list it was added from, and the photo, when it came from one. */
   readonly source?: { readonly line: string; readonly importId: string | null; readonly photo: number | null } | null;
+  /** VAR (0111) — its options: sizes, colours, shades… with no price or stock of their own. */
+  readonly options?: readonly ProductOption[];
 };
 
 export async function loadProductDetail(db: Db, businessIdRaw: string, productId: string): Promise<ProductDetail | null> {
@@ -174,7 +177,8 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       unit: string; moq: number | null; lead_time_days: number | null; customizable: boolean;
       is_active: boolean; price: string | null; currency: string; has_limits: boolean;
       source_line: string | null; source_import_id: string | null; photo: number | null; kind: string | null;
-    }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active,
+      options: unknown;
+    }>`select id, name, name_zh, sku, category, unit, moq, lead_time_days, customizable, is_active, options,
               price_usd_per_unit as price, currency, source_line, source_import_id,
               (select b.kind from businesses b where b.id = products.business_id) as kind,
               (select ph.position from catalog_import_photos ph where ph.id = products.source_photo_id) as photo,
@@ -214,6 +218,7 @@ export async function loadProductDetail(db: Db, businessIdRaw: string, productId
       tiers, aliases, images, recentQuotes,
       currency: await currencyOf(tx, bid.value),
       source: p.source_line === null ? null : { line: p.source_line, importId: p.source_import_id, photo: p.photo },
+      options: optionsOf(p.options),
     };
   });
 }
@@ -375,6 +380,13 @@ export async function writeImportRows(
       const label = row.options.split(' · ').map((part) => part.split(':')[0]!.trim()).filter(Boolean).join(', ').slice(0, 80) || 'Options';
       await sql`insert into product_knowledge (business_id, product_id, kind, label, content, source_language, source, status)
                 values (${bid}, ${id}::uuid, 'specification', ${label}, ${row.options}, 'und', 'owner_confirmed', 'active')`.execute(tx);
+      // VAR (0111) — and the product's own options, whole, which the reply is
+      // given every time (the knowledge row is only found when retrieval finds
+      // it). Text the options cannot read stays knowledge only.
+      const parsed = parseOptions(row.options);
+      if (parsed.ok && parsed.options.length > 0) {
+        await sql`update products set options = ${JSON.stringify(parsed.options)}::jsonb where id = ${id}::uuid`.execute(tx);
+      }
     }
     // K3 — where it came from, on the audit trail: the line, the import, the photo.
     await sql`
@@ -528,6 +540,9 @@ export function renderProductDetail(
         <input name="name" dir="auto" value="${val('name', d.name)}" />${ferr('name')}</label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.nameZh'))}</span>
         <input name="nameZh" lang="zh" value="${val('nameZh', d.nameZh ?? '')}" />${ferr('nameZh')}</label>
+      <label class="pq"><span>${esc(t(locale, 'product.edit.options'))}</span>
+        <textarea name="options" rows="3" dir="auto" placeholder="${esc(t(locale, 'product.edit.options.placeholder'))}">${val('options', formatOptions(d.options ?? [], '\n'))}</textarea>${ferr('options')}
+        <span class="caption muted">${esc(t(locale, 'product.edit.options.hint'))}</span></label>
       <label class="pq"><span>${esc(t(locale, 'product.edit.customerNames'))}</span>
         <textarea name="customerNames" rows="3" dir="auto">${val('customerNames', '')}</textarea>${ferr('customerNames')}
         <span class="caption muted">${esc(t(locale, 'product.edit.customerNames.hint'))}</span></label>
@@ -702,10 +717,13 @@ export type ProductEdit = {
   readonly customerNames?: string | null;
   /** RT — the days until it is ready to send; an empty box is "not said". Null leaves it as it is. */
   readonly leadTime?: string | null;
+  /** VAR — its options, one a line ("Size: S, M, L"); an empty box is none. Null leaves them as they are. */
+  readonly options?: string | null;
 };
 
-export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime';
-export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far';
+export type ProductEditField = 'price' | 'moq' | 'unit' | 'isActive' | 'name' | 'nameZh' | 'customerNames' | 'leadTime' | 'options';
+export type ProductEditError = 'not_a_number' | 'not_positive' | 'empty' | 'below_floor' | 'too_long' | 'too_many' | 'too_far'
+  | 'no_name' | 'no_values' | 'too_many_options' | 'too_many_values' | 'option_too_long';
 
 /** RT — the longest lead time a product may state: a year. */
 export const MAX_LEAD_TIME_DAYS = 365;
@@ -735,9 +753,9 @@ async function updateProductTx(
 ): Promise<EditResult> {
   const cur = (await sql<{
     price: string | null; moq: number | null; unit: string; is_active: boolean; floor: string | null;
-    name: string; name_zh: string | null; lead_time_days: number | null;
+    name: string; name_zh: string | null; lead_time_days: number | null; options: unknown;
   }>`
-    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active, p.name, p.name_zh, p.lead_time_days,
+    select p.price_usd_per_unit as price, p.moq, p.unit, p.is_active, p.name, p.name_zh, p.lead_time_days, p.options,
            pp.floor_price_usd as floor
       from products p
       left join pricing_policy pp
@@ -809,6 +827,14 @@ async function updateProductTx(
     if (!c.ok) errors.customerNames = c.error;
     else customerNames = c.names;
   }
+  // VAR — its options, read whole; one bad line refuses them all.
+  const curOptions = optionsOf(cur.options);
+  let options = curOptions;
+  if (edit.options !== undefined && edit.options !== null) {
+    const o = parseOptions(edit.options);
+    if (!o.ok) errors.options = o.error === 'too_long' ? 'option_too_long' : o.error;
+    else options = o.options;
+  }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const isActive = edit.isActive ?? cur.is_active;
@@ -824,13 +850,15 @@ async function updateProductTx(
   note('name', cur.name, name);
   note('nameZh', cur.name_zh, nameZh);
   note('leadTime', cur.lead_time_days, leadTime);
+  note('options', formatOptions(curOptions), formatOptions(options));
 
   if (changed.length === 0 && customerNames.length === 0) return { ok: true, changed: [] };
 
   if (changed.length > 0) {
     await sql`
       update products set price_usd_per_unit = ${price}, moq = ${moq}, unit = ${unit},
-                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, lead_time_days = ${leadTime}, updated_at = now(),
+                          is_active = ${isActive}, name = ${name}, name_zh = ${nameZh}, lead_time_days = ${leadTime},
+                          options = ${JSON.stringify(options)}::jsonb, updated_at = now(),
                           currency = case when ${detail['price'] !== undefined} then ${currency} else currency end
        where business_id = ${bid} and id = ${productId}
     `.execute(tx);

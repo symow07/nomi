@@ -89,6 +89,12 @@ export type Signal =
    */
   | { readonly kind: 'price_to_owner' }
   /**
+   * VAR (decision 31) — a question about stock: nothing on record knows what
+   * is on the shelf, so the owner answers it; the hand-off says only that
+   * someone will reply. Scored like a price that goes to the owner.
+   */
+  | { readonly kind: 'stock_asked' }
+  /**
    * G3 (0101) — the day's allowance is used: no model is asked, so a person
    * answers, and the customer is told nothing. The path Stop takes, under its
    * own name; the allowance renews at midnight UTC.
@@ -133,6 +139,8 @@ export const PROBLEM_SIGNAL_KINDS = [
   'not_answered',
   // K5 (0094) — a price question, where prices go to the owner.
   'price_to_owner',
+  // VAR (0111) — a question about stock; the owner answers it.
+  'stock_asked',
   // G3 (0101) — the day's allowance is used; a person answers.
   'allowance_used',
 ] as const satisfies readonly SignalKind[];
@@ -159,6 +167,7 @@ export const SIGNAL_SAMPLES: { readonly [K in SignalKind]: Extract<Signal, { kin
   deletion_requested: { kind: 'deletion_requested' },
   not_answered: { kind: 'not_answered' },
   price_to_owner: { kind: 'price_to_owner' },
+  stock_asked: { kind: 'stock_asked' },
   allowance_used: { kind: 'allowance_used' },
   high_value: { kind: 'high_value', total: usd(1) },
   customization_requested: { kind: 'customization_requested' },
@@ -197,6 +206,7 @@ export const TRIGGER_REASONS = [
   'not_answered',
   'price_to_owner',
   'allowance_used',
+  'stock_asked',
 ] as const;
 
 export type TriggerReason = typeof TRIGGER_REASONS[number];
@@ -229,6 +239,8 @@ export function toTriggerReason(s: Signal): TriggerReason {
       return 'not_answered';
     case 'price_to_owner':
       return 'price_to_owner';
+    case 'stock_asked':
+      return 'stock_asked';
     case 'allowance_used':
       return 'allowance_used';
     case 'high_value':
@@ -287,6 +299,9 @@ export function computeScores(signals: readonly Signal[]): Scores {
         break;
       case 'price_to_owner':
         problem = 100; // absolute: her prices are hers to give.
+        break;
+      case 'stock_asked':
+        problem = 100; // absolute: only she knows what is on the shelf.
         break;
       case 'complaint':
         problem += 40;

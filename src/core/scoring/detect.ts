@@ -511,6 +511,36 @@ const LOGISTICS_PHRASES = [
   'customs clearance', 'lcl', 'fcl', 'freight',
 ];
 
+/**
+ * VAR (decision 31) — A QUESTION ABOUT STOCK: whether it is in stock, how many
+ * are left, sold out, when more arrive. Options (sizes, colours) are answered
+ * from the product; stock is not on record anywhere, so the owner answers it.
+ * Never "available in black?" (an option), never "stock photo" or "card
+ * stock", never "how many colours". tests/parity/var-stock.test.ts holds a
+ * corpus both ways, in the six languages; a new phrasing goes there first.
+ * `asksAboutStock` decides the hand-off; `stockQuestionLanguage` names the
+ * language of the pattern that caught it (LG: a hand-off before any model is
+ * said in it) — only when exactly one language's did: "en stock" is Spanish
+ * and French, and then the word list decides.
+ */
+const STOCK: readonly (readonly ['en' | 'zh' | 'ar' | 'es' | 'fr' | 'pt', RegExp])[] = [
+  ['en', /\b(?:in|out\s+of|back\s+in)\s+stock\b|\bsold\s+out\b|\bstock\s+(?:left|available|levels?)\b|\bhow\s+many\s+(?:do\s+you\s+have(?:\s+left)?|are\s+(?:there\s+)?left|left)\b|\bany\s+left\b|\brestock(?:ed|ing)?\b|\binventory\b|\bavailable\s+(?:right\s+)?now\b/i],
+  ['zh', /有货|有没有货|现货|还有货|库存|缺货|断货|补货|卖完|卖光|售罄/],
+  ['ar', /متوفر(?:ة)?\s+(?:حاليا|حالياً|الآن|الان)|(?:في|بال)\s*المخزون|(?<![ء-ي])المخزون(?![ء-ي])|(?:هل\s+)?(?:يوجد|فيه|في)\s+مخزون|نفد(?:ت)?|نفذ(?:ت)?|خلص(?:ت)?\s+الكمية|متى\s+(?:يرجع|يتوفر|توفر)/],
+  ['es', /\ben\s+stock\b|\b(?:hay|tienen|queda|quedan)\s+stock\b|\bsin\s+stock\b|\bagotad[oa]s?\b|\bcu[aá]nt[oa]s\s+(?:quedan|les\s+quedan|tienen\s+disponibles)\b|\bdisponible\s+(?:ahora|ya)\b|\breponen\b/i],
+  ['fr', /\ben\s+stock\b|\bstock\s+disponible\b|(?<![a-zà-ÿ])[ée]puis[ée]e?s?(?![a-zà-ÿ])|\brupture\s+de\s+stock\b|\bcombien\s+(?:il\s+)?(?:vous\s+)?(?:en\s+)?reste\b|\bdisponible\s+(?:maintenant|tout\s+de\s+suite)\b|\breassort\b/i],
+  ['pt', /\bem\s+estoque\b|\b(?:tem|t[eê]m|h[aá])\s+estoque\b|\bsem\s+estoque\b|\besgotad[oa]s?\b|\bquant[oa]s\s+(?:restam|ainda\s+t[eê]m|sobraram)\b|\bdispon[ií]vel\s+(?:agora|j[aá])\b|\breposi[çc][ãa]o\s+de\s+estoque\b/i],
+];
+const stockLanguages = (text: string) => {
+  const t = (text ?? '').normalize('NFKC');
+  return STOCK.filter(([, re]) => re.test(t)).map(([lang]) => lang);
+};
+export const asksAboutStock = (text: string): boolean => stockLanguages(text).length > 0;
+export function stockQuestionLanguage(text: string): 'en' | 'zh' | 'ar' | 'es' | 'fr' | 'pt' | null {
+  const langs = stockLanguages(text);
+  return langs.length === 1 ? langs[0]! : null;
+}
+
 export function detectSignals(input: {
   text: string;
   state: ConversationState;
@@ -545,6 +575,12 @@ export function detectSignals(input: {
     out.push({ kind: 'human_requested' });
   } else if (analysis?.wantsPerson === null) {
     out.push({ kind: 'not_answered' });
+  }
+
+  // VAR (decision 31) — a question about stock goes to the owner: nothing here
+  // knows what is on the shelf, and a reply that said so would be invented.
+  if (asksAboutStock(text)) {
+    out.push({ kind: 'stock_asked' });
   }
 
   // 0075 — "delete my data" goes to a person, and nothing is said to the buyer.

@@ -238,7 +238,7 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
   const prompt = loadPrompt('response.txt');
 
   return {
-    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, sampleNote, closureNote, speaker, priceFirst }) {
+    async write({ state, text, quote, replyLanguage, nextQuestion, retryAfterViolation, knowledge, options, sampleNote, closureNote, speaker, priceFirst }) {
       const context = {
         phase: state.phase,
         reply_language: replyLanguage,
@@ -265,6 +265,8 @@ export function anthropicReplyWriter(client: Anthropic, model: string = MODEL, e
         // Taught knowledge to answer FROM (specs/materials/notes/answers).
         // Certifications are NOT here — those stay in claims_policy.
         knowledge: (knowledge ?? []).map((k) => ({ kind: k.kind, about: k.label, fact: k.content })),
+        // VAR — the identified product's options, whole. Absent when it has none.
+        ...(options?.length ? { options: options.map((o) => ({ name: o.name, values: o.values })) } : {}),
         next_question: nextQuestion,
         product_confirmed: state.product?.confirmedByClient ?? false,
         // RT — present only for a business that gives its price first.

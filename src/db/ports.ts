@@ -1,3 +1,4 @@
+import type { ProductOption } from '../core/commerce/options.js';
 import type { BusinessId, ClientId, ConversationId, OrderId } from '../core/types/ids.js';
 import type { Money } from '../core/types/money.js';
 import type { FactoryClosure } from '../core/commerce/closures.js';
@@ -272,6 +273,8 @@ export interface ConversationRepo {
 export interface CatalogRepo {
   product(id: string): Promise<Product | null>;
   priceTiers(productId: string): Promise<PriceTier[]>;
+  /** VAR (0111) — the product's options (a practice copy's from its live product); none when it has none. */
+  productOptions(productId: string): Promise<readonly ProductOption[]>;
   pricingPolicy(productId: string | null): Promise<PricingPolicy | null>;
   negotiationRules(): Promise<NegotiationRule[]>;
   /** claims_policy rows — the claims guard's allowlist (default-deny). */

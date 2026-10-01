@@ -630,6 +630,10 @@ once, in this order, and tick it here.
 - 2026-10-01, after the restart: the MCP servers asked for sign-in again
   (Figma, Riverside, Shopify, Amplitude, Amplitude EU, Atlassian, BigQuery,
   Hex; Definite failed to connect): ignored.
+- 2026-10-01, later the same day (after #180–#182): the same sign-in asks and
+  the watch hook's Whisper key, again after a context restart, and the
+  Higgsfield server offered its preferences tools; the Adobe and Gamma servers
+  announced themselves. None is part of this work: ignored.
 
 ## How to resume
 

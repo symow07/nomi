@@ -1,3 +1,4 @@
+import { optionsOf } from '../core/commerce/options.js';
 import { earnedRung } from './ramp.js';
 import { sellingAnswers } from '../core/owner/sellingStyle.js';
 import { zoneOf } from './zone.js';
@@ -262,6 +263,11 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
         sku: r.sku, name: r.name, moq: r.moq, unit: r.unit,
         leadTimeDays: r.lead_time_days, customizable: r.customizable,
       };
+    },
+
+    // VAR (0111) — read through product_options(): a practice copy's are its live product's.
+    async productOptions(productId) {
+      return optionsOf((await sql<{ o: unknown }>`select product_options(${productId}::uuid) as o`.execute(tx)).rows[0]?.o);
     },
 
     async priceTiers(productId) {

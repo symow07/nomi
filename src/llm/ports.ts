@@ -1,3 +1,4 @@
+import type { ProductOption } from '../core/commerce/options.js';
 import type { Analysis } from '../core/conversation/decide.js';
 import type { ConversationState } from '../core/types/conversation.js';
 import type { Quote } from '../core/types/commerce.js';
@@ -72,6 +73,11 @@ export interface ReplyWriter {
      *  FROM. Prose only — numbers are still gated by guardNumerals (which now
      *  sources the identified product's knowledge numbers). */
     knowledge?: readonly KnowledgeSnippet[];
+    /**
+     * VAR (0111) — the identified product's options (sizes, colours, shades…),
+     * whole. No price or stock of their own. Absent when it has none.
+     */
+    options?: readonly ProductOption[];
     /**
      * M45 — what the OWNER said about samples, already turned into a sentence
      * by `sampleAnswerContext`. ABSENT when she has stated nothing, so the

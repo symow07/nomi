@@ -98,6 +98,9 @@ d('K8 · store import (requires DATABASE_URL)', () => {
     expect(Number(dress.price)).toBe(68);             // never the compare-at 90
     expect(dress.unit).toBe('item');                   // a brand counts in items (RT)
     expect(await knowledge(dress.id)).toEqual([{ kind: 'specification', label: 'Size, Colour', content: 'Size: S, M, L · Colour: Red, Navy' }]);
+    // VAR (0111) — and the product's own options, whole, as the reply is given them.
+    expect(await tx((x) => sql<{ options: unknown }>`select options from products where id = ${dress.id}::uuid`.execute(x).then((r) => r.rows[0]!.options))).toEqual([
+      { name: 'Size', values: ['S', 'M', 'L'] }, { name: 'Colour', values: ['Red', 'Navy'] }]);
     const scrunchie = (await product('Silk scrunchie'))!;
     expect(scrunchie.sku).toBe('SC-1');
     expect(await knowledge(scrunchie.id)).toEqual([]);

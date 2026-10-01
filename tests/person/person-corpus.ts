@@ -579,7 +579,8 @@ export const OPENERS: Record<Lang, readonly [string, string][]> = {
  */
 export const OPENERS_WITH_MORE: Record<Lang, readonly string[]> = {
   en: ['Hi, is anyone there? I have a question about the price', 'Anyone there? Do you ship to Kenya?'],
-  zh: ['客服在吗？这个包多少钱', '老板在吗，还有现货吗', '有人吗？我想问一下起订量'],
+  // '还有现货吗' (in stock?) went to the owner with VAR (decision 31): the opener here asks about a colour instead.
+  zh: ['客服在吗？这个包多少钱', '老板在吗，这个有黑色吗', '有人吗？我想问一下起订量'],
   ar: ['فيه أحد؟ أريد أعرف السعر', 'السلام عليكم، هل يوجد أحد؟ كم سعر هذا؟'],
   es: [
     "¿Hay alguien? Tengo una pregunta sobre el precio",
