@@ -52,6 +52,7 @@ import { driveConversationOutbound, type AdapterFor, type MailEnvelope, type Mai
 import { QUEUES, enqueueInbound, inboundGroup, type NotifyJob, type InboundJob, type SequenceSweepJob, type EchoJob } from './queue/boss.js';
 import { handleEcho, ECHO_SETTLE_SECONDS } from './pipeline/echo.js';
 import { vapidFrom, type PushFetch } from './net/webPush.js';
+import { metaReviewFrom } from './core/channel/metaReview.js';
 import { runDueSteps } from './outbound/sequences.js';
 import { deliverOwnerAlert } from './pipeline/notify.js';
 import { parseBusinessId, type BusinessId } from './core/types/ids.js';
@@ -662,6 +663,8 @@ export async function buildProduction(
       reportError: errors.report,
       // G5b — the phone alerts' keys, for the page that turns them on and its test.
       push: pushOut,
+      // CH4 — where Nomi stands with Meta, said on Channels (the operator's variable).
+      metaReview: metaReviewFrom(process.env),
       kickAnswer: (businessId, conversationId, messageId, text) =>
         boss.send(QUEUES.inbound, {
           businessId, conversationId, messageId, text, answerOnly: true,
