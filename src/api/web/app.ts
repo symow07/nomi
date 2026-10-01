@@ -1,3 +1,4 @@
+import { loadReady, renderReady } from './ready.js';
 import { sendingAloneEarned } from '../../db/earned.js';
 import { workspaceZone } from './zone.js';
 import { workspaceCurrency } from '../../db/currency.js';
@@ -3193,13 +3194,32 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const feedback = await loadPilotFeedback(deps.db, s.businessId, 'month');
     return reply.type('text/html; charset=utf-8').send(page(req, {
       title: t(locale, 'pilot.title'), active: 'onboarding',
-      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s)),
+      bodyHtml: renderPilotRunbook(data, locale, flash, feedback, personOf(s), s.businessId === deps.businessId),
+    }));
+  });
+
+  // G6 — "Ready for customers": the owner's own evidence before customers write.
+  app.get('/app/ready', async (req, reply) => {
+    const s = sessionOf(req); if (!s) return reply.redirect('/login');
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok) return reply.redirect('/app');
+    const locale = localeOf(req);
+    return reply.type('text/html; charset=utf-8').send(page(req, {
+      title: t(locale, 'ready.title'), active: 'onboarding', bodyHtml: renderReady(await loadReady(deps.db, bid.value), locale),
     }));
   });
 
   // Phase 4b (audit F2 / F4) — the machine room, one door from Getting ready
   // and owner-only: credential shapes, the engine's own checks, the build.
-  app.get('/app/onboarding/technical', ownerPage('messaging_activation', 'onboarding', '/app/onboarding', async (s, _req, _reply, locale) => {
+  // G6 — and the installation's: it describes this deployment, not a
+  // workspace, so only the owner of the installation's own workspace reaches
+  // it. Anyone else is told there is no such page.
+  app.get('/app/onboarding/technical', {
+    preHandler: async (req, reply) => {
+      const s = sessionOf(req);
+      if (s && s.businessId !== deps.businessId) return reply.callNotFound();
+    },
+  }, ownerPage('messaging_activation', 'onboarding', '/app/onboarding', async (s, _req, _reply, locale) => {
     // M17.1: which build is running — owner-authenticated only, never on /health.
     const deployment = readDeployment(process.env, new Date(), process.uptime());
     // M17.2: go-live preparation status. Reads shapes only — never a value, and

@@ -1,3 +1,4 @@
+import { loadReady, readyDone, readyTotal, readyComplete } from './ready.js';
 import { zoneOf } from '../../db/zone.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
@@ -63,6 +64,14 @@ export type PilotReadiness = {
   readonly backupVerifiedAt: Date | null;
   readonly readyToLaunch: boolean;   // everything but the channel (that's what launch turns on)
   /**
+   * G6 — a workspace that signed itself up. Its Getting ready shows only what
+   * applies: "Ready for customers" (the Practice checklist) in place of the
+   * installation's facts (backup, secrets) and the old fixed-scenario check.
+   */
+  readonly selfServe?: boolean;
+  /** G6 — the Practice checklist, for a self-serve workspace: seen of total, and whether complete. */
+  readonly ready?: { readonly done: number; readonly total: number; readonly complete: boolean } | null;
+  /**
    * What the box is pre-filled with: her stored name, or — before any row
    * exists — the one the signup locale would give her. A suggestion, not a
    * decision; `assistantNamedAt` records the decision.
@@ -77,11 +86,17 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     validation: { at: null, pass: null, total: null },
     backupVerifiedAt: null,
     readyToLaunch: false,
+    selfServe: false, ready: null,
     assistantName: defaultAssistantName('en'),
   };
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return empty;
   const B = bid.value;
+  // G6 — the checklist, read before the transaction below (it opens its own).
+  const selfServe = await withTenantTx(db, B, async (tx) => (await sql<{ s: boolean }>`
+    select signed_up_at is not null as s from businesses where id = ${B}`.execute(tx)).rows[0]?.s ?? false);
+  const rv = selfServe ? await loadReady(db, B) : null;
+  const ready = rv ? { done: readyDone(rv), total: readyTotal(rv), complete: readyComplete(rv) } : null;
 
   return withTenantTx(db, B, async (tx) => {
     const r = (await sql<{
@@ -133,16 +148,22 @@ export async function loadPilotReadiness(db: Db, businessIdRaw: string): Promise
     const attest = { backupTestedAt: r.backup_tested_at, secretsRotatedAt: r.secrets_rotated_at,
       ownerReadyAt: r.owner_ready_at, assistantNamedAt: r.assistant_named_at };
     const backupVerifiedAt = r.backup_verified_at;
+    // G6 — a self-serve workspace answers for what is its own: the Practice
+    // checklist stands where the installation's facts and the fixed-scenario
+    // check stood. A workspace the operator made is held to them as before.
     const readyToLaunch = detected.profile && detected.products && detected.priceRules
-      && detected.knowledge && detected.claims && detected.sandbox
-      && (!!attest.backupTestedAt || !!backupVerifiedAt) && !!attest.secretsRotatedAt && !!attest.ownerReadyAt
-      && !!attest.assistantNamedAt;
+      && detected.knowledge && detected.claims
+      && (ready
+        ? ready.complete
+        : detected.sandbox && (!!attest.backupTestedAt || !!backupVerifiedAt) && !!attest.secretsRotatedAt)
+      && !!attest.ownerReadyAt && !!attest.assistantNamedAt;
 
     return {
       detected, attest,
       validation: { at: r.last_validation_at, pass: r.last_validation_pass, total: r.last_validation_total },
       backupVerifiedAt,
       readyToLaunch,
+      selfServe, ready,
       assistantName: r.assistant_name ?? defaultAssistantName(parseLocale(r.owner_locale ?? 'en') ?? 'en'),
     };
   });
@@ -483,7 +504,10 @@ export function renderPilotReadiness(
   d: PilotReadiness, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
 ): string {
   const flashHtml = flashBanner(flash);
-  const detectedOrder: DetectedKey[] = ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
+  // G6 — the fixed-scenario check is not a self-serve workspace's: "Ready for customers" stands for it.
+  const detectedOrder: DetectedKey[] = d.ready
+    ? ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'channel']
+    : ['profile', 'products', 'priceRules', 'knowledge', 'claims', 'sandbox', 'channel'];
   const setup = detectedOrder.map((k) => detectedRow(k, d.detected[k], locale, viewer)).join('');
 
   const v = d.validation;
@@ -496,6 +520,32 @@ export function renderPilotReadiness(
       <div class="pr-b"><span class="muted">${valLine}</span>
         ${viewer.isOwner ? `<form method="post" action="/app/onboarding/validate" class="inline"><button class="btn" type="submit">${esc(t(locale, 'pilot.validate'))}</button></form>` : ''}</div>
     </div>`;
+
+  // G6 — for a workspace that signed itself up, only what applies to it:
+  // "Ready for customers" stands for the fixed-scenario check, and the
+  // installation's own facts (backup, secrets) are the operator's.
+  if (d.ready) {
+    const r = d.ready;
+    const readyRow = `<div class="pr ${r.complete ? 'done' : 'todo'}"><span class="mk">${r.complete ? '✓' : '○'}</span>
+      <span class="lbl">${esc(t(locale, 'pilot.item.ready'))}</span>
+      <div class="pr-b"><span class="muted">${esc(t(locale, 'pilot.ready.count', { done: r.done, total: r.total }))}</span>
+        ${deeper('/app/ready', t(locale, 'pilot.item.ready'))}</div></div>`;
+    const verdict = d.readyToLaunch
+      ? `<div class="verdict ok">🎉 ${esc(t(locale, 'pilot.allReady'))}</div>`
+      : `<div class="verdict">${esc(t(locale, 'pilot.notReady'))}</div>`;
+    return `
+    <h1 class="page">${esc(t(locale, 'pilot.title'))}</h1>
+    <p class="muted">${esc(t(locale, 'pilot.intro'))}</p>
+    ${flashHtml}
+    <div class="block"><h2>${esc(t(locale, 'pilot.setup'))}</h2>${setup}</div>
+    <div class="block"><h2>${esc(t(locale, 'pilot.prelaunch'))}</h2>
+      ${readyRow}
+      ${assistantNameRow(d, locale, viewer)}
+      ${attestRow('owner_ready', d.attest.ownerReadyAt, locale, viewer)}
+    </div>
+    ${verdict}
+    `;
+  }
 
   const attests = [
     assistantNameRow(d, locale, viewer),
@@ -753,6 +803,8 @@ out: ${esc(v.engine)}</pre>
 export function renderPilotRunbook(
   rb: PilotRunbook, locale: Locale, flash: Flash | null, feedback?: PilotFeedback,
   viewer: Viewer = OWNER_VIEW,
+  /** G6 — the installation's own workspace: only its owner reaches the machine room. */
+  operator = true,
 ): string {
   return renderPilotReadiness(rb.readiness, locale, flash, viewer)
     + duringSection(rb.operations, locale)
@@ -760,7 +812,7 @@ export function renderPilotRunbook(
     + practiceSection(rb.rehearsal, locale)
     + afterSection(locale)
     + (feedback ? feedbackSection(feedback, locale) : '')
-    + (viewer.isOwner
+    + (viewer.isOwner && operator
       ? `<section class="block"><div class="doors">${deeper('/app/onboarding/technical', t(locale, 'pilot.technical.title'))}</div></section>`
       : '');
 }
