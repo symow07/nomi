@@ -11,7 +11,6 @@
  *             as when the day's allowance is used, until a payment goes through
  */
 export type BillingStatus = 'none' | 'trial' | 'active' | 'past_due' | 'lapsed';
-export const BILLING_STATUSES: readonly BillingStatus[] = ['none', 'trial', 'active', 'past_due', 'lapsed'];
 
 /** Stripe's subscription status, said in ours. An unknown one is treated as a payment in doubt, never as paid. */
 export function statusFromStripe(stripeStatus: string): BillingStatus {

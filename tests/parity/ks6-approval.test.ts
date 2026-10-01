@@ -62,7 +62,7 @@ describe('KS6 · the two connect routes ask one question', () => {
   const app = src('src/api/web/app.ts');
   it('no route asks the old stop flag alone', () => {
     expect(app).not.toContain('connectionsStopped(');
-    expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval' : null;");
+    expect(app).toContain("return gate === 'stopped' ? 'connect.flash.paused' : gate === 'approval' ? 'connect.flash.approval'");
   });
   for (const route of ["app.post('/app/channels/whatsapp/connect'", "app.post(`/app/channels/${kind}/connect`", "app.get('/app/connect/meta/start'", "app.get('/app/connect/meta/callback'", "app.post('/app/connect/meta/choose'"]) {
     it(`${route} refuses before it connects anything`, () => {
@@ -80,8 +80,8 @@ describe('KS6 · the owner hears, by e-mail always', () => {
   it('both decisions go by mail; the approval opens Channels', () => {
     expect(goesByMail('connection_approved')).toBe(true);
     expect(goesByMail('connection_refused')).toBe(true);
-    expect(src('src/pipeline/notify.ts')).toContain("job.kind === 'connection_approved' || job.kind === 'retention_warning' ? CONNECTION_APPROVAL_PAGE");
-    expect(src('src/main.ts')).toContain('...await connectionDecisionAlerts(db)]');
+    expect(src('src/pipeline/notify.ts')).toContain(": job.kind === 'connection_approved' || job.kind === 'retention_warning' ? CONNECTION_APPROVAL_PAGE");
+    expect(src('src/main.ts')).toContain('...await connectionDecisionAlerts(db),');
   });
   for (const l of LOCALES) {
     it(`${l} · the words and the subjects`, () => {

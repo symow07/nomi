@@ -1602,15 +1602,14 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     if (!bid.ok) return '';
     const facts = await withTenantTx(deps.db, bid.value, async (tx) => ({
       state: await billingState(tx), plans: await plansOnOffer(tx),
-      counts: (await sql<{ people: number; assistants: number; zone: string | null }>`
+      counts: (await sql<{ people: number; assistants: number }>`
         select (select count(*)::int from people where business_id = ${bid.value}::uuid and archived_at is null) as people,
-               (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants,
-               (select timezone from businesses where id = ${bid.value}::uuid) as zone`.execute(tx)).rows[0],
+               (select count(*)::int from assistants where business_id = ${bid.value}::uuid and archived_at is null) as assistants`.execute(tx)).rows[0],
     }));
     const card = (req.query as { card?: string }).card;
     return renderBilling({
       configured: Boolean(deps.stripe), state: facts.state, plans: facts.plans,
-      people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0, zone: facts.counts?.zone ?? 'UTC',
+      people: facts.counts?.people ?? 0, assistants: facts.counts?.assistants ?? 0,
       returned: card === 'saved' || card === 'cancelled' ? card : null,
     }, locale, takeFlash(req, reply), t(locale, 'nav.settings'));
   }));

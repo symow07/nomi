@@ -69,7 +69,8 @@ describe('where Stop is asked', () => {
     const w = src('src/worker/main.ts');
     const body = w.slice(w.indexOf('async function onInbound('));
     // 0071 — one question for both holds: the owner's Stop and the ops switch.
-    const asked = body.indexOf('assistantHold(');
+    // BILL — asked through turnHold, which asks assistantHold first.
+    const asked = body.indexOf('turnHold(');
     expect(asked).toBeGreaterThan(0);
     expect(asked).toBeLessThan(body.indexOf('if (job.data.answerOnly) {'));
     expect(asked).toBeLessThan(body.indexOf('runTurn('));
@@ -89,7 +90,7 @@ describe('where Stop is asked', () => {
     expect(approve).toContain("cmd.kind === 'approve' || cmd.kind === 'edit' ? await assistantHold(tx, input.businessId) : null");
     expect(approve).toContain('outcome: HOLD_OUTCOME[hold]');
     // G3 — one map from the hold to what the owner is told; the allowance has its own.
-    expect(HOLD_OUTCOME).toEqual({ silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used' });
+    expect(HOLD_OUTCOME).toEqual({ silenced: 'assistant_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed' });
   });
 
   it('0071 — the ops switch hands the buyer to a person under its own reason, in every language', () => {
@@ -103,6 +104,6 @@ describe('where Stop is asked', () => {
       }
     }
     expect(src('src/worker/main.ts')).toContain('{ kind: HOLD_REASON[hold] }');
-    expect(HOLD_REASON).toEqual({ silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used' });
+    expect(HOLD_REASON).toEqual({ silenced: 'ops_silenced', stopped: 'assistant_stopped', allowance: 'allowance_used', billing: 'billing_lapsed', plan_limit: 'plan_limit' });
   });
 });

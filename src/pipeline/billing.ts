@@ -4,7 +4,7 @@ import type { NotifyJob } from '../queue/boss.js';
 import type { StripeClient, StripeEvent } from '../billing/stripe.js';
 import { statusFromStripe, trialEndFrom } from '../core/billing/status.js';
 import {
-  businessForCustomer, markCardSaved, recordSubscription, recordPaymentFailed, workspacesToSubscribe,
+  businessForCustomer, claimStripeEvent, markCardSaved, recordSubscription, recordPaymentFailed, workspacesToSubscribe,
   recordSubscribed, claimBillingAlerts,
 } from '../db/billing.js';
 
@@ -55,7 +55,7 @@ export async function handleStripeEvent(db: Db, stripe: StripeClient, e: StripeE
     await recordPaymentFailed(db, customer);
     outcome = 'applied';
   }
-  await sql`select claim_stripe_event(${e.id}, ${e.type}, ${business}::uuid)`.execute(db);
+  await claimStripeEvent(db, e.id, e.type, business);
   return outcome;
 }
 

@@ -3,7 +3,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t } from './say.js';
 import { back, esc } from './layout.js';
 import { flashBanner, type Flash } from './flash.js';
-import { formatDate } from '../../core/owner/i18n/format.js';
+import * as show from './values.js';
 import { priceText } from '../../core/billing/status.js';
 import type { BillingState, Plan } from '../../db/billing.js';
 
@@ -20,7 +20,6 @@ export type BillingView = {
   readonly plans: readonly Plan[];
   readonly people: number;
   readonly assistants: number;
-  readonly zone: string;
   /** Back from Stripe's page: 'saved' or 'cancelled'. */
   readonly returned: 'saved' | 'cancelled' | null;
 };
@@ -32,7 +31,7 @@ export function renderBilling(v: BillingView, locale: Locale, flash: Flash | nul
   if (!v.configured) return `${head}<section class="block"><p class="muted">${esc(t(locale, 'billing.notConfigured'))}</p></section>`;
   if (!v.state.billed) return `${head}<section class="block"><p class="muted">${esc(t(locale, 'billing.notBilled'))}</p></section>`;
   const s = v.state;
-  const date = (d: Date | null) => (d ? formatDate(locale, d, v.zone) : '—');
+  const date = (d: Date | null) => (d ? show.date(locale, d) : '—');
   const plan = v.plans.find((p) => p.id === s.planId) ?? null;
   const price = (p: Plan) => t(locale, `billing.price.${p.period}` as MessageKey, { price: priceText(locale, p.amountMinor, p.currency) });
   const returned = v.returned ? `<p class="muted" role="status">${esc(t(locale, `billing.returned.${v.returned}` as MessageKey))}</p>` : '';
