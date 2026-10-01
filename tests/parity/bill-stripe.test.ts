@@ -71,6 +71,13 @@ describe('BILL · the requests', () => {
     expect(await s.setDefaultPaymentMethod('cus_1', 'pm_1')).toEqual({ ok: true, value: null });
     expect(decodeURIComponent(calls.at(-1)!.body!)).toBe('invoice_settings[default_payment_method]=pm_1');
   });
+  it('a price read from Stripe: amount, currency, interval — a one-off price is not a plan', async () => {
+    const { f } = recorder({ '/prices/price_m': { status: 200, body: { id: 'price_m', unit_amount: 4900, currency: 'usd', recurring: { interval: 'month' }, active: true } },
+      '/prices/price_once': { status: 200, body: { id: 'price_once', unit_amount: 4900, currency: 'usd', recurring: null, active: true } } });
+    const s = stripeClient(CFG, f);
+    expect(await s.price('price_m')).toEqual({ ok: true, value: { id: 'price_m', amountMinor: 4900, currency: 'usd', interval: 'month', active: true } });
+    expect((await s.price('price_once')).ok).toBe(false);
+  });
   it('a refusal says Stripe\'s words and whether a retry could help; a network failure is retryable; nothing throws', async () => {
     const s400 = stripeClient(CFG, async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'No such price' } }) }));
     expect(await s400.createSubscription({ customerId: 'c', priceId: 'p', businessId: 'b', trialEnd: null })).toEqual({ ok: false, error: 'stripe 400: No such price', retryable: false });

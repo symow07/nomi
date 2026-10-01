@@ -63,6 +63,8 @@ export type StripeClient = {
   setDefaultPaymentMethod(customerId: string, paymentMethod: string): Promise<StripeOutcome<null>>;
   /** The subscription, its trial ending at `trialEnd` (unix seconds) or none. */
   createSubscription(input: { readonly customerId: string; readonly priceId: string; readonly businessId: string; readonly trialEnd: number | null }): Promise<StripeOutcome<{ id: string; status: string; currentPeriodEnd: number | null; trialEnd: number | null }>>;
+  /** A price as Stripe holds it: what a plan charges, read rather than typed. */
+  price(priceId: string): Promise<StripeOutcome<{ id: string; amountMinor: number; currency: string; interval: 'month' | 'year'; active: boolean }>>;
   /** Stripe's own page for the card and the invoices. */
   portal(input: { readonly customerId: string; readonly returnUrl: string; readonly locale: string }): Promise<StripeOutcome<{ url: string }>>;
 };
@@ -114,6 +116,11 @@ export function stripeClient(config: StripeConfig, fetchImpl: StripeFetch = fetc
       payment_behavior: 'allow_incomplete', metadata: { business_id: i.businessId },
     }, `subscription-${i.businessId}-${i.priceId}`, (b) => (str(b['id']) && str(b['status'])
       ? { id: str(b['id'])!, status: str(b['status'])!, currentPeriodEnd: num(b['current_period_end']), trialEnd: num(b['trial_end']) } : null)),
+    price: (id) => call('GET', `/prices/${encodeURIComponent(id)}`, null, null, (b) => {
+      const interval = (b['recurring'] as { interval?: unknown } | null | undefined)?.interval;
+      return str(b['id']) && num(b['unit_amount']) !== null && str(b['currency']) && (interval === 'month' || interval === 'year')
+        ? { id: str(b['id'])!, amountMinor: num(b['unit_amount'])!, currency: str(b['currency'])!, interval, active: b['active'] === true } : null;
+    }),
     portal: (i) => call('POST', '/billing_portal/sessions', { customer: i.customerId, return_url: i.returnUrl, locale: i.locale === 'zh' ? 'zh' : 'auto' },
       null, (b) => (str(b['url']) ? { url: str(b['url'])! } : null)),
   };
