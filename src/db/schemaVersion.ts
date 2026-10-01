@@ -309,7 +309,7 @@ import type { Db } from './client.js';
  *      `terms_accepted_at`, `self_serve_count()`, `signups_since()`. Every
  *      sign-up writes them; against a 98 database no workspace can be made.
  */
-export const REQUIRED_SCHEMA_VERSION = 111;
+export const REQUIRED_SCHEMA_VERSION = 113;
 
 export type SchemaState = {
   readonly required: number;

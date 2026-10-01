@@ -141,6 +141,8 @@ const EMPTY = (range: Range, provider: string, live = provider !== 'disabled'): 
  * a warning she stops reading.
  */
 const budgetOf = (a: Allowance, now: Date): OperationsSnapshot['budget'] => {
+  // KS5 — the installation's breaker holds a beta workspace as its own cap would.
+  if (a.breaker) return { pctUsed: 100, stops: true, reached: true, renewsAt: allowanceRenewsAt(now) };
   if (!a.budget) return null;
   const stops = a.budget.onExceeded === 'pause';
   const renewsAt = allowanceRenewsAt(now);

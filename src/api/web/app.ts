@@ -173,6 +173,7 @@ import {
 } from './layout.js';
 import { FLASH_COOKIE, FLASH_TTL_MS, mintFlash, readFlash, saidFlash, liveRegion, flashBanner, type Flash, type FlashPart } from './flash.js';
 import type { SystemMail } from '../../channels/email/systemMail.js';
+import { refusedByCap } from '../../channels/email/httpsMail.js';
 import { issueOtp, reissueOtp, redeemOtp } from '../../db/otp.js';
 import {
   newOtpCode, otpHash, mintPendingOtp, readPendingOtp, mintKnownDevice, isKnownDevice, maskEmail,
@@ -231,6 +232,13 @@ export type WebDeps = {
    * product that demands a code it cannot send locks everyone out.
    */
   readonly systemMail?: SystemMail | null;
+  /**
+   * MAIL (decision 36) — the sender for mail strangers cause: sign-in codes and
+   * password-reset links. The dedicated HTTPS sender with its daily caps when
+   * one is set; absent, the installation's own (`systemMail`). The operator's
+   * and the legal contact's mail always stay on `systemMail`.
+   */
+  readonly codeMail?: SystemMail | null;
   readonly employeeName: string;
   /** Ignored since V1 step three (the assistant is named, never drawn); kept so callers need not change. */
   readonly avatar?: string;
@@ -1078,7 +1086,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
   // G1 — open sign-up asks every new address for a code, so it needs the
   // installation's own sender: without one, open reads as closed.
-  const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !deps.systemMail ? 'closed' : (deps.signupMode ?? 'invite');
+  const codeMail = deps.codeMail ?? deps.systemMail ?? null;
+  const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !codeMail ? 'closed' : (deps.signupMode ?? 'invite');
   /** G1 — the operator hears of each sign-up at once (the daily digest is the worker's). */
   const toldOfSignup = (businessId: string) => {
     if (!deps.systemMail) return;
@@ -1087,7 +1096,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
   // The second line of defence; the first is the per-login lock in the database.
   const loginThrottle = makeThrottle({ max: 20, windowMs: 5 * 60_000 });
   /** PWR — the door can e-mail a link only where the installation sends system mail. */
-  const recoveryOn = Boolean(deps.systemMail);
+  const recoveryOn = Boolean(codeMail);
   const signupThrottle = makeThrottle({ max: 5, windowMs: 60 * 60_000 });
   const callerOf = (req: FastifyRequest): string => callerKey(req.headers['x-forwarded-for'], req.ip);
   const html = (reply: FastifyReply, code: number, body: string) =>
@@ -1370,7 +1379,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       const to = await requestRecoveryLink(deps.db, email, setupTokenHash(token), RECOVERY_MINUTES).catch(() => null);
       if (!to) return;
       const link = `${(deps.publicBaseUrl ?? '').replace(/\/+$/, '')}/login/set-password?t=${token}`;
-      const mailed = await deps.systemMail!.send({
+      const mailed = await codeMail!.send({
         to, subject: t(locale, 'forgot.mail.subject'), text: t(locale, 'forgot.mail.body', { email: to, link, minutes: RECOVERY_MINUTES }),
       }).catch(() => ({ ok: false as const, error: 'unreachable' }));
       // A fixed phrase per way tried — never the address, never the link.
@@ -1391,7 +1400,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    */
   const OTP_COOKIE = 'yf_otp';
   const DEVICE_COOKIE = 'yf_dev';
-  const otpOn = Boolean(deps.systemMail);
+  const otpOn = Boolean(codeMail);
   const verifyThrottle = makeThrottle({ max: 30, windowMs: 10 * 60_000 });
 
   type PendingSignup = {
@@ -1411,9 +1420,11 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       email, purpose, codeHash: otpHash(deps.sessionSecret, email, purpose, code), payload, loginId, ttlSeconds: OTP_TTL_SECONDS,
     }).catch(() => null);
     if (!id) return 'slow';
-    const mailed = await deps.systemMail!.send({
+    const mailed = await codeMail!.send({
       to: email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
     }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    // MAIL — today's caps hold: the page says to slow down, as for too many codes in an hour.
+    if (refusedByCap(mailed)) return 'slow';
     if (!mailed.ok) {
       // Said in the log, because the page can only say "try again": a fixed
       // phrase or a status code per way tried — never the address or the code.
@@ -1495,9 +1506,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const next = await reissueOtp(deps.db, pending.id, otpHash(deps.sessionSecret, pending.email, pending.purpose, code), OTP_TTL_SECONDS)
       .catch(() => null);
     if (!next) return fail(429, 'verify.error.slow');
-    const mailed = await deps.systemMail!.send({
+    const mailed = await codeMail!.send({
       to: next.email, subject: t(locale, 'otp.mail.subject', { code }), text: t(locale, 'otp.mail.body', { code }),
     }).catch(() => ({ ok: false as const, error: 'unreachable' }));
+    if (refusedByCap(mailed)) return fail(429, 'verify.error.slow');
     if (!mailed.ok) return fail(502, 'verify.error.mail');
     writeCookie(reply, OTP_COOKIE, mintPendingOtp(deps.sessionSecret, { id: next.id, email: next.email, purpose: next.purpose }, Date.now()),
       { path: '/verify', maxAgeSec: Math.floor(PENDING_TTL_MS / 1000) });

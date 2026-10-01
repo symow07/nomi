@@ -50,7 +50,7 @@ export type AlertOutcome = 'sent' | 'skipped_no_destination' | 'skipped_practice
  * A kind listed here needs `notify.<kind>` and `notify.<kind>.subject` in every
  * locale, and its words in `renderOwnerAlert`.
  */
-export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest'] as const satisfies readonly AlertKind[];
+export const OPERATOR_ALERT_KINDS = ['backup_stale', 'deletion_due', 'app_error', 'meta_errors', 'signup_digest', 'spend_breaker'] as const satisfies readonly AlertKind[];
 export const isOperatorAlert = (kind: AlertKind): boolean =>
   (OPERATOR_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
@@ -133,9 +133,13 @@ export type OperatorAlertDetail = {
   readonly forms?: { readonly forms: number; readonly codesUsed: number };
   /** `signup_digest` (G9): where the cohort stands. */
   readonly cohort?: { readonly workspaces: number; readonly practised: number; readonly replied: number };
+  /** `signup_digest` (MAIL): the last day's codes and alerts, and what the caps held back. */
+  readonly mail?: { readonly codes: number; readonly alerts: number; readonly refused: number };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
+  /** `spend_breaker` (KS5): the installation's day so far, against its ceiling. */
+  readonly spend?: { readonly tokens: number; readonly calls: number; readonly maxTokens: number; readonly maxCalls: number };
   /** `self_demoted` (R5): which capabilities stepped back, and the reason codes. */
   readonly demoted?: { readonly capabilities: readonly string[]; readonly reasons: readonly string[] };
 };
@@ -197,6 +201,12 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // KS5 — how much the installation used today, against what; the beta waits, the pilots run.
+  if (kind === 'spend_breaker') {
+    const s = detail.spend ?? { tokens: 0, calls: 0, maxTokens: 0, maxCalls: 0 };
+    const n = (x: number) => new Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : locale).format(x);
+    return t(locale, 'notify.spend_breaker', { tokens: n(s.tokens), calls: n(s.calls), maxTokens: n(s.maxTokens), maxCalls: n(s.maxCalls) });
+  }
   // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
   if (kind === 'self_demoted') {
     const d = detail.demoted ?? { capabilities: [], reasons: [] };
@@ -225,9 +235,10 @@ export function renderOwnerAlert(
     // G9 — how many forms were sent, and how many came back with their code.
     const forms = detail.forms ? [t(locale, 'notify.signup_digest.forms', { forms: detail.forms.forms, used: detail.forms.codesUsed })] : [];
     const cohort = detail.cohort ? [t(locale, 'notify.signup_digest.cohort', detail.cohort)] : [];
+    const mail = detail.mail ? [t(locale, detail.mail.refused ? 'notify.signup_digest.mail.capped' : 'notify.signup_digest.mail', detail.mail)] : [];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...cohort, ...flags].join('\n');
+      ...forms, ...cohort, ...mail, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -259,6 +270,11 @@ export type NotifyDeps = {
   readonly adapter: { sendText(to: string, body: string): Promise<SendResult> };
   /** The installation's own sender (A3). Null: no e-mail leaves this installation. */
   readonly mail?: OwnerMailer | null;
+  /**
+   * MAIL (decision 36) — where the operator's alerts go when owner alerts have a
+   * dedicated sender: the operator's own mailbox. Absent, `mail` carries both.
+   */
+  readonly operatorMail?: OwnerMailer | null;
   /** G5 — where the app is served (`PUBLIC_BASE_URL`): an alert links to its conversation. */
   readonly publicBaseUrl?: string | null;
   /** G5b — the installation's push keys and the way out to a push service; null: no phone alerts. */
@@ -341,9 +357,11 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
     ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${SELF_DEMOTION_PAGE}` })}` : words;
 
   let tried = 0; let sent = 0;
-  if (deps.mail && found.email) {
+  // MAIL — the operator's alerts by the operator's mailbox; an owner's by the sender strangers' mail uses.
+  const mail = isOperatorAlert(job.kind) ? (deps.operatorMail ?? deps.mail) : deps.mail;
+  if (mail && found.email) {
     tried++;
-    const r = await deps.mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
+    const r = await mail.send({ to: found.email, subject: t(locale, `notify.${job.kind}.subject` as MessageKey), text: body });
     if (r.ok) sent++; else console.warn(`[notify] ${job.kind} alert e-mail failed: ${r.error}`);
   }
   if (found.live && found.row.owner_phone) {
@@ -427,9 +445,11 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     flags: (job.flags ?? []).map((f) => ({ flag: f.flag, business: f.business, since: new Date(f.since) })),
     ...(job.forms ? { forms: job.forms } : {}),
     ...(job.cohort ? { cohort: job.cohort } : {}),
+    ...(job.mail ? { mail: job.mail } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
     ...(job.demoted ? { demoted: job.demoted } : {}),
+    ...(job.spend ? { spend: job.spend } : {}),
   };
 }
 

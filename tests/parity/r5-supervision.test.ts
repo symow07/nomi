@@ -59,7 +59,7 @@ describe('R5 · spot checks reach work sent alone', () => {
   it('offered once a day to every workspace that sent alone this week; the alert sweep every five minutes', () => {
     const main = src('src/main.ts');
     expect(main).toContain("await boss.schedule(QUEUES.spotChecks, '20 5 * * *', {});");
-    expect(main).toContain('...await demotionAlerts(db)]');
+    expect(main).toContain('...await demotionAlerts(db),');
   });
 });
 

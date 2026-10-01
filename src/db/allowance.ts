@@ -23,6 +23,12 @@ export type Allowance = {
   readonly verdict: BudgetVerdict;
   /** 0–100 (or past it): the larger of calls and tokens used, as `checkBudget` reckons; null without a cap. */
   readonly pctUsed: number | null;
+  /**
+   * KS5 (0113) — the installation is past its day's ceiling and this is a beta
+   * workspace (it signed itself up): it waits as if its own allowance were
+   * used. A pilot never does. Absent: not held.
+   */
+  readonly breaker?: boolean;
 };
 
 const NONE: Allowance = { budget: null, usage: { llmCalls: 0, tokens: 0 }, photoReads: 0, verdict: { kind: 'ok' }, pctUsed: null };
@@ -34,10 +40,12 @@ export async function allowanceOf(tx: Tx): Promise<Allowance> {
     used_calls: number; used_tokens: string; photo_reads: number;
   }>`select * from allowance_today()`.execute(tx)).rows[0];
   if (!r) return NONE;
+  // KS5 — the installation's ceiling, asked once with the workspace's own.
+  const breaker = (await sql<{ h: boolean }>`select spend_breaker_held() as h`.execute(tx)).rows[0]?.h === true;
   const usage: Usage = { llmCalls: Number(r.used_calls), tokens: Number(r.used_tokens) };
   const photoReads = Number(r.photo_reads);
   if (r.daily_llm_calls == null || r.daily_tokens == null || r.on_exceeded == null) {
-    return { ...NONE, usage, photoReads };
+    return { ...NONE, usage, photoReads, ...(breaker ? { breaker } : {}) };
   }
   const budget: Budget = {
     dailyLlmCalls: Number(r.daily_llm_calls), dailyTokens: Number(r.daily_tokens),
@@ -45,12 +53,12 @@ export async function allowanceOf(tx: Tx): Promise<Allowance> {
   };
   const pctUsed = Math.floor(Math.max(
     (100 * usage.llmCalls) / budget.dailyLlmCalls, (100 * usage.tokens) / budget.dailyTokens));
-  return { budget, usage, photoReads, verdict: checkBudget(usage, budget), pctUsed };
+  return { budget, usage, photoReads, verdict: checkBudget(usage, budget), pctUsed, ...(breaker ? { breaker } : {}) };
 }
 
 /** The allowance renews when the ledger's day turns: the next midnight UTC. */
 export const allowanceRenewsAt = (now: Date): Date =>
   new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 
-/** True when the day's allowance is used and the cap holds: no model is asked. */
-export const allowanceUsed = (a: Allowance): boolean => a.verdict.kind === 'pause';
+/** True when the day's allowance is used and the cap holds — or the installation's breaker holds (KS5): no model is asked. */
+export const allowanceUsed = (a: Allowance): boolean => a.verdict.kind === 'pause' || a.breaker === true;

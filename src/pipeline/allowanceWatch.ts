@@ -21,3 +21,19 @@ export async function allowanceAlerts(db: Db, now: Date): Promise<NotifyJob[]> {
     allowancePct: Math.min(100, Number(r.pct)), renewsAt,
   }));
 }
+
+/**
+ * KS5 (0113) — the operator hears, once a UTC day, the first sweep after the
+ * installation passed its ceiling: how much was used, against what, and that
+ * the beta waits while the pilots run. `claim_spend_breaker_alert()` writes the
+ * day's row as it answers, so two sweeps never send it twice.
+ */
+export async function spendBreakerAlert(db: Db, operatorBusinessId: string): Promise<NotifyJob | null> {
+  const r = (await sql<{ tokens: string; calls: string; max_tokens: string; max_calls: number }>`
+    select tokens::text, calls::text, max_tokens::text, max_calls from claim_spend_breaker_alert()`.execute(db)).rows[0];
+  if (!r) return null;
+  return {
+    businessId: operatorBusinessId, kind: 'spend_breaker', conversationId: null,
+    spend: { tokens: Number(r.tokens), calls: Number(r.calls), maxTokens: Number(r.max_tokens), maxCalls: Number(r.max_calls) },
+  };
+}

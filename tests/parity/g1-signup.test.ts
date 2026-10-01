@@ -51,7 +51,8 @@ describe('G1 · the cap, the mode, the operator', () => {
   });
   it('open sign-up without the installation\'s sender reads as closed, and /verify asks the mode again', () => {
     const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toContain("const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !deps.systemMail ? 'closed' : (deps.signupMode ?? 'invite');");
+    // MAIL — "a sender" is the one codes leave by: the dedicated one, or the installation's own.
+    expect(app).toContain("const signupMode: SignupMode = (deps.signupMode ?? 'invite') === 'open' && !codeMail ? 'closed' : (deps.signupMode ?? 'invite');");
     const verify = app.slice(app.indexOf("app.post('/verify'"));
     expect(verify.indexOf("if (signupMode === 'closed')")).toBeLessThan(verify.indexOf('provisionAccount('));
   });

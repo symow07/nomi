@@ -136,8 +136,12 @@ d('G1 · a stranger signs up (requires DATABASE_URL + MIGRATE_DATABASE_URL)', ()
     expect(later?.signups?.map((s) => s.business) ?? []).not.toContain(A.factory);
     // The cron's own job is throttled to one a day (and a leftover from an
     // earlier run may already have used it), so the list goes straight to the
-    // alert queue: the same worker, the same mail.
-    await prod.boss.send(QUEUES.notify, job!);
+    // alert queue: the same worker, the same mail. Two things about the
+    // database must not decide it (found 2026-10-01): the digest names the
+    // day's OLDEST 25, and a database other runs signed up on today has more —
+    // so the list sent is hers alone; and jobs an earlier file left on the
+    // queue run one per poll ahead of it — so it goes first.
+    await prod.boss.send(QUEUES.notify, { ...job!, signups: job!.signups!.filter((s) => s.business === A.factory) }, { priority: 10 });
     const line = `${A.factory} (${t('en', 'business.kind.brand')}, AE)`;
     let digest: { to: string; subject: string; text: string } | undefined;
     for (let i = 0; i < 100 && !digest; i++) {
