@@ -22,13 +22,14 @@
  * keeps it from being sent. Pure: the routes read the state and write the
  * ticked lines (src/db/howYouSell.ts).
  */
-import { detectClaims, SHOP_PROMISES, type ClaimKind } from '../safety/claims.js';
+import { detectClaims, SHOP_PROMISES, CATEGORY_CLAIMS, isProductCategory, type ClaimKind, type ProductCategory } from '../safety/claims.js';
 import { extractNumerals } from '../safety/numerals.js';
 import { validateTradeTerms, type TradeTermsError } from '../commerce/terms.js';
 import { validateClosure, type ClosureError } from '../commerce/closures.js';
 import type { SellingProfile } from './sellingStyle.js';
 
-export const CATALOGUE_QUESTIONS = ['price', 'minimum', 'returns', 'delivery', 'payment', 'certifications', 'hours', 'words'] as const;
+// CK (0110) — 'product_claims': what the shop sells, and which of its claims are true.
+export const CATALOGUE_QUESTIONS = ['price', 'minimum', 'returns', 'delivery', 'payment', 'certifications', 'product_claims', 'hours', 'words'] as const;
 export const SERVICE_QUESTIONS = ['offered', 'area', 'duration', 'payment', 'next_step', 'hours', 'words'] as const;
 export type Question = (typeof CATALOGUE_QUESTIONS)[number] | (typeof SERVICE_QUESTIONS)[number];
 export const ALL_QUESTIONS: readonly Question[] = [...new Set<Question>([...CATALOGUE_QUESTIONS, ...SERVICE_QUESTIONS])];
@@ -67,6 +68,7 @@ export type Answer =
   | { readonly q: 'returns' | 'delivery'; readonly offers: readonly string[]; readonly told: string }
   | { readonly q: 'payment'; readonly told: string; readonly terms: { readonly payment: string; readonly incoterm: string } | null }
   | { readonly q: 'certifications'; readonly keys: readonly string[] }
+  | { readonly q: 'product_claims'; readonly category: ProductCategory | null; readonly keys: readonly string[] }
   | { readonly q: 'hours'; readonly hours: string; readonly closures: readonly { readonly label: string; readonly from: string; readonly to: string }[] }
   | { readonly q: 'words'; readonly terms: readonly string[] }
   | { readonly q: 'offered' | 'area' | 'duration' | 'next_step'; readonly told: string };
@@ -125,6 +127,12 @@ export function parseAnswer(q: Question, body: Record<string, unknown>, ctx: Ask
     }
     case 'certifications':
       return done({ q, keys: CERT_KEYS.filter((k) => ticked(body, `cert:${k}`)) });
+    case 'product_claims': {
+      const c = text(body['category']);
+      const category = isProductCategory(c) ? c : null;
+      if (!category) errors['category'] = 'required';
+      return done({ q, category, keys: category ? CATEGORY_CLAIMS[category].filter((k) => ticked(body, `attr:${k}`)) : [] });
+    }
     case 'hours': {
       const hours = text(body['hours']);
       if (hours.length > MAX_HOURS) errors['hours'] = 'too_long';
@@ -169,6 +177,8 @@ export type SellingState = {
   readonly products: readonly { readonly id: string; readonly name: string; readonly moq: number | null }[];
   /** `${kind}:${key}` of every allowed claim. */
   readonly allowed: ReadonlySet<string>;
+  /** CK — what the owner said the shop sells; null until picked. */
+  readonly productCategory?: ProductCategory | null;
   readonly terms: { readonly payment: string; readonly incoterm: string } | null;
   readonly workingHours: string | null;
   readonly closures: readonly { readonly label: string; readonly from: string; readonly to: string }[];
@@ -181,7 +191,8 @@ export type SellingState = {
 export type Line =
   | { readonly key: string; readonly kind: 'quantity_first'; readonly to: boolean }
   | { readonly key: string; readonly kind: 'minimum'; readonly productId: string; readonly product: string; readonly from: number | null; readonly to: number | null }
-  | { readonly key: string; readonly kind: 'promise' | 'cert'; readonly claimKind: ClaimKind; readonly claim: string; readonly to: boolean }
+  | { readonly key: string; readonly kind: 'promise' | 'cert' | 'attr'; readonly claimKind: ClaimKind; readonly claim: string; readonly to: boolean }
+  | { readonly key: string; readonly kind: 'category'; readonly to: ProductCategory }
   | { readonly key: string; readonly kind: 'terms'; readonly payment: string; readonly incoterm: string }
   | { readonly key: string; readonly kind: 'hours'; readonly text: string }
   | { readonly key: string; readonly kind: 'closure'; readonly label: string; readonly from: string; readonly to: string }
@@ -203,7 +214,7 @@ export function figuresIn(s: string): string[] {
 export function linesFor(answer: Answer, state: SellingState): Line[] {
   const lines: Line[] = [];
   const allowedAfter = new Set(state.allowed);
-  const claimLine = (kind: 'promise' | 'cert', claimKind: ClaimKind, claim: string, to: boolean) => {
+  const claimLine = (kind: 'promise' | 'cert' | 'attr', claimKind: ClaimKind, claim: string, to: boolean) => {
     const id = `${claimKind}:${claim}`;
     if (state.allowed.has(id) !== to) lines.push({ key: `${kind}:${claim}`, kind, claimKind, claim, to });
     if (to) allowedAfter.add(id); else allowedAfter.delete(id);
@@ -240,6 +251,11 @@ export function linesFor(answer: Answer, state: SellingState): Line[] {
       break;
     case 'certifications':
       for (const k of CERT_KEYS) claimLine('cert', certKind(k), k, answer.keys.includes(k));
+      break;
+    case 'product_claims':
+      if (!answer.category) break;
+      if (answer.category !== (state.productCategory ?? null)) lines.push({ key: 'category', kind: 'category', to: answer.category });
+      for (const k of CATEGORY_CLAIMS[answer.category]) claimLine('attr', 'product_attribute', k, answer.keys.includes(k));
       break;
     case 'hours': {
       if (answer.hours && answer.hours !== (state.workingHours ?? '')) lines.push({ key: 'hours', kind: 'hours', text: answer.hours });

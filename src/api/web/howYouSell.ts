@@ -1,3 +1,4 @@
+import { PRODUCT_CATEGORIES, CATEGORY_CLAIMS } from '../../core/safety/claims.js';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
@@ -222,6 +223,19 @@ export function renderQuestion(
       } else fields = toldBox(toldNow);
       break;
     }
+    case 'product_claims': {
+      // CK — what the shop sells, then which of its claims are true. Every
+      // category's claims are on the page (no script); only the chosen one's
+      // ticks are kept.
+      const category = kept?.q === 'product_claims' ? kept.category : v.state.productCategory ?? null;
+      const held = (k: string) => kept?.q === 'product_claims' ? kept.keys.includes(k) : v.state.allowed.has(`product_attribute:${k}`);
+      fields = `<fieldset class="choices">${PRODUCT_CATEGORIES.map((c) => radio('category', c, category === c, t(locale, `hs.category.${c}` as MessageKey))).join('')}</fieldset>
+        ${errLine(locale, errors['category'])}
+        ${(['cosmetics', 'apparel'] as const).map((c) => `<fieldset class="choices"><legend class="muted small">${esc(t(locale, `hs.category.${c}` as MessageKey))}</legend>${
+          CATEGORY_CLAIMS[c].map((k) => box(`attr:${k}`, held(k), t(locale, `claim.${k}` as MessageKey))).join('')}</fieldset>`).join('')}
+        <p class="muted small">${esc(t(locale, 'hs.product_claims.hint', { name }))}</p>`;
+      break;
+    }
     case 'certifications': {
       const held = (k: string) => kept?.q === 'certifications' ? kept.keys.includes(k) : v.state.allowed.has(`${certKind(k)}:${k}`);
       fields = `<fieldset class="choices">${CERT_KEYS.map((k) => box(`cert:${k}`, held(k), t(locale, `claim.${k}` as MessageKey))).join('')}</fieldset>
@@ -285,6 +299,8 @@ function lineText(l: Line, locale: Locale, name: string): string {
     case 'minimum': return `<bdi>${esc(l.product)}</bdi>: ${esc(qty(l.from))} → ${esc(qty(l.to))}`;
     case 'promise': return esc(t(locale, l.to ? 'hs.line.promise.on' : 'hs.line.promise.off', { name, claim: claim(l.claim) }));
     case 'cert': return esc(t(locale, l.to ? 'hs.line.cert.on' : 'hs.line.cert.off', { name, claim: claim(l.claim) }));
+    case 'attr': return esc(t(locale, l.to ? 'hs.line.attr.on' : 'hs.line.attr.off', { name, claim: claim(l.claim) }));
+    case 'category': return esc(t(locale, 'hs.line.category', { category: t(locale, `hs.category.${l.to}` as MessageKey) }));
     case 'terms': return esc(t(locale, 'hs.line.terms')) + ` <bdi>${esc(l.payment)}</bdi> · <bdi>${esc(l.incoterm)}</bdi>`;
     case 'hours': return esc(t(locale, 'hs.line.hours')) + ` <bdi>${esc(l.text)}</bdi>`;
     case 'closure': return esc(t(locale, 'hs.line.closure')) + ` <bdi>${esc(l.label)}</bdi> <bdi>${esc(l.from)} – ${esc(l.to)}</bdi>`;

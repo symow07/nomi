@@ -21,7 +21,9 @@ export type ClaimKind =
   | 'guarantee'
   | 'shipping_method'
   | 'compliance'
-  | 'delivery_promise';
+  | 'delivery_promise'
+  // CK (0110) — what a beauty or clothing product is said to be.
+  | 'product_attribute';
 
 export type AllowedClaim = {
   readonly kind: ClaimKind;
@@ -143,12 +145,46 @@ const PATTERNS: readonly Pattern[] = [
   { kind: 'shipping_method', key: 'free_shipping', re: /包邮|免运费|免费配送|免费送货/ },
   { kind: 'shipping_method', key: 'free_shipping', re: /(?:الشحن|شحن|التوصيل|توصيل)\s+مجان/ },
   { kind: 'shipping_method', key: 'express', re: /顺丰|特快|加急快递|شحن\s+سريع|توصيل\s+سريع/ },
+
+  // ── CK (0110, decision 42): what a beauty or clothing product is said to be ──
+  // The claims a shop's customers rely on and nothing else checks. Each is
+  // refused unless the owner switched it on (How you sell → "What you sell");
+  // tests/parity/ck-claims.test.ts holds each both ways, in six languages.
+  // Never the bare "bio" ("link in bio"), never "cotton" alone (a blend is not
+  // a claim), never "water-based".
+  { kind: 'product_attribute', key: 'vegan', re: /\bvegan[oae]?s?\b|\bv[ée]gane?s?\b|纯素|素食配方|(?<![ء-ي])نباتي(?:ة)?(?![ء-ي])/i },
+  { kind: 'product_attribute', key: 'cruelty_free', re: /\bcruelty[- ]free\b|\bnot tested on animals\b|\bno animal testing\b|\bsin crueldad\b|\bno testad[oa]s? en animales\b|\bnon test[ée]e?s? sur les animaux\b|\bsans cruaut[ée]\b|\blivre de crueldade\b|\bn[ãa]o testad[oa]s? em animais\b|零残忍|无动物实验|不做动物实验|خال(?:ٍ)?\s+من\s+القسوة|(?:لم|لا)\s+(?:ي|يُ)ختبر\s+على\s+الحيوانات|غير\s+مختبر\s+على\s+الحيوانات/i },
+  { kind: 'product_attribute', key: 'halal', re: /\bhalal\b|\bhal[aá]l\b|清真|(?<![ء-ي])حلال(?![ء-ي])/i },
+  { kind: 'product_attribute', key: 'organic', re: /\borganic\b|\borg[áa]nic[oa]s?\b|\bbiologiques?\b|\borganiques?\b|有机|(?<![ء-ي])عضوي(?:ة)?(?![ء-ي])/i },
+  { kind: 'product_attribute', key: 'hypoallergenic', re: /\bhypo-?allergenic\b|\bhipoalerg[ée]nic[oa]s?\b|\bhypoallerg[ée]niques?\b|低敏|低致敏|مضاد\s+للحساسية|لا\s+يسبب\s+الحساسية/i },
+  { kind: 'product_attribute', key: 'dermatologically_tested', re: /\bdermatologically[- ]tested\b|\bdermatologist[- ](?:tested|approved)\b|\bdermatol[óo]gicamente\s+probad[oa]s?\b|\btestad[oa]s?\s+dermatologicamente\b|\bdermatologiquement\s+test[ée]e?s?\b|\bsous\s+contr[ôo]le\s+dermatologique\b|皮肤科测试|经皮肤科|(?:مختبر|اختُبر|تم\s+اختباره)\s+(?:من\s+قبل\s+أطباء\s+الجلد|جلدي(?:ًا|ا))/i },
+  { kind: 'product_attribute', key: 'pregnancy_safe', re: /\bsafe\s+(?:during|in|for)\s+pregnancy\b|\bpregnancy[- ]safe\b|\bsafe\s+for\s+pregnant\b|\bsegur[oa]s?\s+(?:durante|en|para)\s+(?:el\s+)?embarazo\b|\bsans\s+danger\s+(?:pendant|pour)\s+la\s+grossesse\b|\bsegur[oa]s?\s+(?:na|durante\s+a|para)\s+gravidez\b|\bsegur[oa]s?\s+para\s+gr[áa]vidas\b|孕妇可用|孕期可用|孕妇适用|آمن\s+(?:أثناء|خلال|في)\s+الحمل|آمن\s+للحوامل|مناسب\s+للحوامل/i },
+  { kind: 'product_attribute', key: 'clears_acne', re: /\bclears?\s+(?:up\s+)?acne\b|\bcures?\s+acne\b|\bgets?\s+rid\s+of\s+acne\b|\bacne[- ]free\s+skin\b|\belimina\s+(?:el\s+|a\s+)?acn[ée]\b|\bcura\s+(?:el\s+|a\s+)?acn[ée]\b|\b[ée]limine\s+l'acn[ée]\b|\bacab[ae]\s+com\s+(?:a\s+)?acne\b|祛痘|去痘|治痘|消痘|(?:يعالج|يقضي\s+على|يزيل)\s+حب\s+الشباب/i },
+  { kind: 'product_attribute', key: 'cotton_100', re: /\b100\s*%\s*cotton\b|\b100\s+percent\s+cotton\b|\bpure\s+cotton\b|\b100\s*%\s*algod[óo]n\b|\b100\s*%\s*coton\b|\bpur\s+coton\b|\b100\s*%\s*algod[ãa]o\b|\balgod[ãa]o\s+puro\b|100%纯棉|纯棉|全棉|قطن\s+(?:100\s*[%٪]|١٠٠\s*٪|خالص)|(?:100\s*[%٪]|١٠٠\s*٪)\s*قطن/i },
+  { kind: 'product_attribute', key: 'waterproof', re: /\bwater-?proof\b|\bimpermeables?\b|\bimperm[ée]ables?\b|\bimperme[áa]vel\b|\bimperme[áa]veis\b|\b[àa]\s+prova\s+d['’][áa]gua\b|\ba\s+prueba\s+de\s+agua\b|防水|مقاوم\s+للماء|ضد\s+الماء/i },
 ];
 
 /**
  * RT — the promises a shop makes that the owner may allow on How you sell:
  * one switch each, in every language the patterns above read.
  */
+/**
+ * CK (0110) — what each kind of shop is asked about on How you sell: the
+ * claims its customers rely on. The guard refuses every one of them, for every
+ * workspace that signed itself up, unless it was switched on — whichever
+ * category was picked.
+ */
+export const PRODUCT_CATEGORIES = ['cosmetics', 'apparel', 'other'] as const;
+export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export const isProductCategory = (v: string): v is ProductCategory => (PRODUCT_CATEGORIES as readonly string[]).includes(v);
+export const CATEGORY_CLAIMS: Readonly<Record<ProductCategory, readonly string[]>> = {
+  cosmetics: ['vegan', 'cruelty_free', 'halal', 'organic', 'hypoallergenic', 'dermatologically_tested', 'pregnancy_safe', 'clears_acne'],
+  apparel: ['cotton_100', 'waterproof', 'organic', 'vegan'],
+  other: [],
+};
+/** Every product claim the guard knows, once. */
+export const PRODUCT_CLAIMS: readonly string[] = [...new Set(Object.values(CATEGORY_CLAIMS).flat())];
+
 export const SHOP_PROMISES: readonly { readonly kind: ClaimKind; readonly key: string }[] = [
   { kind: 'guarantee', key: 'refund' },
   { kind: 'guarantee', key: 'returns' },
