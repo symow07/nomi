@@ -4,10 +4,12 @@ import { randomInt } from 'node:crypto';
 import { withTenantTx, type Db, type Tx } from '../../db/client.js';
 import { parseBusinessId, type BusinessId } from '../../core/types/ids.js';
 import { type Currency } from '../../core/types/money.js';
-import { parsePriceLines, type ExtractedProduct } from '../../core/onboard/catalogImport.js';
+import { parsePriceLines, type ExtractedProduct, type CatalogExtractor } from '../../core/onboard/catalogImport.js';
+import { containExtracted, lessSure } from '../../core/onboard/extract.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import {
-  type ImportRow, type ImportKind, type ReviewContext, type RowEdit, type RowEditError, type Blocker, type ImportFlag,
+  extractCandidate, type ImportRow, type ImportKind, type ReviewContext, type RowEdit, type RowEditError, type Blocker, type ImportFlag,
   rowsFromParsed, asExtracted, liveRows, flagsOf, needsTick, reviewOrder, editRow, pickChallenge, applyChallenge,
   derivedFloor, readDiscount, blockers, linesRead,
 } from '../../core/onboard/importReview.js';
@@ -108,13 +110,15 @@ export async function startPasteImport(db: Db, businessIdRaw: string, actor: str
   });
 }
 
-export type PhotoIn = { readonly bytes: Buffer; readonly mediaType: 'image/jpeg' | 'image/png' | 'image/webp' };
+export type PhotoIn = { readonly bytes: Buffer; readonly mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' };
 
 /** Why photos came to nothing; `photo` names which one, when one is to blame. */
 export type PhotosRefused = {
   readonly reason: 'not_configured' | 'unreadable' | 'no_lines' | 'cut_off' | 'handwritten' | 'hand_unanswered' | 'too_many'
     // G3 — the day's photos, or the day's allowance, are used: nothing is read.
-    | 'daily_limit' | 'allowance_used';
+    | 'daily_limit' | 'allowance_used'
+    // EXT — the reader did not answer (or failed): nothing was added; not the page's fault.
+    | 'reader_failed';
   readonly photo?: number;
   /** `daily_limit`: how many photos may still be read today. */
   readonly left?: number;
@@ -185,7 +189,13 @@ export async function readPhotos(
   const transcripts: string[] = [];
   let rows: ImportRow[] = [];
   for (const [i, photo] of photos.entries()) {
-    const page = await deps.transcriber.transcribe({ imageBase64: photo.bytes.toString('base64'), mediaType: photo.mediaType });
+    let page: Awaited<ReturnType<PageTranscriber['transcribe']>>;
+    try {
+      page = await deps.transcriber.transcribe({ imageBase64: photo.bytes.toString('base64'), mediaType: photo.mediaType });
+    } catch {
+      // EXT — the provider failed or did not answer in time: said as that, never as a bad photo.
+      return { ok: false, reason: 'reader_failed', photo: i + 1 };
+    }
     // T7 — what reading the page cost is on the ledger, a refused read too.
     await deps.spent?.({ llmCalls: 1, inputTokens: page.usage?.inputTokens ?? 0, outputTokens: page.usage?.outputTokens ?? 0 });
     if (page.cutOff) return { ok: false, reason: 'cut_off', photo: i + 1 };
@@ -404,6 +414,64 @@ export async function rereadImport(db: Db, businessIdRaw: string, id: string, b:
   });
 }
 
+/**
+ * EXT — the owner asks the model extractor to read the lines the parser could
+ * not make a product of. At most 60, within the day's allowance; what it read
+ * is contained (`containExtracted`: the line verbatim, the name on it, every
+ * figure on it) and each surviving reading replaces its refused row — never
+ * any other — as a row that waits for her own tick, with its confidence.
+ */
+export const EXTRACT_MAX_LINES = 60;
+export type ExtractOutcome =
+  | { readonly kind: 'read'; readonly n: number }
+  | { readonly kind: 'none' | 'gone' | 'allowance_used' | 'failed' | 'not_configured' };
+
+export async function extractRefused(
+  db: Db, businessIdRaw: string, id: string,
+  deps: {
+    readonly extractor?: CatalogExtractor | undefined;
+    readonly spent?: ((u: { llmCalls: number; inputTokens: number; outputTokens: number }) => Promise<void>) | undefined;
+  },
+): Promise<ExtractOutcome> {
+  const bid = parseBusinessId(businessIdRaw);
+  if (!bid.ok) return { kind: 'gone' };
+  if (!deps.extractor) return { kind: 'not_configured' };
+  const ask = await withTenantTx(db, bid.value, async (tx) => {
+    const imp = await loadImport(tx, bid.value, id, {});
+    if (!imp || imp.state !== 'open') return null;
+    const lines = [...new Set(imp.rows.filter(extractCandidate).map((r) => r.line.trim()).filter(Boolean))].slice(0, EXTRACT_MAX_LINES);
+    return { lines, currency: imp.currency, used: allowanceUsed(await allowanceOf(tx)) };
+  });
+  if (!ask) return { kind: 'gone' };
+  if (ask.lines.length === 0) return { kind: 'none' };
+  if (ask.used) return { kind: 'allowance_used' };
+  let read: Awaited<ReturnType<CatalogExtractor['extract']>>;
+  try {
+    read = await deps.extractor.extract({ lines: ask.lines, currency: ask.currency });
+  } catch {
+    return { kind: 'failed' };
+  }
+  await deps.spent?.({ llmCalls: 1, inputTokens: read.usage.inputTokens, outputTokens: read.usage.outputTokens });
+  const contained = new Map(containExtracted(read.items, ask.lines).map((c) => [c.line, c]));
+  if (contained.size === 0) return { kind: 'none' };
+  return withTenantTx(db, bid.value, async (tx): Promise<ExtractOutcome> => {
+    const imp = await loadImport(tx, bid.value, id, { forUpdate: true });
+    if (!imp || imp.state !== 'open') return { kind: 'gone' };
+    const ctx = await contextFor(tx, bid.value, imp.kind, imp.currency);
+    let n = 0;
+    const rows = imp.rows.map((r): ImportRow => {
+      const c = extractCandidate(r) ? contained.get(r.line.trim()) : undefined;
+      if (!c) return r;
+      contained.delete(r.line.trim());
+      n++;
+      return { ...r, name: c.name, price: c.price, unit: c.unit ?? ctx.defaultUnit, moq: c.moq, refused: null, ticked: false, edited: false, confidence: c.confidence };
+    });
+    if (n === 0) return { kind: 'none' };
+    await saveImport(tx, bid.value, id, { rows });
+    return { kind: 'read', n };
+  });
+}
+
 export async function dropStagedImport(db: Db, businessIdRaw: string, id: string): Promise<boolean> {
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return false;
@@ -509,6 +577,8 @@ function rowHtml(locale: Locale, m: ReviewModel, r: ImportRow, errors: readonly 
         ${r.removed ? `<span class="pill">${esc(t(locale, 'import.row.removed'))}</span>` : ''}
       </div>
       ${flags.map((f) => flagLine(locale, f)).join('')}
+      ${r.confidence && lessSure(r.confidence, r).length ? `<p class="muted small">${esc(t(locale, 'import.lessSure', {
+        fields: formatList(locale, lessSure(r.confidence, r).map((f) => t(locale, `import.field.${f}` as MessageKey))) }))}</p>` : ''}
       ${asking ? `<label class="imp-typed">${esc(t(locale, 'import.row.challenge'))}
         <input type="text" inputmode="decimal" name="typed:${esc(r.key)}" value="${esc(v('typed', ''))}" autocomplete="off" /> <span class="muted">${esc(m.imp.currency)}</span></label>` : ''}
       ${r.challenge === 'ok' ? `<span class="muted">${esc(t(locale, 'import.row.challengeOk'))}</span>` : ''}
@@ -536,7 +606,9 @@ function blockerLine(locale: Locale, b: Blocker): string {
 export function renderImportReview(
   m: ReviewModel, locale: Locale,
   opts: { readonly errors?: ReadonlyMap<string, readonly RowEditError[]>; readonly blockers?: readonly Blocker[];
-          readonly discountError?: boolean; readonly typed?: Body; readonly flash?: Flash | null } = {},
+          readonly discountError?: boolean; readonly typed?: Body; readonly flash?: Flash | null;
+          /** EXT — the model extractor is configured: the lines that were not products can be read again by it. */
+          readonly canExtract?: boolean } = {},
 ): string {
   const { imp } = m;
   if (imp.state !== 'open') {
@@ -580,7 +652,10 @@ export function renderImportReview(
   const asking = imp.rows.some((r) => r.challenge === 'ask' && !r.removed && r.refused === null);
   const photos = imp.photos.map((p) => `
     <figure class="imp-photo">
-      <img src="${base(imp.id)}/photo/${p.position}" alt="${esc(t(locale, 'import.photoAlt', { n: p.position }))}" loading="lazy" />
+      ${p.mediaType === 'application/pdf'
+        // EXT — a PDF opens as itself, beside its lines.
+        ? `<a class="deeper" href="${base(imp.id)}/photo/${p.position}" target="_blank" rel="noopener">${esc(t(locale, 'import.pdfOpen'))}</a>`
+        : `<img src="${base(imp.id)}/photo/${p.position}" alt="${esc(t(locale, 'import.photoAlt', { n: p.position }))}" loading="lazy" />`}
       <figcaption>${esc(t(locale, 'import.photoLabel', { n: p.position }))}</figcaption>
       ${asking ? `<p class="muted small">${esc(t(locale, 'import.transcriptLater'))}</p>` : `<details><summary>${esc(t(locale, 'import.transcript'))}</summary>
         <form method="post" action="${base(imp.id)}/reread">
@@ -623,6 +698,10 @@ export function renderImportReview(
         <input type="hidden" name="applies" value="${esc(m.diff.changed.map((c) => keyOfLine(c.line)).join(','))}" />
         ${changes ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: m.diff.changed.length }))}</h2>
           <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changes}</div>` : ''}
+        ${opts.canExtract && !asking && imp.state === 'open' && imp.rows.some(extractCandidate) ? `<div class="block" id="extract">
+          <p>${esc(t(locale, 'import.extract.lead', { n: show.count(locale, imp.rows.filter(extractCandidate).length) }))}</p>
+          <p><button class="btn" type="submit" formaction="${base(imp.id)}/extract" formnovalidate>${esc(t(locale, 'import.extract.button'))}</button></p>
+          <p class="muted small">${esc(t(locale, 'import.extract.hint'))}</p></div>` : ''}
         ${newRows.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.addedTitle', { count: newRows.filter((r) => !r.removed).length }))}</h2>
           ${newRows.map((r) => rowHtml(locale, m, r, errors.get(r.key) ?? [], typed)).join('')}</div>` : ''}
         ${held.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${[...held.values()].map((h) => `

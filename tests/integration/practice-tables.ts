@@ -69,6 +69,9 @@ export const PRACTICE_SKIP = [
   // K1 (0094) — the owner's lists being checked, and their photos: how the
   // catalogue was taught, not what Practice answers from (it copies the products).
   'catalog_imports', 'catalog_import_photos',
+  // EXT (0118) — a page of her site, proposed: what she ticked is written to
+  // knowledge, which is copied; the proposal itself is how it was taught.
+  'knowledge_proposals',
   // HS (0096) — where the owner is in How you sell: what her answers wrote is
   // copied already (claims, knowledge, closures, words, terms, the profile).
   'selling_answers',

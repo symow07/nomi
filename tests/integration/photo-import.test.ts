@@ -236,7 +236,8 @@ d('M37 · photograph the price list, end to end (requires DATABASE_URL)', () => 
   });
 
   it('a file that is not an image is refused, whatever it is named', async () => {
-    const res = await shoot(Buffer.from('%PDF-1.4 not an image'), 'application/pdf');
+    // Named a PDF, which a list may be since EXT (0118) — but its own bytes are not one.
+    const res = await shoot(Buffer.from('MZ not an image, not a document'), 'application/pdf');
     expect(res.body).toContain('could not read this page');
   });
 

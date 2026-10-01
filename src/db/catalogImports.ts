@@ -1,3 +1,4 @@
+import type { FieldConfidence } from '../core/onboard/extract.js';
 import { sql } from 'kysely';
 import type { Tx } from './client.js';
 import type { BusinessId } from '../core/types/ids.js';
@@ -66,7 +67,17 @@ function rowOf(x: unknown): ImportRow | null {
     ...(str(o['productId']) ? { productId: str(o['productId'])! } : {}),
     ...(typeof o['apply'] === 'boolean' ? { apply: o['apply'] } : {}),
     ...(str(o['options']) ? { options: str(o['options'])! } : {}),
+    // EXT — the extractor's confidence per field, kept only whole and in range.
+    ...(confidenceOf(o['confidence']) ? { confidence: confidenceOf(o['confidence'])! } : {}),
   };
+}
+
+function confidenceOf(v: unknown): FieldConfidence | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const c = v as Record<string, unknown>;
+  const f = (k: string): number | null => (typeof c[k] === 'number' && (c[k] as number) >= 0 && (c[k] as number) <= 1 ? c[k] as number : null);
+  const [name, price, unit, moq] = [f('name'), f('price'), f('unit'), f('moq')];
+  return name === null || price === null || unit === null || moq === null ? null : { name, price, unit, moq };
 }
 
 export async function createImport(tx: Tx, bid: BusinessId, input: {
