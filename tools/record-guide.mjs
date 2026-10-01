@@ -37,13 +37,12 @@ const STEPS = (opt('steps') ?? 'profile,products,name,channels,first_success').s
 const LOCALES = (opt('locales') ?? 'en,zh,ar,es').split(',');
 const SIZE = { width: 1024, height: 640 };
 
-const { messages } = await import('../dist/core/owner/i18n/messages.js');
-const NAME_FALLBACK = { en: 'your assistant', zh: '你的助手', ar: 'مساعدك', es: 'tu asistente' };
-const words = (locale, step, n, name) => {
-  const s = messages[locale][`guide.${step}.cap.${n}`];
-  if (!s) throw new Error(`no caption guide.${step}.cap.${n} in ${locale}`);
-  const filled = s.split('{name}').join(name);
-  return filled.charAt(0).toLocaleUpperCase() + filled.slice(1);
+const { messages, t } = await import('../dist/core/owner/i18n/messages.js');
+/** The catalogue's own words, through `t` — so "your assistant" is capitalised where a sentence starts. */
+const words = (locale, step, n) => {
+  const key = `guide.${step}.cap.${n}`;
+  if (!messages[locale][key]) throw new Error(`no caption ${key} in ${locale}`);
+  return t(locale, key);
 };
 
 /** A visible pointer, so a viewer can follow what is pressed. Not part of the product. */
@@ -66,7 +65,7 @@ async function point(page, selector) {
   const box = await el.boundingBox();
   if (!box) return null;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 18 });
-  await pause(300);
+  await pause(1200);
   return el;
 }
 async function press(page, selector) {
@@ -80,50 +79,61 @@ async function typeInto(page, selector, text) {
   const el = await point(page, selector);
   if (!el) return false;
   await el.click();
+  await el.fill('').catch(() => {});
   await page.keyboard.type(text, { delay: 35 });
   return true;
 }
 
+/** What the owner types in each language's video: a shop's own words, never a customer's real ones. */
+const SAMPLE = {
+  about: { en: 'Storage boxes, baskets and kitchenware, made in Yiwu.', zh: '收纳盒、篮子和厨房用品，义乌生产。', ar: 'صناديق تخزين وسلال وأدوات مطبخ، من صنع ييوو.', es: 'Cajas de almacenaje, cestas y menaje de cocina, hechos en Yiwu.' },
+  list: { en: 'Storage box  2.40\nBamboo basket  3.10', zh: '收纳盒  2.40\n竹篮  3.10', ar: 'صندوق تخزين  2.40\nسلة خيزران  3.10', es: 'Caja de almacenaje  2.40\nCesta de bambú  3.10' },
+  ask: { en: 'Hi, do you have the storage box in blue?', zh: '你好，收纳盒有蓝色的吗？', ar: 'مرحبًا، هل يتوفر صندوق التخزين باللون الأزرق؟', es: 'Hola, ¿tienen la caja de almacenaje en azul?' },
+};
+let LOCALE = 'en';
+
 /** Each step: what is shown under each caption. `cue(n)` marks the caption's start. */
 const SCRIPTS = {
   async profile(page, cue) {
-    await page.goto(`${BASE}/app/settings`); cue(1); await pause(1500);
-    await press(page, 'a[href="/app/settings/profile"]'); cue(2); await pause(800);
-    await typeInto(page, 'textarea[name="description"]', ' ');
-    await pause(1500);
-    cue(3); await point(page, 'form button[type="submit"]'); await pause(2500);
+    await page.goto(`${BASE}/app/settings`); cue(1); await pause(3000);
+    await press(page, 'main a[href="/app/settings/profile"]'); cue(2); await pause(1600);
+    await typeInto(page, 'main textarea[name="description"]', SAMPLE.about[LOCALE]);
+    await pause(3000);
+    cue(3); await point(page, 'main form:not([action="/logout"]) button[type="submit"]'); await pause(5000);
   },
   async products(page, cue) {
-    await page.goto(`${BASE}/app/products`); cue(1); await pause(1500);
-    await press(page, 'a[href="/app/products/add"]'); cue(2); await pause(800);
-    await typeInto(page, 'textarea', 'Canvas tote  18.00\nWool scarf  24.00');
-    await pause(800);
-    await point(page, 'input[type="file"], label[for*="photo"], a[href*="import"]'); await pause(1200);
+    await page.goto(`${BASE}/app/products`); cue(1); await pause(3000);
+    await press(page, 'main a[href="/app/products/add"]'); cue(2); await pause(1600);
+    await typeInto(page, 'main textarea', SAMPLE.list[LOCALE]);
+    await pause(1600);
+    await point(page, 'main input[type="file"], main label[for*="photo"], main a[href*="import"]'); await pause(2400);
     cue(3);
-    if (await press(page, 'form button.send, form button[type="submit"]')) {
-      await pause(1200);
-      await point(page, 'input[type="checkbox"]'); await pause(1800);
-    } else await pause(2500);
+    if (await press(page, 'main form:not([action="/logout"]) button.send, main form:not([action="/logout"]) button[type="submit"]')) {
+      await pause(2400);
+      await point(page, 'main input[type="checkbox"]'); await pause(3600);
+    } else await pause(5000);
   },
   async name(page, cue) {
-    await page.goto(`${BASE}/app/onboarding`); cue(1); await pause(1800);
-    cue(2); await point(page, 'input[name="name"], input[name="assistant_name"], #name'); await pause(2000);
-    cue(3); await point(page, 'form button[type="submit"]'); await pause(2500);
+    await page.goto(`${BASE}/app/onboarding`); cue(1); await pause(3600);
+    cue(2); await point(page, 'main input[name="name"], main input[name="assistant_name"], main #name'); await pause(4000);
+    cue(3); await point(page, 'main form:not([action="/logout"]) button[type="submit"]'); await pause(5000);
   },
   async channels(page, cue) {
-    await page.goto(`${BASE}/app/channels`); cue(1); await pause(1800);
-    cue(2); await point(page, 'a[href="/app/connect/meta/start"], a[href="/app/connect/whatsapp/start"], form[action="/app/channels/whatsapp/connect"] button, a[href="/app/channels/whatsapp/connect"]');
-    await pause(2200);
-    cue(3); await pause(3000);
+    await page.goto(`${BASE}/app/channels`); cue(1); await pause(3600);
+    cue(2); await point(page, 'main a[href="/app/connect/meta/start"], main a[href="/app/connect/whatsapp/start"], main form[action="/app/channels/whatsapp/connect"] button, main a[href="/app/channels/whatsapp/connect"]');
+    await pause(4400);
+    cue(3); await pause(6000);
   },
   async first_success(page, cue) {
-    await page.goto(`${BASE}/app/sandbox`); cue(1); await pause(1500);
-    await typeInto(page, 'textarea[name="text"], textarea', 'Hi, do you have the canvas tote in green?');
-    await pause(600);
-    await press(page, 'form button.send, form button[type="submit"]');
-    cue(2); await pause(3500);
-    await point(page, '.draft, .bubble:last-of-type, textarea'); await pause(1500);
-    cue(3); await pause(2500);
+    await page.goto(`${BASE}/app/sandbox`); cue(1); await pause(3000);
+    await typeInto(page, 'main form[action="/app/sandbox/message"] textarea', SAMPLE.ask[LOCALE]);
+    await pause(1200);
+    await press(page, 'main form[action="/app/sandbox/message"] button[type="submit"]');
+    cue(2); await pause(3000);
+    // The reply is drafted by the worker: the page is read again to show it.
+    await page.reload(); await page.waitForLoadState('networkidle').catch(() => {});
+    await point(page, 'main form[action="/app/sandbox/reply"] textarea, main .draft, main .bubble'); await pause(4000);
+    cue(3); await pause(5000);
   },
 };
 
@@ -148,19 +158,17 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch();
 const tmp = path.join(ROOT, '.guide-recording');
 for (const locale of LOCALES) {
+  LOCALE = locale;
   for (const step of STEPS) {
     await rm(tmp, { recursive: true, force: true });
     const context = await browser.newContext({ viewport: SIZE, recordVideo: { dir: tmp, size: SIZE }, locale: locale === 'zh' ? 'zh-CN' : locale });
     await context.addCookies([{ name: 'yf_locale', value: locale, url: BASE }]);
     await context.addInitScript(POINTER);
+    // Signed in with the access code, through the context, before any page is drawn.
+    const login = await context.request.post(`${BASE}/login`, { form: { code: CODE }, maxRedirects: 0 });
+    if (login.status() !== 302) throw new Error(`sign-in refused: ${login.status()}`);
     const page = await context.newPage();
     const videoStart = Date.now();
-    // Sign in before the clock that matters: the first caption is set by the step itself.
-    await page.goto(`${BASE}/login`);
-    await page.fill('input[name="code"]', CODE).catch(() => {});
-    await Promise.all([page.waitForLoadState('networkidle').catch(() => {}), page.locator('form[action="/login"] button[type="submit"], form button[type="submit"]').first().click()]);
-    // The captions serve every business: they say "your assistant", whatever this demo calls its own.
-    const name = NAME_FALLBACK[locale];
     const t0 = Date.now();
     const cues = [];
     await SCRIPTS[step](page, (n) => cues.push({ n, at: Date.now() - t0 }));
@@ -182,7 +190,7 @@ for (const locale of LOCALES) {
     const vtt = ['WEBVTT', ''];
     cues.forEach((c, i) => {
       const from = c.at + lead; const to = (cues[i + 1]?.at ?? end) + lead;
-      vtt.push(`${i + 1}`, `${ts(from)} --> ${ts(to)}`, words(locale, step, c.n, name), '');
+      vtt.push(`${i + 1}`, `${ts(from)} --> ${ts(to)}`, words(locale, step, c.n), '');
     });
     await writeFile(path.join(OUT, `${step}.${locale}.vtt`), vtt.join('\n'));
     console.log(`${step}.${locale}: ${cues.length} captions, ${((end) / 1000).toFixed(1)} s`);
