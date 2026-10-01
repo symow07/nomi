@@ -2,12 +2,12 @@ import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../db/client.js';
 import { parseBusinessId } from '../core/types/ids.js';
 import { type Locale, parseLocale } from '../core/owner/i18n/locale.js';
-import { t, type MessageKey } from '../core/owner/i18n/messages.js';
+import { t, capabilityName, type MessageKey } from '../core/owner/i18n/messages.js';
 import type { AppErrorAlertJob, NotifyJob } from '../queue/boss.js';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
-import { formatDate, formatTime } from '../core/owner/i18n/format.js';
+import { formatDate, formatTime, formatList } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
@@ -64,7 +64,15 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
  * `notify.<kind>.subject` in every locale.
  */
 export const goesByMail = (kind: AlertKind): boolean =>
-  isOperatorAlert(kind) || isAllowanceAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed';
+  isOperatorAlert(kind) || isAllowanceAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed'
+  // R5 — the assistant stepped back on its own: the owner hears of it, by e-mail always.
+  || kind === 'self_demoted';
+
+/** R5 — the reasons a self-demotion can give (`DemotionReason`), each with its words in `notify.self_demoted.why.*`. */
+export const SELF_DEMOTION_REASONS = ['policy_violation', 'hallucination', 'serious_spot_check', 'failed_spot_check',
+  'repeated_corrections', 'channel_unstable', 'wrong_price'] as const;
+/** Where the self-demotion alert opens: the level on the assistant's page. */
+export const SELF_DEMOTION_PAGE = '/app/employee#on-her-own';
 
 /**
  * G3 — the day's allowance, at the soft-warn line and at 100%: to the
@@ -128,6 +136,8 @@ export type OperatorAlertDetail = {
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
+  /** `self_demoted` (R5): which capabilities stepped back, and the reason codes. */
+  readonly demoted?: { readonly capabilities: readonly string[]; readonly reasons: readonly string[] };
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
@@ -187,6 +197,15 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // R5 — which replies wait for the owner again, and why; a reason with no words is left out.
+  if (kind === 'self_demoted') {
+    const d = detail.demoted ?? { capabilities: [], reasons: [] };
+    const known = d.reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r));
+    return t(locale, 'notify.self_demoted', {
+      caps: formatList(locale, d.capabilities.map((c) => capabilityName(locale, c))),
+      why: formatList(locale, (known.length ? known : ['repeated_corrections']).map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey))),
+    });
+  }
   // G3 — how much of today's allowance, and when it renews, in the owner's zone.
   if (kind === 'allowance_warn' || kind === 'allowance_reached') {
     const time = formatTime(locale, detail.renewsAt ?? new Date(), detail.zone ?? 'UTC');
@@ -316,7 +335,10 @@ async function deliverOperatorAlert(deps: NotifyDeps, bid: BusinessId, job: Noti
   });
   if (!found.row) return 'skipped_no_destination';
   const locale: Locale = parseLocale(found.row.owner_locale) ?? 'en';
-  const body = renderOwnerAlert(locale, job.kind, null, { ...operatorDetailOf(job), zone: found.zone });
+  const words = renderOwnerAlert(locale, job.kind, null, { ...operatorDetailOf(job), zone: found.zone });
+  // R5 — the self-demotion opens the level on the assistant's page, when the installation knows its address.
+  const body = job.kind === 'self_demoted' && deps.publicBaseUrl
+    ? `${words}\n\n${t(locale, 'notify.open', { url: `${deps.publicBaseUrl.replace(/\/$/, '')}${SELF_DEMOTION_PAGE}` })}` : words;
 
   let tried = 0; let sent = 0;
   if (deps.mail && found.email) {
@@ -407,6 +429,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
+    ...(job.demoted ? { demoted: job.demoted } : {}),
   };
 }
 

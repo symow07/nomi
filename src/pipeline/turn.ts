@@ -1264,6 +1264,10 @@ export async function commitTurn(
       const say = r.newState.aiDisclosureDeliveredAt === null ? sentence : null;
       outbound = { conversationId: req.conversationId, reply: say ? withDisclosure(say, reply) : reply, asks: r.asks };
       if (say) await recordDisclosure('first_auto_send');
+      // R5 (0109) — work sent alone is on the record, so it can be spot-checked
+      // once it has left: the words exactly as queued, the capability, and the
+      // message it answered. Approved drafts and these share one outbound path.
+      await tenant.events.append(req.conversationId, 'auto_sent', { capability, messageId: req.messageId, body: outbound.reply });
     } else {
       /*
        * Decided BEFORE the draft is written, because the draft has to carry

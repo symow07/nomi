@@ -1,12 +1,13 @@
 import { rampState, type RampState } from '../../db/ramp.js';
-import { rungOfLevel } from '../../core/trust/ramp.js';
+import { rungOf, rungOfLevel } from '../../core/trust/ramp.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
 import { loadPendingSpotChecks, type PendingSpotCheck } from '../../pipeline/spotChecks.js';
 import { promotionDecision } from '../../core/trust/evidence.js';
 import { loadCapabilityEvidence, NON_PROMOTABLE } from '../../pipeline/capability.js';
-import { AUTONOMY_LEVELS, levelOf } from '../../core/conversation/autonomyLevel.js';
+import { AUTONOMY_LEVELS, levelOf, isAutonomyLevel, type AutonomyLevel } from '../../core/conversation/autonomyLevel.js';
+import { SELF_DEMOTION_REASONS } from '../../pipeline/notify.js';
 import { autonomyReleased, disclosureAwaitingReview, disclosureReviewed } from '../../core/conversation/disclosure.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
 import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
@@ -85,6 +86,14 @@ export type EmployeeProfile = {
    * so viewing this page stays free of side effects.
    */
   readonly spotChecks: readonly PendingSpotCheck[];
+  /**
+   * R5 (0109) — the level the owner last chose on this page, and when. Null
+   * where none was chosen here (the capabilities were set one by one). Shown
+   * beside what is in force when the system's own demotions moved it since.
+   */
+  readonly chosen?: { readonly level: AutonomyLevel; readonly at: Date } | null;
+  /** R5 — each capability the system stepped back since that choice (or in the last 30 days): when and why. Newest per capability. */
+  readonly stepped?: readonly { readonly capability: string; readonly at: Date; readonly reasons: readonly string[] }[];
 };
 
 export async function loadEmployee(db: Db, businessIdRaw: string): Promise<EmployeeProfile> {
@@ -148,9 +157,21 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
     const learned = (await sql<{ n: number }>`select count(*)::int as n from drafts where status='edited'`.execute(tx)).rows[0]!.n;
     const promoted = canDo.length > 0;
 
+    // R5 — the level the owner chose, and the system's own steps back since.
+    const chose = (await sql<{ level: string | null; at: Date | null }>`
+      select autonomy_level_chosen as level, autonomy_level_chosen_at as at from businesses where id = ${bid.value}`.execute(tx)).rows[0];
+    const chosen = chose?.level && chose.at && isAutonomyLevel(chose.level) ? { level: chose.level, at: chose.at } : null;
+    const stepped = (await sql<{ capability: string; at: Date; reasons: string[] }>`
+      select distinct on (capability) capability, at, reasons from capability_events
+       where business_id = ${bid.value} and actor = 'system_self_demoted'
+         and at >= coalesce(${chosen?.at ?? null}::timestamptz, now() - interval '30 days')
+       order by capability, at desc`.execute(tx)).rows;
+
     return {
       hireDate: onboard?.signup_at ?? null,
       knows,
+      chosen,
+      stepped: stepped.map((r) => ({ capability: r.capability, at: r.at, reasons: r.reasons ?? [] })),
       spotChecks: await loadPendingSpotChecks(tx, bid.value),
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
@@ -271,6 +292,32 @@ function rampBlock(r: RampState, locale: Locale): string {
     </div>`;
 }
 
+/**
+ * R5 — WHAT THE OWNER CHOSE, AND WHAT IS IN FORCE. The level chosen on this
+ * page and when; and, where the system's own demotions (a guard in auto, a
+ * spot check, a wrong price) or a lost rung moved things since, what holds now
+ * and each step back with its date and reason. Nothing when nothing differs.
+ */
+function chosenBlock(e: EmployeeProfile, locale: Locale): string {
+  if (!e.chosen) return '';
+  const levelName = (l: AutonomyLevel) => t(locale, `autonomy.level.${l}` as MessageKey);
+  const chose = `<p class="muted">${esc(t(locale, 'autonomy.chosen', { level: levelName(e.chosen.level), date: show.date(locale, e.chosen.at) }))}</p>`;
+  // In force: a capability set to auto that its rung does not allow still waits.
+  const held = (capability: string) => e.ramp !== undefined && rungOf(capability as never) > e.ramp.rung;
+  const effective = Object.fromEntries(e.capabilities.map((c) => [c.capability, c.mode === 'auto' && !held(c.capability) ? 'auto' : 'draft']));
+  const now = levelOf(effective as Record<string, 'auto' | 'draft'>);
+  if (now === e.chosen.level) return chose;
+  const still = (e.stepped ?? []).filter((x) => effective[x.capability] !== 'auto');
+  const why = (reasons: readonly string[]) => formatList(locale, (reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)).length
+    ? reasons.filter((r) => (SELF_DEMOTION_REASONS as readonly string[]).includes(r)) : ['repeated_corrections'])
+    .map((r) => t(locale, `notify.self_demoted.why.${r}` as MessageKey)));
+  return `${chose}
+      <p>${esc(now ? t(locale, 'autonomy.inForce', { level: levelName(now) }) : t(locale, 'autonomy.inForce.mixed'))}</p>
+      ${still.length ? `<ul class="rows">${still.map((x) => `<li class="row">${esc(t(locale, 'autonomy.since', {
+        cap: capabilityName(locale, x.capability), date: show.date(locale, x.at), why: why(x.reasons),
+      }))}</li>`).join('')}</ul>` : ''}`;
+}
+
 export function renderEmployee(
   e: EmployeeProfile, locale: Locale, flash: Flash | null, ctx?: HerContext, viewer: Viewer = OWNER_VIEW,
 ): string {
@@ -302,14 +349,14 @@ export function renderEmployee(
   // mechanics. Absent when there is nothing to check — an empty ritual is worse
   // than none, and the page already says enough about her without it.
   const spotChecks = e.spotChecks.length
-    ? `<div class="block"><h2>${esc(t(locale, 'spotcheck.title'))}</h2>
+    ? `<div class="block" id="spot-checks"><h2>${esc(t(locale, 'spotcheck.title'))}</h2>
         <p class="muted review-intro">${esc(t(locale, 'spotcheck.intro', { name }))}</p>
         ${e.spotChecks.map((s) => {
           const act = `/app/employee/spot-check/${encodeURIComponent(s.id)}`;
           return `<div class="scheck">
             <div class="muted sclabel">${esc(t(locale, 'spotcheck.buyerSaid'))}</div>
             <div class="scsaid"><bdi>${esc(s.buyerMessage)}</bdi></div>
-            <div class="muted sclabel">${esc(t(locale, 'spotcheck.sheReplied', { name }))}</div>
+            <div class="muted sclabel">${esc(t(locale, s.wasAuto ? 'spotcheck.sentAlone' : 'spotcheck.sheReplied', { name }))}</div>
             <div class="proposed"><bdi>${esc(s.reply)}</bdi></div>
             <form method="post" action="${act}" class="acts">
               <button class="btn send" name="answer" value="好">${esc(t(locale, 'spotcheck.ok'))}</button>
@@ -356,6 +403,7 @@ export function renderEmployee(
   const autonomy = !viewer.isOwner ? '' : `<div class="block" id="on-her-own">
       <h2>${esc(t(locale, 'autonomy.title'))}</h2>
       <p class="muted">${esc(t(locale, 'autonomy.intro'))}</p>
+      ${chosenBlock(e, locale)}
       <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->

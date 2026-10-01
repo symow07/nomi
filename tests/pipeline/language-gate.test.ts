@@ -149,3 +149,19 @@ describe('LG · the first five replies in a language (0108)', () => {
     expect(pending?.['withheld']).toBeUndefined();
   });
 });
+
+describe('R5 · work sent alone is on the record, so it can be spot-checked', () => {
+  it('AUTO: an auto_sent event with the words exactly as queued, the capability and the message answered', async () => {
+    const p = ports();
+    p.analyzer.next = analysis('en');
+    const { fx } = await run(p, 'Do you have it in blue?');
+    const sent = p.tenant.eventRows.find((e) => e.type === 'auto_sent')?.payload;
+    expect(sent).toEqual({ capability: 'qualify', messageId: 'm-Do you have ', body: fx.outbound!.reply });
+  });
+  it('a draft is not work sent alone: no auto_sent', async () => {
+    const p = ports('draft');
+    p.analyzer.next = analysis('en');
+    await run(p, 'Do you have it in blue?');
+    expect(p.tenant.eventRows.some((e) => e.type === 'auto_sent')).toBe(false);
+  });
+});

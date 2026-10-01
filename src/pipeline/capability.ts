@@ -146,6 +146,10 @@ export async function chooseAutonomyLevel(
                 array[${`owner_chose_${level}`}], ${actor})`.execute(tx);
       n++;
     }
+    // R5 (0109) — the level itself, so the page can name it beside what is in
+    // force when the system's own demotions have moved things since.
+    await sql`update businesses set autonomy_level_chosen = ${level}, autonomy_level_chosen_at = now()
+               where id = ${bid.value}`.execute(tx);
     return n;
   });
   return { ok: true, changed };

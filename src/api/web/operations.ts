@@ -8,7 +8,8 @@ import { ownershipOf } from '../../core/conversation/ownership.js';
 import { loadKnowledgeOps, type Range } from './knowledge-insights.js';
 import { loadChannels } from './channels.js';
 import { type Locale } from '../../core/owner/i18n/locale.js';
-import { type MessageKey } from '../../core/owner/i18n/messages.js';
+import { capabilityName, type MessageKey } from '../../core/owner/i18n/messages.js';
+import { formatList } from '../../core/owner/i18n/format.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
@@ -105,6 +106,12 @@ export type OperationsSnapshot = {
   readonly assistantStoppedAt?: Date | null;
   /** 0071 — ops has paused sending (the kill switch); absent = not paused. */
   readonly opsSilenced?: boolean;
+  /**
+   * R5 — supervision after promotion: spot checks waiting for the owner, and
+   * the capabilities the system stepped back on its own in the last seven
+   * days and that still wait. Absent is none.
+   */
+  readonly supervision?: { readonly spotChecks: number; readonly demoted: readonly string[] };
 };
 
 /**
@@ -237,6 +244,17 @@ export async function loadOperationsSnapshot(
     // 0071 — whether ops has paused sending.
     withTenantTx(db, B, (tx) => loadKillSwitches(tx, B)).then((k) => k.globalSilence),
   ]);
+  // R5 — what supervision asks of the owner: work to check, and what stepped back.
+  const supervision = await withTenantTx(db, B, async (tx) => ({
+    spotChecks: (await sql<{ n: number }>`
+      select count(*)::int as n from spot_checks where business_id = ${B} and answered_at is null`.execute(tx)).rows[0]!.n,
+    demoted: (await sql<{ capability: string }>`
+      select distinct e.capability from capability_events e
+        left join autonomy_policy p on p.business_id = e.business_id and p.capability = e.capability
+       where e.business_id = ${B} and e.actor = 'system_self_demoted' and e.at >= now() - interval '7 days'
+         and coalesce(p.mode, 'draft') <> 'auto'
+       order by e.capability`.execute(tx)).rows.map((r) => r.capability),
+  }));
 
   return {
     range,
@@ -253,6 +271,7 @@ export async function loadOperationsSnapshot(
                 + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks + attention.ordersWaiting > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
     opsSilenced,
+    supervision,
   };
 }
 
@@ -311,6 +330,11 @@ export function renderOperationsHome(
     // 0076 — a deletion request waits as its own thing, with its own list.
     asks > 0 ? deeper('/app/inbox?filter=deletion', tn(locale, 'today.deletion', asks)) : '',
     gaps > 0 ? deeper('/app/knowledge', tn(locale, 'today.gaps', gaps, { name })) : '',
+    // R5 — the assistant stepped back on its own, and work sent alone waits to be checked.
+    s.supervision?.demoted.length ? deeper('/app/employee#on-her-own', t(locale, 'today.demoted', {
+      caps: formatList(locale, s.supervision.demoted.map((c) => capabilityName(locale, c))),
+    })) : '',
+    s.supervision?.spotChecks ? deeper('/app/employee#spot-checks', tn(locale, 'today.spotChecks', s.supervision.spotChecks)) : '',
   ].filter(Boolean).join('');
   // M22 — one message that never reached a customer, or one deletion request
   // waiting, is enough to contradict "no one is waiting".
