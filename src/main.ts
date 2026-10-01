@@ -16,6 +16,8 @@ import { businessesReadingInbox } from './db/mailAccounts.js';
 import { SANDBOX_BUSINESS_ID } from './demo/sandbox.js';
 import { signupModeFrom, signupCapFrom } from './core/owner/signup.js';
 import { systemSmtpConfigFrom, systemMailer, mailboxSystemMailer, firstThatSends, type SystemMail } from './channels/email/systemMail.js'
+import { httpsMailConfigFrom, httpsSystemMailer, cappedMail } from './channels/email/httpsMail.js';
+import { claimMailSend, mailCapsFrom } from './db/mailCaps.js';
 import { latestBackupRun } from './db/backups.js';
 import { backupFreshness } from './core/ops/backups.js';
 import type { BackupWatchJob } from './queue/boss.js';;
@@ -538,6 +540,21 @@ export async function buildProduction(
     { name: 'smtp', mailer: systemMailer(systemSmtp) },
   ]) : null);
   /**
+   * MAIL (decision 36) — the mail strangers cause (sign-in codes, reset links,
+   * owner alerts) leaves through a dedicated HTTPS sender when the operator set
+   * one, under daily caps per address and for the installation (0112); the
+   * operator's own mailbox then carries operator mail only. Unset, both go as
+   * before, through `systemMail` — capped all the same. A test's own sender
+   * (`overrides.systemMail`) is used as given.
+   */
+  const dedicatedMail = (() => { const c = httpsMailConfigFrom(process.env); return c ? httpsSystemMailer(c) : null; })();
+  const mailCaps = mailCapsFrom(process.env);
+  const strangerMail = overrides?.systemMail ? null : (dedicatedMail ?? systemMail);
+  const codeMail: SystemMail | null = overrides?.systemMail
+    ?? (strangerMail ? cappedMail(strangerMail, (to) => claimMailSend(db, 'code', to, mailCaps.code)) : null);
+  const alertMail: SystemMail | null = overrides?.systemMail
+    ?? (strangerMail ? cappedMail(strangerMail, (to) => claimMailSend(db, 'alert', to, mailCaps.alert)) : null);
+  /**
    * C9 — Instagram and Messenger, when this installation has a Page.
    *
    * Both ride the Meta app that WhatsApp already uses: the same app secret
@@ -661,6 +678,8 @@ export async function buildProduction(
       signupCap: signupCapFrom(process.env['SIGNUP_CAP']),
       // A3 — the installation's own sender. Unset, nothing ever asks for a code.
       systemMail,
+      // MAIL — codes and reset links by the sender strangers' mail uses.
+      codeMail,
       templateState: TEMPLATE_STATE,
       ...(overrides?.autonomyReleased ? { autonomyReleased: overrides.autonomyReleased } : {}),
       // G11 — so the owner's copy of a proof link is one she can send.
@@ -1111,7 +1130,7 @@ export async function buildProduction(
     if (!job) return;
     // The backup alert also travels by the installation's own mail (A3), so
     // it reaches the owner with no channel connected at all.
-    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut }, job.data);   // throws on retryable failure → pg-boss retries
+    await deliverOwnerAlert({ db, adapter: adapter ?? noNumberForAlerts, mail: alertMail, operatorMail: systemMail, publicBaseUrl: cfg.PUBLIC_BASE_URL ?? null, push: pushOut }, job.data);   // throws on retryable failure → pg-boss retries
   });
 
   // CH3 — a reply the owner typed in Instagram's or Messenger's own app. Our

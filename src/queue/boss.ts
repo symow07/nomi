@@ -213,6 +213,8 @@ export type NotifyJob = {
   forms?: { forms: number; codesUsed: number };
   /** `signup_digest` (G9): the workspaces that signed themselves up — how many, how many finished Practice, how many sent a first reply. */
   cohort?: { workspaces: number; practised: number; replied: number };
+  /** `signup_digest` (MAIL): the last UTC day's codes and alerts, sent and held back by the daily caps. Counts only. */
+  mail?: { codes: number; alerts: number; refused: number };
   /** `self_demoted` (R5): which capabilities stepped back on their own, and why (`DemotionReason` codes). */
   demoted?: { capabilities: string[]; reasons: string[] };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */

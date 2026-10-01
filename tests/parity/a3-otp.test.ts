@@ -129,7 +129,9 @@ describe('A3 · the rules that make it safe', () => {
   const migration = readFileSync(`${root}migrations/0058_login_codes.sql`, 'utf8');
 
   it('WITHOUT A SENDER NOTHING ASKS FOR A CODE', () => {
-    expect(app).toMatch(/const otpOn = Boolean\(deps\.systemMail\);/);
+    // MAIL — the sender for codes is the dedicated one when set, else the installation's own.
+    expect(app).toContain('const codeMail = deps.codeMail ?? deps.systemMail ?? null;');
+    expect(app).toMatch(/const otpOn = Boolean\(codeMail\);/);
     expect(app).toMatch(/if \(otpOn\) \{[\s\S]{0,400}sendCode\(reply, locale, wanted\.email, 'signup'/);
     expect(app).toMatch(/if \(otpOn && !isKnownDevice\(/);
   });

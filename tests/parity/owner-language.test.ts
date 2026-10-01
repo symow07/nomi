@@ -234,7 +234,9 @@ describe('M1 · an owner alert fits a lock screen and exists in every language',
       // G9 — where the cohort stands.
       workspaces: 12, practised: 7, replied: 4,
       // R5 — which replies stepped back, and why.
-      caps: 'Quote and Negotiate', why: 'a spot check found a wrong price' };
+      caps: 'Quote and Negotiate', why: 'a spot check found a wrong price',
+      // MAIL — yesterday's mail on the operator's list.
+      codes: 12, alerts: 40, refused: 3 };
     const deletion = { n: 3, business: 'Atlas Trading', what: 'One buyer', asked: '1 Sep', due: '1 Oct' };
     // CEIL — the Meta-errors alert names each workspace with the day's counts.
     const metaErrors = { n: 2, business: 'Atlas Trading', failed: 6, attempted: 10, errors: 'meta 401' };
