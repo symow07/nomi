@@ -66,6 +66,11 @@ describe('G9 · the daily list counts the forms', () => {
       expect(text.split('\n')[1]).toBe(t(l, 'notify.signup_digest.forms', { forms: 5, used: 3 }));
     });
   }
+  it('and where the cohort stands: how many, how many finished Practice, how many replied', () => {
+    const text = renderOwnerAlert('en', 'signup_digest', null, { signups: [], cohort: { workspaces: 12, practised: 7, replied: 4 } });
+    expect(text.split('\n')[1]).toBe(t('en', 'notify.signup_digest.cohort', { workspaces: 12, practised: 7, replied: 4 }));
+    expect(readFileSync(new URL('../../src/pipeline/signupDigest.ts', import.meta.url), 'utf8')).toContain('const funnel = await loadFunnel(db);');
+  });
   it('the funnel is read from rows already kept — one definer, no second record', () => {
     const m = readFileSync(new URL('../../migrations/0104_funnel.sql', import.meta.url), 'utf8');
     expect(m).toContain('create or replace function funnel_workspaces()');

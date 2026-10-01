@@ -13,6 +13,7 @@ import pg from 'pg';
 const DATABASE_URL = process.env['DATABASE_URL'];
 const MIGRATE_URL = process.env['MIGRATE_DATABASE_URL'];
 const d = DATABASE_URL && MIGRATE_URL ? describe : describe.skip;
+// Unique per run: login_setups.token_hash is unique, and a run leaves its rows behind.
 const RUN = randomUUID().slice(0, 8);
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -53,8 +54,8 @@ d('G9 · the funnel (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () => {
     // A password link the operator made before the first reply (rule 22).
     const login = (await q(`select id from logins where business_id = $1`, [BIZ])).rows[0].id;
     await q(`insert into login_setups (business_id, login_id, token_hash, created_at, expires_at, made_by) values ($1, $2, $3, $4, $5, 'operator')`,
-      [BIZ, login, 'a'.repeat(64), ts(4), ts(76)]);
-    await q(`insert into login_codes (email, purpose, code_hash, expires_at, consumed_at) values ($1, 'signup', $2, now() + interval '1 hour', now())`, [`g9-${RUN}@studio.example`, 'b'.repeat(64)]);
+      [BIZ, login, RUN.repeat(8), ts(4), ts(76)]);
+    await q(`insert into login_codes (email, purpose, code_hash, expires_at, consumed_at) values ($1, 'signup', $2, now() + interval '1 hour', now())`, [`g9-${RUN}@studio.example`, RUN.split('').reverse().join('').repeat(8)]);
   }, 60_000);
   afterAll(async () => { await admin?.end(); await db?.destroy(); });
 

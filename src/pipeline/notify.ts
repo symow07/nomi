@@ -123,6 +123,8 @@ export type OperatorAlertDetail = {
   readonly flags?: readonly { readonly flag: string; readonly business: string | null; readonly since: Date }[];
   /** `signup_digest` (G9): the day's sign-up forms, and how many came back with their code. */
   readonly forms?: { readonly forms: number; readonly codesUsed: number };
+  /** `signup_digest` (G9): where the cohort stands. */
+  readonly cohort?: { readonly workspaces: number; readonly practised: number; readonly replied: number };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
   readonly allowancePct?: number;
   readonly renewsAt?: Date;
@@ -203,9 +205,10 @@ export function renderOwnerAlert(
     }));
     // G9 — how many forms were sent, and how many came back with their code.
     const forms = detail.forms ? [t(locale, 'notify.signup_digest.forms', { forms: detail.forms.forms, used: detail.forms.codesUsed })] : [];
+    const cohort = detail.cohort ? [t(locale, 'notify.signup_digest.cohort', detail.cohort)] : [];
     return [t(locale, 'notify.signup_digest', { n: list.length }),
       ...shown.map((s) => `${s.business} (${s.kind ? t(locale, `business.kind.${s.kind}` as MessageKey) : '—'}, ${s.country ?? '—'})`), ...more,
-      ...forms, ...flags].join('\n');
+      ...forms, ...cohort, ...flags].join('\n');
   }
   // CEIL — which workspaces, how many of the day's messages Meta refused or
   // lost, in the provider's own words; then what the operator can do.
@@ -401,6 +404,7 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     signups: (job.signups ?? []).map((s) => ({ business: s.business, kind: s.kind, country: s.country })),
     flags: (job.flags ?? []).map((f) => ({ flag: f.flag, business: f.business, since: new Date(f.since) })),
     ...(job.forms ? { forms: job.forms } : {}),
+    ...(job.cohort ? { cohort: job.cohort } : {}),
     ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
     ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
   };

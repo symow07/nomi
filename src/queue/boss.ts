@@ -208,6 +208,8 @@ export type NotifyJob = {
   flags?: { flag: string; business: string | null; since: string }[];
   /** `signup_digest` (G9): the day's sign-up forms, and how many came back with their code. Counts only. */
   forms?: { forms: number; codesUsed: number };
+  /** `signup_digest` (G9): the workspaces that signed themselves up — how many, how many finished Practice, how many sent a first reply. */
+  cohort?: { workspaces: number; practised: number; replied: number };
   /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
   allowancePct?: number;
   renewsAt?: string;
