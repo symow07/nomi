@@ -192,12 +192,14 @@ d('"wants a person", two layers, through production (requires DATABASE_URL)', { 
   for (const text of LAYER_ONE) {
     it(`layer 1 — hands off from the words alone, no model asked: ${JSON.stringify(text)}`, async () => {
       const { HANDOFF_REPLIES } = await import('../../src/core/conversation/templates.js');
+      // LG — said in the customer's language where Nomi writes it.
+      const lang = /[\u4e00-\u9fff]/.test(text) ? 'zh' : /[\u0600-\u06ff]/.test(text) ? 'ar' : 'en';
       const conv = await send(text);
       const s = await handedOver(conv);
       expect(s.assigned).toBe('unclaimed');
       expect(s.signals).toEqual(['human_requested']);
       expect(s.path).toBe('handoff');
-      expect(s.drafts).toEqual([HANDOFF_REPLIES.en]);
+      expect(s.drafts).toEqual([HANDOFF_REPLIES[lang]]);
       expect(s.asks).toBe(0);
       expect(analyzer.texts).not.toContain(text);
       await until(async () => ((await alertsFor(conv, 'handoff')) > 0 ? true : undefined), 'the ordinary alert');

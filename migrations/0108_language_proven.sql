@@ -19,7 +19,7 @@ language sql stable security definer set search_path = public as $$
   select coalesce((
     select case
              when p.signed_up_at is null then true
-             when p.auto_earned_by is not null and p.auto_earned_by <> 'ramp' then true
+             when p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp' then true
              else (select count(*) from (
                      select 1
                        from conversation_events e

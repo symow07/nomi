@@ -45,7 +45,7 @@ language sql stable security definer set search_path = public as $$
   select coalesce((
     select case
              when p.signed_up_at is null then true
-             when p.auto_earned_by is not null and p.auto_earned_by <> 'ramp' then true
+             when p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp' then true
              else exists (select 1 from products pr
                            where pr.business_id = p.id and pr.quote_vetted_at is not null
                              and pr.id = coalesce((select src.source_id from products src

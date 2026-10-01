@@ -27,7 +27,9 @@ language sql stable security definer set search_path = public as $$
   select coalesce((
     select case
              when p.signed_up_at is null then 2
-             when p.auto_earned_by is not null and p.auto_earned_by <> 'ramp' then 2
+             -- The operator's (G7), or before 0103 nobody's but the operator's: the
+             -- ramp did not exist, so a stamp with no writer is a pilot opened by hand.
+             when p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp' then 2
              when p.sells_earned_at is not null then 2
              when p.talks_earned_at is not null then 1
              else 0 end

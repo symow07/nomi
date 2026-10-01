@@ -78,7 +78,7 @@ describe('R3 · what vets and what unvets', () => {
     expect(m).toContain('after insert or update or delete on price_tiers');
     // The operator's workspaces are untouched; a practice copy answers for its source.
     expect(m).toContain('when p.signed_up_at is null then true');
-    expect(m).toContain("when p.auto_earned_by is not null and p.auto_earned_by <> 'ramp' then true");
+    expect(m).toContain("when p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp' then true");
     expect(m).toContain('coalesce(me.practice_of, me.id)');
   });
 });
