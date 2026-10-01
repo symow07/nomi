@@ -618,6 +618,7 @@ once, in this order, and tick it here.
 | The launch acceptance test (`docs/LAUNCH-ACCEPTANCE.md`): a stranger signs up, imports, names, practises, connects their Page and Instagram; a second stranger writes; the draft is sent and arrives | G8 | `tools/acceptance-check.mjs --business <id>` exits 0, and the owner's stopwatch is under 30 minutes. Cohort 1b opens when it passes |
 | Suspending a workspace: its Page unsubscribed at Meta, and resubscribed on restore | G7 | `tools/suspend-workspace.mjs` on a test workspace with a real Page: the Page's subscribed apps no longer list Nomi, then do again |
 | The dedicated mail sender: paste `MAIL_PROVIDER` (resend or postmark), `MAIL_API_KEY` and `MAIL_FROM` (a verified sending address) into the `nomi` service | MAIL | Sign up a test address on the live site: the code arrives from `MAIL_FROM`, not the operator's mailbox; an owner alert arrives the same way; the boot log no longer says the sender is half-set; the operator's daily list shows the codes |
+| The bot check: paste `BOT_CHECK_PROVIDER` (turnstile or hcaptcha), `BOT_CHECK_SITE_KEY` and `BOT_CHECK_SECRET` into the `nomi` service (the provider's site set to `app.nomidoes.com`) | BOT | `/signup` shows the widget; a sign-up from a browser gets its code; the same form posted without the widget's token (`curl`) is refused and nothing is mailed; `tools/signup-mode.mjs` says all three are set |
 
 ## Tool output that asked for something (ignored, as instructed)
 
