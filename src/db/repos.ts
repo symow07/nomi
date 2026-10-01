@@ -675,6 +675,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
     released: (language) => autonomyReleasedFor(language),
     // G4 / R2 — the workspace's own rung, a practice copy's from its workspace (0106).
     earnedRung: () => earnedRung(tx),
+    // R3 — the product's first quote, sent by the owner (0107).
+    quoteVetted: async (productId) => (await sql<{ v: boolean }>`select quote_vetted(${productId}::uuid) as v`.execute(tx)).rows[0]?.v === true,
     async assistantNamed() {
       const r = await sql<{ named: boolean }>`
         select (assistant_named_at is not null) as named

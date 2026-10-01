@@ -268,6 +268,8 @@ export class FakeTenant implements Tenant {
   releasedFor: ((language?: string | null) => boolean) | null = null;
   /** G4 / R2 — the rung earned; 2 unless a test about a self-serve workspace says otherwise. */
   earnedRungValue: 0 | 1 | 2 = 2;
+  /** R3 — every product's first quote already sent, unless a test says otherwise. */
+  quoteVettedFlag = true;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -279,6 +281,7 @@ export class FakeTenant implements Tenant {
     // allowed at all. The gate itself is proved against the real flag.
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
     earnedRung: async () => this.earnedRungValue,
+    quoteVetted: async () => this.quoteVettedFlag,
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do

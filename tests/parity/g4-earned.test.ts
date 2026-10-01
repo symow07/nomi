@@ -54,7 +54,8 @@ describe('G4 · the rule, where it is decided', () => {
   it('commitTurn asks it before it would send alone, and names it first', () => {
     const turn = src('src/pipeline/turn.ts');
     expect(turn).toContain('const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
-    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && released && named && sentence !== null);');
+    // R3 — and the product's first quote, beside it.
+    expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && vetted && released && named && sentence !== null);');
     expect(turn).toContain("reason: !earned ? 'not_earned' :");
   });
   it('the one function answers for the caller only, from the workspace that pays, and no outside a tenant', () => {
