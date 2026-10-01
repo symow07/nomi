@@ -164,6 +164,9 @@ d('C9 · Instagram and Messenger (requires DATABASE_URL)', () => {
     const after = await get('/app/channels');
     const { ASSISTANT_FALLBACK } = await import('../../src/core/owner/i18n/messages.js');
     expect(after.body).toContain(esc(t('en', 'reach.inbound.connected', { name: ASSISTANT_FALLBACK.en })));
+    // CH4 — where Nomi stands with Meta (no META_APP_REVIEW here: reviewing), and nothing held back.
+    expect(after.body).toContain(esc(t('en', 'meta.panel.title')));
+    expect(after.body).toContain(esc(t('en', 'meta.panel.reviewing')));
   }, 60_000);
 
   it('A SIGNED INSTAGRAM MESSAGE reaches her inbox, on its own channel', async () => {

@@ -1,3 +1,4 @@
+import type { MetaReview } from '../../core/channel/metaReview.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -627,6 +628,27 @@ export type InboundLink = {
   readonly noInstagram?: boolean;
 };
 
+/**
+ * CH4 — "Nomi and Meta": where Nomi stands with Meta (the operator's
+ * `META_APP_REVIEW`), and the two channels' rules in plain words. Nothing on
+ * the page waits on it: Connect is offered either way.
+ */
+export function renderMetaPanel(review: MetaReview, locale: Locale): string {
+  const said = review.state === 'approved'
+    ? t(locale, 'meta.panel.approved', { date: show.date(locale, review.on) })
+    : t(locale, 'meta.panel.reviewing');
+  return `<div class="block">
+    <h2>${esc(t(locale, 'meta.panel.title'))}</h2>
+    <p class="stateline"><span class="dot ${review.state === 'approved' ? 'ok' : 'warn'}" aria-hidden="true">●</span> ${esc(said)}</p>
+    <h3>${esc(t(locale, 'meta.rules.title'))}</h3>
+    <ul class="muted">
+      <li>${esc(t(locale, 'meta.rules.window'))}</li>
+      <li>${esc(t(locale, 'meta.rules.first'))}</li>
+      <li>${esc(t(locale, 'meta.rules.media'))}</li>
+    </ul>
+  </div>`;
+}
+
 export function renderChannels(
   data: ChannelsData, locale: Locale, flash: Flash | null, viewer: Viewer = OWNER_VIEW,
   /** C6 — the other accounts she links (`./connect.ts`), already rendered. */
@@ -635,6 +657,8 @@ export function renderChannels(
   inbound: ReadonlyMap<OutreachChannel, InboundLink> = new Map(),
   /** CH1 — "Your accounts", already rendered: each step of connecting a Page. */
   yourAccountsHtml = '',
+  /** CH4 — where Nomi stands with Meta, the same for every workspace. */
+  metaReview: MetaReview | null = null,
 ): string {
   const w = data.whatsapp;
   // Phase 4 — the number's lifecycle is the owner's; staff see whose it is.
@@ -684,6 +708,7 @@ export function renderChannels(
       <button class="btn send">${esc(t(locale, 'settings.alerts.save'))}</button>
     </form>` : `<p class="muted ch-desc">${esc(t(locale, 'staff.ownerDecides'))}</p>`}
     <p class="muted" style="font-size:var(--font-size-caption)">${data.ownerPhone ? esc(t(locale, 'settings.alerts.current', { phone: data.ownerPhone })) : esc(t(locale, 'settings.alerts.none'))}</p>
+    ${deeper('/app/settings/alerts', t(locale, 'meta.phoneAlerts'))}
   </div>`;
 
   const soon = `<div class="block">
@@ -697,6 +722,7 @@ export function renderChannels(
     ${whatsappCard}
     ${accountsHtml}
     ${reach}
+    ${metaReview ? renderMetaPanel(metaReview, locale) : ''}
     ${yourAccountsHtml}
     ${alertsCard}
     ${soon}

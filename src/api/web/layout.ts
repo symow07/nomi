@@ -1041,6 +1041,7 @@ const STYLE_PAGES = `
   .stateline { margin:0; font-size:var(--font-size-small); }
   .stateline b { font-weight:600; }
   .stateline .dot.warn { color:var(--color-waiting); }
+  .stateline .dot.ok { color:var(--color-ok); }
   .stateline .dot.bad { color:var(--color-warn); }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   @media (min-width: 1100px) {

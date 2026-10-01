@@ -57,6 +57,7 @@ import {
 import type { Question } from '../../core/owner/howYouSell.js';
 import { pricesGoToOwner, setPricesGoToOwner } from '../../db/selling.js';
 import { SERVICE_WORKER, appManifest } from './phone.js';
+import type { MetaReview } from '../../core/channel/metaReview.js';
 import { APP_ICONS } from './appIcons.js';
 import { loadPhoneAlerts, addPhone, removePhone, testPhones, renderPhoneAlerts, type PushOut } from './phoneAlerts.js';
 import {
@@ -362,6 +363,8 @@ export type WebDeps = {
   readonly storeFetcher?: StoreFetcher;
   /** G5b — the installation's push keys and the way out to a push service; absent: no phone alerts. */
   readonly push?: PushOut | null;
+  /** CH4 — where Nomi stands with Meta (`META_APP_REVIEW`); absent: the panel is not drawn. */
+  readonly metaReview?: MetaReview | null;
   /**
    * CC-10 — where a crashed page is written down (`app_errors`, and the
    * operator's e-mail). Absent, a crash is only logged, as before.
@@ -2313,7 +2316,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       title: t(locale, 'nav.channels'), active: 'channels',
       bodyHtml: renderChannels(data, locale, flash, personOf(s),
         accounts ? renderAccounts(accounts, locale, personOf(s), inbound) : '', inbound,
-        yours ? renderYourAccounts(yours, locale) : ''),
+        yours ? renderYourAccounts(yours, locale) : '', deps.metaReview ?? null),
       // CH1 — the page says when a first message arrives, or a connection changes.
       ...(liveMark ? { live: liveRegion(locale, channelsWatch(liveMark)) } : {}),
     }));
