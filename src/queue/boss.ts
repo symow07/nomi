@@ -77,6 +77,8 @@ export const QUEUES = {
   draftExpiry: 'ops.draft_expiry',
   /** G1 — once a day: the operator's list of the last day's sign-ups. */
   signupDigest: 'ops.signup_digest',
+  // G3 — every five minutes: who crossed 80% or 100% of today's allowance.
+  allowance: 'ops.allowance',
 } as const;
 
 /** CH3 — an echo, as the webhook carried it. Dates as ISO strings. */
@@ -183,7 +185,7 @@ export type OutboundJob = {
 export type NotifyJob = {
   businessId: string;
   // Language-NEUTRAL event code (P3): the notify consumer localizes via t().
-  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors';
+  kind: 'hot_lead' | 'handoff' | 'draft_waiting' | 'signup_digest' | 'allowance_warn' | 'allowance_reached' | 'deletion_requested' | 'order_proposed' | 'delivery_failed' | 'dead_letter' | 'backup_stale' | 'deletion_due' | 'app_error' | 'meta_errors';
   conversationId: string | null;
   /** `backup_stale` only: when the last completed backup was uploaded, ISO; null = never. */
   lastBackupAt?: string | null;
@@ -202,6 +204,9 @@ export type NotifyJob = {
   metaErrors?: { business: string; attempted: number; failed: number; errors: string[] }[];
   /** `signup_digest` only (G1): who signed up in the last day. Dates as ISO strings. */
   signups?: { business: string; kind: string | null; country: string | null; at: string }[];
+  /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews (ISO). */
+  allowancePct?: number;
+  renewsAt?: string;
 };
 
 /**

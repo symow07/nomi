@@ -38,11 +38,19 @@ const UTC_DAY = /\(now\(\) at time zone 'UTC'\)::date|LEDGER_DAY/;
 describe('T7 · the ledger has one clock, UTC', () => {
   it('every statement on usage_ledger uses the UTC day, and none uses another', () => {
     const found = ledgerStatements().filter((s) => /\b(select|insert|update|join)\b/i.test(s.around));
-    expect(found.map((s) => s.file).sort()).toEqual(expect.arrayContaining(['api/web/operations.ts', 'db/channels.ts', 'db/usage.ts']));
+    expect(found.map((s) => s.file).sort()).toEqual(expect.arrayContaining(['db/usage.ts']));
     for (const s of found) {
       expect(s.around, s.file).toMatch(UTC_DAY);
       expect(s.around, s.file).not.toMatch(OLD_CLOCKS);
     }
+    // G3 — the readers (the hold, the send gate, Today, My business, the
+    // alerts) ask allowance_today() and claim_allowance_alerts() (0101): the
+    // same UTC day, in SQL.
+    const sql0101 = readFileSync(fileURLToPath(new URL('../../migrations/0101_allowance.sql', import.meta.url)), 'utf8')
+      .split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n');
+    expect(sql0101).toContain("and u.day = (now() at time zone 'UTC')::date");
+    expect(sql0101).toContain("v_day date := (now() at time zone 'UTC')::date;");
+    expect(sql0101).not.toMatch(OLD_CLOCKS);
   });
 
   it('the check can fail: the statement it replaced is caught', () => {

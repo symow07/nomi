@@ -28,17 +28,22 @@ export type Spent = { readonly llmCalls: number; readonly inputTokens: number; r
 /** The ledger's day, for the writer and every reader alike: UTC. */
 export const LEDGER_DAY = sql`(now() at time zone 'UTC')::date`;
 
-export async function recordSpend(tx: Tx, businessId: string, spent: Spent, opts: { readonly turn: boolean }): Promise<void> {
+/**
+ * `photoReads` (G3, 0101) — catalogue photos read by this spend, for the
+ * limit of 20 a day; a refused read counts, it was paid for.
+ */
+export type SpendOpts = { readonly turn: boolean; readonly photoReads?: number };
+
+export async function recordSpend(tx: Tx, businessId: string, spent: Spent, opts: SpendOpts): Promise<void> {
   if (spent.llmCalls <= 0 && !opts.turn) return;
   await sql`
-    insert into usage_ledger (business_id, day, llm_calls, input_tokens, output_tokens, turns)
+    insert into usage_ledger as u (business_id, day, llm_calls, input_tokens, output_tokens, turns, photo_reads)
     values (${businessId}::uuid, ${LEDGER_DAY}, ${Math.max(0, spent.llmCalls)}, ${Math.max(0, spent.inputTokens)},
-            ${Math.max(0, spent.outputTokens)}, ${opts.turn ? 1 : 0})
+            ${Math.max(0, spent.outputTokens)}, ${opts.turn ? 1 : 0}, ${Math.max(0, opts.photoReads ?? 0)})
     on conflict (business_id, day) do update set
-      llm_calls = usage_ledger.llm_calls + excluded.llm_calls,
-      input_tokens = usage_ledger.input_tokens + excluded.input_tokens,
-      output_tokens = usage_ledger.output_tokens + excluded.output_tokens,
-      turns = usage_ledger.turns + excluded.turns`.execute(tx);
+      llm_calls = u.llm_calls + excluded.llm_calls, input_tokens = u.input_tokens + excluded.input_tokens,
+      output_tokens = u.output_tokens + excluded.output_tokens, turns = u.turns + excluded.turns,
+      photo_reads = u.photo_reads + excluded.photo_reads`.execute(tx);
 }
 
 /**
@@ -46,7 +51,7 @@ export async function recordSpend(tx: Tx, businessId: string, spent: Spent, opts
  * whether or not the work it served was kept. Writing it can never fail the
  * work — a failure is logged, not thrown.
  */
-export async function recordSpendAlone(db: Db, businessId: string, spent: Spent, opts: { readonly turn: boolean }): Promise<void> {
+export async function recordSpendAlone(db: Db, businessId: string, spent: Spent, opts: SpendOpts): Promise<void> {
   const bid = parseBusinessId(businessId);
   if (!bid.ok) return;
   try {

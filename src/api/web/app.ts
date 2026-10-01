@@ -2123,7 +2123,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
       { businessId: bid.value, conversationId: cid, actor: personOf(s).id });
     // 0070 — stopped: nothing asks the assistant for an answer, and the
     // conversation stays with its person, on "Needs you".
-    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced') {
+    if (handedBack.outcome === 'assistant_stopped' || handedBack.outcome === 'assistant_silenced' || handedBack.outcome === 'allowance_used') {
       return flashTo(reply, back0, `takeover.flash.${handedBack.outcome}`);
     }
     await deps.kickAnswer(s.businessId, cid, `${messageId}:answer`, said);
@@ -2541,10 +2541,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const s = await ownerOnly(req, reply, 'price_rules', '/app/products');
     if (!s) return reply;
     const locale = localeOf(req);
-    const refuse = (reason: PhotoRefusal, photo?: number) =>
+    const refuse = (reason: PhotoRefusal, photo?: number, left?: number) =>
       reply.type('text/html; charset=utf-8').send(page(req, {
         title: t(locale, 'product.photo.refusedTitle'), active: 'products',
-        bodyHtml: renderPhotoRefusal(reason, locale, photo),
+        bodyHtml: renderPhotoRefusal(reason, locale, photo, left),
       }));
 
     const photos: PhotoIn[] = [];
@@ -2575,9 +2575,10 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
 
     const out = await startPhotoImport(deps.db, s.businessId, personOf(s).id, {
       transcriber: deps.pageTranscriber,
-      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false }),
+      // G3 — the reader is asked once per photo, so each spend is one photo read.
+      spent: (u) => recordSpendAlone(deps.db, s.businessId, u, { turn: false, photoReads: 1 }),
     }, { hand, photos });
-    if (!out.ok) return refuse(out.reason, out.photo);
+    if (!out.ok) return refuse(out.reason, out.photo, out.left);
     return reply.redirect(`/app/products/import/${out.id}`, 303);
   });
 

@@ -100,7 +100,7 @@ describe('pages, in Arabic, from fixtures', () => {
     attention: { pendingApprovals: 1, handoffs: 1, ownerHandling: 0, blockedMessages: 2, deletionAsks: 1 },
     activity: { handled: 9, draftsCreated: 3, corrections: 1 },
     knowledge: { openGaps: 4, recentCorrections: 0, recentlyTaught: 0 },
-    channel: { status: 'connected', provider: 'meta', live: true }, budget: { pctUsed: 84, stops: true },
+    channel: { status: 'connected', provider: 'meta', live: true }, budget: { pctUsed: 84, stops: true, reached: false, renewsAt: new Date('2026-09-30T00:00:00Z') },
     hasAttention: true,
   };
   const today: TodayData = {

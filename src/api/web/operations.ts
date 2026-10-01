@@ -12,7 +12,7 @@ import { type MessageKey } from '../../core/owner/i18n/messages.js';
 import { t, tn, assistantName, setupState } from './say.js';
 import { STEP_LINK } from './onboarding.js';
 import { countRefusals } from './refusals.js';
-import { checkBudget } from '../../core/budget.js';
+import { allowanceOf, allowanceRenewsAt, type Allowance } from '../../db/allowance.js';
 import { esc, deeper } from './layout.js';
 import { renderNeedsLines, renderLastDay, renderComingUp, renderSending, toCalendar, type TodayData } from './today.js';
 import * as show from './values.js';
@@ -94,7 +94,11 @@ export type OperationsSnapshot = {
    * passes her soft-warn percentage; `stops` is what her own setting does at
    * 100%, so the sentence she reads is her rule, not a general fact.
    */
-  readonly budget: { readonly pctUsed: number; readonly stops: boolean } | null;
+  readonly budget: {
+    readonly pctUsed: number; readonly stops: boolean;
+    /** G3 — used up, and the cap holds: new messages wait for the owner until `renewsAt`. */
+    readonly reached: boolean; readonly renewsAt: Date;
+  } | null;
   /** True when any attention bucket is non-zero — the "you have work" signal. */
   readonly hasAttention: boolean;
   /** 0070 — when the owner stopped the assistant on every channel; null or absent = answering. */
@@ -129,22 +133,13 @@ const EMPTY = (range: Range, provider: string, live = provider !== 'disabled'): 
  * Anything below her soft-warn line is silence: a warning she sees every day is
  * a warning she stops reading.
  */
-const budgetOf = (r: {
-  daily_llm_calls: number; daily_tokens: string; soft_warn_pct: number; on_exceeded: string;
-  used_calls: number; used_tokens: string;
-} | null): OperationsSnapshot['budget'] => {
-  if (!r) return null;
-  const verdict = checkBudget(
-    { llmCalls: Number(r.used_calls), tokens: Number(r.used_tokens) },
-    {
-      dailyLlmCalls: Number(r.daily_llm_calls), dailyTokens: Number(r.daily_tokens),
-      softWarnPct: Number(r.soft_warn_pct), onExceeded: r.on_exceeded === 'pause' ? 'pause' : 'throttle',
-    },
-  );
-  const stops = r.on_exceeded === 'pause';
-  if (verdict.kind === 'soft_warn') return { pctUsed: verdict.pctUsed, stops };
+const budgetOf = (a: Allowance, now: Date): OperationsSnapshot['budget'] => {
+  if (!a.budget) return null;
+  const stops = a.budget.onExceeded === 'pause';
+  const renewsAt = allowanceRenewsAt(now);
+  if (a.verdict.kind === 'soft_warn') return { pctUsed: a.verdict.pctUsed, stops, reached: false, renewsAt };
   // Past the ceiling: still worth saying, and the percentage is hers, not a cap.
-  if (verdict.kind === 'pause' || verdict.kind === 'throttle') return { pctUsed: 100, stops };
+  if (a.verdict.kind === 'pause' || a.verdict.kind === 'throttle') return { pctUsed: 100, stops, reached: true, renewsAt };
   return null;
 };
 
@@ -234,22 +229,9 @@ export async function loadOperationsSnapshot(
           (select count(*)::int from drafts where business_id = ${B} and status = 'edited' and decided_at >= ${cutoff}) as corrections
       `.execute(tx)).rows[0]!;
     }),
-    // G19 — the same numbers the send gate reads, judged by the same function.
-    // Absence of a budget row is "she has set no ceiling", never "stop".
-    withTenantTx(db, B, async (tx) => (await sql<{
-      daily_llm_calls: number; daily_tokens: string; soft_warn_pct: number; on_exceeded: string;
-      used_calls: number; used_tokens: string;
-    }>`
-      select b.daily_llm_calls, b.daily_tokens, b.soft_warn_pct, b.on_exceeded,
-             coalesce(u.llm_calls, 0) as used_calls,
-             coalesce(u.input_tokens, 0) + coalesce(u.output_tokens, 0) as used_tokens
-        from tenant_budgets b
-        left join usage_ledger u
-          on u.business_id = b.business_id
-         and u.day = (now() at time zone 'UTC')::date   -- T7: the ledger's day is UTC for writer and readers
-       where b.business_id = ${B}
-       limit 1
-    `.execute(tx)).rows[0] ?? null),
+    // G19 / G3 — the same numbers the send gate and the hold read, judged by
+    // the same function. Absence of a budget row is "no ceiling", never "stop".
+    withTenantTx(db, B, (tx) => allowanceOf(tx)),
     // 0070 — the owner's Stop, on every channel.
     loadAssistantStop(db, B),
     // 0071 — whether ops has paused sending.
@@ -266,7 +248,7 @@ export async function loadOperationsSnapshot(
       recentlyTaught: ops.report.factsAdded,          // M14 (owner_confirmed in range)
     },
     channel: { status: channels.whatsapp.status, provider, live },
-    budget: budgetOf(budgetRow),
+    budget: budgetOf(budgetRow, new Date()),
     hasAttention: attention.pendingApprovals + attention.handoffs
                 + attention.ownerHandling + attention.blockedMessages + attention.deletionAsks + attention.ordersWaiting > 0,   // see needsOwnerAttention
     assistantStoppedAt: stop.stoppedAt,
@@ -373,10 +355,12 @@ export function renderOperationsHome(
 
   // G19 — the ceiling she set, before it stops her rather than after. A
   // notice, never attention.
-  const budget = s.budget
-    ? `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.near', { name, pct: s.budget.pctUsed }))} ${
-        esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p></section>`
-    : '';
+  // G3 — used up, and the cap holds: new messages wait for her, and when that ends.
+  const budget = !s.budget ? ''
+    : s.budget.reached && s.budget.stops
+      ? `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.reached', { name, time: show.time(locale, s.budget.renewsAt) }))}</p></section>`
+      : `<section class="block"><p class="muted">${esc(t(locale, 'today.budget.near', { name, pct: s.budget.pctUsed }))} ${
+          esc(t(locale, s.budget.stops ? 'today.budget.thenStops' : 'today.budget.thenKeeps', { name }))}</p></section>`;
 
   // Sending (only where messaging is live: a channel connected to an
   // installation that cannot send is not "on"), and Setup while it is

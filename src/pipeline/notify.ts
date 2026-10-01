@@ -7,7 +7,7 @@ import type { AppErrorAlertJob, NotifyJob } from '../queue/boss.js';
 import type { SendResult } from '../channels/contract.js';
 import { assistantNameOfConversation, mainAssistantName } from '../db/assistants.js';
 import { ownerLoginEmail, channelIsLive } from '../db/backups.js';
-import { formatDate } from '../core/owner/i18n/format.js';
+import { formatDate, formatTime } from '../core/owner/i18n/format.js';
 import type { BusinessId } from '../core/types/ids.js';
 import { deletionDueBy } from '../core/ops/deletions.js';
 import { isPracticeCopy } from '../db/practice.js';
@@ -64,7 +64,17 @@ export const isOperatorAlert = (kind: AlertKind): boolean =>
  * `notify.<kind>.subject` in every locale.
  */
 export const goesByMail = (kind: AlertKind): boolean =>
-  isOperatorAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed';
+  isOperatorAlert(kind) || isAllowanceAlert(kind) || kind === 'deletion_requested' || kind === 'order_proposed';
+
+/**
+ * G3 — the day's allowance, at the soft-warn line and at 100%: to the
+ * workspace's own owner, by e-mail always (WhatsApp where live), each once a
+ * UTC day (`claim_allowance_alerts()`, 0101). At 100% new messages are held
+ * for the owner, so this is the one alert that says why they are waiting.
+ */
+export const ALLOWANCE_ALERT_KINDS = ['allowance_warn', 'allowance_reached'] as const satisfies readonly AlertKind[];
+export const isAllowanceAlert = (kind: AlertKind): boolean =>
+  (ALLOWANCE_ALERT_KINDS as readonly AlertKind[]).includes(kind);
 
 /**
  * G5 — the alerts about a customer that a stranger running Nomi must hear of:
@@ -109,6 +119,9 @@ export type OperatorAlertDetail = {
   readonly zone?: string;
   /** `signup_digest` (G1): who signed up in the last day. */
   readonly signups?: readonly { readonly business: string; readonly kind: string | null; readonly country: string | null }[];
+  /** `allowance_warn` / `allowance_reached` (G3): how much is used, and when it renews. */
+  readonly allowancePct?: number;
+  readonly renewsAt?: Date;
 };
 
 /** A long list is cut here and counted, so the alert stays readable on a phone. */
@@ -168,6 +181,13 @@ export function renderOwnerAlert(
       t(locale, 'notify.deletion_due.how')].join('\n');
   }
   if (kind === 'app_error') return appErrorText(locale, detail.appError ?? null);
+  // G3 — how much of today's allowance, and when it renews, in the owner's zone.
+  if (kind === 'allowance_warn' || kind === 'allowance_reached') {
+    const time = formatTime(locale, detail.renewsAt ?? new Date(), detail.zone ?? 'UTC');
+    return kind === 'allowance_warn'
+      ? t(locale, 'notify.allowance_warn', { pct: detail.allowancePct ?? 80, time })
+      : t(locale, 'notify.allowance_reached', { time });
+  }
   // G1 — the day's sign-ups: how many, then each by name, kind and country.
   if (kind === 'signup_digest') {
     const list = detail.signups ?? [];
@@ -368,6 +388,8 @@ function operatorDetailOf(job: NotifyJob): OperatorAlertDetail {
     appError: job.appError ?? null,
     metaErrors: job.metaErrors ?? [],
     signups: (job.signups ?? []).map((s) => ({ business: s.business, kind: s.kind, country: s.country })),
+    ...(job.allowancePct !== undefined ? { allowancePct: job.allowancePct } : {}),
+    ...(job.renewsAt ? { renewsAt: new Date(job.renewsAt) } : {}),
   };
 }
 
