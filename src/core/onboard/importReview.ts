@@ -1,4 +1,4 @@
-import { lessSure, type FieldConfidence } from './extract.js';
+import { lessSure, figuresOn, type FieldConfidence } from './extract.js';
 import type { Currency } from '../types/money.js';
 import { type ExtractedProduct, type RejectReason, ownPriceCount, validateExtracted, validatePage } from './catalogImport.js';
 import { parseCustomerNames, MAX_ALIAS_LENGTH } from './aliases.js';
@@ -151,6 +151,14 @@ export function needsTick(row: ImportRow, all: readonly ImportRow[], ctx: Review
   if (ctx.kind === 'photo' && row.price !== null) return true;
   return flagsOf(row, all, ctx).length > 0;
 }
+
+/**
+ * EXT — a row the extractor may read more closely: one the parser refused, or
+ * one it read without a price although the line holds a figure. Never one the
+ * extractor already read, never one she removed.
+ */
+export const extractCandidate = (r: ImportRow): boolean =>
+  !r.removed && !r.confidence && (r.refused !== null || (r.price === null && figuresOn(r.line).length > 0));
 
 /** Rows the owner must look at come first; within each, the page's own order. */
 export function reviewOrder(rows: readonly ImportRow[], ctx: ReviewContext, checkEveryRow: boolean): readonly ImportRow[] {

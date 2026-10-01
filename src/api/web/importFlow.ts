@@ -9,7 +9,7 @@ import { containExtracted, lessSure } from '../../core/onboard/extract.js';
 import { formatList } from '../../core/owner/i18n/format.js';
 import { diffAgainstCatalogue, type CatalogueDiff, type CatalogueEntry } from '../../core/onboard/catalogDiff.js';
 import {
-  type ImportRow, type ImportKind, type ReviewContext, type RowEdit, type RowEditError, type Blocker, type ImportFlag,
+  extractCandidate, type ImportRow, type ImportKind, type ReviewContext, type RowEdit, type RowEditError, type Blocker, type ImportFlag,
   rowsFromParsed, asExtracted, liveRows, flagsOf, needsTick, reviewOrder, editRow, pickChallenge, applyChallenge,
   derivedFloor, readDiscount, blockers, linesRead,
 } from '../../core/onboard/importReview.js';
@@ -431,7 +431,7 @@ export async function extractRefused(
   const ask = await withTenantTx(db, bid.value, async (tx) => {
     const imp = await loadImport(tx, bid.value, id, {});
     if (!imp || imp.state !== 'open') return null;
-    const lines = [...new Set(imp.rows.filter((r) => r.refused !== null && !r.removed).map((r) => r.line.trim()).filter(Boolean))].slice(0, EXTRACT_MAX_LINES);
+    const lines = [...new Set(imp.rows.filter(extractCandidate).map((r) => r.line.trim()).filter(Boolean))].slice(0, EXTRACT_MAX_LINES);
     return { lines, currency: imp.currency, used: allowanceUsed(await allowanceOf(tx)) };
   });
   if (!ask) return { kind: 'gone' };
@@ -452,7 +452,7 @@ export async function extractRefused(
     const ctx = await contextFor(tx, bid.value, imp.kind, imp.currency);
     let n = 0;
     const rows = imp.rows.map((r): ImportRow => {
-      const c = r.refused !== null && !r.removed ? contained.get(r.line.trim()) : undefined;
+      const c = extractCandidate(r) ? contained.get(r.line.trim()) : undefined;
       if (!c) return r;
       contained.delete(r.line.trim());
       n++;
@@ -690,6 +690,10 @@ export function renderImportReview(
         <input type="hidden" name="applies" value="${esc(m.diff.changed.map((c) => keyOfLine(c.line)).join(','))}" />
         ${changes ? `<div class="block"><h2>${esc(t(locale, 'product.review.changedTitle', { count: m.diff.changed.length }))}</h2>
           <p class="muted">${esc(t(locale, 'product.review.changedHint'))}</p>${changes}</div>` : ''}
+        ${opts.canExtract && !asking && imp.state === 'open' && imp.rows.some(extractCandidate) ? `<div class="block" id="extract">
+          <p>${esc(t(locale, 'import.extract.lead', { n: show.count(locale, imp.rows.filter(extractCandidate).length) }))}</p>
+          <p><button class="btn" type="submit" formaction="${base(imp.id)}/extract" formnovalidate>${esc(t(locale, 'import.extract.button'))}</button></p>
+          <p class="muted small">${esc(t(locale, 'import.extract.hint'))}</p></div>` : ''}
         ${newRows.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.addedTitle', { count: newRows.filter((r) => !r.removed).length }))}</h2>
           ${newRows.map((r) => rowHtml(locale, m, r, errors.get(r.key) ?? [], typed)).join('')}</div>` : ''}
         ${held.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.heldTitle'))}</h2>${[...held.values()].map((h) => `
@@ -697,9 +701,7 @@ export function renderImportReview(
             <span class="rev-move">${esc(t(locale, `product.review.held.${h.reason}`))}</span>
             ${h.product ? `<a href="/app/products/${esc(h.product.id)}">${esc(t(locale, 'product.review.openProduct'))}</a>` : ''}</div>`).join('')}</div>` : ''}
         ${unchanged.size ? `<div class="block"><h2>${esc(t(locale, 'product.review.unchangedTitle', { count: unchanged.size }))}</h2>${m.diff.unchanged.map((u) => `<div class="rev"><b dir="auto">${esc(u.product.name)}</b></div>`).join('')}</div>` : ''}
-        ${refused.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${opts.canExtract && !asking && imp.state === 'open' ? `
-          <p><button class="btn" type="submit" formaction="${base(imp.id)}/extract" formnovalidate>${esc(t(locale, 'import.extract.button'))}</button></p>
-          <p class="muted small">${esc(t(locale, 'import.extract.hint'))}</p>` : ''}${refused.map((r) => `<div class="rev muted"><bdi>${esc(r.line)}</bdi> <span class="rev-move">${esc(t(locale, `product.reject.${r.refused}` as MessageKey, { currency: imp.currency, sign: currencySymbol(imp.currency).trim() }))}</span></div>`).join('')}</div>` : ''}
+        ${refused.length ? `<div class="block"><h2>${esc(t(locale, 'product.review.rejectedTitle'))}</h2>${refused.map((r) => `<div class="rev muted"><bdi>${esc(r.line)}</bdi> <span class="rev-move">${esc(t(locale, `product.reject.${r.refused}` as MessageKey, { currency: imp.currency, sign: currencySymbol(imp.currency).trim() }))}</span></div>`).join('')}</div>` : ''}
         <div class="block">
           <label class="imp-q">${esc(t(locale, 'import.discount.q', { name: assistantName(locale) }))}
             <span class="imp-pct"><input type="text" inputmode="decimal" name="discount" value="${esc(discount)}" autocomplete="off" /> %</span></label>
