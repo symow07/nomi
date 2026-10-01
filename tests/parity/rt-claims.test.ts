@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectClaims, guardClaims, SHOP_PROMISES } from '../../src/core/safety/claims.js';
-import { renderSelling } from '../../src/api/web/selling.js';
-import { profileOf, sellingAnswers } from '../../src/core/owner/sellingStyle.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
+import { detectClaims, guardClaims } from '../../src/core/safety/claims.js';
 
 /**
  * RT — what a shop promises (the onboarding plan, Stage 3): returns, free
@@ -59,17 +56,5 @@ describe('RT · default-deny, and the owner\'s switch', () => {
     expect(guardClaims({ reply: 'Free returns within 30 days.', policy: [] }).ok).toBe(false);
     expect(guardClaims({ reply: 'Free returns within 30 days.', policy: [{ kind: 'guarantee', claimKey: 'returns', allowed: true }] }).ok).toBe(true);
     expect(guardClaims({ reply: '全国包邮', policy: [{ kind: 'shipping_method', claimKey: 'free_shipping', allowed: false }] }).ok).toBe(false);
-  });
-  it('How you sell offers every shop promise as a box, in every language, ticked only where allowed', () => {
-    const kind = 'online_shop';
-    const own = { quantityFirst: null };
-    for (const l of LOCALES) {
-      const html = renderSelling({ kind, profile: profileOf(kind), own, answers: sellingAnswers(kind, own), promises: new Set(['returns']) }, l, null);
-      expect(html, l).toContain('action="/app/business/selling/promises"');
-      for (const p of SHOP_PROMISES) expect(html, `${l} ${p.key}`).toContain(`name="promise:${p.key}"`);
-      expect(html, l).toMatch(/name="promise:returns" checked/);
-      expect(html, l).not.toMatch(/name="promise:refund" checked/);
-      expect(html, l).not.toMatch(/\bclaim\.[a-z_]+/);
-    }
   });
 });

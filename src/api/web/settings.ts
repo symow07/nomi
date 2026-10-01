@@ -193,6 +193,8 @@ export type SetupView = {
   readonly kind: string | null;
   /** How many people work here. */
   readonly people: number;
+  /** HS — how many of How you sell's questions are answered; null for staff (the page is the owner's). */
+  readonly howYouSell?: { readonly answered: number; readonly total: number } | null;
 };
 
 export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): string {
@@ -214,6 +216,7 @@ export function renderSetup(v: SetupView, locale: Locale, flash: Flash | null): 
       ${door('/app/channels', t(locale, 'nav.channels'), state(step('channels'), 'setup.state.connected', 'setup.state.notConnected'))}
       ${door('/app/settings/profile', t(locale, 'settings.profile.title'), state(step('profile'), 'setup.state.done', 'setup.state.toDo'))}
       ${door('/app/settings/business', t(locale, 'business.kind.label'), v.kind ?? t(locale, 'setup.state.notAnswered'))}
+      ${v.howYouSell ? door('/app/business/selling', t(locale, 'hs.title'), t(locale, 'hs.progress', { done: v.howYouSell.answered, total: v.howYouSell.total })) : ''}
       ${door('/app/settings/people', t(locale, 'people.title'), tn(locale, 'setup.state.people', v.people))}
       ${door('/app/settings/account', t(locale, 'account.title'))}
       ${door('/app/settings/data', t(locale, 'data.title'))}

@@ -453,7 +453,8 @@ export function askAboutThree(locale: Locale, products: readonly { name: string;
 export function renderAskAboutThree(locale: Locale, importId: string, count: number): string {
   if (count === 0) return '';
   return `<div class="block"><p>${esc(t(locale, 'import.ask.intro', { name: assistantName(locale) }))}</p>
-    <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a></div>`;
+    <a class="deeper" href="/app/sandbox?from=${encodeURIComponent(importId)}">${esc(t(locale, 'import.ask.door', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a>
+    <a class="deeper" href="/app/business/selling">${esc(t(locale, 'import.next.hs', { name: assistantName(locale) }))}<span class="go" aria-hidden="true">›</span></a></div>`;
 }
 
 /** K6 — in Practice: the three questions, each a door that fills the box. */

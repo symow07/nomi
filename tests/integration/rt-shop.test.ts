@@ -16,8 +16,9 @@ import type { ProductId } from '../../src/core/types/ids.js';
  *     where one is set.
  *   · The lead-time writer: the owner's days, audited, refused past a year.
  *   · What a shop promises (returns, here) is refused until the owner ticks it
- *     on How you sell, goes out once she has, and is refused again once she
- *     has not — the box binds the guard on the next turn.
+ *     on How you sell (HS's returns question, and the line it saves), goes out
+ *     once she has, and is refused again once she has not — the box binds the
+ *     guard on the next turn.
  */
 
 const DATABASE_URL = process.env['DATABASE_URL'];
@@ -177,19 +178,21 @@ d('RT · a shop, end to end (requires DATABASE_URL)', () => {
     analyzer.next = asks();
     replyWriter.replies = ['Yes, returns are free.'];
 
-    // She ticks it: recorded, audited, and the page shows it ticked.
-    const on = await post('/app/business/selling/promises', 'promise:returns=on');
-    expect(on.statusCode).toBe(302);
+    // She ticks it on How you sell's returns question, then ticks the line it
+    // would save: recorded, audited, and the question shows it ticked.
+    expect((await post('/app/business/selling/returns', 'offer:returns=on')).statusCode).toBe(303);
+    expect((await post('/app/business/selling/returns/confirm', 'line:promise:returns=on')).statusCode).toBe(302);
     expect(await promises()).toEqual([{ claim_key: 'returns', allowed: true }]);
-    expect((await audit('selling_set')).at(-1)).toEqual({ field: 'promise', key: 'returns', from: false, to: true });
-    expect((await get('/app/business/selling')).body).toMatch(/name="promise:returns" checked/);
+    expect((await audit('selling_set')).at(-1)).toEqual({ field: 'promise', key: 'returns', from: false, to: true, via: 'how_you_sell' });
+    expect((await get('/app/business/selling/returns')).body).toMatch(/name="offer:returns" checked/);
     const allowed = await writes(`9715${runDigits(RUN, 6)}2`, 'Do you take returns?');
     expect(allowed.sent).toContain('Yes, returns are free.');
 
     // She unticks it: the next customer is not promised it.
-    expect((await post('/app/business/selling/promises', '')).statusCode).toBe(302);
+    expect((await post('/app/business/selling/returns', '')).statusCode).toBe(303);
+    expect((await post('/app/business/selling/returns/confirm', 'line:promise:returns=on')).statusCode).toBe(302);
     expect(await promises()).toEqual([{ claim_key: 'returns', allowed: false }]);
-    expect((await audit('selling_set')).at(-1)).toEqual({ field: 'promise', key: 'returns', from: true, to: false });
+    expect((await audit('selling_set')).at(-1)).toEqual({ field: 'promise', key: 'returns', from: true, to: false, via: 'how_you_sell' });
     const refused = await writes(`9715${runDigits(RUN, 6)}3`, 'Can I send it back if it does not suit me?');
     expect(refused.sent ?? '').not.toContain('returns are free');
     const draft = await q((tx) => sql<{ body: string }>`select draft_text as body from drafts where conversation_id = ${refused.conv}::uuid`

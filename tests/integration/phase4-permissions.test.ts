@@ -112,6 +112,8 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
       select quantity_first as v from businesses where id = ${BIZ}`.execute(t).then((q) => q.rows[0]!.v)),
     // RT — what she allows the assistant to promise.
     claims: await rows('claims_policy', 'x.kind, x.claim_key'),
+    // HS — where she is in How you sell.
+    sellingAnswers: await rows('selling_answers', 'x.question'),
   });
 
   const ownerId = () => tx((t) => sql<{ id: string }>`
@@ -138,10 +140,13 @@ d('Phase 4a · money and going live are the owner’s (requires DATABASE_URL)', 
     ['/app/settings/currency', 'currency=SAR'],
     // K5 — whether the business states prices at all is money too.
     ['/app/products/prices-to-me', 'on=1'],
-    // RT — whether a price comes before the quantity is money too.
-    ['/app/business/selling', 'field=quantityFirst&value=no'],
-    // RT — a refund, a return or free shipping promised is money too.
-    ['/app/business/selling/promises', 'promise:returns=on&promise:free_shipping=on'],
+    // RT, HS — whether a price comes before the quantity, and what may be
+    // promised, are money too: every How you sell write (the answer, its
+    // ticked lines, leaving it for later).
+    ['/app/business/selling/price', 'quantityFirst=no'],
+    ['/app/business/selling/returns', 'offer:returns=on&offer:refund=on'],
+    ['/app/business/selling/returns/confirm', 'line:promise:returns=on'],
+    ['/app/business/selling/hours/skip', ''],
   ];
 
   beforeAll(async () => {

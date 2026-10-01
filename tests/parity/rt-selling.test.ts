@@ -2,12 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { profileOf, sellingAnswers, SELLING_DEFAULTS, isRetailKind, defaultUnitFor } from '../../src/core/owner/sellingStyle.js';
 import { BUSINESS_KINDS } from '../../src/core/owner/business.js';
-import { renderSelling, type SellingView } from '../../src/api/web/selling.js';
-import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 /**
  * RT (0095) — how a business sells: three profiles by kind, the answer each
- * gives, the owner's own answer over her kind's; and the page that asks her.
+ * gives, and the owner's own answer over her kind's. The page that asks her is
+ * How you sell's first question (tests/parity/hs-how-you-sell.test.ts).
  */
 
 describe('RT · the profiles', () => {
@@ -32,26 +31,8 @@ describe('RT · the profiles', () => {
   });
 });
 
-describe('RT · the page', () => {
-  const view = (kind: string | null, quantityFirst: boolean | null): SellingView => {
-    const own = { quantityFirst };
-    return { kind, profile: profileOf(kind), own, answers: sellingAnswers(kind, own), promises: new Set<string>() };
-  };
-  it('asks in every language, marks what is usual for her kind, and shows what is in force', () => {
-    for (const l of LOCALES) {
-      const html = renderSelling(view('online_shop', null), l, null);
-      expect(html, l).not.toMatch(/\bselling\.[a-zA-Z_.]+/);
-      expect(html, l).toContain('action="/app/business/selling"');
-      expect(html, l).toMatch(/value="no" checked/);
-    }
-    expect(renderSelling(view('manufacturer', null), 'en', null)).toMatch(/value="yes" checked/);
-    expect(renderSelling(view('online_shop', true), 'en', null)).toMatch(/value="yes" checked/);
-    expect(renderSelling(view('online_shop', null), 'en', null)).toContain('usual for shops and brands');
-  });
-  it('the page and its form are the owner\'s (rule 11), and the turn reads the column', () => {
-    const app = readFileSync(new URL('../../src/api/web/app.ts', import.meta.url), 'utf8');
-    expect(app).toMatch(/app\.get\('\/app\/business\/selling', ownerPage\('price_rules'/);
-    expect(app).toMatch(/app\.post\('\/app\/business\/selling'[\s\S]{0,120}ownerOnly\(req, reply, 'price_rules'/);
+describe('RT · the turn reads the column', () => {
+  it('the repo reads quantity_first for every turn', () => {
     const repos = readFileSync(new URL('../../src/db/repos.ts', import.meta.url), 'utf8');
     expect(repos).toMatch(/quantity_first from businesses/);
   });
