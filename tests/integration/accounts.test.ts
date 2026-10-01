@@ -192,7 +192,10 @@ d('A1 · a factory signs itself up and signs in as itself (requires DATABASE_URL
     // Its own visitor: sign-up allows five tries an hour from one address, and
     // the tests above have used this file's share.
     const signup = (fields: Record<string, string>) => prod.app.inject({
-      method: 'POST', url: '/signup', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `198.51.100.${RUN.charCodeAt(0) % 200}` },
+      // BOT (0114) — the caller is this run's own: the per-caller limit is in the
+      // database now, so it outlives a run, and one of sixteen fixed addresses
+      // was shared with the run before it within the hour (found 2026-10-01).
+      method: 'POST', url: '/signup', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': `2001:db8:a1::${RUN.slice(0, 4)}:${RUN.slice(4)}` },
       payload: new URLSearchParams(fields).toString(),
     });
     const asked = await signup(C);
