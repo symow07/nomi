@@ -60,6 +60,16 @@ describe('G4 · sending alone is earned', () => {
     const { events } = await run(p);
     expect(events.some((e) => e.type === 'autonomy_withheld')).toBe(false);
   });
+  it('R2 · rung 1 is enough for a talks reply (this one is recommend); rung 0 is not', async () => {
+    const one = ports('auto');
+    one.tenant.earnedRungValue = 1;
+    const sent = await run(one);
+    expect(sent.drafts).toHaveLength(0);
+    expect(sent.sent).toContain('Yes, we have it in stock.');
+    const none = ports('auto');
+    none.tenant.earnedRungValue = 0;
+    expect((await run(none)).drafts[0]?.capability).toBe('recommend');
+  });
   it('EARNED: the same reply goes alone', async () => {
     const { sent, drafts } = await run(ports('auto'));
     expect(drafts).toHaveLength(0);

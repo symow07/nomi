@@ -1873,6 +1873,20 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     return reply.redirect(back);
   });
 
+  // R2 (0106) — "this is me testing": the owner's own test messages to the shop
+  // count toward nothing on the ramp. Owner only: it changes what the ramp counts.
+  app.post('/app/inbox/:conversationId/testing', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'capability_grant', '/app/inbox');
+    if (!s) return reply;
+    const cid = (req.params as { conversationId: string }).conversationId;
+    const bid = parseBusinessId(s.businessId);
+    if (!bid.ok || !/^[0-9a-f-]{36}$/i.test(cid)) return reply.redirect('/app/inbox');
+    const on = String((req.body as { testing?: string } | undefined)?.testing ?? '') === 'on';
+    await withTenantTx(deps.db, bid.value, (tx) => sql`
+      update conversations set owner_testing = ${on} where id = ${cid}::uuid and business_id = ${bid.value}::uuid`.execute(tx));
+    return flashTo(reply, conversationUrl(cid), on ? 'conv.testing.flash.on' : 'conv.testing.flash.off');
+  });
+
   app.post('/app/inbox/:conversationId/act', async (req, reply) => {
     const s = sessionOf(req);
     if (!s) return reply.redirect('/login');
