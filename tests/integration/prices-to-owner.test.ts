@@ -112,7 +112,11 @@ d('K5 · prices go to the owner, end to end (requires DATABASE_URL)', { timeout:
       .execute(tx).then((x) => x.rows[0]!));
     expect(after.quotes).toBe(0);
     expect(after.assigned).toBe(true);
-    expect(replyWriter.calls).toBe(0);
+    // Nothing was written for THIS customer's question. Not \`replyWriter.calls\`:
+    // this file's worker also runs any job an earlier file left queued with a
+    // delay (a batch's re-check), with this file's fakes — on CI's second pass
+    // one such turn counted here (2026-10-01, PR #193).
+    expect(replyWriter.inputs.filter((i) => i.text.includes('How much is a logo design?'))).toEqual([]);
   });
 
   it('turned off again, the next price question is the assistant\'s', async () => {
