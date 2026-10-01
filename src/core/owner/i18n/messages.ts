@@ -4111,7 +4111,7 @@ const ZH: Record<MessageKey, string> = {
   'notify.signup_digest': '过去 24 小时注册的工作台：{n} 个。',
   'notify.signup_digest.more': '· 还有 {n} 个',
   'notify.signup_digest.flag': '仍然开着：{flag} — {who} — 自 {since}',
-  'notify.signup_digest.everyone': '所有人',
+  'notify.signup_digest.everyone': '所有工作台',
   'notify.allowance_warn.subject': 'Nomi：今天的额度快用完了',
   'notify.allowance_warn': '今天的额度已经用掉 {pct}%。到 100% 时，新消息会等你来回，直到{time}额度恢复。',
   'notify.allowance_reached.subject': 'Nomi：今天的额度已用完',
