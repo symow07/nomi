@@ -1117,6 +1117,11 @@ export async function commitTurn(
      * authority, never grant it.
      */
     const speaksAlone = policyMode === 'auto';
+    // G4 (0102) — a workspace that signed itself up sends nothing alone until
+    // it has earned it (the ramp, or the operator for a pilot); a practice
+    // copy answers as its workspace does. Monotone like the rest: it can only
+    // take authority away.
+    const earned = !speaksAlone || await tenant.autonomy.earned();
     // The native-review gate, at the one place that decides whether a
     // message goes out alone — so it binds capabilities switched on BEFORE
     // the rule existed, not only new choices made on the owner's page. Per
@@ -1126,7 +1131,7 @@ export async function commitTurn(
     const released = !speaksAlone || tenant.autonomy.released(language);
     const sentence = speaksAlone && released ? await disclosureText() : null;
     const named = speaksAlone && released ? await tenant.autonomy.assistantNamed() : true;
-    const mayDisclose = !speaksAlone || (released && named && sentence !== null);
+    const mayDisclose = !speaksAlone || (earned && released && named && sentence !== null);
 
     const mode = effectiveMode(
       (r.hold || !mayDisclose) ? 'draft' : policyMode,
@@ -1137,8 +1142,8 @@ export async function commitTurn(
       // owner set it is the kind of thing she should be able to find.
       await tenant.events.append(req.conversationId, 'autonomy_withheld', {
         capability,
-        reason: !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
-        ...(!released ? { language: languageHead(language) } : {}),
+        reason: !earned ? 'not_earned' : !released ? withheldBecause(language) : named ? 'no_assistant_name' : 'assistant_not_named',
+        ...(earned && !released ? { language: languageHead(language) } : {}),
       });
     }
 
@@ -1244,7 +1249,8 @@ export async function commitTurn(
         ...(disclosureInstead ? { disclosureSent: true } : {}),
         // 2026-09-30 — it would have gone alone, but the customer's language
         // has no signed-off sentence saying who is answering: the card says so.
-        ...(speaksAlone && !released ? { withheld: { reason: withheldBecause(language), language: languageHead(language) } } : {}),
+        ...(speaksAlone && !earned ? { withheld: { reason: 'not_earned' } }
+          : speaksAlone && !released ? { withheld: { reason: withheldBecause(language), language: languageHead(language) } } : {}),
       });
 
       /*

@@ -1,3 +1,4 @@
+import { sendingAloneEarned } from '../../db/earned.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -64,6 +65,13 @@ export type EmployeeProfile = {
    * drafts — so the page has to say so, or she sets a switch that does nothing.
    */
   readonly assistantNamed: boolean;
+  /**
+   * G4 (0102) — has this workspace earned sending alone? A workspace that
+   * signed itself up has not until the ramp (or the operator) says so; until
+   * then the page says replies wait, and offers only stepping down. Absent
+   * reads as earned (every workspace the operator made).
+   */
+  readonly earned?: boolean;
   /**
    * M34.7 — 抽查 waiting for the owner. This page is a READ MODEL and creates
    * none of them: they are written when work completes (pipeline/approve.ts),
@@ -140,6 +148,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
       assistantNamed: onboard?.assistant_named_at != null,
+      earned: await sendingAloneEarned(tx),
       conditions: promoted ? [] : [
         { cond: 'passed_spotcheck', met: passed > 0 },
         { cond: 'learned_correction', met: learned > 0 },
@@ -315,13 +324,16 @@ export function renderEmployee(
       <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->
-      <form method="post" action="/app/employee/autonomy" class="levels">
+      ${e.earned === false ? `<p class="fwarn">${esc(t(locale, 'autonomy.notEarned.title'))}</p>
+      <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
+      ${level !== 'waits' ? `<form method="post" action="/app/employee/autonomy"><input type="hidden" name="level" value="waits" />
+        <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="/app/employee/autonomy" class="levels">
         ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
         ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}
         <button class="btn send" type="submit">${esc(t(locale, 'autonomy.save'))}</button>
-      </form>
+      </form>`}
       ${autonomyReleased() ? '' : `<p class="muted small">${esc(t(locale, 'autonomy.notReleased'))}</p>`}
       ${/* 2026-09-30 — per language: which customers get replies sent alone, and which always wait. */ ''}${
         autonomyReleased() && disclosureAwaitingReview().length ? `<p class="muted small">${esc(t(locale, 'autonomy.languages', {

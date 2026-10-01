@@ -1,3 +1,4 @@
+import { sendingAloneEarned } from './earned.js';
 import { sellingAnswers } from '../core/owner/sellingStyle.js';
 import { zoneOf } from './zone.js';
 import { sql } from 'kysely';
@@ -672,6 +673,8 @@ export function tenantRepos(tx: Tx, businessId: BusinessId): Tenant {
       return autoDemote(tx, businessId, capability, demotionDecision(evidence), evidence);
     },
     released: (language) => autonomyReleasedFor(language),
+    // G4 — the workspace's own answer, a practice copy's from its workspace (0102).
+    earned: () => sendingAloneEarned(tx),
     async assistantNamed() {
       const r = await sql<{ named: boolean }>`
         select (assistant_named_at is not null) as named
