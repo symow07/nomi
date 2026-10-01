@@ -35,7 +35,7 @@ import { detectSignals } from '../core/scoring/detect.js';
 import { WAITING_HUMAN_AGENT, aiMaySpeak, ownershipOf } from '../core/conversation/ownership.js';
 import { computeScores, PROBLEM_HANDOFF_THRESHOLD, type Signal } from '../core/scoring/signals.js';
 import { statesAPrice } from '../core/safety/statesPrice.js';
-import { computeQuote, selectTier } from '../core/commerce/quote.js';
+import { computeQuote, selectTier, startingQuantity } from '../core/commerce/quote.js';
 import { closureNote, withheldOf } from '../core/commerce/closures.js';
 import { toConfirmableOrder } from '../core/commerce/confirmable.js';
 import { proofUrl } from '../db/proofs.js';
@@ -363,14 +363,14 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
   let product: Product | null = null;
 
   // RT — a shop or a brand gives the price first: with the product known and no
-  // quantity yet, the price of one (or of its minimum, where it has one). A
-  // business that asks how many first (a factory, an exporter) waits for it.
+  // quantity yet, the price at the smallest quantity it sells (one, or its
+  // minimum, or its first price band). A business that asks how many first (a
+  // factory, an exporter) waits for it.
   const priceFirst = !selling.quantityFirst;
   // K5 — a business whose prices go to the owner is quoted nothing, whatever it holds.
   if (decision.product && (decision.quantity || priceFirst) && !selling.pricesToOwner) {
     product = await tenant.catalog.product(decision.product.productId);
     if (product) {
-      const quantity = decision.quantity?.value ?? Math.max(1, product.moq ?? 1);
       const [tiers, policy, rules, closures] = await Promise.all([
         tenant.catalog.priceTiers(product.id),
         tenant.catalog.pricingPolicy(product.id),
@@ -378,6 +378,7 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         // M44 — the days she said her factory is shut.
         tenant.catalog.factoryClosures(),
       ]);
+      const quantity = decision.quantity?.value ?? startingQuantity(product, tiers);
       quoteInputs = { tiers, policy, rules, quantity, ...(decision.quantity ? {} : { priceFirst: true }) };
       // M36 — what she already told THIS buyer about THIS product. Empty for a
       // new buyer, which is why a first quote is never refused by this guard.
@@ -387,7 +388,9 @@ export async function computeTurn(ports: TurnPorts, req: TurnRequest): Promise<T
         closures, now: ports.now(),
       });
       if (q.ok) quote = q.value;
-      else quoteRefusal = q.error;
+      // A quantity the customer never named is never refused to them: without
+      // a price at it, the turn goes on as it did before RT, with no quote.
+      else if (decision.quantity) quoteRefusal = q.error;
     }
   }
 

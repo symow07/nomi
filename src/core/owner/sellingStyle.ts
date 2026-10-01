@@ -21,8 +21,8 @@ export const isRetailKind = (kind: string | null | undefined): boolean => profil
 export const defaultUnitFor = (kind: string | null | undefined): string => (isRetailKind(kind) ? 'item' : 'pcs');
 
 /**
- * RT (0095) — THE THREE WAYS OF SELLING, and the four answers each gives
- * until the owner gives her own (the positioning inventory's proposal, §5):
+ * RT (0095) — THE THREE WAYS OF SELLING, and the answer each gives until the
+ * owner gives her own:
  *
  *   bulk      manufacturer, trading (exporters), wholesale
  *   services  agency, services
@@ -45,18 +45,12 @@ export function profileOf(kind: string | null | undefined): SellingProfile {
 export type SellingAnswers = {
   /** Ask how many before giving a price. */
   readonly quantityFirst: boolean;
-  /** Samples are offered. */
-  readonly offersSamples: boolean;
-  /** Orders are summed up as a proforma with delivery terms; an order needs the customer's e-mail. */
-  readonly usesProforma: boolean;
-  /** Products carry a minimum order. */
-  readonly sellsWithMinimum: boolean;
 };
 
 export const SELLING_DEFAULTS: Readonly<Record<SellingProfile, SellingAnswers>> = {
-  bulk: { quantityFirst: true, offersSamples: true, usesProforma: true, sellsWithMinimum: true },
-  retail: { quantityFirst: false, offersSamples: false, usesProforma: false, sellsWithMinimum: false },
-  services: { quantityFirst: false, offersSamples: false, usesProforma: false, sellsWithMinimum: false },
+  bulk: { quantityFirst: true },
+  retail: { quantityFirst: false },
+  services: { quantityFirst: false },
 };
 
 /** The owner's own answers, where she gave them (null: she did not). */
@@ -65,10 +59,5 @@ export type SellingOverrides = { readonly [K in keyof SellingAnswers]: boolean |
 /** What is in force: her answer, else her kind's. */
 export function sellingAnswers(kind: string | null | undefined, own: Partial<SellingOverrides> = {}): SellingAnswers {
   const d = SELLING_DEFAULTS[profileOf(kind)];
-  return {
-    quantityFirst: own.quantityFirst ?? d.quantityFirst,
-    offersSamples: own.offersSamples ?? d.offersSamples,
-    usesProforma: own.usesProforma ?? d.usesProforma,
-    sellsWithMinimum: own.sellsWithMinimum ?? d.sellsWithMinimum,
-  };
+  return { quantityFirst: own.quantityFirst ?? d.quantityFirst };
 }

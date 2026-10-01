@@ -2,25 +2,17 @@
 -- correction of 2026-10-01: price-after-quantity, the "pcs" unit and the
 -- import minimum are one piece of work, conditional on the kind of business).
 --
--- Four answers, each NULL until the owner gives one — NULL follows the kind of
--- business (src/core/owner/sellingStyle.ts): shops and brands give a unit
--- price first, count in any unit and have no minimum; factories, exporters
--- and wholesalers keep quantity first, samples, a proforma and minimums;
--- services and agencies have none of those.
---
---   · quantity_first      — ask how many before giving a price
---   · offers_samples      — samples are offered (the Samples page, its door)
---   · uses_proforma       — orders are summed up as a proforma with delivery
---                           terms, and an order needs the customer's e-mail
---   · sells_with_minimum  — products carry a minimum order
+-- One answer, `quantity_first` — ask how many before giving a price. NULL
+-- until the owner gives one, and NULL follows the kind of business
+-- (src/core/owner/sellingStyle.ts): shops, brands and agencies give a unit
+-- price first; factories, exporters and wholesalers — and a workspace with no
+-- kind — ask how many first. The unit and the minimum follow the kind alone
+-- (an import has had no default minimum since 0081).
 --
 -- Copied to Practice with the profile, so Practice sells the same way.
 
 alter table businesses
-  add column if not exists quantity_first boolean,
-  add column if not exists offers_samples boolean,
-  add column if not exists uses_proforma boolean,
-  add column if not exists sells_with_minimum boolean;
+  add column if not exists quantity_first boolean;
 
 -- The owner's answer, on the audit trail (0094's list, copied from the live
 -- constraint, plus one).
@@ -38,7 +30,7 @@ alter table channel_audit add constraint channel_audit_action_check
                     'product_imported','import_confirmed','prices_to_owner_set',
                     'selling_set'));
 
--- 0094's refresh, with the four columns added.
+-- 0094's refresh, with the column added.
 create or replace function practice_refresh(p_live uuid) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare
@@ -63,8 +55,7 @@ begin
   update businesses c set
     name = l.name, description = l.description, location = l.location, working_hours = l.working_hours,
     timezone = l.timezone, currency = l.currency, prices_to_owner = l.prices_to_owner,
-    quantity_first = l.quantity_first, offers_samples = l.offers_samples, uses_proforma = l.uses_proforma,
-    sells_with_minimum = l.sells_with_minimum, default_language = l.default_language, owner_locale = l.owner_locale,
+    quantity_first = l.quantity_first, default_language = l.default_language, owner_locale = l.owner_locale,
     languages_served = l.languages_served, kind = l.kind, country = l.country, website = l.website,
     contact_email = l.contact_email, contact_phone = l.contact_phone, engine = l.engine,
     handoff_sla_minutes = l.handoff_sla_minutes, batch_debounce_ms = l.batch_debounce_ms,

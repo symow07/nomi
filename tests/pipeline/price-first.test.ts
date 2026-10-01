@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { computeTurn, type TurnPorts } from '../../src/pipeline/turn.js';
+import { computeTurn, commitTurn, type TurnPorts } from '../../src/pipeline/turn.js';
 import type { Analysis } from '../../src/core/conversation/decide.js';
 import { CAPABILITIES } from '../../src/core/conversation/autonomy.js';
+import { modesFor } from '../../src/core/conversation/autonomyLevel.js';
 import { guardFallbackReply } from '../../src/core/conversation/templates.js';
 import { emptyState, CONVERSATION, PRODUCT, product } from '../parity/fixtures.js';
 import { usd } from '../../src/core/types/money.js';
@@ -21,7 +22,7 @@ import { FakeAnalyzer, FakeReplyWriter, FakeRetriever, FakeTenant } from './fake
 
 type Ports = TurnPorts & { tenant: FakeTenant; analyzer: FakeAnalyzer; replyWriter: FakeReplyWriter; retriever: FakeRetriever };
 
-function ports(quantityFirst: boolean, moq: number | null = null): Ports {
+function ports(quantityFirst: boolean, moq: number | null = null, firstBand = 1): Ports {
   const p = {
     tenant: new FakeTenant(), retriever: new FakeRetriever(),
     analyzer: new FakeAnalyzer(), replyWriter: new FakeReplyWriter(),
@@ -29,8 +30,10 @@ function ports(quantityFirst: boolean, moq: number | null = null): Ports {
   };
   p.tenant.selling = { pricesToOwner: false, kind: quantityFirst ? 'manufacturer' : 'online_shop', quantityFirst };
   p.tenant.products.set(PRODUCT, product({ name: 'Rose lip oil', moq, unit: 'item' }));
-  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: 1, maxQty: null, unitPrice: usd(12) }]);
-  p.tenant.grantRows = CAPABILITIES.filter((c) => c !== 'confirm_order').map((capability) => ({ capability, mode: 'auto' as const, timeWindow: null }));
+  p.tenant.tiers.set(PRODUCT, [{ productId: PRODUCT, minQty: firstBand, maxQty: null, unitPrice: usd(12) }]);
+  // The "sells" level, exactly as the owner's choice writes it.
+  const sells = modesFor('sells');
+  p.tenant.grantRows = CAPABILITIES.map((capability) => ({ capability, mode: sells[capability], timeWindow: null }));
   p.tenant.seed(CONVERSATION, emptyState({ phase: 'clarification', aiDisclosedAt: new Date('2026-07-14T03:00:00Z'), aiDisclosureDeliveredAt: new Date('2026-07-14T03:00:00Z') }));
   p.replyWriter.replies = ['That one is $12.00.'];
   p.analyzer.next = {
@@ -59,6 +62,37 @@ describe('RT · price first', () => {
     const p = ports(false, 3);
     const r = await computeTurn(p, req);
     expect(r.quote!.quantity.value).toBe(3);
+  });
+
+  it('a shop whose first price band starts above one is quoted at that band — the smallest it sells', async () => {
+    const p = ports(false, null, 2);
+    const r = await computeTurn(p, req);
+    expect(r.quote!.quantity.value).toBe(2);
+  });
+
+  it('a product with no price is never refused at a quantity the customer did not name', async () => {
+    const p = ports(false);
+    p.tenant.tiers.set(PRODUCT, []);
+    const r = await computeTurn(p, req);
+    expect(r.quote).toBeNull();
+    expect(r.quoteRefusal).toBeNull();
+  });
+
+  it('A SHOP ON "SELLS" REACHES THE CUSTOMER: its price goes out alone, no tap', async () => {
+    const p = ports(false);
+    const r = await computeTurn(p, req);
+    expect(r.quote).not.toBeNull();
+    const fx = await commitTurn(p, req, r, Date.now());
+    expect(fx.draftCreated).toBeNull();
+    expect(fx.outbound?.reply).toBe('That one is $12.00.');
+    // The control: at "talks" the same priced reply waits for the owner — what
+    // went out alone above was a quote, which only "sells" lets go.
+    const q = ports(false);
+    const talks = modesFor('talks');
+    q.tenant.grantRows = CAPABILITIES.map((capability) => ({ capability, mode: talks[capability], timeWindow: null }));
+    const fxTalks = await commitTurn(q, req, await computeTurn(q, req), Date.now());
+    expect(fxTalks.outbound).toBeNull();
+    expect(fxTalks.draftCreated).not.toBeNull();
   });
 
   it('a factory waits for the quantity, as before: no quote, the writer told nothing new', async () => {

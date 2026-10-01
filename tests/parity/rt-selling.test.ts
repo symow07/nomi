@@ -6,8 +6,8 @@ import { renderSelling, type SellingView } from '../../src/api/web/selling.js';
 import { LOCALES } from '../../src/core/owner/i18n/locale.js';
 
 /**
- * RT (0095) — how a business sells: three profiles by kind, four answers each,
- * the owner's own answer over her kind's; and the page that asks her.
+ * RT (0095) — how a business sells: three profiles by kind, the answer each
+ * gives, the owner's own answer over her kind's; and the page that asks her.
  */
 
 describe('RT · the profiles', () => {
@@ -18,23 +18,23 @@ describe('RT · the profiles', () => {
     ]);
     expect(profileOf(null)).toBe('bulk');
   });
-  it('shops and brands give the price first, count in items, and have no minimum; factories the opposite', () => {
+  it('shops and brands give the price first and count in items; factories ask how many and count in pcs', () => {
     expect(sellingAnswers('brand')).toEqual(SELLING_DEFAULTS.retail);
-    expect(SELLING_DEFAULTS.retail).toMatchObject({ quantityFirst: false, sellsWithMinimum: false });
-    expect(SELLING_DEFAULTS.bulk).toMatchObject({ quantityFirst: true, sellsWithMinimum: true, usesProforma: true, offersSamples: true });
+    expect(SELLING_DEFAULTS).toEqual({ retail: { quantityFirst: false }, services: { quantityFirst: false }, bulk: { quantityFirst: true } });
     expect(defaultUnitFor('brand')).toBe('item');
     expect(defaultUnitFor('wholesale')).toBe('pcs');
     expect(isRetailKind('startup') && !isRetailKind('agency')).toBe(true);
   });
   it('her own answer wins over her kind\'s, one question at a time', () => {
     expect(sellingAnswers('brand', { quantityFirst: true }).quantityFirst).toBe(true);
-    expect(sellingAnswers('manufacturer', { quantityFirst: false })).toMatchObject({ quantityFirst: false, offersSamples: true });
+    expect(sellingAnswers('manufacturer', { quantityFirst: false })).toEqual({ quantityFirst: false });
+    expect(sellingAnswers('manufacturer', { quantityFirst: null })).toEqual({ quantityFirst: true });
   });
 });
 
 describe('RT · the page', () => {
   const view = (kind: string | null, quantityFirst: boolean | null): SellingView => {
-    const own = { quantityFirst, offersSamples: null, usesProforma: null, sellsWithMinimum: null };
+    const own = { quantityFirst };
     return { kind, profile: profileOf(kind), own, answers: sellingAnswers(kind, own) };
   };
   it('asks in every language, marks what is usual for her kind, and shows what is in force', () => {

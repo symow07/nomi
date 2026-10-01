@@ -24,9 +24,7 @@ import { flashBanner, type Flash } from './flash.js';
 export const SELLING_FIELDS = ['quantityFirst'] as const satisfies readonly (keyof SellingAnswers)[];
 export type SellingField = (typeof SELLING_FIELDS)[number];
 
-const COLUMN: Readonly<Record<keyof SellingAnswers, string>> = {
-  quantityFirst: 'quantity_first', offersSamples: 'offers_samples', usesProforma: 'uses_proforma', sellsWithMinimum: 'sells_with_minimum',
-};
+const COLUMN: Readonly<Record<keyof SellingAnswers, string>> = { quantityFirst: 'quantity_first' };
 
 export type SellingView = {
   readonly kind: string | null;
@@ -39,12 +37,10 @@ export async function loadSelling(db: Db, businessIdRaw: string): Promise<Sellin
   const bid = parseBusinessId(businessIdRaw);
   if (!bid.ok) return null;
   return withTenantTx(db, bid.value, async (tx) => {
-    const r = (await sql<{ kind: string | null; quantity_first: boolean | null; offers_samples: boolean | null; uses_proforma: boolean | null; sells_with_minimum: boolean | null }>`
-      select kind, quantity_first, offers_samples, uses_proforma, sells_with_minimum from businesses where id = ${bid.value}`.execute(tx)).rows[0];
+    const r = (await sql<{ kind: string | null; quantity_first: boolean | null }>`
+      select kind, quantity_first from businesses where id = ${bid.value}`.execute(tx)).rows[0];
     if (!r) return null;
-    const own: SellingOverrides = {
-      quantityFirst: r.quantity_first, offersSamples: r.offers_samples, usesProforma: r.uses_proforma, sellsWithMinimum: r.sells_with_minimum,
-    };
+    const own: SellingOverrides = { quantityFirst: r.quantity_first };
     return { kind: r.kind, profile: profileOf(r.kind), own, answers: sellingAnswers(r.kind, own) };
   });
 }
