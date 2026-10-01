@@ -18,3 +18,6 @@ dist/
 
 # Audit 2026-09-20 — the full screenshot set (only the worst are committed, in docs/audit/shots/).
 docs/audit/shots-full/
+
+# tools/record-guide.mjs — the raw recordings before they are trimmed.
+/.guide-recording/

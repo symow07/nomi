@@ -394,7 +394,8 @@ export function renderOperationsHome(
   const setup = setupState();
   const finishSetup = setup && setup.next !== null
     ? `<p class="today-foot setup"><span class="muted">${esc(t(locale, 'today.setup.line', { done: setup.done, total: setup.total }))}</span> ${
-        deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))}</p>`
+        deeper(STEP_LINK[setup.next], t(locale, `factory.next.${setup.next}` as MessageKey, { name }))} ${
+        deeper(`/app/guide#${setup.next}`, t(locale, 'guide.watch'))}</p>`
     : '';
   const notLive = !live ? `<p class="block muted notlive">${esc(t(locale, 'ops.system.notLive'))}</p>` : '';
 

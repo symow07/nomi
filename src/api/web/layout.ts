@@ -627,6 +627,15 @@ ${LANGSW_CSS}
  */
 const STYLE_PAGES = `
   /* ── settings.ts — moved here whole in step four: page-specific names, defined once. */
+  /* ── guide.ts — the guided path: five steps, each with its video and its words. */
+  .guide { list-style:none; margin:var(--space-16) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--space-24); }
+  .guide-step { border:1px solid var(--color-border); border-radius:12px; padding:var(--space-16); background:var(--color-surface); }
+  .guide-step.next { border-color:var(--color-ink-secondary); }
+  .guide-step h2 { display:flex; align-items:baseline; gap:var(--space-8); flex-wrap:wrap; margin:0 0 var(--space-12); }
+  .guide-step ol { margin:0 0 var(--space-12); padding-inline-start:var(--space-24); max-width:var(--measure-prose); }
+  .guide-video { display:block; width:100%; max-width:var(--measure-prose); border-radius:8px; background:var(--color-paper); margin-bottom:var(--space-8); }
+  /* ── channels.ts — WA-S, writing after 24 hours, under the number it belongs to. */
+  .ch-reopen { margin-top:var(--space-16); border-top:1px solid var(--color-border); padding-top:var(--space-12); }
   .fielderr { color:var(--color-warn); font-size:var(--font-size-caption); }
   .fld.bad input, .fld.bad textarea { border-color:var(--color-warn-line); }
   .langs { display:flex; flex-wrap:wrap; gap:var(--space-12); padding-top:2px; }
