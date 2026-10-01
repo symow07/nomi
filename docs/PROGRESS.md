@@ -365,6 +365,12 @@ workspace, chosen during setup — next), Stop during grouping (#144).
 
 ## Found on the way
 
+- **2026-10-01, the boot test would have broken at schema 100** (found running G2's suite): to
+  simulate a database behind the build it shifted the newest migration's row down by 100 and
+  restored only rows below zero. At 100 the row became version 0 and was never put back — the
+  rest of the run failed on a "stale" schema; at 101 the shift would have collided with
+  migration 1. It now negates the version (below zero for every migration, exact to undo) and
+  asserts the newest version is back. Found on a scratch cluster; the shared one was untouched.
 - **2026-10-01, a restart wiped the session scratchpad** (macOS clears
   `/private/tmp`): the working clone, the uncommitted HS branch and the local
   Postgres on 55451 went with it. Nothing shipped was lost (#167, #168 were
