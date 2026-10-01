@@ -1,6 +1,7 @@
 -- 0120 — WA: a business's OWN WhatsApp number, connected through Meta's
--- Embedded Signup (the Tech Provider path, decision 43), and the end of pilot
--- mode as the owner's own step.
+-- Embedded Signup (the Tech Provider path, decision 43), the end of pilot
+-- mode as the owner's own step, and (WA-S) the template that reopens a
+-- customer's closed 24 hours.
 --
 -- Until now one number served the installation (the environment's
 -- META_WHATSAPP_*), and `channel_credentials.secret_ref` named that variable.
@@ -52,6 +53,39 @@ begin
 end $$;
 grant select, insert, update on whatsapp_accounts to nomi_app;
 revoke delete, truncate on whatsapp_accounts from nomi_app;
+
+-- WA-S — the reopening template, per business and language, as Meta answered.
+-- One live row per business, name and language; Meta's status is copied here
+-- when the owner asks it to be checked (and when the Channels page is opened),
+-- and the outbound worker reopens a closed window only with an APPROVED one.
+create table if not exists whatsapp_templates (
+  id               uuid primary key default gen_random_uuid(),
+  business_id      uuid not null references businesses(id) on delete cascade,
+  waba_id          text not null check (waba_id ~ '^[0-9]{5,30}$'),
+  name             text not null check (name ~ '^[a-z0-9_]{1,255}$'),
+  language         text not null check (language ~ '^[a-z]{2,3}(_[A-Z]{2})?$'),
+  status           text not null default 'PENDING' check (length(status) between 1 and 40),
+  meta_template_id text check (meta_template_id is null or meta_template_id ~ '^[0-9]{1,40}$'),
+  reason           text check (reason is null or length(reason) <= 200),
+  submitted_by     text not null,
+  submitted_at     timestamptz not null default now(),
+  checked_at       timestamptz,
+  archived_at      timestamptz
+);
+create unique index if not exists whatsapp_templates_one_live
+  on whatsapp_templates (business_id, name, language) where archived_at is null;
+alter table whatsapp_templates enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'whatsapp_templates' and policyname = 'whatsapp_templates_tenant') then
+    create policy whatsapp_templates_tenant on whatsapp_templates
+      for all to nomi_app
+      using (business_id = current_business_id())
+      with check (business_id = current_business_id());
+  end if;
+end $$;
+grant select, insert, update on whatsapp_templates to nomi_app;
+revoke delete, truncate on whatsapp_templates from nomi_app;
 
 -- The audit trail learns the end of pilot mode and its return (the whole list
 -- restated, as 0118 did).

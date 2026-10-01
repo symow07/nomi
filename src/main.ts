@@ -1122,6 +1122,7 @@ export async function buildProduction(
         ...base,
         sendText: async (to, body) => noted(await base.sendText(to, body)),
         ...(base.sendMedia ? { sendMedia: async (to: string, m: Parameters<NonNullable<ChannelAdapter['sendMedia']>>[1]) => noted(await base.sendMedia!(to, m)) } : {}),
+        ...(base.sendTemplate ? { sendTemplate: async (to: string, tpl: Parameters<NonNullable<ChannelAdapter['sendTemplate']>>[1]) => noted(await base.sendTemplate!(to, tpl)) } : {}),
       },
     };
   };

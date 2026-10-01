@@ -72,6 +72,7 @@ export const FLASH_REFUSALS: ReadonlySet<string> = new Set<MessageKey>([
   // WA — the own number did not connect, or WhatsApp is not live to open.
   'connect.wa.flash.no_account', 'connect.wa.flash.no_number', 'connect.wa.flash.number_taken',
   'connect.wa.flash.refused', 'connect.wa.flash.unavailable', 'pilot.flash.not_active',
+  'channel.wa.template.flash.unavailable', 'channel.wa.template.flash.nothing',
   'contacts.flash.empty', 'contacts.flash.failed', 'contacts.flash.missing', 'contacts.flash.no_channel',
   'contacts.flash.notLive', 'contacts.flash.not_a_phone', 'contacts.flash.not_an_email',
   'contacts.lookup.flash.not_an_email', 'contacts.lookup.flash.not_found',
@@ -137,6 +138,8 @@ export const FLASH_CONFIRMATIONS: ReadonlySet<string> = new Set<MessageKey>([
   // WA — the own number connected or let go; pilot mode ended or back.
   'connect.wa.flash.connected', 'connect.wa.flash.connectedNamePending', 'connect.wa.flash.disconnected',
   'pilot.flash.ended', 'pilot.flash.resumed',
+  // WA-S — asked of Meta, Meta's answers read, a reply reopening the window.
+  'channel.wa.template.flash.submitted', 'channel.wa.template.flash.checked', 'inbox.flash.reopening',
   'data.flash.asked', 'data.flash.withdrawn',
   'conv.deletion.flash.asked',
   // 0076 — a noted request recorded, or set aside as not one: both happened.

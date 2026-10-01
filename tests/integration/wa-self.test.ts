@@ -32,6 +32,7 @@ const CUSTOMER = `3460${runDigits(RUN, 7)}`;
 const FORM = { 'content-type': 'application/x-www-form-urlencoded' };
 
 const metaCalls: { method: string; url: string; body?: string }[] = [];
+const asked: string[] = [];
 const metaFetch: import('../../src/channels/meta/messaging.js').MetaFetch = async (url, init) => {
   metaCalls.push({ method: init.method, url, ...(init.body ? { body: init.body } : {}) });
   const u = new URL(url);
@@ -42,6 +43,15 @@ const metaFetch: import('../../src/channels/meta/messaging.js').MetaFetch = asyn
   if (u.pathname.endsWith(`/${WABA}/phone_numbers`)) return json(200, { data: [{ id: PNID, display_phone_number: '+34 600 00 00 00', verified_name: 'Tienda Sol', name_status: 'PENDING_REVIEW' }] });
   if (u.pathname.endsWith(`/${WABA}/subscribed_apps`)) return json(200, { success: true });
   if (u.pathname.endsWith(`/${PNID}/register`)) return json(200, { success: true });
+  // WA-S — the reopening template: asked (PENDING), then read back APPROVED.
+  if (u.pathname.endsWith(`/${WABA}/message_templates`) && init.method === 'POST') {
+    const lang = JSON.parse(init.body ?? '{}').language as string;
+    asked.push(lang);
+    return json(200, { id: `555${asked.length}`, status: 'PENDING', category: 'UTILITY' });
+  }
+  if (u.pathname.endsWith(`/${WABA}/message_templates`) && init.method === 'GET') {
+    return json(200, { data: asked.map((language, i) => ({ name: 'nomi_reply_waiting', language, status: 'APPROVED', id: `555${i + 1}` })) });
+  }
   return json(404, { error: {} });
 };
 
@@ -109,7 +119,7 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
       META_GRAPH_API_VERSION: 'v23.0', WEBHOOK_VERIFY_TOKEN: 'wa-verify-token',
       CREDENTIAL_KEY, PORT: 0, PUBLIC_BASE_URL: 'https://nomi.test',
     }, { models: offlineModels(), adapter: sim.adapter, logger: false, metaFetch, whatsappFetch });
-    await tx((x) => sql`insert into businesses (id, name, kind, country) values (${BIZ}, 'Tienda Sol', 'online_shop', 'ES') on conflict (id) do nothing`.execute(x));
+    await tx((x) => sql`insert into businesses (id, name, kind, country, languages_served) values (${BIZ}, 'Tienda Sol', 'online_shop', 'ES', '{es,en}') on conflict (id) do nothing`.execute(x));
     const login = await prod.app.inject({
       method: 'POST', url: '/login', payload: `code=${encodeURIComponent(prod.ownerAccessCode)}`, headers: FORM,
     });
@@ -195,6 +205,43 @@ d('WA · a business connects its own WhatsApp number (requires DATABASE_URL)', (
     expect(sim.sendCount()).toBe(0);   // never the installation's number
     // Meta's receipt, to the same number: the next reply is not held for one.
     expect((await toOwnNumber(sim.status(sent.id, 'delivered'))).statusCode).toBe(200);
+  }, 60_000);
+
+  it('WA-S · AFTER THE 24 HOURS: the reopening template is asked of Meta and read back approved; a reply then goes as it, in the customer\'s language, and the words wait in the box', async () => {
+    const { t } = await import('../../src/core/owner/i18n/messages.js');
+    const { esc } = await import('../../src/api/web/layout.js');
+    expect((await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } })).body).toContain('action="/app/channels/whatsapp/templates/submit"');
+    const sub = await post('/app/channels/whatsapp/templates/submit');
+    expect(flashSaid(sub, SECRET)).toBe(t('en', 'channel.wa.template.flash.submitted', { n: '2' }));
+    expect(asked.sort()).toEqual(['en', 'es']);
+    const pending = await tx((x) => sql<{ language: string; status: string }>`select language, status from whatsapp_templates where business_id = ${BIZ} and archived_at is null order by language`.execute(x));
+    expect(pending.rows).toEqual([{ language: 'en', status: 'PENDING' }, { language: 'es', status: 'PENDING' }]);
+    // Nothing is approved yet: a reply after the 24 hours is still refused before it is queued.
+    const conv = (await tx((x) => sql<{ id: string; client: string }>`select id::text as id, client_id::text as client from conversations where business_id = ${BIZ} limit 1`.execute(x))).rows[0]!;
+    await tx(async (x) => {
+      await sql`update client_channels set last_inbound_at = now() - interval '3 days' where client_id = ${conv.client}::uuid and channel = 'whatsapp'`.execute(x);
+      await sql`update clients set preferred_language = 'es' where id = ${conv.client}::uuid`.execute(x);
+    });
+    expect(flashSaid(await post(`/app/inbox/${conv.id}/reply`, { text: 'Tenemos la talla M.' }), SECRET)).toBe(t('en', 'inbox.blocked.window_closed'));
+
+    expect(flashSaid(await post('/app/channels/whatsapp/templates/check'), SECRET)).toBe(t('en', 'channel.wa.template.flash.checked'));
+    expect((await prod.app.inject({ method: 'GET', url: '/app/channels', headers: { cookie } })).body).toContain(esc(t('en', 'channel.wa.template.status.APPROVED')));
+
+    const before = sends.length;
+    const r = await post(`/app/inbox/${conv.id}/reply`, { text: 'Tenemos la talla M.' });
+    expect(flashSaid(r, SECRET)).toBe(t('en', 'inbox.flash.reopening'));
+    const sent = await until(async () => sends.slice(before).find((x) => x.body.includes('"template"')), 'the template');
+    expect(sent.auth).toBe('Bearer business-token-not-real');
+    expect(JSON.parse(sent.body).template).toEqual({ name: 'nomi_reply_waiting', language: { code: 'es' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Tienda Sol' }] }] });
+    expect(sends.slice(before).some((x) => x.body.includes('talla M'))).toBe(false);   // never the free text
+    const row = await until(() => tx((x) => sql<{ body: string; kept: string | null }>`
+      select o.body, c.owner_unsent_reply as kept from outbound_messages o join conversations c on c.id = o.conversation_id
+       where o.business_id = ${BIZ} and o.provider_message_id = ${sent.id}`.execute(x)).then((q) => q.rows[0]), 'the row');
+    expect(row.body).toContain('Tienda Sol');
+    expect(row.kept).toBe('Tenemos la talla M.');
+    // Meta's receipt; and the customer is back within the 24 hours for what follows.
+    expect((await toOwnNumber(sim.status(sent.id, 'delivered'))).statusCode).toBe(200);
+    await tx((x) => sql`update client_channels set last_inbound_at = now() where client_id = ${conv.client}::uuid and channel = 'whatsapp'`.execute(x));
   }, 60_000);
 
   it('A TOKEN META NO LONGER ACCEPTS is marked once; the next reply sends nothing, and the page asks to connect again', async () => {

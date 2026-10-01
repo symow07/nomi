@@ -27,9 +27,12 @@ import { loadInsights, renderInsights } from './insights.js';
 import { connectMetaChannel, metaLinkStatus } from './metaChannels.js';
 import { renderMetaPagePicker } from './metaConnect.js';
 import { renderWhatsAppNumberPicker } from './whatsappConnect.js';
-import { completeWhatsAppConnection, disconnectWhatsAppAccount, type WaConnectDeps, type WaConnectOutcome } from '../../channels/whatsapp/connect.js';
+import { completeWhatsAppConnection, disconnectWhatsAppAccount, whatsAppAccountToken, type WaConnectDeps, type WaConnectOutcome } from '../../channels/whatsapp/connect.js';
+import { submitReopenTemplate, reopenTemplateStatuses } from '../../channels/whatsapp/templates.js';
+import { reopenLanguageOf, reopenParam, type ReopenLanguage } from '../../core/channel/reopen.js';
 import { waDialogUrl, type WaLogin } from '../../channels/whatsapp/embeddedSignup.js';
 import { liveWhatsAppAccount } from '../../db/whatsappAccounts.js';
+import { reopenFor, listReopenTemplates, recordSubmitted, recordStatuses } from '../../db/whatsappTemplates.js';
 import {
   metaDialogUrl, mintMetaState, readMetaState, sameMetaNonce, completeMetaConnection, disconnectMetaAccount, metaAccountToken,
   type MetaLogin, type MetaConnectDeps, type MetaConnectOutcome,
@@ -845,8 +848,18 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
    * later in the worker and cannot answer her in time. Since G10 it includes
    * the buyer's own 24-hour window.
    */
-  const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => {
+  const ownerSendVerdict = async (bid: BusinessId, conversationId: string) => (await ownerSendWindow(bid, conversationId)).verdict;
+  /**
+   * WA-S — the same answer, and whether it goes as the reopening template: on
+   * WhatsApp, after the customer's 24 hours, a business with the template
+   * APPROVED may still answer — the template goes, the words wait in the box.
+   */
+  const ownerSendWindow = async (bid: BusinessId, conversationId: string) => {
     const pre = await withTenantTx(deps.db, bid, (tx) => ownerSendFacts(tx, bid, conversationId, whatsappConfigured));
+    const reopen = pre.channel === 'whatsapp'
+      ? await withTenantTx(deps.db, bid, (tx) => reopenFor(tx, bid, null)).catch(() => null)
+      : null;
+    const templateState = reopen ? 'approved' as const : deps.templateState ?? 'none';
     /**
      * C4.c — an e-mail thread has no WhatsApp lifecycle to be in. Her answer to
      * his reply is refused only by what binds e-mail: messaging must be live
@@ -855,14 +868,16 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
      * reads as windowed. Everything else is the send gate's, at send time.
      */
     if (pre.channel !== 'whatsapp') {
-      if (!messagingEnabled) return 'not_connected' as const;
-      return channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), deps.templateState ?? 'none').action
-        === 'wait_for_buyer' ? 'window_closed' as const : 'ok' as const;
+      if (!messagingEnabled) return { verdict: 'not_connected' as const, reopening: false };
+      return {
+        verdict: channelSendPlan(pre.channel, pre.lastInboundAt, new Date(), deps.templateState ?? 'none').action
+          === 'wait_for_buyer' ? 'window_closed' as const : 'ok' as const,
+        reopening: false,
+      };
     }
-    return precheckOwnerSend(pre.facts, {
-      ...pre,
-      windowAction: sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', deps.templateState ?? 'none').action,
-    });
+    const windowAction = sendPlan(windowState(pre.lastInboundAt, new Date()), 'reply', templateState).action;
+    const verdict = precheckOwnerSend(pre.facts, { ...pre, windowAction });
+    return { verdict, reopening: verdict === 'ok' && windowAction === 'send_template' && reopen !== null };
   };
 
   /**
@@ -2267,7 +2282,7 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     // stopped messaging and told her "等着发出去" (waiting to send). The gate
     // then correctly canceled it and nothing said so. Ask the SAME facts the
     // gate reads before accepting, so the answer she gets is the true one.
-    const verdict = await ownerSendVerdict(bid.value, cid);
+    const { verdict, reopening } = await ownerSendWindow(bid.value, cid);
     if (verdict !== 'ok') {
       // CC-24 — refused before it was queued: the reply waits in the box.
       await withTenantTx(deps.db, bid.value, (tx) => keepUnsentReply(tx, bid.value, cid, text));
@@ -2280,6 +2295,8 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     await withTenantTx(deps.db, bid.value, (tx) => (r.outcome === 'sent'
       ? clearUnsentReply(tx, bid.value, cid)
       : keepUnsentReply(tx, bid.value, cid, text)));
+    // WA-S — it goes as the reopening template; her words come back to the box.
+    if (r.outcome === 'sent' && reopening) return flashTo(reply, conversationUrl(cid), 'inbox.flash.reopening');
     return takeoverFlash(reply, cid, r.outcome);
   });
 
@@ -2602,8 +2619,9 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     const bid = parseBusinessId(s.businessId);
     // WA — her own WhatsApp number, and whether Embedded Signup is offered at all.
     const waOwn = bid.ok ? await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value)).catch(() => null) : null;
+    const waTemplates = bid.ok && waOwn ? await withTenantTx(deps.db, bid.value, (tx) => listReopenTemplates(tx, bid.value, waOwn.wabaId)).catch(() => []) : [];
     const data = {
-      ...loaded, waSelfServe: waReady() !== null,
+      ...loaded, waSelfServe: waReady() !== null, waTemplates,
       waOwn: waOwn ? { display: waOwn.display, verifiedName: waOwn.verifiedName, nameStatus: waOwn.nameStatus, needsAttention: waOwn.needsAttention !== null } : null,
     };
     const accounts = bid.ok ? await loadAccounts(deps.db, bid.value, {
@@ -4232,6 +4250,52 @@ export function registerWebApp(app: FastifyInstance, deps: WebDeps): void {
     });
     if (r.outcome === 'connected') facts.evict(s.businessId);
     return r.outcome === 'choose' ? channelsFlash(reply, 'connect.flash.rejected') : waFlash(reply, r);
+  });
+
+  /**
+   * WA-S — the reopening template: asked of Meta in the languages this
+   * business serves (English always), and asked again where it stands. Owner
+   * only, like the number itself: it is a message sent in the business's name.
+   */
+  const waTemplateContext = async (s: { businessId: string }) => {
+    const wc = waReady();
+    const bid = parseBusinessId(s.businessId);
+    if (!wc || !bid.ok || !deps.credentialKey) return null;
+    const account = await withTenantTx(deps.db, bid.value, (tx) => liveWhatsAppAccount(tx, bid.value));
+    if (!account || account.needsAttention) return null;
+    const token = whatsAppAccountToken(account, deps.credentialKey);
+    return token ? { wc, bid: bid.value, account, token } : null;
+  };
+  app.post('/app/channels/whatsapp/templates/submit', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const c = await waTemplateContext(s);
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    const biz = (await withTenantTx(deps.db, c.bid, (tx) => sql<{ name: string; served: string[] | null }>`
+      select name, languages_served as served from businesses where id = ${c.bid}`.execute(tx))).rows[0];
+    const have = new Map((await withTenantTx(deps.db, c.bid, (tx) => listReopenTemplates(tx, c.bid, c.account.wabaId))).map((r) => [r.language, r.status]));
+    const wanted = [...new Set(['en', ...(biz?.served ?? [])].map((l) => reopenLanguageOf(l)).filter((l): l is ReopenLanguage => l !== null))]
+      .filter((l) => have.get(l) !== 'APPROVED' && have.get(l) !== 'PENDING');
+    let asked = 0; let unavailable = false;
+    for (const language of wanted) {
+      const r = await submitReopenTemplate({ wabaId: c.account.wabaId, token: c.token, graphVersion: c.wc.graphVersion, language, example: reopenParam(biz?.name ?? '') }, c.wc.fetchImpl);
+      if (!r.ok && r.reason === 'unavailable') { unavailable = true; continue; }
+      await withTenantTx(deps.db, c.bid, (tx) => recordSubmitted(tx, c.bid, {
+        wabaId: c.account.wabaId, language, status: r.ok ? r.status : 'REJECTED', id: r.ok ? r.id : null,
+        reason: r.ok ? null : r.detail, by: personOf(s).name,
+      }));
+      asked++;
+    }
+    return channelsFlash(reply, asked > 0 ? 'channel.wa.template.flash.submitted' : unavailable ? 'channel.wa.template.flash.unavailable' : 'channel.wa.template.flash.nothing',
+      { n: String(asked) });
+  });
+  app.post('/app/channels/whatsapp/templates/check', async (req, reply) => {
+    const s = await ownerOnly(req, reply, 'messaging_activation', '/app/channels'); if (!s) return reply;
+    const c = await waTemplateContext(s);
+    if (!c) return channelsFlash(reply, 'connect.flash.not_configured');
+    const statuses = await reopenTemplateStatuses({ wabaId: c.account.wabaId, token: c.token, graphVersion: c.wc.graphVersion }, c.wc.fetchImpl);
+    if (statuses === null) return channelsFlash(reply, 'channel.wa.template.flash.unavailable');
+    await withTenantTx(deps.db, c.bid, (tx) => recordStatuses(tx, c.bid, c.account.wabaId, statuses));
+    return channelsFlash(reply, 'channel.wa.template.flash.checked');
   });
 
   app.post('/app/connect/whatsapp/disconnect', async (req, reply) => {

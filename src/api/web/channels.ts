@@ -106,7 +106,34 @@ export type ChannelsData = {
     readonly display: string | null; readonly verifiedName: string | null;
     readonly nameStatus: string | null; readonly needsAttention: boolean;
   } | null;
+  /** WA-S — the reopening template's languages on her own number, with Meta's answer for each. */
+  readonly waTemplates?: readonly { readonly language: string; readonly status: string; readonly reason: string | null }[];
 };
+
+/** WA-S — a template language as the owner reads it: the language's own name. */
+const TEMPLATE_LANGUAGE: Readonly<Record<string, string>> = {
+  en: 'English', es: 'Español', pt_BR: 'Português', fr: 'Français', ar: 'العربية', zh_CN: '中文',
+};
+const TEMPLATE_STATUS = new Set(['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED']);
+const templateStatusKey = (s: string): MessageKey =>
+  `channel.wa.template.status.${TEMPLATE_STATUS.has(s) ? s : 'other'}` as MessageKey;
+
+/**
+ * WA-S — writing after the customer's 24 hours: what it takes (one message
+ * Meta approved), where each language stands, and the two things she can do —
+ * ask Meta, or ask Meta again where it stands.
+ */
+function reopenBlock(locale: Locale, rows: readonly { readonly language: string; readonly status: string; readonly reason: string | null }[], owner: boolean): string {
+  const open = rows.some((r) => r.status !== 'APPROVED' && r.status !== 'PENDING') || rows.length === 0;
+  return `<div class="ch-reopen">
+    <h3 class="sub3">${esc(t(locale, 'channel.wa.template.title'))}</h3>
+    <p class="muted ch-desc">${esc(t(locale, 'channel.wa.template.lede'))}</p>
+    ${rows.length ? `<ul class="rows">${rows.map((r) => `<li class="row"><bdi>${esc(TEMPLATE_LANGUAGE[r.language] ?? r.language)}</bdi>
+      <span class="muted"> · ${esc(t(locale, templateStatusKey(r.status)))}</span></li>`).join('')}</ul>` : ''}
+    ${!owner ? '' : `${open ? `<form method="post" action="/app/channels/whatsapp/templates/submit" style="display:inline"><button class="btn send" type="submit">${esc(t(locale, 'channel.wa.template.submit'))}</button></form>` : ''}
+    ${rows.length ? `<form method="post" action="/app/channels/whatsapp/templates/check" style="display:inline"><button class="btn" type="submit">${esc(t(locale, 'channel.wa.template.check'))}</button></form>` : ''}`}
+  </div>`;
+}
 
 /** WA — Meta's display-name review, as the owner reads it. */
 const NAME_STATUS = new Set(['APPROVED', 'PENDING_REVIEW', 'DECLINED', 'EXPIRED', 'NONE']);
@@ -730,6 +757,7 @@ export function renderChannels(
       </div>` : ''}
       ${w.problem ? problemBlock(locale, w.problem) : ''}
       <div class="ch-acts">${actions}</div>
+      ${own && !own.needsAttention && w.connected ? reopenBlock(locale, data.waTemplates ?? [], viewer.isOwner) : ''}
     </div>`;
 
   // M39 — what each channel allows, before she connects one.

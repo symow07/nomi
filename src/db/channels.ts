@@ -1,6 +1,7 @@
 import { zoneOf } from './zone.js';
 import type { PendingQuestion } from '../core/types/conversation.js';
 import { markQuestionAsked } from './pendingQuestion.js';
+import { reopenFor } from './whatsappTemplates.js';
 import { notePromises } from './promisedDates.js';
 import { dayKey } from '../core/owner/i18n/format.js';
 import { isAllowlisted } from '../channels/allowlist.js';
@@ -218,6 +219,8 @@ export function channelStore(
              order by sent_at desc limit 1`.execute(tx)).rows[0]?.id ?? null
         : null;
 
+      // WA-S — only a WhatsApp conversation has a window a template reopens.
+      const reopen = channel === 'whatsapp' ? await reopenFor(tx, businessId, c?.buyer_locale ?? null) : null;
       const ctx: ConversationSendContext = {
         assignedTo: c?.assigned_to ?? null,
         // M51.2 — ONE rule, applied here. A tenant with no budget row is not
@@ -234,7 +237,9 @@ export function channelStore(
         // templates the operator recorded as approved. While it resolves to
         // 'none' a closed window refuses as `window_closed`; the moment a real
         // approval is recorded it becomes `window_needs_owner`, gate unchanged.
-        template: opts.template ?? 'none',
+        // WA-S — a business whose own number has the reopening template
+        // APPROVED reopens a closed window with it, for this customer.
+        template: reopen ? 'approved' : (opts.template ?? 'none'),
         activated,
         pilotMode,
         recipientAllowed,
@@ -246,6 +251,7 @@ export function channelStore(
         ...(buyerLocale ? { buyerLocale } : {}),
         ...(outreach ? { outreach } : {}),
         ...(inReplyTo ? { inReplyTo } : {}),
+        ...(reopen ? { reopen } : {}),
       };
       return { rows, ctx };
     },
@@ -303,6 +309,14 @@ export function channelStore(
       }
     },
 
+    async reopenedWith(id, conversationId, sentText, keptWords) {
+      // What the customer received is what the transcript shows; the words wait in her box.
+      await sql`update outbound_messages set body = ${sentText} where id = ${id}`.execute(tx);
+      if (keptWords.trim()) {
+        await sql`update conversations set owner_unsent_reply = ${keptWords}, owner_unsent_reply_at = now()
+                   where id = ${conversationId}::uuid and business_id = ${businessId}::uuid`.execute(tx);
+      }
+    },
     async markQuestionAsked(conversationId, asks) {
       await markQuestionAsked(tx, conversationId, asks);
     },
