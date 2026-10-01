@@ -93,6 +93,14 @@ d('KS5 · the spend breaker (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () 
     expect(await spendBreakerAlert(db, OP)).toBeNull();
   });
 
+  it('THE APP cannot reach the ceiling or the alert row: only the functions', async () => {
+    const { sql } = await import('kysely');
+    for (const stmt of [sql`update installation_limits set daily_tokens = 1`, sql`select * from installation_limits`,
+      sql`insert into spend_breaker_alerts (day) values ('2000-01-01')`]) {
+      await expect(stmt.execute(db)).rejects.toThrow(/permission denied/);
+    }
+  });
+
   it('THE OPERATOR\'S TOOL reads and sets the ceiling', async () => {
     // @ts-expect-error — the operator tool, plain JS on purpose (tools/ is not type-checked).
     const { readSpendCeiling, setSpendCeiling } = await import('../../tools/lib/operator.mjs');

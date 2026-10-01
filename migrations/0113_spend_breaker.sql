@@ -24,7 +24,10 @@ create table if not exists installation_limits (
   set_by text
 );
 insert into installation_limits (id) values (true) on conflict (id) do nothing;
-revoke all on installation_limits from public;
+-- The schema's default privileges (0005) grant the app role every new table:
+-- taken back, so the app reaches it only through the functions below.
+alter table installation_limits enable row level security;
+revoke all on installation_limits from public, nomi_app;
 
 create or replace function installation_usage_today()
 returns table (tokens bigint, calls bigint, max_tokens bigint, max_calls integer)
@@ -56,7 +59,8 @@ create table if not exists spend_breaker_alerts (
   day date primary key,
   sent_at timestamptz not null default now()
 );
-revoke all on spend_breaker_alerts from public;
+alter table spend_breaker_alerts enable row level security;
+revoke all on spend_breaker_alerts from public, nomi_app;
 
 create or replace function claim_spend_breaker_alert()
 returns table (tokens bigint, calls bigint, max_tokens bigint, max_calls integer)

@@ -28,6 +28,12 @@ describe('KS5 · the hold', () => {
     expect(m).toContain('select p.signed_up_at is not null');
     expect(m).toContain("and not (p.auto_earned_at is not null and coalesce(p.auto_earned_by, 'operator') <> 'ramp')");
   });
+  it('the app role reaches the ceiling and the alert row only through the functions (0005 grants every new table)', () => {
+    const m = src('migrations/0113_spend_breaker.sql');
+    expect(m).toContain('revoke all on installation_limits from public, nomi_app;');
+    expect(m).toContain('revoke all on spend_breaker_alerts from public, nomi_app;');
+    expect(src('migrations/0112_mail_caps.sql')).toContain('revoke all on mail_sends from public, nomi_app;');
+  });
   it('Today says so, with when it ends — as for its own cap', () => {
     expect(src('src/api/web/operations.ts')).toContain('if (a.breaker) return { pctUsed: 100, stops: true, reached: true, renewsAt: allowanceRenewsAt(now) };');
   });

@@ -22,7 +22,10 @@ create table if not exists mail_sends (
   refused integer not null default 0 check (refused >= 0),
   primary key (day, kind, recipient_hash)
 );
-revoke all on mail_sends from public;
+-- The schema's default privileges (0005) grant the app role every new table:
+-- taken back, so the app reaches it only through the functions below.
+alter table mail_sends enable row level security;
+revoke all on mail_sends from public, nomi_app;
 
 create or replace function claim_mail_send(p_kind text, p_recipient text, p_per_address integer, p_installation integer)
 returns text

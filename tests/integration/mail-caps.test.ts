@@ -55,6 +55,12 @@ d('MAIL · the daily caps (requires DATABASE_URL + MIGRATE_DATABASE_URL)', () =>
     expect(await claimMailSend(db, 'code', `fresh-${RUN}@mail.example`, { perAddress: 100, installation: today + 1 })).toBe('ok');
   });
 
+  it('THE APP cannot read or write the table: only the two functions', async () => {
+    const { sql } = await import('kysely');
+    await expect(sql`select * from mail_sends`.execute(db)).rejects.toThrow(/permission denied/);
+    await expect(sql`update mail_sends set sent = 0`.execute(db)).rejects.toThrow(/permission denied/);
+  });
+
   it('THE OPERATOR\'S DAILY LIST reads the totals: counts only', async () => {
     const { mailSendsOn } = await import('../../src/db/mailCaps.js');
     const day = (await admin.query(`select (now() at time zone 'UTC')::date::text as d`)).rows[0].d;
