@@ -1,4 +1,5 @@
-import { sendingAloneEarned } from '../../db/earned.js';
+import { rampState, type RampState } from '../../db/ramp.js';
+import { rungOfLevel } from '../../core/trust/ramp.js';
 import { sql } from 'kysely';
 import { withTenantTx, type Db } from '../../db/client.js';
 import { parseBusinessId } from '../../core/types/ids.js';
@@ -72,6 +73,12 @@ export type EmployeeProfile = {
    * reads as earned (every workspace the operator made).
    */
   readonly earned?: boolean;
+  /**
+   * R2 (0106) — the ramp, for a workspace that signed itself up: how far the
+   * switch may go, and how close the next rung is ("14 of 20"). Absent for a
+   * workspace the operator made.
+   */
+  readonly ramp?: RampState;
   /**
    * M34.7 — 抽查 waiting for the owner. This page is a READ MODEL and creates
    * none of them: they are written when work completes (pipeline/approve.ts),
@@ -148,7 +155,7 @@ export async function loadEmployee(db: Db, businessIdRaw: string): Promise<Emplo
       stage: promoted ? 'partial' : 'probation',
       canDo, needConfirm, capabilities, growth, promoted,
       assistantNamed: onboard?.assistant_named_at != null,
-      earned: await sendingAloneEarned(tx),
+      ...(await rampState(tx, bid.value).then((ramp) => ({ earned: ramp.rung >= 1, ...(ramp.gated ? { ramp } : {}) }))),
       conditions: promoted ? [] : [
         { cond: 'passed_spotcheck', met: passed > 0 },
         { cond: 'learned_correction', met: learned > 0 },
@@ -234,6 +241,34 @@ function teachSection(c: HerContext | undefined, locale: Locale): string {
         <span class="gmeta muted">${esc(t(locale, 'her.teach.asked', { count: g.count }))}</span>
         <span class="gact">${esc(t(locale, 'her.teach.go'))}<span class="go" aria-hidden="true">›</span></span>
       </a>`).join('')}</div></div>`;
+}
+
+/**
+ * R2 — the ramp, in the owner's words: each rung earned (and when), or how
+ * close it is — "14 of the last 20 sent as written". The rung is the
+ * workspace's, counted over every decision; the levels above follow it.
+ */
+function rampBlock(r: RampState, locale: Locale): string {
+  const name = assistantName(locale);
+  const talks = r.talksEarnedAt
+    ? `<p class="fok">${esc(t(locale, 'ramp.talks.earned', { date: show.date(locale, r.talksEarnedAt) }))}</p>`
+    : `<p>${esc(t(locale, 'ramp.talks', { done: r.talks.done, of: r.talks.of, need: r.talks.need, customers: r.talks.customers,
+        customersNeed: r.talks.customersNeed, days: r.talks.days, daysNeed: r.talks.daysNeed }))}</p>
+      ${r.talks.clean ? '' : `<p class="muted small">${esc(t(locale, 'ramp.talks.flagged', { name }))}</p>`}
+      ${r.checklistComplete ? '' : `<p class="muted small">${esc(t(locale, 'ramp.needs.checklist'))} ${deeper('/app/ready', t(locale, 'ready.title'))}</p>`}
+      ${r.named ? '' : `<p class="muted small">${esc(t(locale, 'ramp.needs.name'))}</p>`}`;
+  const sells = !r.sells
+    ? `<p class="muted">${esc(t(locale, 'ramp.sells.none'))}</p>`
+    : r.sellsEarnedAt
+      ? `<p class="fok">${esc(t(locale, 'ramp.sells.earned', { date: show.date(locale, r.sellsEarnedAt) }))}</p>`
+      : `<p>${esc(t(locale, 'ramp.sells', { done: r.sells.done, of: r.sells.of, customers: r.sells.customers,
+          customersNeed: r.sells.customersNeed, days: r.sells.days, daysNeed: r.sells.daysNeed }))}</p>`;
+  return `<div class="ramp">
+      <h3 class="sub3">${esc(t(locale, 'ramp.title'))}</h3>
+      <p class="muted small">${esc(t(locale, 'ramp.intro', { name }))}</p>
+      <h4 class="k">${esc(t(locale, 'autonomy.level.talks'))}</h4>${talks}
+      <h4 class="k">${esc(t(locale, 'autonomy.level.sells'))}</h4>${sells}
+    </div>`;
 }
 
 export function renderEmployee(
@@ -324,11 +359,12 @@ export function renderEmployee(
       <p class="muted disclose">${esc(t(locale, 'autonomy.disclosure'))}</p>
       <!-- Waiting, not alarm: nothing has gone wrong, this is simply the one
            fact that decides whether the switch below it does what it says. -->
+      ${e.ramp ? rampBlock(e.ramp, locale) : ''}
       ${e.earned === false ? `<p class="fwarn">${esc(t(locale, 'autonomy.notEarned.title'))}</p>
       <p class="muted">${esc(t(locale, 'autonomy.notEarned.body', { name: assistantName(locale) }))}</p>
       ${level !== 'waits' ? `<form method="post" action="/app/employee/autonomy"><input type="hidden" name="level" value="waits" />
         <button class="btn" type="submit">${esc(t(locale, 'autonomy.notEarned.stepDown'))}</button></form>` : ''}` : `<form method="post" action="/app/employee/autonomy" class="levels">
-        ${AUTONOMY_LEVELS.map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
+        ${AUTONOMY_LEVELS.filter((l) => !e.ramp || rungOfLevel(l) <= e.ramp.rung).map((l) => `<label class="level"><input type="radio" name="level" value="${l}"${level === l ? ' checked' : ''} required />
           <span><b>${esc(t(locale, `autonomy.level.${l}` as MessageKey))}</b>
           <span class="muted lnote">${esc(t(locale, `autonomy.level.${l}.note` as MessageKey))}</span></span></label>`).join('')}
         ${level === null ? `<p class="muted lnote">${esc(t(locale, 'autonomy.mixed'))}</p>` : ''}

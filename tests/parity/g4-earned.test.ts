@@ -47,12 +47,13 @@ describe('G4 · the level page', () => {
 describe('G4 · the rule, where it is decided', () => {
   it('both grant routes ask it, after the native-review gate, and "waits" never', () => {
     const app = src('src/api/web/app.ts');
-    expect(app).toContain("if (verb === 'promote' && !(await earnedFor(s.businessId))) {");
-    expect(app).toContain("if (level !== 'waits' && !(await earnedFor(s.businessId))) {");
+    // R2 — rung-aware since 0106: a level, or a capability, past the earned rung.
+    expect(app).toContain("if (verb === 'promote' && need <= 2 && need > await rungFor(s.businessId)) {");
+    expect(app).toContain('if (rungOfLevel(level) > await rungFor(s.businessId)) {');
   });
   it('commitTurn asks it before it would send alone, and names it first', () => {
     const turn = src('src/pipeline/turn.ts');
-    expect(turn).toContain('const earned = !speaksAlone || await tenant.autonomy.earned();');
+    expect(turn).toContain('const earned = !speaksAlone || (await tenant.autonomy.earnedRung()) >= rungOf(capability);');
     expect(turn).toContain('const mayDisclose = !speaksAlone || (earned && released && named && sentence !== null);');
     expect(turn).toContain("reason: !earned ? 'not_earned' :");
   });

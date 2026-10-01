@@ -1,3 +1,4 @@
+import { stampRungs } from '../db/ramp.js';
 import { sameWords } from '../db/ownerWords.js';
 import { sql } from 'kysely';
 import { withTenantTx, lockConversation, type Db } from '../db/client.js';
@@ -124,6 +125,9 @@ export async function applyOwnerCommand(
         values (${input.businessId}, ${draft.conversation_id}, 'draft_resolved',
                 ${JSON.stringify({ draftId: draft.id, status, actor: input.decidedBy })}::jsonb)
       `.execute(tx);
+      // R2 (0106) — every decision counts toward the ramp: a rung earned by it is
+      // stamped in this same transaction (a workspace that signed itself up only).
+      await stampRungs(tx, input.businessId);
     };
 
     switch (cmd.kind) {

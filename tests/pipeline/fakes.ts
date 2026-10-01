@@ -266,8 +266,8 @@ export class FakeTenant implements Tenant {
   releasedFlag = true;
   /** Per language, when a test needs it (the real gate is per language since 2026-09-30). */
   releasedFor: ((language?: string | null) => boolean) | null = null;
-  /** G4 — sending alone earned; true unless a test about a self-serve workspace says otherwise. */
-  earnedFlag = true;
+  /** G4 / R2 — the rung earned; 2 unless a test about a self-serve workspace says otherwise. */
+  earnedRungValue: 0 | 1 | 2 = 2;
   autonomy: AutonomyRepo = {
     grants: async () => this.grantRows,
     selfDemote: async ({ capability, violations }) => {
@@ -278,7 +278,7 @@ export class FakeTenant implements Tenant {
     // Released by default: these fakes describe what she does once autonomy is
     // allowed at all. The gate itself is proved against the real flag.
     released: (language?: string | null) => (this.releasedFor ? this.releasedFor(language) : this.releasedFlag),
-    earned: async () => this.earnedFlag,
+    earnedRung: async () => this.earnedRungValue,
   };
 
   /** M34.6 — ops kill switches. None set is the normal state, so tests that do

@@ -38,7 +38,7 @@ async function run(p: ReturnType<typeof ports>) {
 describe('G4 · sending alone is earned', () => {
   it('NOT EARNED: auto as set, and the reply drafts — not_earned on the timeline and beside the draft', async () => {
     const p = ports('auto');
-    p.tenant.earnedFlag = false;
+    p.tenant.earnedRungValue = 0;
     const { sent, drafts, events } = await run(p);
     expect(sent).toBeNull();
     expect(drafts).toHaveLength(1);
@@ -49,14 +49,14 @@ describe('G4 · sending alone is earned', () => {
   });
   it('named first when the disclosure is also unread: earning is the one the owner cannot do anything about today', async () => {
     const p = ports('auto');
-    p.tenant.earnedFlag = false;
+    p.tenant.earnedRungValue = 0;
     p.tenant.releasedFlag = false;
     const { events } = await run(p);
     expect(events.find((e) => e.type === 'autonomy_withheld')?.payload).toMatchObject({ reason: 'not_earned' });
   });
   it('DRAFT is untouched: nothing was going to go alone, so nothing was withheld', async () => {
     const p = ports('draft');
-    p.tenant.earnedFlag = false;
+    p.tenant.earnedRungValue = 0;
     const { events } = await run(p);
     expect(events.some((e) => e.type === 'autonomy_withheld')).toBe(false);
   });
