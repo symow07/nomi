@@ -152,22 +152,22 @@ d('CH3 · echoes (requires DATABASE_URL)', () => {
 
   it('NOMI\'S OWN ECHOES CHANGE NOTHING: from its own app, or an id its send recorded', async () => {
     const { handleEcho } = await import('../../src/pipeline/echo.js');
-    replyWriter.replies = ['Yes, the green one is in stock.'];
-    expect((await signed(message({ from: customer('lina'), to: PAGE_ID, text: 'Is the green one in stock?' }))).statusCode).toBe(200);
+    replyWriter.replies = ['Yes, it comes in green.'];
+    expect((await signed(message({ from: customer('lina'), to: PAGE_ID, text: 'Does it come in green?' }))).statusCode).toBe(200);
     const conv = await until(async () => {
       const c = await conversationOf('lina');
       return c && (await drafts(c.id)).some((x) => x.status === 'pending') ? c : undefined;
     }, 'the waiting reply');
     const job = (mid: string, appId: string | null) => ({
       businessId: BIZ, channel: 'messenger' as const, mid, customer: customer('lina'), account: PAGE_ID,
-      text: 'Yes, the green one is in stock.', received: 'text', appId, occurredAt: new Date().toISOString(),
+      text: 'Yes, it comes in green.', received: 'text', appId, occurredAt: new Date().toISOString(),
     });
     // From Nomi's own Meta app.
     expect(await handleEcho(prod.db, job(`mid.${randomUUID()}`, OUR_APP), [OUR_APP])).toBe('ours');
     // From no app Nomi knows, but its id is one a send of ours recorded.
     const mine = `mid.${randomUUID()}`;
     await tx((x) => sql`insert into outbound_messages (business_id, conversation_id, seq, channel, body, status, origin, provider_message_id)
-                        values (${BIZ}, ${conv.id}::uuid, 900, 'messenger', 'Yes, the green one is in stock.', 'sent', 'employee', ${mine})`.execute(x));
+                        values (${BIZ}, ${conv.id}::uuid, 900, 'messenger', 'Yes, it comes in green.', 'sent', 'employee', ${mine})`.execute(x));
     expect(await handleEcho(prod.db, job(mine, null), [OUR_APP])).toBe('ours');
     expect(await echoRows(conv.id)).toEqual([]);
     expect((await drafts(conv.id)).map((x) => x.status)).toEqual(['pending']);

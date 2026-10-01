@@ -118,8 +118,8 @@ d('G4 · sending alone is earned (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
   afterAll(async () => { await admin?.end(); await prod?.close(); });
 
   it('NOT EARNED: every capability on auto, and the reply still waits — recorded, and the card says why', async () => {
-    replyWriter.replies = ['Yes, the juniper candle is in stock.'];
-    const r = await writes(`9715${runDigits(RUN, 6)}1`, 'Is the juniper candle in stock?');
+    replyWriter.replies = ['Yes, the juniper candle comes in a tin.'];
+    const r = await writes(`9715${runDigits(RUN, 6)}1`, 'Does the juniper candle come in a tin?');
     expect(r).toMatchObject({ drafts: 1, outbound: 0 });
     expect(r.withheld).toMatchObject({ reason: 'not_earned' });
     const card = await prod.app.inject({ method: 'GET', url: `/app/inbox/${r.conv}`, headers: { cookie } });
@@ -156,8 +156,8 @@ d('G4 · sending alone is earned (requires DATABASE_URL + MIGRATE_DATABASE_URL)'
     expect(await q((tx) => sendingAloneEarned(tx), COPY)).toBe(true);
     const talks = await post('/app/employee/autonomy', 'level=talks');
     expect(flashSaid(talks, WEB_SECRET)).toBe(t('en', 'autonomy.flash.saved'));
-    replyWriter.replies = ['Yes, the cedar candle is in stock.'];
-    const r = await writes(`9715${runDigits(RUN, 6)}2`, 'Is the cedar candle in stock?');
+    replyWriter.replies = ['Yes, the cedar candle comes in a tin.'];
+    const r = await writes(`9715${runDigits(RUN, 6)}2`, 'Does the cedar candle come in a tin?');
     expect(r.outbound).toBeGreaterThan(0);
   }, 120_000);
 });
